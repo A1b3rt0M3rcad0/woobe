@@ -62,7 +62,8 @@ async def get_organization_subscription(
     manager: SessionManager = Depends(get_session_manager),
 ):
     providers = BillingProviders(manager.session)
-    subscription = await providers.get_organization_subscription(org_id)
+    use_case = providers.get_organization_subscription(org_id)
+    subscription = await use_case.execute(org_id)
     if subscription is None:
         return error("Subscription not found", status_code=404)
     return ok(

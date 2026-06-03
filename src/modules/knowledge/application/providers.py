@@ -3,20 +3,40 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.knowledge.domain.repositories import (
+    AgentCollectionRepository,
     DocumentChunkRepository,
     DocumentCollectionRepository,
     DocumentRepository,
 )
 from modules.knowledge.infra.repositories import (
+    SQLAlchemyAgentCollectionRepository,
     SQLAlchemyDocumentChunkRepository,
     SQLAlchemyDocumentCollectionRepository,
     SQLAlchemyDocumentRepository,
 )
 from modules.knowledge.service.use_cases import (
+    AttachCollectionUseCase,
     CreateCollectionUseCase,
+    DetachCollectionUseCase,
+    ListAgentCollectionsUseCase,
     SearchChunksUseCase,
     UploadDocumentUseCase,
 )
+
+
+def provide_list_agent_collections_uc(session: AsyncSession) -> ListAgentCollectionsUseCase:
+    repo: AgentCollectionRepository = SQLAlchemyAgentCollectionRepository(session)
+    return ListAgentCollectionsUseCase(repo)
+
+
+def provide_attach_collection_uc(session: AsyncSession) -> AttachCollectionUseCase:
+    repo: AgentCollectionRepository = SQLAlchemyAgentCollectionRepository(session)
+    return AttachCollectionUseCase(session, repo)
+
+
+def provide_detach_collection_uc(session: AsyncSession) -> DetachCollectionUseCase:
+    repo: AgentCollectionRepository = SQLAlchemyAgentCollectionRepository(session)
+    return DetachCollectionUseCase(repo)
 
 
 def provide_create_collection_uc(session: AsyncSession) -> CreateCollectionUseCase:

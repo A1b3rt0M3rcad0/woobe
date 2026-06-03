@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAgents, getAgent, createAgent } from './api'
-import type { CreateAgentRequest } from './types'
+import { getAgents, getAgent, createAgent, updateAgent } from './api'
+import type { CreateAgentRequest, UpdateAgentRequest } from './types'
 
 export function useAgents(projectId?: string) {
   return useQuery({
@@ -24,6 +24,17 @@ export function useCreateAgent(projectId?: string) {
     mutationFn: (data: CreateAgentRequest) => createAgent(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
+    },
+  })
+}
+
+export function useUpdateAgent(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: UpdateAgentRequest) => updateAgent(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
     },
   })
 }

@@ -29,8 +29,8 @@ class CreateSessionOutput(BaseModel):
     mode: SessionMode
     data: dict | None
     last_message_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class SendMessageInput(BaseModel):
@@ -49,8 +49,8 @@ class MessageResponse(BaseModel):
     output_tokens: int | None
     cost_usd: float | None
     data: dict | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class SendMessageOutput(BaseModel):

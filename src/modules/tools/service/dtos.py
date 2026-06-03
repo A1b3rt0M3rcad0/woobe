@@ -34,8 +34,8 @@ class CreateToolOutput(BaseModel):
     risk_level: RiskLevel
     timeout_ms: int | None
     status: ToolStatus
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class CreateSecretInput(BaseModel):
@@ -52,6 +52,6 @@ class CreateSecretOutput(BaseModel):
     name: str
     type: SecretType
     data: dict | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 

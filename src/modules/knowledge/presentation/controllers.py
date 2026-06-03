@@ -5,9 +5,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from modules.knowledge.application.providers import (
+    provide_attach_collection_uc,
     provide_create_collection_uc,
+    provide_detach_collection_uc,
     provide_get_collection,
     provide_get_document,
+    provide_list_agent_collections_uc,
     provide_search_chunks_uc,
     provide_upload_document_uc,
 )
@@ -17,6 +20,8 @@ from modules.knowledge.infra.repositories import (
     SQLAlchemyDocumentRepository,
 )
 from modules.knowledge.presentation.schemas import (
+    AgentCollectionResponse,
+    AttachCollectionRequest,
     ChunkResponse,
     CollectionResponse,
     CreateCollectionRequest,
@@ -86,6 +91,50 @@ async def create_collection(
         return error(str(e), status_code=422)
 
 
+@router.get("/agent-collections")
+async def list_agent_collections(
+    agent_id: UUID | None = Query(None),
+    manager=Depends(get_session_manager),
+):
+    if not agent_id:
+        return ok([])
+    uc = provide_list_agent_collections_uc(manager.session)
+    result = await uc.execute(agent_id)
+    return ok([AgentCollectionResponse(**r.model_dump()) for r in result])
+
+
+@router.post("/agent-collections")
+async def attach_collection(
+    body: AttachCollectionRequest,
+    manager=Depends(get_session_manager),
+):
+    try:
+        uc = provide_attach_collection_uc(manager.session)
+        from modules.knowledge.service.dtos import AttachCollectionInput
+        dto = AttachCollectionInput(
+            agent_id=body.agent_id,
+            collection_id=body.collection_id,
+        )
+        result = await uc.execute(dto)
+        return created(AgentCollectionResponse(**result.model_dump()))
+    except Exception as e:
+        from shared.domain.errors import ConflictError
+        if isinstance(e, ConflictError):
+            from shared.presentation.responses import error
+            return error(str(e), status_code=409)
+        raise
+
+
+@router.delete("/agent-collections/{link_id}")
+async def detach_collection(
+    link_id: UUID,
+    manager=Depends(get_session_manager),
+):
+    uc = provide_detach_collection_uc(manager.session)
+    await uc.execute(link_id)
+    return ok(None)
+
+
 @router.get("/collections/{collection_id}")
 async def get_collection(
     collection_id: UUID,
@@ -137,6 +186,10 @@ async def list_documents(
         size_bytes=d.size_bytes,
         storage_key=d.storage_key,
         status=d.status,
+        page_count=d.page_count,
+        chunk_count=d.chunk_count,
+        error=d.error,
+        indexed_at=d.indexed_at,
         created_at=d.created_at,
         updated_at=d.updated_at,
     ) for d in documents])
@@ -170,6 +223,10 @@ async def upload_document(
                 size_bytes=result.size_bytes,
                 storage_key=result.storage_key,
                 status=result.status,
+                page_count=result.page_count,
+                chunk_count=result.chunk_count,
+                error=result.error,
+                indexed_at=result.indexed_at,
                 created_at=result.created_at,
                 updated_at=result.updated_at,
             )
@@ -198,6 +255,10 @@ async def get_document(
                 size_bytes=document.size_bytes,
                 storage_key=document.storage_key,
                 status=document.status,
+                page_count=document.page_count,
+                chunk_count=document.chunk_count,
+                error=document.error,
+                indexed_at=document.indexed_at,
                 created_at=document.created_at,
                 updated_at=document.updated_at,
             )

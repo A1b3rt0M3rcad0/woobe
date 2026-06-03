@@ -26,7 +26,9 @@ class SQLAlchemySessionRepository(SessionRepository):
 
     async def create(self, session: Session) -> Session:
         model = session_to_model(session)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_session(model)
 
     async def get_by_id(self, session_id: UUID) -> Session:
@@ -88,7 +90,9 @@ class SQLAlchemyMessageRepository(MessageRepository):
 
     async def create(self, message: Message) -> Message:
         model = message_to_model(message)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_message(model)
 
     async def get_by_id(self, message_id: UUID) -> Message:

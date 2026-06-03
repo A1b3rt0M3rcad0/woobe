@@ -6,6 +6,7 @@ export interface ProviderCredential {
   status?: string
   last_validated_at?: string
   created_at?: string
+  metadata?: Record<string, string>
 }
 
 export interface CreateProviderCredentialRequest {
@@ -13,4 +14,5 @@ export interface CreateProviderCredentialRequest {
   provider: string
   name: string
   secret: string
+  metadata?: Record<string, string>
 }

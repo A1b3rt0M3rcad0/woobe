@@ -1,5 +1,9 @@
-﻿from fastapi import FastAPI
+﻿import logging
+
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError as PydanticValidationError
 
 from modules.ai.presentation.controllers import router as ai_router
 from modules.billing.presentation.controllers import router as billing_router
@@ -16,9 +20,14 @@ from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
     not_found_handler,
+    pydantic_validation_handler,
+    request_validation_handler,
+    unhandled_exception_handler,
     validation_handler,
 )
 from shared.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -45,6 +54,9 @@ def create_app() -> FastAPI:
     app.add_exception_handler(NotFoundError, not_found_handler)
     app.add_exception_handler(ConflictError, conflict_handler)
     app.add_exception_handler(ValidationError, validation_handler)
+    app.add_exception_handler(PydanticValidationError, pydantic_validation_handler)
+    app.add_exception_handler(RequestValidationError, request_validation_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
 
     app.include_router(identity_router)
     app.include_router(core_router)

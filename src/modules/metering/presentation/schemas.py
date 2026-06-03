@@ -21,7 +21,7 @@ class UsageEventResponse(BaseModel):
     quantity: float
     unit: str
     cost_usd: float | None = None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class DailyUsageResponse(BaseModel):

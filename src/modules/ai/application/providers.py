@@ -9,6 +9,7 @@ from modules.ai.infra.repositories import (
 from modules.ai.service.use_cases import (
     CreateAgentUseCase,
     CreateProviderCredentialUseCase,
+    UpdateAgentUseCase,
 )
 from shared.domain.events import OutboxEventWriter
 
@@ -24,6 +25,13 @@ def get_create_provider_credential_use_case(session: AsyncSession) -> CreateProv
     credential_repo: ProviderCredentialRepository = SQLAlchemyProviderCredentialRepository(session)
     outbox: OutboxEventWriter = SQLAlchemyOutboxEventWriter(session)
     return CreateProviderCredentialUseCase(credential_repo, outbox)
+
+
+def get_update_agent_use_case(session: AsyncSession) -> UpdateAgentUseCase:
+    agent_repo: AgentRepository = SQLAlchemyAgentRepository(session)
+    credential_repo: ProviderCredentialRepository = SQLAlchemyProviderCredentialRepository(session)
+    outbox: OutboxEventWriter = SQLAlchemyOutboxEventWriter(session)
+    return UpdateAgentUseCase(agent_repo, credential_repo, outbox)
 
 
 def get_agent_by_id_use_case(session: AsyncSession):

@@ -33,6 +33,7 @@ class ProviderCredentialModel(BaseModel):
     encrypted_secret: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_validated_at: Mapped[datetime | None]
+    meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
 
 class AgentModel(BaseModel):

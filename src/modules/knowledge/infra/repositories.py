@@ -5,18 +5,26 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.knowledge.domain.entities import Document, DocumentChunk, DocumentCollection
+from modules.knowledge.domain.entities import (
+    AgentCollection,
+    Document,
+    DocumentChunk,
+    DocumentCollection,
+)
 from modules.knowledge.domain.errors import (
     ChunkNotFoundError,
     CollectionNotFoundError,
     DocumentNotFoundError,
 )
 from modules.knowledge.domain.repositories import (
+    AgentCollectionRepository,
     DocumentChunkRepository,
     DocumentCollectionRepository,
     DocumentRepository,
 )
 from modules.knowledge.infra.mappers import (
+    agent_collection_model_to_entity,
+    agent_collection_to_model,
     chunk_to_model,
     collection_to_model,
     document_to_model,
@@ -24,8 +32,54 @@ from modules.knowledge.infra.mappers import (
     model_to_collection,
     model_to_document,
 )
-from modules.knowledge.infra.models import DocumentChunkModel, DocumentCollectionModel, DocumentModel
+from modules.knowledge.infra.models import (
+    AgentCollectionModel,
+    DocumentChunkModel,
+    DocumentCollectionModel,
+    DocumentModel,
+)
 from shared.infra.repositories.base_repository import BaseRepository
+
+
+class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._base = BaseRepository(session, AgentCollectionModel)
+        self.session = session
+
+    async def list_by_agent(self, agent_id: UUID) -> list[AgentCollection]:
+        stmt = (
+            select(AgentCollectionModel)
+            .where(AgentCollectionModel.agent_id == agent_id)
+            .order_by(AgentCollectionModel.created_at.desc())
+        )
+        result = await self.session.execute(stmt)
+        return [agent_collection_model_to_entity(m) for m in result.scalars().all()]
+
+    async def get_by_agent_and_collection(
+        self, agent_id: UUID, collection_id: UUID
+    ) -> AgentCollection | None:
+        stmt = select(AgentCollectionModel).where(
+            AgentCollectionModel.agent_id == agent_id,
+            AgentCollectionModel.collection_id == collection_id,
+        )
+        result = await self.session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return agent_collection_model_to_entity(model) if model else None
+
+    async def create(self, link: AgentCollection) -> AgentCollection:
+        model = agent_collection_to_model(link)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
+        return agent_collection_model_to_entity(model)
+
+    async def delete(self, link_id: UUID) -> None:
+        model = await self._base.get_by_id(link_id)
+        if model is None:
+            from modules.knowledge.domain.errors import CollectionNotFoundError
+            raise CollectionNotFoundError(link_id)
+        await self._base.delete(model)
 
 
 class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
@@ -36,7 +90,9 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
 
     async def create(self, collection: DocumentCollection) -> DocumentCollection:
         model = collection_to_model(collection)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_collection(model)
 
     async def get_by_id(self, collection_id: UUID) -> DocumentCollection:
@@ -81,7 +137,9 @@ class SQLAlchemyDocumentRepository(DocumentRepository):
 
     async def create(self, document: Document) -> Document:
         model = document_to_model(document)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_document(model)
 
     async def get_by_id(self, document_id: UUID) -> Document:

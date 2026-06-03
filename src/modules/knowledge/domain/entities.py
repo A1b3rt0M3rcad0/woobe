@@ -9,11 +9,11 @@ from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, Par
 
 @dataclass
 class DocumentCollection:
-    id: UUID = field(default_factory=uuid4)
     project_id: UUID | None = None
     name: str = ""
     description: str | None = None
     status: CollectionStatus = CollectionStatus.ACTIVE
+    id: UUID = field(default_factory=uuid4)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -22,11 +22,13 @@ class DocumentCollection:
 class AgentCollection:
     agent_id: UUID
     collection_id: UUID
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass
 class Document:
-    id: UUID = field(default_factory=uuid4)
     project_id: UUID | None = None
     collection_id: UUID | None = None
     title: str = ""
@@ -41,13 +43,13 @@ class Document:
     chunk_count: int | None = None
     sha256: str | None = None
     indexed_at: datetime | None = None
+    id: UUID = field(default_factory=uuid4)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 @dataclass
 class DocumentChunk:
-    id: UUID = field(default_factory=uuid4)
     project_id: UUID | None = None
     collection_id: UUID | None = None
     document_id: UUID | None = None
@@ -58,6 +60,6 @@ class DocumentChunk:
     section_title: str | None = None
     data: dict | None = None
     embedding: list[float] | None = None
+    id: UUID = field(default_factory=uuid4)
     created_at: datetime | None = None
     updated_at: datetime | None = None
-

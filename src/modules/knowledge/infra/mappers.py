@@ -1,8 +1,36 @@
 from __future__ import annotations
 
-from modules.knowledge.domain.entities import Document, DocumentChunk, DocumentCollection
+from modules.knowledge.domain.entities import (
+    AgentCollection,
+    Document,
+    DocumentChunk,
+    DocumentCollection,
+)
 from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, ParserType
-from modules.knowledge.infra.models import DocumentChunkModel, DocumentCollectionModel, DocumentModel
+from modules.knowledge.infra.models import (
+    AgentCollectionModel,
+    DocumentChunkModel,
+    DocumentCollectionModel,
+    DocumentModel,
+)
+
+
+def agent_collection_to_model(entity: AgentCollection) -> AgentCollectionModel:
+    return AgentCollectionModel(
+        id=entity.id,
+        agent_id=entity.agent_id,
+        collection_id=entity.collection_id,
+    )
+
+
+def agent_collection_model_to_entity(model: AgentCollectionModel) -> AgentCollection:
+    return AgentCollection(
+        id=model.id,
+        agent_id=model.agent_id,
+        collection_id=model.collection_id,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
 
 
 def collection_to_model(entity: DocumentCollection) -> DocumentCollectionModel:

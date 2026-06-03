@@ -36,6 +36,8 @@ class SQLAlchemyUsageEventRepository(BaseRepository[UsageEventModel], UsageEvent
     async def save(self, event: UsageEvent) -> UsageEvent:
         model = usage_event_entity_to_model(event)
         self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return usage_event_model_to_entity(model)
 
     async def get_by_id(self, event_id: UUID) -> UsageEvent | None:

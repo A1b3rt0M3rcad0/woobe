@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-from modules.knowledge.domain.entities import Document, DocumentCollection
+from modules.knowledge.domain.entities import (
+    AgentCollection,
+    Document,
+    DocumentCollection,
+)
 from modules.knowledge.domain.enums import DocumentStatus
 from modules.knowledge.domain.repositories import (
+    AgentCollectionRepository,
     DocumentChunkRepository,
     DocumentCollectionRepository,
     DocumentRepository,
 )
 from modules.knowledge.infra.models import OutboxEventModel
 from modules.knowledge.service.dtos import (
+    AgentCollectionOutput,
+    AttachCollectionInput,
+    AttachCollectionOutput,
     CreateCollectionInput,
     CreateCollectionOutput,
     DocumentChunkOutput,
@@ -18,6 +26,66 @@ from modules.knowledge.service.dtos import (
     UploadDocumentOutput,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+class ListAgentCollectionsUseCase:
+
+    def __init__(self, repo: AgentCollectionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, agent_id: UUID) -> list[AgentCollectionOutput]:
+        links = await self._repo.list_by_agent(agent_id)
+        return [
+            AgentCollectionOutput(
+                id=l.id,
+                agent_id=l.agent_id,
+                collection_id=l.collection_id,
+                created_at=l.created_at,
+                updated_at=l.updated_at,
+            )
+            for l in links
+        ]
+
+
+class AttachCollectionUseCase:
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        repo: AgentCollectionRepository,
+    ) -> None:
+        self.session = session
+        self._repo = repo
+
+    async def execute(self, input_dto: AttachCollectionInput) -> AttachCollectionOutput:
+        existing = await self._repo.get_by_agent_and_collection(
+            input_dto.agent_id, input_dto.collection_id
+        )
+        if existing:
+            from shared.domain.errors import ConflictError
+            raise ConflictError("Collection already attached to this agent")
+
+        link = AgentCollection(
+            agent_id=input_dto.agent_id,
+            collection_id=input_dto.collection_id,
+        )
+        created = await self._repo.create(link)
+        return AttachCollectionOutput(
+            id=created.id,
+            agent_id=created.agent_id,
+            collection_id=created.collection_id,
+            created_at=created.created_at,
+            updated_at=created.updated_at,
+        )
+
+
+class DetachCollectionUseCase:
+
+    def __init__(self, repo: AgentCollectionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, link_id: UUID) -> None:
+        await self._repo.delete(link_id)
 
 
 class CreateCollectionUseCase:
@@ -115,6 +183,10 @@ class UploadDocumentUseCase:
             storage_key=created.storage_key,
             parser=created.parser,
             status=created.status,
+            page_count=created.page_count,
+            chunk_count=created.chunk_count,
+            error=created.error,
+            indexed_at=created.indexed_at,
             created_at=created.created_at,
             updated_at=created.updated_at,
         )

@@ -20,6 +20,7 @@ def provider_credential_model_to_entity(
         encrypted_secret=model.encrypted_secret,
         status=CredentialStatus(model.status),
         last_validated_at=model.last_validated_at,
+        metadata=model.meta or {},
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
@@ -36,6 +37,7 @@ def provider_credential_entity_to_model(
         encrypted_secret=entity.encrypted_secret,
         status=entity.status.value,
         last_validated_at=entity.last_validated_at,
+        meta=entity.metadata or None,
     )
 
 

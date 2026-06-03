@@ -19,6 +19,20 @@
         condition: service_healthy
     restart: unless-stopped
 
+  web:
+    build: web
+    ports:
+      - "${PROJECTRAI_WEB_PORT:-5173}:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      PROXY_API_URL: http://api:8000
+    depends_on:
+      - api
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    restart: unless-stopped
+
   db:
     image: pgvector/pgvector:pg17
     environment:

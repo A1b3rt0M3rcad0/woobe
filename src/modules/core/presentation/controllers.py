@@ -112,7 +112,12 @@ async def create_api_key(
         created_by_user_id=user_id,
     )
     result = await use_case.execute(input_dto)
-    return created(ApiKeyResponse(**result.model_dump()))
+    return created(ApiKeyResponse(
+        id=result.id,
+        name=result.name,
+        key_prefix=result.key_prefix,
+        status=result.status.value if hasattr(result.status, 'value') else result.status,
+    ))
 
 
 @router.get("/projects/{project_id}/api-keys")

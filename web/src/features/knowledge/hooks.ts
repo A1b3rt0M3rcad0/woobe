@@ -1,6 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCollections, getCollection, createCollection, getDocuments, getDocument, uploadDocument } from './api'
-import type { CreateCollectionRequest, UploadDocumentRequest } from './types'
+import {
+  getCollections,
+  getCollection,
+  createCollection,
+  getAgentCollections,
+  attachCollection,
+  detachCollection,
+  getDocuments,
+  getDocumentsByCollection,
+  getDocument,
+  uploadDocument,
+} from './api'
+import type {
+  AttachCollectionRequest,
+  CreateCollectionRequest,
+  UploadDocumentRequest,
+} from './types'
 
 export function useCollections(projectId?: string) {
   return useQuery({
@@ -28,11 +43,48 @@ export function useCreateCollection() {
   })
 }
 
+export function useAgentCollections(agentId?: string) {
+  return useQuery({
+    queryKey: ['agent-collections', agentId],
+    queryFn: () => getAgentCollections(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useAttachCollection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: AttachCollectionRequest) => attachCollection(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-collections'] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+export function useDetachCollection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => detachCollection(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-collections'] })
+    },
+  })
+}
+
 export function useDocuments(projectId?: string) {
   return useQuery({
     queryKey: ['documents', projectId],
     queryFn: () => getDocuments(projectId!),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useDocumentsByCollection(collectionId?: string) {
+  return useQuery({
+    queryKey: ['documents', 'collection', collectionId],
+    queryFn: () => getDocumentsByCollection(collectionId!),
+    enabled: Boolean(collectionId),
   })
 }
 

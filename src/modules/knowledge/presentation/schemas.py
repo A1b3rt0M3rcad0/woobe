@@ -8,6 +8,19 @@ from pydantic import BaseModel, Field
 from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus
 
 
+class AgentCollectionResponse(BaseModel):
+    id: UUID
+    agent_id: UUID
+    collection_id: UUID
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AttachCollectionRequest(BaseModel):
+    agent_id: UUID
+    collection_id: UUID
+
+
 class CreateCollectionRequest(BaseModel):
     project_id: UUID
     name: str = Field(..., min_length=1, max_length=255)
@@ -44,6 +57,10 @@ class DocumentResponse(BaseModel):
     size_bytes: int
     storage_key: str
     status: DocumentStatus
+    page_count: int | None = None
+    chunk_count: int | None = None
+    error: str | None = None
+    indexed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

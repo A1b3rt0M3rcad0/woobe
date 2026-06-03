@@ -25,6 +25,7 @@ class SessionModel(BaseModel):
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
+    mode: Mapped[str] = mapped_column(String(32), default="chat")
     data: Mapped[dict | None] = mapped_column(JSONB)
     last_message_at: Mapped[datetime | None]
 

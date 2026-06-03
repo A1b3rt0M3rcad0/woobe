@@ -29,6 +29,8 @@ class SQLAlchemyTraceRepository(BaseRepository[TraceModel], TraceRepository):
     async def save(self, trace: Trace) -> Trace:
         model = trace_entity_to_model(trace)
         self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return trace_model_to_entity(model)
 
     async def get_by_id(self, trace_id: UUID) -> Trace | None:
@@ -79,6 +81,8 @@ class SQLAlchemyTraceEventRepository(
     async def save(self, event: TraceEvent) -> TraceEvent:
         model = trace_event_entity_to_model(event)
         self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return trace_event_model_to_entity(model)
 
     async def get_by_id(self, event_id: UUID) -> TraceEvent | None:

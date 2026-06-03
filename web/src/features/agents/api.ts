@@ -1,5 +1,5 @@
-import { get, post } from '@/lib/api/client'
-import type { Agent, CreateAgentRequest } from './types'
+import { get, post, patch } from '@/lib/api/client'
+import type { Agent, CreateAgentRequest, UpdateAgentRequest } from './types'
 
 export async function getAgents(projectId?: string): Promise<Agent[]> {
   return get<Agent[]>('/ai/agents', { params: { project_id: projectId } })
@@ -11,4 +11,8 @@ export async function getAgent(id: string): Promise<Agent> {
 
 export async function createAgent(data: CreateAgentRequest): Promise<Agent> {
   return post<Agent>('/ai/agents', data)
+}
+
+export async function updateAgent(id: string, data: UpdateAgentRequest): Promise<Agent> {
+  return patch<Agent>(`/ai/agents/${id}`, data)
 }

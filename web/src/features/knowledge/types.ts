@@ -4,6 +4,8 @@ export interface Collection {
   name: string
   description?: string
   status?: string
+  documents_count?: number
+  indexed_documents_count?: number
   created_at?: string
   updated_at?: string
 }
@@ -12,6 +14,20 @@ export interface CreateCollectionRequest {
   project_id: string
   name: string
   description?: string
+}
+
+export interface AgentCollection {
+  id: string
+  agent_id: string
+  collection_id: string
+  collection?: Collection
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AttachCollectionRequest {
+  agent_id: string
+  collection_id: string
 }
 
 export interface Document {

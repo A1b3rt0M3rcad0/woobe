@@ -27,7 +27,7 @@ export default function AgentsPage() {
         title="Agents"
         description="Configure and manage AI agents"
         actions={
-          <Button onClick={() => navigate(p(projectId!, 'new'))}>
+          <Button onClick={() => navigate(p(projectId!, 'agents', 'new'))}>
             <Plus className="mr-2 h-4 w-4" />
             New Agent
           </Button>
@@ -40,7 +40,7 @@ export default function AgentsPage() {
           title="No agents yet"
           description="Create your first agent to get started."
           action={
-            <Button onClick={() => navigate(p(projectId!, 'new'))}>
+            <Button onClick={() => navigate(p(projectId!, 'agents', 'new'))}>
               <Plus className="mr-2 h-4 w-4" />
               Create Agent
             </Button>

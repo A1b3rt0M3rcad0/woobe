@@ -10,8 +10,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
 import { orgProjectPath } from '@/lib/constants/routes'
-import { useState } from 'react'
-import { Play, Key } from 'lucide-react'
+import { Play, Key, ExternalLink } from 'lucide-react'
 
 export default function AgentDetailPage() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
@@ -32,7 +31,7 @@ export default function AgentDetailPage() {
               <div className="flex justify-between"><span className="text-muted text-sm">Name</span><span className="text-sm">{agent.name}</span></div>
               <div className="flex justify-between"><span className="text-muted text-sm">Description</span><span className="text-sm">{agent.description || '—'}</span></div>
               <div className="flex justify-between"><span className="text-muted text-sm">Status</span><StatusBadge status={agent.status} /></div>
-              <div className="flex justify-between"><span className="text-muted text-sm">Session Mode</span><span className="text-sm">{agent.session_mode || 'chat'}</span></div>
+              <div className="flex justify-between"><span className="text-muted text-sm">Session Mode</span><span className="text-sm">{agent.session_mode || 'stateful'}</span></div>
             </CardContent>
           </Card>
         </div>
@@ -125,10 +124,19 @@ export default function AgentDetailPage() {
         title={agent.name}
         description={`${agent.provider} / ${agent.model}`}
         actions={
-          <Button onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>
-            <Play className="mr-2 h-4 w-4" />
-            Playground
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="lg"
+              onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Open in Playground
+            </Button>
+            <Button variant="outline" onClick={() => navigate(p(projectId!, 'agents'))}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Back to Agents
+            </Button>
+          </div>
         }
       />
       <Tabs tabs={tabs} />

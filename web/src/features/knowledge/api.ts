@@ -1,5 +1,12 @@
-import { get, post } from '@/lib/api/client'
-import type { Collection, CreateCollectionRequest, Document, UploadDocumentRequest } from './types'
+import { get, post, del } from '@/lib/api/client'
+import type {
+  AgentCollection,
+  AttachCollectionRequest,
+  Collection,
+  CreateCollectionRequest,
+  Document,
+  UploadDocumentRequest,
+} from './types'
 
 export async function getCollections(projectId?: string): Promise<Collection[]> {
   return get<Collection[]>('/knowledge/collections', { params: { project_id: projectId } })
@@ -13,8 +20,24 @@ export async function createCollection(data: CreateCollectionRequest): Promise<C
   return post<Collection>('/knowledge/collections', data)
 }
 
+export async function getAgentCollections(agentId: string): Promise<AgentCollection[]> {
+  return get<AgentCollection[]>('/knowledge/agent-collections', { params: { agent_id: agentId } })
+}
+
+export async function attachCollection(data: AttachCollectionRequest): Promise<AgentCollection> {
+  return post<AgentCollection>('/knowledge/agent-collections', data)
+}
+
+export async function detachCollection(id: string): Promise<void> {
+  return del<void>(`/knowledge/agent-collections/${id}`)
+}
+
 export async function getDocuments(projectId?: string): Promise<Document[]> {
   return get<Document[]>('/knowledge/documents', { params: { project_id: projectId } })
+}
+
+export async function getDocumentsByCollection(collectionId: string): Promise<Document[]> {
+  return get<Document[]>('/knowledge/documents', { params: { collection_id: collectionId } })
 }
 
 export async function getDocument(id: string): Promise<Document> {

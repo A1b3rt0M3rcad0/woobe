@@ -25,6 +25,7 @@ class ProviderCredential:
     encrypted_secret: str = ""
     status: CredentialStatus = CredentialStatus.active
     last_validated_at: datetime | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

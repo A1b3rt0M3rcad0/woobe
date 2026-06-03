@@ -40,11 +40,27 @@ async function request<T>(
     headers['Content-Type'] = 'application/json'
   }
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    })
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new ApiError(
+        'Network error. API unavailable or CORS blocked the request.',
+        0,
+        null,
+      )
+    }
+    throw new ApiError(
+      err instanceof Error ? err.message : 'Unknown network error',
+      0,
+      null,
+    )
+  }
 
   if (import.meta.env.DEV) {
     const maybeBody = body ? JSON.stringify(body).slice(0, 200) : ''
@@ -67,22 +83,22 @@ async function request<T>(
     }
   } catch {
     if (!res.ok) {
-      throw new ApiError(`Request failed with status ${res.status}`, res.status)
+      throw new ApiError(
+        data?.message || `Server error: ${method} ${path} (status ${res.status})`,
+        res.status,
+        null,
+      )
     }
   }
 
   if (!res.ok) {
-    const errorMsg = res.status === 400
-      ? data?.message || 'Validation error'
-      : res.status === 404
-        ? `Resource not found: ${method} ${path}`
-        : res.status === 405
-          ? `Method not allowed: ${method} ${path}. Check frontend API client.`
-          : res.status === 403
-            ? 'Permission denied'
-            : res.status >= 500
-              ? `Server error: ${method} ${path}`
-              : data?.message || `Request failed with status ${res.status}`
+    const errorMsg = data?.message
+      || (res.status === 400 ? 'Validation error'
+        : res.status === 404 ? `Resource not found: ${method} ${path}`
+        : res.status === 405 ? `Method not allowed: ${method} ${path}. Check frontend API client.`
+        : res.status === 403 ? 'Permission denied'
+        : res.status >= 500 ? `Server error: ${method} ${path}`
+        : `Request failed with status ${res.status}`)
     if (import.meta.env.DEV) {
       console.error(`[API] ERROR ${method} ${path} → ${res.status}: ${errorMsg}`, data)
     }

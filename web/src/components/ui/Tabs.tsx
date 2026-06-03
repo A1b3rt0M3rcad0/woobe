@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 interface Tab {
   id: string
-  label: string
+  label: ReactNode
   content: ReactNode
 }
 
@@ -18,13 +18,13 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActive(tab.id)}
             className={cn(
-              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px]',
+              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] whitespace-nowrap',
               active === tab.id
                 ? 'border-primary text-primary border-b-2'
                 : 'border-transparent text-muted hover:text-white',

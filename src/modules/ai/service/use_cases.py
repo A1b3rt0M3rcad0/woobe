@@ -9,9 +9,10 @@ from modules.ai.domain.repositories import (
 )
 from modules.ai.service.dtos import (
     CreateAgentInput,
-    CreateAgentOutput,
     CreateProviderCredentialInput,
     CreateProviderCredentialOutput,
+    UpdateAgentInput,
+    UpdateAgentOutput,
 )
 from shared.domain.events import OutboxEventWriter
 
@@ -42,6 +43,7 @@ class CreateProviderCredentialUseCase:
             provider=input_dto.provider,
             name=input_dto.name,
             encrypted_secret=encrypted_secret,
+            metadata=input_dto.metadata,
         )
         saved = await self._credential_repo.save(credential)
 
@@ -63,6 +65,7 @@ class CreateProviderCredentialUseCase:
             name=saved.name,
             status=saved.status,
             created_at=saved.created_at,
+            metadata=saved.metadata,
         )
 
 
@@ -78,7 +81,7 @@ class CreateAgentUseCase:
         self._credential_repo = credential_repo
         self._outbox = outbox
 
-    async def execute(self, input_dto: CreateAgentInput) -> CreateAgentOutput:
+    async def execute(self, input_dto: CreateAgentInput) -> Agent:
         if input_dto.provider_credential_id:
             cred = await self._credential_repo.get_by_id(
                 input_dto.provider_credential_id
@@ -118,13 +121,69 @@ class CreateAgentUseCase:
             },
         )
 
-        return CreateAgentOutput(
+        return saved
+
+
+class UpdateAgentUseCase:
+
+    def __init__(
+        self,
+        agent_repo: AgentRepository,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        self._agent_repo = agent_repo
+        self._credential_repo = credential_repo
+        self._outbox = outbox
+
+    async def execute(self, agent_id: UUID, input_dto: UpdateAgentInput) -> UpdateAgentOutput:
+        existing = await self._agent_repo.get_by_id(agent_id)
+        if not existing:
+            from modules.ai.domain.errors import AgentNotFoundError
+            raise AgentNotFoundError(agent_id)
+
+        if input_dto.provider_credential_id is not None:
+            cred = await self._credential_repo.get_by_id(input_dto.provider_credential_id)
+            if not cred:
+                from modules.ai.domain.errors import CredentialNotFoundError
+                raise CredentialNotFoundError(input_dto.provider_credential_id)
+
+        update_data = input_dto.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(existing, field, value)
+
+        saved = await self._agent_repo.update(existing)
+
+        await self._outbox.write(
+            aggregate_type="agent",
+            aggregate_id=saved.id,
+            event_type="agent.updated",
+            payload={
+                "project_id": str(saved.project_id),
+                "name": saved.name,
+                "provider": saved.provider.value if hasattr(saved.provider, 'value') else saved.provider,
+                "model": saved.model,
+            },
+        )
+
+        return UpdateAgentOutput(
             id=saved.id,
             project_id=saved.project_id,
             name=saved.name,
             type=saved.type,
             provider=saved.provider,
             model=saved.model,
+            provider_credential_id=saved.provider_credential_id,
+            fallback_credential_id=saved.fallback_credential_id,
+            fallback_provider=saved.fallback_provider,
+            fallback_model=saved.fallback_model,
+            temperature=saved.temperature,
+            max_output_tokens=saved.max_output_tokens,
+            session_mode=saved.session_mode,
+            system_prompt=saved.system_prompt,
+            description=saved.description,
             status=saved.status,
+            settings=saved.settings,
             created_at=saved.created_at,
+            updated_at=saved.updated_at,
         )

@@ -3,7 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from modules.knowledge.domain.entities import Document, DocumentChunk, DocumentCollection
+from modules.knowledge.domain.entities import (
+    AgentCollection,
+    Document,
+    DocumentChunk,
+    DocumentCollection,
+)
 
 
 class DocumentCollectionRepository(ABC):
@@ -44,6 +49,25 @@ class DocumentRepository(ABC):
 
     @abstractmethod
     async def delete(self, document_id: UUID) -> None: ...
+
+
+class AgentCollectionRepository(ABC):
+
+    @abstractmethod
+    async def list_by_agent(
+        self, agent_id: UUID
+    ) -> list[AgentCollection]: ...
+
+    @abstractmethod
+    async def get_by_agent_and_collection(
+        self, agent_id: UUID, collection_id: UUID
+    ) -> AgentCollection | None: ...
+
+    @abstractmethod
+    async def create(self, link: AgentCollection) -> AgentCollection: ...
+
+    @abstractmethod
+    async def delete(self, link_id: UUID) -> None: ...
 
 
 class DocumentChunkRepository(ABC):

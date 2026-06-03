@@ -10,6 +10,10 @@ export interface Agent {
   max_output_tokens?: number
   session_mode?: string
   status: string
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
   settings?: Record<string, unknown>
   created_at?: string
   updated_at?: string
@@ -25,5 +29,26 @@ export interface CreateAgentRequest {
   temperature?: number
   max_output_tokens?: number
   provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  session_mode: string
+  settings?: Record<string, unknown>
+}
+
+export interface UpdateAgentRequest {
+  name?: string
+  description?: string
+  system_prompt?: string
+  provider?: string
+  model?: string
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  temperature?: number
+  max_output_tokens?: number
+  session_mode?: string
+  status?: string
   settings?: Record<string, unknown>
 }

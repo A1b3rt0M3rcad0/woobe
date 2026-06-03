@@ -29,6 +29,21 @@ export interface AskRequest {
   data?: Record<string, unknown>
 }
 
+export interface SourceInfo {
+  document_title?: string
+  document_id?: string
+  page_number?: number
+  chunk_preview?: string
+  score?: number
+}
+
+export interface ToolCallInfo {
+  tool_name: string
+  input?: unknown
+  output?: unknown
+  duration_ms?: number
+}
+
 export interface AskResponse {
   answer: string
   session_id: string
@@ -38,6 +53,9 @@ export interface AskResponse {
     output_tokens: number
     cost_usd: number
   }
+  sources?: SourceInfo[]
+  tool_calls?: ToolCallInfo[]
+  latency_ms?: number
 }
 
 export interface Message {

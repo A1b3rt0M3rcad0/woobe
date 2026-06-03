@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from modules.observability.application.providers import ObservabilityProviders
+from modules.observability.infra.repositories import SQLAlchemyTraceEventRepository
 from modules.observability.presentation.schemas import (
     CreateTraceEventRequest,
     CreateTraceRequest,
@@ -69,6 +70,8 @@ async def get_trace(
 ):
     providers = ObservabilityProviders(manager.session)
     trace = await providers.get_trace_use_case().execute(trace_id)
+    event_repo = SQLAlchemyTraceEventRepository(manager.session)
+    events = await event_repo.list_by_trace(trace_id)
     return ok(
         TraceDetailResponse(
             trace=TraceResponse(
@@ -90,7 +93,7 @@ async def get_trace(
                     payload=e.payload,
                     created_at=e.created_at,
                 )
-                for e in trace.events
+                for e in events
             ],
         )
     )

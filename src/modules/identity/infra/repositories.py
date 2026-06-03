@@ -165,6 +165,8 @@ class SQLAlchemyOrganizationInviteRepository(
     async def save(self, invite: OrganizationInvite) -> OrganizationInvite:
         model = organization_invite_entity_to_model(invite)
         self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return organization_invite_model_to_entity(model)
 
     async def get_by_id(self, invite_id: UUID) -> OrganizationInvite | None:
@@ -211,6 +213,8 @@ class SQLAlchemyUserSessionRepository(
     async def save(self, session: UserSession) -> UserSession:
         model = user_session_entity_to_model(session)
         self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return user_session_model_to_entity(model)
 
     async def get_by_id(self, session_id: UUID) -> UserSession | None:

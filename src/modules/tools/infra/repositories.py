@@ -26,7 +26,9 @@ class SQLAlchemyToolRepository(ToolRepository):
 
     async def create(self, tool: Tool) -> Tool:
         model = tool_to_model(tool)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_tool(model)
 
     async def get_by_id(self, tool_id: UUID) -> Tool:
@@ -85,7 +87,9 @@ class SQLAlchemySecretRepository(SecretRepository):
 
     async def create(self, secret: Secret) -> Secret:
         model = secret_to_model(secret)
-        await self._base.add(model)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
         return model_to_secret(model)
 
     async def get_by_id(self, secret_id: UUID) -> Secret:

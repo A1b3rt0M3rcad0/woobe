@@ -19,6 +19,7 @@ class CreateProjectOutput(BaseModel):
     slug: str
     status: ProjectStatus
     created_at: datetime
+    updated_at: datetime | None = None
 
 
 class CreateApiKeyInput(BaseModel):

@@ -20,8 +20,29 @@ class CreateCollectionOutput(BaseModel):
     name: str
     description: str | None
     status: CollectionStatus
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AttachCollectionInput(BaseModel):
+    agent_id: UUID
+    collection_id: UUID
+
+
+class AttachCollectionOutput(BaseModel):
+    id: UUID
+    agent_id: UUID
+    collection_id: UUID
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AgentCollectionOutput(BaseModel):
+    id: UUID
+    agent_id: UUID
+    collection_id: UUID
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class UploadDocumentInput(BaseModel):
@@ -46,8 +67,12 @@ class UploadDocumentOutput(BaseModel):
     storage_key: str
     parser: ParserType
     status: DocumentStatus
-    created_at: datetime
-    updated_at: datetime
+    page_count: int | None = None
+    chunk_count: int | None = None
+    error: str | None = None
+    indexed_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class DocumentChunkOutput(BaseModel):

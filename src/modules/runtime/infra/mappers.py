@@ -14,6 +14,7 @@ def session_to_model(entity: Session) -> SessionModel:
         tenant_id=entity.tenant_id,
         user_id=entity.user_id,
         status=entity.status.value if isinstance(entity.status, SessionStatus) else entity.status,
+        mode=entity.mode.value if isinstance(entity.mode, SessionMode) else entity.mode,
         data=entity.data,
         last_message_at=entity.last_message_at,
     )
@@ -28,6 +29,7 @@ def model_to_session(model: SessionModel) -> Session:
         tenant_id=model.tenant_id,
         user_id=model.user_id,
         status=SessionStatus(model.status),
+        mode=SessionMode(model.mode),
         data=model.data,
         last_message_at=model.last_message_at,
         created_at=model.created_at,

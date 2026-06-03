@@ -152,7 +152,13 @@ async def add_member(
         role=request.role,
     )
     result = await use_case.execute(input_dto)
-    return created(MemberResponse(**result.model_dump()))
+    return created(MemberResponse(
+        id=result.id,
+        user_id=result.user_id,
+        organization_id=result.organization_id,
+        role=result.role.value if hasattr(result.role, 'value') else result.role,
+        status=result.status.value if hasattr(result.status, 'value') else result.status,
+    ))
 
 
 @router.get("/organizations/{org_id}")

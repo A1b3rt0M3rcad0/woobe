@@ -58,6 +58,7 @@ class CreateProjectUseCase:
             slug=saved.slug,
             status=saved.status,
             created_at=saved.created_at,
+            updated_at=saved.updated_at,
         )
 
 

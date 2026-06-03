@@ -6,6 +6,7 @@ from modules.ai.application.providers import (
     get_create_agent_use_case,
     get_create_provider_credential_use_case,
     get_agent_by_id_use_case,
+    get_update_agent_use_case,
 )
 from modules.ai.infra.repositories import (
     SQLAlchemyAgentRepository,
@@ -13,13 +14,16 @@ from modules.ai.infra.repositories import (
 )
 from modules.ai.presentation.mappers import agent_to_response
 from modules.ai.presentation.schemas import (
+    AgentResponse,
     CreateAgentRequest,
     CreateProviderCredentialRequest,
     ProviderCredentialResponse,
+    UpdateAgentRequest,
 )
 from modules.ai.service.dtos import (
     CreateAgentInput,
     CreateProviderCredentialInput,
+    UpdateAgentInput,
 )
 from shared.presentation.dependencies import get_session_manager
 from shared.presentation.responses import created, ok
@@ -38,6 +42,7 @@ async def create_provider_credential(
         provider=request.provider,
         name=request.name,
         secret=request.secret,
+        metadata=request.metadata,
     )
     result = await use_case.execute(input_dto)
     return created(ProviderCredentialResponse(**result.model_dump()))
@@ -59,6 +64,7 @@ async def list_provider_credentials(
         name=c.name,
         status=c.status,
         created_at=c.created_at,
+        metadata=c.metadata,
     ) for c in credentials])
 
 
@@ -75,12 +81,17 @@ async def create_agent(
         model=request.model,
         system_prompt=request.system_prompt,
         description=request.description,
+        provider_credential_id=request.provider_credential_id,
         temperature=request.temperature,
         max_output_tokens=request.max_output_tokens,
+        fallback_provider=request.fallback_provider,
+        fallback_model=request.fallback_model,
+        fallback_credential_id=request.fallback_credential_id,
+        session_mode=request.session_mode or "stateful",
         settings=request.settings,
     )
     result = await use_case.execute(input_dto)
-    return created(AgentResponse(**result.model_dump()))
+    return created(agent_to_response(result))
 
 
 @router.get("/agents")
@@ -92,15 +103,7 @@ async def list_agents(
         return ok([])
     repo = SQLAlchemyAgentRepository(manager.session)
     agents = await repo.list_by_project(project_id)
-    return ok([AgentResponse(
-        id=a.id,
-        project_id=a.project_id,
-        name=a.name,
-        provider=a.provider,
-        model=a.model,
-        status=a.status,
-        created_at=a.created_at,
-    ) for a in agents])
+    return ok([agent_to_response(a) for a in agents])
 
 
 @router.get("/agents/{agent_id}")
@@ -110,4 +113,17 @@ async def get_agent(
 ):
     use_case = get_agent_by_id_use_case(manager.session)
     result = await use_case.execute(agent_id)
+    return ok(agent_to_response(result))
+
+
+@router.patch("/agents/{agent_id}")
+async def update_agent(
+    agent_id: UUID,
+    request: UpdateAgentRequest,
+    manager=Depends(get_session_manager),
+):
+    use_case = get_update_agent_use_case(manager.session)
+    raw = request.model_dump(exclude_unset=True)
+    input_dto = UpdateAgentInput(**raw)
+    result = await use_case.execute(agent_id, input_dto)
     return ok(agent_to_response(result))

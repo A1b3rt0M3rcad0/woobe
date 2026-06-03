@@ -7,6 +7,7 @@ class Provider(StrEnum):
     google = auto()
     azure = auto()
     aws_bedrock = auto()
+    custom = auto()
     groq = auto()
 
 
