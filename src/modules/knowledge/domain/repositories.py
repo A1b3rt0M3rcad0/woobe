@@ -9,6 +9,7 @@ from modules.knowledge.domain.entities import (
     DocumentChunk,
     DocumentCollection,
 )
+from shared.domain.objects import CursorPage
 
 
 class DocumentCollectionRepository(ABC):
@@ -22,7 +23,12 @@ class DocumentCollectionRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
-    ) -> list[DocumentCollection]: ...
+    ) -> list[DocumentCollection]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[DocumentCollection]: ...
 
     @abstractmethod
     async def update(self, collection: DocumentCollection) -> DocumentCollection: ...
@@ -42,7 +48,12 @@ class DocumentRepository(ABC):
     @abstractmethod
     async def list_by_collection(
         self, collection_id: UUID, status: str | None = None
-    ) -> list[Document]: ...
+    ) -> list[Document]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_collection(
+        self, collection_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Document]: ...
 
     @abstractmethod
     async def update(self, document: Document) -> Document: ...
@@ -56,7 +67,12 @@ class AgentCollectionRepository(ABC):
     @abstractmethod
     async def list_by_agent(
         self, agent_id: UUID
-    ) -> list[AgentCollection]: ...
+    ) -> list[AgentCollection]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[AgentCollection]: ...
 
     @abstractmethod
     async def get_by_agent_and_collection(
@@ -81,7 +97,12 @@ class DocumentChunkRepository(ABC):
     @abstractmethod
     async def list_by_document(
         self, document_id: UUID, offset: int = 0, limit: int = 100
-    ) -> list[DocumentChunk]: ...
+    ) -> list[DocumentChunk]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_document(
+        self, document_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[DocumentChunk]: ...
 
     @abstractmethod
     async def delete_by_document(self, document_id: UUID) -> None: ...

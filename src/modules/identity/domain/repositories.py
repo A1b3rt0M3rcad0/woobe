@@ -8,6 +8,7 @@ from modules.identity.domain.entities import (
     User,
     UserSession,
 )
+from shared.domain.objects import CursorPage
 
 
 class UserRepository(ABC):
@@ -56,10 +57,20 @@ class OrganizationMemberRepository(ABC):
     @abstractmethod
     async def list_by_organization(
         self, organization_id: UUID
-    ) -> list[OrganizationMember]: ...
+    ) -> list[OrganizationMember]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
-    async def list_by_user(self, user_id: UUID) -> list[OrganizationMember]: ...
+    async def list_by_user(self, user_id: UUID) -> list[OrganizationMember]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_organization(
+        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationMember]: ...
+
+    @abstractmethod
+    async def paginate_by_user(
+        self, user_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationMember]: ...
 
     @abstractmethod
     async def delete(self, member_id: UUID) -> None: ...
@@ -81,7 +92,12 @@ class OrganizationInviteRepository(ABC):
     @abstractmethod
     async def list_by_organization(
         self, organization_id: UUID
-    ) -> list[OrganizationInvite]: ...
+    ) -> list[OrganizationInvite]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_organization(
+        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationInvite]: ...
 
     @abstractmethod
     async def delete(self, invite_id: UUID) -> None: ...
@@ -96,7 +112,12 @@ class UserSessionRepository(ABC):
     async def get_by_id(self, session_id: UUID) -> UserSession | None: ...
 
     @abstractmethod
-    async def list_by_user(self, user_id: UUID) -> list[UserSession]: ...
+    async def list_by_user(self, user_id: UUID) -> list[UserSession]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_user(
+        self, user_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UserSession]: ...
 
     @abstractmethod
     async def delete(self, session_id: UUID) -> None: ...

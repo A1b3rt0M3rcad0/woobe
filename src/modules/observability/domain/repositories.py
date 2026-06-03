@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.observability.domain.entities import Trace, TraceEvent
+from shared.domain.objects import CursorPage
 
 
 class TraceRepository(ABC):
@@ -17,12 +18,22 @@ class TraceRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[Trace]: ...
+    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
     async def list_by_session(
         self, session_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[Trace]: ...
+    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Trace]: ...
+
+    @abstractmethod
+    async def paginate_by_session(
+        self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Trace]: ...
 
     @abstractmethod
     async def delete(self, trace_id: UUID) -> None: ...
@@ -39,7 +50,12 @@ class TraceEventRepository(ABC):
     @abstractmethod
     async def list_by_trace(
         self, trace_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[TraceEvent]: ...
+    ) -> list[TraceEvent]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_trace(
+        self, trace_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[TraceEvent]: ...
 
     @abstractmethod
     async def delete(self, event_id: UUID) -> None: ...

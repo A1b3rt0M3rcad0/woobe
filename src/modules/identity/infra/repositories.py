@@ -39,39 +39,41 @@ from modules.identity.infra.models import (
     UserSessionModel,
 )
 from shared.domain.events import OutboxEventWriter
-from shared.infra.repositories.base_repository import BaseRepository
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
-class SQLAlchemyUserRepository(BaseRepository[UserModel], UserRepositoryInterface):
+class SQLAlchemyUserRepository(BaseSQLAlchemyRepository[UserModel], UserRepositoryInterface):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, UserModel)
 
     async def save(self, user: User) -> User:
         model = user_entity_to_model(user)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return user_model_to_entity(model)
 
     async def get_by_id(self, user_id: UUID) -> User | None:
-        model = await super().get_by_id(user_id)
+        model = await self._get_model_by_id(user_id)
         return user_model_to_entity(model) if model else None
 
     async def get_by_email(self, email: str) -> User | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(UserModel).where(UserModel.email == email)
         )
         model = result.scalar_one_or_none()
         return user_model_to_entity(model) if model else None
 
     async def delete(self, user_id: UUID) -> None:
-        model = await super().get_by_id(user_id)
+        model = await self._get_model_by_id(user_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOrganizationRepository(
-    BaseRepository[OrganizationModel], OrganizationRepositoryInterface
+    BaseSQLAlchemyRepository[OrganizationModel], OrganizationRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -79,29 +81,30 @@ class SQLAlchemyOrganizationRepository(
 
     async def save(self, organization: Organization) -> Organization:
         model = organization_entity_to_model(organization)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return organization_model_to_entity(model)
 
     async def get_by_id(self, organization_id: UUID) -> Organization | None:
-        model = await super().get_by_id(organization_id)
+        model = await self._get_model_by_id(organization_id)
         return organization_model_to_entity(model) if model else None
 
     async def get_by_slug(self, slug: str) -> Organization | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(OrganizationModel).where(OrganizationModel.slug == slug)
         )
         model = result.scalar_one_or_none()
         return organization_model_to_entity(model) if model else None
 
     async def delete(self, organization_id: UUID) -> None:
-        model = await super().get_by_id(organization_id)
+        model = await self._get_model_by_id(organization_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOrganizationMemberRepository(
-    BaseRepository[OrganizationMemberModel],
+    BaseSQLAlchemyRepository[OrganizationMemberModel],
     OrganizationMemberRepositoryInterface,
 ):
 
@@ -110,18 +113,19 @@ class SQLAlchemyOrganizationMemberRepository(
 
     async def save(self, member: OrganizationMember) -> OrganizationMember:
         model = organization_member_entity_to_model(member)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return organization_member_model_to_entity(model)
 
     async def get_by_id(self, member_id: UUID) -> OrganizationMember | None:
-        model = await super().get_by_id(member_id)
+        model = await self._get_model_by_id(member_id)
         return organization_member_model_to_entity(model) if model else None
 
     async def get_by_organization_and_user(
         self, organization_id: UUID, user_id: UUID
     ) -> OrganizationMember | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(OrganizationMemberModel).where(
                 OrganizationMemberModel.organization_id == organization_id,
                 OrganizationMemberModel.user_id == user_id,
@@ -133,7 +137,8 @@ class SQLAlchemyOrganizationMemberRepository(
     async def list_by_organization(
         self, organization_id: UUID
     ) -> list[OrganizationMember]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(OrganizationMemberModel).where(
                 OrganizationMemberModel.organization_id == organization_id
             )
@@ -141,21 +146,56 @@ class SQLAlchemyOrganizationMemberRepository(
         return [organization_member_model_to_entity(m) for m in result.scalars().all()]
 
     async def list_by_user(self, user_id: UUID) -> list[OrganizationMember]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(OrganizationMemberModel).where(
                 OrganizationMemberModel.user_id == user_id
             )
         )
         return [organization_member_model_to_entity(m) for m in result.scalars().all()]
 
+    async def paginate_by_organization(
+        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationMember]:
+        stmt = (
+            select(OrganizationMemberModel)
+            .where(OrganizationMemberModel.organization_id == organization_id)
+            .order_by(OrganizationMemberModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[organization_member_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def paginate_by_user(
+        self, user_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationMember]:
+        stmt = (
+            select(OrganizationMemberModel)
+            .where(OrganizationMemberModel.user_id == user_id)
+            .order_by(OrganizationMemberModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[organization_member_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, member_id: UUID) -> None:
-        model = await super().get_by_id(member_id)
+        model = await self._get_model_by_id(member_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOrganizationInviteRepository(
-    BaseRepository[OrganizationInviteModel],
+    BaseSQLAlchemyRepository[OrganizationInviteModel],
     OrganizationInviteRepositoryInterface,
 ):
 
@@ -164,19 +204,19 @@ class SQLAlchemyOrganizationInviteRepository(
 
     async def save(self, invite: OrganizationInvite) -> OrganizationInvite:
         model = organization_invite_entity_to_model(invite)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return organization_invite_model_to_entity(model)
 
     async def get_by_id(self, invite_id: UUID) -> OrganizationInvite | None:
-        model = await super().get_by_id(invite_id)
+        model = await self._get_model_by_id(invite_id)
         return organization_invite_model_to_entity(model) if model else None
 
     async def get_by_organization_and_email(
         self, organization_id: UUID, email: str
     ) -> OrganizationInvite | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(OrganizationInviteModel).where(
                 OrganizationInviteModel.organization_id == organization_id,
                 OrganizationInviteModel.email == email,
@@ -188,7 +228,8 @@ class SQLAlchemyOrganizationInviteRepository(
     async def list_by_organization(
         self, organization_id: UUID
     ) -> list[OrganizationInvite]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(OrganizationInviteModel).where(
                 OrganizationInviteModel.organization_id == organization_id
             )
@@ -197,14 +238,31 @@ class SQLAlchemyOrganizationInviteRepository(
             organization_invite_model_to_entity(i) for i in result.scalars().all()
         ]
 
+    async def paginate_by_organization(
+        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[OrganizationInvite]:
+        stmt = (
+            select(OrganizationInviteModel)
+            .where(OrganizationInviteModel.organization_id == organization_id)
+            .order_by(OrganizationInviteModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[organization_invite_model_to_entity(i) for i in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, invite_id: UUID) -> None:
-        model = await super().get_by_id(invite_id)
+        model = await self._get_model_by_id(invite_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyUserSessionRepository(
-    BaseRepository[UserSessionModel], UserSessionRepositoryInterface
+    BaseSQLAlchemyRepository[UserSessionModel], UserSessionRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -212,25 +270,43 @@ class SQLAlchemyUserSessionRepository(
 
     async def save(self, session: UserSession) -> UserSession:
         model = user_session_entity_to_model(session)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return user_session_model_to_entity(model)
 
     async def get_by_id(self, session_id: UUID) -> UserSession | None:
-        model = await super().get_by_id(session_id)
+        model = await self._get_model_by_id(session_id)
         return user_session_model_to_entity(model) if model else None
 
     async def list_by_user(self, user_id: UUID) -> list[UserSession]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(UserSessionModel).where(UserSessionModel.user_id == user_id)
         )
         return [user_session_model_to_entity(s) for s in result.scalars().all()]
 
+    async def paginate_by_user(
+        self, user_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UserSession]:
+        stmt = (
+            select(UserSessionModel)
+            .where(UserSessionModel.user_id == user_id)
+            .order_by(UserSessionModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[user_session_model_to_entity(s) for s in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, session_id: UUID) -> None:
-        model = await super().get_by_id(session_id)
+        model = await self._get_model_by_id(session_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):

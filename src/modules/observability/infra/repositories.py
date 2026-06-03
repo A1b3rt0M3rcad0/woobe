@@ -18,23 +18,24 @@ from modules.observability.infra.models import (
     TraceModel,
 )
 from shared.domain.events import OutboxEventWriter
-from shared.infra.repositories.base_repository import BaseRepository
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
-class SQLAlchemyTraceRepository(BaseRepository[TraceModel], TraceRepository):
+class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepository):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, TraceModel)
 
     async def save(self, trace: Trace) -> Trace:
         model = trace_entity_to_model(trace)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return trace_model_to_entity(model)
 
     async def get_by_id(self, trace_id: UUID) -> Trace | None:
-        model = await self.session.get(TraceModel, trace_id)
+        model = await self._get_model_by_id(trace_id)
         if model is None:
             return None
         return trace_model_to_entity(model)
@@ -42,6 +43,7 @@ class SQLAlchemyTraceRepository(BaseRepository[TraceModel], TraceRepository):
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(TraceModel)
             .where(TraceModel.project_id == project_id)
@@ -49,12 +51,13 @@ class SQLAlchemyTraceRepository(BaseRepository[TraceModel], TraceRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [trace_model_to_entity(m) for m in result.scalars().all()]
 
     async def list_by_session(
         self, session_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(TraceModel)
             .where(TraceModel.session_id == session_id)
@@ -62,17 +65,51 @@ class SQLAlchemyTraceRepository(BaseRepository[TraceModel], TraceRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [trace_model_to_entity(m) for m in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Trace]:
+        stmt = (
+            select(TraceModel)
+            .where(TraceModel.project_id == project_id)
+            .order_by(TraceModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[trace_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def paginate_by_session(
+        self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Trace]:
+        stmt = (
+            select(TraceModel)
+            .where(TraceModel.session_id == session_id)
+            .order_by(TraceModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[trace_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, trace_id: UUID) -> None:
-        model = await self.session.get(TraceModel, trace_id)
+        model = await self._get_model_by_id(trace_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyTraceEventRepository(
-    BaseRepository[TraceEventModel], TraceEventRepository
+    BaseSQLAlchemyRepository[TraceEventModel], TraceEventRepository
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -80,13 +117,13 @@ class SQLAlchemyTraceEventRepository(
 
     async def save(self, event: TraceEvent) -> TraceEvent:
         model = trace_event_entity_to_model(event)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return trace_event_model_to_entity(model)
 
     async def get_by_id(self, event_id: UUID) -> TraceEvent | None:
-        model = await self.session.get(TraceEventModel, event_id)
+        model = await self._get_model_by_id(event_id)
         if model is None:
             return None
         return trace_event_model_to_entity(model)
@@ -94,6 +131,7 @@ class SQLAlchemyTraceEventRepository(
     async def list_by_trace(
         self, trace_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[TraceEvent]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(TraceEventModel)
             .where(TraceEventModel.trace_id == trace_id)
@@ -101,13 +139,30 @@ class SQLAlchemyTraceEventRepository(
             .offset(offset)
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [trace_event_model_to_entity(m) for m in result.scalars().all()]
 
+    async def paginate_by_trace(
+        self, trace_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[TraceEvent]:
+        stmt = (
+            select(TraceEventModel)
+            .where(TraceEventModel.trace_id == trace_id)
+            .order_by(TraceEventModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[trace_event_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, event_id: UUID) -> None:
-        model = await self.session.get(TraceEventModel, event_id)
+        model = await self._get_model_by_id(event_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.repositories.base_repository import BaseRepository
 from modules.tools.domain.entities import Secret, Tool
 from modules.tools.domain.errors import SecretNotFoundError, ToolNotFoundError
 from modules.tools.domain.repositories import SecretRepository, ToolRepository
@@ -15,24 +15,27 @@ from modules.tools.infra.mappers import (
     secret_to_model,
     tool_to_model,
 )
-from modules.tools.infra.models import SecretModel, ToolModel
+from modules.tools.infra.models import OutboxEventModel, SecretModel, ToolModel
+from shared.domain.events import OutboxEventWriter
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class SQLAlchemyToolRepository(ToolRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, ToolModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, ToolModel)
+        self._session = session
 
     async def create(self, tool: Tool) -> Tool:
         model = tool_to_model(tool)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_tool(model)
 
     async def get_by_id(self, tool_id: UUID) -> Tool:
-        model = await self._base.get_by_id(tool_id)
+        model = await self._base._get_model_by_id(tool_id)
         if model is None:
             raise ToolNotFoundError(tool_id)
         return model_to_tool(model)
@@ -40,25 +43,59 @@ class SQLAlchemyToolRepository(ToolRepository):
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
     ) -> list[Tool]:
+        # TODO: Remove after pagination migration
         stmt = select(ToolModel).where(ToolModel.project_id == project_id)
         if status:
             stmt = stmt.where(ToolModel.status == status)
         stmt = stmt.order_by(ToolModel.created_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_tool(m) for m in result.scalars().all()]
 
     async def list_by_agent(
         self, agent_id: UUID, status: str | None = None
     ) -> list[Tool]:
+        # TODO: Remove after pagination migration
         stmt = select(ToolModel).where(ToolModel.agent_id == agent_id)
         if status:
             stmt = stmt.where(ToolModel.status == status)
         stmt = stmt.order_by(ToolModel.created_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_tool(m) for m in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]:
+        stmt = select(ToolModel).where(ToolModel.project_id == project_id)
+        if status:
+            stmt = stmt.where(ToolModel.status == status)
+        stmt = stmt.order_by(ToolModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_tool(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]:
+        stmt = select(ToolModel).where(ToolModel.agent_id == agent_id)
+        if status:
+            stmt = stmt.where(ToolModel.status == status)
+        stmt = stmt.order_by(ToolModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_tool(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def update(self, tool: Tool) -> Tool:
-        model = await self._base.get_by_id(tool.id)
+        model = await self._base._get_model_by_id(tool.id)
         if model is None:
             raise ToolNotFoundError(tool.id)
         model.name = tool.name
@@ -73,27 +110,27 @@ class SQLAlchemyToolRepository(ToolRepository):
         return model_to_tool(model)
 
     async def delete(self, tool_id: UUID) -> None:
-        model = await self._base.get_by_id(tool_id)
+        model = await self._base._get_model_by_id(tool_id)
         if model is None:
             raise ToolNotFoundError(tool_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
 
 
 class SQLAlchemySecretRepository(SecretRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, SecretModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, SecretModel)
+        self._session = session
 
     async def create(self, secret: Secret) -> Secret:
         model = secret_to_model(secret)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_secret(model)
 
     async def get_by_id(self, secret_id: UUID) -> Secret:
-        model = await self._base.get_by_id(secret_id)
+        model = await self._base._get_model_by_id(secret_id)
         if model is None:
             raise SecretNotFoundError(secret_id)
         return model_to_secret(model)
@@ -103,23 +140,41 @@ class SQLAlchemySecretRepository(SecretRepository):
             SecretModel.project_id == project_id,
             SecretModel.name == name,
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
         if model is None:
             raise SecretNotFoundError(secret_id=name)
         return model_to_secret(model)
 
     async def list_by_project(self, project_id: UUID) -> list[Secret]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(SecretModel)
             .where(SecretModel.project_id == project_id)
             .order_by(SecretModel.created_at.desc())
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_secret(m) for m in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Secret]:
+        stmt = (
+            select(SecretModel)
+            .where(SecretModel.project_id == project_id)
+            .order_by(SecretModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_secret(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def update(self, secret: Secret) -> Secret:
-        model = await self._base.get_by_id(secret.id)
+        model = await self._base._get_model_by_id(secret.id)
         if model is None:
             raise SecretNotFoundError(secret.id)
         model.name = secret.name
@@ -129,8 +184,33 @@ class SQLAlchemySecretRepository(SecretRepository):
         return model_to_secret(model)
 
     async def delete(self, secret_id: UUID) -> None:
-        model = await self._base.get_by_id(secret_id)
+        model = await self._base._get_model_by_id(secret_id)
         if model is None:
             raise SecretNotFoundError(secret_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
+
+
+class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def write(
+        self,
+        aggregate_type: str,
+        aggregate_id: UUID,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+    ) -> None:
+        event = OutboxEventModel(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            payload=payload or {},
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+        )
+        self._session.add(event)
 

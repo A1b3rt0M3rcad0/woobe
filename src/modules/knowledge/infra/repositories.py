@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, text
@@ -37,24 +38,45 @@ from modules.knowledge.infra.models import (
     DocumentChunkModel,
     DocumentCollectionModel,
     DocumentModel,
+    OutboxEventModel,
 )
-from shared.infra.repositories.base_repository import BaseRepository
+from shared.domain.events import OutboxEventWriter
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, AgentCollectionModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, AgentCollectionModel)
+        self._session = session
 
     async def list_by_agent(self, agent_id: UUID) -> list[AgentCollection]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(AgentCollectionModel)
             .where(AgentCollectionModel.agent_id == agent_id)
             .order_by(AgentCollectionModel.created_at.desc())
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [agent_collection_model_to_entity(m) for m in result.scalars().all()]
+
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[AgentCollection]:
+        stmt = (
+            select(AgentCollectionModel)
+            .where(AgentCollectionModel.agent_id == agent_id)
+            .order_by(AgentCollectionModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[agent_collection_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
 
     async def get_by_agent_and_collection(
         self, agent_id: UUID, collection_id: UUID
@@ -63,40 +85,39 @@ class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
             AgentCollectionModel.agent_id == agent_id,
             AgentCollectionModel.collection_id == collection_id,
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
         return agent_collection_model_to_entity(model) if model else None
 
     async def create(self, link: AgentCollection) -> AgentCollection:
         model = agent_collection_to_model(link)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return agent_collection_model_to_entity(model)
 
     async def delete(self, link_id: UUID) -> None:
-        model = await self._base.get_by_id(link_id)
+        model = await self._base._get_model_by_id(link_id)
         if model is None:
-            from modules.knowledge.domain.errors import CollectionNotFoundError
             raise CollectionNotFoundError(link_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
 
 
 class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, DocumentCollectionModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, DocumentCollectionModel)
+        self._session = session
 
     async def create(self, collection: DocumentCollection) -> DocumentCollection:
         model = collection_to_model(collection)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_collection(model)
 
     async def get_by_id(self, collection_id: UUID) -> DocumentCollection:
-        model = await self._base.get_by_id(collection_id)
+        model = await self._base._get_model_by_id(collection_id)
         if model is None:
             raise CollectionNotFoundError(collection_id)
         return model_to_collection(model)
@@ -104,17 +125,36 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
     ) -> list[DocumentCollection]:
+        # TODO: Remove after pagination migration
         stmt = select(DocumentCollectionModel).where(
             DocumentCollectionModel.project_id == project_id
         )
         if status:
             stmt = stmt.where(DocumentCollectionModel.status == status)
         stmt = stmt.order_by(DocumentCollectionModel.created_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_collection(m) for m in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[DocumentCollection]:
+        stmt = select(DocumentCollectionModel).where(
+            DocumentCollectionModel.project_id == project_id
+        )
+        if status:
+            stmt = stmt.where(DocumentCollectionModel.status == status)
+        stmt = stmt.order_by(DocumentCollectionModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_collection(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def update(self, collection: DocumentCollection) -> DocumentCollection:
-        model = await self._base.get_by_id(collection.id)
+        model = await self._base._get_model_by_id(collection.id)
         if model is None:
             raise CollectionNotFoundError(collection.id)
         model.name = collection.name
@@ -123,27 +163,27 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
         return model_to_collection(model)
 
     async def delete(self, collection_id: UUID) -> None:
-        model = await self._base.get_by_id(collection_id)
+        model = await self._base._get_model_by_id(collection_id)
         if model is None:
             raise CollectionNotFoundError(collection_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
 
 
 class SQLAlchemyDocumentRepository(DocumentRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, DocumentModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, DocumentModel)
+        self._session = session
 
     async def create(self, document: Document) -> Document:
         model = document_to_model(document)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_document(model)
 
     async def get_by_id(self, document_id: UUID) -> Document:
-        model = await self._base.get_by_id(document_id)
+        model = await self._base._get_model_by_id(document_id)
         if model is None:
             raise DocumentNotFoundError(document_id)
         return model_to_document(model)
@@ -151,17 +191,36 @@ class SQLAlchemyDocumentRepository(DocumentRepository):
     async def list_by_collection(
         self, collection_id: UUID, status: str | None = None
     ) -> list[Document]:
+        # TODO: Remove after pagination migration
         stmt = select(DocumentModel).where(
             DocumentModel.collection_id == collection_id
         )
         if status:
             stmt = stmt.where(DocumentModel.status == status)
         stmt = stmt.order_by(DocumentModel.created_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_document(m) for m in result.scalars().all()]
 
+    async def paginate_by_collection(
+        self, collection_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Document]:
+        stmt = select(DocumentModel).where(
+            DocumentModel.collection_id == collection_id
+        )
+        if status:
+            stmt = stmt.where(DocumentModel.status == status)
+        stmt = stmt.order_by(DocumentModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_document(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def update(self, document: Document) -> Document:
-        model = await self._base.get_by_id(document.id)
+        model = await self._base._get_model_by_id(document.id)
         if model is None:
             raise DocumentNotFoundError(document.id)
         model.title = document.title
@@ -179,26 +238,26 @@ class SQLAlchemyDocumentRepository(DocumentRepository):
         return model_to_document(model)
 
     async def delete(self, document_id: UUID) -> None:
-        model = await self._base.get_by_id(document_id)
+        model = await self._base._get_model_by_id(document_id)
         if model is None:
             raise DocumentNotFoundError(document_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
 
 
 class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, DocumentChunkModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, DocumentChunkModel)
+        self._session = session
 
     async def create_many(self, chunks: list[DocumentChunk]) -> list[DocumentChunk]:
         models = [chunk_to_model(c) for c in chunks]
         for m in models:
-            await self._base.add(m)
+            await self._base._add_model(m)
         return [model_to_chunk(m) for m in models]
 
     async def get_by_id(self, chunk_id: UUID) -> DocumentChunk:
-        model = await self._base.get_by_id(chunk_id)
+        model = await self._base._get_model_by_id(chunk_id)
         if model is None:
             raise ChunkNotFoundError(chunk_id)
         return model_to_chunk(model)
@@ -206,6 +265,7 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
     async def list_by_document(
         self, document_id: UUID, offset: int = 0, limit: int = 100
     ) -> list[DocumentChunk]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(DocumentChunkModel)
             .where(DocumentChunkModel.document_id == document_id)
@@ -213,16 +273,33 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_chunk(m) for m in result.scalars().all()]
+
+    async def paginate_by_document(
+        self, document_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[DocumentChunk]:
+        stmt = (
+            select(DocumentChunkModel)
+            .where(DocumentChunkModel.document_id == document_id)
+            .order_by(DocumentChunkModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_chunk(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
 
     async def delete_by_document(self, document_id: UUID) -> None:
         stmt = select(DocumentChunkModel).where(
             DocumentChunkModel.document_id == document_id
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         for model in result.scalars().all():
-            await self._base.delete(model)
+            await self._base._delete_model(model)
 
     async def search_similar(
         self,
@@ -243,7 +320,7 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
             LIMIT :limit
             """
         )
-        result = await self.session.execute(
+        result = await self._session.execute(
             stmt,
             {
                 "embedding": emb_str,
@@ -262,8 +339,33 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
         chunks_stmt = select(DocumentChunkModel).where(
             DocumentChunkModel.id.in_(chunk_ids)
         )
-        chunks_result = await self.session.execute(chunks_stmt)
+        chunks_result = await self._session.execute(chunks_stmt)
         chunks = [model_to_chunk(m) for m in chunks_result.scalars().all()]
         chunks.sort(key=lambda c: similarity_map.get(c.id, 0), reverse=True)
         return [(c, similarity_map.get(c.id, 0.0)) for c in chunks]
+
+
+class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def write(
+        self,
+        aggregate_type: str,
+        aggregate_id: UUID,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+    ) -> None:
+        event = OutboxEventModel(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            payload=payload or {},
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+        )
+        self._session.add(event)
 

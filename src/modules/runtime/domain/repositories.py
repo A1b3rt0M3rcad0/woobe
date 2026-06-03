@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.runtime.domain.entities import Message, Session
+from shared.domain.objects import CursorPage
 
 
 class SessionRepository(ABC):
@@ -22,7 +23,12 @@ class SessionRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
-    ) -> list[Session]: ...
+    ) -> list[Session]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Session]: ...
 
     @abstractmethod
     async def update(self, session: Session) -> Session: ...
@@ -42,7 +48,12 @@ class MessageRepository(ABC):
     @abstractmethod
     async def list_by_session(
         self, session_id: UUID, offset: int = 0, limit: int = 100
-    ) -> list[Message]: ...
+    ) -> list[Message]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_session(
+        self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Message]: ...
 
     @abstractmethod
     async def count_by_session(self, session_id: UUID) -> int: ...

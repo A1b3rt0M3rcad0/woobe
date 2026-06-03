@@ -1,7 +1,6 @@
 import base64
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from uuid import UUID
 
 from modules.identity.application.providers import (
@@ -14,9 +13,7 @@ from modules.identity.application.providers import (
     get_update_organization_use_case,
     get_user_by_id_use_case,
 )
-from modules.identity.infra.models import UserModel
 from modules.identity.infra.repositories import (
-    SQLAlchemyOrganizationRepository,
     SQLAlchemyUserRepository,
 )
 from modules.identity.presentation.schemas import (
@@ -52,8 +49,12 @@ router = APIRouter(prefix="/identity", tags=["identity"])
 async def list_organizations(
     manager=Depends(get_session_manager),
 ):
-    repo = SQLAlchemyOrganizationRepository(manager.session)
-    orgs = await repo.list_all()
+    from sqlalchemy import select
+    from modules.identity.infra.models import OrganizationModel
+    from modules.identity.infra.mappers import organization_model_to_entity
+    stmt = select(OrganizationModel).order_by(OrganizationModel.created_at.desc())
+    result = await manager.session.execute(stmt)
+    orgs = [organization_model_to_entity(o) for o in result.scalars().all()]
     return ok([OrganizationResponse(
         id=o.id,
         name=o.name,

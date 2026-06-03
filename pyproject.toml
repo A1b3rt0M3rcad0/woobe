@@ -28,3 +28,9 @@ test = [
     "aiosqlite>=0.21",
     "pytest-cov>=6.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.410",
+    "ruff>=0.15.15",
+]

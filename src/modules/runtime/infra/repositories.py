@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -14,25 +15,27 @@ from modules.runtime.infra.mappers import (
     model_to_session,
     session_to_model,
 )
-from modules.runtime.infra.models import MessageModel, SessionModel
-from shared.infra.repositories.base_repository import BaseRepository
+from modules.runtime.infra.models import MessageModel, OutboxEventModel, SessionModel
+from shared.domain.events import OutboxEventWriter
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class SQLAlchemySessionRepository(SessionRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, SessionModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, SessionModel)
+        self._session = session
 
     async def create(self, session: Session) -> Session:
         model = session_to_model(session)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_session(model)
 
     async def get_by_id(self, session_id: UUID) -> Session:
-        model = await self._base.get_by_id(session_id)
+        model = await self._base._get_model_by_id(session_id)
         if model is None:
             raise SessionNotFoundError(session_id)
         return model_to_session(model)
@@ -45,7 +48,7 @@ class SQLAlchemySessionRepository(SessionRepository):
             SessionModel.agent_id == agent_id,
             SessionModel.external_session_id == external_session_id,
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
         if model is None:
             raise SessionNotFoundError(session_id=external_session_id)
@@ -54,17 +57,36 @@ class SQLAlchemySessionRepository(SessionRepository):
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
     ) -> list[Session]:
+        # TODO: Remove after pagination migration
         stmt = select(SessionModel).where(
             SessionModel.project_id == project_id
         )
         if status:
             stmt = stmt.where(SessionModel.status == status)
         stmt = stmt.order_by(SessionModel.created_at.desc())
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_session(m) for m in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Session]:
+        stmt = select(SessionModel).where(
+            SessionModel.project_id == project_id
+        )
+        if status:
+            stmt = stmt.where(SessionModel.status == status)
+        stmt = stmt.order_by(SessionModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_session(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def update(self, session: Session) -> Session:
-        model = await self._base.get_by_id(session.id)
+        model = await self._base._get_model_by_id(session.id)
         if model is None:
             raise SessionNotFoundError(session.id)
         model.external_session_id = session.external_session_id
@@ -76,27 +98,27 @@ class SQLAlchemySessionRepository(SessionRepository):
         return model_to_session(model)
 
     async def delete(self, session_id: UUID) -> None:
-        model = await self._base.get_by_id(session_id)
+        model = await self._base._get_model_by_id(session_id)
         if model is None:
             raise SessionNotFoundError(session_id)
-        await self._base.delete(model)
+        await self._base._delete_model(model)
 
 
 class SQLAlchemyMessageRepository(MessageRepository):
 
     def __init__(self, session: AsyncSession) -> None:
-        self._base = BaseRepository(session, MessageModel)
-        self.session = session
+        self._base = BaseSQLAlchemyRepository(session, MessageModel)
+        self._session = session
 
     async def create(self, message: Message) -> Message:
         model = message_to_model(message)
-        self.session.add(model)
-        await self.session.flush()
-        await self.session.refresh(model)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
         return model_to_message(model)
 
     async def get_by_id(self, message_id: UUID) -> Message:
-        model = await self._base.get_by_id(message_id)
+        model = await self._base._get_model_by_id(message_id)
         if model is None:
             raise MessageNotFoundError(message_id)
         return model_to_message(model)
@@ -104,6 +126,7 @@ class SQLAlchemyMessageRepository(MessageRepository):
     async def list_by_session(
         self, session_id: UUID, offset: int = 0, limit: int = 100
     ) -> list[Message]:
+        # TODO: Remove after pagination migration
         stmt = (
             select(MessageModel)
             .where(MessageModel.session_id == session_id)
@@ -111,21 +134,63 @@ class SQLAlchemyMessageRepository(MessageRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return [model_to_message(m) for m in result.scalars().all()]
+
+    async def paginate_by_session(
+        self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Message]:
+        stmt = (
+            select(MessageModel)
+            .where(MessageModel.session_id == session_id)
+            .order_by(MessageModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_message(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
 
     async def count_by_session(self, session_id: UUID) -> int:
         stmt = select(func.count()).select_from(MessageModel).where(
             MessageModel.session_id == session_id
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         return result.scalar_one()
 
     async def delete_by_session(self, session_id: UUID) -> None:
         stmt = select(MessageModel).where(
             MessageModel.session_id == session_id
         )
-        result = await self.session.execute(stmt)
+        result = await self._session.execute(stmt)
         for model in result.scalars().all():
-            await self._base.delete(model)
+            await self._base._delete_model(model)
+
+
+class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def write(
+        self,
+        aggregate_type: str,
+        aggregate_id: UUID,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+    ) -> None:
+        event = OutboxEventModel(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            payload=payload or {},
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+        )
+        self._session.add(event)
 

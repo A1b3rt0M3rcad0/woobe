@@ -27,7 +27,7 @@ class BillingProviders:
     async def list_active_plans(self):
         from modules.billing.infra.repositories import SQLAlchemyPlanRepository
         repo = SQLAlchemyPlanRepository(self.session)
-        return await repo.list_all()
+        return await repo.list_active()
 
     def get_organization_subscription(self, org_id):
         from modules.billing.infra.repositories import SQLAlchemySubscriptionRepository

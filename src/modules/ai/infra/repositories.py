@@ -21,11 +21,12 @@ from modules.ai.infra.models import (
     ProviderCredentialModel,
 )
 from shared.domain.events import OutboxEventWriter
-from shared.infra.repositories.base_repository import BaseRepository
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class SQLAlchemyProviderCredentialRepository(
-    BaseRepository[ProviderCredentialModel],
+    BaseSQLAlchemyRepository[ProviderCredentialModel],
     ProviderCredentialRepositoryInterface,
 ):
 
@@ -34,18 +35,20 @@ class SQLAlchemyProviderCredentialRepository(
 
     async def save(self, credential: ProviderCredential) -> ProviderCredential:
         model = provider_credential_entity_to_model(credential)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return provider_credential_model_to_entity(model)
 
     async def get_by_id(self, credential_id: UUID) -> ProviderCredential | None:
-        model = await super().get_by_id(credential_id)
+        model = await self._get_model_by_id(credential_id)
         return provider_credential_model_to_entity(model) if model else None
 
     async def list_by_project(
         self, project_id: UUID
     ) -> list[ProviderCredential]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(ProviderCredentialModel).where(
                 ProviderCredentialModel.project_id == project_id
             )
@@ -55,14 +58,31 @@ class SQLAlchemyProviderCredentialRepository(
             for c in result.scalars().all()
         ]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[ProviderCredential]:
+        stmt = (
+            select(ProviderCredentialModel)
+            .where(ProviderCredentialModel.project_id == project_id)
+            .order_by(ProviderCredentialModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[provider_credential_model_to_entity(c) for c in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, credential_id: UUID) -> None:
-        model = await super().get_by_id(credential_id)
+        model = await self._get_model_by_id(credential_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyAgentRepository(
-    BaseRepository[AgentModel], AgentRepositoryInterface
+    BaseSQLAlchemyRepository[AgentModel], AgentRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -70,16 +90,17 @@ class SQLAlchemyAgentRepository(
 
     async def save(self, agent: Agent) -> Agent:
         model = agent_entity_to_model(agent)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return agent_model_to_entity(model)
 
     async def get_by_id(self, agent_id: UUID) -> Agent | None:
-        model = await super().get_by_id(agent_id)
+        model = await self._get_model_by_id(agent_id)
         return agent_model_to_entity(model) if model else None
 
     async def update(self, agent: Agent) -> Agent:
-        model = await super().get_by_id(agent.id)
+        model = await self._get_model_by_id(agent.id)
         if not model:
             from modules.ai.domain.errors import AgentNotFoundError
             raise AgentNotFoundError(agent.id)
@@ -97,19 +118,37 @@ class SQLAlchemyAgentRepository(
         model.session_mode = agent.session_mode.value if hasattr(agent.session_mode, 'value') else agent.session_mode
         model.status = agent.status.value if hasattr(agent.status, 'value') else agent.status
         model.settings = agent.settings
-        await self.session.flush()
+        await self._flush()
         return agent_model_to_entity(model)
 
     async def list_by_project(self, project_id: UUID) -> list[Agent]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(AgentModel).where(AgentModel.project_id == project_id)
         )
         return [agent_model_to_entity(a) for a in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Agent]:
+        stmt = (
+            select(AgentModel)
+            .where(AgentModel.project_id == project_id)
+            .order_by(AgentModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[agent_model_to_entity(a) for a in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, agent_id: UUID) -> None:
-        model = await super().get_by_id(agent_id)
+        model = await self._get_model_by_id(agent_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):

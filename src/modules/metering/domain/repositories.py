@@ -8,6 +8,7 @@ from modules.metering.domain.entities import (
     UsageDailyProject,
     UsageEvent,
 )
+from shared.domain.objects import CursorPage
 
 
 class UsageEventRepository(ABC):
@@ -21,7 +22,12 @@ class UsageEventRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[UsageEvent]: ...
+    ) -> list[UsageEvent]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageEvent]: ...
 
     @abstractmethod
     async def delete(self, event_id: UUID) -> None: ...
@@ -40,7 +46,12 @@ class UsageDailyProjectRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[UsageDailyProject]: ...
+    ) -> list[UsageDailyProject]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageDailyProject]: ...
 
 
 class UsageDailyAgentRepository(ABC):
@@ -56,4 +67,9 @@ class UsageDailyAgentRepository(ABC):
     @abstractmethod
     async def list_by_agent(
         self, agent_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[UsageDailyAgent]: ...
+    ) -> list[UsageDailyAgent]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageDailyAgent]: ...

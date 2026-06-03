@@ -17,11 +17,12 @@ from modules.core.infra.mappers import (
 )
 from modules.core.infra.models import ApiKeyModel, OutboxEventModel, ProjectModel
 from shared.domain.events import OutboxEventWriter
-from shared.infra.repositories.base_repository import BaseRepository
+from shared.domain.objects import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
 class SQLAlchemyProjectRepository(
-    BaseRepository[ProjectModel], ProjectRepositoryInterface
+    BaseSQLAlchemyRepository[ProjectModel], ProjectRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -29,18 +30,19 @@ class SQLAlchemyProjectRepository(
 
     async def save(self, project: Project) -> Project:
         model = project_entity_to_model(project)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return project_model_to_entity(model)
 
     async def get_by_id(self, project_id: UUID) -> Project | None:
-        model = await super().get_by_id(project_id)
+        model = await self._get_model_by_id(project_id)
         return project_model_to_entity(model) if model else None
 
     async def get_by_organization_and_slug(
         self, organization_id: UUID, slug: str
     ) -> Project | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(ProjectModel).where(
                 ProjectModel.organization_id == organization_id,
                 ProjectModel.slug == slug,
@@ -52,21 +54,39 @@ class SQLAlchemyProjectRepository(
     async def list_by_organization(
         self, organization_id: UUID
     ) -> list[Project]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(ProjectModel).where(
                 ProjectModel.organization_id == organization_id
             )
         )
         return [project_model_to_entity(p) for p in result.scalars().all()]
 
+    async def paginate_by_organization(
+        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Project]:
+        stmt = (
+            select(ProjectModel)
+            .where(ProjectModel.organization_id == organization_id)
+            .order_by(ProjectModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[project_model_to_entity(p) for p in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, project_id: UUID) -> None:
-        model = await super().get_by_id(project_id)
+        model = await self._get_model_by_id(project_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyApiKeyRepository(
-    BaseRepository[ApiKeyModel], ApiKeyRepositoryInterface
+    BaseSQLAlchemyRepository[ApiKeyModel], ApiKeyRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -74,31 +94,50 @@ class SQLAlchemyApiKeyRepository(
 
     async def save(self, api_key: ApiKey) -> ApiKey:
         model = api_key_entity_to_model(api_key)
-        self.session.add(model)
-        await self.session.flush()
+        await self._add_model(model)
+        await self._flush()
+        await self._refresh_model(model)
         return api_key_model_to_entity(model)
 
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None:
-        model = await super().get_by_id(api_key_id)
+        model = await self._get_model_by_id(api_key_id)
         return api_key_model_to_entity(model) if model else None
 
     async def get_by_key_hash(self, key_hash: bytes) -> ApiKey | None:
-        result = await self.session.execute(
+        result = await self._session.execute(
             select(ApiKeyModel).where(ApiKeyModel.key_hash == key_hash)
         )
         model = result.scalar_one_or_none()
         return api_key_model_to_entity(model) if model else None
 
     async def list_by_project(self, project_id: UUID) -> list[ApiKey]:
-        result = await self.session.execute(
+        # TODO: Remove after pagination migration
+        result = await self._session.execute(
             select(ApiKeyModel).where(ApiKeyModel.project_id == project_id)
         )
         return [api_key_model_to_entity(k) for k in result.scalars().all()]
 
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[ApiKey]:
+        stmt = (
+            select(ApiKeyModel)
+            .where(ApiKeyModel.project_id == project_id)
+            .order_by(ApiKeyModel.id.desc())
+        )
+        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[api_key_model_to_entity(k) for k in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
     async def delete(self, api_key_id: UUID) -> None:
-        model = await super().get_by_id(api_key_id)
+        model = await self._get_model_by_id(api_key_id)
         if model:
-            await self.session.delete(model)
+            await self._delete_model(model)
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):

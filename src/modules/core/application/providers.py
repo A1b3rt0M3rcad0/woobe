@@ -51,7 +51,7 @@ class _ListProjectsUseCase:
     async def execute(self, organization_id=None) -> list:
         if organization_id:
             return await self._repo.list_by_organization(organization_id)
-        return await self._repo.list_all()
+        return []
 
 
 class _GetProjectByIdUseCase:

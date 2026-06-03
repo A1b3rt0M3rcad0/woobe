@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.tools.domain.entities import Secret, Tool
+from shared.domain.objects import CursorPage
 
 
 class ToolRepository(ABC):
@@ -17,12 +18,22 @@ class ToolRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
-    ) -> list[Tool]: ...
+    ) -> list[Tool]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
     async def list_by_agent(
         self, agent_id: UUID, status: str | None = None
-    ) -> list[Tool]: ...
+    ) -> list[Tool]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]: ...
+
+    @abstractmethod
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]: ...
 
     @abstractmethod
     async def update(self, tool: Tool) -> Tool: ...
@@ -43,7 +54,12 @@ class SecretRepository(ABC):
     async def get_by_name(self, project_id: UUID, name: str) -> Secret: ...
 
     @abstractmethod
-    async def list_by_project(self, project_id: UUID) -> list[Secret]: ...
+    async def list_by_project(self, project_id: UUID) -> list[Secret]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Secret]: ...
 
     @abstractmethod
     async def update(self, secret: Secret) -> Secret: ...
