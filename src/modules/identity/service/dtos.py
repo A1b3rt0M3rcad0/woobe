@@ -1,0 +1,69 @@
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
+from modules.identity.domain.enums import (
+    InviteStatus,
+    MemberRole,
+    MemberStatus,
+    OrganizationStatus,
+    UserStatus,
+)
+
+
+class CreateUserInput(BaseModel):
+    email: str
+    password: str
+
+
+class CreateUserOutput(BaseModel):
+    id: UUID
+    email: str
+    status: UserStatus
+    created_at: datetime
+
+
+class CreateOrganizationInput(BaseModel):
+    name: str
+    slug: str
+
+
+class CreateOrganizationOutput(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    status: OrganizationStatus
+    created_at: datetime
+
+
+class AddMemberInput(BaseModel):
+    user_id: UUID
+    organization_id: UUID
+    role: MemberRole = MemberRole.member
+
+
+class AddMemberOutput(BaseModel):
+    id: UUID
+    user_id: UUID
+    organization_id: UUID
+    role: MemberRole
+    status: MemberStatus
+    joined_at: datetime
+
+
+class InviteUserInput(BaseModel):
+    organization_id: UUID
+    email: str
+    role: MemberRole = MemberRole.member
+    invited_by_user_id: UUID
+
+
+class InviteUserOutput(BaseModel):
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: MemberRole
+    status: InviteStatus
+    expires_at: datetime
+    created_at: datetime

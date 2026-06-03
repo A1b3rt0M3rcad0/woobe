@@ -1,0 +1,1 @@
+"""AI module domain logic"""

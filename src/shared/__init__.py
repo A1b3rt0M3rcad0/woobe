@@ -1,0 +1,1 @@
+"""Shared cross-module code"""

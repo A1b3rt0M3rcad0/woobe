@@ -1,0 +1,1 @@
+"""Knowledge module application wiring"""

@@ -1,0 +1,1 @@
+"""Core module domain logic"""

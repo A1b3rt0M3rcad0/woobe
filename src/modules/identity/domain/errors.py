@@ -1,0 +1,17 @@
+from shared.domain.errors import ConflictError, NotFoundError
+
+
+class EmailAlreadyExistsError(ConflictError):
+    pass
+
+
+class OrganizationNotFoundError(NotFoundError):
+    pass
+
+
+class UserNotFoundError(NotFoundError):
+    pass
+
+
+class InvalidCredentialsError(NotFoundError):
+    pass

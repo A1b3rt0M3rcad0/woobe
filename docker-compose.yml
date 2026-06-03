@@ -1,0 +1,82 @@
+﻿version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "${PROJECTRAI_PORT:-8000}:8000"
+    environment:
+      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/${POSTGRES_DB:-projectrai}
+      PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
+      PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY}
+      PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY}
+      PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS:-*}
+      PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
+      PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
+      PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
+    depends_on:
+      db:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-projectrai}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    ports:
+      - "6432:6432"
+    environment:
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-postgres}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRESQL_DATABASE: ${POSTGRES_DB:-projectrai}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
+      PGBOUNCER_MAX_CLIENT_CONN: "100"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgbouncer -u pgbouncer -q show version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-projectrai}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-projectrai}
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  rabbitmq_data:
