@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -32,7 +33,7 @@ class ProviderCredentialModel(BaseModel):
     name: Mapped[str] = mapped_column(String(255))
     encrypted_secret: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="active")
-    last_validated_at: Mapped[datetime | None]
+    last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
 

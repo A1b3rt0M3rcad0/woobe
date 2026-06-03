@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { Dialog } from '@/components/ui/Dialog'
 import { formatDateTime } from '@/lib/formatters/date'
 import { formatMoney } from '@/lib/formatters/money'
+import { formatLatency } from '@/lib/formatters/number'
 import { Activity } from 'lucide-react'
 import type { Trace } from '@/features/traces/types'
 
@@ -29,7 +30,7 @@ export default function TracesPage() {
     { key: 'status', header: 'Status', render: (t: Trace) => <StatusBadge status={t.status} /> },
     { key: 'provider', header: 'Provider', render: (t: Trace) => t.provider || '—' },
     { key: 'model', header: 'Model', render: (t: Trace) => t.model || '—' },
-    { key: 'total_latency_ms', header: 'Latency', render: (t: Trace) => t.total_latency_ms ? `${t.total_latency_ms.toFixed(0)}ms` : '—' },
+    { key: 'total_latency_ms', header: 'Latency', render: (t: Trace) => formatLatency(t.total_latency_ms) },
     { key: 'total_cost_usd', header: 'Cost', render: (t: Trace) => t.total_cost_usd ? formatMoney(t.total_cost_usd) : '—' },
     { key: 'created_at', header: 'Time', render: (t: Trace) => t.created_at ? formatDateTime(t.created_at) : '—' },
   ]
@@ -71,7 +72,7 @@ export default function TracesPage() {
               </div>
               <div>
                 <p className="text-muted text-xs">Latency</p>
-                <p>{traceDetail.trace.total_latency_ms ? `${traceDetail.trace.total_latency_ms.toFixed(0)}ms` : '—'}</p>
+                <p>{formatLatency(traceDetail.trace.total_latency_ms)}</p>
               </div>
               <div>
                 <p className="text-muted text-xs">Cost</p>

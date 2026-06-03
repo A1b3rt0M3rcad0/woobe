@@ -5,6 +5,7 @@ import { useAsk, useCreateSession } from '@/features/playground/hooks'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { orgProjectPath } from '@/lib/constants/routes'
@@ -95,6 +96,7 @@ export default function AgentPlaygroundPage() {
   if (!agent) return <ErrorState message="Agent not found" />
 
   return (
+    <ErrorBoundary>
     <div className="flex flex-col h-full">
       <PageHeader
         title={agent.name}
@@ -150,5 +152,6 @@ export default function AgentPlaygroundPage() {
         />
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

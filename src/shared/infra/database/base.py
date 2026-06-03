@@ -1,9 +1,11 @@
-from datetime import datetime, UTC
+from datetime import datetime
 from uuid import UUID
 import uuid6
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from shared.domain.time import utc_now
 
 
 class Base(DeclarativeBase):
@@ -17,13 +19,13 @@ class BaseModel(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        default=utc_now,
         server_default=func.now(),
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=utc_now,
+        onupdate=utc_now,
         server_default=func.now(),
     )

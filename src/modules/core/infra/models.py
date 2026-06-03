@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
     LargeBinary,
     String,
@@ -45,9 +46,9 @@ class ApiKeyModel(BaseModel):
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
-    last_used_at: Mapped[datetime | None]
-    expires_at: Mapped[datetime | None]
-    revoked_at: Mapped[datetime | None]
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
 
 

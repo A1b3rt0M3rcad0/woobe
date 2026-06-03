@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -55,7 +55,7 @@ class DocumentModel(BaseModel):
     page_count: Mapped[int | None]
     chunk_count: Mapped[int | None]
     sha256: Mapped[str | None] = mapped_column(String(64))
-    indexed_at: Mapped[datetime | None]
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DocumentChunkModel(BaseModel):

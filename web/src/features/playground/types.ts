@@ -34,7 +34,7 @@ export interface SourceInfo {
   document_id?: string
   page_number?: number
   chunk_preview?: string
-  score?: number
+  score?: number | null
 }
 
 export interface ToolCallInfo {
@@ -49,13 +49,13 @@ export interface AskResponse {
   session_id: string
   message_id: string
   usage?: {
-    input_tokens: number
-    output_tokens: number
-    cost_usd: number
-  }
-  sources?: SourceInfo[]
-  tool_calls?: ToolCallInfo[]
-  latency_ms?: number
+    input_tokens: number | null
+    output_tokens: number | null
+    cost_usd: number | null
+  } | null
+  sources?: SourceInfo[] | null
+  tool_calls?: ToolCallInfo[] | null
+  latency_ms?: number | null
 }
 
 export interface Message {
@@ -63,9 +63,9 @@ export interface Message {
   session_id: string
   role: string
   content: string
-  input_tokens?: number
-  output_tokens?: number
-  cost_usd?: number
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cost_usd?: number | null
   data?: Record<string, unknown>
   created_at: string
   updated_at?: string

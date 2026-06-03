@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
     LargeBinary,
     String,
@@ -52,7 +53,7 @@ class OrganizationMemberModel(BaseModel):
     )
     role: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="active")
-    joined_at: Mapped[datetime]
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     organization: Mapped[OrganizationModel] = relationship(back_populates="members")
 
@@ -72,8 +73,8 @@ class OrganizationInviteModel(BaseModel):
     token_hash: Mapped[str] = mapped_column(String(255))
     invited_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
     status: Mapped[str] = mapped_column(String(32), default="pending")
-    expires_at: Mapped[datetime]
-    accepted_at: Mapped[datetime | None]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class UserSessionModel(BaseModel):
@@ -84,9 +85,9 @@ class UserSessionModel(BaseModel):
     refresh_token_hash: Mapped[bytes] = mapped_column(LargeBinary)
     user_agent: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(45))
-    revoked_at: Mapped[datetime | None]
-    expires_at: Mapped[datetime]
-    last_used_at: Mapped[datetime | None]
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class OutboxEventModel(BaseOutbox):

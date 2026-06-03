@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,8 +25,8 @@ class TraceModel(BaseModel):
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="pending")
-    started_at: Mapped[datetime | None]
-    ended_at: Mapped[datetime | None]
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     total_latency_ms: Mapped[float | None] = mapped_column(Float)
     total_cost_usd: Mapped[float | None] = mapped_column(Float)
     provider: Mapped[str | None] = mapped_column(String(64))

@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Integer, String, Text, text
+from sqlalchemy import DateTime, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from shared.domain.time import utc_now
 from shared.infra.database.base import BaseModel
 
 
@@ -20,10 +21,11 @@ class OutboxEventModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     available_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(),
+        DateTime(timezone=True),
+        default=utc_now,
         server_default=text("now()"),
     )
-    published_at: Mapped[datetime | None]
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     correlation_id: Mapped[UUID | None]
     causation_id: Mapped[UUID | None]

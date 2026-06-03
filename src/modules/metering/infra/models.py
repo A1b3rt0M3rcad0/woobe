@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,7 +41,7 @@ class UsageDailyProjectModel(Base):
     vector_queries: Mapped[int] = mapped_column(Integer, default=0)
     storage_mb: Mapped[float] = mapped_column(Float, default=0.0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    updated_at: Mapped[datetime]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class UsageDailyAgentModel(Base):
@@ -59,7 +59,7 @@ class UsageDailyAgentModel(Base):
     tool_calls: Mapped[int] = mapped_column(Integer, default=0)
     vector_queries: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    updated_at: Mapped[datetime]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class OutboxEventModel(BaseOutbox):

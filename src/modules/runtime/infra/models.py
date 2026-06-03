@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,7 +27,7 @@ class SessionModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="active")
     mode: Mapped[str] = mapped_column(String(32), default="chat")
     data: Mapped[dict | None] = mapped_column(JSONB)
-    last_message_at: Mapped[datetime | None]
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MessageModel(BaseModel):

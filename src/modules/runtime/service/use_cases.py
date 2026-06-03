@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from modules.runtime.domain.entities import Message, Session
 from modules.runtime.domain.repositories import MessageRepository, SessionRepository
 from modules.runtime.infra.models import OutboxEventModel
@@ -12,6 +10,7 @@ from modules.runtime.service.dtos import (
     SendMessageInput,
     SendMessageOutput,
 )
+from shared.domain.time import utc_now
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -91,8 +90,7 @@ class SendMessageUseCase:
         )
         created = await self.message_repo.create(message)
 
-        now = datetime.now(timezone.utc)
-        sess.last_message_at = now
+        sess.last_message_at = utc_now()
         await self.session_repo.update(sess)
 
         event = OutboxEventModel(

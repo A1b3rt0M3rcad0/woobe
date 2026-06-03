@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,10 +52,10 @@ class SubscriptionModel(BaseModel):
     provider: Mapped[str] = mapped_column(String(64))
     provider_subscription_id: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="active")
-    current_period_start: Mapped[datetime | None]
-    current_period_end: Mapped[datetime | None]
-    trial_ends_at: Mapped[datetime | None]
-    canceled_at: Mapped[datetime | None]
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PaymentEventModel(BaseModel):
@@ -70,7 +70,7 @@ class PaymentEventModel(BaseModel):
     event_type: Mapped[str] = mapped_column(String(128))
     payload: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(String(32), default="pending")
-    processed_at: Mapped[datetime | None]
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class OutboxEventModel(BaseOutbox):

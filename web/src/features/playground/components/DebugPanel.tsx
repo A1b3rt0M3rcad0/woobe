@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/Card'
 import { Separator } from '@/components/ui/Separator'
 import { CopyButton } from '@/components/common/CopyButton'
+import { formatNumber, formatCurrency } from '@/lib/formatters/number'
 import type { Agent } from '@/features/agents/types'
 import type { AskResponse } from '@/features/playground/types'
 
@@ -83,9 +84,9 @@ export function DebugPanel({ sessionId, agent, lastResponse, messagesCount }: De
               <div>
                 <p className="text-xs font-medium text-muted mb-2">Usage</p>
                 <p className="text-xs text-white">
-                  Input: {lastResponse.usage.input_tokens} tokens · Output: {lastResponse.usage.output_tokens} tokens
+                  Input: {formatNumber(lastResponse.usage.input_tokens, 0)} tokens · Output: {formatNumber(lastResponse.usage.output_tokens, 0)} tokens
                 </p>
-                <p className="text-xs text-muted">Cost: ${lastResponse.usage.cost_usd.toFixed(6)}</p>
+                <p className="text-xs text-muted">Cost: {formatCurrency(lastResponse.usage.cost_usd, 6)}</p>
               </div>
             </>
           )}
