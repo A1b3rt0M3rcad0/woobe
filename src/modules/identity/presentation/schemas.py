@@ -21,12 +21,17 @@ class CreateOrganizationRequest(BaseModel):
     slug: str
 
 
+class UpdateOrganizationRequest(BaseModel):
+    name: str | None = None
+    slug: str | None = None
+
+
 class OrganizationResponse(BaseModel):
     id: UUID
     name: str
     slug: str
     status: str
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class AddMemberRequest(BaseModel):
@@ -40,3 +45,34 @@ class MemberResponse(BaseModel):
     organization_id: UUID
     role: str
     status: str
+
+
+class InviteRequest(BaseModel):
+    email: str
+    role: str = "member"
+
+
+class InviteResponse(BaseModel):
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: str
+    status: str
+    expires_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user: dict
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    organization_name: str

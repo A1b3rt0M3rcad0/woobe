@@ -50,6 +50,7 @@ class SQLAlchemyUserRepository(BaseRepository[UserModel], UserRepositoryInterfac
     async def save(self, user: User) -> User:
         model = user_entity_to_model(user)
         self.session.add(model)
+        await self.session.flush()
         return user_model_to_entity(model)
 
     async def get_by_id(self, user_id: UUID) -> User | None:
@@ -79,6 +80,7 @@ class SQLAlchemyOrganizationRepository(
     async def save(self, organization: Organization) -> Organization:
         model = organization_entity_to_model(organization)
         self.session.add(model)
+        await self.session.flush()
         return organization_model_to_entity(model)
 
     async def get_by_id(self, organization_id: UUID) -> Organization | None:
@@ -109,6 +111,7 @@ class SQLAlchemyOrganizationMemberRepository(
     async def save(self, member: OrganizationMember) -> OrganizationMember:
         model = organization_member_entity_to_model(member)
         self.session.add(model)
+        await self.session.flush()
         return organization_member_model_to_entity(model)
 
     async def get_by_id(self, member_id: UUID) -> OrganizationMember | None:

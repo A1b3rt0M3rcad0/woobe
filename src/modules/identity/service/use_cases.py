@@ -23,6 +23,8 @@ from modules.identity.service.dtos import (
     AddMemberOutput,
     CreateOrganizationInput,
     CreateOrganizationOutput,
+    UpdateOrganizationInput,
+    UpdateOrganizationOutput,
     CreateUserInput,
     CreateUserOutput,
     InviteUserInput,
@@ -158,6 +160,52 @@ class AddMemberToOrganizationUseCase:
             role=saved.role,
             status=saved.status,
             joined_at=saved.joined_at,
+        )
+
+
+class UpdateOrganizationUseCase:
+
+    def __init__(
+        self,
+        org_repo: OrganizationRepository,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        self._org_repo = org_repo
+        self._outbox = outbox
+
+    async def execute(
+        self, org_id: UUID, input_dto: UpdateOrganizationInput
+    ) -> UpdateOrganizationOutput:
+        org = await self._org_repo.get_by_id(org_id)
+        if not org:
+            raise OrganizationNotFoundError(org_id)
+
+        if input_dto.name is not None:
+            org.name = input_dto.name
+        if input_dto.slug is not None:
+            existing = await self._org_repo.get_by_slug(input_dto.slug)
+            if existing and existing.id != org_id:
+                from shared.domain.errors import ConflictError
+                raise ConflictError(f"Organization with slug '{input_dto.slug}' already exists")
+            org.slug = input_dto.slug
+
+        org.updated_at = datetime.now(UTC)
+        saved = await self._org_repo.save(org)
+
+        await self._outbox.write(
+            aggregate_type="organization",
+            aggregate_id=saved.id,
+            event_type="organization.updated",
+            payload={"name": saved.name, "slug": saved.slug},
+        )
+
+        return UpdateOrganizationOutput(
+            id=saved.id,
+            name=saved.name,
+            slug=saved.slug,
+            status=saved.status,
+            created_at=saved.created_at,
+            updated_at=saved.updated_at,
         )
 
 

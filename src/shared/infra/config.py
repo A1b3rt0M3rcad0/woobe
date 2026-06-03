@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     encryption_key: str = Field(min_length=16)
     db_pool_size: int = 20
     db_max_overflow: int = 10
-    cors_origins: str = "*"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
     environment: str = "development"
     log_level: str = "INFO"
     host: str = "0.0.0.0"

@@ -1,26 +1,23 @@
-﻿version: "3.9"
-
-services:
+﻿services:
   api:
     build: .
     ports:
       - "${PROJECTRAI_PORT:-8000}:8000"
     environment:
-      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/${POSTGRES_DB:-projectrai}
+      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projectrai}
       PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
-      PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY}
-      PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY}
+      PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
+      PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
       PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS:-*}
       PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
       PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
       PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
     depends_on:
-      db:
-        condition: service_healthy
       pgbouncer:
-        condition: service_healthy
+        condition: service_started
       rabbitmq:
         condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: pgvector/pgvector:pg17
@@ -37,28 +34,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   pgbouncer:
-    image: bitnami/pgbouncer:latest
+    image: edoburu/pgbouncer
     ports:
       - "6432:6432"
     environment:
-      POSTGRESQL_HOST: db
-      POSTGRESQL_PORT: "5432"
-      POSTGRESQL_USERNAME: ${POSTGRES_USER:-postgres}
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRESQL_DATABASE: ${POSTGRES_DB:-projectrai}
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
-      PGBOUNCER_MAX_CLIENT_CONN: "100"
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-projectrai}
+      LISTEN_ADDR: "0.0.0.0"
+      LISTEN_PORT: "6432"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "25"
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pgbouncer -u pgbouncer -q show version || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -76,6 +72,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   pgdata:

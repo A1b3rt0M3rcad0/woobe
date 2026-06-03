@@ -15,6 +15,7 @@ SCHEMAS = ["identity", "core", "ai", "knowledge", "runtime", "tools", "metering"
 
 
 def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     for schema in SCHEMAS:
         op.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
 

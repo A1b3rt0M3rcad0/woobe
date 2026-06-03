@@ -1,10 +1,12 @@
-from __future__ import annotations
-
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.knowledge.domain.entities import Document, DocumentCollection
+from modules.knowledge.domain.repositories import (
+    DocumentChunkRepository,
+    DocumentCollectionRepository,
+    DocumentRepository,
+)
 from modules.knowledge.infra.repositories import (
     SQLAlchemyDocumentChunkRepository,
     SQLAlchemyDocumentCollectionRepository,
@@ -18,33 +20,26 @@ from modules.knowledge.service.use_cases import (
 
 
 def provide_create_collection_uc(session: AsyncSession) -> CreateCollectionUseCase:
-    repo = SQLAlchemyDocumentCollectionRepository(session)
-    return CreateCollectionUseCase(session=session, repo=repo)
+    repo: DocumentCollectionRepository = SQLAlchemyDocumentCollectionRepository(session)
+    return CreateCollectionUseCase(session, repo)
 
 
-def provide_upload_document_uc(session: AsyncSession) -> UploadDocumentUseCase:
-    doc_repo = SQLAlchemyDocumentRepository(session)
-    collection_repo = SQLAlchemyDocumentCollectionRepository(session)
-    return UploadDocumentUseCase(
-        session=session, doc_repo=doc_repo, collection_repo=collection_repo
-    )
-
-
-def provide_search_chunks_uc(session: AsyncSession) -> SearchChunksUseCase:
-    repo = SQLAlchemyDocumentChunkRepository(session)
-    return SearchChunksUseCase(repo=repo)
-
-
-async def provide_get_collection(
-    session: AsyncSession, collection_id: UUID
-) -> DocumentCollection:
+async def provide_get_collection(session: AsyncSession, collection_id: UUID):
     repo = SQLAlchemyDocumentCollectionRepository(session)
     return await repo.get_by_id(collection_id)
 
 
-async def provide_get_document(
-    session: AsyncSession, document_id: UUID
-) -> Document:
+async def provide_get_document(session: AsyncSession, document_id: UUID):
     repo = SQLAlchemyDocumentRepository(session)
     return await repo.get_by_id(document_id)
 
+
+def provide_search_chunks_uc(session: AsyncSession) -> SearchChunksUseCase:
+    repo: DocumentChunkRepository = SQLAlchemyDocumentChunkRepository(session)
+    return SearchChunksUseCase(repo)
+
+
+def provide_upload_document_uc(session: AsyncSession) -> UploadDocumentUseCase:
+    doc_repo: DocumentRepository = SQLAlchemyDocumentRepository(session)
+    collection_repo: DocumentCollectionRepository = SQLAlchemyDocumentCollectionRepository(session)
+    return UploadDocumentUseCase(session, doc_repo, collection_repo)

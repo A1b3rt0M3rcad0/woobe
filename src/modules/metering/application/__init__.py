@@ -1,1 +1,0 @@
-"""Metering module application wiring"""

@@ -30,6 +30,7 @@ class SQLAlchemyProjectRepository(
     async def save(self, project: Project) -> Project:
         model = project_entity_to_model(project)
         self.session.add(model)
+        await self.session.flush()
         return project_model_to_entity(model)
 
     async def get_by_id(self, project_id: UUID) -> Project | None:
@@ -74,6 +75,7 @@ class SQLAlchemyApiKeyRepository(
     async def save(self, api_key: ApiKey) -> ApiKey:
         model = api_key_entity_to_model(api_key)
         self.session.add(model)
+        await self.session.flush()
         return api_key_model_to_entity(model)
 
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None:

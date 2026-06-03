@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from modules.core.application.dependencies import get_current_user_id
 from modules.core.application.providers import (
@@ -8,21 +8,36 @@ from modules.core.application.providers import (
     get_create_project_use_case,
     get_project_by_id_use_case,
     list_api_keys_by_project_use_case,
+    list_projects_use_case,
+)
+from modules.core.presentation.mappers import (
+    api_key_to_response,
+    project_to_response,
 )
 from modules.core.presentation.schemas import (
-    ApiKeyResponse,
     CreateApiKeyRequest,
     CreateProjectRequest,
-    ProjectResponse,
+    UpdateProjectRequest,
 )
 from modules.core.service.dtos import (
     CreateApiKeyInput,
     CreateProjectInput,
 )
+from modules.core.infra.repositories import SQLAlchemyProjectRepository
 from shared.presentation.dependencies import get_session_manager
 from shared.presentation.responses import created, ok
 
 router = APIRouter(prefix="/core", tags=["core"])
+
+
+@router.get("/projects")
+async def list_projects(
+    organization_id: UUID | None = Query(None),
+    manager=Depends(get_session_manager),
+):
+    use_case = list_projects_use_case(manager.session)
+    result = await use_case.execute(organization_id)
+    return ok([project_to_response(item) for item in result])
 
 
 @router.post("/projects")
@@ -47,7 +62,39 @@ async def get_project(
 ):
     use_case = get_project_by_id_use_case(manager.session)
     result = await use_case.execute(project_id)
-    return ok(ProjectResponse(**result.model_dump()))
+    return ok(project_to_response(result))
+
+
+@router.patch("/projects/{project_id}")
+async def update_project(
+    project_id: UUID,
+    request: UpdateProjectRequest,
+    manager=Depends(get_session_manager),
+):
+    repo = SQLAlchemyProjectRepository(manager.session)
+    project = await repo.get_by_id(project_id)
+    if not project:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Project not found", "data": None},
+        )
+    if request.name is not None:
+        project.name = request.name
+    if request.slug is not None:
+        project.slug = request.slug
+    from datetime import UTC, datetime
+    project.updated_at = datetime.now(UTC)
+    saved = await repo.save(project)
+    return ok(ProjectResponse(
+        id=saved.id,
+        organization_id=saved.organization_id,
+        name=saved.name,
+        slug=saved.slug,
+        status=saved.status.value if hasattr(saved.status, 'value') else saved.status,
+        created_at=saved.created_at,
+        updated_at=saved.updated_at,
+    ))
 
 
 @router.post("/projects/{project_id}/api-keys")
@@ -75,4 +122,4 @@ async def list_api_keys(
 ):
     use_case = list_api_keys_by_project_use_case(manager.session)
     result = await use_case.execute(project_id)
-    return ok([ApiKeyResponse(**item.model_dump()) for item in result])
+    return ok([api_key_to_response(item) for item in result])

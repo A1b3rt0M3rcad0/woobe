@@ -37,6 +37,20 @@ class CreateOrganizationOutput(BaseModel):
     created_at: datetime
 
 
+class UpdateOrganizationInput(BaseModel):
+    name: str | None = None
+    slug: str | None = None
+
+
+class UpdateOrganizationOutput(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    status: OrganizationStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class AddMemberInput(BaseModel):
     user_id: UUID
     organization_id: UUID

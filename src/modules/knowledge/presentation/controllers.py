@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from modules.knowledge.application.providers import (
     provide_create_collection_uc,
@@ -10,6 +10,11 @@ from modules.knowledge.application.providers import (
     provide_get_document,
     provide_search_chunks_uc,
     provide_upload_document_uc,
+)
+from modules.knowledge.infra.mappers import model_to_document
+from modules.knowledge.infra.repositories import (
+    SQLAlchemyDocumentCollectionRepository,
+    SQLAlchemyDocumentRepository,
 )
 from modules.knowledge.presentation.schemas import (
     ChunkResponse,
@@ -29,6 +34,26 @@ from shared.presentation.dependencies import get_session_manager
 from shared.presentation.responses import created, error, ok
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+@router.get("/collections")
+async def list_collections(
+    project_id: UUID | None = Query(None),
+    manager=Depends(get_session_manager),
+):
+    if not project_id:
+        return ok([])
+    repo = SQLAlchemyDocumentCollectionRepository(manager.session)
+    collections = await repo.list_by_project(project_id)
+    return ok([CollectionResponse(
+        id=c.id,
+        project_id=c.project_id,
+        name=c.name,
+        description=c.description,
+        status=c.status,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+    ) for c in collections])
 
 
 @router.post("/collections")
@@ -81,6 +106,40 @@ async def get_collection(
         )
     except NotFoundError as e:
         return error(str(e), status_code=404)
+
+
+@router.get("/documents")
+async def list_documents(
+    project_id: UUID | None = Query(None),
+    collection_id: UUID | None = Query(None),
+    manager=Depends(get_session_manager),
+):
+    if not project_id and not collection_id:
+        return ok([])
+    from sqlalchemy import select
+    from modules.knowledge.infra.models import DocumentModel
+    repo = SQLAlchemyDocumentRepository(manager.session)
+    if collection_id:
+        documents = await repo.list_by_collection(collection_id)
+    elif project_id:
+        stmt = select(DocumentModel).where(DocumentModel.project_id == project_id).order_by(DocumentModel.created_at.desc())
+        result = await manager.session.execute(stmt)
+        documents = [model_to_document(m) for m in result.scalars().all()]
+    else:
+        documents = []
+    return ok([DocumentResponse(
+        id=d.id,
+        project_id=d.project_id,
+        collection_id=d.collection_id,
+        title=d.title,
+        file_name=d.file_name,
+        content_type=d.content_type,
+        size_bytes=d.size_bytes,
+        storage_key=d.storage_key,
+        status=d.status,
+        created_at=d.created_at,
+        updated_at=d.updated_at,
+    ) for d in documents])
 
 
 @router.post("/documents")
