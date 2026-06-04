@@ -1,6 +1,6 @@
 import { post, get } from '@/lib/api/client'
 import { getToken } from '@/lib/auth/token'
-import type { CreateSessionRequest, Session, AskRequest, AskResponse, Message, SourceInfo } from './types'
+import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -36,6 +36,10 @@ export async function createSession(data: CreateSessionRequest): Promise<Session
 export async function ask(data: AskRequest): Promise<AskResponse> {
   const response = await post<AskResponse>('/runtime/ask', data)
   return normalizeResponse(response)
+}
+
+export async function getAgentSessions(agentId: string, projectId: string): Promise<SessionListItem[]> {
+  return get<SessionListItem[]>(`/runtime/agents/${agentId}/sessions`, { params: { project_id: projectId } })
 }
 
 export async function getSessionMessages(sessionId: string, params?: { offset?: number; limit?: number }): Promise<Message[]> {

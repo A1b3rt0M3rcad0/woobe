@@ -1,3 +1,14 @@
+export interface SessionListItem {
+  id: string
+  project_id: string
+  agent_id: string
+  status: string
+  mode: string
+  last_message_at: string | null
+  created_at: string | null
+  message_count: number
+}
+
 export interface Session {
   id: string
   project_id: string

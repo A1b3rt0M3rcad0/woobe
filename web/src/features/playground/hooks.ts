@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { createSession, ask, getSessionMessages, askStream, type StreamCallbacks } from './api'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { createSession, getAgentSessions, ask, getSessionMessages, askStream, type StreamCallbacks } from './api'
 import type { CreateSessionRequest, AskRequest } from './types'
 
 export function useCreateSession() {
@@ -15,10 +15,19 @@ export function useAsk() {
   })
 }
 
+export function useAgentSessions(agentId: string | undefined, projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['agent-sessions', agentId],
+    queryFn: () => getAgentSessions(agentId!, projectId!),
+    enabled: !!agentId && !!projectId,
+  })
+}
+
 export function useSessionMessages(sessionId: string | undefined) {
-  return useMutation({
-    mutationKey: ['session-messages', sessionId],
-    mutationFn: () => getSessionMessages(sessionId!),
+  return useQuery({
+    queryKey: ['session-messages', sessionId],
+    queryFn: () => getSessionMessages(sessionId!),
+    enabled: !!sessionId,
   })
 }
 

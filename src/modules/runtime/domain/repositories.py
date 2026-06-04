@@ -21,6 +21,11 @@ class SessionRepository(ABC):
     ) -> Session: ...
 
     @abstractmethod
+    async def list_by_agent(
+        self, project_id: UUID, agent_id: UUID, status: str | None = None
+    ) -> list[Session]: ...
+
+    @abstractmethod
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
     ) -> list[Session]: ...  # TODO: Remove after pagination migration

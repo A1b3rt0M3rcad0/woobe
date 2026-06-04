@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 from modules.runtime.application.composers.ask_agent_composer import ask_agent_composer
 from modules.runtime.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
 from modules.runtime.application.composers.create_session_composer import create_session_composer
+from modules.runtime.application.composers.list_agent_sessions_composer import list_agent_sessions_composer
 from modules.runtime.application.composers.list_messages_composer import list_messages_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
@@ -12,6 +13,13 @@ router = APIRouter(prefix="/runtime", tags=["runtime"])
 @router.post("/sessions")
 async def create_session(request: FastAPIRequest):
     handler = create_session_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/agents/{agent_id}/sessions")
+async def list_agent_sessions(request: FastAPIRequest):
+    handler = list_agent_sessions_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 

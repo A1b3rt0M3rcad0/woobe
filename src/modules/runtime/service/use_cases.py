@@ -5,6 +5,8 @@ from modules.runtime.domain.repositories import MessageRepository, SessionReposi
 from modules.runtime.service.dtos import (
     CreateSessionInput,
     CreateSessionOutput,
+    ListAgentSessionsInput,
+    ListAgentSessionsOutput,
     ListMessagesInput,
     ListMessagesOutput,
     MessageResponse,
@@ -142,4 +144,37 @@ class ListMessagesUseCase:
             created_at=m.created_at,
             updated_at=m.updated_at,
         ) for m in messages]
+
+
+class ListAgentSessionsUseCase:
+
+    def __init__(
+        self,
+        session_repo: SessionRepository,
+        message_repo: MessageRepository,
+    ) -> None:
+        self._session_repo = session_repo
+        self._message_repo = message_repo
+
+    async def execute(self, input_dto: ListAgentSessionsInput) -> list[ListAgentSessionsOutput]:
+        sessions = await self._session_repo.list_by_agent(
+            input_dto.project_id, input_dto.agent_id
+        )
+        result = []
+        for s in sessions:
+            try:
+                count = await self._message_repo.count_by_session(s.id)
+            except Exception:
+                count = 0
+            result.append(ListAgentSessionsOutput(
+                id=s.id,
+                project_id=s.project_id,
+                agent_id=s.agent_id,
+                status=s.status.value if hasattr(s.status, "value") else s.status,
+                mode=s.mode.value if hasattr(s.mode, "value") else s.mode,
+                last_message_at=s.last_message_at,
+                created_at=s.created_at,
+                message_count=count,
+            ))
+        return result
 

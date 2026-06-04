@@ -62,6 +62,19 @@ class SQLAlchemySessionRepository(SessionRepository):
             raise SessionNotFoundError(session_id=external_session_id)
         return model_to_session(model)
 
+    async def list_by_agent(
+        self, project_id: UUID, agent_id: UUID, status: str | None = None
+    ) -> list[Session]:
+        stmt = select(SessionModel).where(
+            SessionModel.project_id == project_id,
+            SessionModel.agent_id == agent_id,
+        )
+        if status:
+            stmt = stmt.where(SessionModel.status == status)
+        stmt = stmt.order_by(SessionModel.last_message_at.desc().nullslast())
+        result = await self._session.execute(stmt)
+        return [model_to_session(m) for m in result.scalars().all()]
+
     async def list_by_project(
         self, project_id: UUID, status: str | None = None
     ) -> list[Session]:

@@ -77,6 +77,22 @@ class ListMessagesOutput(BaseModel):
     updated_at: datetime | None = None
 
 
+class ListAgentSessionsInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+
+
+class ListAgentSessionsOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    status: SessionStatus
+    mode: SessionMode
+    last_message_at: datetime | None = None
+    created_at: datetime | None = None
+    message_count: int = 0
+
+
 class AskInput(BaseModel):
     project_id: UUID
     agent_id: UUID
