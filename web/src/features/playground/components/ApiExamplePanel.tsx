@@ -19,18 +19,69 @@ function getResponseFormat(agent: Agent) {
     | undefined
 }
 
+const ASK_CURL = `curl -X POST http://localhost:8000/runtime/ask \\
+  -H "Authorization: Bearer <API_KEY>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+  "project_id": "<project_id>",
+  "agent_id": "<agent_id>",
+  "message": "Hello, agent!",
+  "session_id": "<session_id>"
+}'`
+
+const ASK_RESPONSE_EXAMPLE = `{
+  "success": true,
+  "data": {
+    "answer": "Hello! How can I help you?",
+    "session_id": "uuid",
+    "message_id": "uuid",
+    "usage": {
+      "input_tokens": 42,
+      "output_tokens": 17,
+      "total_tokens": 59,
+      "cost_usd": 0.0003
+    },
+    "sources": [],
+    "tool_calls": [],
+    "trace_id": "uuid",
+    "model": "gpt-4o-mini",
+    "provider": "openai",
+    "fallback_used": false,
+    "latency_ms": 843,
+    "parsed_output": null,
+    "output_parse_error": null
+  }
+}`
+
 const STRUCTURED_RESPONSE_CURL = `curl -X POST http://localhost:8000/runtime/ask \\
   -H "Authorization: Bearer <API_KEY>" \\
   -H "Content-Type: application/json" \\
   -d '{
-  "session_id": "<session_id>",
-  "content": "Classify this ticket"
+  "project_id": "<project_id>",
+  "agent_id": "<agent_id>",
+  "message": "Classify this ticket",
+  "session_id": "<session_id>"
 }'`
 
 const STRUCTURED_RESPONSE_EXAMPLE = `{
   "success": true,
   "data": {
     "answer": "{\\"category\\": \\"support\\", \\"priority\\": \\"high\\", \\"summary\\": \\"...\\", \\"should_escalate\\": true}",
+    "session_id": "uuid",
+    "message_id": "uuid",
+    "usage": {
+      "input_tokens": 58,
+      "output_tokens": 22,
+      "total_tokens": 80,
+      "cost_usd": 0.0005
+    },
+    "sources": [],
+    "tool_calls": [],
+    "trace_id": "uuid",
+    "model": "gpt-4o-mini",
+    "provider": "openai",
+    "fallback_used": false,
+    "latency_ms": 1024,
     "parsed_output": {
       "category": "support",
       "priority": "high",
@@ -68,15 +119,9 @@ export function ApiExamplePanel({ agent, projectId, orgProjectPathFn }: ApiExamp
         <div>
           <p className="text-xs font-medium text-muted mb-1">cURL example</p>
           <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto">
-{`curl -X POST http://localhost:8000/runtime/ask \\
-  -H "Authorization: Bearer <API_KEY>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-  "session_id": "<session_id>",
-  "content": "Hello, agent!"
-}'`}
+{ASK_CURL}
           </pre>
-          <CopyButton text={`curl -X POST http://localhost:8000/runtime/ask -H "Authorization: Bearer <API_KEY>" -H "Content-Type: application/json" -d '{"session_id": "<session_id>", "content": "Hello, agent!"}'`} />
+          <CopyButton text={ASK_CURL.replace(/\n\s*/g, ' ')} />
         </div>
 
         {jsonEnabled && (
