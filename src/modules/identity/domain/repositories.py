@@ -38,6 +38,9 @@ class OrganizationRepository(ABC):
     async def get_by_slug(self, slug: str) -> Organization | None: ...
 
     @abstractmethod
+    async def list_all(self) -> list[Organization]: ...
+
+    @abstractmethod
     async def delete(self, organization_id: UUID) -> None: ...
 
 

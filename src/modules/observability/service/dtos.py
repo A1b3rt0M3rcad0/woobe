@@ -66,3 +66,9 @@ class TraceSummaryResponse(BaseModel):
     error: str | None = None
     created_at: datetime | None = None
     events: list[TraceEventResponse] = []
+
+
+class ListTracesInput(BaseModel):
+    project_id: UUID | None = None
+    limit: int = 100
+    offset: int = 0

@@ -9,7 +9,6 @@ from sqlalchemy import (
     ForeignKey,
     LargeBinary,
     String,
-    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB

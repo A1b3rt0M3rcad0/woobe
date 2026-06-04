@@ -1,0 +1,19 @@
+from modules.ai.service.use_cases import CreateProviderCredentialUseCase
+from modules.ai.service.dtos import CreateProviderCredentialInput
+from modules.ai.presentation.schemas import ProviderCredentialResponse
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class CreateProviderCredentialController(Controller):
+    def __init__(self, use_case: CreateProviderCredentialUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        input_dto = CreateProviderCredentialInput(**request.body)
+        result = await self._use_case.execute(input_dto)
+        return Response(
+            status_code=201,
+            body={"success": True, "message": "created", "data": ProviderCredentialResponse(**result.model_dump()).model_dump()},
+        )

@@ -1,0 +1,21 @@
+from modules.observability.service.use_cases import ListTracesUseCase
+from modules.observability.service.dtos import ListTracesInput
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class ListTracesController(Controller):
+    def __init__(self, use_case: ListTracesUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        project_id = request.query_params.get("project_id")
+        limit = int(request.query_params.get("limit", 100))
+        offset = int(request.query_params.get("offset", 0))
+        input_dto = ListTracesInput(project_id=project_id, limit=limit, offset=offset)
+        result = await self._use_case.execute(input_dto)
+        return Response(
+            status_code=200,
+            body={"success": True, "message": "ok", "data": [r.model_dump() for r in result]},
+        )

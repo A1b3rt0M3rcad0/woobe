@@ -4,17 +4,21 @@ import os
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.domain.events import OutboxEventWriter
 from shared.infra.crypto import encrypt_secret
+from modules.tools.infra.models import OutboxEventModel
 from modules.tools.domain.entities import Secret, Tool
-from modules.tools.domain.enums import RiskLevel, ToolStatus
+from modules.tools.domain.enums import ToolStatus
 from modules.tools.domain.errors import ToolNotFoundError
 from modules.tools.domain.repositories import SecretRepository, ToolRepository
-from modules.tools.infra.models import OutboxEventModel
 from modules.tools.service.dtos import (
     CreateSecretInput,
     CreateSecretOutput,
     CreateToolInput,
     CreateToolOutput,
+    ListSecretsInput,
+    ListToolsByAgentInput,
+    ListToolsInput,
 )
 
 
@@ -22,11 +26,11 @@ class CreateToolUseCase:
 
     def __init__(
         self,
-        session: AsyncSession,
         repo: ToolRepository,
+        outbox: OutboxEventWriter,
     ) -> None:
-        self.session = session
         self.repo = repo
+        self._outbox = outbox
 
     async def execute(self, input_dto: CreateToolInput) -> CreateToolOutput:
         tool = Tool(
@@ -43,7 +47,7 @@ class CreateToolUseCase:
         )
         created = await self.repo.create(tool)
 
-        event = OutboxEventModel(
+        await self._outbox.write(
             aggregate_type="tool",
             aggregate_id=created.id,
             event_type="tools.tool.created",
@@ -56,7 +60,6 @@ class CreateToolUseCase:
                 "risk_level": created.risk_level,
             },
         )
-        self.session.add(event)
 
         return CreateToolOutput(
             id=created.id,
@@ -80,12 +83,12 @@ class CreateSecretUseCase:
 
     def __init__(
         self,
-        session: AsyncSession,
         repo: SecretRepository,
+        outbox: OutboxEventWriter,
         encryption_key: str | None = None,
     ) -> None:
-        self.session = session
         self.repo = repo
+        self._outbox = outbox
         self.encryption_key = encryption_key or os.getenv("SECRETS_ENCRYPTION_KEY", "default-dev-key")
 
     async def execute(self, input_dto: CreateSecretInput) -> CreateSecretOutput:
@@ -100,7 +103,7 @@ class CreateSecretUseCase:
         )
         created = await self.repo.create(secret)
 
-        event = OutboxEventModel(
+        await self._outbox.write(
             aggregate_type="secret",
             aggregate_id=created.id,
             event_type="tools.secret.created",
@@ -111,7 +114,6 @@ class CreateSecretUseCase:
                 "type": created.type,
             },
         )
-        self.session.add(event)
 
         return CreateSecretOutput(
             id=created.id,
@@ -152,4 +154,35 @@ class ExecuteToolUseCase:
         self.session.add(event)
 
         return {"executed": True, "tool_id": str(tool.id), "name": tool.name}
+
+
+class ListToolsUseCase:
+
+    def __init__(self, repo: ToolRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: ListToolsInput) -> list:
+        if not input_dto.project_id:
+            return []
+        return await self._repo.list_by_project(input_dto.project_id)
+
+
+class ListToolsByAgentUseCase:
+
+    def __init__(self, repo: ToolRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: ListToolsByAgentInput) -> list:
+        return await self._repo.list_by_agent(input_dto.agent_id)
+
+
+class ListSecretsUseCase:
+
+    def __init__(self, repo: SecretRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: ListSecretsInput) -> list:
+        if not input_dto.project_id:
+            return []
+        return await self._repo.list_by_project(input_dto.project_id)
 

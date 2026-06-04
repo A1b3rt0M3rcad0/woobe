@@ -1,7 +1,6 @@
-from collections.abc import AsyncIterator
 
 import aio_pika
-from aio_pika import Channel, ExchangeType, Message, RobustChannel, RobustConnection
+from aio_pika import ExchangeType, Message, RobustChannel, RobustConnection
 
 
 class RabbitMQManager:

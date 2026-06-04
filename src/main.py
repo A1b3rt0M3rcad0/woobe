@@ -5,17 +5,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError as PydanticValidationError
 
-from modules.ai.presentation.controllers import router as ai_router
-from modules.billing.presentation.controllers import router as billing_router
-from modules.core.presentation.controllers import router as core_router
-from modules.identity.presentation.controllers import router as identity_router
-from modules.knowledge.presentation.controllers import router as knowledge_router
-from modules.metering.presentation.controllers import router as metering_router
-from modules.observability.presentation.controllers import router as observability_router
-from modules.runtime.presentation.controllers import router as runtime_router
-from modules.tools.presentation.controllers import router as tools_router
+from modules.ai.presentation.routes import router as ai_router
+from modules.billing.presentation.routes import router as billing_router
+from modules.core.presentation.routes import router as core_router
+from modules.identity.presentation.routes import router as identity_router
+from modules.knowledge.presentation.routes import router as knowledge_router
+from modules.metering.presentation.routes import router as metering_router
+from modules.observability.presentation.routes import router as observability_router
+from modules.runtime.presentation.routes import router as runtime_router
+from modules.tools.presentation.routes import router as tools_router
 from shared.infra.config import Settings
-from shared.infra.database.session import create_engine
+from shared.infra.database.session import create_engine, create_session_factory
 from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.async_engine = create_engine(settings)
+    app.state.session_factory = create_session_factory(app.state.async_engine)
 
     app.add_middleware(
         CORSMiddleware,

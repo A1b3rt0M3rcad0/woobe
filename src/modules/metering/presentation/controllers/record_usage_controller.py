@@ -1,0 +1,18 @@
+from modules.metering.service.use_cases import RecordUsageUseCase
+from modules.metering.service.dtos import RecordUsageInput
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class RecordUsageController(Controller):
+    def __init__(self, use_case: RecordUsageUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        input_dto = RecordUsageInput(**request.body)
+        result = await self._use_case.execute(input_dto)
+        return Response(
+            status_code=201,
+            body={"success": True, "message": "created", "data": {"event_id": str(result.event_id)}},
+        )

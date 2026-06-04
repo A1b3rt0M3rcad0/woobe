@@ -23,6 +23,9 @@ from modules.billing.service.dtos import (
     CreatePlanOutput,
     CreateSubscriptionInput,
     CreateSubscriptionOutput,
+    GetOrganizationSubscriptionInput,
+    GetOrganizationSubscriptionOutput,
+    ListActivePlansOutput,
 )
 from shared.domain.events import OutboxEventWriter
 
@@ -181,3 +184,38 @@ class HandlePaymentEventUseCase:
         )
 
         return CreatePaymentEventOutput(event_id=saved.id)
+
+
+class ListActivePlansUseCase:
+
+    def __init__(self, repo: PlanRepository) -> None:
+        self._repo = repo
+
+    async def execute(self) -> list[ListActivePlansOutput]:
+        plans = await self._repo.list_active()
+        return [ListActivePlansOutput(
+            id=p.id,
+            code=p.code,
+            name=p.name,
+            price_usd=p.price_usd,
+            status=p.status.value if hasattr(p.status, "value") else p.status,
+        ) for p in plans]
+
+
+class GetOrganizationSubscriptionUseCase:
+
+    def __init__(self, repo: SubscriptionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: GetOrganizationSubscriptionInput) -> GetOrganizationSubscriptionOutput | None:
+        subscriptions = await self._repo.list_by_organization(input_dto.organization_id)
+        if not subscriptions:
+            return None
+        sub = subscriptions[0]
+        return GetOrganizationSubscriptionOutput(
+            id=sub.id,
+            organization_id=sub.organization_id,
+            plan_id=sub.plan_id,
+            status=sub.status.value if hasattr(sub.status, "value") else sub.status,
+            current_period_end=sub.current_period_end,
+        )

@@ -55,3 +55,23 @@ class CreatePaymentEventInput(BaseModel):
 
 class CreatePaymentEventOutput(BaseModel):
     event_id: UUID
+
+
+class ListActivePlansOutput(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    price_usd: float
+    status: str
+
+
+class GetOrganizationSubscriptionInput(BaseModel):
+    organization_id: UUID
+
+
+class GetOrganizationSubscriptionOutput(BaseModel):
+    id: UUID
+    organization_id: UUID
+    plan_id: UUID
+    status: str
+    current_period_end: datetime | None = None

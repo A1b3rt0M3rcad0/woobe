@@ -1,10 +1,11 @@
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.domain.objects import CursorPage
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.database.base import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
@@ -12,9 +13,15 @@ T = TypeVar("T", bound=BaseModel)
 
 class BaseSQLAlchemyRepository(Generic[T]):
 
-    def __init__(self, session: AsyncSession, model_cls: type[T]) -> None:
-        self._session = session
+    def __init__(self, session: AsyncSession | UnitOfWork, model_cls: type[T]) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
         self.model_cls = model_cls
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return cast(AsyncSession, self._session_or_uow)
 
     async def _add_model(self, model: T) -> T:
         self._session.add(model)

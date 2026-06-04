@@ -1,4 +1,4 @@
-import os
+﻿from uuid import UUID
 
 from cryptography.fernet import Fernet
 
@@ -11,6 +11,11 @@ from modules.ai.service.dtos import (
     CreateAgentInput,
     CreateProviderCredentialInput,
     CreateProviderCredentialOutput,
+    GetAgentInput,
+    ListAgentsInput,
+    ListAgentsOutput,
+    ListProviderCredentialsInput,
+    ListProviderCredentialsOutput,
     UpdateAgentInput,
     UpdateAgentOutput,
 )
@@ -187,3 +192,57 @@ class UpdateAgentUseCase:
             created_at=saved.created_at,
             updated_at=saved.updated_at,
         )
+
+
+class ListProviderCredentialsUseCase:
+
+    def __init__(self, credential_repo: ProviderCredentialRepository) -> None:
+        self._credential_repo = credential_repo
+
+    async def execute(self, input_dto: ListProviderCredentialsInput) -> list[ListProviderCredentialsOutput]:
+        if not input_dto.project_id:
+            return []
+        credentials = await self._credential_repo.list_by_project(input_dto.project_id)
+        return [ListProviderCredentialsOutput(
+            id=c.id,
+            project_id=c.project_id,
+            provider=c.provider,
+            name=c.name,
+            status=c.status,
+            created_at=c.created_at,
+            metadata=c.metadata,
+        ) for c in credentials]
+
+
+class ListAgentsUseCase:
+
+    def __init__(self, agent_repo: AgentRepository) -> None:
+        self._agent_repo = agent_repo
+
+    async def execute(self, input_dto: ListAgentsInput) -> list[ListAgentsOutput]:
+        if not input_dto.project_id:
+            return []
+        agents = await self._agent_repo.list_by_project(input_dto.project_id)
+        return [ListAgentsOutput(
+            id=a.id,
+            project_id=a.project_id,
+            name=a.name,
+            provider=a.provider,
+            model=a.model,
+            status=a.status,
+            created_at=a.created_at,
+        ) for a in agents]
+
+
+class GetAgentByIdUseCase:
+
+    def __init__(self, agent_repo: AgentRepository) -> None:
+        self._agent_repo = agent_repo
+
+    async def execute(self, input_dto: GetAgentInput) -> Agent:
+        from modules.ai.domain.errors import AgentNotFoundError
+        agent = await self._agent_repo.get_by_id(input_dto.agent_id)
+        if not agent:
+            raise AgentNotFoundError(input_dto.agent_id)
+        return agent
+

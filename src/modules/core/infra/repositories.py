@@ -18,6 +18,7 @@ from modules.core.infra.mappers import (
 from modules.core.infra.models import ApiKeyModel, OutboxEventModel, ProjectModel
 from shared.domain.events import OutboxEventWriter
 from shared.domain.objects import CursorPage
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
@@ -25,7 +26,7 @@ class SQLAlchemyProjectRepository(
     BaseSQLAlchemyRepository[ProjectModel], ProjectRepositoryInterface
 ):
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         super().__init__(session, ProjectModel)
 
     async def save(self, project: Project) -> Project:
@@ -54,7 +55,6 @@ class SQLAlchemyProjectRepository(
     async def list_by_organization(
         self, organization_id: UUID
     ) -> list[Project]:
-        # TODO: Remove after pagination migration
         result = await self._session.execute(
             select(ProjectModel).where(
                 ProjectModel.organization_id == organization_id
@@ -89,7 +89,7 @@ class SQLAlchemyApiKeyRepository(
     BaseSQLAlchemyRepository[ApiKeyModel], ApiKeyRepositoryInterface
 ):
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         super().__init__(session, ApiKeyModel)
 
     async def save(self, api_key: ApiKey) -> ApiKey:
@@ -111,7 +111,6 @@ class SQLAlchemyApiKeyRepository(
         return api_key_model_to_entity(model) if model else None
 
     async def list_by_project(self, project_id: UUID) -> list[ApiKey]:
-        # TODO: Remove after pagination migration
         result = await self._session.execute(
             select(ApiKeyModel).where(ApiKeyModel.project_id == project_id)
         )
@@ -142,15 +141,22 @@ class SQLAlchemyApiKeyRepository(
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
 
     async def write(
         self,
         aggregate_type: str,
         aggregate_id: UUID,
         event_type: str,
-        payload: dict[str, Any] | None = None,
+        payload: dict[str, Any],
+        event_version: int = 1,
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
     ) -> None:
@@ -158,7 +164,7 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
             event_type=event_type,
-            payload=payload or {},
+            payload=payload,
             correlation_id=correlation_id,
             causation_id=causation_id,
         )

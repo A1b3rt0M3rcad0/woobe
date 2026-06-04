@@ -1,4 +1,5 @@
 from __future__ import annotations
+from uuid import UUID
 
 from modules.knowledge.domain.entities import (
     AgentCollection,
@@ -12,7 +13,6 @@ from modules.knowledge.domain.repositories import (
     DocumentCollectionRepository,
     DocumentRepository,
 )
-from modules.knowledge.infra.models import OutboxEventModel
 from modules.knowledge.service.dtos import (
     AgentCollectionOutput,
     AttachCollectionInput,
@@ -20,12 +20,18 @@ from modules.knowledge.service.dtos import (
     CreateCollectionInput,
     CreateCollectionOutput,
     DocumentChunkOutput,
+    GetCollectionInput,
+    GetDocumentInput,
+    ListCollectionsInput,
+    ListDocumentsInput,
     SearchChunksInput,
     SearchChunksOutput,
     UploadDocumentInput,
     UploadDocumentOutput,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from shared.domain.events import OutboxEventWriter
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class ListAgentCollectionsUseCase:
@@ -37,13 +43,13 @@ class ListAgentCollectionsUseCase:
         links = await self._repo.list_by_agent(agent_id)
         return [
             AgentCollectionOutput(
-                id=l.id,
-                agent_id=l.agent_id,
-                collection_id=l.collection_id,
-                created_at=l.created_at,
-                updated_at=l.updated_at,
+                id=link.id,
+                agent_id=link.agent_id,
+                collection_id=link.collection_id,
+                created_at=link.created_at,
+                updated_at=link.updated_at,
             )
-            for l in links
+            for link in links
         ]
 
 
@@ -51,10 +57,8 @@ class AttachCollectionUseCase:
 
     def __init__(
         self,
-        session: AsyncSession,
         repo: AgentCollectionRepository,
     ) -> None:
-        self.session = session
         self._repo = repo
 
     async def execute(self, input_dto: AttachCollectionInput) -> AttachCollectionOutput:
@@ -92,11 +96,11 @@ class CreateCollectionUseCase:
 
     def __init__(
         self,
-        session: AsyncSession,
         repo: DocumentCollectionRepository,
+        outbox: OutboxEventWriter,
     ) -> None:
-        self.session = session
         self.repo = repo
+        self._outbox = outbox
 
     async def execute(self, input_dto: CreateCollectionInput) -> CreateCollectionOutput:
         collection = DocumentCollection(
@@ -106,7 +110,7 @@ class CreateCollectionUseCase:
         )
         created = await self.repo.create(collection)
 
-        event = OutboxEventModel(
+        await self._outbox.write(
             aggregate_type="document_collection",
             aggregate_id=created.id,
             event_type="knowledge.collection.created",
@@ -116,7 +120,6 @@ class CreateCollectionUseCase:
                 "name": created.name,
             },
         )
-        self.session.add(event)
 
         return CreateCollectionOutput(
             id=created.id,
@@ -133,16 +136,16 @@ class UploadDocumentUseCase:
 
     def __init__(
         self,
-        session: AsyncSession,
         doc_repo: DocumentRepository,
         collection_repo: DocumentCollectionRepository,
+        outbox: OutboxEventWriter,
     ) -> None:
-        self.session = session
         self.doc_repo = doc_repo
         self.collection_repo = collection_repo
+        self._outbox = outbox
 
     async def execute(self, input_dto: UploadDocumentInput) -> UploadDocumentOutput:
-        collection = await self.collection_repo.get_by_id(input_dto.collection_id)
+        await self.collection_repo.get_by_id(input_dto.collection_id)
 
         document = Document(
             project_id=input_dto.project_id,
@@ -157,7 +160,7 @@ class UploadDocumentUseCase:
         )
         created = await self.doc_repo.create(document)
 
-        event = OutboxEventModel(
+        await self._outbox.write(
             aggregate_type="document",
             aggregate_id=created.id,
             event_type="knowledge.document.uploaded",
@@ -170,7 +173,6 @@ class UploadDocumentUseCase:
                 "parser": created.parser,
             },
         )
-        self.session.add(event)
 
         return UploadDocumentOutput(
             id=created.id,
@@ -222,4 +224,53 @@ class SearchChunksUseCase:
                 )
             )
         return SearchChunksOutput(results=outputs, total=len(outputs))
+
+
+class ListCollectionsUseCase:
+
+    def __init__(self, repo: DocumentCollectionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: ListCollectionsInput) -> list:
+        if not input_dto.project_id:
+            return []
+        collections = await self._repo.list_by_project(input_dto.project_id)
+        return collections
+
+
+class GetCollectionUseCase:
+
+    def __init__(self, repo: DocumentCollectionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: GetCollectionInput) -> DocumentCollection:
+        return await self._repo.get_by_id(input_dto.collection_id)
+
+
+class ListDocumentsUseCase:
+
+    def __init__(self, repo: DocumentRepository, uow: UnitOfWork) -> None:
+        self._repo = repo
+        self._uow = uow
+
+    async def execute(self, input_dto: ListDocumentsInput) -> list:
+        if input_dto.collection_id:
+            return await self._repo.list_by_collection(input_dto.collection_id)
+        if input_dto.project_id:
+            from sqlalchemy import select
+            from modules.knowledge.infra.models import DocumentModel
+            from modules.knowledge.infra.mappers import model_to_document
+            stmt = select(DocumentModel).where(DocumentModel.project_id == input_dto.project_id).order_by(DocumentModel.created_at.desc())
+            result = await self._uow.session.execute(stmt)
+            return [model_to_document(m) for m in result.scalars().all()]
+        return []
+
+
+class GetDocumentUseCase:
+
+    def __init__(self, repo: DocumentRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: GetDocumentInput) -> Document:
+        return await self._repo.get_by_id(input_dto.document_id)
 

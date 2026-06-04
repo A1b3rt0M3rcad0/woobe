@@ -97,3 +97,20 @@ class SearchChunksOutput(BaseModel):
     results: list[DocumentChunkOutput]
     total: int
 
+
+class ListCollectionsInput(BaseModel):
+    project_id: UUID | None = None
+
+
+class GetCollectionInput(BaseModel):
+    collection_id: UUID
+
+
+class ListDocumentsInput(BaseModel):
+    project_id: UUID | None = None
+    collection_id: UUID | None = None
+
+
+class GetDocumentInput(BaseModel):
+    document_id: UUID
+

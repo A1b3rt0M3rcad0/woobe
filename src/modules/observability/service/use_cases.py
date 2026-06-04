@@ -8,6 +8,7 @@ from modules.observability.service.dtos import (
     CreateTraceEventOutput,
     CreateTraceInput,
     CreateTraceOutput,
+    ListTracesInput,
     TraceEventResponse,
     TraceSummaryResponse,
 )
@@ -141,3 +142,14 @@ class GetTraceUseCase:
                 for e in events
             ],
         )
+
+
+class ListTracesUseCase:
+
+    def __init__(self, repo: TraceRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: ListTracesInput) -> list:
+        if not input_dto.project_id:
+            return []
+        return await self._repo.list_by_project(input_dto.project_id, input_dto.limit, input_dto.offset)

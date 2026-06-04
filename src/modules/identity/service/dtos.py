@@ -81,3 +81,95 @@ class InviteUserOutput(BaseModel):
     status: InviteStatus
     expires_at: datetime
     created_at: datetime
+
+
+class ListOrganizationsInput(BaseModel):
+    pass
+
+
+class ListOrganizationsOutput(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    status: OrganizationStatus
+    created_at: datetime | None = None
+
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+
+class LoginOutput(BaseModel):
+    token: str
+    user: dict
+
+
+class RegisterInput(BaseModel):
+    email: str
+    password: str
+    organization_name: str
+
+
+class RegisterOutput(BaseModel):
+    token: str
+    user: dict
+
+
+class GetOrganizationInput(BaseModel):
+    organization_id: UUID
+
+
+class GetOrganizationOutput(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    status: OrganizationStatus
+    created_at: datetime | None = None
+
+
+class ListMembersInput(BaseModel):
+    organization_id: UUID
+
+
+class ListMembersOutput(BaseModel):
+    id: UUID
+    user_id: UUID
+    organization_id: UUID
+    role: MemberRole
+    status: MemberStatus
+    joined_at: datetime | None = None
+
+
+class ListInvitesInput(BaseModel):
+    organization_id: UUID
+
+
+class ListInvitesOutput(BaseModel):
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: MemberRole
+    status: InviteStatus
+    expires_at: datetime | None = None
+    created_at: datetime | None = None
+
+
+class GetUserInput(BaseModel):
+    user_id: UUID
+
+
+class GetUserOutput(BaseModel):
+    id: UUID
+    email: str
+    status: UserStatus
+    created_at: datetime | None = None
+
+
+class GetCurrentUserInput(BaseModel):
+    pass
+
+
+class GetCurrentUserOutput(BaseModel):
+    email: str
+    name: str | None = None

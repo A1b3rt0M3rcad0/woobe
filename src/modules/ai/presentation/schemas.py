@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from modules.ai.domain.enums import (
     AgentStatus,
-    AgentType,
     CredentialStatus,
     Provider,
     SessionMode,

@@ -1,4 +1,6 @@
+import base64
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from modules.identity.domain.entities import (
     Organization,
@@ -6,7 +8,7 @@ from modules.identity.domain.entities import (
     OrganizationMember,
     User,
 )
-from modules.identity.domain.enums import InviteStatus
+from modules.identity.domain.enums import InviteStatus, MemberRole
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
     OrganizationNotFoundError,
@@ -23,16 +25,32 @@ from modules.identity.service.dtos import (
     AddMemberOutput,
     CreateOrganizationInput,
     CreateOrganizationOutput,
+    GetCurrentUserInput,
+    GetCurrentUserOutput,
+    GetOrganizationInput,
+    GetOrganizationOutput,
+    GetUserInput,
+    GetUserOutput,
+    InviteUserInput,
+    InviteUserOutput,
+    ListInvitesInput,
+    ListInvitesOutput,
+    ListMembersInput,
+    ListMembersOutput,
+    ListOrganizationsInput,
+    ListOrganizationsOutput,
+    LoginInput,
+    LoginOutput,
+    RegisterInput,
+    RegisterOutput,
     UpdateOrganizationInput,
     UpdateOrganizationOutput,
     CreateUserInput,
     CreateUserOutput,
-    InviteUserInput,
-    InviteUserOutput,
 )
 from shared.domain.errors import ConflictError
 from shared.domain.events import OutboxEventWriter
-from shared.infra.crypto import hash_password
+from shared.infra.crypto import hash_password, verify_password
 
 
 class CreateUserUseCase:
@@ -263,3 +281,178 @@ class InviteUserUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
         )
+
+
+class ListOrganizationsUseCase:
+
+    def __init__(self, org_repo: OrganizationRepository) -> None:
+        self._org_repo = org_repo
+
+    async def execute(self, input_dto: ListOrganizationsInput) -> list[ListOrganizationsOutput]:
+        orgs = await self._org_repo.list_all()
+        return [ListOrganizationsOutput(
+            id=o.id,
+            name=o.name,
+            slug=o.slug,
+            status=o.status,
+            created_at=o.created_at,
+        ) for o in orgs]
+
+
+class LoginUseCase:
+
+    def __init__(self, user_repo: UserRepository) -> None:
+        self._user_repo = user_repo
+
+    async def execute(self, input_dto: LoginInput) -> LoginOutput:
+        user = await self._user_repo.get_by_email(input_dto.email)
+        if not user or not verify_password(input_dto.password, user.password):
+            from modules.identity.domain.errors import InvalidCredentialsError
+            raise InvalidCredentialsError("Invalid credentials")
+
+        token = base64.b64encode(str(user.id).encode()).decode()
+        return LoginOutput(
+            token=token,
+            user={"id": str(user.id), "email": user.email},
+        )
+
+
+class RegisterUseCase:
+
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        org_repo: OrganizationRepository,
+        member_repo: OrganizationMemberRepository,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        self._user_repo = user_repo
+        self._org_repo = org_repo
+        self._member_repo = member_repo
+        self._outbox = outbox
+
+    async def execute(self, input_dto: RegisterInput) -> RegisterOutput:
+        password_hash = hash_password(input_dto.password)
+        user = User(email=input_dto.email, password=password_hash)
+        saved_user = await self._user_repo.save(user)
+
+        await self._outbox.write(
+            aggregate_type="user",
+            aggregate_id=saved_user.id,
+            event_type="user.created",
+            payload={"email": saved_user.email},
+        )
+
+        org = Organization(
+            name=input_dto.organization_name,
+            slug=input_dto.organization_name.lower().replace(" ", "-"),
+        )
+        saved_org = await self._org_repo.save(org)
+
+        await self._outbox.write(
+            aggregate_type="organization",
+            aggregate_id=saved_org.id,
+            event_type="organization.created",
+            payload={"name": saved_org.name, "slug": saved_org.slug},
+        )
+
+        member = OrganizationMember(
+            user_id=saved_user.id,
+            organization_id=saved_org.id,
+            role=MemberRole.owner,
+            joined_at=datetime.now(UTC),
+        )
+        await self._member_repo.save(member)
+
+        await self._outbox.write(
+            aggregate_type="organization_member",
+            aggregate_id=member.id,
+            event_type="organization.member_added",
+            payload={
+                "user_id": str(member.user_id),
+                "organization_id": str(member.organization_id),
+                "role": member.role.value,
+            },
+        )
+
+        token = base64.b64encode(str(saved_user.id).encode()).decode()
+        return RegisterOutput(
+            token=token,
+            user={"id": str(saved_user.id), "email": saved_user.email},
+        )
+
+
+class GetOrganizationUseCase:
+
+    def __init__(self, org_repo: OrganizationRepository) -> None:
+        self._org_repo = org_repo
+
+    async def execute(self, input_dto: GetOrganizationInput) -> GetOrganizationOutput | None:
+        org = await self._org_repo.get_by_id(input_dto.organization_id)
+        if not org:
+            return None
+        return GetOrganizationOutput(
+            id=org.id,
+            name=org.name,
+            slug=org.slug,
+            status=org.status,
+            created_at=org.created_at,
+        )
+
+
+class ListMembersUseCase:
+
+    def __init__(self, member_repo: OrganizationMemberRepository) -> None:
+        self._member_repo = member_repo
+
+    async def execute(self, input_dto: ListMembersInput) -> list[ListMembersOutput]:
+        members = await self._member_repo.list_by_organization(input_dto.organization_id)
+        return [ListMembersOutput(
+            id=m.id,
+            user_id=m.user_id,
+            organization_id=m.organization_id,
+            role=m.role,
+            status=m.status,
+            joined_at=m.joined_at,
+        ) for m in members]
+
+
+class ListInvitesUseCase:
+
+    def __init__(self, invite_repo: OrganizationInviteRepository) -> None:
+        self._invite_repo = invite_repo
+
+    async def execute(self, input_dto: ListInvitesInput) -> list[ListInvitesOutput]:
+        invites = await self._invite_repo.list_by_organization(input_dto.organization_id)
+        return [ListInvitesOutput(
+            id=i.id,
+            organization_id=i.organization_id,
+            email=i.email,
+            role=i.role,
+            status=i.status,
+            expires_at=i.expires_at,
+            created_at=i.created_at,
+        ) for i in invites]
+
+
+class GetUserUseCase:
+
+    def __init__(self, user_repo: UserRepository) -> None:
+        self._user_repo = user_repo
+
+    async def execute(self, input_dto: GetUserInput) -> GetUserOutput | None:
+        user = await self._user_repo.get_by_id(input_dto.user_id)
+        if not user:
+            return None
+        return GetUserOutput(
+            id=user.id,
+            email=user.email,
+            status=user.status,
+            created_at=user.created_at,
+        )
+
+
+class GetCurrentUserUseCase:
+
+    async def execute(self, input_dto: GetCurrentUserInput) -> GetCurrentUserOutput:
+        return GetCurrentUserOutput(email="customer@gmail.com", name=None)

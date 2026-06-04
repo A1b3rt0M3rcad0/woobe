@@ -6,6 +6,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.infra.config.interface.unit_of_work import UnitOfWork
+
 from modules.runtime.domain.entities import Message, Session
 from modules.runtime.domain.errors import MessageNotFoundError, SessionNotFoundError
 from modules.runtime.domain.repositories import MessageRepository, SessionRepository
@@ -23,9 +25,15 @@ from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 class SQLAlchemySessionRepository(SessionRepository):
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, SessionModel)
-        self._session = session
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
 
     async def create(self, session: Session) -> Session:
         model = session_to_model(session)
@@ -106,9 +114,15 @@ class SQLAlchemySessionRepository(SessionRepository):
 
 class SQLAlchemyMessageRepository(MessageRepository):
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, MessageModel)
-        self._session = session
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
 
     async def create(self, message: Message) -> Message:
         model = message_to_model(message)
@@ -172,15 +186,22 @@ class SQLAlchemyMessageRepository(MessageRepository):
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
 
     async def write(
         self,
         aggregate_type: str,
         aggregate_id: UUID,
         event_type: str,
-        payload: dict[str, Any] | None = None,
+        payload: dict[str, Any],
+        event_version: int = 1,
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
     ) -> None:
@@ -188,7 +209,7 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
             event_type=event_type,
-            payload=payload or {},
+            payload=payload,
             correlation_id=correlation_id,
             causation_id=causation_id,
         )

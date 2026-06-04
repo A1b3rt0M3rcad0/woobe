@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, UTC
 
 from aio_pika import IncomingMessage
 

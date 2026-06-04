@@ -57,3 +57,22 @@ class SendMessageOutput(BaseModel):
     message: MessageResponse
     session_id: UUID
 
+
+class ListMessagesInput(BaseModel):
+    session_id: UUID
+    offset: int = 0
+    limit: int = 100
+
+
+class ListMessagesOutput(BaseModel):
+    id: UUID
+    session_id: UUID
+    role: str
+    content: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+    data: dict | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+

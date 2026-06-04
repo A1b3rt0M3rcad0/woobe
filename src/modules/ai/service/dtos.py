@@ -97,3 +97,35 @@ class UpdateAgentOutput(BaseModel):
     settings: dict[str, Any]
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class ListProviderCredentialsInput(BaseModel):
+    project_id: UUID | None = None
+
+
+class ListProviderCredentialsOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    provider: Provider
+    name: str
+    status: CredentialStatus
+    created_at: datetime | None = None
+    metadata: dict[str, Any] = {}
+
+
+class ListAgentsInput(BaseModel):
+    project_id: UUID | None = None
+
+
+class ListAgentsOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    name: str
+    provider: Provider
+    model: str
+    status: AgentStatus
+    created_at: datetime | None = None
+
+
+class GetAgentInput(BaseModel):
+    agent_id: UUID

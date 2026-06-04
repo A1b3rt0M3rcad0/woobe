@@ -10,6 +10,14 @@ from modules.core.service.dtos import (
     CreateApiKeyOutput,
     CreateProjectInput,
     CreateProjectOutput,
+    GetProjectInput,
+    GetProjectOutput,
+    ListApiKeysInput,
+    ListApiKeysOutput,
+    ListProjectsInput,
+    ListProjectsOutput,
+    UpdateProjectInput,
+    UpdateProjectOutput,
 )
 from shared.domain.events import OutboxEventWriter
 
@@ -112,3 +120,96 @@ class CreateApiKeyUseCase:
             status=saved.status,
             created_at=saved.created_at,
         )
+
+
+class ListProjectsUseCase:
+
+    def __init__(self, project_repo: ProjectRepository) -> None:
+        self._project_repo = project_repo
+
+    async def execute(self, input_dto: ListProjectsInput) -> list[ListProjectsOutput]:
+        if input_dto.organization_id:
+            projects = await self._project_repo.list_by_organization(input_dto.organization_id)
+        else:
+            projects = []
+        return [ListProjectsOutput(
+            id=p.id,
+            organization_id=p.organization_id,
+            name=p.name,
+            slug=p.slug,
+            status=p.status,
+            created_at=p.created_at,
+            updated_at=p.updated_at,
+        ) for p in projects]
+
+
+class GetProjectByIdUseCase:
+
+    def __init__(self, project_repo: ProjectRepository) -> None:
+        self._project_repo = project_repo
+
+    async def execute(self, input_dto: GetProjectInput) -> GetProjectOutput:
+        project = await self._project_repo.get_by_id(input_dto.project_id)
+        if not project:
+            raise ProjectNotFoundError(input_dto.project_id)
+        return GetProjectOutput(
+            id=project.id,
+            organization_id=project.organization_id,
+            name=project.name,
+            slug=project.slug,
+            status=project.status,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+        )
+
+
+class UpdateProjectUseCase:
+
+    def __init__(self, project_repo: ProjectRepository, outbox: OutboxEventWriter) -> None:
+        self._project_repo = project_repo
+        self._outbox = outbox
+
+    async def execute(self, input_dto: UpdateProjectInput) -> UpdateProjectOutput:
+        project = await self._project_repo.get_by_id(input_dto.project_id)
+        if not project:
+            raise ProjectNotFoundError(input_dto.project_id)
+
+        if input_dto.name is not None:
+            project.name = input_dto.name
+        if input_dto.slug is not None:
+            project.slug = input_dto.slug
+
+        project.updated_at = datetime.now(UTC)
+        saved = await self._project_repo.save(project)
+
+        await self._outbox.write(
+            aggregate_type="project",
+            aggregate_id=saved.id,
+            event_type="project.updated",
+            payload={"name": saved.name, "slug": saved.slug},
+        )
+
+        return UpdateProjectOutput(
+            id=saved.id,
+            organization_id=saved.organization_id,
+            name=saved.name,
+            slug=saved.slug,
+            status=saved.status,
+            created_at=saved.created_at,
+            updated_at=saved.updated_at,
+        )
+
+
+class ListApiKeysByProjectUseCase:
+
+    def __init__(self, api_key_repo: ApiKeyRepository) -> None:
+        self._api_key_repo = api_key_repo
+
+    async def execute(self, input_dto: ListApiKeysInput) -> list[ListApiKeysOutput]:
+        keys = await self._api_key_repo.list_by_project(input_dto.project_id)
+        return [ListApiKeysOutput(
+            id=k.id,
+            name=k.name,
+            key_prefix=k.key_prefix,
+            status=k.status,
+        ) for k in keys]

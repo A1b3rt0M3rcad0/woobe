@@ -55,3 +55,15 @@ class CreateSecretOutput(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
+
+class ListToolsInput(BaseModel):
+    project_id: UUID | None = None
+
+
+class ListToolsByAgentInput(BaseModel):
+    agent_id: UUID
+
+
+class ListSecretsInput(BaseModel):
+    project_id: UUID | None = None
+
