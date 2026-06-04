@@ -1,8 +1,9 @@
-﻿import logging
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
 from modules.ai.presentation.routes import router as ai_router
@@ -43,9 +44,28 @@ def create_app() -> FastAPI:
     app.state.async_engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.async_engine)
 
+    cors_origins = settings.cors_origins.split(",")
+    logger.info("CORS allowed origins: %s", cors_origins)
+
+    @app.middleware("http")
+    async def cors_safe_guard(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            origin = request.headers.get("origin", "")
+            cors_origin = origin if origin in cors_origins else cors_origins[0] if cors_origins else "*"
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "Internal server error", "data": None},
+                headers={
+                    "Access-Control-Allow-Origin": cors_origin,
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins.split(","),
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -1,5 +1,6 @@
 from typing import Any
 
+from sqlalchemy.exc import PendingRollbackError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -18,7 +19,11 @@ class PostgresUnitOfWork(UnitOfWork):
 
     async def commit(self) -> None:
         if self._session is not None:
-            await self._session.commit()
+            try:
+                await self._session.commit()
+            except PendingRollbackError:
+                await self.rollback()
+                raise
 
     async def rollback(self) -> None:
         if self._session is not None:

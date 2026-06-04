@@ -62,7 +62,19 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled exception: %s", exc)
+    cors_origin = "*"
+    try:
+        settings = request.app.state.settings
+        origins = settings.cors_origins.split(",")
+        origin = request.headers.get("origin", "")
+        cors_origin = origin if origin in origins else origins[0]
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={"success": False, "message": "Internal server error", "data": None},
+        headers={
+            "Access-Control-Allow-Origin": cors_origin,
+            "Access-Control-Allow-Credentials": "true",
+        },
     )

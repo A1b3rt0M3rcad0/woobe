@@ -1,4 +1,4 @@
-﻿from uuid import UUID
+from uuid import UUID
 
 from modules.ai.domain.entities import Agent, ProviderCredential
 from modules.ai.domain.repositories import (
@@ -16,6 +16,8 @@ from modules.ai.service.dtos import (
     ListProviderCredentialsOutput,
     UpdateAgentInput,
     UpdateAgentOutput,
+    UpdateProviderCredentialInput,
+    UpdateProviderCredentialOutput,
 )
 from shared.domain.events import OutboxEventWriter
 from shared.infra.config import Settings
@@ -66,6 +68,58 @@ class CreateProviderCredentialUseCase:
             name=saved.name,
             status=saved.status,
             created_at=saved.created_at,
+            metadata=saved.metadata,
+        )
+
+
+class UpdateProviderCredentialUseCase:
+
+    def __init__(
+        self,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+        encryption_key: str | None = None,
+    ) -> None:
+        self._credential_repo = credential_repo
+        self._outbox = outbox
+        self._encryption_key = encryption_key or Settings().encryption_key
+
+    async def execute(
+        self, credential_id: UUID, input_dto: UpdateProviderCredentialInput
+    ) -> UpdateProviderCredentialOutput:
+        existing = await self._credential_repo.get_by_id(credential_id)
+        if not existing:
+            from modules.ai.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(credential_id)
+
+        update_data = input_dto.model_dump(exclude_unset=True)
+        if "secret" in update_data:
+            update_data["encrypted_secret"] = encrypt_secret(input_dto.secret, self._encryption_key)
+            del update_data["secret"]
+        for field, value in update_data.items():
+            setattr(existing, field, value)
+
+        saved = await self._credential_repo.update(existing)
+
+        await self._outbox.write(
+            aggregate_type="provider_credential",
+            aggregate_id=saved.id,
+            event_type="provider_credential.updated",
+            payload={
+                "project_id": str(saved.project_id),
+                "provider": saved.provider.value if hasattr(saved.provider, 'value') else saved.provider,
+                "name": saved.name,
+            },
+        )
+
+        return UpdateProviderCredentialOutput(
+            id=saved.id,
+            project_id=saved.project_id,
+            provider=saved.provider,
+            name=saved.name,
+            status=saved.status,
+            created_at=saved.created_at,
+            updated_at=saved.updated_at,
             metadata=saved.metadata,
         )
 

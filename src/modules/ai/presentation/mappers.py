@@ -1,5 +1,17 @@
-from modules.ai.domain.entities import Agent
-from modules.ai.presentation.schemas import AgentResponse
+from modules.ai.domain.entities import Agent, ProviderCredential
+from modules.ai.presentation.schemas import AgentResponse, ProviderCredentialResponse
+
+
+def credential_to_response(credential: ProviderCredential) -> ProviderCredentialResponse:
+    return ProviderCredentialResponse(
+        id=credential.id,
+        project_id=credential.project_id,
+        provider=credential.provider.value if hasattr(credential.provider, 'value') else credential.provider,
+        name=credential.name,
+        status=credential.status.value if hasattr(credential.status, 'value') else credential.status,
+        created_at=credential.created_at,
+        metadata=credential.metadata,
+    )
 
 
 def agent_to_response(agent: Agent) -> AgentResponse:

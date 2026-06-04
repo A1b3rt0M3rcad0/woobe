@@ -30,6 +30,14 @@ class ProviderCredentialResponse(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class UpdateProviderCredentialRequest(BaseModel):
+    name: str | None = None
+    provider: Provider | None = None
+    secret: str | None = None
+    metadata: dict[str, Any] | None = None
+    status: CredentialStatus | None = None
+
+
 class CreateAgentRequest(BaseModel):
     project_id: UUID
     name: str

@@ -16,3 +16,11 @@ export interface CreateProviderCredentialRequest {
   secret: string
   metadata?: Record<string, string>
 }
+
+export interface UpdateProviderCredentialRequest {
+  name?: string
+  provider?: string
+  secret?: string
+  metadata?: Record<string, string>
+  status?: string
+}

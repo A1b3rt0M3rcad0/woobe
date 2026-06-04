@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.ai.application.composers.create_provider_credential_composer import create_provider_credential_composer
 from modules.ai.application.composers.list_provider_credentials_composer import list_provider_credentials_composer
+from modules.ai.application.composers.update_provider_credential_composer import update_provider_credential_composer
 from modules.ai.application.composers.create_agent_composer import create_agent_composer
 from modules.ai.application.composers.list_agents_composer import list_agents_composer
 from modules.ai.application.composers.get_agent_composer import get_agent_composer
@@ -14,6 +15,13 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 @router.post("/credentials")
 async def create_provider_credential(request: FastAPIRequest):
     handler = create_provider_credential_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.patch("/credentials/{credential_id}")
+async def update_provider_credential(request: FastAPIRequest):
+    handler = update_provider_credential_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 

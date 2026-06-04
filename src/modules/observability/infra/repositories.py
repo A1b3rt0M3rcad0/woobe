@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -31,6 +31,16 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
 
     async def save(self, trace: Trace) -> Trace:
         model = trace_entity_to_model(trace)
+        existing = await self._get_model_by_id(trace.id)
+        if existing is not None:
+            insp = inspect(existing)
+            for key in insp.mapper.columns.keys():
+                if key in ("id", "created_at", "updated_at"):
+                    continue
+                setattr(existing, key, getattr(model, key))
+            await self._flush()
+            await self._refresh_model(existing)
+            return trace_model_to_entity(existing)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)
@@ -119,6 +129,16 @@ class SQLAlchemyTraceEventRepository(
 
     async def save(self, event: TraceEvent) -> TraceEvent:
         model = trace_event_entity_to_model(event)
+        existing = await self._get_model_by_id(event.id)
+        if existing is not None:
+            insp = inspect(existing)
+            for key in insp.mapper.columns.keys():
+                if key in ("id", "created_at", "updated_at"):
+                    continue
+                setattr(existing, key, getattr(model, key))
+            await self._flush()
+            await self._refresh_model(existing)
+            return trace_event_model_to_entity(existing)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)

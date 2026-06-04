@@ -26,6 +26,11 @@ class ProviderCredentialRepository(ABC):
     ) -> CursorPage[ProviderCredential]: ...
 
     @abstractmethod
+    async def update(
+        self, credential: ProviderCredential
+    ) -> ProviderCredential: ...
+
+    @abstractmethod
     async def delete(self, credential_id: UUID) -> None: ...
 
 

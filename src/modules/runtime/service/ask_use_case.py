@@ -97,10 +97,7 @@ class AskAgentUseCase:
         if session:
             await self._save_user_message(session, input_dto.message, agent)
 
-        try:
-            trace_id = await self._create_trace(input_dto, agent, session)
-        except Exception:
-            trace_id = None
+        trace_id = await self._create_trace(input_dto, agent, session)
 
         history = await self._load_history(session) if session else []
 
@@ -114,7 +111,7 @@ class AskAgentUseCase:
             llm_latency_ms = (time.monotonic() - llm_latency_start) * 1000
         except Exception as e:
             await self._fail_trace(trace_id, str(e))
-            raise
+            raise ValueError(f"AI provider error: {e}") from e
 
         answer = result.content if hasattr(result, "content") else str(result)
 
@@ -139,8 +136,8 @@ class AskAgentUseCase:
 
         try:
             await self._record_usage(input_dto, agent, usage)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to record usage: %s", e)
 
         try:
             await self._complete_trace(
@@ -152,8 +149,8 @@ class AskAgentUseCase:
                 latency_ms=llm_latency_ms,
                 message_id=message_id,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to complete trace: %s", e)
 
         total_latency = (time.monotonic() - started_at) * 1000
 
@@ -422,8 +419,8 @@ class AskAgentUseCase:
                 trace.ended_at = datetime.now(timezone.utc)
                 trace.error = error
                 await self._trace_repo.save(trace)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to fail trace %s: %s", trace_id, e)
 
     async def _complete_trace(
         self,
@@ -459,8 +456,8 @@ class AskAgentUseCase:
                 },
             )
             await self._trace_event_repo.save(event)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to complete trace %s: %s", trace_id, e)
 
     async def _record_usage(
         self, input_dto: AskInput, agent: Agent, usage: UsageInfo

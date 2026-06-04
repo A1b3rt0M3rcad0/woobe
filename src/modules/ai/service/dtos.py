@@ -31,6 +31,25 @@ class CreateProviderCredentialOutput(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class UpdateProviderCredentialInput(BaseModel):
+    name: str | None = None
+    provider: Provider | None = None
+    secret: str | None = None
+    metadata: dict[str, Any] | None = None
+    status: CredentialStatus | None = None
+
+
+class UpdateProviderCredentialOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    provider: Provider
+    name: str
+    status: CredentialStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    metadata: dict[str, Any] = {}
+
+
 class CreateAgentInput(BaseModel):
     project_id: UUID
     provider_credential_id: UUID | None = None

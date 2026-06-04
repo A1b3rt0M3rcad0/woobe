@@ -1,3 +1,5 @@
+import logging
+
 from modules.runtime.presentation.schemas import AskResponse, UsageResponse
 from modules.runtime.service.ask_use_case import AskAgentUseCase
 from modules.runtime.service.dtos import AskInput
@@ -5,6 +7,8 @@ from shared.domain.errors import NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
+
+logger = logging.getLogger(__name__)
 
 
 class AskAgentController(Controller):
@@ -63,4 +67,10 @@ class AskAgentController(Controller):
             return Response(
                 status_code=400,
                 body={"success": False, "message": str(e), "data": None},
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in ask agent: %s", e)
+            return Response(
+                status_code=500,
+                body={"success": False, "message": "Internal server error", "data": None},
             )

@@ -337,6 +337,7 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
         open={showAddCredential}
         onClose={() => setShowAddCredential(false)}
         projectId={projectId}
+        credential={selectedCredential}
         onCredentialCreated={handleCredentialCreated}
       />
     </>

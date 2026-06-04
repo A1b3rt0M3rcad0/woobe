@@ -391,6 +391,7 @@ export default function EditAgentPage() {
         open={showAddCredential}
         onClose={() => setShowAddCredential(false)}
         projectId={projectId!}
+        credential={selectedCredential}
         onCredentialCreated={handleCredentialCreated}
       />
     </div>

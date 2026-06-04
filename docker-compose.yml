@@ -3,12 +3,12 @@
     build: .
     ports:
       - "${PROJECTRAI_PORT:-8000}:8000"
+    env_file: .env
     environment:
       PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projectrai}
       PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
       PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
       PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
-      PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS:-*}
       PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
       PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
       PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events

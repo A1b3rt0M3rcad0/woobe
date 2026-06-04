@@ -77,6 +77,20 @@ class SQLAlchemyProviderCredentialRepository(
             total=page.total,
         )
 
+    async def update(self, credential: ProviderCredential) -> ProviderCredential:
+        model = await self._get_model_by_id(credential.id)
+        if not model:
+            from modules.ai.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(credential.id)
+        model.provider = credential.provider.value if hasattr(credential.provider, 'value') else credential.provider
+        model.name = credential.name
+        model.encrypted_secret = credential.encrypted_secret
+        model.status = credential.status.value if hasattr(credential.status, 'value') else credential.status
+        model.last_validated_at = credential.last_validated_at
+        model.meta = credential.metadata or None
+        await self._flush()
+        return provider_credential_model_to_entity(model)
+
     async def delete(self, credential_id: UUID) -> None:
         model = await self._get_model_by_id(credential_id)
         if model:
