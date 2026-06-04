@@ -20,6 +20,7 @@ import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
 import CreateAgentPage from '@/pages/CreateAgentPage'
 import AgentDetailPage from '@/pages/AgentDetailPage'
+import EditAgentPage from '@/pages/EditAgentPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
@@ -63,6 +64,7 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<CreateAgentPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentDetailPage />} />
+          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/edit" element={<EditAgentPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/knowledge" element={<KnowledgePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/tools" element={<ToolsPage />} />
@@ -75,6 +77,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/agents" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/new" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/:agentId" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/agents/:agentId/edit" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/:agentId/playground" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/knowledge" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/tools" element={<LegacyProjectRedirect />} />

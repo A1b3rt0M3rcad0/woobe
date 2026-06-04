@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
 import { orgProjectPath } from '@/lib/constants/routes'
-import { Play, Key, ExternalLink } from 'lucide-react'
+import { Play, Key, ExternalLink, Pencil } from 'lucide-react'
 
 export default function AgentDetailPage() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
@@ -125,6 +125,13 @@ export default function AgentDetailPage() {
         description={`${agent.provider} / ${agent.model}`}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
             <Button
               size="lg"
               onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}
