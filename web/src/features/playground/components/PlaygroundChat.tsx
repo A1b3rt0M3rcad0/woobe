@@ -81,61 +81,56 @@ export function PlaygroundChat({ messages, isSending, sessionId, onSend, onNewSe
             </div>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-            <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-1' : ''}`}>
-              <div
-                className={`rounded-lg px-4 py-3 text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-primary text-white'
-                    : 'bg-accent text-white'
-                }`}
-              >
-                {msg.content}
-              </div>
-              {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                <SourcesCollapsible sources={msg.sources} />
-              )}
-              {msg.role === 'assistant' && (
-                <div className="mt-1 space-y-0.5">
-                  {msg.model && (
-                    <p className="text-xs text-muted">{msg.provider || ''} {msg.model}</p>
-                  )}
-                  {msg.latency_ms != null && (
-                    <p className="text-xs text-muted">{Math.round(msg.latency_ms)}ms</p>
-                  )}
-                  {msg.usage && (
-                    <p className="text-xs text-muted">
-                      {formatNumber(msg.usage.input_tokens, 0)} in / {formatNumber(msg.usage.output_tokens, 0)} out · {formatCurrency(msg.usage.cost_usd, 6)}
-                    </p>
-                  )}
-                  {msg.trace_id && (
-                    <p className="text-xs text-muted">trace: {msg.trace_id.slice(0, 8)}...</p>
+        {messages.map((msg, i) => {
+          const isStreaming = msg.role === 'assistant' && !msg.content && isSending && i === messages.length - 1
+          return (
+            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+              <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                <div
+                  className={`rounded-lg px-4 py-3 text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-primary text-white'
+                      : 'bg-accent text-white'
+                  }`}
+                >
+                  {isStreaming ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted" />
+                  ) : (
+                    msg.content
                   )}
                 </div>
-              )}
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
-              {msg.role === 'user' ? (
-                <User className="h-4 w-4 text-muted" />
-              ) : (
-                <Bot className="h-4 w-4 text-primary" />
-              )}
-            </div>
-          </div>
-        ))}
-        {isSending && (
-          <div className="flex gap-3">
-            <div className="max-w-[80%]">
-              <div className="rounded-lg px-4 py-3 bg-accent">
-                <Loader2 className="h-4 w-4 animate-spin text-muted" />
+                {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                  <SourcesCollapsible sources={msg.sources} />
+                )}
+                {msg.role === 'assistant' && (
+                  <div className="mt-1 space-y-0.5">
+                    {msg.model && (
+                      <p className="text-xs text-muted">{msg.provider || ''} {msg.model}</p>
+                    )}
+                    {msg.latency_ms != null && (
+                      <p className="text-xs text-muted">{Math.round(msg.latency_ms)}ms</p>
+                    )}
+                    {msg.usage && (
+                      <p className="text-xs text-muted">
+                        {formatNumber(msg.usage.input_tokens, 0)} in / {formatNumber(msg.usage.output_tokens, 0)} out · {formatCurrency(msg.usage.cost_usd, 6)}
+                      </p>
+                    )}
+                    {msg.trace_id && (
+                      <p className="text-xs text-muted">trace: {msg.trace_id.slice(0, 8)}...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
+                {msg.role === 'user' ? (
+                  <User className="h-4 w-4 text-muted" />
+                ) : (
+                  <Bot className="h-4 w-4 text-primary" />
+                )}
               </div>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
-              <Bot className="h-4 w-4 text-primary" />
-            </div>
-          </div>
-        )}
+          )
+        })}
         <div ref={messagesEndRef} />
       </CardContent>
 

@@ -11,6 +11,7 @@ def create_chat_model(
     base_url: str | None = None,
     temperature: float = 0.2,
     max_tokens: int = 1000,
+    streaming: bool = False,
 ) -> BaseChatModel:
     if provider in ("openai", "custom"):
         kwargs: dict = {
@@ -19,6 +20,9 @@ def create_chat_model(
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if streaming:
+            kwargs["streaming"] = True
+            kwargs["stream_usage"] = True
         if base_url:
             kwargs["base_url"] = base_url
         return ChatOpenAI(**kwargs)

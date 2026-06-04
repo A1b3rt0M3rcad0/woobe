@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent } from '@/features/agents/hooks'
-import { useAsk } from '@/features/playground/hooks'
+import { useAskStream } from '@/features/playground/hooks'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -21,7 +21,7 @@ export default function AgentPlaygroundPage() {
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
-  const askMutation = useAsk()
+  const { stream, cancel: cancelStream } = useAskStream()
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -29,58 +29,106 @@ export default function AgentPlaygroundPage() {
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [sidePanelTab, setSidePanelTab] = useState<string | undefined>(undefined)
 
+  const accumulatedRef = useRef('')
+  const metadataRef = useRef<Partial<AskResponse>>({})
+
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
 
+    accumulatedRef.current = ''
+    metadataRef.current = {}
+
     const userMsg: ChatMessage = { role: 'user', content }
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
 
-    let assistantMsg: ChatMessage = {
-      role: 'assistant',
-      content: '',
-    }
-
-    setMessages((prev) => [...prev, userMsg])
+    setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsSending(true)
 
     try {
-      const res: AskResponse = await askMutation.mutateAsync({
-        project_id: projectId!,
-        agent_id: agentId!,
-        message: content,
-        session_id: sessionId,
-      })
-
-      if (res.session_id) {
-        setSessionId(res.session_id)
-      }
-
-      assistantMsg = {
-        role: 'assistant',
-        content: res.answer,
-        usage: res.usage,
-        sources: res.sources,
-      }
-      setMessages((prev) => [...prev, assistantMsg])
-      setLastResponse(res)
+      await stream(
+        {
+          project_id: projectId!,
+          agent_id: agentId!,
+          message: content,
+          session_id: sessionId,
+        },
+        {
+          onMeta: (meta) => {
+            if (meta.session_id) {
+              setSessionId(meta.session_id)
+            }
+          },
+          onToken: (token) => {
+            accumulatedRef.current += token
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, content: accumulatedRef.current }
+              }
+              return updated
+            })
+          },
+          onSources: (sources) => {
+            metadataRef.current.sources = sources
+          },
+          onDone: (response) => {
+            const meta = response
+            if (meta.session_id) {
+              setSessionId(meta.session_id)
+            }
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant') {
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: accumulatedRef.current,
+                  usage: meta.usage ?? null,
+                  sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
+                  model: meta.model ?? null,
+                  provider: meta.provider ?? null,
+                  latency_ms: meta.latency_ms ?? null,
+                  trace_id: meta.trace_id ?? null,
+                }
+              }
+              return updated
+            })
+            setLastResponse(meta as AskResponse)
+          },
+          onError: (error) => {
+            toast.error(error.message)
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant' && !last.content) {
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: 'Error: Failed to get response. Check your agent configuration.',
+                }
+              }
+              return updated
+            })
+          },
+        },
+      )
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       toast.error(err instanceof Error ? err.message : 'Request failed')
-      assistantMsg = {
-        role: 'assistant',
-        content: 'Error: Failed to get response. Check your agent configuration.',
-      }
-      setMessages((prev) => [...prev, assistantMsg])
     } finally {
       setIsSending(false)
     }
   }
 
   const handleNewSession = () => {
+    cancelStream()
     setSessionId(null)
     setMessages([])
     setLastResponse(null)
   }
 
   const handleClear = () => {
+    cancelStream()
     setMessages([])
     setLastResponse(null)
   }

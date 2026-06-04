@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.runtime.application.composers.ask_agent_composer import ask_agent_composer
+from modules.runtime.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
 from modules.runtime.application.composers.create_session_composer import create_session_composer
 from modules.runtime.application.composers.list_messages_composer import list_messages_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
@@ -20,6 +21,12 @@ async def ask(request: FastAPIRequest):
     handler = ask_agent_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+@router.post("/ask/stream")
+async def ask_stream(request: FastAPIRequest):
+    handler = ask_agent_stream_composer(request.app.state.session_factory)
+    return await handler(request)
 
 
 @router.get("/sessions/{session_id}/messages")
