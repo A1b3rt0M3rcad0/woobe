@@ -16,6 +16,7 @@ export interface ChatMessage {
   provider?: string | null
   latency_ms?: number | null
   trace_id?: string | null
+  parsed_output?: Record<string, unknown> | null
 }
 
 interface PlaygroundChatProps {
@@ -101,6 +102,14 @@ export function PlaygroundChat({ messages, isSending, sessionId, onSend, onNewSe
                 </div>
                 {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                   <SourcesCollapsible sources={msg.sources} />
+                )}
+                {msg.role === 'assistant' && msg.parsed_output && (
+                  <div className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
+                    <p className="text-xs font-medium text-emerald-400 mb-1">Structured Output</p>
+                    <pre className="text-xs text-emerald-300 overflow-x-auto whitespace-pre-wrap">
+                      {JSON.stringify(msg.parsed_output, null, 2)}
+                    </pre>
+                  </div>
                 )}
                 {msg.role === 'assistant' && (
                   <div className="mt-1 space-y-0.5">

@@ -144,6 +144,7 @@ export default function AgentPlaygroundPage() {
                   provider: meta.provider ?? null,
                   latency_ms: meta.latency_ms ?? null,
                   trace_id: meta.trace_id ?? null,
+                  parsed_output: meta.parsed_output ?? null,
                 }
               }
               return updated

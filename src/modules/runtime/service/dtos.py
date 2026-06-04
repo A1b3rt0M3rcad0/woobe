@@ -137,6 +137,6 @@ class AskOutput(BaseModel):
     model: str | None = None
     provider: str | None = None
     fallback_used: bool = False
-    latency_ms: float | None = None
+    latency_ms: int | None = None
     parsed_output: dict | None = None
     output_parse_error: str | None = None

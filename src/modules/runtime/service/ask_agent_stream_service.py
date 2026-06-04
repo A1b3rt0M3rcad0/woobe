@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -157,15 +158,16 @@ class AskAgentStreamService:
                     output_tokens = usage_meta.get("output_tokens") or output_tokens or 0
                     total_tokens = usage_meta.get("total_tokens") or total_tokens or 0
 
-            llm_latency_ms = (time.monotonic() - llm_latency_start) * 1000
+            llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
             full_answer = "".join(accumulated)
 
             parsed_output = None
             output_parse_error = None
             if json_enabled:
                 try:
-                    parsed_output = json.loads(full_answer)
-                except json.JSONDecodeError as e:
+                    cleaned = self._clean_json_answer(full_answer)
+                    parsed_output = json.loads(cleaned)
+                except (json.JSONDecodeError, Exception) as e:
                     output_parse_error = str(e)
 
             if hasattr(chat_model, "model"):
@@ -224,9 +226,10 @@ class AskAgentStreamService:
 
                 await db_session.commit()
 
-                total_latency = (time.monotonic() - started_at) * 1000
+                total_latency = round((time.monotonic() - started_at) * 1000)
 
                 done_payload: dict[str, Any] = {
+                    "answer": full_answer or "",
                     "session_id": str(session.id) if session else None,
                     "message_id": str(message_id) if message_id else None,
                     "usage": usage_info.model_dump() if usage_info else None,
@@ -443,6 +446,13 @@ class AskAgentStreamService:
     def _get_response_format(self, agent: Agent) -> dict:
         settings = agent.settings or {}
         return settings.get("response_format", {})
+
+    def _clean_json_answer(self, answer: str) -> str:
+        cleaned = answer.strip()
+        cleaned = re.sub(r'^```json\s*', '', cleaned)
+        cleaned = re.sub(r'^```\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+        return cleaned.strip()
 
     def _build_messages(
         self,

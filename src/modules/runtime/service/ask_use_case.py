@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -116,7 +117,7 @@ class AskAgentUseCase:
         try:
             llm_latency_start = time.monotonic()
             result = await chat_model.ainvoke(messages)
-            llm_latency_ms = (time.monotonic() - llm_latency_start) * 1000
+            llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
         except Exception as e:
             await self._fail_trace(trace_id, str(e))
             raise ValueError(f"AI provider error: {e}") from e
@@ -127,8 +128,9 @@ class AskAgentUseCase:
         output_parse_error = None
         if json_enabled:
             try:
-                parsed_output = json.loads(answer)
-            except json.JSONDecodeError as e:
+                cleaned = self._clean_json_answer(answer)
+                parsed_output = json.loads(cleaned)
+            except (json.JSONDecodeError, Exception) as e:
                 output_parse_error = str(e)
                 strict = response_format.get("strict", False)
                 if strict:
@@ -175,7 +177,7 @@ class AskAgentUseCase:
         except Exception as e:
             logger.warning("Failed to complete trace: %s", e)
 
-        total_latency = (time.monotonic() - started_at) * 1000
+        total_latency = round((time.monotonic() - started_at) * 1000)
 
         return AskOutput(
             answer=answer,
@@ -423,6 +425,13 @@ class AskAgentUseCase:
     def _get_response_format(self, agent: Agent) -> dict:
         settings = agent.settings or {}
         return settings.get("response_format", {})
+
+    def _clean_json_answer(self, answer: str) -> str:
+        cleaned = answer.strip()
+        cleaned = re.sub(r'^```json\s*', '', cleaned)
+        cleaned = re.sub(r'^```\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+        return cleaned.strip()
 
     async def _create_trace(
         self, input_dto: AskInput, agent: Agent, session: Session | None

@@ -1,31 +1,32 @@
 import { post, get } from '@/lib/api/client'
 import { getToken } from '@/lib/auth/token'
-import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo } from './types'
+import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-function normalizeResponse(response: AskResponse): AskResponse {
+function normalizeResponse(response: Record<string, unknown>): AskResponse {
+  const { type: _type, ...rest } = response
   return {
-    ...response,
-    usage: response.usage
+    answer: (rest.answer as string) ?? '',
+    session_id: (rest.session_id as string) ?? null,
+    message_id: (rest.message_id as string) ?? null,
+    usage: rest.usage
       ? {
-          input_tokens: response.usage.input_tokens ?? null,
-          output_tokens: response.usage.output_tokens ?? null,
-          total_tokens: response.usage.total_tokens ?? null,
-          cost_usd: response.usage.cost_usd ?? null,
+          input_tokens: (rest.usage as Record<string, unknown>).input_tokens as number ?? null,
+          output_tokens: (rest.usage as Record<string, unknown>).output_tokens as number ?? null,
+          total_tokens: (rest.usage as Record<string, unknown>).total_tokens as number ?? null,
+          cost_usd: (rest.usage as Record<string, unknown>).cost_usd as number ?? null,
         }
-      : null,
-    sources: response.sources ?? [],
-    tool_calls: response.tool_calls ?? [],
-    latency_ms: response.latency_ms ?? null,
-    trace_id: response.trace_id ?? null,
-    model: response.model ?? null,
-    provider: response.provider ?? null,
-    fallback_used: response.fallback_used ?? false,
-    session_id: response.session_id ?? null,
-    message_id: response.message_id ?? null,
-    parsed_output: response.parsed_output ?? null,
-    output_parse_error: response.output_parse_error ?? null,
+      : { input_tokens: null, output_tokens: null, total_tokens: null, cost_usd: null },
+    sources: (rest.sources as SourceInfo[]) ?? [],
+    tool_calls: (rest.tool_calls as ToolCallInfo[]) ?? [],
+    trace_id: (rest.trace_id as string) ?? null,
+    model: (rest.model as string) ?? null,
+    provider: (rest.provider as string) ?? null,
+    fallback_used: (rest.fallback_used as boolean) ?? false,
+    latency_ms: (rest.latency_ms as number) ?? null,
+    parsed_output: (rest.parsed_output as Record<string, unknown>) ?? null,
+    output_parse_error: (rest.output_parse_error as string) ?? null,
   }
 }
 
@@ -34,7 +35,7 @@ export async function createSession(data: CreateSessionRequest): Promise<Session
 }
 
 export async function ask(data: AskRequest): Promise<AskResponse> {
-  const response = await post<AskResponse>('/runtime/ask', data)
+  const response = await post<Record<string, unknown>>('/runtime/ask', data)
   return normalizeResponse(response)
 }
 
@@ -119,7 +120,7 @@ export async function askStream(
             })
             break
           case 'done':
-            callbacks.onDone(normalizeResponse(parsed as AskResponse))
+            callbacks.onDone(normalizeResponse(parsed))
             break
           case 'error':
             callbacks.onError(new Error(parsed.message ?? 'Stream error'))
