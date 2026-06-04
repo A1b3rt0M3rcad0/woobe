@@ -1,7 +1,5 @@
 ﻿from uuid import UUID
 
-from cryptography.fernet import Fernet
-
 from modules.ai.domain.entities import Agent, ProviderCredential
 from modules.ai.domain.repositories import (
     AgentRepository,
@@ -20,10 +18,8 @@ from modules.ai.service.dtos import (
     UpdateAgentOutput,
 )
 from shared.domain.events import OutboxEventWriter
-
-
-def _generate_encryption_key() -> bytes:
-    return Fernet.generate_key()
+from shared.infra.config import Settings
+from shared.infra.crypto import encrypt_secret
 
 
 class CreateProviderCredentialUseCase:
@@ -32,16 +28,16 @@ class CreateProviderCredentialUseCase:
         self,
         credential_repo: ProviderCredentialRepository,
         outbox: OutboxEventWriter,
+        encryption_key: str | None = None,
     ) -> None:
         self._credential_repo = credential_repo
         self._outbox = outbox
+        self._encryption_key = encryption_key or Settings().encryption_key
 
     async def execute(
         self, input_dto: CreateProviderCredentialInput
     ) -> CreateProviderCredentialOutput:
-        encryption_key = _generate_encryption_key()
-        fernet = Fernet(encryption_key)
-        encrypted_secret = fernet.encrypt(input_dto.secret.encode()).decode()
+        encrypted_secret = encrypt_secret(input_dto.secret, self._encryption_key)
 
         credential = ProviderCredential(
             project_id=input_dto.project_id,

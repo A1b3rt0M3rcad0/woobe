@@ -76,3 +76,49 @@ class ListMessagesOutput(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
+
+class AskInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    message: str = Field(..., min_length=1)
+    session_id: UUID | None = None
+    tenant_id: str | None = None
+    user_id: str | None = None
+    metadata: dict | None = None
+
+
+class UsageInfo(BaseModel):
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    cost_usd: float | None = None
+
+
+class SourceInfo(BaseModel):
+    document_id: str | None = None
+    document_title: str | None = None
+    chunk_id: str | None = None
+    page_number: int | None = None
+    score: float | None = None
+    content_preview: str | None = None
+
+
+class ToolCallInfo(BaseModel):
+    tool_name: str
+    input: dict | None = None
+    output: dict | None = None
+    duration_ms: float | None = None
+
+
+class AskOutput(BaseModel):
+    answer: str
+    session_id: UUID | None = None
+    message_id: UUID | None = None
+    usage: UsageInfo | None = None
+    sources: list[SourceInfo] = []
+    tool_calls: list[ToolCallInfo] = []
+    trace_id: UUID | None = None
+    model: str | None = None
+    provider: str | None = None
+    fallback_used: bool = False
+    latency_ms: float | None = None

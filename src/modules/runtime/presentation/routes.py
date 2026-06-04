@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
+from modules.runtime.application.composers.ask_agent_composer import ask_agent_composer
 from modules.runtime.application.composers.create_session_composer import create_session_composer
-from modules.runtime.application.composers.send_message_composer import send_message_composer
 from modules.runtime.application.composers.list_messages_composer import list_messages_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
@@ -17,7 +17,7 @@ async def create_session(request: FastAPIRequest):
 
 @router.post("/ask")
 async def ask(request: FastAPIRequest):
-    handler = send_message_composer(request.app.state.session_factory)
+    handler = ask_agent_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 

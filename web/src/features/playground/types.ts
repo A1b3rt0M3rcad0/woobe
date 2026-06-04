@@ -24,17 +24,22 @@ export interface CreateSessionRequest {
 }
 
 export interface AskRequest {
-  session_id: string
-  content: string
-  data?: Record<string, unknown>
+  project_id: string
+  agent_id: string
+  message: string
+  session_id?: string | null
+  tenant_id?: string
+  user_id?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface SourceInfo {
   document_title?: string
   document_id?: string
+  chunk_id?: string
   page_number?: number
-  chunk_preview?: string
   score?: number | null
+  content_preview?: string
 }
 
 export interface ToolCallInfo {
@@ -44,18 +49,25 @@ export interface ToolCallInfo {
   duration_ms?: number
 }
 
+export interface UsageInfo {
+  input_tokens: number | null
+  output_tokens: number | null
+  total_tokens?: number | null
+  cost_usd: number | null
+}
+
 export interface AskResponse {
   answer: string
-  session_id: string
-  message_id: string
-  usage?: {
-    input_tokens: number | null
-    output_tokens: number | null
-    cost_usd: number | null
-  } | null
-  sources?: SourceInfo[] | null
-  tool_calls?: ToolCallInfo[] | null
-  latency_ms?: number | null
+  session_id: string | null
+  message_id: string | null
+  usage: UsageInfo | null
+  sources: SourceInfo[]
+  tool_calls: ToolCallInfo[]
+  trace_id: string | null
+  model: string | null
+  provider: string | null
+  fallback_used: boolean
+  latency_ms: number | null
 }
 
 export interface Message {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent } from '@/features/agents/hooks'
-import { useAsk, useCreateSession } from '@/features/playground/hooks'
+import { useAsk } from '@/features/playground/hooks'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -21,7 +21,6 @@ export default function AgentPlaygroundPage() {
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
-  const createSession = useCreateSession()
   const askMutation = useAsk()
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -44,21 +43,16 @@ export default function AgentPlaygroundPage() {
     setIsSending(true)
 
     try {
-      let sid = sessionId
-      if (!sid) {
-        const session = await createSession.mutateAsync({
-          project_id: projectId!,
-          agent_id: agentId!,
-          mode: 'chat',
-        })
-        sid = session.id
-        setSessionId(sid)
-      }
-
       const res: AskResponse = await askMutation.mutateAsync({
-        session_id: sid,
-        content,
+        project_id: projectId!,
+        agent_id: agentId!,
+        message: content,
+        session_id: sessionId,
       })
+
+      if (res.session_id) {
+        setSessionId(res.session_id)
+      }
 
       assistantMsg = {
         role: 'assistant',

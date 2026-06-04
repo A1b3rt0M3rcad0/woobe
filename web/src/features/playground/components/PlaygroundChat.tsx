@@ -5,13 +5,17 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Send, Plus, Trash2, Bot, User, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { formatNumber, formatCurrency } from '@/lib/formatters/number'
-import type { SourceInfo } from '@/features/playground/types'
+import type { SourceInfo, UsageInfo } from '@/features/playground/types'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
-  usage?: { input_tokens: number | null; output_tokens: number | null; cost_usd: number | null } | null
+  usage?: UsageInfo | null
   sources?: SourceInfo[] | null
+  model?: string | null
+  provider?: string | null
+  latency_ms?: number | null
+  trace_id?: string | null
 }
 
 interface PlaygroundChatProps {
@@ -41,7 +45,7 @@ function SourcesCollapsible({ sources }: { sources: SourceInfo[] }) {
             <div key={i} className="rounded border border-border bg-background p-2 text-xs">
               <p className="font-medium text-white">{s.document_title || 'Untitled'}</p>
               {s.page_number != null && <p className="text-muted">Page {s.page_number}</p>}
-              {s.chunk_preview && <p className="text-muted mt-0.5 italic">"{s.chunk_preview.slice(0, 200)}..."</p>}
+              {s.content_preview && <p className="text-muted mt-0.5 italic">"{s.content_preview.slice(0, 200)}..."</p>}
               {s.score != null && <p className="text-muted">Score: {formatNumber(s.score, 3)}</p>}
             </div>
           ))}
@@ -92,10 +96,23 @@ export function PlaygroundChat({ messages, isSending, sessionId, onSend, onNewSe
               {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                 <SourcesCollapsible sources={msg.sources} />
               )}
-              {msg.usage && (
-                <p className="text-xs text-muted mt-1">
-                  {formatNumber(msg.usage.input_tokens, 0)} in / {formatNumber(msg.usage.output_tokens, 0)} out · {formatCurrency(msg.usage.cost_usd, 6)}
-                </p>
+              {msg.role === 'assistant' && (
+                <div className="mt-1 space-y-0.5">
+                  {msg.model && (
+                    <p className="text-xs text-muted">{msg.provider || ''} {msg.model}</p>
+                  )}
+                  {msg.latency_ms != null && (
+                    <p className="text-xs text-muted">{Math.round(msg.latency_ms)}ms</p>
+                  )}
+                  {msg.usage && (
+                    <p className="text-xs text-muted">
+                      {formatNumber(msg.usage.input_tokens, 0)} in / {formatNumber(msg.usage.output_tokens, 0)} out · {formatCurrency(msg.usage.cost_usd, 6)}
+                    </p>
+                  )}
+                  {msg.trace_id && (
+                    <p className="text-xs text-muted">trace: {msg.trace_id.slice(0, 8)}...</p>
+                  )}
+                </div>
               )}
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">

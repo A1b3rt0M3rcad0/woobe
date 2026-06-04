@@ -2,17 +2,26 @@ import { post, get } from '@/lib/api/client'
 import type { CreateSessionRequest, Session, AskRequest, AskResponse, Message } from './types'
 
 function normalizeResponse(response: AskResponse): AskResponse {
-  if (response.usage) {
-    response.usage = {
-      input_tokens: response.usage.input_tokens ?? null,
-      output_tokens: response.usage.output_tokens ?? null,
-      cost_usd: response.usage.cost_usd ?? null,
-    }
+  return {
+    ...response,
+    usage: response.usage
+      ? {
+          input_tokens: response.usage.input_tokens ?? null,
+          output_tokens: response.usage.output_tokens ?? null,
+          total_tokens: response.usage.total_tokens ?? null,
+          cost_usd: response.usage.cost_usd ?? null,
+        }
+      : null,
+    sources: response.sources ?? [],
+    tool_calls: response.tool_calls ?? [],
+    latency_ms: response.latency_ms ?? null,
+    trace_id: response.trace_id ?? null,
+    model: response.model ?? null,
+    provider: response.provider ?? null,
+    fallback_used: response.fallback_used ?? false,
+    session_id: response.session_id ?? null,
+    message_id: response.message_id ?? null,
   }
-  response.latency_ms = response.latency_ms ?? null
-  response.sources = response.sources ?? []
-  response.tool_calls = response.tool_calls ?? []
-  return response
 }
 
 export async function createSession(data: CreateSessionRequest): Promise<Session> {

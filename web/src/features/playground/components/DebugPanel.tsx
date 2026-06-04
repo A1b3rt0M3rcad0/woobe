@@ -74,7 +74,25 @@ export function DebugPanel({ sessionId, agent, lastResponse, messagesCount }: De
               <Separator />
               <div>
                 <p className="text-xs font-medium text-muted mb-2">Latency</p>
-                <p className="text-xs text-white">{lastResponse.latency_ms}ms</p>
+                <p className="text-xs text-white">{Math.round(lastResponse.latency_ms)}ms</p>
+              </div>
+            </>
+          )}
+          {lastResponse?.model && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs font-medium text-muted mb-2">Model / Provider</p>
+                <p className="text-xs text-white">{lastResponse.provider || '—'} / {lastResponse.model}</p>
+              </div>
+            </>
+          )}
+          {lastResponse?.trace_id && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs font-medium text-muted mb-2">Trace ID</p>
+                <p className="text-xs text-white break-all">{lastResponse.trace_id}</p>
               </div>
             </>
           )}
@@ -86,6 +104,7 @@ export function DebugPanel({ sessionId, agent, lastResponse, messagesCount }: De
                 <p className="text-xs text-white">
                   Input: {formatNumber(lastResponse.usage.input_tokens, 0)} tokens · Output: {formatNumber(lastResponse.usage.output_tokens, 0)} tokens
                 </p>
+                {lastResponse.usage.total_tokens != null && <p className="text-xs text-muted">Total: {formatNumber(lastResponse.usage.total_tokens, 0)} tokens</p>}
                 <p className="text-xs text-muted">Cost: {formatCurrency(lastResponse.usage.cost_usd, 6)}</p>
               </div>
             </>
