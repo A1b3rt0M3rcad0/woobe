@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
+import { Separator } from '@/components/ui/Separator'
+import { ChevronDown, ChevronRight, FileJson } from 'lucide-react'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { toast } from 'sonner'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
@@ -64,6 +66,11 @@ export default function CreateAgentPage() {
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
   const [showAddCredential, setShowAddCredential] = useState(false)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
+  const [showAdvancedOutput, setShowAdvancedOutput] = useState(false)
+  const [outputEnabled, setOutputEnabled] = useState(false)
+  const [outputSchema, setOutputSchema] = useState(`{\n  "type": "object",\n  "properties": {\n    "category": {\n      "type": "string",\n      "enum": ["support", "sales", "bug", "other"]\n    },\n    "summary": {\n      "type": "string"\n    },\n    "confidence": {\n      "type": "number"\n    }\n  },\n  "required": ["category", "summary"]\n}`)
+  const [outputStrict, setOutputStrict] = useState(false)
+  const [outputSchemaError, setOutputSchemaError] = useState<string | null>(null)
   const pendingCredentialId = useRef<string | null>(null)
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
@@ -144,6 +151,31 @@ export default function CreateAgentPage() {
         ? getCredentialModel(selectedCredential)
         : data.model
 
+      const payloadSettings: Record<string, unknown> = {}
+
+      if (isCustom) {
+        const baseUrl = getCredentialBaseUrl(selectedCredential)
+        if (baseUrl) {
+          payloadSettings.base_url = baseUrl
+        }
+      }
+
+      if (outputEnabled) {
+        let parsedSchema: unknown = null
+        try {
+          parsedSchema = outputSchema ? JSON.parse(outputSchema) : null
+        } catch {
+          setOutputSchemaError('Invalid JSON schema')
+          return
+        }
+        payloadSettings.response_format = {
+          enabled: true,
+          type: 'json',
+          schema: parsedSchema,
+          strict: outputStrict,
+        }
+      }
+
       const payload: Record<string, unknown> = {
         project_id: projectId!,
         name: data.name,
@@ -155,12 +187,7 @@ export default function CreateAgentPage() {
         max_output_tokens: data.max_output_tokens,
         provider_credential_id: selectedCredential.id,
         session_mode: data.session_mode || 'stateful',
-      }
-      if (isCustom) {
-        const baseUrl = getCredentialBaseUrl(selectedCredential)
-        if (baseUrl) {
-          payload.settings = { base_url: baseUrl }
-        }
+        settings: Object.keys(payloadSettings).length > 0 ? payloadSettings : undefined,
       }
       const agent = await createAgent.mutateAsync(payload as any)
       toast.success('Agent created')
@@ -325,6 +352,72 @@ export default function CreateAgentPage() {
                   className="min-h-[120px]"
                 />
               </div>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedOutput(!showAdvancedOutput)}
+                className="flex items-center gap-2 text-sm font-semibold text-muted hover:text-white transition-colors"
+              >
+                {showAdvancedOutput ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <FileJson className="h-4 w-4" />
+                Advanced API Output
+              </button>
+
+              {showAdvancedOutput && (
+                <div className="mt-3 space-y-3 pl-6">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="create-output-enabled"
+                      checked={outputEnabled}
+                      onChange={(e) => {
+                        setOutputEnabled(e.target.checked)
+                        if (!e.target.checked) setOutputSchemaError(null)
+                      }}
+                      className="h-4 w-4 rounded border-border bg-background"
+                    />
+                    <label htmlFor="create-output-enabled" className="text-sm font-medium text-muted">
+                      Enable JSON output
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-1">
+                      JSON Schema
+                    </label>
+                    <Textarea
+                      value={outputSchema}
+                      onChange={(e) => {
+                        setOutputSchema(e.target.value)
+                        if (outputSchemaError) {
+                          try { JSON.parse(e.target.value); setOutputSchemaError(null) } catch { /* keep error */ }
+                        }
+                      }}
+                      className="min-h-[150px] font-mono text-xs"
+                      disabled={!outputEnabled}
+                    />
+                    {outputSchemaError && (
+                      <p className="text-xs text-red-400 mt-1">{outputSchemaError}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="create-output-strict"
+                      checked={outputStrict}
+                      onChange={(e) => setOutputStrict(e.target.checked)}
+                      disabled={!outputEnabled}
+                      className="h-4 w-4 rounded border-border bg-background"
+                    />
+                    <label htmlFor="create-output-strict" className="text-sm font-medium text-muted">
+                      Strict mode
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col items-end gap-1">

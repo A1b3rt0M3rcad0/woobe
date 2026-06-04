@@ -37,6 +37,8 @@ class AskAgentController(Controller):
                 provider=result.provider,
                 fallback_used=result.fallback_used,
                 latency_ms=result.latency_ms,
+                parsed_output=result.parsed_output,
+                output_parse_error=result.output_parse_error,
             )
 
             return Response(

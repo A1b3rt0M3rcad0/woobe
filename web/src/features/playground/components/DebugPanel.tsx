@@ -38,6 +38,31 @@ export function DebugPanel({ sessionId, agent, lastResponse, messagesCount }: De
               {lastResponse ? JSON.stringify(lastResponse, null, 2) : '—'}
             </pre>
           </div>
+          {lastResponse?.parsed_output && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs font-medium text-muted mb-2">Parsed Output</p>
+                <pre className="text-xs text-green-400 overflow-x-auto max-h-40 bg-background rounded p-2 border border-border">
+                  {JSON.stringify(lastResponse.parsed_output, null, 2)}
+                </pre>
+              </div>
+            </>
+          )}
+          {lastResponse?.output_parse_error && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs font-medium text-red-400 mb-2">Parse Error</p>
+                <div className="rounded bg-red-500/10 border border-red-500/30 p-2">
+                  <p className="text-xs text-red-400">
+                    The model did not return valid JSON.
+                  </p>
+                  <p className="text-xs text-muted mt-1 break-all">{lastResponse.output_parse_error}</p>
+                </div>
+              </div>
+            </>
+          )}
           {lastResponse?.sources && lastResponse.sources.length > 0 && (
             <>
               <Separator />

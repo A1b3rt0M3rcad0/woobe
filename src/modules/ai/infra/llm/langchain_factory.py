@@ -12,6 +12,7 @@ def create_chat_model(
     temperature: float = 0.2,
     max_tokens: int = 1000,
     streaming: bool = False,
+    response_format: dict | None = None,
 ) -> BaseChatModel:
     if provider in ("openai", "custom"):
         kwargs: dict = {
@@ -25,6 +26,8 @@ def create_chat_model(
             kwargs["stream_usage"] = True
         if base_url:
             kwargs["base_url"] = base_url
+        if response_format:
+            kwargs["response_format"] = response_format
         return ChatOpenAI(**kwargs)
 
     if provider == "anthropic":

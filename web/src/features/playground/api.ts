@@ -24,6 +24,8 @@ function normalizeResponse(response: AskResponse): AskResponse {
     fallback_used: response.fallback_used ?? false,
     session_id: response.session_id ?? null,
     message_id: response.message_id ?? null,
+    parsed_output: response.parsed_output ?? null,
+    output_parse_error: response.output_parse_error ?? null,
   }
 }
 

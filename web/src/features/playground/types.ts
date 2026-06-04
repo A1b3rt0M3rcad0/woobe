@@ -68,6 +68,8 @@ export interface AskResponse {
   provider: string | null
   fallback_used: boolean
   latency_ms: number | null
+  parsed_output?: Record<string, unknown> | null
+  output_parse_error?: string | null
 }
 
 export interface Message {

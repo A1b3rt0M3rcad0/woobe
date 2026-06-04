@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -83,6 +84,12 @@ class AskAgentUseCase:
         api_key = self._decrypt_api_key(credential)
         base_url = self._resolve_base_url(agent, credential)
 
+        response_format = self._get_response_format(agent)
+        json_enabled = (
+            response_format.get("enabled", False)
+            and response_format.get("type") == "json"
+        )
+
         chat_model = create_chat_model(
             provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
             model=agent.model,
@@ -90,6 +97,7 @@ class AskAgentUseCase:
             base_url=base_url,
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,
+            response_format={"type": "json_object"} if json_enabled else None,
         )
 
         session = await self._resolve_session(input_dto, agent)
@@ -103,7 +111,7 @@ class AskAgentUseCase:
 
         rag_context, sources = await self._load_rag_context(agent, input_dto.message)
 
-        messages = self._build_messages(agent, rag_context, history, input_dto.message)
+        messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
 
         try:
             llm_latency_start = time.monotonic()
@@ -114,6 +122,21 @@ class AskAgentUseCase:
             raise ValueError(f"AI provider error: {e}") from e
 
         answer = result.content if hasattr(result, "content") else str(result)
+
+        parsed_output = None
+        output_parse_error = None
+        if json_enabled:
+            try:
+                parsed_output = json.loads(answer)
+            except json.JSONDecodeError as e:
+                output_parse_error = str(e)
+                strict = response_format.get("strict", False)
+                if strict:
+                    logger.warning(
+                        "Strict JSON mode enabled but model returned invalid JSON for agent %s: %s",
+                        agent.id,
+                        e,
+                    )
 
         usage_meta = getattr(result, "usage_metadata", None) or {}
         usage = UsageInfo(
@@ -166,6 +189,8 @@ class AskAgentUseCase:
             provider=response_provider,
             fallback_used=False,
             latency_ms=total_latency,
+            parsed_output=parsed_output,
+            output_parse_error=output_parse_error,
         )
 
     async def _load_agent(self, project_id: UUID, agent_id: UUID) -> Agent:
@@ -360,11 +385,25 @@ class AskAgentUseCase:
         rag_context: str | None,
         history: list,
         user_message: str,
+        response_format: dict | None = None,
     ) -> list:
         messages = []
 
-        if agent.system_prompt:
-            messages.append(SystemMessage(content=agent.system_prompt))
+        system_prompt = agent.system_prompt or ""
+
+        if response_format:
+            schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+            json_instruction = (
+                "\n\nYou must respond with valid JSON only.\n"
+                "Do not include markdown code blocks.\n"
+                "Do not include explanations outside the JSON.\n"
+                "The JSON must follow this schema:\n"
+                f"<schema>\n{schema_json}\n</schema>"
+            )
+            system_prompt += json_instruction
+
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
 
         if rag_context:
             messages.append(
@@ -380,6 +419,10 @@ class AskAgentUseCase:
         messages.extend(history)
         messages.append(HumanMessage(content=user_message))
         return messages
+
+    def _get_response_format(self, agent: Agent) -> dict:
+        settings = agent.settings or {}
+        return settings.get("response_format", {})
 
     async def _create_trace(
         self, input_dto: AskInput, agent: Agent, session: Session | None

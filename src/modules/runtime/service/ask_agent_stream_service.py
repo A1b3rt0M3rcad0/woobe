@@ -97,6 +97,12 @@ class AskAgentStreamService:
                 api_key = self._decrypt_api_key(credential)
                 base_url = self._resolve_base_url(agent, credential)
 
+                response_format = self._get_response_format(agent)
+                json_enabled = (
+                    response_format.get("enabled", False)
+                    and response_format.get("type") == "json"
+                )
+
                 session = await self._resolve_session(session_repo, input_dto, agent)
 
                 if session:
@@ -110,7 +116,7 @@ class AskAgentStreamService:
 
                 rag_context, sources = await self._load_rag_context(agent_collection_repo, chunk_repo, agent, input_dto.message)
 
-                messages = self._build_messages(agent, rag_context, history, input_dto.message)
+                messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
 
                 await db_session.commit()
 
@@ -130,6 +136,7 @@ class AskAgentStreamService:
                 temperature=agent.temperature or 0.2,
                 max_tokens=agent.max_output_tokens or 1000,
                 streaming=True,
+                response_format={"type": "json_object"} if json_enabled else None,
             )
 
             llm_latency_start = time.monotonic()
@@ -152,6 +159,14 @@ class AskAgentStreamService:
 
             llm_latency_ms = (time.monotonic() - llm_latency_start) * 1000
             full_answer = "".join(accumulated)
+
+            parsed_output = None
+            output_parse_error = None
+            if json_enabled:
+                try:
+                    parsed_output = json.loads(full_answer)
+                except json.JSONDecodeError as e:
+                    output_parse_error = str(e)
 
             if hasattr(chat_model, "model"):
                 response_model = chat_model.model
@@ -220,6 +235,8 @@ class AskAgentStreamService:
                     "provider": response_provider,
                     "latency_ms": total_latency,
                     "trace_id": str(trace_id) if trace_id else None,
+                    "parsed_output": parsed_output,
+                    "output_parse_error": output_parse_error,
                 }
 
                 yield self._sse_event("done", done_payload)
@@ -423,17 +440,35 @@ class AskAgentStreamService:
         except Exception:
             return None, []
 
+    def _get_response_format(self, agent: Agent) -> dict:
+        settings = agent.settings or {}
+        return settings.get("response_format", {})
+
     def _build_messages(
         self,
         agent: Agent,
         rag_context: str | None,
         history: list,
         user_message: str,
+        response_format: dict | None = None,
     ) -> list:
         messages = []
 
-        if agent.system_prompt:
-            messages.append(SystemMessage(content=agent.system_prompt))
+        system_prompt = agent.system_prompt or ""
+
+        if response_format:
+            schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+            json_instruction = (
+                "\n\nYou must respond with valid JSON only.\n"
+                "Do not include markdown code blocks.\n"
+                "Do not include explanations outside the JSON.\n"
+                "The JSON must follow this schema:\n"
+                f"<schema>\n{schema_json}\n</schema>"
+            )
+            system_prompt += json_instruction
+
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
 
         if rag_context:
             messages.append(
