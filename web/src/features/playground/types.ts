@@ -95,3 +95,31 @@ export interface Message {
   created_at: string
   updated_at?: string
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  usage?: UsageInfo | null
+  sources?: SourceInfo[] | null
+  model?: string | null
+  provider?: string | null
+  latency_ms?: number | null
+  trace_id?: string | null
+  parsed_output?: Record<string, unknown> | null
+}
+
+export interface TraceItem {
+  id: string
+  title: string
+  timestamp: string
+  status: 'success' | 'error' | 'warning'
+  latency_ms: number | null
+  model: string | null
+  provider: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  total_tokens: number | null
+  cost_usd: number | null
+  trace_id: string | null
+  response: AskResponse | null
+}

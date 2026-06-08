@@ -1,20 +1,19 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent } from '@/features/agents/hooks'
 import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
-import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
-import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
 import { orgProjectPath } from '@/lib/constants/routes'
-import { PlaygroundChat, type ChatMessage } from '@/features/playground/components/PlaygroundChat'
-import { PlaygroundSidePanel } from '@/features/playground/components/PlaygroundSidePanel'
-import { Code2, Settings, History } from 'lucide-react'
+import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHeader'
+import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
+import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
+import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
+import { AgentInspector } from '@/features/playground/components/AgentInspector'
+import { ApiModal } from '@/features/playground/components/ApiModal'
 import { toast } from 'sonner'
-import type { AskResponse, SessionListItem } from '@/features/playground/types'
+import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
 
 function formatSessionLabel(s: SessionListItem): string {
   const date = s.last_message_at
@@ -27,6 +26,26 @@ function formatSessionLabel(s: SessionListItem): string {
     : 'Unknown'
   const msgCount = s.message_count ?? 0
   return `${dateStr} (${msgCount} msg${msgCount !== 1 ? 's' : ''})`
+}
+
+function buildTraces(messages: ChatMessage[], lastResponse: AskResponse | null, sessionId: string | null): TraceItem[] {
+  if (!lastResponse || messages.length === 0) return []
+  const assistantMsgs = messages.filter(m => m.role === 'assistant' && m.content)
+  return assistantMsgs.map((msg, i) => ({
+    id: `trace-${i}-${msg.trace_id || Date.now()}`,
+    title: msg.content.slice(0, 60).replace(/\n/g, ' ') + (msg.content.length > 60 ? '...' : ''),
+    timestamp: new Date().toISOString(),
+    status: msg.content.startsWith('Error') ? 'error' as const : 'success' as const,
+    latency_ms: msg.latency_ms ?? null,
+    model: msg.model ?? null,
+    provider: msg.provider ?? null,
+    input_tokens: msg.usage?.input_tokens ?? null,
+    output_tokens: msg.usage?.output_tokens ?? null,
+    total_tokens: msg.usage?.total_tokens ?? null,
+    cost_usd: msg.usage?.cost_usd ?? null,
+    trace_id: msg.trace_id ?? null,
+    response: i === assistantMsgs.length - 1 ? lastResponse : null,
+  }))
 }
 
 export default function AgentPlaygroundPage() {
@@ -43,14 +62,18 @@ export default function AgentPlaygroundPage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
-  const [sidePanelTab, setSidePanelTab] = useState<string | undefined>(undefined)
+
+  const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
+  const [showLeftPanel, setShowLeftPanel] = useState(true)
+  const [showRightPanel, setShowRightPanel] = useState(true)
+  const [rightPanelTab, setRightPanelTab] = useState('agent')
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
+  const [showApiModal, setShowApiModal] = useState(false)
 
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
-  const sessionsLoadedRef = useRef(false)
 
   const selectedSessionId = sessionId
-
   const { data: historyMessages, refetch: refetchHistory } = useSessionMessages(
     selectedSessionId ?? undefined,
   )
@@ -71,6 +94,7 @@ export default function AgentPlaygroundPage() {
     cancelStream()
     setSessionId(sessionIdValue)
     setLastResponse(null)
+    setSelectedTraceId(null)
   }, [cancelStream])
 
   const handleNewSession = useCallback(() => {
@@ -78,12 +102,7 @@ export default function AgentPlaygroundPage() {
     setSessionId(null)
     setMessages([])
     setLastResponse(null)
-  }, [cancelStream])
-
-  const handleClear = useCallback(() => {
-    cancelStream()
-    setMessages([])
-    setLastResponse(null)
+    setSelectedTraceId(null)
   }, [cancelStream])
 
   const handleSend = async (content: string) => {
@@ -179,91 +198,88 @@ export default function AgentPlaygroundPage() {
     }
   }
 
+  const handleLeftPanelTabChange = (tab: LeftPanelTab) => {
+    if (leftPanelTab === tab) {
+      setShowLeftPanel(!showLeftPanel)
+    } else {
+      setLeftPanelTab(tab)
+      setShowLeftPanel(true)
+      setSelectedTraceId(null)
+    }
+  }
+
+  const traces = buildTraces(messages, lastResponse, sessionId)
+
   if (agentLoading) return <LoadingState />
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
-  const sessionOptions = sessions.map((s) => ({
-    value: s.id,
-    label: formatSessionLabel(s),
-  }))
-
   return (
     <ErrorBoundary>
-    <div className="flex flex-col h-full">
-      <PageHeader
-        title={agent.name}
-        description={
-          <span className="flex items-center gap-2">
-            <span>{agent.provider}/{agent.model}</span>
-            <StatusBadge status={agent.status} />
-          </span>
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <History className="h-4 w-4 text-muted" />
-              <Select
-                value={selectedSessionId ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val === '__new__') {
-                    handleNewSession()
-                  } else {
-                    handleSessionSelect(val)
-                  }
-                }}
-                options={[
-                  { value: '__new__', label: '+ New Session' },
-                  ...sessionOptions,
-                ]}
-                className="min-w-[200px]"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSidePanelTab('api')}
-            >
-              <Code2 className="mr-1 h-4 w-4" />
-              API
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
-            >
-              <Settings className="mr-1 h-4 w-4" />
-              Settings
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="flex flex-1 gap-0 overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0">
-          <PlaygroundChat
-            messages={messages}
-            isSending={isSending}
-            sessionId={sessionId}
-            onSend={handleSend}
-            onNewSession={handleNewSession}
-            onClear={handleClear}
-          />
-        </div>
-
-        <PlaygroundSidePanel
+      <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+        <PlaygroundHeader
           agent={agent}
-          projectId={projectId!}
-          agentId={agentId!}
-          organizationId={organizationId}
-          lastResponse={lastResponse}
+          sessions={sessions}
           sessionId={sessionId}
-          messagesCount={messages.length}
-          orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)}
+          showLeftPanel={showLeftPanel}
+          showRightPanel={showRightPanel}
+          onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
+          onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
+          onNewSession={handleNewSession}
+          onSessionSelect={handleSessionSelect}
+          onApiClick={() => setShowApiModal(true)}
+          onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
         />
+
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <OperationsRail
+            activeTab={showLeftPanel ? leftPanelTab : null}
+            onTabChange={handleLeftPanelTabChange}
+            onCollapse={() => setShowLeftPanel(false)}
+          />
+
+          {showLeftPanel && (
+            <OperationsPanel
+              activeTab={leftPanelTab}
+              lastResponse={lastResponse}
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              sessions={sessions}
+              sessionId={sessionId}
+              onSelectTrace={setSelectedTraceId}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSessionSelect}
+            />
+          )}
+
+          <div className="flex-1 min-w-0 flex flex-col">
+            <ChatCanvas
+              messages={messages}
+              isSending={isSending}
+              onSend={handleSend}
+            />
+          </div>
+
+          {showRightPanel && (
+            <AgentInspector
+              agent={agent}
+              projectId={projectId!}
+              agentId={agentId!}
+              activeTab={rightPanelTab}
+              onTabChange={setRightPanelTab}
+              onCollapse={() => setShowRightPanel(false)}
+            />
+          )}
+        </div>
       </div>
-    </div>
+
+      <ApiModal
+        open={showApiModal}
+        onClose={() => setShowApiModal(false)}
+        agent={agent}
+        projectId={projectId!}
+        orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)}
+      />
     </ErrorBoundary>
   )
 }

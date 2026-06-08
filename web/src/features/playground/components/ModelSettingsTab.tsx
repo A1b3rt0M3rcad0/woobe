@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useUpdateAgent } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
-import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -51,12 +50,12 @@ function getCredentialBaseUrl(credential: ProviderCredential): string {
   return credential.metadata?.base_url || ''
 }
 
-interface ModelQuickSettingsProps {
+interface ModelSettingsTabProps {
   agent: Agent
   projectId: string
 }
 
-export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps) {
+export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
   const updateAgent = useUpdateAgent(agent.id)
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
 
@@ -104,14 +103,10 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
 
   const handleSelectCredential = (id: string) => {
     const cred = credentials.find(c => c.id === id)
-    if (cred) {
-      setSelectedCredential(cred)
-    }
+    if (cred) setSelectedCredential(cred)
   }
 
-  const handleChangeCredential = () => {
-    setShowAddCredential(true)
-  }
+  const handleChangeCredential = () => setShowAddCredential(true)
 
   const handleRemoveCredential = () => {
     setSelectedCredential(null)
@@ -123,9 +118,7 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
     setShowAddCredential(false)
     await refetchCredentials()
     const match = credentials.find(c => c.id === newId)
-    if (match) {
-      setSelectedCredential(match)
-    }
+    if (match) setSelectedCredential(match)
   }
 
   const hasChanges =
@@ -167,104 +160,105 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
   const customMissingBaseUrl = isCustom && !getCredentialBaseUrl(selectedCredential!)
 
   return (
-    <>
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          <div>
-            <p className="text-xs font-medium text-muted mb-2">Model Credential</p>
-            {selectedCredential ? (
-              <div className="rounded-lg border border-border bg-background p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{providerLabels[selectedCredential.provider] || selectedCredential.provider}</Badge>
-                    <span className="text-sm font-medium">{selectedCredential.name}</span>
-                  </div>
-                  <Badge variant={selectedCredential.status === 'active' ? 'success' : 'secondary'}>
-                    {selectedCredential.status || 'active'}
-                  </Badge>
+    <div className="p-4 space-y-4">
+      <div className="rounded-xl border border-border bg-surface">
+        <div className="p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model Credential</p>
+          {selectedCredential ? (
+            <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{providerLabels[selectedCredential.provider] || selectedCredential.provider}</Badge>
+                  <span className="text-sm font-medium">{selectedCredential.name}</span>
                 </div>
-                {isCustom && (
-                  <div className="text-xs text-muted space-y-1">
-                    {getCredentialModel(selectedCredential) ? (
-                      <p>Model: <code className="bg-background px-1 rounded">{getCredentialModel(selectedCredential)}</code></p>
-                    ) : (
-                      <p className="text-red-400">Model not configured</p>
-                    )}
-                    {getCredentialBaseUrl(selectedCredential) ? (
-                      <p>Base URL: <code className="bg-background px-1 rounded">{getCredentialBaseUrl(selectedCredential)}</code></p>
-                    ) : (
-                      <p className="text-red-400">Base URL not configured</p>
-                    )}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>
-                    Change
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>
-                    Remove
-                  </Button>
+                <Badge variant={selectedCredential.status === 'active' ? 'success' : 'secondary'}>
+                  {selectedCredential.status || 'active'}
+                </Badge>
+              </div>
+              {isCustom && (
+                <div className="text-xs text-muted space-y-1">
+                  {getCredentialModel(selectedCredential) ? (
+                    <p>Model: <code className="bg-background px-1 rounded">{getCredentialModel(selectedCredential)}</code></p>
+                  ) : (
+                    <p className="text-red-400">Model not configured</p>
+                  )}
+                  {getCredentialBaseUrl(selectedCredential) ? (
+                    <p>Base URL: <code className="bg-background px-1 rounded">{getCredentialBaseUrl(selectedCredential)}</code></p>
+                  ) : (
+                    <p className="text-red-400">Base URL not configured</p>
+                  )}
                 </div>
+              )}
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>Change</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button>
               </div>
-            ) : credentials.length > 0 ? (
-              <div className="space-y-2">
-                <Select
-                  value=""
-                  onChange={(e) => handleSelectCredential(e.target.value)}
-                  options={[
-                    { value: '', label: 'Select a credential' },
-                    ...credentials.map(c => ({
-                      value: c.id,
-                      label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
-                    })),
-                  ]}
-                />
-                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
-                  Add credential
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border bg-background p-3">
-                <p className="text-sm text-muted mb-2">No provider credential available. Add an API key to connect this agent to a model provider.</p>
-                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
-                  Add credential
-                </Button>
-              </div>
-            )}
+            </div>
+          ) : credentials.length > 0 ? (
+            <div className="space-y-2">
+              <Select
+                value=""
+                onChange={(e) => handleSelectCredential(e.target.value)}
+                options={[
+                  { value: '', label: 'Select a credential' },
+                  ...credentials.map(c => ({
+                    value: c.id,
+                    label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
+                  })),
+                ]}
+              />
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
+                Add credential
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-sm text-muted mb-2">No provider credential available. Add an API key to connect this agent to a model provider.</p>
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
+                Add credential
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedCredential && (customMissingModel || customMissingBaseUrl) && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+          <p className="text-sm text-red-400">
+            {customMissingModel && 'This custom credential is missing a model. '}
+            {customMissingBaseUrl && 'This custom credential is missing a base URL. '}
+            Recreate the credential with the required fields.
+          </p>
+        </div>
+      )}
+
+      {selectedCredential && isStandard && (
+        <div className="rounded-xl border border-border bg-surface">
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
+            <Select value={model} onChange={(e) => setModel(e.target.value)} options={availableModels} />
           </div>
+        </div>
+      )}
 
-          {selectedCredential && customMissingModel && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-              <p className="text-sm text-red-400">This custom credential is missing a model. Recreate the credential with a model name.</p>
+      {selectedCredential && isCustom && (
+        <div className="rounded-xl border border-border bg-surface">
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-xs text-muted mb-2">Model is defined by the credential.</p>
+              <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{model || getCredentialModel(selectedCredential)}</code></p>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {selectedCredential && customMissingBaseUrl && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-              <p className="text-sm text-red-400">This custom credential is missing a base URL. Recreate the credential with a base URL.</p>
-            </div>
-          )}
-
-          {selectedCredential && isStandard && (
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Model</label>
-              <Select value={model} onChange={(e) => setModel(e.target.value)} options={availableModels} />
-            </div>
-          )}
-
-          {selectedCredential && isCustom && (
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Model</label>
-              <div className="rounded-lg border border-border bg-background p-3">
-                <p className="text-xs text-muted mb-2">Model is defined by the credential.</p>
-                <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{model || getCredentialModel(selectedCredential)}</code></p>
-              </div>
-            </div>
-          )}
-
+      <div className="rounded-xl border border-border bg-surface">
+        <div className="p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Generation Settings</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Temperature</label>
+              <label className="block text-xs font-medium text-muted mb-1">Temperature</label>
               <Input
                 type="number"
                 step="0.1"
@@ -275,7 +269,7 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Max Output Tokens</label>
+              <label className="block text-xs font-medium text-muted mb-1">Max Output Tokens</label>
               <Input
                 type="number"
                 step="1"
@@ -285,53 +279,53 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
               />
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="border-t border-border pt-3">
-            <p className="text-xs font-medium text-muted mb-2">Fallback Configuration</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Fallback Provider</label>
-                <Select
-                  value={fallbackProvider}
-                  onChange={(e) => setFallbackProvider(e.target.value)}
-                  options={[
-                    { value: '', label: 'None' },
-                    { value: 'openai', label: 'OpenAI' },
-                    { value: 'anthropic', label: 'Anthropic' },
-                    { value: 'google', label: 'Google' },
-                    { value: 'azure', label: 'Azure' },
-                    { value: 'custom', label: 'Custom' },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Fallback Model</label>
-                <Input value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} placeholder="Optional" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Fallback Credential</label>
-              <Select
-                value={fallbackCredentialId}
-                onChange={(e) => setFallbackCredentialId(e.target.value)}
-                options={[
-                  { value: '', label: 'None' },
-                  ...credentials.map(c => ({
-                    value: c.id,
-                    label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
-                  })),
-                ]}
-              />
-            </div>
+      <div className="rounded-xl border border-border bg-surface">
+        <div className="p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Fallback Configuration</p>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Fallback Provider</label>
+            <Select
+              value={fallbackProvider}
+              onChange={(e) => setFallbackProvider(e.target.value)}
+              options={[
+                { value: '', label: 'None' },
+                { value: 'openai', label: 'OpenAI' },
+                { value: 'anthropic', label: 'Anthropic' },
+                { value: 'google', label: 'Google' },
+                { value: 'azure', label: 'Azure' },
+                { value: 'custom', label: 'Custom' },
+              ]}
+            />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
+            <Input value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} placeholder="Optional" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Fallback Credential</label>
+            <Select
+              value={fallbackCredentialId}
+              onChange={(e) => setFallbackCredentialId(e.target.value)}
+              options={[
+                { value: '', label: 'None' },
+                ...credentials.map(c => ({
+                  value: c.id,
+                  label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
+                })),
+              ]}
+            />
+          </div>
+        </div>
+      </div>
 
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSave} disabled={!hasChanges} loading={updateAgent.isPending}>
-              Save Changes
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {hasChanges && (
+        <Button size="sm" onClick={handleSave} loading={updateAgent.isPending}>
+          Save Changes
+        </Button>
+      )}
 
       <AddProviderCredentialModal
         open={showAddCredential}
@@ -340,6 +334,6 @@ export function ModelQuickSettings({ agent, projectId }: ModelQuickSettingsProps
         credential={selectedCredential}
         onCredentialCreated={handleCredentialCreated}
       />
-    </>
+    </div>
   )
 }

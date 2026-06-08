@@ -5,14 +5,14 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
 export function DashboardLayout() {
   const { pathname } = useLocation()
-  const hideSidebar = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname)
+  const hideSidebar = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname) || pathname.includes('/playground')
 
   return (
     <div className="flex h-screen bg-background">
       {!hideSidebar && <Sidebar />}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-hidden p-6">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
