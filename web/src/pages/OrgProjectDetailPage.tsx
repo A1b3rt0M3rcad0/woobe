@@ -70,8 +70,8 @@ export default function OrgProjectDetailPage() {
               <X className="mr-2 h-4 w-4" />
               Back to projects
             </Button>
-            <Button onClick={() => navigate('/dashboard')}>
-              Open dashboard
+            <Button onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}`)}>
+              Open overview
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>

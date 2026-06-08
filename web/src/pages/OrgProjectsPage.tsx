@@ -49,7 +49,7 @@ export default function OrgProjectsPage() {
         name: project.name,
         slug: project.slug,
       })
-      navigate('/dashboard')
+      navigate(`/organizations/${organizationId}/projects/${project.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create project')
     }
@@ -57,7 +57,7 @@ export default function OrgProjectsPage() {
 
   const handleSelect = (p: { id: string; organization_id: string; name: string; slug: string }) => {
     selectProject(p)
-    navigate('/dashboard')
+    navigate(`/organizations/${organizationId}/projects/${p.id}`)
   }
 
   if (orgLoading || projectsLoading) return <LoadingState />

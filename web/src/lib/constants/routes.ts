@@ -6,6 +6,7 @@ export const ROUTES = {
   ORGANIZATIONS: '/organizations',
   ORGANIZATION_DETAIL: (id: string) => `/organizations/${id}`,
   ORG_PROJECTS: (orgId: string) => `/organizations/${orgId}/projects`,
+  ORG_OVERVIEW: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
   ORG_PROJECT_DETAIL: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
   ORG_AGENTS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents`,
   ORG_CREATE_AGENT: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents/new`,

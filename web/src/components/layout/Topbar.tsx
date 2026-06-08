@@ -99,7 +99,14 @@ export function Topbar() {
             onClick={() => navigate('/organizations')}
           >
             <List className="h-3.5 w-3.5" />
-            All organizations
+            Manage organizations
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
+            onClick={() => navigate('/organizations')}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Create organization
           </button>
         </DropdownMenu>
 
@@ -126,7 +133,7 @@ export function Topbar() {
                     onClick={() => {
                       if (proj.id !== currentProject?.id) {
                         selectProject(proj)
-                        navigate('/dashboard')
+                        navigate(`/organizations/${currentOrganization.id}/projects/${proj.id}`)
                       }
                     }}
                   >
@@ -150,7 +157,7 @@ export function Topbar() {
                 onClick={() => navigate(`/organizations/${currentOrganization.id}/projects`)}
               >
                 <List className="h-3.5 w-3.5" />
-                All projects
+                Manage projects
               </button>
               <button
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"

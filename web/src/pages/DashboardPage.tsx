@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { PageHeader } from '@/components/common/PageHeader'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -28,6 +28,7 @@ const quickActions = [
 
 export default function DashboardPage() {
   const { currentOrganization, currentProject } = useWorkspace()
+  const params = useParams<{ organizationId?: string; projectId?: string }>()
   const navigate = useNavigate()
 
   if (!currentOrganization) {
@@ -78,7 +79,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title={currentProject.name}
-        description="Use the top bar to switch context."
+        description="Project overview and quick actions."
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">

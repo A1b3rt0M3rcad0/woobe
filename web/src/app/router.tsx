@@ -40,6 +40,13 @@ function LegacyProjectRedirect() {
   return <Navigate to="/organizations" replace />
 }
 
+function DashboardRedirect() {
+  const { currentOrganization, currentProject } = useWorkspace()
+  if (!currentOrganization) return <Navigate to="/organizations" replace />
+  if (!currentProject) return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -54,12 +61,12 @@ export function AppRouter() {
         </Route>
 
         <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
           <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
           <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId" element={<Navigate to="./settings" replace />} />
+          <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<CreateAgentPage />} />
