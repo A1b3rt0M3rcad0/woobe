@@ -175,6 +175,11 @@ class AgentReleaseRepository(ABC):
     ) -> list[AgentRelease]: ...
 
     @abstractmethod
+    async def get_last_promoted(
+        self, agent_id: UUID, *, exclude_id: UUID
+    ) -> AgentRelease | None: ...
+
+    @abstractmethod
     async def delete(self, release_id: UUID) -> None: ...
 
 

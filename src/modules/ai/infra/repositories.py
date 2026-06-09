@@ -15,6 +15,7 @@ from modules.ai.domain.entities import (
     AgentReleaseTest,
     ProviderCredential,
 )
+from modules.ai.domain.enums import ReleaseStatus
 from modules.ai.domain.repositories import (
     AgentContractRepository as AgentContractRepositoryInterface,
     AgentModelConfigRepository as AgentModelConfigRepositoryInterface,
@@ -414,9 +415,11 @@ class SQLAlchemyAgentReleaseRepository(
     async def save(self, release: AgentRelease) -> AgentRelease:
         existing = await self._get_model_by_id(release.id)
         if existing:
-            for key, value in agent_release_entity_to_model(release).__dict__.items():
-                if key != "_sa_instance_state":
-                    setattr(existing, key, value)
+            new_model = agent_release_entity_to_model(release)
+            for key, value in new_model.__dict__.items():
+                if key in ("_sa_instance_state", "created_at", "updated_at"):
+                    continue
+                setattr(existing, key, value)
             await self._flush()
             await self._refresh_model(existing)
             return agent_release_model_to_entity(existing)
@@ -480,16 +483,34 @@ class SQLAlchemyAgentReleaseRepository(
         )
 
     async def list_by_status(
-        self, agent_id: UUID, status: str
+        self, agent_id: UUID, status: ReleaseStatus
     ) -> list[AgentRelease]:
         status_val = status.value if hasattr(status, "value") else status
         result = await self._session.execute(
-            select(AgentReleaseModel).where(
+            select(AgentReleaseModel)
+            .where(
                 AgentReleaseModel.agent_id == agent_id,
                 AgentReleaseModel.status == status_val,
             )
+            .with_for_update()
         )
         return [agent_release_model_to_entity(m) for m in result.scalars().all()]
+
+    async def get_last_promoted(
+        self, agent_id: UUID, *, exclude_id: UUID
+    ) -> AgentRelease | None:
+        result = await self._session.execute(
+            select(AgentReleaseModel)
+            .where(
+                AgentReleaseModel.agent_id == agent_id,
+                AgentReleaseModel.id != exclude_id,
+                AgentReleaseModel.promoted_at.isnot(None),
+            )
+            .order_by(AgentReleaseModel.promoted_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return agent_release_model_to_entity(model) if model else None
 
     async def delete(self, release_id: UUID) -> None:
         model = await self._get_model_by_id(release_id)

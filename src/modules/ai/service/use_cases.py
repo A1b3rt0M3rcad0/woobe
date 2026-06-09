@@ -712,13 +712,13 @@ class PromoteReleaseUseCase:
         self._release_repo = release_repo
 
     async def execute(
-        self, release_id: UUID, input_dto: PromoteReleaseInput
+        self, agent_id: UUID, release_id: UUID, input_dto: PromoteReleaseInput
     ) -> CreateReleaseOutput:
         from datetime import datetime, timezone
         from modules.ai.domain.errors import ReleaseNotFoundError
 
         release = await self._release_repo.get_by_id(release_id)
-        if not release:
+        if not release or release.agent_id != agent_id:
             raise ReleaseNotFoundError
 
         current_production = await self._release_repo.list_by_status(
@@ -742,25 +742,40 @@ class RollbackReleaseUseCase:
         self._release_repo = release_repo
 
     async def execute(
-        self, release_id: UUID, input_dto: RollbackReleaseInput
+        self, agent_id: UUID, release_id: UUID, input_dto: RollbackReleaseInput
     ) -> CreateReleaseOutput:
         from datetime import datetime, timezone
         from modules.ai.domain.errors import ReleaseNotFoundError
 
         release = await self._release_repo.get_by_id(release_id)
-        if not release:
+        if not release or release.agent_id != agent_id:
             raise ReleaseNotFoundError
+
+        target_is_production = release.status == ReleaseStatus.production
 
         current_production = await self._release_repo.list_by_status(
             release.agent_id, ReleaseStatus.production
         )
+
+        # Archive all current production releases
         for prod_release in current_production:
-            if prod_release.id != release.id:
-                prod_release.status = ReleaseStatus.rolled_back
-            else:
-                prod_release.status = ReleaseStatus.archived
+            prod_release.status = ReleaseStatus.rolled_back
             await self._release_repo.save(prod_release)
 
+        if target_is_production:
+            # Rolling back the current production → restore the last promoted release
+            previous = await self._release_repo.get_last_promoted(
+                release.agent_id, exclude_id=release.id
+            )
+            if previous:
+                previous.status = ReleaseStatus.production
+                previous.promoted_by = input_dto.user_id
+                previous.promoted_at = datetime.now(timezone.utc)
+                saved = await self._release_repo.save(previous)
+                return _release_to_output(saved)
+            return _release_to_output(release)
+
+        # Target is not production → make it the new production
         release.status = ReleaseStatus.production
         release.promoted_by = input_dto.user_id
         release.promoted_at = datetime.now(timezone.utc)

@@ -203,7 +203,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
       }
       await updateAgent.mutateAsync(payload as any)
       setState(newState)
-      setLoadedRelease(release.id, release.version)
+      setLoadedRelease(null, null)
       updateBaseline()
       toast.success(`Version ${release.version} restored as Current Draft`)
     } catch (err) {
@@ -440,6 +440,17 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
                     >
                       <RotateCcw className="mr-1 h-3 w-3" />
                       Rollback
+                    </Button>
+                  )}
+                  {(release.status === 'archived' || release.status === 'rolled_back') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRollback(release)}
+                      loading={rollbackRelease.isPending}
+                    >
+                      <RotateCcw className="mr-1 h-3 w-3" />
+                      Rollback to this
                     </Button>
                   )}
                   {release.status !== 'production' && (
