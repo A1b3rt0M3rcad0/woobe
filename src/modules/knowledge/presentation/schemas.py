@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus
+from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, KnowledgeVersionStatus
 
 
 class AgentCollectionResponse(BaseModel):
@@ -80,3 +80,32 @@ class ChunkResponse(BaseModel):
     section_title: str | None = None
     data: dict | None = None
     score: float | None = None
+
+
+class CreateKnowledgeVersionRequest(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    collection_ids: list[UUID] = []
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
+
+
+class KnowledgeVersionResponse(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    collection_ids: list[UUID]
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
+    status: KnowledgeVersionStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListKnowledgeVersionsResponse(BaseModel):
+    id: UUID
+    version: str
+    status: KnowledgeVersionStatus
+    created_at: datetime | None = None

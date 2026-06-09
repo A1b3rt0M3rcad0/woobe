@@ -12,14 +12,16 @@ from uuid import UUID
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.ai.domain.entities import Agent, ProviderCredential
+from modules.ai.domain.entities import Agent, AgentRelease, ProviderCredential
 from modules.ai.domain.errors import AgentNotFoundError, CredentialNotFoundError
 from modules.ai.domain.repositories import (
+    AgentReleaseRepository,
     AgentRepository,
     ProviderCredentialRepository,
 )
 from modules.ai.infra.llm.langchain_factory import create_chat_model
 from modules.ai.infra.repositories import (
+    SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentRepository,
     SQLAlchemyProviderCredentialRepository,
 )
@@ -94,7 +96,9 @@ class AskAgentStreamService:
                 trace_repo: TraceRepository = SQLAlchemyTraceRepository(db_session)
                 trace_event_repo: TraceEventRepository = SQLAlchemyTraceEventRepository(db_session)
 
-                agent = await self._load_agent(agent_repo, input_dto.project_id, input_dto.agent_id)
+                release_repo: AgentReleaseRepository = SQLAlchemyAgentReleaseRepository(db_session)
+
+                agent = await self._load_agent(agent_repo, release_repo, input_dto)
                 credential = await self._load_credential(credential_repo, agent)
                 api_key = self._decrypt_api_key(credential)
                 base_url = self._resolve_base_url(agent, credential)
@@ -267,15 +271,74 @@ class AskAgentStreamService:
         return f"data: {json.dumps(payload, default=str)}\n\n"
 
     async def _load_agent(
-        self, repo: AgentRepository, project_id: UUID, agent_id: UUID
+        self, repo: AgentRepository, release_repo: AgentReleaseRepository, input_dto: AskInput
     ) -> Agent:
-        agent = await repo.get_by_id(agent_id)
+        agent = await repo.get_by_id(input_dto.agent_id)
         if not agent:
-            raise AgentNotFoundError(agent_id)
-        if agent.project_id != project_id:
-            raise AgentNotFoundError(agent_id)
+            raise AgentNotFoundError(input_dto.agent_id)
+        if agent.project_id != input_dto.project_id:
+            raise AgentNotFoundError(input_dto.agent_id)
         if hasattr(agent, "status") and agent.status and hasattr(agent.status, "value") and agent.status.value != "active":
-            raise ValueError(f"Agent {agent_id} is not active")
+            raise ValueError(f"Agent {input_dto.agent_id} is not active")
+
+        if input_dto.execution_context == "production":
+            release = await release_repo.get_active_production(input_dto.agent_id)
+            if release is None:
+                raise ValueError(f"No production release deployed for agent {input_dto.agent_id}")
+            agent = self._apply_release_to_agent(agent, release)
+        elif input_dto.loaded_release_id:
+            release = await release_repo.get_by_id(input_dto.loaded_release_id)
+            if release:
+                agent = self._apply_release_to_agent(agent, release)
+        elif input_dto.snapshot_override:
+            agent = self._apply_snapshot_override(agent, input_dto.snapshot_override)
+
+        return agent
+
+    def _apply_release_to_agent(self, agent: Agent, release: AgentRelease) -> Agent:
+        if release.system_prompt is not None:
+            agent.system_prompt = release.system_prompt
+        if release.response_format is not None:
+            settings = dict(agent.settings) if agent.settings else {}
+            settings["response_format"] = release.response_format
+            agent.settings = settings
+        if release.provider is not None:
+            from modules.ai.domain.enums import Provider
+            agent.provider = Provider(release.provider) if isinstance(release.provider, str) else release.provider
+        if release.model is not None:
+            agent.model = release.model
+        if release.provider_credential_id is not None:
+            agent.provider_credential_id = release.provider_credential_id
+        if release.temperature is not None:
+            agent.temperature = release.temperature
+        if release.max_output_tokens is not None:
+            agent.max_output_tokens = release.max_output_tokens
+        if release.session_mode is not None:
+            from modules.ai.domain.enums import SessionMode
+            agent.session_mode = SessionMode(release.session_mode) if isinstance(release.session_mode, str) else release.session_mode
+        return agent
+
+    def _apply_snapshot_override(self, agent: Agent, snapshot: dict) -> Agent:
+        if snapshot.get("system_prompt") is not None:
+            agent.system_prompt = snapshot["system_prompt"]
+        if snapshot.get("response_format") is not None:
+            settings = dict(agent.settings) if agent.settings else {}
+            settings["response_format"] = snapshot["response_format"]
+            agent.settings = settings
+        if snapshot.get("provider") is not None:
+            from modules.ai.domain.enums import Provider
+            agent.provider = Provider(snapshot["provider"]) if isinstance(snapshot["provider"], str) else snapshot["provider"]
+        if snapshot.get("model") is not None:
+            agent.model = snapshot["model"]
+        if snapshot.get("provider_credential_id") is not None:
+            agent.provider_credential_id = UUID(snapshot["provider_credential_id"]) if isinstance(snapshot["provider_credential_id"], str) else snapshot["provider_credential_id"]
+        if snapshot.get("temperature") is not None:
+            agent.temperature = snapshot["temperature"]
+        if snapshot.get("max_output_tokens") is not None:
+            agent.max_output_tokens = snapshot["max_output_tokens"]
+        if snapshot.get("session_mode") is not None:
+            from modules.ai.domain.enums import SessionMode
+            agent.session_mode = SessionMode(snapshot["session_mode"]) if isinstance(snapshot["session_mode"], str) else snapshot["session_mode"]
         return agent
 
     async def _load_credential(self, repo: ProviderCredentialRepository, agent: Agent) -> ProviderCredential:

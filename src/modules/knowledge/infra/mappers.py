@@ -5,13 +5,15 @@ from modules.knowledge.domain.entities import (
     Document,
     DocumentChunk,
     DocumentCollection,
+    KnowledgeVersion,
 )
-from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, ParserType
+from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, KnowledgeVersionStatus, ParserType
 from modules.knowledge.infra.models import (
     AgentCollectionModel,
     DocumentChunkModel,
     DocumentCollectionModel,
     DocumentModel,
+    KnowledgeVersionModel,
 )
 
 
@@ -126,6 +128,34 @@ def model_to_chunk(model: DocumentChunkModel) -> DocumentChunk:
         section_title=model.section_title,
         data=model.data,
         embedding=model.embedding,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
+def knowledge_version_to_model(entity: KnowledgeVersion) -> KnowledgeVersionModel:
+    return KnowledgeVersionModel(
+        id=entity.id,
+        project_id=entity.project_id,
+        agent_id=entity.agent_id,
+        version=entity.version,
+        collection_ids=entity.collection_ids or [],
+        document_ids=entity.document_ids,
+        snapshot_metadata=entity.snapshot_metadata,
+        status=entity.status.value if isinstance(entity.status, KnowledgeVersionStatus) else entity.status,
+    )
+
+
+def knowledge_version_model_to_entity(model: KnowledgeVersionModel) -> KnowledgeVersion:
+    return KnowledgeVersion(
+        id=model.id,
+        project_id=model.project_id,
+        agent_id=model.agent_id,
+        version=model.version,
+        collection_ids=list(model.collection_ids or []),
+        document_ids=list(model.document_ids) if model.document_ids else None,
+        snapshot_metadata=model.snapshot_metadata,
+        status=KnowledgeVersionStatus(model.status),
         created_at=model.created_at,
         updated_at=model.updated_at,
     )

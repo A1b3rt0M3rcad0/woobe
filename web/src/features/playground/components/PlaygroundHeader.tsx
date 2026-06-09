@@ -1,10 +1,13 @@
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { formatSessionLabel } from '../utils'
 import type { Agent } from '@/features/agents/types'
 import type { SessionListItem } from '@/features/playground/types'
+import type { ReleaseStatus } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
   agent: Agent
@@ -18,19 +21,8 @@ interface PlaygroundHeaderProps {
   onSessionSelect: (id: string) => void
   onApiClick: () => void
   onSettingsClick: () => void
-}
-
-function formatSessionLabel(s: SessionListItem): string {
-  const date = s.last_message_at
-    ? new Date(s.last_message_at)
-    : s.created_at
-      ? new Date(s.created_at)
-      : null
-  const dateStr = date
-    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : 'Unknown'
-  const msgCount = s.message_count ?? 0
-  return `${dateStr} (${msgCount} msg${msgCount !== 1 ? 's' : ''})`
+  releaseVersion?: string
+  releaseStatus?: ReleaseStatus
 }
 
 export function PlaygroundHeader({
@@ -45,6 +37,8 @@ export function PlaygroundHeader({
   onSessionSelect,
   onApiClick,
   onSettingsClick,
+  releaseVersion,
+  releaseStatus,
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
@@ -79,6 +73,11 @@ export function PlaygroundHeader({
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-medium text-white truncate max-w-[200px]">{agent.name}</h1>
           <StatusBadge status={agent.status} />
+          {releaseVersion && releaseStatus && (
+            <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
+              {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
+            </Badge>
+          )}
         </div>
         <span className="text-xs text-muted hidden md:inline">
           {agent.provider}/{agent.model}

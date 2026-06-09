@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, UniqueConstraint
 from pgvector.sqlalchemy import Vector
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import BaseModel
@@ -74,6 +74,19 @@ class DocumentChunkModel(BaseModel):
     section_title: Mapped[str | None] = mapped_column(String(255))
     data: Mapped[dict | None] = mapped_column(JSONB)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+
+
+class KnowledgeVersionModel(BaseModel):
+    __tablename__ = "knowledge_versions"
+    __table_args__ = {"schema": "knowledge"}
+
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    version: Mapped[str] = mapped_column(String(32))
+    collection_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PG_UUID), default=list)
+    document_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
+    snapshot_metadata: Mapped[dict | None] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(32), default="DRAFT")
 
 
 class OutboxEventModel(BaseOutbox):

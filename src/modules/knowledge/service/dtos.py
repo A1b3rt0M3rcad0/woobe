@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, ParserType
+from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, KnowledgeVersionStatus, ParserType
 
 
 class CreateCollectionInput(BaseModel):
@@ -113,4 +113,34 @@ class ListDocumentsInput(BaseModel):
 
 class GetDocumentInput(BaseModel):
     document_id: UUID
+
+
+class CreateKnowledgeVersionInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    collection_ids: list[UUID] = []
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
+
+
+class CreateKnowledgeVersionOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    collection_ids: list[UUID]
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
+    status: KnowledgeVersionStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListKnowledgeVersionsOutput(BaseModel):
+    id: UUID
+    version: str
+    collection_ids: list[UUID]
+    status: KnowledgeVersionStatus
+    created_at: datetime | None = None
 

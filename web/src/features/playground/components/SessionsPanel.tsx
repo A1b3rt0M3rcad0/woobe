@@ -1,7 +1,6 @@
 import { CopyButton } from '@/components/common/CopyButton'
-import { Button } from '@/components/ui/Button'
 import { Separator } from '@/components/ui/Separator'
-import { Plus, Clock, MessageSquare, Circle } from 'lucide-react'
+import { Clock, MessageSquare, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SessionListItem } from '@/features/playground/types'
 
@@ -28,10 +27,6 @@ export function SessionsPanel({ sessions, currentSessionId, onNewSession, onSele
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-white">Sessions</h3>
-        <Button size="sm" variant="outline" onClick={onNewSession}>
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          New
-        </Button>
       </div>
 
       {sessions.length === 0 && (

@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.infra.repositories import (
+    SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentRepository,
     SQLAlchemyProviderCredentialRepository,
 )
@@ -33,6 +34,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
 
     agent_repo = SQLAlchemyAgentRepository(uow)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
+    release_repo = SQLAlchemyAgentReleaseRepository(uow)
     session_repo = SQLAlchemySessionRepository(uow)
     message_repo = SQLAlchemyMessageRepository(uow)
     agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
@@ -54,6 +56,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
         trace_event_repo=trace_event_repo,
         usage_repo=usage_repo,
         outbox=outbox,
+        release_repo=release_repo,
         encryption_key=settings.encryption_key,
     )
 

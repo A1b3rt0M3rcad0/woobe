@@ -101,6 +101,10 @@ class AskInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
+    # Release/context fields
+    execution_context: str = "playground"
+    loaded_release_id: UUID | None = None
+    snapshot_override: dict | None = None
 
 
 class UsageInfo(BaseModel):

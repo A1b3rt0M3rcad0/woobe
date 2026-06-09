@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAgentCollections, useDetachCollection } from '@/features/knowledge/hooks'
 import { useCollections } from '@/features/knowledge/hooks'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +11,7 @@ import { UploadDocumentModal } from '@/features/knowledge/components/UploadDocum
 import { DocumentsDrawer } from '@/features/knowledge/components/DocumentsDrawer'
 import { BookOpen, Plus, Link2, Upload, Eye, X, RefreshCw, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAgentEditor } from '../AgentEditorContext'
 import type { AgentCollection } from '@/features/knowledge/types'
 
 interface KnowledgeTabProps {
@@ -27,6 +28,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { data: agentCollections, isLoading, refetch } = useAgentCollections(agentId)
   const { data: allCollections } = useCollections(projectId)
   const detachCollection = useDetachCollection()
+  const { setField } = useAgentEditor()
 
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [showAttachCol, setShowAttachCol] = useState(false)
@@ -34,6 +36,12 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const [drawerCollection, setDrawerCollection] = useState<{ id: string; name: string } | null>(null)
 
   const existingCollectionIds = (agentCollections || []).map((ac: AgentCollection) => ac.collection_id)
+
+  useEffect(() => {
+    if (existingCollectionIds.length > 0) {
+      setField('collectionIds', existingCollectionIds)
+    }
+  }, [existingCollectionIds.join(',')])
 
   const collectionNames = (allCollections || []).reduce<Record<string, string>>((acc, c) => {
     acc[c.id] = c.name
@@ -90,9 +98,11 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
         <>
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-muted uppercase tracking-wider">Attached Collections</p>
-            <Button variant="ghost" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
           <div className="space-y-2">
             {agentCollections.map((ac: AgentCollection) => {

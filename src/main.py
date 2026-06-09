@@ -51,12 +51,13 @@ def create_app() -> FastAPI:
     async def cors_safe_guard(request: Request, call_next):
         try:
             return await call_next(request)
-        except Exception:
+        except Exception as exc:
+            logger.exception("Unhandled error processing %s %s", request.method, request.url.path)
             origin = request.headers.get("origin", "")
             cors_origin = origin if origin in cors_origins else cors_origins[0] if cors_origins else "*"
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "message": "Internal server error", "data": None},
+                content={"success": False, "message": f"Internal server error: {exc}", "data": None},
                 headers={
                     "Access-Control-Allow-Origin": cors_origin,
                     "Access-Control-Allow-Credentials": "true",

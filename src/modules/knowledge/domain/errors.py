@@ -28,3 +28,9 @@ class DuplicateCollectionError(ConflictError):
         self.name = name
         self.project_id = project_id
         super().__init__(f"Collection '{name}' already exists in project {project_id}")
+
+
+class KnowledgeVersionNotFoundError(NotFoundError):
+    def __init__(self, version_id: UUID) -> None:
+        self.version_id = version_id
+        super().__init__(f"Knowledge version not found: {version_id}")

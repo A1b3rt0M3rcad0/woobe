@@ -28,3 +28,9 @@ class ParserType(StrEnum):
     CSV = auto()
     JSON = auto()
     IMAGE = auto()
+
+
+class KnowledgeVersionStatus(StrEnum):
+    DRAFT = auto()
+    RELEASED = auto()
+    ARCHIVED = auto()

@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useUpdateAgent } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
-import { toast } from 'sonner'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
-import type { Agent } from '@/features/agents/types'
+import { useAgentEditor } from '../AgentEditorContext'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const modelOptions: Record<string, { value: string; label: string }[]> = {
@@ -51,35 +49,50 @@ function getCredentialBaseUrl(credential: ProviderCredential): string {
 }
 
 interface ModelSettingsTabProps {
-  agent: Agent
   projectId: string
 }
 
-export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
-  const updateAgent = useUpdateAgent(agent.id)
+export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
+  const { state, setField } = useAgentEditor()
 
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
-  const [provider, setProvider] = useState(agent.provider)
-  const [model, setModel] = useState(agent.model)
-  const [temperature, setTemperature] = useState(agent.temperature ?? 0.7)
-  const [maxTokens, setMaxTokens] = useState(agent.max_output_tokens ?? 2048)
   const [showAddCredential, setShowAddCredential] = useState(false)
-  const [fallbackProvider, setFallbackProvider] = useState(agent.fallback_provider || '')
-  const [fallbackModel, setFallbackModel] = useState(agent.fallback_model || '')
-  const [fallbackCredentialId, setFallbackCredentialId] = useState(agent.fallback_credential_id || '')
+  const [fallbackProvider, setFallbackProvider] = useState('')
+  const [fallbackModel, setFallbackModel] = useState('')
+  const [fallbackCredentialId, setFallbackCredentialId] = useState('')
 
   useEffect(() => {
-    const cred = credentials.find(c => c.id === agent.provider_credential_id) || null
+    const cred = credentials.find(c => c.id === state.providerCredentialId) || null
     setSelectedCredential(cred)
-    setProvider(agent.provider)
-    setModel(agent.model)
-    setTemperature(agent.temperature ?? 0.7)
-    setMaxTokens(agent.max_output_tokens ?? 2048)
-    setFallbackProvider(agent.fallback_provider || '')
-    setFallbackModel(agent.fallback_model || '')
-    setFallbackCredentialId(agent.fallback_credential_id || '')
-  }, [agent, credentials])
+  }, [state.providerCredentialId, credentials])
+
+  const handleSelectCredential = (id: string) => {
+    const cred = credentials.find(c => c.id === id)
+    if (cred) {
+      setSelectedCredential(cred)
+      setField('providerCredentialId', cred.id)
+    }
+  }
+
+  const handleChangeCredential = () => setShowAddCredential(true)
+
+  const handleRemoveCredential = () => {
+    setSelectedCredential(null)
+    setField('providerCredentialId', null)
+    setField('provider', '')
+    setField('model', '')
+  }
+
+  const handleCredentialCreated = async (newId: string) => {
+    setShowAddCredential(false)
+    await refetchCredentials()
+    const match = credentials.find(c => c.id === newId)
+    if (match) {
+      setSelectedCredential(match)
+      setField('providerCredentialId', match.id)
+    }
+  }
 
   const isCustom = selectedCredential?.provider === 'custom'
   const isStandard = selectedCredential
@@ -87,77 +100,10 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
     : false
   const availableModels = isStandard ? (modelOptions[selectedCredential!.provider] || []) : []
 
-  useEffect(() => {
-    if (!selectedCredential) return
-    const p = selectedCredential.provider
-    setProvider(p)
-    if (p === 'custom') {
-      setModel(getCredentialModel(selectedCredential))
-    } else {
-      const defaultM = defaultModels[p]
-      if (defaultM && !availableModels.find(m => m.value === model)) {
-        setModel(defaultM)
-      }
-    }
-  }, [selectedCredential])
-
-  const handleSelectCredential = (id: string) => {
-    const cred = credentials.find(c => c.id === id)
-    if (cred) setSelectedCredential(cred)
-  }
-
-  const handleChangeCredential = () => setShowAddCredential(true)
-
-  const handleRemoveCredential = () => {
-    setSelectedCredential(null)
-    setProvider('')
-    setModel('')
-  }
-
-  const handleCredentialCreated = async (newId: string) => {
-    setShowAddCredential(false)
-    await refetchCredentials()
-    const match = credentials.find(c => c.id === newId)
-    if (match) setSelectedCredential(match)
-  }
-
-  const hasChanges =
-    provider !== agent.provider ||
-    model !== agent.model ||
-    (selectedCredential?.id || '') !== (agent.provider_credential_id || '') ||
-    temperature !== (agent.temperature ?? 0.7) ||
-    maxTokens !== (agent.max_output_tokens ?? 2048) ||
-    fallbackProvider !== (agent.fallback_provider || '') ||
-    fallbackModel !== (agent.fallback_model || '') ||
-    fallbackCredentialId !== (agent.fallback_credential_id || '')
-
-  const handleSave = async () => {
-    try {
-      const payload: Record<string, unknown> = {}
-      if (provider !== agent.provider) payload.provider = provider
-      if (model !== agent.model) payload.model = model
-      const credId = (selectedCredential?.id || '') || null
-      const origCred = agent.provider_credential_id || ''
-      if (credId !== origCred) payload.provider_credential_id = credId || null
-      const origTemp = agent.temperature ?? 0.7
-      if (temperature !== origTemp) payload.temperature = temperature
-      const origTokens = agent.max_output_tokens ?? 2048
-      if (maxTokens !== origTokens) payload.max_output_tokens = maxTokens
-      const origFbProv = agent.fallback_provider || ''
-      if (fallbackProvider !== origFbProv) payload.fallback_provider = fallbackProvider || null
-      const origFbModel = agent.fallback_model || ''
-      if (fallbackModel !== origFbModel) payload.fallback_model = fallbackModel || null
-      const origFbCred = agent.fallback_credential_id || ''
-      if (fallbackCredentialId !== origFbCred) payload.fallback_credential_id = fallbackCredentialId || null
-      await updateAgent.mutateAsync(payload as any)
-      toast.success('Model updated')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update model')
-    }
-  }
-
   const customMissingModel = isCustom && !getCredentialModel(selectedCredential!)
   const customMissingBaseUrl = isCustom && !getCredentialBaseUrl(selectedCredential!)
+
+  const hasEditorState = state.provider && state.model
 
   return (
     <div className="p-4 space-y-4">
@@ -189,6 +135,25 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
                   )}
                 </div>
               )}
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>Change</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button>
+              </div>
+            </div>
+          ) : state.providerCredentialId && hasEditorState ? (
+            <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{providerLabels[state.provider] || state.provider}</Badge>
+                  <span className="text-sm font-medium">{state.provider}/{state.model}</span>
+                </div>
+                <Badge variant="secondary">configured</Badge>
+              </div>
+              <div className="text-xs text-muted space-y-1">
+                <p>Provider: <code className="bg-background px-1 rounded">{state.provider}</code></p>
+                <p>Model: <code className="bg-background px-1 rounded">{state.model}</code></p>
+                {state.baseUrl && <p>Base URL: <code className="bg-background px-1 rounded">{state.baseUrl}</code></p>}
+              </div>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>Change</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button>
@@ -236,7 +201,7 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
         <div className="rounded-xl border border-border bg-surface">
           <div className="p-4 space-y-3">
             <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
-            <Select value={model} onChange={(e) => setModel(e.target.value)} options={availableModels} />
+            <Select value={state.model} onChange={(e) => setField('model', e.target.value)} options={availableModels} />
           </div>
         </div>
       )}
@@ -247,7 +212,18 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
             <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-xs text-muted mb-2">Model is defined by the credential.</p>
-              <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{model || getCredentialModel(selectedCredential)}</code></p>
+              <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{state.model || getCredentialModel(selectedCredential)}</code></p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!selectedCredential && hasEditorState && (
+        <div className="rounded-xl border border-border bg-surface">
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{state.provider}/{state.model}</code></p>
             </div>
           </div>
         </div>
@@ -264,8 +240,8 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
                 step="0.1"
                 min="0"
                 max="2"
-                value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                value={state.temperature}
+                onChange={(e) => setField('temperature', parseFloat(e.target.value))}
               />
             </div>
             <div>
@@ -274,8 +250,8 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
                 type="number"
                 step="1"
                 min="1"
-                value={maxTokens}
-                onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                value={state.maxOutputTokens}
+                onChange={(e) => setField('maxOutputTokens', parseInt(e.target.value))}
               />
             </div>
           </div>
@@ -284,7 +260,7 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Fallback Configuration</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Fallback</p>
           <div>
             <label className="block text-xs font-medium text-muted mb-1">Fallback Provider</label>
             <Select
@@ -295,37 +271,50 @@ export function ModelSettingsTab({ agent, projectId }: ModelSettingsTabProps) {
                 { value: 'openai', label: 'OpenAI' },
                 { value: 'anthropic', label: 'Anthropic' },
                 { value: 'google', label: 'Google' },
-                { value: 'azure', label: 'Azure' },
-                { value: 'custom', label: 'Custom' },
               ]}
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
-            <Input value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} placeholder="Optional" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">Fallback Credential</label>
-            <Select
-              value={fallbackCredentialId}
-              onChange={(e) => setFallbackCredentialId(e.target.value)}
-              options={[
-                { value: '', label: 'None' },
-                ...credentials.map(c => ({
-                  value: c.id,
-                  label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
-                })),
-              ]}
-            />
-          </div>
+          {fallbackProvider === 'openai' && (
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
+              <Select
+                value={fallbackModel}
+                onChange={(e) => setFallbackModel(e.target.value)}
+                options={[
+                  { value: '', label: 'None' },
+                  ...modelOptions.openai,
+                ]}
+              />
+            </div>
+          )}
+          {fallbackProvider === 'anthropic' && (
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
+              <Select
+                value={fallbackModel}
+                onChange={(e) => setFallbackModel(e.target.value)}
+                options={[
+                  { value: '', label: 'None' },
+                  ...modelOptions.anthropic,
+                ]}
+              />
+            </div>
+          )}
+          {fallbackProvider === 'google' && (
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
+              <Select
+                value={fallbackModel}
+                onChange={(e) => setFallbackModel(e.target.value)}
+                options={[
+                  { value: '', label: 'None' },
+                  ...modelOptions.google,
+                ]}
+              />
+            </div>
+          )}
         </div>
       </div>
-
-      {hasChanges && (
-        <Button size="sm" onClick={handleSave} loading={updateAgent.isPending}>
-          Save Changes
-        </Button>
-      )}
 
       <AddProviderCredentialModal
         open={showAddCredential}

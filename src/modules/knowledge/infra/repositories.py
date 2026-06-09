@@ -13,17 +13,20 @@ from modules.knowledge.domain.entities import (
     Document,
     DocumentChunk,
     DocumentCollection,
+    KnowledgeVersion,
 )
 from modules.knowledge.domain.errors import (
     ChunkNotFoundError,
     CollectionNotFoundError,
     DocumentNotFoundError,
+    KnowledgeVersionNotFoundError,
 )
 from modules.knowledge.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
     DocumentCollectionRepository,
     DocumentRepository,
+    KnowledgeVersionRepository,
 )
 from modules.knowledge.infra.mappers import (
     agent_collection_model_to_entity,
@@ -31,6 +34,8 @@ from modules.knowledge.infra.mappers import (
     chunk_to_model,
     collection_to_model,
     document_to_model,
+    knowledge_version_model_to_entity,
+    knowledge_version_to_model,
     model_to_chunk,
     model_to_collection,
     model_to_document,
@@ -40,6 +45,7 @@ from modules.knowledge.infra.models import (
     DocumentChunkModel,
     DocumentCollectionModel,
     DocumentModel,
+    KnowledgeVersionModel,
     OutboxEventModel,
 )
 from shared.domain.events import OutboxEventWriter
@@ -369,6 +375,63 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
         chunks = [model_to_chunk(m) for m in chunks_result.scalars().all()]
         chunks.sort(key=lambda c: similarity_map.get(c.id, 0), reverse=True)
         return [(c, similarity_map.get(c.id, 0.0)) for c in chunks]
+
+
+class SQLAlchemyKnowledgeVersionRepository(KnowledgeVersionRepository):
+
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._base = BaseSQLAlchemyRepository(session, KnowledgeVersionModel)
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def save(self, version: KnowledgeVersion) -> KnowledgeVersion:
+        model = knowledge_version_to_model(version)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
+        return knowledge_version_model_to_entity(model)
+
+    async def get_by_id(self, version_id: UUID) -> KnowledgeVersion | None:
+        model = await self._base._get_model_by_id(version_id)
+        return knowledge_version_model_to_entity(model) if model else None
+
+    async def get_by_version(self, agent_id: UUID, version: str) -> KnowledgeVersion | None:
+        stmt = select(KnowledgeVersionModel).where(
+            KnowledgeVersionModel.agent_id == agent_id,
+            KnowledgeVersionModel.version == version,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return knowledge_version_model_to_entity(model) if model else None
+
+    async def list_by_agent(self, agent_id: UUID) -> list[KnowledgeVersion]:
+        stmt = (
+            select(KnowledgeVersionModel)
+            .where(KnowledgeVersionModel.agent_id == agent_id)
+            .order_by(KnowledgeVersionModel.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [knowledge_version_model_to_entity(m) for m in result.scalars().all()]
+
+    async def paginate_by_agent(self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None) -> CursorPage[KnowledgeVersion]:
+        stmt = (
+            select(KnowledgeVersionModel)
+            .where(KnowledgeVersionModel.agent_id == agent_id)
+            .order_by(KnowledgeVersionModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[knowledge_version_model_to_entity(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):

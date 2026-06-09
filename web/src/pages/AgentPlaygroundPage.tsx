@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent } from '@/features/agents/hooks'
+import { useAgent, useReleases } from '@/features/agents/hooks'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -13,22 +13,10 @@ import { OperationsPanel } from '@/features/playground/components/OperationsPane
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
+import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
-
-function formatSessionLabel(s: SessionListItem): string {
-  const date = s.last_message_at
-    ? new Date(s.last_message_at)
-    : s.created_at
-      ? new Date(s.created_at)
-      : null
-  const dateStr = date
-    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : 'Unknown'
-  const msgCount = s.message_count ?? 0
-  return `${dateStr} (${msgCount} msg${msgCount !== 1 ? 's' : ''})`
-}
 
 function buildTraces(messages: ChatMessage[], lastResponse: AskResponse | null, sessionId: string | null): TraceItem[] {
   if (!lastResponse || messages.length === 0) return []
@@ -50,10 +38,17 @@ function buildTraces(messages: ChatMessage[], lastResponse: AskResponse | null, 
   }))
 }
 
-export default function AgentPlaygroundPage() {
+function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
+  const { data: releases = [] } = useReleases(agentId)
+
+  const productionRelease = releases.find(r => r.status === 'production')
+  const releaseVersion = productionRelease?.version
+  const releaseStatus = productionRelease?.status
+
+  const { state, toSnapshot, loadedReleaseId, loadedReleaseVersion } = useAgentEditor()
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
@@ -69,7 +64,7 @@ export default function AgentPlaygroundPage() {
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(true)
   const [showRightPanel, setShowRightPanel] = useState(true)
-  const [rightPanelTab, setRightPanelTab] = useState('agent')
+  const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
 
@@ -129,13 +124,22 @@ export default function AgentPlaygroundPage() {
     setIsSending(true)
 
     try {
+      const requestPayload: Record<string, unknown> = {
+        project_id: projectId!,
+        agent_id: agentId!,
+        message: content,
+        session_id: sessionId,
+        execution_context: 'playground',
+      }
+
+      if (loadedReleaseId) {
+        requestPayload.loaded_release_id = loadedReleaseId
+      } else {
+        requestPayload.snapshot_override = toSnapshot()
+      }
+
       await stream(
-        {
-          project_id: projectId!,
-          agent_id: agentId!,
-          message: content,
-          session_id: sessionId,
-        },
+        requestPayload as any,
         {
           onMeta: (meta) => {
             if (meta.session_id) {
@@ -188,7 +192,6 @@ export default function AgentPlaygroundPage() {
             if (meta.session_id) {
               setTimeout(() => refetchHistory(), 100)
             }
-            // Auto-select latest trace
             if (meta.trace_id) {
               setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
             }
@@ -274,6 +277,8 @@ export default function AgentPlaygroundPage() {
           onSessionSelect={handleSessionSelect}
           onApiClick={() => setShowApiModal(true)}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
+          releaseVersion={releaseVersion}
+          releaseStatus={releaseStatus}
         />
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -330,5 +335,21 @@ export default function AgentPlaygroundPage() {
         orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)}
       />
     </ErrorBoundary>
+  )
+}
+
+export default function AgentPlaygroundPage() {
+  const { agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { data: agent, isLoading } = useAgent(agentId)
+
+  if (isLoading) return <LoadingState />
+  if (!agent) return <ErrorState message="Agent not found" />
+
+  const { projectId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+
+  return (
+    <AgentEditorProvider agent={agent} projectId={projectId}>
+      <PlaygroundContent />
+    </AgentEditorProvider>
   )
 }

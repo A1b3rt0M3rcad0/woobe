@@ -1,9 +1,11 @@
-from modules.knowledge.domain.entities import Document, DocumentCollection
+from modules.knowledge.domain.entities import Document, DocumentCollection, KnowledgeVersion
 from modules.knowledge.presentation.schemas import (
     AgentCollectionResponse,
     ChunkResponse,
     CollectionResponse,
     DocumentResponse,
+    KnowledgeVersionResponse,
+    ListKnowledgeVersionsResponse,
 )
 from modules.knowledge.service.dtos import (
     AgentCollectionOutput,
@@ -95,6 +97,24 @@ def upload_document_output_to_response(output: UploadDocumentOutput) -> Document
         indexed_at=output.indexed_at,
         created_at=output.created_at,
         updated_at=output.updated_at,
+    )
+
+
+def knowledge_version_to_response(version: KnowledgeVersion) -> KnowledgeVersionResponse:
+    return KnowledgeVersionResponse(
+        id=version.id, project_id=version.project_id, agent_id=version.agent_id,
+        version=version.version, collection_ids=version.collection_ids or [],
+        document_ids=version.document_ids, snapshot_metadata=version.snapshot_metadata,
+        status=version.status.value if hasattr(version.status, 'value') else version.status,
+        created_at=version.created_at, updated_at=version.updated_at,
+    )
+
+
+def list_knowledge_versions_to_response(version: KnowledgeVersion) -> ListKnowledgeVersionsResponse:
+    return ListKnowledgeVersionsResponse(
+        id=version.id, version=version.version,
+        status=version.status.value if hasattr(version.status, 'value') else version.status,
+        created_at=version.created_at,
     )
 
 

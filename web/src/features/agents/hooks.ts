@@ -1,6 +1,41 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAgents, getAgent, createAgent, updateAgent } from './api'
-import type { CreateAgentRequest, UpdateAgentRequest } from './types'
+import {
+  createAgent,
+  createContract,
+  createKnowledgeVersion,
+  createModelConfig,
+  createPrompt,
+  createRelease,
+  createReleaseTest,
+  deleteRelease,
+  getAgent,
+  getAgents,
+  getContract,
+  getContracts,
+  getKnowledgeVersions,
+  getModelConfig,
+  getModelConfigs,
+  getPrompt,
+  getPrompts,
+  getRelease,
+  getReleaseTests,
+  getReleases,
+  promoteRelease,
+  rollbackRelease,
+  updateAgent,
+  updateContract,
+} from './api'
+import type {
+  CreateAgentRequest,
+  CreateContractRequest,
+  CreateKnowledgeVersionRequest,
+  CreateModelConfigRequest,
+  CreatePromptRequest,
+  CreateReleaseRequest,
+  CreateReleaseTestRequest,
+  UpdateAgentRequest,
+  UpdateContractRequest,
+} from './types'
 
 export function useAgents(projectId?: string) {
   return useQuery({
@@ -35,6 +70,177 @@ export function useUpdateAgent(agentId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents'] })
+    },
+  })
+}
+
+
+// ── Agent Prompts ──────────────────────────────────────────────
+
+export function usePrompts(agentId: string | undefined) {
+  return useQuery({
+    queryKey: ['prompts', agentId],
+    queryFn: () => getPrompts(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useCreatePrompt(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreatePromptRequest) => createPrompt(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prompts', agentId] })
+    },
+  })
+}
+
+
+// ── Agent Contracts ────────────────────────────────────────────
+
+export function useContracts(agentId: string | undefined) {
+  return useQuery({
+    queryKey: ['contracts', agentId],
+    queryFn: () => getContracts(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useCreateContract(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateContractRequest) => createContract(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts', agentId] })
+    },
+  })
+}
+
+export function useUpdateContract(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ contractId, data }: { contractId: string; data: UpdateContractRequest }) =>
+      updateContract(agentId!, contractId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts', agentId] })
+    },
+  })
+}
+
+
+// ── Agent Model Configs ────────────────────────────────────────
+
+export function useModelConfigs(agentId: string | undefined) {
+  return useQuery({
+    queryKey: ['model-configs', agentId],
+    queryFn: () => getModelConfigs(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useCreateModelConfig(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateModelConfigRequest) => createModelConfig(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['model-configs', agentId] })
+    },
+  })
+}
+
+
+// ── Knowledge Versions ─────────────────────────────────────────
+
+export function useKnowledgeVersions(agentId: string | undefined) {
+  return useQuery({
+    queryKey: ['knowledge-versions', agentId],
+    queryFn: () => getKnowledgeVersions(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useCreateKnowledgeVersion(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateKnowledgeVersionRequest) => createKnowledgeVersion(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-versions', agentId] })
+    },
+  })
+}
+
+
+// ── Agent Releases ─────────────────────────────────────────────
+
+export function useReleases(agentId: string | undefined) {
+  return useQuery({
+    queryKey: ['releases', agentId],
+    queryFn: () => getReleases(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
+
+export function useCreateRelease(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+    },
+  })
+}
+
+export function usePromoteRelease(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) =>
+      promoteRelease(agentId!, releaseId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+    },
+  })
+}
+
+export function useRollbackRelease(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) =>
+      rollbackRelease(agentId!, releaseId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+    },
+  })
+}
+
+
+// ── Agent Release Tests ────────────────────────────────────────
+
+export function useReleaseTests(agentId: string | undefined, releaseId: string | undefined) {
+  return useQuery({
+    queryKey: ['release-tests', agentId, releaseId],
+    queryFn: () => getReleaseTests(agentId!, releaseId!),
+    enabled: Boolean(agentId) && Boolean(releaseId),
+  })
+}
+
+export function useDeleteRelease(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ releaseId }: { releaseId: string }) => deleteRelease(agentId!, releaseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+    },
+  })
+}
+
+export function useCreateReleaseTest(agentId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateReleaseTestRequest) => createReleaseTest(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-tests', agentId] })
     },
   })
 }

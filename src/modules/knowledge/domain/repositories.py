@@ -8,6 +8,7 @@ from modules.knowledge.domain.entities import (
     Document,
     DocumentChunk,
     DocumentCollection,
+    KnowledgeVersion,
 )
 from shared.domain.objects import CursorPage
 
@@ -115,4 +116,22 @@ class DocumentChunkRepository(ABC):
         limit: int = 10,
         threshold: float = 0.7,
     ) -> list[tuple[DocumentChunk, float]]: ...
+
+
+class KnowledgeVersionRepository(ABC):
+
+    @abstractmethod
+    async def save(self, version: KnowledgeVersion) -> KnowledgeVersion: ...
+
+    @abstractmethod
+    async def get_by_id(self, version_id: UUID) -> KnowledgeVersion | None: ...
+
+    @abstractmethod
+    async def get_by_version(self, agent_id: UUID, version: str) -> KnowledgeVersion | None: ...
+
+    @abstractmethod
+    async def list_by_agent(self, agent_id: UUID) -> list[KnowledgeVersion]: ...
+
+    @abstractmethod
+    async def paginate_by_agent(self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None) -> CursorPage[KnowledgeVersion]: ...
 

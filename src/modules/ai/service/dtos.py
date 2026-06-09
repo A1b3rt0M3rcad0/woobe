@@ -7,9 +7,15 @@ from pydantic import BaseModel
 from modules.ai.domain.enums import (
     AgentStatus,
     AgentType,
+    ContractStatus,
     CredentialStatus,
+    ModelConfigStatus,
+    PromptStatus,
     Provider,
+    ReleaseStatus,
+    ReleaseTestStatus,
     SessionMode,
+    ValidationMode,
 )
 
 
@@ -148,3 +154,278 @@ class ListAgentsOutput(BaseModel):
 
 class GetAgentInput(BaseModel):
     agent_id: UUID
+
+
+# ── Agent Prompt ────────────────────────────────────────────────
+
+class CreatePromptInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    name: str = ""
+    content: str = ""
+    content_hash: str | None = None
+    created_by: UUID | None = None
+
+
+class CreatePromptOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    name: str
+    content: str
+    status: PromptStatus
+    created_by: UUID | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListPromptsOutput(BaseModel):
+    id: UUID
+    version: str
+    name: str
+    content: str
+    status: PromptStatus
+    content_hash: str | None = None
+    created_by: UUID | None = None
+    created_at: datetime | None = None
+
+
+# ── Agent Contract ──────────────────────────────────────────────
+
+class CreateContractInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    name: str = ""
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    validation_mode: ValidationMode = ValidationMode.loose
+    repair_attempts: int = 0
+    additional_instructions: str | None = None
+    schema_hash: str | None = None
+
+
+class CreateContractOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    name: str
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    validation_mode: ValidationMode
+    repair_attempts: int
+    additional_instructions: str | None = None
+    schema_hash: str | None = None
+    status: ContractStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class UpdateContractInput(BaseModel):
+    name: str | None = None
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    validation_mode: ValidationMode | None = None
+    repair_attempts: int | None = None
+    additional_instructions: str | None = None
+    schema_hash: str | None = None
+    status: ContractStatus | None = None
+
+
+class UpdateContractOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    name: str
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    validation_mode: ValidationMode
+    repair_attempts: int
+    additional_instructions: str | None = None
+    schema_hash: str | None = None
+    status: ContractStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListContractsOutput(BaseModel):
+    id: UUID
+    version: str
+    name: str
+    validation_mode: ValidationMode
+    status: ContractStatus
+    created_at: datetime | None = None
+
+
+# ── Agent Model Config ──────────────────────────────────────────
+
+class CreateModelConfigInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    provider: Provider = Provider.openai
+    provider_credential_id: UUID | None = None
+    model: str
+    base_url: str | None = None
+    temperature: float | None = None
+    max_output_tokens: int | None = None
+    session_mode: SessionMode | None = None
+    settings: dict[str, Any] = {}
+
+
+class CreateModelConfigOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    provider: Provider
+    provider_credential_id: UUID | None = None
+    model: str
+    base_url: str | None = None
+    temperature: float | None = None
+    max_output_tokens: int | None = None
+    session_mode: SessionMode | None = None
+    settings: dict[str, Any]
+    status: ModelConfigStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListModelConfigsOutput(BaseModel):
+    id: UUID
+    version: str
+    provider: Provider
+    model: str
+    status: ModelConfigStatus
+    created_at: datetime | None = None
+
+
+# ── Agent Release ───────────────────────────────────────────────
+
+class CreateReleaseInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    prompt_version_id: UUID | None = None
+    contract_version_id: UUID | None = None
+    knowledge_version_id: UUID | None = None
+    model_config_version_id: UUID | None = None
+    # Snapshot fields — complete agent config
+    name: str | None = None
+    description: str | None = None
+    system_prompt: str | None = None
+    response_format: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    provider: str | None = None
+    model: str | None = None
+    provider_credential_id: UUID | None = None
+    base_url: str | None = None
+    temperature: float | None = None
+    max_output_tokens: int | None = None
+    session_mode: str | None = None
+    agent_status: str | None = None
+    collection_ids: list[UUID] | None = None
+    runtime_config: dict[str, Any] | None = None
+    # Meta
+    release_notes: str | None = None
+    risk_score: int | None = None
+    created_by: UUID | None = None
+
+
+class CreateReleaseOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    version: str
+    status: ReleaseStatus
+    prompt_version_id: UUID | None = None
+    contract_version_id: UUID | None = None
+    knowledge_version_id: UUID | None = None
+    model_config_version_id: UUID | None = None
+    name: str | None = None
+    description: str | None = None
+    system_prompt: str | None = None
+    response_format: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    provider: str | None = None
+    model: str | None = None
+    provider_credential_id: UUID | None = None
+    base_url: str | None = None
+    temperature: float | None = None
+    max_output_tokens: int | None = None
+    session_mode: str | None = None
+    agent_status: str | None = None
+    collection_ids: list[UUID] | None = None
+    runtime_config: dict[str, Any] | None = None
+    release_notes: str | None = None
+    risk_score: int | None = None
+    created_by: UUID | None = None
+    promoted_by: UUID | None = None
+    promoted_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListReleasesOutput(BaseModel):
+    id: UUID
+    version: str
+    status: ReleaseStatus
+    name: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    system_prompt: str | None = None
+    output_schema: dict[str, Any] | None = None
+    risk_score: int | None = None
+    release_notes: str | None = None
+    created_by: UUID | None = None
+    created_at: datetime | None = None
+    promoted_at: datetime | None = None
+
+
+class PromoteReleaseInput(BaseModel):
+    user_id: UUID | None = None
+
+
+class RollbackReleaseInput(BaseModel):
+    user_id: UUID | None = None
+
+
+# ── Agent Release Test ──────────────────────────────────────────
+
+class CreateReleaseTestInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    release_id: UUID | None = None
+    contract_version_id: UUID | None = None
+    input_payload: dict[str, Any] | None = None
+    expected_output: dict[str, Any] | None = None
+
+
+class CreateReleaseTestOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID
+    release_id: UUID | None = None
+    contract_version_id: UUID | None = None
+    input_payload: dict[str, Any] | None = None
+    expected_output: dict[str, Any] | None = None
+    actual_output: dict[str, Any] | None = None
+    status: ReleaseTestStatus
+    validation_errors: list[dict[str, Any]] | None = None
+    latency_ms: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ListReleaseTestsOutput(BaseModel):
+    id: UUID
+    release_id: UUID | None = None
+    contract_version_id: UUID | None = None
+    status: ReleaseTestStatus
+    validation_errors: list[dict[str, Any]] | None = None
+    latency_ms: int | None = None
+    created_at: datetime | None = None

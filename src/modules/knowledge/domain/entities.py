@@ -4,7 +4,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, ParserType
+from modules.knowledge.domain.enums import (
+    CollectionStatus,
+    DocumentStatus,
+    KnowledgeVersionStatus,
+    ParserType,
+)
 
 
 @dataclass
@@ -60,6 +65,20 @@ class DocumentChunk:
     section_title: str | None = None
     data: dict | None = None
     embedding: list[float] | None = None
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class KnowledgeVersion:
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    version: str = ""
+    collection_ids: list[UUID] = field(default_factory=list)
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
+    status: KnowledgeVersionStatus = KnowledgeVersionStatus.DRAFT
     id: UUID = field(default_factory=uuid4)
     created_at: datetime | None = None
     updated_at: datetime | None = None

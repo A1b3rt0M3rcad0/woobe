@@ -5,13 +5,15 @@ from modules.knowledge.domain.entities import (
     AgentCollection,
     Document,
     DocumentCollection,
+    KnowledgeVersion,
 )
-from modules.knowledge.domain.enums import DocumentStatus
+from modules.knowledge.domain.enums import DocumentStatus, KnowledgeVersionStatus
 from modules.knowledge.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
     DocumentCollectionRepository,
     DocumentRepository,
+    KnowledgeVersionRepository,
 )
 from modules.knowledge.service.dtos import (
     AgentCollectionOutput,
@@ -19,11 +21,14 @@ from modules.knowledge.service.dtos import (
     AttachCollectionOutput,
     CreateCollectionInput,
     CreateCollectionOutput,
+    CreateKnowledgeVersionInput,
+    CreateKnowledgeVersionOutput,
     DocumentChunkOutput,
     GetCollectionInput,
     GetDocumentInput,
     ListCollectionsInput,
     ListDocumentsInput,
+    ListKnowledgeVersionsOutput,
     SearchChunksInput,
     SearchChunksOutput,
     UploadDocumentInput,
@@ -273,4 +278,41 @@ class GetDocumentUseCase:
 
     async def execute(self, input_dto: GetDocumentInput) -> Document:
         return await self._repo.get_by_id(input_dto.document_id)
+
+
+class CreateKnowledgeVersionUseCase:
+
+    def __init__(self, repo: KnowledgeVersionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: CreateKnowledgeVersionInput) -> CreateKnowledgeVersionOutput:
+        version = KnowledgeVersion(
+            project_id=input_dto.project_id,
+            agent_id=input_dto.agent_id,
+            version=input_dto.version,
+            collection_ids=input_dto.collection_ids,
+            document_ids=input_dto.document_ids,
+            snapshot_metadata=input_dto.snapshot_metadata,
+            status=KnowledgeVersionStatus.DRAFT,
+        )
+        saved = await self._repo.save(version)
+        return CreateKnowledgeVersionOutput(
+            id=saved.id, project_id=saved.project_id, agent_id=saved.agent_id,
+            version=saved.version, collection_ids=saved.collection_ids or [],
+            document_ids=saved.document_ids, snapshot_metadata=saved.snapshot_metadata,
+            status=saved.status, created_at=saved.created_at, updated_at=saved.updated_at,
+        )
+
+
+class ListKnowledgeVersionsUseCase:
+
+    def __init__(self, repo: KnowledgeVersionRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, agent_id: UUID) -> list[ListKnowledgeVersionsOutput]:
+        versions = await self._repo.list_by_agent(agent_id)
+        return [ListKnowledgeVersionsOutput(
+            id=v.id, version=v.version, collection_ids=v.collection_ids or [],
+            status=v.status, created_at=v.created_at,
+        ) for v in versions]
 

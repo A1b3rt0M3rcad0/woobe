@@ -34,3 +34,46 @@ class AgentType(StrEnum):
     completion = auto()
     assistant = auto()
     custom = auto()
+
+
+class PromptStatus(StrEnum):
+    draft = auto()
+    released = auto()
+    archived = auto()
+
+
+class ContractStatus(StrEnum):
+    draft = auto()
+    released = auto()
+    archived = auto()
+
+
+class ValidationMode(StrEnum):
+    strict = auto()
+    loose = auto()
+
+
+class ModelConfigStatus(StrEnum):
+    draft = auto()
+    released = auto()
+    archived = auto()
+
+
+class ReleaseStatus(StrEnum):
+    draft = auto()
+    staging = auto()
+    production = auto()
+    archived = auto()
+    rolled_back = auto()
+
+
+class ReleaseTestStatus(StrEnum):
+    pending = auto()
+    passed = auto()
+    failed = auto()
+
+
+class KnowledgeVersionStatus(StrEnum):
+    draft = auto()
+    released = auto()
+    archived = auto()

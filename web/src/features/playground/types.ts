@@ -42,6 +42,9 @@ export interface AskRequest {
   tenant_id?: string
   user_id?: string
   metadata?: Record<string, unknown>
+  execution_context?: 'playground' | 'production'
+  loaded_release_id?: string | null
+  snapshot_override?: Record<string, unknown> | null
 }
 
 export interface SourceInfo {
