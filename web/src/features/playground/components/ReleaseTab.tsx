@@ -52,6 +52,13 @@ function truncate(text: string | undefined | null, max: number): string {
   return text.length > max ? text.slice(0, max) + '...' : text
 }
 
+function unwrapSchema(val: unknown): unknown {
+  if (val && typeof val === 'object' && ('enabled' in (val as Record<string, unknown>) || 'type' in (val as Record<string, unknown>))) {
+    return (val as Record<string, unknown>).schema ?? val
+  }
+  return val
+}
+
 interface ReleaseTabProps {
   agentId: string
   projectId: string
@@ -102,7 +109,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
           enabled: Boolean((release.response_format as any)?.enabled ?? (release.output_schema ? true : false)),
           type: ((release.response_format as any)?.type === 'json' ? 'json' : 'text') as 'text' | 'json',
           strict: Boolean((release.response_format as any)?.strict),
-          schema: (release.response_format as any)?.schema ?? release.output_schema ?? null,
+          schema: (release.response_format as any)?.schema ?? unwrapSchema(release.output_schema) ?? null,
           repair_attempts: (release.response_format as any)?.repair_attempts,
         },
         outputSchema: release.output_schema ?? null,

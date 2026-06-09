@@ -32,7 +32,7 @@ const editorSubTabs = [
 ]
 
 function EditorHeader() {
-  const { loadedReleaseVersion, isModifiedFromLoaded } = useAgentEditor()
+  const { loadedReleaseVersion, isModifiedFromLoaded, isDraftModified } = useAgentEditor()
   return (
     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/50 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
@@ -43,7 +43,7 @@ function EditorHeader() {
             'Current Draft'
           )}
         </span>
-        {isModifiedFromLoaded && (
+        {(isModifiedFromLoaded || isDraftModified) && (
           <Badge variant="warning" className="text-[9px] px-1 py-0">Unsaved changes</Badge>
         )}
       </div>

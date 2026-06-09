@@ -26,7 +26,7 @@ const ASK_CURL = `curl -X POST http://localhost:8000/runtime/ask \\
   -d '{
   "project_id": "<project_id>",
   "agent_id": "<agent_id>",
-  "message": "Hello, agent!",
+  "message": "Hello!",
   "session_id": "<session_id>"
 }'`
 
@@ -60,7 +60,7 @@ const STRUCTURED_RESPONSE_CURL = `curl -X POST http://localhost:8000/runtime/ask
   -d '{
   "project_id": "<project_id>",
   "agent_id": "<agent_id>",
-  "message": "Classify this ticket",
+  "message": "Classify this ticket: customer cant login",
   "session_id": "<session_id>"
 }'`
 

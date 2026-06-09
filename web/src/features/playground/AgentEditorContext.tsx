@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 
@@ -38,6 +38,7 @@ export interface EditorContextValue {
   loadedReleaseVersion: string | null
   setLoadedRelease: (id: string | null, version: string | null) => void
   isModifiedFromLoaded: boolean
+  isDraftModified: boolean
 }
 
 const defaultResponseFormat: ResponseFormat = {
@@ -81,10 +82,14 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const [state, setState] = useState<AgentEditorState>(() => agentToEditorState(agent, propCollectionIds))
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
+  const [loadedSnapshot, setLoadedSnapshot] = useState<string | null>(null)
+  const initialAgentRef = useRef<string>('')
   const { data: credentials } = useCredentials(projectId || '')
 
   useEffect(() => {
-    setState(agentToEditorState(agent, propCollectionIds))
+    const initial = agentToEditorState(agent, propCollectionIds)
+    setState(initial)
+    initialAgentRef.current = JSON.stringify(initial)
   }, [agent, propCollectionIds])
 
   useEffect(() => {
@@ -104,13 +109,20 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [])
 
   const resetFromAgent = useCallback((a: Agent, cids?: string[]) => {
-    setState(agentToEditorState(a, cids))
+    const s = agentToEditorState(a, cids)
+    setState(s)
+    initialAgentRef.current = JSON.stringify(s)
   }, [])
 
   const setLoadedRelease = useCallback((id: string | null, version: string | null) => {
     setLoadedReleaseId(id)
     setLoadedReleaseVersion(version)
-  }, [])
+    if (version) {
+      setLoadedSnapshot(JSON.stringify(state))
+    } else {
+      setLoadedSnapshot(null)
+    }
+  }, [state])
 
   const toSnapshot = useCallback((): Record<string, unknown> => {
     let schema = state.responseFormat.schema
@@ -146,9 +158,17 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     }
   }, [state])
 
+  const snapshotStr = JSON.stringify(toSnapshot())
+
   const isModifiedFromLoaded = useMemo(() => {
-    return loadedReleaseVersion != null && loadedReleaseVersion.length > 0
-  }, [loadedReleaseVersion])
+    if (!loadedSnapshot) return false
+    return snapshotStr !== loadedSnapshot
+  }, [snapshotStr, loadedSnapshot])
+
+  const isDraftModified = useMemo(() => {
+    if (loadedReleaseVersion) return false
+    return snapshotStr !== initialAgentRef.current
+  }, [snapshotStr, loadedReleaseVersion])
 
   const contextValue: EditorContextValue = {
     state,
@@ -160,6 +180,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     loadedReleaseVersion,
     setLoadedRelease,
     isModifiedFromLoaded,
+    isDraftModified,
   }
 
   return (

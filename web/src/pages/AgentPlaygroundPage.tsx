@@ -48,7 +48,7 @@ function PlaygroundContent() {
   const releaseVersion = productionRelease?.version
   const releaseStatus = productionRelease?.status
 
-  const { state, toSnapshot, loadedReleaseId, loadedReleaseVersion } = useAgentEditor()
+  const { state, toSnapshot, loadedReleaseId, loadedReleaseVersion, isDraftModified } = useAgentEditor()
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
@@ -262,6 +262,16 @@ function PlaygroundContent() {
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
+  const statusLabel = loadedReleaseVersion
+    ? `Using: ${loadedReleaseVersion}`
+    : isDraftModified
+      ? 'Using: Current Draft (unsaved)'
+      : 'Using: Current Draft'
+
+  const statusModified = loadedReleaseVersion
+    ? isDraftModified || false
+    : isDraftModified
+
   return (
     <ErrorBoundary>
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
@@ -280,6 +290,15 @@ function PlaygroundContent() {
           releaseVersion={releaseVersion}
           releaseStatus={releaseStatus}
         />
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
+          <span className="text-muted font-medium">{statusLabel}</span>
+          {statusModified && (
+            <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>
+          )}
+          <span className="ml-auto text-muted">
+            {state.provider}/{state.model}
+          </span>
+        </div>
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail
