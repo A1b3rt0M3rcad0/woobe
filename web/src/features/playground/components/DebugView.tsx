@@ -9,6 +9,7 @@ import type { AskResponse } from '@/features/playground/types'
 
 interface DebugViewProps {
   lastResponse: AskResponse | null
+  lastRequestPayload: Record<string, unknown> | null
 }
 
 function CollapsibleSection({
@@ -35,7 +36,7 @@ function CollapsibleSection({
   )
 }
 
-export function DebugView({ lastResponse }: DebugViewProps) {
+export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) {
   const [activeSection, setActiveSection] = useState<string | null>(null)
 
   if (!lastResponse) {
@@ -49,6 +50,19 @@ export function DebugView({ lastResponse }: DebugViewProps) {
   }
 
   const normalizedEnvelope = { success: true, data: lastResponse }
+
+  const PUBLIC_FIELDS = new Set(['project_id', 'agent_id', 'message', 'session_id'])
+  const publicPayload: Record<string, unknown> = {}
+  const internalPayload: Record<string, unknown> = {}
+  if (lastRequestPayload) {
+    for (const [key, value] of Object.entries(lastRequestPayload)) {
+      if (PUBLIC_FIELDS.has(key)) {
+        publicPayload[key] = value
+      } else {
+        internalPayload[key] = value
+      }
+    }
+  }
 
   return (
     <div className="p-4 space-y-2">
@@ -102,13 +116,20 @@ export function DebugView({ lastResponse }: DebugViewProps) {
           <JsonCodeBlock data={normalizedEnvelope} maxHeight="max-h-40" />
         </CollapsibleSection>
 
-        <CollapsibleSection title="Request">
-          <p className="text-xs text-muted mb-1">Payload sent to /runtime/ask</p>
+        <CollapsibleSection title="Public Request" defaultOpen>
+          <p className="text-xs text-muted mb-1">Fields sent to /runtime/ask</p>
           <JsonCodeBlock
-            data={{ agent_id: '...', message: '...' }}
+            data={Object.keys(publicPayload).length > 0 ? publicPayload : { agent_id: '...', message: '...' }}
             maxHeight="max-h-32"
           />
         </CollapsibleSection>
+
+        {Object.keys(internalPayload).length > 0 && (
+          <CollapsibleSection title="Playground Internals">
+            <p className="text-xs text-muted mb-1">Internal playground-only fields</p>
+            <JsonCodeBlock data={internalPayload} maxHeight="max-h-32" />
+          </CollapsibleSection>
+        )}
 
         <CollapsibleSection title="Raw Response">
           <p className="text-xs text-muted mb-1">Raw HTTP response data</p>

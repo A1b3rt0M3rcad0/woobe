@@ -60,6 +60,7 @@ function PlaygroundContent() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
+  const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
 
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(true)
@@ -133,6 +134,7 @@ function PlaygroundContent() {
       }
 
       requestPayload.snapshot_override = toSnapshot()
+      setLastRequestPayload(requestPayload)
 
       await stream(
         requestPayload as any,
@@ -308,6 +310,7 @@ function PlaygroundContent() {
             <OperationsPanel
               activeTab={leftPanelTab}
               lastResponse={lastResponse}
+              lastRequestPayload={lastRequestPayload}
               traces={traces}
               selectedTraceId={selectedTraceId}
               sessions={sessions}

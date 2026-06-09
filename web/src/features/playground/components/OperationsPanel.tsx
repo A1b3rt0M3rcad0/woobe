@@ -8,6 +8,7 @@ import type { AskResponse, SessionListItem, TraceItem } from '@/features/playgro
 interface OperationsPanelProps {
   activeTab: LeftPanelTab | null
   lastResponse: AskResponse | null
+  lastRequestPayload: Record<string, unknown> | null
   traces: TraceItem[]
   selectedTraceId: string | null
   sessions: SessionListItem[]
@@ -24,6 +25,7 @@ interface OperationsPanelProps {
 export function OperationsPanel({
   activeTab,
   lastResponse,
+  lastRequestPayload,
   traces,
   selectedTraceId,
   sessions,
@@ -41,7 +43,7 @@ export function OperationsPanel({
   const panelContent = () => {
     switch (activeTab) {
       case 'debug':
-        return <DebugView lastResponse={lastResponse} />
+        return <DebugView lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} />
       case 'traces':
         return selectedTraceId && traces.find(t => t.id === selectedTraceId) ? (
           <TraceDetails
