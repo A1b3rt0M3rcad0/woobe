@@ -13,6 +13,8 @@ import {
   Circle, CheckCircle2, Archive, AlertTriangle, Loader2,
 } from 'lucide-react'
 import { useAgentEditor } from '../AgentEditorContext'
+import { ConfirmVersionModal } from './ConfirmVersionModal'
+import { ConfirmDeleteModal } from './ConfirmDeleteModal'
 import type { AgentRelease, ReleaseStatus } from '@/features/agents/types'
 
 const statusBadgeVariant: Record<ReleaseStatus, 'success' | 'warning' | 'secondary' | 'default' | 'destructive'> = {
@@ -75,17 +77,30 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
   const {
     state, toSnapshot, setState,
     loadedReleaseId, loadedReleaseVersion, setLoadedRelease,
-    isModifiedFromLoaded,
+    isDirty, updateBaseline,
   } = useAgentEditor()
 
   const [loadingReleaseId, setLoadingReleaseId] = useState<string | null>(null)
+  const [showVersionModal, setShowVersionModal] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AgentRelease | null>(null)
 
   const productionRelease = useMemo(() => releases?.find(r => r.status === 'production'), [releases])
 
+  const lastRelease = useMemo(() => {
+    if (!releases || releases.length === 0) return null
+    return releases.reduce((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+      return aTime > bTime ? a : b
+    })
+  }, [releases])
+
+  const pendingVersionName = useMemo(() => generateVersionName(), [showVersionModal])
+
   const handleSaveVersion = async () => {
+    const versionName = pendingVersionName
+    const snapshot = toSnapshot()
     try {
-      const versionName = generateVersionName()
-      const snapshot = toSnapshot()
       await createRelease.mutateAsync({
         project_id: projectId,
         agent_id: agentId,
@@ -93,14 +108,16 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
         ...snapshot,
       } as any)
       toast.success(`Version ${versionName} saved`)
+      setShowVersionModal(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save version')
     }
   }
 
-  const handleLoadVersion = async (release: AgentRelease) => {
+  const handleLoadVersionForEditing = async (release: AgentRelease) => {
     setLoadingReleaseId(release.id)
     try {
+      const schema = unwrapSchema(release.output_schema)
       const newState = {
         name: release.name ?? state.name,
         description: release.description ?? state.description,
@@ -109,7 +126,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
           enabled: Boolean((release.response_format as any)?.enabled ?? (release.output_schema ? true : false)),
           type: ((release.response_format as any)?.type === 'json' ? 'json' : 'text') as 'text' | 'json',
           strict: Boolean((release.response_format as any)?.strict),
-          schema: (release.response_format as any)?.schema ?? unwrapSchema(release.output_schema) ?? null,
+          schema: (release.response_format as any)?.schema ?? schema ?? null,
           repair_attempts: (release.response_format as any)?.repair_attempts,
         },
         outputSchema: release.output_schema ?? null,
@@ -126,9 +143,71 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
       }
       setState(newState)
       setLoadedRelease(release.id, release.version)
-      toast.success(`Version ${release.version} loaded into editor`)
+      toast.success(`Version ${release.version} loaded for editing`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load version')
+    } finally {
+      setLoadingReleaseId(null)
+    }
+  }
+
+  const handleRestoreVersionAsCurrentDraft = async (release: AgentRelease) => {
+    setLoadingReleaseId(release.id)
+    try {
+      const schema = unwrapSchema(release.output_schema)
+      const newState = {
+        name: release.name ?? state.name,
+        description: release.description ?? state.description,
+        systemPrompt: release.system_prompt ?? state.systemPrompt,
+        responseFormat: {
+          enabled: Boolean((release.response_format as any)?.enabled ?? (release.output_schema ? true : false)),
+          type: ((release.response_format as any)?.type === 'json' ? 'json' : 'text') as 'text' | 'json',
+          strict: Boolean((release.response_format as any)?.strict),
+          schema: (release.response_format as any)?.schema ?? schema ?? null,
+          repair_attempts: (release.response_format as any)?.repair_attempts,
+        },
+        outputSchema: release.output_schema ?? null,
+        provider: release.provider ?? state.provider,
+        model: release.model ?? state.model,
+        providerCredentialId: release.provider_credential_id ?? state.providerCredentialId,
+        baseUrl: release.base_url ?? state.baseUrl,
+        temperature: release.temperature ?? state.temperature,
+        maxOutputTokens: release.max_output_tokens ?? state.maxOutputTokens,
+        sessionMode: (release.session_mode as 'stateful' | 'stateless') ?? state.sessionMode,
+        status: (release.agent_status as 'active' | 'inactive') ?? state.status,
+        collectionIds: (release.collection_ids as string[]) ?? state.collectionIds,
+        runtimeConfig: (release.runtime_config as Record<string, unknown>) ?? state.runtimeConfig,
+      }
+      const rf = {
+        enabled: newState.responseFormat.enabled,
+        type: newState.responseFormat.type,
+        strict: newState.responseFormat.strict,
+        schema: newState.responseFormat.schema,
+        repair_attempts: newState.responseFormat.repair_attempts,
+      }
+      const payload: Record<string, unknown> = {
+        name: newState.name,
+        description: newState.description,
+        system_prompt: newState.systemPrompt,
+        provider: newState.provider,
+        model: newState.model,
+        provider_credential_id: newState.providerCredentialId,
+        temperature: newState.temperature,
+        max_output_tokens: newState.maxOutputTokens,
+        session_mode: newState.sessionMode,
+        status: newState.status,
+        settings: {
+          response_format: rf,
+          base_url: newState.baseUrl,
+        },
+      }
+      await updateAgent.mutateAsync(payload as any)
+      setState(newState)
+      setLoadedRelease(release.id, release.version)
+      updateBaseline()
+      toast.success(`Version ${release.version} restored as Current Draft`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to restore version')
     } finally {
       setLoadingReleaseId(null)
     }
@@ -152,11 +231,16 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
     }
   }
 
-  const handleDelete = async (release: AgentRelease) => {
-    if (!window.confirm(`Delete version ${release.version}? This cannot be undone.`)) return
+  const handleOpenDelete = (release: AgentRelease) => {
+    setDeleteTarget(release)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await deleteRelease.mutateAsync({ releaseId: release.id })
-      toast.success(`Version ${release.version} deleted`)
+      await deleteRelease.mutateAsync({ releaseId: deleteTarget.id })
+      toast.success(`Version ${deleteTarget.version} deleted`)
+      setDeleteTarget(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete version')
     }
@@ -193,11 +277,11 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
               <Loader2 className="h-3.5 w-3.5 text-blue-400" />
               <span className="text-xs font-semibold text-blue-300">Loaded: {loadedReleaseVersion}</span>
             </div>
-            {isModifiedFromLoaded && (
+            {isDirty && (
               <Badge variant="warning" className="text-[10px]">Modified</Badge>
             )}
           </div>
-          {isModifiedFromLoaded && (
+          {isDirty && (
             <p className="text-[10px] text-muted">Modified from loaded version</p>
           )}
         </div>
@@ -223,8 +307,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
       {/* Save Version Button */}
       <Button
         size="sm"
-        onClick={handleSaveVersion}
-        loading={isCreating}
+        onClick={() => setShowVersionModal(true)}
         className="w-full"
       >
         <Save className="mr-1.5 h-4 w-4" />
@@ -316,14 +399,26 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleLoadVersion(release)}
+                    onClick={() => handleLoadVersionForEditing(release)}
                     loading={loadingReleaseId === release.id}
+                    disabled={loadingReleaseId === release.id}
                   >
-                    Load
+                    <FileText className="mr-1 h-3 w-3" />
+                    Load for editing
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRestoreVersionAsCurrentDraft(release)}
+                    loading={loadingReleaseId === release.id}
+                    disabled={loadingReleaseId === release.id}
+                  >
+                    <Save className="mr-1 h-3 w-3" />
+                    Restore as Current Draft
                   </Button>
                   {(release.status === 'draft' || release.status === 'staging') && (
                     <Button
@@ -352,8 +447,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
                       size="sm"
                       variant="ghost"
                       className="text-red-400 hover:text-red-300 ml-auto"
-                      onClick={() => handleDelete(release)}
-                      loading={deleteRelease.isPending}
+                      onClick={() => handleOpenDelete(release)}
                     >
                       <Archive className="mr-1 h-3 w-3" />
                       Delete
@@ -371,6 +465,25 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
           })
         )}
       </div>
+
+      <ConfirmVersionModal
+        open={showVersionModal}
+        onClose={() => setShowVersionModal(false)}
+        onConfirm={handleSaveVersion}
+        versionName={pendingVersionName}
+        currentSnapshot={toSnapshot()}
+        lastRelease={lastRelease}
+        hasUnsavedChanges={isDirty}
+        isPending={createRelease.isPending}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        versionName={deleteTarget?.version ?? ''}
+        isPending={deleteRelease.isPending}
+      />
     </div>
   )
 }

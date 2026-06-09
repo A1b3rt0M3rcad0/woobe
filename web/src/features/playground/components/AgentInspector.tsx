@@ -32,7 +32,7 @@ const editorSubTabs = [
 ]
 
 function EditorHeader() {
-  const { loadedReleaseVersion, isModifiedFromLoaded, isDraftModified } = useAgentEditor()
+  const { loadedReleaseVersion, isDirty } = useAgentEditor()
   return (
     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/50 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
@@ -43,7 +43,7 @@ function EditorHeader() {
             'Current Draft'
           )}
         </span>
-        {(isModifiedFromLoaded || isDraftModified) && (
+        {isDirty && (
           <Badge variant="warning" className="text-[9px] px-1 py-0">Unsaved changes</Badge>
         )}
       </div>
@@ -52,7 +52,7 @@ function EditorHeader() {
 }
 
 function EditorActions({ agentId }: { agentId: string }) {
-  const { state } = useAgentEditor()
+  const { state, updateBaseline, resetToBaseline } = useAgentEditor()
   const updateAgent = useUpdateAgent(agentId)
 
   const handleSaveDraft = async () => {
@@ -81,6 +81,7 @@ function EditorActions({ agentId }: { agentId: string }) {
         },
       }
       await updateAgent.mutateAsync(payload as any)
+      updateBaseline()
       toast.success('Draft saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save draft')
@@ -88,7 +89,7 @@ function EditorActions({ agentId }: { agentId: string }) {
   }
 
   const handleReset = () => {
-    window.location.reload()
+    resetToBaseline()
   }
 
   return (

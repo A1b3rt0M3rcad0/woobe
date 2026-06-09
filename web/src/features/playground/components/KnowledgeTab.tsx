@@ -28,7 +28,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { data: agentCollections, isLoading, refetch } = useAgentCollections(agentId)
   const { data: allCollections } = useCollections(projectId)
   const detachCollection = useDetachCollection()
-  const { setField } = useAgentEditor()
+  const { setField, updateBaseline } = useAgentEditor()
 
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [showAttachCol, setShowAttachCol] = useState(false)
@@ -40,6 +40,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   useEffect(() => {
     if (existingCollectionIds.length > 0) {
       setField('collectionIds', existingCollectionIds)
+      updateBaseline()
     }
   }, [existingCollectionIds.join(',')])
 

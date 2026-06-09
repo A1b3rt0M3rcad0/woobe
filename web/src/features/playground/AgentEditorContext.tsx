@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 
@@ -32,13 +32,14 @@ export interface EditorContextValue {
   state: AgentEditorState
   setField: <K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => void
   setState: (s: AgentEditorState) => void
-  resetFromAgent: (agent: Agent, collectionIds?: string[]) => void
   toSnapshot: () => Record<string, unknown>
   loadedReleaseId: string | null
   loadedReleaseVersion: string | null
   setLoadedRelease: (id: string | null, version: string | null) => void
-  isModifiedFromLoaded: boolean
-  isDraftModified: boolean
+  isDirty: boolean
+  activeSource: 'current_draft' | 'draft_unsaved'
+  resetToBaseline: () => void
+  updateBaseline: () => void
 }
 
 const defaultResponseFormat: ResponseFormat = {
@@ -76,111 +77,110 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
   }
 }
 
+function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
+  let schema = state.responseFormat.schema
+  if (typeof schema === 'string') {
+    try {
+      schema = JSON.parse(schema as string)
+    } catch {
+      schema = null
+    }
+  }
+  return {
+    name: state.name,
+    description: state.description,
+    system_prompt: state.systemPrompt,
+    response_format: {
+      enabled: state.responseFormat.enabled,
+      type: state.responseFormat.type,
+      strict: state.responseFormat.strict,
+      schema,
+      repair_attempts: state.responseFormat.repair_attempts,
+    },
+    output_schema: schema,
+    provider: state.provider,
+    model: state.model,
+    provider_credential_id: state.providerCredentialId,
+    base_url: state.baseUrl,
+    temperature: state.temperature,
+    max_output_tokens: state.maxOutputTokens,
+    session_mode: state.sessionMode,
+    agent_status: state.status,
+    collection_ids: state.collectionIds,
+    runtime_config: state.runtimeConfig,
+  }
+}
+
 const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; children: ReactNode }) {
   const [state, setState] = useState<AgentEditorState>(() => agentToEditorState(agent, propCollectionIds))
+  const [baselineState, setBaselineState] = useState<AgentEditorState>(() => agentToEditorState(agent, propCollectionIds))
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
-  const [loadedSnapshot, setLoadedSnapshot] = useState<string | null>(null)
-  const initialAgentRef = useRef<string>('')
   const { data: credentials } = useCredentials(projectId || '')
 
   useEffect(() => {
-    const initial = agentToEditorState(agent, propCollectionIds)
-    setState(initial)
-    initialAgentRef.current = JSON.stringify(initial)
+    const s = agentToEditorState(agent, propCollectionIds)
+    setState(s)
+    setBaselineState(s)
   }, [agent, propCollectionIds])
 
   useEffect(() => {
     if (!state.providerCredentialId || !credentials || credentials.length === 0) return
     const cred = credentials.find((c: { id: string }) => c.id === state.providerCredentialId)
     if (!cred) return
-    setState(prev => ({
-      ...prev,
-      provider: cred.provider,
-      model: cred.metadata?.model || cred.metadata?.model_name || prev.model,
-      baseUrl: cred.metadata?.base_url || prev.baseUrl,
-    }))
+    setState(prev => {
+      const updated = {
+        ...prev,
+        provider: cred.provider,
+        model: cred.metadata?.model || cred.metadata?.model_name || prev.model,
+        baseUrl: cred.metadata?.base_url || prev.baseUrl,
+      }
+      setBaselineState(updated)
+      return updated
+    })
   }, [state.providerCredentialId, credentials])
 
   const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
     setState(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  const resetFromAgent = useCallback((a: Agent, cids?: string[]) => {
-    const s = agentToEditorState(a, cids)
-    setState(s)
-    initialAgentRef.current = JSON.stringify(s)
-  }, [])
-
   const setLoadedRelease = useCallback((id: string | null, version: string | null) => {
     setLoadedReleaseId(id)
     setLoadedReleaseVersion(version)
-    if (version) {
-      setLoadedSnapshot(JSON.stringify(state))
-    } else {
-      setLoadedSnapshot(null)
-    }
-  }, [state])
+  }, [])
 
   const toSnapshot = useCallback((): Record<string, unknown> => {
-    let schema = state.responseFormat.schema
-    if (typeof schema === 'string') {
-      try {
-        schema = JSON.parse(schema as string)
-      } catch {
-        schema = null
-      }
-    }
-    return {
-      name: state.name,
-      description: state.description,
-      system_prompt: state.systemPrompt,
-      response_format: {
-        enabled: state.responseFormat.enabled,
-        type: state.responseFormat.type,
-        strict: state.responseFormat.strict,
-        schema,
-        repair_attempts: state.responseFormat.repair_attempts,
-      },
-      output_schema: schema,
-      provider: state.provider,
-      model: state.model,
-      provider_credential_id: state.providerCredentialId,
-      base_url: state.baseUrl,
-      temperature: state.temperature,
-      max_output_tokens: state.maxOutputTokens,
-      session_mode: state.sessionMode,
-      agent_status: state.status,
-      collection_ids: state.collectionIds,
-      runtime_config: state.runtimeConfig,
-    }
+    return canonicalSnapshot(state)
   }, [state])
 
-  const snapshotStr = JSON.stringify(toSnapshot())
+  const snapshotStr = useMemo(() => JSON.stringify(canonicalSnapshot(state)), [state])
+  const baselineSnapshotStr = useMemo(() => JSON.stringify(canonicalSnapshot(baselineState)), [baselineState])
 
-  const isModifiedFromLoaded = useMemo(() => {
-    if (!loadedSnapshot) return false
-    return snapshotStr !== loadedSnapshot
-  }, [snapshotStr, loadedSnapshot])
+  const isDirty = snapshotStr !== baselineSnapshotStr
+  const activeSource: 'current_draft' | 'draft_unsaved' = isDirty ? 'draft_unsaved' : 'current_draft'
 
-  const isDraftModified = useMemo(() => {
-    if (loadedReleaseVersion) return false
-    return snapshotStr !== initialAgentRef.current
-  }, [snapshotStr, loadedReleaseVersion])
+  const resetToBaseline = useCallback(() => {
+    setState(baselineState)
+  }, [baselineState])
+
+  const updateBaseline = useCallback(() => {
+    setBaselineState(state)
+  }, [state])
 
   const contextValue: EditorContextValue = {
     state,
     setField,
     setState,
-    resetFromAgent,
     toSnapshot,
     loadedReleaseId,
     loadedReleaseVersion,
     setLoadedRelease,
-    isModifiedFromLoaded,
-    isDraftModified,
+    isDirty,
+    activeSource,
+    resetToBaseline,
+    updateBaseline,
   }
 
   return (

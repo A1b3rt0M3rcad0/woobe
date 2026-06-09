@@ -48,7 +48,7 @@ function PlaygroundContent() {
   const releaseVersion = productionRelease?.version
   const releaseStatus = productionRelease?.status
 
-  const { state, toSnapshot, loadedReleaseId, loadedReleaseVersion, isDraftModified } = useAgentEditor()
+  const { state, toSnapshot, isDirty } = useAgentEditor()
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
@@ -132,11 +132,7 @@ function PlaygroundContent() {
         execution_context: 'playground',
       }
 
-      if (loadedReleaseId) {
-        requestPayload.loaded_release_id = loadedReleaseId
-      } else {
-        requestPayload.snapshot_override = toSnapshot()
-      }
+      requestPayload.snapshot_override = toSnapshot()
 
       await stream(
         requestPayload as any,
@@ -262,15 +258,16 @@ function PlaygroundContent() {
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
-  const statusLabel = loadedReleaseVersion
-    ? `Using: ${loadedReleaseVersion}`
-    : isDraftModified
-      ? 'Using: Current Draft (unsaved)'
-      : 'Using: Current Draft'
+  let statusLabel: string
+  let statusModified: boolean
 
-  const statusModified = loadedReleaseVersion
-    ? isDraftModified || false
-    : isDraftModified
+  if (isDirty) {
+    statusLabel = 'Using: Draft (unsaved)'
+    statusModified = true
+  } else {
+    statusLabel = 'Using: Current Draft'
+    statusModified = false
+  }
 
   return (
     <ErrorBoundary>
