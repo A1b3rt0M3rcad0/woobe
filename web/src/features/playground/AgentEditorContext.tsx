@@ -163,6 +163,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
 
   const resetToBaseline = useCallback(() => {
     setState(baselineState)
+    setLoadedRelease(null, null)
   }, [baselineState])
 
   const updateBaseline = useCallback(() => {
