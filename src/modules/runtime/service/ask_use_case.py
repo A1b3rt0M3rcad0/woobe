@@ -440,6 +440,8 @@ class AskAgentUseCase:
             project_id=input_dto.project_id,
             agent_id=agent.id,
             session_id=session.id if session else None,
+            tenant_id=input_dto.tenant_id,
+            user_id=input_dto.user_id,
             status=TraceStatus.running,
             started_at=datetime.now(timezone.utc),
             provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,

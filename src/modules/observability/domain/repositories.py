@@ -26,6 +26,11 @@ class TraceRepository(ABC):
     ) -> list[Trace]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
+    async def list_by_project_and_agent(
+        self, project_id: UUID, agent_id: UUID, limit: int = 100, offset: int = 0
+    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
+
+    @abstractmethod
     async def paginate_by_project(
         self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Trace]: ...

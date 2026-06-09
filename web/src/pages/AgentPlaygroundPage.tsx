@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent } from '@/features/agents/hooks'
+import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -12,6 +13,7 @@ import { OperationsPanel } from '@/features/playground/components/OperationsPane
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
 
@@ -55,6 +57,7 @@ export default function AgentPlaygroundPage() {
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
+  const queryClient = useQueryClient()
 
   const { data: sessions = [], refetch: refetchSessions } = useAgentSessions(agentId, projectId)
 
@@ -72,6 +75,14 @@ export default function AgentPlaygroundPage() {
 
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
+
+  const {
+    data: backendTraces = [],
+    isLoading: tracesLoading,
+    isError: tracesError,
+    error: tracesQueryError,
+    refetch: refetchTraces,
+  } = usePlaygroundTraces(projectId, agentId, sessionId)
 
   const selectedSessionId = sessionId
   const { data: historyMessages, refetch: refetchHistory } = useSessionMessages(
@@ -170,6 +181,7 @@ export default function AgentPlaygroundPage() {
             })
             setLastResponse(meta as AskResponse)
             refetchSessions()
+            refetchTraces()
             if (meta.session_id) {
               setTimeout(() => refetchHistory(), 100)
             }
@@ -208,7 +220,30 @@ export default function AgentPlaygroundPage() {
     }
   }
 
-  const traces = buildTraces(messages, lastResponse, sessionId)
+  const localTraces = buildTraces(messages, lastResponse, sessionId)
+
+  const traces = useMemo(() => {
+    const backendMapped: TraceItem[] = backendTraces.map((t) => ({
+      id: t.id,
+      title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`,
+      timestamp: t.created_at ?? new Date().toISOString(),
+      status: t.status === 'failed' ? 'error' as const : t.status === 'running' ? 'warning' as const : 'success' as const,
+      latency_ms: t.total_latency_ms ?? null,
+      model: t.model ?? null,
+      provider: t.provider ?? null,
+      input_tokens: null,
+      output_tokens: null,
+      total_tokens: null,
+      cost_usd: t.total_cost_usd ?? null,
+      trace_id: t.id,
+      response: null,
+    }))
+
+    const localIds = new Set(localTraces.map((lt) => lt.trace_id).filter(Boolean))
+    const merged = [...backendMapped.filter((bt) => !localIds.has(bt.trace_id)), ...localTraces]
+    merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    return merged
+  }, [backendTraces, localTraces])
 
   if (agentLoading) return <LoadingState />
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
@@ -249,6 +284,10 @@ export default function AgentPlaygroundPage() {
               onSelectTrace={setSelectedTraceId}
               onNewSession={handleNewSession}
               onSelectSession={handleSessionSelect}
+              tracesLoading={tracesLoading}
+              tracesError={tracesError}
+              tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
+              onTracesRetry={refetchTraces}
             />
           )}
 

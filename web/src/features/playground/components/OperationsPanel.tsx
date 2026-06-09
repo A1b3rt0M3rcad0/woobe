@@ -15,6 +15,10 @@ interface OperationsPanelProps {
   onSelectTrace: (id: string | null) => void
   onNewSession: () => void
   onSelectSession: (id: string) => void
+  tracesLoading?: boolean
+  tracesError?: boolean
+  tracesErrorMessage?: string
+  onTracesRetry?: () => void
 }
 
 export function OperationsPanel({
@@ -27,6 +31,10 @@ export function OperationsPanel({
   onSelectTrace,
   onNewSession,
   onSelectSession,
+  tracesLoading,
+  tracesError,
+  tracesErrorMessage,
+  onTracesRetry,
 }: OperationsPanelProps) {
   if (!activeTab) return null
 
@@ -45,6 +53,11 @@ export function OperationsPanel({
             traces={traces}
             selectedTraceId={selectedTraceId}
             onSelectTrace={onSelectTrace}
+            isLoading={tracesLoading}
+            isError={tracesError}
+            errorMessage={tracesErrorMessage}
+            onRetry={onTracesRetry}
+            hasSessionId={!!sessionId}
           />
         )
       case 'sessions':

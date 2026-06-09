@@ -11,9 +11,17 @@ class ListTracesController(Controller):
 
     async def handle(self, request: Request) -> Response:
         project_id = request.query_params.get("project_id")
+        agent_id = request.query_params.get("agent_id")
+        session_id = request.query_params.get("session_id")
         limit = int(request.query_params.get("limit", 100))
         offset = int(request.query_params.get("offset", 0))
-        input_dto = ListTracesInput(project_id=project_id, limit=limit, offset=offset)
+        input_dto = ListTracesInput(
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            limit=limit,
+            offset=offset,
+        )
         result = await self._use_case.execute(input_dto)
         return Response(
             status_code=200,

@@ -1,7 +1,8 @@
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
-import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot } from 'lucide-react'
+import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
 import type { Agent } from '@/features/agents/types'
 import type { SessionListItem } from '@/features/playground/types'
 
@@ -45,14 +46,32 @@ export function PlaygroundHeader({
   onApiClick,
   onSettingsClick,
 }: PlaygroundHeaderProps) {
+  const navigate = useNavigate()
+  const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
   const sessionOptions = sessions.map((s) => ({
     value: s.id,
     label: formatSessionLabel(s),
   }))
 
+  const handleBackToProject = () => {
+    if (organizationId && projectId) {
+      navigate(`/organizations/${organizationId}/projects/${projectId}`)
+    } else if (projectId) {
+      navigate(`/projects/${projectId}`)
+    }
+  }
+
   return (
     <header className="h-[72px] shrink-0 flex items-center justify-between border-b border-border bg-surface px-4">
       <div className="flex items-center gap-4 min-w-0">
+        <button
+          onClick={handleBackToProject}
+          className="flex items-center gap-1 text-xs text-muted hover:text-white transition-colors shrink-0"
+          title="Back to project"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Project</span>
+        </button>
         <div className="flex items-center gap-2 shrink-0">
           <Bot className="h-5 w-5 text-primary" />
           <span className="text-sm font-semibold text-white">ProjectRAI</span>

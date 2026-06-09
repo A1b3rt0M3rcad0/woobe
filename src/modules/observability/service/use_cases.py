@@ -10,6 +10,7 @@ from modules.observability.service.dtos import (
     CreateTraceOutput,
     ListTracesInput,
     TraceEventResponse,
+    TraceListItemResponse,
     TraceSummaryResponse,
 )
 from shared.domain.events import OutboxEventWriter
@@ -149,7 +150,38 @@ class ListTracesUseCase:
     def __init__(self, repo: TraceRepository) -> None:
         self._repo = repo
 
-    async def execute(self, input_dto: ListTracesInput) -> list:
+    async def execute(self, input_dto: ListTracesInput) -> list[TraceListItemResponse]:
         if not input_dto.project_id:
             return []
-        return await self._repo.list_by_project(input_dto.project_id, input_dto.limit, input_dto.offset)
+
+        if input_dto.session_id:
+            traces = await self._repo.list_by_session(
+                input_dto.session_id, input_dto.limit, input_dto.offset
+            )
+        elif input_dto.agent_id:
+            traces = await self._repo.list_by_project_and_agent(
+                input_dto.project_id, input_dto.agent_id, input_dto.limit, input_dto.offset
+            )
+        else:
+            traces = await self._repo.list_by_project(
+                input_dto.project_id, input_dto.limit, input_dto.offset
+            )
+
+        return [
+            TraceListItemResponse(
+                id=t.id,
+                project_id=t.project_id,
+                agent_id=t.agent_id,
+                session_id=t.session_id,
+                status=str(t.status.value) if hasattr(t.status, "value") else str(t.status),
+                provider=t.provider,
+                model=t.model,
+                total_latency_ms=t.total_latency_ms,
+                total_cost_usd=t.total_cost_usd,
+                error=t.error,
+                started_at=t.started_at,
+                ended_at=t.ended_at,
+                created_at=t.created_at,
+            )
+            for t in traces
+        ]

@@ -68,7 +68,25 @@ class TraceSummaryResponse(BaseModel):
     events: list[TraceEventResponse] = []
 
 
+class TraceListItemResponse(BaseModel):
+    id: UUID
+    project_id: UUID
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
+    status: str
+    provider: str | None = None
+    model: str | None = None
+    total_latency_ms: float | None = None
+    total_cost_usd: float | None = None
+    error: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    created_at: datetime | None = None
+
+
 class ListTracesInput(BaseModel):
     project_id: UUID | None = None
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
     limit: int = 100
     offset: int = 0

@@ -1,4 +1,4 @@
-import { ChevronRight, Circle, Filter } from 'lucide-react'
+import { ChevronRight, Circle, Filter, RefreshCw, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TraceItem } from '@/features/playground/types'
 
@@ -6,6 +6,11 @@ interface TraceListProps {
   traces: TraceItem[]
   selectedTraceId: string | null
   onSelectTrace: (id: string) => void
+  isLoading?: boolean
+  isError?: boolean
+  errorMessage?: string
+  onRetry?: () => void
+  hasSessionId?: boolean
 }
 
 const statusColor: Record<string, string> = {
@@ -19,11 +24,45 @@ function formatTime(ts: string): string {
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-export function TraceList({ traces, selectedTraceId, onSelectTrace }: TraceListProps) {
+export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, isError, errorMessage, onRetry, hasSessionId }: TraceListProps) {
+  if (isLoading) {
+    return (
+      <div className="p-4 text-center">
+        <RefreshCw className="h-5 w-5 animate-spin text-muted mx-auto mb-2" />
+        <p className="text-sm text-muted">Loading traces...</p>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="p-4 text-center">
+        <AlertCircle className="h-5 w-5 text-red-400 mx-auto mb-2" />
+        <p className="text-sm text-red-400">Failed to load traces</p>
+        {errorMessage && (
+          <p className="text-xs text-muted mt-1 line-clamp-2">{errorMessage}</p>
+        )}
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="mt-3 text-xs text-primary hover:underline inline-flex items-center gap-1"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </button>
+        )}
+      </div>
+    )
+  }
+
   if (traces.length === 0) {
     return (
       <div className="p-4 text-center">
-        <p className="text-sm text-muted">No traces yet</p>
+        <p className="text-sm text-muted">
+          {hasSessionId
+            ? 'No traces for this session yet'
+            : 'No traces for this agent yet'}
+        </p>
         <p className="text-xs text-muted mt-1">Send a message to see traces.</p>
       </div>
     )
