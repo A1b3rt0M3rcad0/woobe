@@ -38,3 +38,20 @@ class Message:
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
+
+@dataclass
+class AskJob:
+    id: UUID = field(default_factory=uuid4)
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
+    status: str = "pending"
+    params: dict | None = None
+    result: dict | None = None
+    error: str | None = None
+    trace_id: UUID | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+

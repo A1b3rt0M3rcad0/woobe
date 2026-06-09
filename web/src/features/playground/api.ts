@@ -2,6 +2,24 @@ import { post, get } from '@/lib/api/client'
 import { getToken } from '@/lib/auth/token'
 import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo } from './types'
 
+export interface CreateAskJobRequest {
+  project_id: string
+  agent_id: string
+  message: string
+  session_id?: string | null
+}
+
+export interface AskJobResult {
+  job_id: string
+  status: string
+  result?: AskResponse | null
+  error?: string | null
+  trace_id?: string | null
+  created_at?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 function normalizeResponse(response: Record<string, unknown>): AskResponse {
@@ -53,6 +71,14 @@ export interface StreamCallbacks {
   onMeta: (meta: { session_id?: string | null; trace_id?: string | null }) => void
   onDone: (response: Partial<AskResponse>) => void
   onError: (error: Error) => void
+}
+
+export async function createAskJob(data: CreateAskJobRequest): Promise<{ job_id: string; status: string }> {
+  return post<{ job_id: string; status: string }>('/runtime/ask/jobs', data)
+}
+
+export async function getAskJobResult(jobId: string): Promise<AskJobResult> {
+  return get<AskJobResult>(`/runtime/ask/jobs/${jobId}`)
 }
 
 export async function askStream(

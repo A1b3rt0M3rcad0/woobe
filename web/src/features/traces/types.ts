@@ -1,3 +1,5 @@
+export type TraceStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
 export interface Trace {
   id: string
   project_id: string
@@ -18,14 +20,67 @@ export interface TraceEvent {
   id: string
   trace_id: string
   event_type: string
-  latency_ms?: number
-  cost_usd?: number
-  payload?: Record<string, unknown>
-  payload_ref?: string
-  created_at?: string
+  latency_ms?: number | null
+  cost_usd?: number | null
+  payload?: Record<string, unknown> | null
+  payload_ref?: string | null
+  created_at?: string | null
 }
 
 export interface TraceDetail {
   trace: Trace
+  events: TraceEvent[]
+}
+
+export interface TraceSource {
+  document_id?: string | null
+  document_title?: string | null
+  chunk_id?: string | null
+  page_number?: number | null
+  score?: number | null
+  content_preview?: string | null
+}
+
+export interface TraceToolCall {
+  tool_name: string
+  input?: unknown
+  output?: unknown
+  duration_ms?: number | null
+  status?: string | null
+  latency_ms?: number | null
+  error?: string | null
+}
+
+export interface TraceUsage {
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
+  costUsd: number | null
+}
+
+export interface TraceSummary {
+  id: string
+  projectId: string
+  agentId?: string | null
+  sessionId?: string | null
+  messageId?: string | null
+  title: string
+  status: TraceStatus
+  model?: string | null
+  provider?: string | null
+  latencyMs?: number | null
+  inputTokens?: number | null
+  outputTokens?: number | null
+  totalTokens?: number | null
+  costUsd?: number | null
+  createdAt?: string | null
+}
+
+export interface TraceDetailNormalized extends TraceSummary {
+  usage: TraceUsage
+  parsedOutput: unknown | null
+  outputParseError?: string | null
+  sources: TraceSource[]
+  toolCalls: TraceToolCall[]
   events: TraceEvent[]
 }

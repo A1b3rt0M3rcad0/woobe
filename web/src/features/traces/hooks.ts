@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getTraces, getTraceDetail, type GetTracesParams } from './api'
+import { getTraces, getTraceDetail, getAskJob, type AskJobResponse, type GetTracesParams } from './api'
 
 export function useTraces(projectId?: string) {
   return useQuery({
@@ -31,5 +31,19 @@ export function usePlaygroundTraces(
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useAskJob(jobId: string | undefined | null) {
+  return useQuery({
+    queryKey: ['askJob', jobId],
+    queryFn: () => getAskJob(jobId!),
+    enabled: Boolean(jobId),
+    refetchInterval: (query) => {
+      const data = query.state.data as AskJobResponse | undefined
+      if (!data) return 2000
+      if (data.status === 'completed' || data.status === 'failed') return false
+      return 2000
+    },
   })
 }

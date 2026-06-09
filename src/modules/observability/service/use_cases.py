@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from modules.observability.domain.entities import Trace, TraceEvent
@@ -15,6 +16,8 @@ from modules.observability.service.dtos import (
 )
 from shared.domain.events import OutboxEventWriter
 from shared.domain.errors import NotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 class CreateTraceUseCase:
@@ -116,6 +119,12 @@ class GetTraceUseCase:
 
         events = await self._event_repo.list_by_trace(trace_id)
 
+        logger.info("Trace detail response usage debug", extra={
+            "trace_id": str(trace_id),
+            "has_data": trace.data is not None,
+            "data_keys": list(trace.data) if trace.data else None,
+            "usage_unavailable": trace.data is None or trace.data.get("input_tokens") is None,
+        })
         return TraceSummaryResponse(
             id=trace.id,
             project_id=trace.project_id,
@@ -129,6 +138,7 @@ class GetTraceUseCase:
             provider=trace.provider,
             model=trace.model,
             error=trace.error,
+            data=trace.data,
             created_at=trace.created_at,
             events=[
                 TraceEventResponse(
@@ -179,6 +189,7 @@ class ListTracesUseCase:
                 total_latency_ms=t.total_latency_ms,
                 total_cost_usd=t.total_cost_usd,
                 error=t.error,
+                data=t.data,
                 started_at=t.started_at,
                 ended_at=t.ended_at,
                 created_at=t.created_at,

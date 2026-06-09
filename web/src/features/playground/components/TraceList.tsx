@@ -1,5 +1,6 @@
-import { ChevronRight, Circle, Filter, RefreshCw, AlertCircle } from 'lucide-react'
+import { ChevronRight, Filter, RefreshCw, AlertCircle, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatLatency, formatDateTime } from '@/lib/formatters/number'
 import type { TraceItem } from '@/features/playground/types'
 
 interface TraceListProps {
@@ -13,15 +14,32 @@ interface TraceListProps {
   hasSessionId?: boolean
 }
 
-const statusColor: Record<string, string> = {
-  success: 'text-emerald-400',
-  error: 'text-red-400',
-  warning: 'text-yellow-400',
+const statusDot: Record<string, string> = {
+  completed: 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]',
+  success: 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]',
+  running: 'bg-blue-400 shadow-[0_0_4px_rgba(96,165,250,0.5)]',
+  processing: 'bg-blue-400 shadow-[0_0_4px_rgba(96,165,250,0.5)]',
+  failed: 'bg-red-400 shadow-[0_0_4px_rgba(248,113,113,0.5)]',
+  error: 'bg-red-400 shadow-[0_0_4px_rgba(248,113,113,0.5)]',
+  warning: 'bg-yellow-400',
+  pending: 'bg-gray-400',
+  queued: 'bg-gray-400',
+  cancelled: 'bg-gray-400',
 }
 
-function formatTime(ts: string): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+function getDateGroup(dateStr: string): string {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const weekStart = new Date(today)
+  weekStart.setDate(weekStart.getDate() - today.getDay())
+
+  if (d >= today) return 'Today'
+  if (d >= yesterday) return 'Yesterday'
+  if (d >= weekStart) return 'This Week'
+  return 'Older'
 }
 
 export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, isError, errorMessage, onRetry, hasSessionId }: TraceListProps) {
@@ -58,15 +76,21 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
   if (traces.length === 0) {
     return (
       <div className="p-4 text-center">
-        <p className="text-sm text-muted">
-          {hasSessionId
-            ? 'No traces for this session yet'
-            : 'No traces for this agent yet'}
-        </p>
-        <p className="text-xs text-muted mt-1">Send a message to see traces.</p>
+        <Activity className="h-8 w-8 text-muted mx-auto mb-2" />
+        <p className="text-sm text-muted">No traces yet.</p>
+        <p className="text-xs text-muted mt-1">Send a message to generate trace data.</p>
       </div>
     )
   }
+
+  const grouped = traces.reduce<Record<string, TraceItem[]>>((acc, trace) => {
+    const group = getDateGroup(trace.timestamp)
+    if (!acc[group]) acc[group] = []
+    acc[group].push(trace)
+    return acc
+  }, {})
+
+  const groupOrder = ['Today', 'Yesterday', 'This Week', 'Older']
 
   return (
     <div className="p-4">
@@ -78,32 +102,52 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
         </button>
       </div>
 
-      <div className="space-y-0.5">
-        <p className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Today</p>
-        {traces.map((trace) => (
-          <button
-            key={trace.id}
-            onClick={() => onSelectTrace(trace.id)}
-            className={cn(
-              'w-full text-left rounded-lg border px-3 py-2.5 transition-colors',
-              selectedTraceId === trace.id
-                ? 'border-primary/30 bg-primary/5'
-                : 'border-transparent hover:bg-accent',
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <Circle className={cn('h-2 w-2 shrink-0 fill-current', statusColor[trace.status] || 'text-muted')} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-white truncate">{trace.title}</p>
+      <div className="space-y-3">
+        {groupOrder.map((group) => {
+          const items = grouped[group]
+          if (!items?.length) return null
+          return (
+            <div key={group}>
+              <p className="text-[11px] font-medium text-muted uppercase tracking-wider mb-1.5">
+                {group}
+              </p>
+              <div className="space-y-0.5">
+                {items.map((trace) => (
+                  <button
+                    key={trace.id}
+                    onClick={() => onSelectTrace(trace.id)}
+                    className={cn(
+                      'w-full text-left rounded-lg border px-3 py-2.5 transition-colors group',
+                      selectedTraceId === trace.id
+                        ? 'border-primary/30 bg-primary/5'
+                        : 'border-transparent hover:bg-accent',
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDot[trace.status] || 'bg-gray-400')} />
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          'text-xs truncate',
+                          selectedTraceId === trace.id ? 'text-white font-medium' : 'text-muted group-hover:text-white',
+                        )}>
+                          {trace.title}
+                        </p>
+                      </div>
+                      <span className="text-[11px] text-muted shrink-0 font-mono">
+                        {formatLatency(trace.latency_ms)}
+                      </span>
+                      <ChevronRight className={cn(
+                        'h-3.5 w-3.5 shrink-0 transition-colors',
+                        selectedTraceId === trace.id ? 'text-primary' : 'text-muted/40 group-hover:text-muted',
+                      )} />
+                    </div>
+                    <p className="text-[11px] text-muted mt-0.5 ml-4">{formatDateTime(trace.timestamp)}</p>
+                  </button>
+                ))}
               </div>
-              <span className="text-[11px] text-muted shrink-0">
-                {trace.latency_ms != null ? `${Math.round(trace.latency_ms)}ms` : '—'}
-              </span>
-              <ChevronRight className="h-3.5 w-3.5 text-muted shrink-0" />
             </div>
-            <p className="text-[11px] text-muted mt-0.5 ml-4">{formatTime(trace.timestamp)}</p>
-          </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

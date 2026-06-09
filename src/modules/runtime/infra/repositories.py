@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -8,16 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
-from modules.runtime.domain.entities import Message, Session
-from modules.runtime.domain.errors import MessageNotFoundError, SessionNotFoundError
-from modules.runtime.domain.repositories import MessageRepository, SessionRepository
+from modules.runtime.domain.entities import AskJob, Message, Session
+from modules.runtime.domain.errors import AskJobNotFoundError, MessageNotFoundError, SessionNotFoundError
+from modules.runtime.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.runtime.infra.mappers import (
+    ask_job_to_model,
     message_to_model,
+    model_to_ask_job,
     model_to_message,
     model_to_session,
     session_to_model,
 )
-from modules.runtime.infra.models import MessageModel, OutboxEventModel, SessionModel
+from modules.runtime.infra.models import AskJobModel, MessageModel, OutboxEventModel, SessionModel
 from shared.domain.events import OutboxEventWriter
 from shared.domain.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
@@ -227,4 +230,63 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             causation_id=causation_id,
         )
         self._session.add(event)
+
+
+class SQLAlchemyAskJobRepository(AskJobRepository):
+
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._base = BaseSQLAlchemyRepository(session, AskJobModel)
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def create(self, job: AskJob) -> AskJob:
+        model = ask_job_to_model(job)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
+        return model_to_ask_job(model)
+
+    async def get_by_id(self, job_id: UUID) -> AskJob:
+        model = await self._base._get_model_by_id(job_id)
+        if model is None:
+            raise AskJobNotFoundError(job_id)
+        return model_to_ask_job(model)
+
+    async def list_pending(self, limit: int = 5) -> list[AskJob]:
+        stmt = (
+            select(AskJobModel)
+            .where(AskJobModel.status == "pending")
+            .order_by(AskJobModel.created_at)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [model_to_ask_job(m) for m in result.scalars().all()]
+
+    async def mark_started(self, job_id: UUID) -> None:
+        model = await self._base._get_model_by_id(job_id)
+        if model:
+            model.status = "running"
+            model.started_at = datetime.now(timezone.utc)
+
+    async def mark_completed(
+        self, job_id: UUID, result: dict, trace_id: UUID
+    ) -> None:
+        model = await self._base._get_model_by_id(job_id)
+        if model:
+            model.status = "completed"
+            model.result = result
+            model.trace_id = trace_id
+            model.completed_at = datetime.now(timezone.utc)
+
+    async def mark_failed(self, job_id: UUID, error: str) -> None:
+        model = await self._base._get_model_by_id(job_id)
+        if model:
+            model.status = "failed"
+            model.error = error
+            model.completed_at = datetime.now(timezone.utc)
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from modules.runtime.domain.entities import Message, Session
-from modules.runtime.domain.repositories import MessageRepository, SessionRepository
+from modules.runtime.domain.entities import AskJob, Message, Session
+from modules.runtime.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.runtime.service.dtos import (
+    CreateAskJobInput,
+    CreateAskJobOutput,
     CreateSessionInput,
     CreateSessionOutput,
+    GetAskJobOutput,
     ListAgentSessionsInput,
     ListAgentSessionsOutput,
     ListMessagesInput,
@@ -177,4 +180,40 @@ class ListAgentSessionsUseCase:
                 message_count=count,
             ))
         return result
+
+
+class CreateAskJobUseCase:
+
+    def __init__(self, repo: AskJobRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, input_dto: CreateAskJobInput) -> CreateAskJobOutput:
+        job = AskJob(
+            project_id=input_dto.project_id,
+            agent_id=input_dto.agent_id,
+            session_id=input_dto.session_id,
+            status="pending",
+            params=input_dto.model_dump(exclude={"tenant_id", "user_id", "metadata"}),
+        )
+        created = await self._repo.create(job)
+        return CreateAskJobOutput(job_id=created.id, status="pending")
+
+
+class GetAskJobUseCase:
+
+    def __init__(self, repo: AskJobRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, job_id: UUID) -> GetAskJobOutput:
+        job = await self._repo.get_by_id(job_id)
+        return GetAskJobOutput(
+            job_id=job.id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+            trace_id=job.trace_id,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+        )
 

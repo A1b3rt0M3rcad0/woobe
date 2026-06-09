@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import BaseModel
@@ -43,6 +43,22 @@ class MessageModel(BaseModel):
     output_tokens: Mapped[int | None] = mapped_column(Integer)
     cost_usd: Mapped[float | None] = mapped_column(Numeric(12, 8))
     data: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class AskJobModel(BaseModel):
+    __tablename__ = "ask_jobs"
+    __table_args__ = {"schema": "runtime"}
+
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    session_id: Mapped[UUID | None] = mapped_column(ForeignKey("runtime.sessions.id"))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    params: Mapped[dict] = mapped_column(JSONB)
+    result: Mapped[dict | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    trace_id: Mapped[UUID | None] = mapped_column(PG_UUID)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class OutboxEventModel(BaseOutbox):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from modules.runtime.domain.entities import Message, Session
+from modules.runtime.domain.entities import AskJob, Message, Session
 from shared.domain.objects import CursorPage
 
 
@@ -65,4 +65,27 @@ class MessageRepository(ABC):
 
     @abstractmethod
     async def delete_by_session(self, session_id: UUID) -> None: ...
+
+
+class AskJobRepository(ABC):
+
+    @abstractmethod
+    async def create(self, job: AskJob) -> AskJob: ...
+
+    @abstractmethod
+    async def get_by_id(self, job_id: UUID) -> AskJob: ...
+
+    @abstractmethod
+    async def list_pending(self, limit: int = 5) -> list[AskJob]: ...
+
+    @abstractmethod
+    async def mark_started(self, job_id: UUID) -> None: ...
+
+    @abstractmethod
+    async def mark_completed(
+        self, job_id: UUID, result: dict, trace_id: UUID
+    ) -> None: ...
+
+    @abstractmethod
+    async def mark_failed(self, job_id: UUID, error: str) -> None: ...
 

@@ -74,6 +74,38 @@ export function OperationsPanel({
     }
   }
 
+  if (activeTab === 'traces') {
+    const selectedTrace = selectedTraceId ? traces.find(t => t.id === selectedTraceId) : null
+    return (
+      <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface flex flex-col">
+        <div className="flex-shrink-0 max-h-[260px] overflow-y-auto border-b border-border">
+          <TraceList
+            traces={traces}
+            selectedTraceId={selectedTraceId}
+            onSelectTrace={onSelectTrace}
+            isLoading={tracesLoading}
+            isError={tracesError}
+            errorMessage={tracesErrorMessage}
+            onRetry={onTracesRetry}
+            hasSessionId={!!sessionId}
+          />
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {selectedTrace ? (
+            <TraceDetails
+              trace={selectedTrace}
+              onBack={() => onSelectTrace(null)}
+            />
+          ) : (
+            <div className="p-4 text-center">
+              <p className="text-sm text-muted">Select a trace to view details.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface">
       <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden">

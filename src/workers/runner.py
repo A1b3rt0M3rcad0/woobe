@@ -10,6 +10,7 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.base_worker import BaseWorker
+from modules.runtime.infra.ask_job_worker import AskJobWorker
 from workers import (
     InboxConsumerWorker,
     InboxDispatcherWorker,
@@ -119,6 +120,15 @@ async def run_dispatcher(settings: Settings | None = None) -> None:
         await engine.dispose()
 
 
+async def run_ask_jobs(settings: Settings | None = None) -> None:
+    engine, s = _build_engine(settings)
+    worker = AskJobWorker(engine)
+    try:
+        await worker.run()
+    finally:
+        await engine.dispose()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
@@ -129,8 +139,10 @@ if __name__ == "__main__":
             asyncio.run(run_consumer())
         case "dispatcher":
             asyncio.run(run_dispatcher())
+        case "ask_jobs":
+            asyncio.run(run_ask_jobs())
         case "all":
             asyncio.run(run_all_workers())
         case _:
-            print("Usage: python -m workers.runner [publisher|consumer|dispatcher|all]")
+            print("Usage: python -m workers.runner [publisher|consumer|dispatcher|ask_jobs|all]")
             sys.exit(1)

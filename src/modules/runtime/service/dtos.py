@@ -140,3 +140,29 @@ class AskOutput(BaseModel):
     latency_ms: int | None = None
     parsed_output: dict | None = None
     output_parse_error: str | None = None
+
+
+class CreateAskJobInput(BaseModel):
+    project_id: UUID
+    agent_id: UUID
+    message: str = Field(..., min_length=1)
+    session_id: UUID | None = None
+    tenant_id: str | None = None
+    user_id: str | None = None
+    metadata: dict | None = None
+
+
+class CreateAskJobOutput(BaseModel):
+    job_id: UUID
+    status: str = "pending"
+
+
+class GetAskJobOutput(BaseModel):
+    job_id: UUID
+    status: str
+    result: dict | None = None
+    error: str | None = None
+    trace_id: UUID | None = None
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None

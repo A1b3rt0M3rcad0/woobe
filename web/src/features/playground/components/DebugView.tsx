@@ -4,7 +4,7 @@ import { MetricCard } from './MetricCard'
 import { JsonCodeBlock } from './JsonCodeBlock'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Separator } from '@/components/ui/Separator'
-import { formatNumber, formatCurrency } from '@/lib/formatters/number'
+import { formatNumber } from '@/lib/formatters/number'
 import type { AskResponse } from '@/features/playground/types'
 
 interface DebugViewProps {
@@ -74,9 +74,7 @@ export function DebugView({ lastResponse }: DebugViewProps) {
         {lastResponse.usage?.total_tokens != null && (
           <MetricCard label="Total Tokens" value={formatNumber(lastResponse.usage.total_tokens, 0)} />
         )}
-        {lastResponse.usage?.cost_usd != null && (
-          <MetricCard label="Cost" value={formatCurrency(lastResponse.usage.cost_usd, 6)} />
-        )}
+
       </div>
 
       {lastResponse.trace_id && (

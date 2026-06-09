@@ -2,7 +2,9 @@ from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.runtime.application.composers.ask_agent_composer import ask_agent_composer
 from modules.runtime.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
+from modules.runtime.application.composers.create_ask_job_composer import create_ask_job_composer
 from modules.runtime.application.composers.create_session_composer import create_session_composer
+from modules.runtime.application.composers.get_ask_job_composer import get_ask_job_composer
 from modules.runtime.application.composers.list_agent_sessions_composer import list_agent_sessions_composer
 from modules.runtime.application.composers.list_messages_composer import list_messages_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
@@ -35,6 +37,20 @@ async def ask(request: FastAPIRequest):
 async def ask_stream(request: FastAPIRequest):
     handler = ask_agent_stream_composer(request.app.state.session_factory)
     return await handler(request)
+
+
+@router.post("/ask/jobs", status_code=201)
+async def create_ask_job(request: FastAPIRequest):
+    handler = create_ask_job_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/ask/jobs/{job_id}")
+async def get_ask_job(request: FastAPIRequest):
+    handler = get_ask_job_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
 
 
 @router.get("/sessions/{session_id}/messages")

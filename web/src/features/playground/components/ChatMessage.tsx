@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { formatNumber, formatCurrency } from '@/lib/formatters/number'
+import { formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from './JsonCodeBlock'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
@@ -92,7 +92,7 @@ export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) 
               )}
               {message.usage && (
                 <span>
-                  {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out · {formatCurrency(message.usage.cost_usd, 6)}
+                  {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
                 </span>
               )}
               {message.trace_id && (

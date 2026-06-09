@@ -43,6 +43,7 @@ from shared.domain.events import OutboxEventWriter
 from shared.domain.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
+from shared.infra.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
 
@@ -140,12 +141,17 @@ class AskAgentUseCase:
                         e,
                     )
 
-        usage_meta = getattr(result, "usage_metadata", None) or {}
+        raw_usage = normalize_llm_usage(result)
+        logger.info("LLM result usage debug", extra={
+            "usage_metadata": getattr(result, "usage_metadata", None),
+            "response_metadata_keys": list(getattr(result, "response_metadata", None) or {}),
+            "raw_usage": raw_usage,
+        })
         usage = UsageInfo(
-            input_tokens=usage_meta.get("input_tokens"),
-            output_tokens=usage_meta.get("output_tokens"),
-            total_tokens=usage_meta.get("total_tokens"),
-            cost_usd=None,
+            input_tokens=raw_usage["input_tokens"],
+            output_tokens=raw_usage["output_tokens"],
+            total_tokens=raw_usage["total_tokens"],
+            cost_usd=raw_usage["cost_usd"],
         )
 
         response_meta = getattr(result, "response_metadata", None) or {}
@@ -173,6 +179,10 @@ class AskAgentUseCase:
                 provider=response_provider,
                 latency_ms=llm_latency_ms,
                 message_id=message_id,
+                sources=sources,
+                parsed_output=parsed_output,
+                output_parse_error=output_parse_error,
+                tool_calls=[],
             )
         except Exception as e:
             logger.warning("Failed to complete trace: %s", e)
@@ -485,6 +495,10 @@ class AskAgentUseCase:
         provider: str,
         latency_ms: float | None,
         message_id: UUID | None = None,
+        sources: list[SourceInfo] | None = None,
+        parsed_output: dict | None = None,
+        output_parse_error: str | None = None,
+        tool_calls: list | None = None,
     ) -> None:
         if not trace_id:
             return
@@ -496,6 +510,20 @@ class AskAgentUseCase:
                 trace.total_latency_ms = latency_ms
                 trace.model = model
                 trace.provider = provider
+                trace.data = {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "total_tokens": usage.total_tokens,
+                    "cost_usd": usage.cost_usd,
+                    "sources": [s.model_dump() for s in sources] if sources else None,
+                    "tool_calls": tool_calls or None,
+                    "parsed_output": parsed_output,
+                    "output_parse_error": output_parse_error,
+                }
+                logger.info("Trace usage persistence debug", extra={
+                    "trace_id": str(trace_id),
+                    "data": trace.data,
+                })
                 await self._trace_repo.save(trace)
 
             event = TraceEvent(

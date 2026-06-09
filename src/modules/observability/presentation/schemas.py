@@ -40,6 +40,7 @@ class TraceResponse(BaseModel):
     total_latency_ms: float | None = None
     total_cost_usd: float | None = None
     error: str | None = None
+    data: dict | None = None
     created_at: datetime | None = None
 
 

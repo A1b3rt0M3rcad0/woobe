@@ -15,3 +15,9 @@ class MessageNotFoundError(NotFoundError):
     def __init__(self, message_id: UUID) -> None:
         self.message_id = message_id
         super().__init__(f"Message not found: {message_id}")
+
+
+class AskJobNotFoundError(NotFoundError):
+    def __init__(self, job_id: UUID) -> None:
+        self.job_id = job_id
+        super().__init__(f"Ask job not found: {job_id}")

@@ -141,6 +141,9 @@ export default function AgentPlaygroundPage() {
             if (meta.session_id) {
               setSessionId(meta.session_id)
             }
+            if (meta.trace_id) {
+              metadataRef.current.trace_id = meta.trace_id
+            }
           },
           onToken: (token) => {
             accumulatedRef.current += token
@@ -185,6 +188,10 @@ export default function AgentPlaygroundPage() {
             if (meta.session_id) {
               setTimeout(() => refetchHistory(), 100)
             }
+            // Auto-select latest trace
+            if (meta.trace_id) {
+              setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
+            }
           },
           onError: (error) => {
             toast.error(error.message)
@@ -223,21 +230,24 @@ export default function AgentPlaygroundPage() {
   const localTraces = buildTraces(messages, lastResponse, sessionId)
 
   const traces = useMemo(() => {
-    const backendMapped: TraceItem[] = backendTraces.map((t) => ({
-      id: t.id,
-      title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`,
-      timestamp: t.created_at ?? new Date().toISOString(),
-      status: t.status === 'failed' ? 'error' as const : t.status === 'running' ? 'warning' as const : 'success' as const,
-      latency_ms: t.total_latency_ms ?? null,
-      model: t.model ?? null,
-      provider: t.provider ?? null,
-      input_tokens: null,
-      output_tokens: null,
-      total_tokens: null,
-      cost_usd: t.total_cost_usd ?? null,
-      trace_id: t.id,
-      response: null,
-    }))
+    const backendMapped: TraceItem[] = backendTraces.map((t) => {
+      const traceData = (t.data ?? {}) as Record<string, unknown>
+      return {
+        id: t.id,
+        title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`,
+        timestamp: t.created_at ?? new Date().toISOString(),
+        status: t.status === 'failed' ? 'error' as const : t.status === 'running' ? 'warning' as const : 'success' as const,
+        latency_ms: t.total_latency_ms ?? null,
+        model: t.model ?? null,
+        provider: t.provider ?? null,
+        input_tokens: (traceData.input_tokens as number) ?? null,
+        output_tokens: (traceData.output_tokens as number) ?? null,
+        total_tokens: (traceData.total_tokens as number) ?? null,
+        cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null,
+        trace_id: t.id,
+        response: null,
+      }
+    })
 
     const localIds = new Set(localTraces.map((lt) => lt.trace_id).filter(Boolean))
     const merged = [...backendMapped.filter((bt) => !localIds.has(bt.trace_id)), ...localTraces]

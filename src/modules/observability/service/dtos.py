@@ -64,6 +64,7 @@ class TraceSummaryResponse(BaseModel):
     provider: str | None = None
     model: str | None = None
     error: str | None = None
+    data: dict | None = None
     created_at: datetime | None = None
     events: list[TraceEventResponse] = []
 
@@ -79,6 +80,7 @@ class TraceListItemResponse(BaseModel):
     total_latency_ms: float | None = None
     total_cost_usd: float | None = None
     error: str | None = None
+    data: dict | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
     created_at: datetime | None = None

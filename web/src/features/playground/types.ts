@@ -58,6 +58,9 @@ export interface ToolCallInfo {
   input?: unknown
   output?: unknown
   duration_ms?: number
+  status?: string | null
+  latency_ms?: number | null
+  error?: string | null
 }
 
 export interface UsageInfo {

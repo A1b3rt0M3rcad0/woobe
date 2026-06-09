@@ -62,6 +62,7 @@ from shared.domain.events import OutboxEventWriter
 from shared.domain.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
+from shared.infra.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,11 @@ class AskAgentStreamService:
                 response_model = chat_model.model
             response_provider = agent.provider.value if hasattr(agent.provider, "value") else agent.provider
 
+            logger.info("Stream LLM usage debug", extra={
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+            })
             usage_info = UsageInfo(
                 input_tokens=input_tokens if input_tokens else None,
                 output_tokens=output_tokens if output_tokens else None,
@@ -220,6 +226,10 @@ class AskAgentStreamService:
                         provider=response_provider,
                         latency_ms=llm_latency_ms,
                         message_id=message_id,
+                        sources=sources,
+                        parsed_output=parsed_output,
+                        output_parse_error=output_parse_error,
+                        tool_calls=[],
                     )
                 except Exception as e:
                     logger.warning("Failed to complete trace: %s", e)
@@ -228,6 +238,10 @@ class AskAgentStreamService:
 
                 total_latency = round((time.monotonic() - started_at) * 1000)
 
+                logger.info("Stream done payload usage debug", extra={
+                    "trace_id": str(trace_id),
+                    "usage": usage_info.model_dump() if usage_info else None,
+                })
                 done_payload: dict[str, Any] = {
                     "answer": full_answer or "",
                     "session_id": str(session.id) if session else None,
@@ -557,6 +571,10 @@ class AskAgentStreamService:
         provider: str,
         latency_ms: float | None,
         message_id: UUID | None = None,
+        sources: list[SourceInfo] | None = None,
+        parsed_output: dict | None = None,
+        output_parse_error: str | None = None,
+        tool_calls: list | None = None,
     ) -> None:
         if not trace_id:
             return
@@ -568,6 +586,20 @@ class AskAgentStreamService:
                 trace.total_latency_ms = latency_ms
                 trace.model = model
                 trace.provider = provider
+                trace.data = {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "total_tokens": usage.total_tokens,
+                    "cost_usd": usage.cost_usd,
+                    "sources": [s.model_dump() for s in sources] if sources else None,
+                    "tool_calls": tool_calls or None,
+                    "parsed_output": parsed_output,
+                    "output_parse_error": output_parse_error,
+                }
+                logger.info("Stream trace usage persistence debug", extra={
+                    "trace_id": str(trace_id),
+                    "data": trace.data,
+                })
                 await trace_repo.save(trace)
 
             event = TraceEvent(
