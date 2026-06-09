@@ -1,6 +1,13 @@
 from __future__ import annotations
 
 
+def _first_not_none(*values) -> int | None:
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 def normalize_llm_usage(
     result,
     cost_per_input_token: float | None = None,
@@ -9,29 +16,27 @@ def normalize_llm_usage(
     usage_metadata = getattr(result, "usage_metadata", None) or {}
     response_metadata = getattr(result, "response_metadata", None) or {}
 
-    token_usage = (
-        response_metadata.get("token_usage")
-        or response_metadata.get("usage")
-        or {}
+    token_usage = response_metadata.get("token_usage")
+    if token_usage is None:
+        token_usage = response_metadata.get("usage", {})
+
+    input_tokens = _first_not_none(
+        usage_metadata.get("input_tokens"),
+        usage_metadata.get("prompt_tokens"),
+        token_usage.get("input_tokens"),
+        token_usage.get("prompt_tokens"),
     )
 
-    input_tokens = (
-        usage_metadata.get("input_tokens")
-        or usage_metadata.get("prompt_tokens")
-        or token_usage.get("input_tokens")
-        or token_usage.get("prompt_tokens")
+    output_tokens = _first_not_none(
+        usage_metadata.get("output_tokens"),
+        usage_metadata.get("completion_tokens"),
+        token_usage.get("output_tokens"),
+        token_usage.get("completion_tokens"),
     )
 
-    output_tokens = (
-        usage_metadata.get("output_tokens")
-        or usage_metadata.get("completion_tokens")
-        or token_usage.get("output_tokens")
-        or token_usage.get("completion_tokens")
-    )
-
-    total_tokens = (
-        usage_metadata.get("total_tokens")
-        or token_usage.get("total_tokens")
+    total_tokens = _first_not_none(
+        usage_metadata.get("total_tokens"),
+        token_usage.get("total_tokens"),
     )
 
     if total_tokens is None and input_tokens is not None and output_tokens is not None:

@@ -158,10 +158,13 @@ class AskAgentStreamService:
                     yield self._sse_event("token", {"content": content})
 
                 usage_meta = getattr(chunk, "usage_metadata", None)
-                if usage_meta:
-                    input_tokens = usage_meta.get("input_tokens") or input_tokens or 0
-                    output_tokens = usage_meta.get("output_tokens") or output_tokens or 0
-                    total_tokens = usage_meta.get("total_tokens") or total_tokens or 0
+                if usage_meta is not None and usage_meta:
+                    if usage_meta.get("input_tokens") is not None:
+                        input_tokens = usage_meta["input_tokens"]
+                    if usage_meta.get("output_tokens") is not None:
+                        output_tokens = usage_meta["output_tokens"]
+                    if usage_meta.get("total_tokens") is not None:
+                        total_tokens = usage_meta["total_tokens"]
 
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
             full_answer = "".join(accumulated)
