@@ -333,131 +333,147 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
             return (
               <div
                 key={release.id}
-                className={`rounded-xl border p-4 space-y-3 transition-colors ${
+                className={`rounded-xl border p-5 space-y-4 transition-colors ${
                   isProduction
-                    ? 'border-emerald-500/30 bg-emerald-500/[0.03]'
-                    : isLoaded
-                      ? 'border-blue-500/30 bg-blue-500/[0.03]'
-                      : 'border-border bg-surface'
+                    ? 'border-emerald-500/40 bg-emerald-500/[0.04]'
+                    : release.status === 'rolled_back'
+                      ? 'border-red-500/20 bg-red-500/[0.02]'
+                      : isLoaded
+                        ? 'border-blue-500/30 bg-blue-500/[0.03]'
+                        : 'border-border bg-surface'
                 }`}
               >
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {statusIcon[release.status]}
-                    <span className="text-sm font-semibold">{release.version}</span>
-                    <Badge variant={statusBadgeVariant[release.status]} className="text-[10px]">
-                      {release.status}
-                    </Badge>
+                <div className="grid grid-cols-[14px_1fr] gap-x-2 gap-y-2 min-w-0">
+                  <div className="mt-0.5">{statusIcon[release.status]}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="min-w-0 truncate font-semibold text-white leading-5">
+                      {release.version}
+                    </h3>
                     {isLoaded && (
-                      <Badge variant="secondary" className="text-[10px]">Loaded</Badge>
+                      <Badge variant="secondary" className="text-[10px] shrink-0">Loaded</Badge>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted">{formatDate(release.created_at)}</span>
+                  <div aria-hidden="true" />
+                  <div className="flex min-w-0 items-center gap-2 text-xs leading-none">
+                    <Badge variant={statusBadgeVariant[release.status]} className="h-5 shrink-0 px-2 text-xs leading-none capitalize">
+                      {release.status.replace('_', ' ')}
+                    </Badge>
+                    <span className="shrink-0 text-slate-600">·</span>
+                    <span className="min-w-0 truncate whitespace-nowrap text-slate-500">
+                      {formatDate(release.created_at)}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Config Summary */}
-                <div className="text-[11px] space-y-1.5">
+                <div className="text-[11px] space-y-2.5">
                   {release.name && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <span className="text-muted">Name:</span>
                       <span className="truncate">{release.name}</span>
                     </div>
                   )}
-                  <div className="flex items-start gap-1.5">
+                  <div className="flex items-start gap-2">
                     <FileText className="h-3 w-3 text-muted shrink-0 mt-0.5" />
                     <span className="text-muted shrink-0">Prompt:</span>
                     <span className="truncate">{truncate(release.system_prompt, 80) || '—'}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <Cpu className="h-3 w-3 text-muted shrink-0" />
                     <span className="text-muted shrink-0">Model:</span>
                     <span>{release.provider}/{release.model || '—'}</span>
                   </div>
-                  <div className="flex items-start gap-1.5">
+                  <div className="flex items-start gap-2">
                     <GitBranch className="h-3 w-3 text-muted shrink-0 mt-0.5" />
                     <span className="text-muted shrink-0">Schema:</span>
                     <span className="truncate">{release.output_schema ? `JSON enabled · ${Object.keys(release.output_schema as object).length > 0 ? Object.keys((release.output_schema as Record<string, unknown>)?.properties || {}).length + ' fields' : 'schema set'}` : '—'}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <BookOpen className="h-3 w-3 text-muted shrink-0" />
                     <span className="text-muted">Knowledge:</span>
                     <span>{(release.collection_ids?.length || 0) > 0 ? `${release.collection_ids!.length} collections` : '—'}</span>
                   </div>
-                  {release.temperature != null && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted">Temp:</span>
-                      <span>{release.temperature}</span>
-                    </div>
-                  )}
-                  {release.session_mode && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted">Session:</span>
-                      <span>{release.session_mode}</span>
+                  {(release.temperature != null || release.session_mode) && (
+                    <div className="grid grid-cols-2 gap-x-4">
+                      {release.temperature != null && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted">Temp:</span>
+                          <span>{release.temperature}</span>
+                        </div>
+                      )}
+                      {release.session_mode && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted">Session:</span>
+                          <span>{release.session_mode}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleLoadVersionForEditing(release)}
-                    loading={loadingReleaseId === release.id}
-                    disabled={loadingReleaseId === release.id}
-                  >
-                    <FileText className="mr-1 h-3 w-3" />
-                    Load for editing
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRestoreVersionAsCurrentDraft(release)}
-                    loading={loadingReleaseId === release.id}
-                    disabled={loadingReleaseId === release.id}
-                  >
-                    <Save className="mr-1 h-3 w-3" />
-                    Restore as Current Draft
-                  </Button>
-                  {(release.status === 'draft' || release.status === 'staging') && (
+                <div className="flex justify-between items-start flex-wrap gap-3 pt-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handlePromote(release)}
-                      loading={promoteRelease.isPending}
+                      onClick={() => handleLoadVersionForEditing(release)}
+                      loading={loadingReleaseId === release.id}
+                      disabled={loadingReleaseId === release.id}
                     >
-                      <Rocket className="mr-1 h-3 w-3" />
-                      Deploy
+                      <FileText className="mr-1 h-3 w-3" />
+                      Load for editing
                     </Button>
-                  )}
-                  {release.status === 'production' && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleRollback(release)}
-                      loading={rollbackRelease.isPending}
+                      onClick={() => handleRestoreVersionAsCurrentDraft(release)}
+                      loading={loadingReleaseId === release.id}
+                      disabled={loadingReleaseId === release.id}
                     >
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Rollback
+                      <Save className="mr-1 h-3 w-3" />
+                      Restore as Current Draft
                     </Button>
-                  )}
-                  {(release.status === 'archived' || release.status === 'rolled_back') && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRollback(release)}
-                      loading={rollbackRelease.isPending}
-                    >
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Rollback to this
-                    </Button>
-                  )}
+                    {(release.status === 'draft' || release.status === 'staging') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePromote(release)}
+                        loading={promoteRelease.isPending}
+                      >
+                        <Rocket className="mr-1 h-3 w-3" />
+                        Deploy
+                      </Button>
+                    )}
+                    {release.status === 'production' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRollback(release)}
+                        loading={rollbackRelease.isPending}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" />
+                        Rollback
+                      </Button>
+                    )}
+                    {(release.status === 'archived' || release.status === 'rolled_back') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRollback(release)}
+                        loading={rollbackRelease.isPending}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" />
+                        Rollback to this
+                      </Button>
+                    )}
+                  </div>
                   {release.status !== 'production' && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-red-400 hover:text-red-300 ml-auto"
+                      className="text-red-400 hover:text-red-300 shrink-0"
                       onClick={() => handleOpenDelete(release)}
                     >
                       <Archive className="mr-1 h-3 w-3" />
@@ -467,7 +483,7 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
                 </div>
 
                 {release.release_notes && (
-                  <p className="text-[10px] text-muted italic border-t border-border pt-2 mt-1">
+                  <p className="text-[10px] text-muted italic border-t border-border pt-3 mt-2">
                     {release.release_notes}
                   </p>
                 )}
