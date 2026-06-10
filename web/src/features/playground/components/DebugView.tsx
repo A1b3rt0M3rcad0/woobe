@@ -1,6 +1,6 @@
 import { useState, useRef, useLayoutEffect } from 'react'
 import { Bug, CheckCircle, XCircle, AlertTriangle, Copy, ChevronDown, ChevronRight } from 'lucide-react'
-import { JsonCodeBlock } from './JsonCodeBlock'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens, formatCurrency, formatLatency } from '@/lib/formatters/number'
 import type { AskResponse } from '@/features/playground/types'
 
@@ -109,12 +109,12 @@ function CollapsibleJson({
   title,
   data,
   defaultOpen = false,
-  maxHeight = 'max-h-40',
+  maxHeight = 160,
 }: {
   title: string
   data: unknown
   defaultOpen?: boolean
-  maxHeight?: string
+  maxHeight?: number
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
@@ -128,7 +128,7 @@ function CollapsibleJson({
       </button>
       {open && (
         <div className="px-3 pb-3 pt-1">
-          <JsonCodeBlock data={data} maxHeight={maxHeight} />
+          <JsonCodeBlock value={data} maxHeight={maxHeight} />
         </div>
       )}
     </div>
@@ -229,23 +229,23 @@ export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) 
         <div className="border-t border-border pt-1.5 mt-2.5 space-y-0.5">
           {lastResponse.sources && lastResponse.sources.length > 0 && (
             <CollapsibleSection title="Sources" badge={`${lastResponse.sources.length}`}>
-              <JsonCodeBlock data={lastResponse.sources} maxHeight="max-h-32" />
+              <JsonCodeBlock value={lastResponse.sources} maxHeight={128} />
             </CollapsibleSection>
           )}
           {lastResponse.tool_calls && lastResponse.tool_calls.length > 0 && (
             <CollapsibleSection title="Tool Calls" badge={`${lastResponse.tool_calls.length}`}>
-              <JsonCodeBlock data={lastResponse.tool_calls} maxHeight="max-h-32" />
+              <JsonCodeBlock value={lastResponse.tool_calls} maxHeight={128} />
             </CollapsibleSection>
           )}
           {lastResponse.parsed_output && (
             <CollapsibleSection title="Structured Output">
-              <JsonCodeBlock data={lastResponse.parsed_output} maxHeight="max-h-32" />
+              <JsonCodeBlock value={lastResponse.parsed_output} maxHeight={128} />
             </CollapsibleSection>
           )}
           {lastRequestPayload && (
             <CollapsibleSection title="Request &amp; Context">
               <div className="space-y-1.5">
-                <JsonCodeBlock data={lastRequestPayload} maxHeight="max-h-32" />
+                <JsonCodeBlock value={lastRequestPayload} maxHeight={128} />
                 {!!lastRequestPayload.snapshot_override && (
                   <CollapsibleJson title="Snapshot Override" data={lastRequestPayload.snapshot_override} />
                 )}
@@ -253,7 +253,7 @@ export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) 
             </CollapsibleSection>
           )}
           <CollapsibleSection title="Raw">
-            <JsonCodeBlock data={lastResponse} maxHeight="max-h-32" />
+            <JsonCodeBlock value={lastResponse} maxHeight={128} />
           </CollapsibleSection>
         </div>
       )}

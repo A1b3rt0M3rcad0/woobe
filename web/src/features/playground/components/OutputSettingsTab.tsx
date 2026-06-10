@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Textarea'
-import { ScrollArea } from '@/components/ui/ScrollArea'
+import { JsonEditor } from '@/components/ui/JsonEditor'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
 
 const DEFAULT_SCHEMA = `{
@@ -44,18 +44,6 @@ export function OutputSettingsTab() {
 
   const handleSchemaChange = (value: string) => {
     setField('responseFormat', { ...responseFormat, schema: value })
-  }
-
-  const validateSchema = () => {
-    if (!responseFormat.enabled) return true
-    const raw = responseFormat.schema as string | null
-    if (!raw || !raw.trim()) return false
-    try {
-      JSON.parse(raw as string)
-      return true
-    } catch {
-      return false
-    }
   }
 
   const previewExample = responseFormat.enabled
@@ -130,12 +118,14 @@ export function OutputSettingsTab() {
           </div>
           <div>
             <label className="block text-xs font-medium text-muted mb-1">JSON Schema</label>
-            <Textarea
+            <JsonEditor
               value={schemaToString(responseFormat.schema)}
-              onChange={(e) => handleSchemaChange(e.target.value)}
-              className="min-h-[180px] font-mono text-xs leading-relaxed"
-              placeholder='{ "type": "object", ... }'
+              onChange={handleSchemaChange}
+              editable
               disabled={!responseFormat.enabled}
+              actions={['format', 'validate', 'clear']}
+              minHeight={180}
+              placeholder='{ "type": "object", ... }'
             />
           </div>
           <div className="flex items-center gap-2">
@@ -151,22 +141,18 @@ export function OutputSettingsTab() {
               Strict mode
             </label>
           </div>
-          {responseFormat.enabled && (
-            <Button size="sm" variant="outline" onClick={() => validateSchema()}>
-              Validate Schema
-            </Button>
-          )}
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">API Response Preview</p>
-          <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-            <pre className="p-3 text-xs text-muted">
-              {JSON.stringify(previewExample, null, 2)}
-            </pre>
-          </ScrollArea>
+          <JsonCodeBlock
+            value={previewExample}
+            title="Preview"
+            maxHeight={480}
+            actions={['copy', 'format', 'collapse']}
+          />
         </div>
       </div>
     </div>

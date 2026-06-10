@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
+import { JsonEditor } from '@/components/ui/JsonEditor'
 import { Select } from '@/components/ui/Select'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -159,7 +160,15 @@ export default function ToolsPage() {
           <Textarea {...toolForm.register('description')} placeholder="Description" />
           <Select {...toolForm.register('type')} options={[{ value: 'http_mcp', label: 'HTTP MCP' }, { value: 'function', label: 'Function' }]} placeholder="Type" />
           <Select {...toolForm.register('risk_level')} options={riskOptions} placeholder="Risk level" />
-          <Textarea {...toolForm.register('config')} placeholder='Config JSON (optional)' className="font-mono text-xs min-h-[80px]" />
+          <JsonEditor
+            value={toolForm.watch('config') || ''}
+            onChange={(val) => toolForm.setValue('config', val)}
+            editable
+            title="Config"
+            actions={['format', 'validate', 'clear']}
+            minHeight={80}
+            placeholder='Config JSON (optional)'
+          />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setShowTool(false)}>Cancel</Button>
             <Button type="submit" loading={createTool.isPending}>Create</Button>

@@ -10,7 +10,7 @@ import { Table } from '@/components/ui/Table'
 import { Badge } from '@/components/ui/Badge'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Dialog } from '@/components/ui/Dialog'
-import { ScrollArea } from '@/components/ui/ScrollArea'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatDateTime } from '@/lib/formatters/date'
 import { formatMoney } from '@/lib/formatters/money'
 import { formatLatency } from '@/lib/formatters/number'
@@ -102,9 +102,7 @@ export default function TracesPage() {
                         <span className="text-xs text-muted">{evt.latency_ms ? `${evt.latency_ms}ms` : ''}</span>
                       </div>
                       {evt.payload && (
-                        <ScrollArea orientation="horizontal" className="mt-2">
-                          <pre className="text-xs text-muted">{JSON.stringify(evt.payload, null, 2)}</pre>
-                        </ScrollArea>
+                        <JsonCodeBlock value={evt.payload} maxHeight={128} className="mt-2" />
                       )}
                     </div>
                   ))}

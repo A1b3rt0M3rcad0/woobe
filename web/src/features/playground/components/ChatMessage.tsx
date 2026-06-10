@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
-import { JsonCodeBlock } from './JsonCodeBlock'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatMessageProps {
@@ -75,9 +75,9 @@ export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) 
             {message.parsed_output && (
               <div className="mt-2">
                 <JsonCodeBlock
-                  data={message.parsed_output}
+                  value={message.parsed_output}
                   title="Structured Output"
-                  maxHeight="max-h-40"
+                  maxHeight={160}
                   className="border-l-2 border-emerald-500/30 pl-2"
                 />
               </div>

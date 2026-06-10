@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Badge } from '@/components/ui/Badge'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Key, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -167,11 +168,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
 
           <div>
             <p className="text-xs font-medium text-muted mb-1">Response Contract</p>
-            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-              <pre className="p-4 text-xs text-muted">
-                {ASK_RESPONSE_EXAMPLE}
-              </pre>
-            </ScrollArea>
+            <JsonCodeBlock value={ASK_RESPONSE_EXAMPLE} maxHeight={480} actions={['copy', 'format']} />
           </div>
 
           {jsonEnabled && (
@@ -189,11 +186,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
               </div>
               <div>
                 <p className="text-xs font-medium text-muted mb-1">Expected Response:</p>
-                <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-                  <pre className="p-4 text-xs text-muted">
-                    {STRUCTURED_RESPONSE_EXAMPLE}
-                  </pre>
-                </ScrollArea>
+                <JsonCodeBlock value={STRUCTURED_RESPONSE_EXAMPLE} maxHeight={480} actions={['copy', 'format']} />
               </div>
             </>
           )}

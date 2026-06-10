@@ -4,7 +4,7 @@ import { normalizeTraceDetail } from '@/features/traces/normalizers'
 import { X, CheckCircle, XCircle, AlertTriangle, HelpCircle, Copy, ChevronDown, ChevronRight, Bug, RefreshCw, Clock, Cpu, Hash, FileText, Brain } from 'lucide-react'
 import { formatLatency, formatTokens, formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
-import { JsonCodeBlock } from './JsonCodeBlock'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { TraceItem } from '@/features/playground/types'
 import type { TraceDetailNormalized, TraceEvent } from '@/features/traces/types'
 
@@ -248,7 +248,7 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
             <code className="text-[11px] text-white font-mono">{evt.event_type}</code>
             <span className="text-[10px] text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
           </div>
-          {evt.payload && <JsonCodeBlock data={evt.payload} maxHeight="max-h-24" className="mt-1" />}
+          {evt.payload && <JsonCodeBlock value={evt.payload} maxHeight={96} className="mt-1" />}
         </div>
       ))}
     </div>
@@ -330,7 +330,7 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
           )}
           {!!parsedOutput && !outputParseError && (
             <CollapsibleSection title="Structured Output">
-              <JsonCodeBlock data={parsedOutput} maxHeight="max-h-32" />
+              <JsonCodeBlock value={parsedOutput} maxHeight={128} />
             </CollapsibleSection>
           )}
           {events && events.length > 0 && (
@@ -339,7 +339,7 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
             </CollapsibleSection>
           )}
           <CollapsibleSection title="Raw">
-            <JsonCodeBlock data={{ status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, events }} maxHeight="max-h-32" />
+            <JsonCodeBlock value={{ status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, events }} maxHeight={128} />
           </CollapsibleSection>
         </div>
       )}
@@ -438,7 +438,7 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
             <p className="text-xs text-muted break-all">{response.output_parse_error}</p>
           </div>
           <CollapsibleSection title="Raw">
-            <JsonCodeBlock data={response} maxHeight="max-h-32" />
+            <JsonCodeBlock value={response} maxHeight={128} />
           </CollapsibleSection>
         </div>
       </div>
@@ -478,11 +478,11 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
             )}
             {response.parsed_output && (
               <CollapsibleSection title="Structured Output">
-                <JsonCodeBlock data={response.parsed_output} maxHeight="max-h-32" />
+                <JsonCodeBlock value={response.parsed_output} maxHeight={128} />
               </CollapsibleSection>
             )}
             <CollapsibleSection title="Raw">
-              <JsonCodeBlock data={response} maxHeight="max-h-32" />
+<JsonCodeBlock value={response} maxHeight={128} />
             </CollapsibleSection>
           </div>
         )}

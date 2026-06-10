@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
+import { JsonEditor } from '@/components/ui/JsonEditor'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { Separator } from '@/components/ui/Separator'
@@ -387,20 +388,21 @@ export default function CreateAgentPage() {
                     <label className="block text-sm font-medium text-muted mb-1">
                       JSON Schema
                     </label>
-                    <Textarea
+                    <JsonEditor
                       value={outputSchema}
-                      onChange={(e) => {
-                        setOutputSchema(e.target.value)
+                      onChange={(val) => {
+                        setOutputSchema(val)
                         if (outputSchemaError) {
-                          try { JSON.parse(e.target.value); setOutputSchemaError(null) } catch { /* keep error */ }
+                          try { JSON.parse(val); setOutputSchemaError(null) } catch { }
                         }
                       }}
-                      className="min-h-[150px] font-mono text-xs"
+                      editable
                       disabled={!outputEnabled}
+                      actions={['format', 'validate', 'clear']}
+                      minHeight={150}
+                      placeholder='{ "type": "object", ... }'
+                      error={outputSchemaError}
                     />
-                    {outputSchemaError && (
-                      <p className="text-xs text-red-400 mt-1">{outputSchemaError}</p>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
