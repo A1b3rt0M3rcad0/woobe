@@ -1,28 +1,175 @@
-import { MetricCard } from './MetricCard'
-import { JsonCodeBlock } from './JsonCodeBlock'
-import { CopyButton } from '@/components/common/CopyButton'
-import { X, Clock, Cpu, FileText, Hash, Brain, Database, FileText as FileIcon, Globe, CheckCircle, XCircle, HelpCircle } from 'lucide-react'
-import { formatLatency, formatTokens } from '@/lib/formatters/number'
+import { useState, useRef, useLayoutEffect } from 'react'
+import { useTraceDetail } from '@/features/traces/hooks'
+import { normalizeTraceDetail } from '@/features/traces/normalizers'
+import { X, CheckCircle, XCircle, AlertTriangle, HelpCircle, Copy, ChevronDown, ChevronRight, Bug, RefreshCw, Clock, Cpu, Hash, FileText, Brain } from 'lucide-react'
+import { formatLatency, formatTokens, formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
+import { JsonCodeBlock } from './JsonCodeBlock'
 import type { TraceItem } from '@/features/playground/types'
+import type { TraceDetailNormalized, TraceEvent } from '@/features/traces/types'
 
 interface TraceDetailsProps {
   trace: TraceItem
   onBack: () => void
 }
 
-const statusBadge: Record<string, { label: string; className: string }> = {
-  completed: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  success: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  running: { label: 'Running', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  processing: { label: 'Processing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  failed: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  error: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  pending: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
-  queued: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
+function ClampedText({ text, lines = 2 }: { text: string; lines?: number }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflows, setOverflows] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el) {
+      setOverflows(el.scrollHeight > el.clientHeight)
+    }
+  }, [text, expanded])
+
+  return (
+    <div className="relative">
+      <p
+        ref={ref}
+        className={`text-xs text-white whitespace-pre-wrap break-words leading-relaxed ${expanded ? '' : `line-clamp-${lines}`}`}
+      >
+        {text}
+      </p>
+      {overflows && !expanded && (
+        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
+      )}
+      {overflows && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-blue-400 hover:text-blue-300 mt-0.5"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  )
 }
 
-function sourceBadge(source: { document_title?: string }): string {
+function CopyableIdRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const truncated = value.length > 12 ? `${value.slice(0, 8)}…` : value
+
+  return (
+    <div className="grid grid-cols-[60px_1fr_20px] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
+      <span className="text-[10px] text-muted uppercase leading-none">{label}</span>
+      <code className="text-[11px] text-white font-mono truncate">{truncated}</code>
+      <button
+        onClick={handleCopy}
+        className="text-muted hover:text-white transition-colors justify-self-end"
+        title={copied ? 'Copied!' : 'Copy'}
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </div>
+  )
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  children,
+  badge,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+  badge?: string
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 w-full py-1.5 text-xs font-medium text-muted hover:text-white transition-colors group"
+      >
+        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+        <span className="group-hover:text-white transition-colors">{title}</span>
+        {badge && <span className="text-[10px] text-muted ml-auto">{badge}</span>}
+      </button>
+      {open && <div className="pb-2">{children}</div>}
+    </div>
+  )
+}
+
+function UsageInline({
+  inputTokens,
+  outputTokens,
+  totalTokens,
+  costUsd,
+}: {
+  inputTokens?: number | null
+  outputTokens?: number | null
+  totalTokens?: number | null
+  costUsd?: number | null
+}) {
+  const parts: string[] = []
+  if (inputTokens != null) parts.push(`Input ${formatTokens(inputTokens)}`)
+  if (outputTokens != null) parts.push(`Output ${formatTokens(outputTokens)}`)
+  if (totalTokens != null) parts.push(`Total ${formatTokens(totalTokens)}`)
+  if (costUsd != null) parts.push(formatCurrency(costUsd))
+  if (parts.length === 0) return null
+  return <p className="text-[11px] text-muted">{parts.join('  ·  ')}</p>
+}
+
+const statusConfig: Record<string, { label: string; className: string; icon: typeof CheckCircle }> = {
+  completed: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle },
+  success: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle },
+  running: { label: 'Running', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: AlertTriangle },
+  processing: { label: 'Processing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: AlertTriangle },
+  warning: { label: 'Warning', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: AlertTriangle },
+  failed: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
+  error: { label: 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
+  pending: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: HelpCircle },
+  queued: { label: 'Queued', className: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: HelpCircle },
+  cancelled: { label: 'Cancelled', className: 'bg-gray-500/10 text-gray-400 border-gray-500/20', icon: XCircle },
+}
+
+function StatusBadge({ status, latencyMs, model, provider, fallbackUsed }: {
+  status: string
+  latencyMs?: number | null
+  model?: string | null
+  provider?: string | null
+  fallbackUsed?: boolean | null
+}) {
+  const cfg = statusConfig[status] || statusConfig.completed
+  const Icon = cfg.icon
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border', cfg.className)}>
+        <Icon className="h-3 w-3" />
+        {cfg.label}
+      </span>
+      {latencyMs != null && (
+        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
+          {formatLatency(latencyMs)}
+        </span>
+      )}
+      {(provider || model) && (
+        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
+          {provider || '—'}/{model || '—'}
+        </span>
+      )}
+      {fallbackUsed && (
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+          <AlertTriangle className="h-3 w-3" />
+          Fallback
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SourceBadge(source: { document_title?: string | null }): string {
   const title = source.document_title ?? ''
   if (title.endsWith('.pdf')) return 'PDF'
   if (title.endsWith('.md') || title.endsWith('.txt') || title.endsWith('.doc')) return 'DOC'
@@ -30,162 +177,340 @@ function sourceBadge(source: { document_title?: string }): string {
   return 'DB'
 }
 
-export function TraceDetails({ trace, onBack }: TraceDetailsProps) {
-  const statusInfo = statusBadge[trace.status] || statusBadge.completed
+function SourceList({ sources }: { sources: { document_title?: string | null; score?: number | null }[] }) {
+  return (
+    <div className="space-y-1">
+      {sources.map((source, idx) => (
+        <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
+          <span className={cn(
+            'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+            SourceBadge(source) === 'DB' ? 'bg-violet-500/10 text-violet-400' :
+            SourceBadge(source) === 'DOC' ? 'bg-blue-500/10 text-blue-400' :
+            SourceBadge(source) === 'PDF' ? 'bg-orange-500/10 text-orange-400' :
+            'bg-cyan-500/10 text-cyan-400',
+          )}>
+            {SourceBadge(source)}
+          </span>
+          <span className="text-xs text-muted flex-1 truncate">
+            {source.document_title || `Source ${idx + 1}`}
+          </span>
+          {source.score != null && (
+            <span className="text-[11px] text-muted font-mono">
+              {(source.score * 100).toFixed(0)}%
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
-  const sources = trace.response?.sources ?? []
-  const toolCalls = trace.response?.tool_calls ?? []
-  const parsedOutput = trace.response?.parsed_output ?? null
-  const outputParseError = trace.response?.output_parse_error ?? null
+function ToolCallList({ toolCalls }: { toolCalls: { tool_name: string; status?: string | null; duration_ms?: number | null; latency_ms?: number | null }[] }) {
+  return (
+    <div className="space-y-1">
+      {toolCalls.map((tc, idx) => (
+        <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
+          {tc.status === 'success' ? (
+            <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+          ) : tc.status === 'failed' || tc.status === 'error' ? (
+            <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+          ) : (
+            <HelpCircle className="h-3.5 w-3.5 text-muted shrink-0" />
+          )}
+          <span className="text-xs text-white flex-1 truncate">{tc.tool_name}</span>
+          {tc.status && (
+            <span className={cn(
+              'text-[10px] font-medium',
+              tc.status === 'success' ? 'text-emerald-400' :
+              tc.status === 'failed' || tc.status === 'error' ? 'text-red-400' :
+              'text-muted',
+            )}>
+              {tc.status.charAt(0).toUpperCase() + tc.status.slice(1)}
+            </span>
+          )}
+          {(tc.duration_ms || tc.latency_ms) && (
+            <span className="text-[11px] text-muted font-mono">
+              {formatLatency(tc.duration_ms ?? tc.latency_ms)}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EventTimeline({ events }: { events: TraceEvent[] }) {
+  return (
+    <div className="space-y-1">
+      {events.map((evt) => (
+        <div key={evt.id} className="rounded-lg border border-border bg-background px-3 py-2">
+          <div className="flex items-center justify-between">
+            <code className="text-[11px] text-white font-mono">{evt.event_type}</code>
+            <span className="text-[10px] text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
+          </div>
+          {evt.payload && <JsonCodeBlock data={evt.payload} maxHeight="max-h-24" className="mt-1" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DetailView({ traceId, status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, outputParseError, events }: {
+  traceId: string
+  status: string
+  model?: string | null
+  provider?: string | null
+  latencyMs?: number | null
+  usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null; costUsd?: number | null } | null
+  sources?: { document_title?: string | null; score?: number | null }[]
+  toolCalls?: { tool_name: string; status?: string | null; duration_ms?: number | null; latency_ms?: number | null }[]
+  parsedOutput?: unknown
+  outputParseError?: string | null
+  events?: TraceEvent[]
+}) {
+  const userEvent = events?.find(e => e.event_type === 'ask.started')
+  const userMessage = userEvent?.payload?.message as string | undefined
+  const completedEvent = events?.find(e => e.event_type === 'ask.completed')
+  const answerLength = completedEvent?.payload?.answer_length as number | undefined
+
+  const hasDetailSections = !!(
+    (sources?.length ?? 0) > 0 ||
+    (toolCalls?.length ?? 0) > 0 ||
+    parsedOutput ||
+    outputParseError ||
+    (events?.length ?? 0) > 0
+  )
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium text-white truncate">{trace.title}</h3>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium', statusInfo.className)}>
-              <span className={cn('h-1.5 w-1.5 rounded-full', statusInfo.className.split(' ')[0].replace('bg-', 'bg-'))} />
-              {statusInfo.label}
-            </span>
-            {trace.latency_ms != null && (
-              <span className="text-[11px] text-muted font-mono">{formatLatency(trace.latency_ms)}</span>
-            )}
+    <div className="space-y-3 p-4">
+      <StatusBadge status={status} latencyMs={latencyMs} model={model} provider={provider} />
+
+      <UsageInline
+        inputTokens={usage?.inputTokens}
+        outputTokens={usage?.outputTokens}
+        totalTokens={usage?.totalTokens}
+        costUsd={usage?.costUsd}
+      />
+
+      {outputParseError && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+            <span className="text-xs font-medium text-red-400">Output Parse Error</span>
           </div>
+          <p className="text-xs text-muted break-all">{outputParseError}</p>
         </div>
+      )}
+
+      {userMessage && (
+        <div className="rounded-lg border border-border bg-background p-2.5">
+          <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">User Message</p>
+          <ClampedText text={userMessage} lines={2} />
+        </div>
+      )}
+
+      {answerLength != null && (
+        <div className="rounded-lg border border-border bg-background p-2.5">
+          <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Response</p>
+          <p className="text-xs text-muted">{formatTokens(answerLength)} characters (stored in session messages)</p>
+        </div>
+      )}
+
+      {hasDetailSections && (
+        <div className="border-t border-border pt-1.5 space-y-0.5">
+          {sources && sources.length > 0 && (
+            <CollapsibleSection title="Sources" badge={`${sources.length}`}>
+              <SourceList sources={sources} />
+            </CollapsibleSection>
+          )}
+          {toolCalls && toolCalls.length > 0 && (
+            <CollapsibleSection title="Tool Calls" badge={`${toolCalls.length}`}>
+              <ToolCallList toolCalls={toolCalls} />
+            </CollapsibleSection>
+          )}
+          {!!parsedOutput && !outputParseError && (
+            <CollapsibleSection title="Structured Output">
+              <JsonCodeBlock data={parsedOutput} maxHeight="max-h-32" />
+            </CollapsibleSection>
+          )}
+          {events && events.length > 0 && (
+            <CollapsibleSection title="Events" badge={`${events.length}`}>
+              <EventTimeline events={events} />
+            </CollapsibleSection>
+          )}
+          <CollapsibleSection title="Raw">
+            <JsonCodeBlock data={{ status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, events }} maxHeight="max-h-32" />
+          </CollapsibleSection>
+        </div>
+      )}
+
+      <div className="border-t border-border pt-1.5 space-y-1">
+        <CopyableIdRow label="trace" value={traceId} />
+      </div>
+    </div>
+  )
+}
+
+function BackendTraceDetail({ traceId, onBack }: { traceId: string; onBack: () => void }) {
+  const { data: rawDetail, isLoading, isError, error, refetch } = useTraceDetail(traceId)
+
+  const detail = rawDetail ? normalizeTraceDetail(rawDetail) : null
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h3 className="text-sm font-medium text-white">Trace Detail</h3>
         <button
           onClick={onBack}
-          className="shrink-0 rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors"
+          className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Overview Metric Grid */}
-      <div>
-        <p className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Overview</p>
-        <div className="grid grid-cols-2 gap-2">
-          <MetricCard
-            label="Model"
-            value={
-              <span className="text-xs font-mono">{trace.provider || trace.model ? `${trace.provider || '—'}/${trace.model || '—'}` : '—'}</span>
-            }
-            icon={<Cpu className="h-3 w-3" />}
-          />
-          <MetricCard
-            label="Latency"
-            value={<span className="text-xs font-mono">{formatLatency(trace.latency_ms)}</span>}
-            icon={<Clock className="h-3 w-3" />}
-          />
-          <MetricCard
-            label="Prompt Tokens"
-            value={<span className="text-xs font-mono">{formatTokens(trace.input_tokens)}</span>}
-            icon={<FileText className="h-3 w-3" />}
-          />
-          <MetricCard
-            label="Completion Tokens"
-            value={<span className="text-xs font-mono">{formatTokens(trace.output_tokens)}</span>}
-            icon={<Brain className="h-3 w-3" />}
-          />
-          <MetricCard
-            label="Total Tokens"
-            value={<span className="text-xs font-mono">{formatTokens(trace.total_tokens)}</span>}
-            icon={<Hash className="h-3 w-3" />}
-          />
-        </div>
-      </div>
-
-      {/* Trace ID */}
-      {trace.trace_id && (
-        <div>
-          <p className="text-xs font-medium text-muted mb-1">Trace ID</p>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
-            <code className="text-xs flex-1 break-all text-white font-mono">{trace.trace_id}</code>
-            <CopyButton text={trace.trace_id} />
-          </div>
+      {isLoading && (
+        <div className="p-4 text-center">
+          <RefreshCw className="h-5 w-5 animate-spin text-muted mx-auto mb-2" />
+          <p className="text-sm text-muted">Loading trace details...</p>
         </div>
       )}
 
-      {/* Parsed Output */}
-      {outputParseError ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-          <p className="text-xs font-medium text-red-400 mb-1">Output Parse Error</p>
-          <p className="text-xs text-muted break-all">{outputParseError}</p>
+      {isError && (
+        <div className="p-4 text-center">
+          <AlertTriangle className="h-5 w-5 text-red-400 mx-auto mb-2" />
+          <p className="text-sm text-red-400">Failed to load trace details</p>
+          {error instanceof Error && <p className="text-xs text-muted mt-1">{error.message}</p>}
+          <button
+            onClick={() => refetch()}
+            className="mt-3 text-xs text-primary hover:underline inline-flex items-center gap-1"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </button>
         </div>
-      ) : parsedOutput ? (
-        <JsonCodeBlock
-          data={parsedOutput}
-          title="Parsed Output"
-          maxHeight="max-h-40"
+      )}
+
+      {detail && (
+        <DetailView
+          traceId={traceId}
+          status={detail.status}
+          model={detail.model}
+          provider={detail.provider}
+          latencyMs={detail.latencyMs}
+          usage={detail.usage}
+          sources={detail.sources}
+          toolCalls={detail.toolCalls}
+          parsedOutput={detail.parsedOutput}
+          outputParseError={detail.outputParseError}
+          events={detail.events}
         />
-      ) : null}
+      )}
+    </div>
+  )
+}
 
-      {/* Sources */}
-      {sources.length > 0 ? (
-        <div>
-          <p className="text-xs font-medium text-muted mb-1.5">Sources ({sources.length})</p>
-          <div className="space-y-1">
-            {sources.map((source, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
-                <span className={cn(
-                  'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
-                  sourceBadge(source) === 'DB' ? 'bg-violet-500/10 text-violet-400' :
-                  sourceBadge(source) === 'DOC' ? 'bg-blue-500/10 text-blue-400' :
-                  sourceBadge(source) === 'PDF' ? 'bg-orange-500/10 text-orange-400' :
-                  'bg-cyan-500/10 text-cyan-400',
-                )}>
-                  {sourceBadge(source)}
-                </span>
-                <span className="text-xs text-muted flex-1 truncate">
-                  {source.document_title || `Source ${idx + 1}`}
-                </span>
-                {source.score != null && (
-                  <span className="text-[11px] text-muted font-mono">
-                    {(source.score * 100).toFixed(0)}%
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => void }) {
+  const response = trace.response!
+  const hasDetailSections = !!(
+    (response.sources?.length ?? 0) > 0 ||
+    (response.tool_calls?.length ?? 0) > 0 ||
+    response.parsed_output ||
+    trace.trace_id
+  )
 
-      {/* Tool Calls */}
-      {toolCalls.length > 0 ? (
-        <div>
-          <p className="text-xs font-medium text-muted mb-1.5">Tool Calls ({toolCalls.length})</p>
-          <div className="space-y-1">
-            {toolCalls.map((tc, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2">
-                {tc.status === 'success' ? (
-                  <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                ) : tc.status === 'failed' || tc.status === 'error' ? (
-                  <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-                ) : (
-                  <HelpCircle className="h-3.5 w-3.5 text-muted shrink-0" />
-                )}
-                <span className="text-xs text-white flex-1 truncate">{tc.tool_name}</span>
-                {tc.status && (
-                  <span className={cn(
-                    'text-[10px] font-medium',
-                    tc.status === 'success' ? 'text-emerald-400' :
-                    tc.status === 'failed' || tc.status === 'error' ? 'text-red-400' :
-                    'text-muted',
-                  )}>
-                    {tc.status.charAt(0).toUpperCase() + tc.status.slice(1)}
-                  </span>
-                )}
-                {(tc.duration_ms || tc.latency_ms) && (
-                  <span className="text-[11px] text-muted font-mono">
-                    {formatLatency(tc.duration_ms ?? tc.latency_ms)}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+  if (response.output_parse_error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-4 pt-4">
+          <h3 className="text-sm font-medium text-white">Trace Detail</h3>
+          <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      ) : null}
+        <div className="px-4 space-y-2">
+          <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} />
+          <UsageInline inputTokens={trace.input_tokens} outputTokens={trace.output_tokens} totalTokens={trace.total_tokens} costUsd={trace.cost_usd} />
+          <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+              <span className="text-xs font-medium text-red-400">Parse Error</span>
+            </div>
+            <p className="text-xs text-muted break-all">{response.output_parse_error}</p>
+          </div>
+          <CollapsibleSection title="Raw">
+            <JsonCodeBlock data={response} maxHeight="max-h-32" />
+          </CollapsibleSection>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h3 className="text-sm font-medium text-white">Trace Detail</h3>
+        <button onClick={onBack} className="rounded-lg p-1 text-muted hover:text-white hover:bg-accent transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="px-4 space-y-3">
+        <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} />
+        <UsageInline inputTokens={trace.input_tokens} outputTokens={trace.output_tokens} totalTokens={trace.total_tokens} costUsd={trace.cost_usd} />
+
+        {response.answer && (
+          <div className="rounded-lg border border-border bg-background p-2.5">
+            <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
+            <ClampedText text={response.answer} lines={2} />
+          </div>
+        )}
+
+        {hasDetailSections && (
+          <div className="border-t border-border pt-1.5 space-y-0.5">
+            {response.sources && response.sources.length > 0 && (
+              <CollapsibleSection title="Sources" badge={`${response.sources.length}`}>
+                <SourceList sources={response.sources} />
+              </CollapsibleSection>
+            )}
+            {response.tool_calls && response.tool_calls.length > 0 && (
+              <CollapsibleSection title="Tool Calls" badge={`${response.tool_calls.length}`}>
+                <ToolCallList toolCalls={response.tool_calls} />
+              </CollapsibleSection>
+            )}
+            {response.parsed_output && (
+              <CollapsibleSection title="Structured Output">
+                <JsonCodeBlock data={response.parsed_output} maxHeight="max-h-32" />
+              </CollapsibleSection>
+            )}
+            <CollapsibleSection title="Raw">
+              <JsonCodeBlock data={response} maxHeight="max-h-32" />
+            </CollapsibleSection>
+          </div>
+        )}
+
+        {trace.trace_id && (
+          <div className="border-t border-border pt-1.5 space-y-1">
+            <CopyableIdRow label="trace" value={trace.trace_id} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function TraceDetails({ trace, onBack }: TraceDetailsProps) {
+  if (trace.response) {
+    return <LocalTraceDetail trace={trace} onBack={onBack} />
+  }
+
+  const backendId = trace.trace_id || trace.id
+  if (backendId && !backendId.startsWith('trace-')) {
+    return <BackendTraceDetail traceId={backendId} onBack={onBack} />
+  }
+
+  return (
+    <div className="p-4 text-center">
+      <Bug className="h-8 w-8 text-muted mx-auto mb-2 opacity-40" />
+      <p className="text-sm text-muted">No trace data available</p>
     </div>
   )
 }

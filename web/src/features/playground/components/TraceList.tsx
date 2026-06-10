@@ -43,6 +43,16 @@ function getDateGroup(dateStr: string): string {
 }
 
 export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, isError, errorMessage, onRetry, hasSessionId }: TraceListProps) {
+  if (!hasSessionId) {
+    return (
+      <div className="p-4 text-center">
+        <Activity className="h-8 w-8 text-muted mx-auto mb-2 opacity-40" />
+        <p className="text-sm text-muted">Select a session to view traces</p>
+        <p className="text-xs text-muted mt-1">Traces are tied to a session. Pick one from the Sessions tab.</p>
+      </div>
+    )
+  }
+
   if (isLoading) {
     return (
       <div className="p-4 text-center">
@@ -76,8 +86,8 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
   if (traces.length === 0) {
     return (
       <div className="p-4 text-center">
-        <Activity className="h-8 w-8 text-muted mx-auto mb-2" />
-        <p className="text-sm text-muted">No traces yet.</p>
+        <Activity className="h-8 w-8 text-muted mx-auto mb-2 opacity-40" />
+        <p className="text-sm text-muted">No traces for this session yet</p>
         <p className="text-xs text-muted mt-1">Send a message to generate trace data.</p>
       </div>
     )

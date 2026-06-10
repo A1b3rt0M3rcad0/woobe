@@ -30,7 +30,7 @@ export function usePlaygroundTraces(
         agentId: sessionId ? undefined : agentId,
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && Boolean(sessionId),
   })
 }
 

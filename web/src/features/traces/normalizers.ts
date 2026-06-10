@@ -104,14 +104,14 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
 }
 
 export function normalizeTraceDetail(raw: TraceDetail): TraceDetailNormalized {
-  const summary = normalizeTraceSummary(raw.trace)
-  const data = (raw.trace.data ?? {}) as Record<string, unknown>
+  const summary = normalizeTraceSummary(raw)
+  const data = (raw.data ?? {}) as Record<string, unknown>
 
   const usage: TraceUsage = {
     inputTokens: safeNumber(data.input_tokens),
     outputTokens: safeNumber(data.output_tokens),
     totalTokens: safeNumber(data.total_tokens),
-    costUsd: safeNumber(data.cost_usd ?? raw.trace.total_cost_usd),
+    costUsd: safeNumber(data.cost_usd ?? raw.total_cost_usd),
   }
 
   return {

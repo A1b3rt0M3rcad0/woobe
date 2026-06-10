@@ -60,33 +60,33 @@ export default function TracesPage() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-muted text-xs">Status</p>
-                <StatusBadge status={traceDetail.trace.status} />
+                <StatusBadge status={traceDetail.status} />
               </div>
               <div>
                 <p className="text-muted text-xs">Provider</p>
-                <p>{traceDetail.trace.provider || '—'}</p>
+                <p>{traceDetail.provider || '—'}</p>
               </div>
               <div>
                 <p className="text-muted text-xs">Model</p>
-                <p>{traceDetail.trace.model || '—'}</p>
+                <p>{traceDetail.model || '—'}</p>
               </div>
               <div>
                 <p className="text-muted text-xs">Latency</p>
-                <p>{formatLatency(traceDetail.trace.total_latency_ms)}</p>
+                <p>{formatLatency(traceDetail.total_latency_ms)}</p>
               </div>
               <div>
                 <p className="text-muted text-xs">Cost</p>
-                <p>{traceDetail.trace.total_cost_usd ? formatMoney(traceDetail.trace.total_cost_usd) : '—'}</p>
+                <p>{traceDetail.total_cost_usd ? formatMoney(traceDetail.total_cost_usd) : '—'}</p>
               </div>
               <div>
                 <p className="text-muted text-xs">Fallback Used</p>
-                <p>{traceDetail.trace.fallback_used ? 'Yes' : 'No'}</p>
+                <p>{traceDetail.fallback_used ? 'Yes' : 'No'}</p>
               </div>
             </div>
 
-            {traceDetail.trace.error && (
+            {traceDetail.error && (
               <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-400">
-                {traceDetail.trace.error}
+                {traceDetail.error}
               </div>
             )}
 

@@ -27,8 +27,7 @@ export interface TraceEvent {
   created_at?: string | null
 }
 
-export interface TraceDetail {
-  trace: Trace
+export interface TraceDetail extends Trace {
   events: TraceEvent[]
 }
 
