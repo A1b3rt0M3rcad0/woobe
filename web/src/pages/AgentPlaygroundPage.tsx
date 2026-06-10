@@ -18,26 +18,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
 
-function buildTraces(messages: ChatMessage[], lastResponse: AskResponse | null, sessionId: string | null): TraceItem[] {
-  if (!lastResponse || messages.length === 0) return []
-  const assistantMsgs = messages.filter(m => m.role === 'assistant' && m.content)
-  return assistantMsgs.map((msg, i) => ({
-    id: `trace-${i}-${msg.trace_id || Date.now()}`,
-    title: msg.content.slice(0, 60).replace(/\n/g, ' ') + (msg.content.length > 60 ? '...' : ''),
-    timestamp: new Date().toISOString(),
-    status: msg.content.startsWith('Error') ? 'error' as const : 'success' as const,
-    latency_ms: msg.latency_ms ?? null,
-    model: msg.model ?? null,
-    provider: msg.provider ?? null,
-    input_tokens: msg.usage?.input_tokens ?? null,
-    output_tokens: msg.usage?.output_tokens ?? null,
-    total_tokens: msg.usage?.total_tokens ?? null,
-    cost_usd: msg.usage?.cost_usd ?? null,
-    trace_id: msg.trace_id ?? null,
-    response: i === assistantMsgs.length - 1 ? lastResponse : null,
-  }))
-}
-
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
@@ -228,10 +208,8 @@ function PlaygroundContent() {
     }
   }
 
-  const localTraces = buildTraces(messages, lastResponse, sessionId)
-
   const traces = useMemo(() => {
-    const backendMapped: TraceItem[] = backendTraces.map((t) => {
+    const mapped: TraceItem[] = backendTraces.map((t) => {
       const traceData = (t.data ?? {}) as Record<string, unknown>
       return {
         id: t.id,
@@ -249,12 +227,9 @@ function PlaygroundContent() {
         response: null,
       }
     })
-
-    const localIds = new Set(localTraces.map((lt) => lt.trace_id).filter(Boolean))
-    const merged = [...backendMapped.filter((bt) => !localIds.has(bt.trace_id)), ...localTraces]
-    merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    return merged
-  }, [backendTraces, localTraces])
+    mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    return mapped
+  }, [backendTraces])
 
   if (agentLoading) return <LoadingState />
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
