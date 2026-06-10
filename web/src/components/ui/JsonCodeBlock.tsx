@@ -1,55 +1,18 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { EditorView } from '@codemirror/view'
-import { Copy, Check, ChevronDown, ChevronRight, Paintbrush } from 'lucide-react'
+import { Copy, Check, ChevronDown, ChevronRight, Paintbrush, Maximize2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatJsonSafely } from '@/lib/json-utils'
-
-const darkTheme = EditorView.theme(
-  {
-    '&': { backgroundColor: '#020817', color: '#e2e8f0' },
-    '.cm-content': {
-      caretColor: '#3b82f6',
-      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      fontSize: '12px',
-      lineHeight: '1.6',
-    },
-    '.cm-cursor': { borderLeftColor: '#3b82f6' },
-    '.cm-gutters': { backgroundColor: '#020817', borderRight: '1px solid #1e293b', color: '#475569' },
-    '.cm-activeLine': { backgroundColor: '#0f1729' },
-    '.cm-activeLineGutter': { backgroundColor: '#0f1729' },
-    '&.cm-focused': { outline: 'none' },
-    '.cm-selectionBackground': { backgroundColor: '#1e40af40' },
-    '.cm-matchingBracket': { backgroundColor: '#1e293b', outline: '1px solid #334155' },
-    '.cm-scroller::-webkit-scrollbar': { width: '5px', height: '5px' },
-    '.cm-scroller::-webkit-scrollbar-track': { background: 'transparent' },
-    '.cm-scroller::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(148, 163, 184, 0.15)', borderRadius: '999px' },
-    '.cm-scroller::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(148, 163, 184, 0.35)' },
-    '.cm-scroller::-webkit-scrollbar-corner': { background: 'transparent' },
-  },
-  { dark: true },
-)
-
-const jsonHighlight = EditorView.theme(
-  {
-    '.ͼ1 .cm-atom': { color: '#c084fc' },
-    '.ͼ1 .cm-number': { color: '#fbbf24' },
-    '.ͼ1 .cm-string': { color: '#4ade80' },
-    '.ͼ1 .cm-keyword': { color: '#f87171' },
-    '.ͼ6': { color: '#f87171' },
-    '.ͼ10 .cm-atom': { color: '#c084fc' },
-    '.ͼ12 .cm-atom': { color: '#c084fc' },
-    'span.ͼ1': { color: '#60a5fa' },
-  },
-)
+import { jsonDarkTheme, jsonSyntaxHighlight } from './json-cm-theme'
 
 interface JsonCodeBlockProps {
   value?: unknown
   title?: string
   maxHeight?: number | string
   className?: string
-  actions?: ('copy' | 'format' | 'collapse')[]
+  actions?: ('copy' | 'format' | 'collapse' | 'expand')[]
   collapsed?: boolean
 }
 
@@ -58,11 +21,13 @@ export function JsonCodeBlock({
   title,
   maxHeight = 480,
   className,
-  actions = ['copy'],
+  actions = ['copy', 'expand'],
   collapsed: initialCollapsed = false,
 }: JsonCodeBlockProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   const rawText = useMemo(() => {
     if (value == null) return ''
@@ -93,12 +58,42 @@ export function JsonCodeBlock({
     setTimeout(() => setCopied(false), 1500)
   }, [displayText])
 
-  const handleFormat = useCallback(() => {
-  }, [])
-
   const toggleCollapse = useCallback(() => {
     setCollapsed((c) => !c)
   }, [])
+
+  const handleExpand = useCallback(() => {
+    setExpanded(true)
+  }, [])
+
+  const handleCloseExpand = useCallback(() => {
+    setExpanded(false)
+  }, [])
+
+  useEffect(() => {
+    if (!expanded) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    document.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
+  }, [expanded])
+
+  const cmExtensions = useMemo(
+    () => [json(), jsonDarkTheme, jsonSyntaxHighlight, EditorView.editable.of(false)],
+    [],
+  )
+
+  const cmBasicSetup = {
+    lineNumbers: true,
+    foldGutter: true,
+    highlightActiveLine: false,
+    highlightActiveLineGutter: false,
+  }
 
   const hasTitle = title || actions.length > 0 || isInvalid
 
@@ -115,6 +110,16 @@ export function JsonCodeBlock({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {actions.includes('expand') && displayText && (
+              <button
+                onClick={handleExpand}
+                className="p-1 rounded text-muted-foreground hover:text-blue-200 hover:bg-accent transition-colors"
+                title="Expand JSON"
+                aria-label="Expand JSON"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+            )}
             {actions.includes('collapse') && displayText && (
               <button
                 onClick={toggleCollapse}
@@ -126,7 +131,7 @@ export function JsonCodeBlock({
             )}
             {actions.includes('format') && displayText && (
               <button
-                onClick={handleFormat}
+                onClick={() => {}}
                 className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors"
                 title="Format JSON"
               >
@@ -147,27 +152,54 @@ export function JsonCodeBlock({
       )}
       {(!collapsed || !actions.includes('collapse')) && displayText && (
         <div
-          className="rounded-lg border border-border scrollbar-thin overflow-auto"
+          className="rounded-lg border border-[#24324A] scrollbar-thin overflow-auto"
           style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}
         >
           <CodeMirror
             value={displayText}
-            extensions={[json(), darkTheme, jsonHighlight, EditorView.editable.of(false)]}
+            extensions={cmExtensions}
             readOnly
-            basicSetup={{
-              lineNumbers: false,
-              foldGutter: false,
-              highlightActiveLine: false,
-              highlightActiveLineGutter: false,
-            }}
+            basicSetup={cmBasicSetup}
             className="cm-custom-scroll"
-            theme="dark"
+            theme="none"
           />
         </div>
       )}
       {(!collapsed || !actions.includes('collapse')) && !displayText && (
         <div className="rounded-lg border border-border bg-background px-3 py-4 text-center">
           <p className="text-xs text-muted">No data</p>
+        </div>
+      )}
+
+      {expanded && (
+        <div
+          ref={overlayRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72"
+          onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
+        >
+          <div className="relative w-full max-w-5xl max-h-[85vh] m-4 rounded-xl border border-[#24324A] bg-surface shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between shrink-0 px-4 py-3 border-b border-border">
+              <span className="text-xs font-medium text-muted truncate">
+                {title || 'JSON'}
+              </span>
+              <button
+                onClick={handleCloseExpand}
+                className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-auto flex-1">
+              <CodeMirror
+                value={displayText}
+                extensions={cmExtensions}
+                readOnly
+                basicSetup={cmBasicSetup}
+            theme="none"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

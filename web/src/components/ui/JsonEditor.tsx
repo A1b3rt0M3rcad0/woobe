@@ -1,49 +1,10 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
-import { EditorView } from '@codemirror/view'
 import { Copy, Check, Paintbrush, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatJsonSafely, validateJson, type ValidationResult } from '@/lib/json-utils'
-
-const darkTheme = EditorView.theme(
-  {
-    '&': { backgroundColor: '#020817', color: '#e2e8f0' },
-    '.cm-content': {
-      caretColor: '#3b82f6',
-      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      fontSize: '12px',
-      lineHeight: '1.6',
-    },
-    '.cm-cursor': { borderLeftColor: '#3b82f6' },
-    '.cm-gutters': { backgroundColor: '#020817', borderRight: '1px solid #1e293b', color: '#475569' },
-    '.cm-activeLine': { backgroundColor: '#0f1729' },
-    '.cm-activeLineGutter': { backgroundColor: '#0f1729' },
-    '&.cm-focused': { outline: 'none' },
-    '.cm-selectionBackground': { backgroundColor: '#1e40af40' },
-    '.cm-matchingBracket': { backgroundColor: '#1e293b', outline: '1px solid #334155' },
-    '.cm-tooltip': { backgroundColor: '#0f1729', border: '1px solid #1e293b', color: '#e2e8f0' },
-    '.cm-scroller::-webkit-scrollbar': { width: '5px', height: '5px' },
-    '.cm-scroller::-webkit-scrollbar-track': { background: 'transparent' },
-    '.cm-scroller::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(148, 163, 184, 0.15)', borderRadius: '999px' },
-    '.cm-scroller::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(148, 163, 184, 0.35)' },
-    '.cm-scroller::-webkit-scrollbar-corner': { background: 'transparent' },
-  },
-  { dark: true },
-)
-
-const jsonHighlight = EditorView.theme(
-  {
-    '.ͼ1 .cm-atom': { color: '#c084fc' },
-    '.ͼ1 .cm-number': { color: '#fbbf24' },
-    '.ͼ1 .cm-string': { color: '#4ade80' },
-    '.ͼ1 .cm-keyword': { color: '#f87171' },
-    '.ͼ6': { color: '#f87171' },
-    '.ͼ10 .cm-atom': { color: '#c084fc' },
-    '.ͼ12 .cm-atom': { color: '#c084fc' },
-    'span.ͼ1': { color: '#60a5fa' },
-  },
-)
+import { jsonDarkTheme, jsonSyntaxHighlight } from './json-cm-theme'
 
 interface JsonEditorProps {
   value?: string | null
@@ -212,14 +173,14 @@ export function JsonEditor({
       <div
         className={cn(
           'rounded-lg border scrollbar-thin overflow-auto transition-colors',
-          errorMessage ? 'border-rose-500/50' : validationSuccess ? 'border-emerald-500/50' : 'border-border',
+          errorMessage ? 'border-rose-500/50' : validationSuccess ? 'border-emerald-500/50' : 'border-[#24324A]',
         )}
         style={{ minHeight: `${minHeight}px`, maxHeight: maxH }}
       >
         <CodeMirror
           value={internalValue}
           onChange={handleChange}
-          extensions={[json(), darkTheme, jsonHighlight]}
+          extensions={[json(), jsonDarkTheme, jsonSyntaxHighlight]}
           readOnly={!editable || disabled}
           basicSetup={{
             lineNumbers: true,
@@ -231,7 +192,7 @@ export function JsonEditor({
           className={cn(
             disabled && 'opacity-50 pointer-events-none',
           )}
-          theme="dark"
+          theme="none"
         />
       </div>
       {!hideError && errorMessage && (
