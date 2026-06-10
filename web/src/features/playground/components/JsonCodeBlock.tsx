@@ -21,12 +21,11 @@ export function JsonCodeBlock({ data, title, maxHeight = 'max-h-60', className, 
       )}
       <pre
         className={cn(
-          'rounded-lg border border-border bg-background p-3 text-xs overflow-x-auto overflow-y-auto',
+          'rounded-lg border border-border bg-background p-3 text-xs overflow-y-auto',
           maxHeight,
-          'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
         )}
       >
-        <code className="text-muted whitespace-pre">{text}</code>
+        <code className="text-muted whitespace-pre-wrap break-all">{text}</code>
       </pre>
     </div>
   )
