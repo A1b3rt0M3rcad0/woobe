@@ -13,6 +13,7 @@ import {
   FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { Button } from '@/components/ui/Button'
@@ -73,7 +74,8 @@ export function Sidebar() {
         <span className="font-semibold text-white">ProjectRAI</span>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      <ScrollArea className="flex-1">
+        <nav className="p-3 space-y-1">
         {!orgId ? (
           <div className="px-3 py-6 text-center">
             <p className="text-sm text-muted">Select an organization first</p>
@@ -111,7 +113,8 @@ export function Sidebar() {
             })}
           </>
         )}
-      </nav>
+        </nav>
+      </ScrollArea>
 
       <div className="border-t border-border p-3 space-y-1">
         {bottomItems.map((item) => (

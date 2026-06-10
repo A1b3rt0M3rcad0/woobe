@@ -3,6 +3,7 @@ import { DebugView } from './DebugView'
 import { TraceList } from './TraceList'
 import { TraceDetails } from './TraceDetails'
 import { SessionsPanel } from './SessionsPanel'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { AskResponse, SessionListItem, TraceItem } from '@/features/playground/types'
 
 interface OperationsPanelProps {
@@ -80,7 +81,7 @@ export function OperationsPanel({
     const selectedTrace = selectedTraceId ? traces.find(t => t.id === selectedTraceId) : null
     return (
       <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface flex flex-col">
-        <div className="flex-shrink-0 max-h-[260px] overflow-y-auto border-b border-border">
+        <ScrollArea className="flex-shrink-0 max-h-[260px] border-b border-border">
           <TraceList
             traces={traces}
             selectedTraceId={selectedTraceId}
@@ -91,8 +92,8 @@ export function OperationsPanel({
             onRetry={onTracesRetry}
             hasSessionId={!!sessionId}
           />
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        </ScrollArea>
+        <ScrollArea className="flex-1 min-h-0">
           {selectedTrace ? (
             <TraceDetails
               trace={selectedTrace}
@@ -103,16 +104,16 @@ export function OperationsPanel({
               <p className="text-sm text-muted">Select a trace to view details.</p>
             </div>
           )}
-        </div>
+        </ScrollArea>
       </div>
     )
   }
 
   return (
     <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface">
-      <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden">
+      <ScrollArea className="h-full min-h-0">
         {panelContent()}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

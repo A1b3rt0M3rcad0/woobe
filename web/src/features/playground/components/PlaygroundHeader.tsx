@@ -1,8 +1,9 @@
+import { useRef } from 'react'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
-import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
+import { Dropdown, type DropdownHandle } from '@/components/ui/Dropdown'
+import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft, ChevronDown, Circle } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { formatSessionLabel } from '../utils'
 import type { Agent } from '@/features/agents/types'
@@ -42,10 +43,8 @@ export function PlaygroundHeader({
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
-  const sessionOptions = sessions.map((s) => ({
-    value: s.id,
-    label: formatSessionLabel(s),
-  }))
+  const sessionDropdownRef = useRef<DropdownHandle>(null)
+  const currentSession = sessionId ? sessions.find((s) => s.id === sessionId) ?? null : null
 
   const handleBackToProject = () => {
     if (organizationId && projectId) {
@@ -98,22 +97,47 @@ export function PlaygroundHeader({
             <Plus className="mr-1 h-4 w-4" />
             New Session
           </Button>
-          <Select
-            value={sessionId ?? ''}
-            onChange={(e) => {
-              const val = e.target.value
-              if (val === '__new__') {
-                onNewSession()
-              } else {
-                onSessionSelect(val)
-              }
-            }}
-            options={[
-              { value: '__new__', label: '+ New Session' },
-              ...sessionOptions,
-            ]}
+          <Dropdown
+            ref={sessionDropdownRef}
+            align="end"
             className="min-w-[180px]"
-          />
+            trigger={
+              <button className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-transparent px-3 py-1 text-sm transition-colors cursor-pointer hover:border-primary/30">
+                <span className={currentSession ? 'text-white truncate' : 'text-muted truncate'}>
+                  {currentSession ? formatSessionLabel(currentSession) : 'Select a session'}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+              </button>
+            }
+          >
+            <div className="py-1">
+              <button
+                onClick={() => { onNewSession(); sessionDropdownRef.current?.close() }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-accent transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                New Session
+              </button>
+              {sessions.length > 0 && <div className="mx-2 my-1 border-t border-border" />}
+              {sessions.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => { onSessionSelect(s.id); sessionDropdownRef.current?.close() }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                    s.id === sessionId
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted hover:text-white hover:bg-accent'
+                  }`}
+                >
+                  <Circle className={`h-2 w-2 shrink-0 fill-current ${s.id === sessionId ? 'text-primary' : 'text-muted'}`} />
+                  <span className="truncate text-left flex-1">{formatSessionLabel(s)}</span>
+                  {s.id === sessionId && (
+                    <span className="ml-auto text-[10px] font-medium text-primary uppercase">Active</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Dropdown>
         </div>
 
         <Button variant="outline" size="sm" onClick={onApiClick}>

@@ -11,6 +11,7 @@ import { PanelRightClose } from 'lucide-react'
 import { useAgentEditor } from '../AgentEditorContext'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useUpdateAgent } from '@/features/agents/hooks'
 import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
@@ -141,12 +142,12 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
           </button>
         ))}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <ScrollArea className="flex-1 min-h-0">
         {editorTab === 'agent' && <AgentSettingsTab />}
         {editorTab === 'output' && <OutputSettingsTab />}
         {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
         {editorTab === 'knowledge' && <KnowledgeTab projectId={projectId} agentId={agentId} />}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

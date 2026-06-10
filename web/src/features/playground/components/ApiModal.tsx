@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Badge } from '@/components/ui/Badge'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Key, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Agent } from '@/features/agents/types'
@@ -117,7 +118,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
       className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/60"
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
-      <div className="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-xl border border-border bg-surface shadow-xl">
+      <ScrollArea className="w-full max-w-2xl max-h-[80vh] rounded-xl border border-border bg-surface shadow-xl">
         <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-surface z-10">
           <h2 className="text-sm font-semibold text-white">API Reference</h2>
           <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors">
@@ -157,16 +158,20 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
 
           <div>
             <p className="text-xs font-medium text-muted mb-1">cURL Example</p>
-            <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto text-muted">
-              {ASK_CURL}
-            </pre>
+            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+              <pre className="p-4 text-xs text-muted">
+                {ASK_CURL}
+              </pre>
+            </ScrollArea>
           </div>
 
           <div>
             <p className="text-xs font-medium text-muted mb-1">Response Contract</p>
-            <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto text-muted">
-              {ASK_RESPONSE_EXAMPLE}
-            </pre>
+            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+              <pre className="p-4 text-xs text-muted">
+                {ASK_RESPONSE_EXAMPLE}
+              </pre>
+            </ScrollArea>
           </div>
 
           {jsonEnabled && (
@@ -176,15 +181,19 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
                   <p className="text-xs font-medium text-muted">Structured JSON Output</p>
                   <Badge variant="success" className="text-[10px]">Enabled</Badge>
                 </div>
-                <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto text-muted">
-                  {STRUCTURED_RESPONSE_CURL}
-                </pre>
+                <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+                  <pre className="p-4 text-xs text-muted">
+                    {STRUCTURED_RESPONSE_CURL}
+                  </pre>
+                </ScrollArea>
               </div>
               <div>
                 <p className="text-xs font-medium text-muted mb-1">Expected Response:</p>
-                <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto text-muted">
-                  {STRUCTURED_RESPONSE_EXAMPLE}
-                </pre>
+                <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+                  <pre className="p-4 text-xs text-muted">
+                    {STRUCTURED_RESPONSE_EXAMPLE}
+                  </pre>
+                </ScrollArea>
               </div>
             </>
           )}
@@ -197,7 +206,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
             Manage API Keys
           </Link>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

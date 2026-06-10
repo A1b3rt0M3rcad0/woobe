@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { Bot, ArrowRight } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
 import { ChatComposer } from './ChatComposer'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatCanvasProps {
@@ -28,9 +29,9 @@ export function ChatCanvas({ messages, isSending, onSend }: ChatCanvasProps) {
 
   return (
     <section className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-background">
-      <div
+      <ScrollArea
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative"
+        className="flex-1 min-h-0 relative"
       >
         <div
           className="absolute inset-0 pointer-events-none"
@@ -76,7 +77,7 @@ export function ChatCanvas({ messages, isSending, onSend }: ChatCanvasProps) {
             <div />
           </div>
         )}
-      </div>
+      </ScrollArea>
 
       <ChatComposer isSending={isSending} onSend={onSend} />
     </section>

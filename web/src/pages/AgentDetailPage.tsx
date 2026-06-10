@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Textarea'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { Play, Key, ExternalLink, Pencil } from 'lucide-react'
 
@@ -93,7 +94,8 @@ export default function AgentDetailPage() {
             </div>
             <div>
               <p className="text-sm text-muted mb-1">cURL example</p>
-              <pre className="rounded-lg border border-border bg-background p-4 text-xs overflow-x-auto">
+              <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+                <pre className="p-4 text-xs">
 {`curl -X POST http://localhost:8000/runtime/ask \\
   -H "Authorization: Bearer <API_KEY>" \\
   -H "Content-Type: application/json" \\
@@ -101,7 +103,8 @@ export default function AgentDetailPage() {
   "session_id": "<session_id>",
   "content": "Hello, agent!"
 }'`}
-              </pre>
+                </pre>
+              </ScrollArea>
               <CopyButton text={`curl -X POST http://localhost:8000/runtime/ask -H "Authorization: Bearer <API_KEY>" -H "Content-Type: application/json" -d '{"session_id": "<session_id>", "content": "Hello, agent!"}'`} />
             </div>
             <Link to={p(projectId!, 'api-keys')} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">

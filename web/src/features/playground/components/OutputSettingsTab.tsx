@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Textarea'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useAgentEditor } from '../AgentEditorContext'
 
 const DEFAULT_SCHEMA = `{
@@ -161,9 +162,11 @@ export function OutputSettingsTab() {
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">API Response Preview</p>
-          <pre className="rounded-lg border border-border bg-background p-3 text-xs overflow-x-auto text-muted">
-            {JSON.stringify(previewExample, null, 2)}
-          </pre>
+          <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+            <pre className="p-3 text-xs text-muted">
+              {JSON.stringify(previewExample, null, 2)}
+            </pre>
+          </ScrollArea>
         </div>
       </div>
     </div>

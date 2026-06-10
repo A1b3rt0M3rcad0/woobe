@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 
 interface Column<T> {
   key: string
@@ -24,7 +25,7 @@ export function Table<T>({
   className,
 }: TableProps<T>) {
   return (
-    <div className={cn('w-full overflow-auto', className)}>
+    <ScrollArea orientation="both" className={cn('w-full', className)}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -65,6 +66,6 @@ export function Table<T>({
           )}
         </tbody>
       </table>
-    </div>
+    </ScrollArea>
   )
 }

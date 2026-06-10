@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 
 interface Tab {
   id: string
@@ -18,7 +19,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="flex border-b border-border overflow-x-auto">
+      <ScrollArea orientation="horizontal" className="flex border-b border-border">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -33,7 +34,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
             {tab.label}
           </button>
         ))}
-      </div>
+      </ScrollArea>
       <div className="mt-4">
         {tabs.find((t) => t.id === active)?.content}
       </div>

@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { X } from 'lucide-react'
 
 interface DrawerProps {
@@ -53,9 +54,9 @@ export function Drawer({ open, onClose, children, title, className }: DrawerProp
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6">
+        <ScrollArea className="flex-1 p-6">
           {children}
-        </div>
+        </ScrollArea>
       </div>
     </div>
   )

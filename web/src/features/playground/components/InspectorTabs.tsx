@@ -1,5 +1,6 @@
 import { type ReactNode, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 
 interface TabItem {
   id: string
@@ -51,9 +52,9 @@ export function InspectorTabs({ tabs, defaultTab, onTabChange }: InspectorTabsPr
           </button>
         ))}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <ScrollArea className="flex-1 min-h-0">
         {tabs.find((t) => t.id === active)?.content}
-      </div>
+      </ScrollArea>
     </div>
   )
 }
