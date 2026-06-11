@@ -208,6 +208,7 @@ export function JsonCodeBlock({
                 basicSetup={cmBasicSetup}
                 theme="none"
                 height="100%"
+                className="h-full"
               />
             </div>
           </div>

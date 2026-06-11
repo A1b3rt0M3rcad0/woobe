@@ -20,6 +20,7 @@ export const jsonDarkTheme = EditorView.theme(
     '.cm-selectionBackground': { backgroundColor: '#1e40af40' },
     '.cm-matchingBracket': { backgroundColor: '#1e293b', outline: '1px solid #334155' },
     '.cm-tooltip': { backgroundColor: '#0f1729', border: '1px solid #1e293b', color: '#e2e8f0' },
+    '.cm-scroller': { overflowY: 'auto' },
     '.cm-scroller::-webkit-scrollbar': { width: '5px', height: '5px' },
     '.cm-scroller::-webkit-scrollbar-track': { background: 'transparent' },
     '.cm-scroller::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(148, 163, 184, 0.15)', borderRadius: '999px' },
