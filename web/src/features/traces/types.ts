@@ -1,5 +1,14 @@
 export type TraceStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export interface FallbackInfo {
+  primary_model: string | null
+  primary_provider: string | null
+  primary_error: string
+  fallback_model: string | null
+  fallback_provider: string | null
+  fallback_credential_id: string | null
+}
+
 export interface Trace {
   id: string
   project_id: string
@@ -73,6 +82,8 @@ export interface TraceSummary {
   totalTokens?: number | null
   costUsd?: number | null
   createdAt?: string | null
+  fallbackUsed?: boolean
+  fallbackInfo?: FallbackInfo | null
 }
 
 export interface TraceDetailNormalized extends TraceSummary {

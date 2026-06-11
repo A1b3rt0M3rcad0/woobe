@@ -1,6 +1,7 @@
 import { useState, useRef, useLayoutEffect } from 'react'
 import { useTraceDetail } from '@/features/traces/hooks'
 import { normalizeTraceDetail } from '@/features/traces/normalizers'
+import type { FallbackInfo } from '@/features/traces/types'
 import { X, CheckCircle, XCircle, AlertTriangle, HelpCircle, Copy, ChevronDown, ChevronRight, Bug, RefreshCw, Clock, Cpu, Hash, FileText, Brain } from 'lucide-react'
 import { formatLatency, formatTokens, formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
@@ -139,7 +140,7 @@ function StatusBadge({ status, latencyMs, model, provider, fallbackUsed }: {
   latencyMs?: number | null
   model?: string | null
   provider?: string | null
-  fallbackUsed?: boolean | null
+  fallbackUsed?: boolean
 }) {
   const cfg = statusConfig[status] || statusConfig.completed
   const Icon = cfg.icon
@@ -255,7 +256,7 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
   )
 }
 
-function DetailView({ traceId, status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, outputParseError, events }: {
+function DetailView({ traceId, status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, outputParseError, events, fallbackInfo }: {
   traceId: string
   status: string
   model?: string | null
@@ -267,6 +268,7 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
   parsedOutput?: unknown
   outputParseError?: string | null
   events?: TraceEvent[]
+  fallbackInfo?: FallbackInfo | null
 }) {
   const userEvent = events?.find(e => e.event_type === 'ask.started')
   const userMessage = userEvent?.payload?.message as string | undefined
@@ -283,7 +285,7 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
 
   return (
     <div className="space-y-3 p-4">
-      <StatusBadge status={status} latencyMs={latencyMs} model={model} provider={provider} />
+      <StatusBadge status={status} latencyMs={latencyMs} model={model} provider={provider} fallbackUsed={!!fallbackInfo} />
 
       <UsageInline
         inputTokens={usage?.inputTokens}
@@ -299,6 +301,20 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
             <span className="text-xs font-medium text-red-400">Output Parse Error</span>
           </div>
           <p className="text-xs text-muted break-all">{outputParseError}</p>
+        </div>
+      )}
+
+      {fallbackInfo && (
+        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
+          <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+            <span className="text-muted">Primary:</span>
+            <span className="text-white font-mono text-right truncate">{fallbackInfo.primary_provider}/{fallbackInfo.primary_model}</span>
+            <span className="text-muted">Fallback:</span>
+            <span className="text-white font-mono text-right truncate">{fallbackInfo.fallback_provider}/{fallbackInfo.fallback_model}</span>
+            <span className="text-muted col-span-2">Error:</span>
+            <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{fallbackInfo.primary_error}</span>
+          </div>
         </div>
       )}
 
@@ -403,6 +419,7 @@ function BackendTraceDetail({ traceId, onBack }: { traceId: string; onBack: () =
           parsedOutput={detail.parsedOutput}
           outputParseError={detail.outputParseError}
           events={detail.events}
+          fallbackInfo={detail.fallbackInfo}
         />
       )}
     </div>
@@ -428,7 +445,7 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
           </button>
         </div>
         <div className="px-4 space-y-2">
-          <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} />
+          <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} fallbackUsed={trace.fallback_used} />
           <UsageInline inputTokens={trace.input_tokens} outputTokens={trace.output_tokens} totalTokens={trace.total_tokens} costUsd={trace.cost_usd} />
           <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -454,8 +471,22 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
         </button>
       </div>
       <div className="px-4 space-y-3">
-        <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} />
+        <StatusBadge status={trace.status} latencyMs={trace.latency_ms} model={trace.model} provider={trace.provider} fallbackUsed={trace.fallback_used} />
         <UsageInline inputTokens={trace.input_tokens} outputTokens={trace.output_tokens} totalTokens={trace.total_tokens} costUsd={trace.cost_usd} />
+
+        {trace.fallback_used && trace.fallback_info && (
+          <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
+            <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+              <span className="text-muted">Primary:</span>
+              <span className="text-white font-mono text-right truncate">{trace.fallback_info.primary_provider}/{trace.fallback_info.primary_model}</span>
+              <span className="text-muted">Fallback:</span>
+              <span className="text-white font-mono text-right truncate">{trace.fallback_info.fallback_provider}/{trace.fallback_info.fallback_model}</span>
+              <span className="text-muted col-span-2">Error:</span>
+              <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{trace.fallback_info.primary_error}</span>
+            </div>
+          </div>
+        )}
 
         {response.answer && (
           <div className="rounded-lg border border-border bg-background p-2.5">

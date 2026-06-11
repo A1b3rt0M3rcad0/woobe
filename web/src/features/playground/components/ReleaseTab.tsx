@@ -140,6 +140,9 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
         status: (release.agent_status as 'active' | 'inactive') ?? state.status,
         collectionIds: (release.collection_ids as string[]) ?? state.collectionIds,
         runtimeConfig: (release.runtime_config as Record<string, unknown>) ?? state.runtimeConfig,
+        fallbackProvider: release.fallback_provider ?? state.fallbackProvider,
+        fallbackModel: release.fallback_model ?? state.fallbackModel,
+        fallbackProviderCredentialId: release.fallback_credential_id ?? state.fallbackProviderCredentialId,
       }
       setState(newState)
       setLoadedRelease(release.id, release.version)
@@ -177,6 +180,9 @@ export function ReleaseTab({ agentId, projectId }: ReleaseTabProps) {
         status: (release.agent_status as 'active' | 'inactive') ?? state.status,
         collectionIds: (release.collection_ids as string[]) ?? state.collectionIds,
         runtimeConfig: (release.runtime_config as Record<string, unknown>) ?? state.runtimeConfig,
+        fallbackProvider: release.fallback_provider ?? state.fallbackProvider,
+        fallbackModel: release.fallback_model ?? state.fallbackModel,
+        fallbackProviderCredentialId: release.fallback_credential_id ?? state.fallbackProviderCredentialId,
       }
       const rf = {
         enabled: newState.responseFormat.enabled,

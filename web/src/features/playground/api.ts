@@ -1,6 +1,6 @@
 import { post, get } from '@/lib/api/client'
 import { getToken } from '@/lib/auth/token'
-import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo } from './types'
+import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo, FallbackEventInfo } from './types'
 
 export interface CreateAskJobRequest {
   project_id: string
@@ -42,6 +42,7 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
     model: (rest.model as string) ?? null,
     provider: (rest.provider as string) ?? null,
     fallback_used: (rest.fallback_used as boolean) ?? false,
+    fallback_info: (rest.fallback_info ?? null) as unknown as AskResponse['fallback_info'],
     latency_ms: (rest.latency_ms as number) ?? null,
     parsed_output: (rest.parsed_output as Record<string, unknown>) ?? null,
     output_parse_error: (rest.output_parse_error as string) ?? null,
@@ -71,6 +72,7 @@ export interface StreamCallbacks {
   onMeta: (meta: { session_id?: string | null; trace_id?: string | null }) => void
   onDone: (response: Partial<AskResponse>) => void
   onError: (error: Error) => void
+  onFallback?: (info: FallbackEventInfo) => void
 }
 
 export async function createAskJob(data: CreateAskJobRequest): Promise<{ job_id: string; status: string }> {
@@ -151,6 +153,15 @@ export async function askStream(
           case 'error':
             callbacks.onError(new Error(parsed.message ?? 'Stream error'))
             return
+          case 'fallback':
+            callbacks.onFallback?.({
+              primary_provider: parsed.primary_provider ?? '',
+              primary_model: parsed.primary_model ?? '',
+              fallback_provider: parsed.fallback_provider ?? '',
+              fallback_model: parsed.fallback_model ?? '',
+              error: parsed.error ?? 'Unknown error',
+            })
+            break
         }
       } catch (e) {
         console.warn('[askStream] Failed to parse SSE line:', line, e)

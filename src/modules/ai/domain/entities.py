@@ -131,6 +131,9 @@ class AgentRelease:
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None
+    fallback_provider: str | None = None
+    fallback_model: str | None = None
+    fallback_credential_id: UUID | None = None
     base_url: str | None = None
     temperature: float | None = None
     max_output_tokens: int | None = None

@@ -204,6 +204,9 @@ export interface AgentRelease {
   provider?: string
   model?: string
   provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
   base_url?: string
   temperature?: number
   max_output_tokens?: number
@@ -238,6 +241,9 @@ export interface CreateReleaseRequest {
   provider?: string
   model?: string
   provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
   base_url?: string
   temperature?: number
   max_output_tokens?: number

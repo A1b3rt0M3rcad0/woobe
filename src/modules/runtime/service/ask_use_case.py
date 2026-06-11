@@ -118,13 +118,34 @@ class AskAgentUseCase:
 
         messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
 
+        fallback_used = False
+        fallback_info_result: dict | None = None
+        fallback_provider_val: str | None = None
+
         try:
             llm_latency_start = time.monotonic()
             result = await chat_model.ainvoke(messages)
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
         except Exception as e:
-            await self._fail_trace(trace_id, str(e))
-            raise ValueError(f"AI provider error: {e}") from e
+            primary_error = str(e)
+
+            if agent.fallback_model and agent.fallback_credential_id:
+                try:
+                    await self._emit_fallback_triggered_event(trace_id, agent, primary_error)
+                    fallback_result, fb_provider_val, fallback_latency, fallback_info_result = await self._try_fallback(
+                        agent, messages, json_enabled, primary_error,
+                    )
+                    result = fallback_result
+                    llm_latency_ms = fallback_latency
+                    fallback_used = True
+                    fallback_provider_val = fb_provider_val
+                except Exception as fb_e:
+                    combined_error = f"Primary: {primary_error} | Fallback: {fb_e}"
+                    await self._fail_trace(trace_id, combined_error)
+                    raise ValueError(f"AI provider error: {combined_error}") from fb_e
+            else:
+                await self._fail_trace(trace_id, primary_error)
+                raise ValueError(f"AI provider error: {primary_error}") from e
 
         answer = result.content if hasattr(result, "content") else str(result)
 
@@ -158,8 +179,11 @@ class AskAgentUseCase:
         )
 
         response_meta = getattr(result, "response_metadata", None) or {}
-        response_model = response_meta.get("model", agent.model)
-        response_provider = response_meta.get("provider", agent.provider.value if hasattr(agent.provider, "value") else agent.provider)
+        response_model = response_meta.get("model", agent.fallback_model if fallback_used else agent.model)
+        if fallback_used and fallback_provider_val:
+            response_provider = response_meta.get("provider", fallback_provider_val)
+        else:
+            response_provider = response_meta.get("provider", agent.provider.value if hasattr(agent.provider, "value") else agent.provider)
 
         message_id = None
         if session:
@@ -186,6 +210,8 @@ class AskAgentUseCase:
                 parsed_output=parsed_output,
                 output_parse_error=output_parse_error,
                 tool_calls=[],
+                fallback_used=fallback_used,
+                fallback_info=fallback_info_result,
             )
         except Exception as e:
             logger.warning("Failed to complete trace: %s", e)
@@ -202,7 +228,8 @@ class AskAgentUseCase:
             trace_id=trace_id,
             model=response_model,
             provider=response_provider,
-            fallback_used=False,
+            fallback_used=fallback_used,
+            fallback_info=fallback_info_result,
             latency_ms=total_latency,
             parsed_output=parsed_output,
             output_parse_error=output_parse_error,
@@ -251,6 +278,13 @@ class AskAgentUseCase:
             agent.model = release.model
         if release.provider_credential_id is not None:
             agent.provider_credential_id = release.provider_credential_id
+        if release.fallback_provider is not None:
+            from modules.ai.domain.enums import Provider
+            agent.fallback_provider = Provider(release.fallback_provider) if isinstance(release.fallback_provider, str) else release.fallback_provider
+        if release.fallback_model is not None:
+            agent.fallback_model = release.fallback_model
+        if release.fallback_credential_id is not None:
+            agent.fallback_credential_id = release.fallback_credential_id
         if release.temperature is not None:
             agent.temperature = release.temperature
         if release.max_output_tokens is not None:
@@ -283,6 +317,13 @@ class AskAgentUseCase:
         if snapshot.get("session_mode") is not None:
             from modules.ai.domain.enums import SessionMode
             agent.session_mode = SessionMode(snapshot["session_mode"]) if isinstance(snapshot["session_mode"], str) else snapshot["session_mode"]
+        if snapshot.get("fallback_provider"):
+            from modules.ai.domain.enums import Provider
+            agent.fallback_provider = Provider(snapshot["fallback_provider"]) if isinstance(snapshot["fallback_provider"], str) else snapshot["fallback_provider"]
+        if snapshot.get("fallback_model"):
+            agent.fallback_model = snapshot["fallback_model"]
+        if snapshot.get("fallback_credential_id"):
+            agent.fallback_credential_id = UUID(snapshot["fallback_credential_id"]) if isinstance(snapshot["fallback_credential_id"], str) else snapshot["fallback_credential_id"]
         return agent
 
     async def _load_credential(self, agent: Agent) -> ProviderCredential:
@@ -291,10 +332,7 @@ class AskAgentUseCase:
             raise ValidationError(
                 "Agent has no provider credential configured"
             )
-        credential = await self._credential_repo.get_by_id(agent.provider_credential_id)
-        if not credential:
-            raise CredentialNotFoundError(agent.provider_credential_id)
-        return credential
+        return await self._load_credential_by_id(agent.provider_credential_id)
 
     def _decrypt_api_key(self, credential: ProviderCredential) -> str:
         try:
@@ -308,24 +346,7 @@ class AskAgentUseCase:
 
     def _resolve_base_url(self, agent: Agent, credential: ProviderCredential) -> str | None:
         provider_val = agent.provider.value if hasattr(agent.provider, "value") else agent.provider
-        if provider_val == "custom":
-            base_url = (
-                (agent.settings or {}).get("base_url")
-                or (credential.metadata or {}).get("base_url")
-            )
-            if not base_url:
-                from shared.domain.errors import ValidationError
-                raise ValidationError(
-                    "Custom provider requires base_url in credential metadata or agent settings"
-                )
-            model = agent.model or (credential.metadata or {}).get("model")
-            if not model:
-                from shared.domain.errors import ValidationError
-                raise ValidationError(
-                    "Custom provider requires model in agent or credential metadata"
-                )
-            return base_url
-        return None
+        return self._resolve_base_url_for_provider(provider_val, credential, agent.settings)
 
     async def _resolve_session(
         self, input_dto: AskInput, agent: Agent
@@ -542,6 +563,89 @@ class AskAgentUseCase:
 
         return trace_id
 
+    async def _load_credential_by_id(self, credential_id: UUID) -> ProviderCredential:
+        credential = await self._credential_repo.get_by_id(credential_id)
+        if not credential:
+            raise CredentialNotFoundError(credential_id)
+        return credential
+
+    def _resolve_base_url_for_provider(
+        self, provider_val: str, credential: ProviderCredential, settings: dict | None
+    ) -> str | None:
+        if provider_val == "custom":
+            base_url = (
+                (settings or {}).get("base_url")
+                or (credential.metadata or {}).get("base_url")
+            )
+            if not base_url:
+                from shared.domain.errors import ValidationError
+                raise ValidationError(
+                    "Custom provider requires base_url in credential metadata or agent settings"
+                )
+            model = (settings or {}).get("model") or (credential.metadata or {}).get("model")
+            if not model:
+                from shared.domain.errors import ValidationError
+                raise ValidationError(
+                    "Custom provider requires model in agent or credential metadata"
+                )
+            return base_url
+        return None
+
+    async def _try_fallback(
+        self, agent: Agent, messages: list, json_enabled: bool, primary_error: str
+    ) -> tuple[Any, str, int, dict]:
+        fallback_provider_val = agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider
+        fallback_credential = await self._load_credential_by_id(agent.fallback_credential_id)
+        fallback_api_key = self._decrypt_api_key(fallback_credential)
+        fallback_base_url = self._resolve_base_url_for_provider(
+            fallback_provider_val, fallback_credential, agent.settings
+        )
+
+        fallback_chat_model = create_chat_model(
+            provider=fallback_provider_val,
+            model=agent.fallback_model,
+            api_key=fallback_api_key,
+            base_url=fallback_base_url,
+            temperature=agent.temperature or 0.2,
+            max_tokens=agent.max_output_tokens or 1000,
+            response_format={"type": "json_object"} if json_enabled else None,
+        )
+
+        llm_start = time.monotonic()
+        fallback_result = await fallback_chat_model.ainvoke(messages)
+        fallback_latency = round((time.monotonic() - llm_start) * 1000)
+
+        fallback_info = {
+            "primary_model": agent.model,
+            "primary_provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+            "primary_error": primary_error,
+            "fallback_model": agent.fallback_model,
+            "fallback_provider": fallback_provider_val,
+            "fallback_credential_id": str(agent.fallback_credential_id),
+        }
+        return fallback_result, fallback_provider_val, fallback_latency, fallback_info
+
+    async def _emit_fallback_triggered_event(self, trace_id: UUID | None, agent: Agent, error: str) -> None:
+        if not trace_id:
+            return
+        try:
+            event = TraceEvent(
+                trace_id=trace_id,
+                project_id=agent.project_id,
+                event_type=TraceEventType.info,
+                payload={
+                    "event": "ask.fallback_triggered",
+                    "primary_model": agent.model,
+                    "primary_provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                    "primary_error": error,
+                    "fallback_model": agent.fallback_model,
+                    "fallback_provider": agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider,
+                },
+            )
+            await self._trace_event_repo.save(event)
+        except Exception as e:
+            logger.warning("Failed to emit fallback triggered event: %s", e)
+
     async def _fail_trace(self, trace_id: UUID | None, error: str) -> None:
         if not trace_id:
             return
@@ -568,6 +672,8 @@ class AskAgentUseCase:
         parsed_output: dict | None = None,
         output_parse_error: str | None = None,
         tool_calls: list | None = None,
+        fallback_used: bool = False,
+        fallback_info: dict | None = None,
     ) -> None:
         if not trace_id:
             return
@@ -579,7 +685,8 @@ class AskAgentUseCase:
                 trace.total_latency_ms = latency_ms
                 trace.model = model
                 trace.provider = provider
-                trace.data = {
+                trace.fallback_used = fallback_used
+                data = {
                     "input_tokens": usage.input_tokens,
                     "output_tokens": usage.output_tokens,
                     "total_tokens": usage.total_tokens,
@@ -589,22 +696,28 @@ class AskAgentUseCase:
                     "parsed_output": parsed_output,
                     "output_parse_error": output_parse_error,
                 }
+                if fallback_info:
+                    data["fallback_info"] = fallback_info
+                trace.data = data
                 logger.info("Trace usage persistence debug", extra={
                     "trace_id": str(trace_id),
                     "data": trace.data,
                 })
                 await self._trace_repo.save(trace)
 
+            completed_payload: dict = {
+                "event": "ask.completed",
+                "answer_length": len(answer),
+                "message_id": str(message_id) if message_id else None,
+            }
+            if fallback_used and fallback_info:
+                completed_payload["fallback_info"] = fallback_info
             event = TraceEvent(
                 trace_id=trace_id,
                 project_id=trace.project_id if trace else uuid.uuid4(),
                 event_type=TraceEventType.info,
                 latency_ms=latency_ms,
-                payload={
-                    "event": "ask.completed",
-                    "answer_length": len(answer),
-                    "message_id": str(message_id) if message_id else None,
-                },
+                payload=completed_payload,
             )
             await self._trace_event_repo.save(event)
         except Exception as e:

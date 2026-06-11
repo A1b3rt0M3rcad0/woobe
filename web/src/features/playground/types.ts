@@ -73,6 +73,23 @@ export interface UsageInfo {
   cost_usd: number | null
 }
 
+export interface FallbackInfo {
+  primary_model: string | null
+  primary_provider: string | null
+  primary_error: string
+  fallback_model: string | null
+  fallback_provider: string | null
+  fallback_credential_id: string | null
+}
+
+export interface FallbackEventInfo {
+  primary_provider: string
+  primary_model: string
+  fallback_provider: string
+  fallback_model: string
+  error: string
+}
+
 export interface AskResponse {
   answer: string
   session_id: string | null
@@ -84,6 +101,7 @@ export interface AskResponse {
   model: string | null
   provider: string | null
   fallback_used: boolean
+  fallback_info?: FallbackInfo | null
   latency_ms: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
@@ -129,4 +147,6 @@ export interface TraceItem {
   cost_usd: number | null
   trace_id: string | null
   response: AskResponse | null
+  fallback_used?: boolean
+  fallback_info?: FallbackInfo | null
 }

@@ -19,6 +19,9 @@ export type AgentEditorState = {
   provider: string
   model: string
   providerCredentialId: string | null
+  fallbackProvider: string
+  fallbackModel: string
+  fallbackProviderCredentialId: string | null
   baseUrl: string | null
   temperature: number
   maxOutputTokens: number
@@ -67,6 +70,9 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
     provider: agent.provider || '',
     model: agent.model || '',
     providerCredentialId: agent.provider_credential_id || null,
+    fallbackProvider: agent.fallback_provider || '',
+    fallbackModel: agent.fallback_model || '',
+    fallbackProviderCredentialId: agent.fallback_credential_id || null,
     baseUrl: (settings.base_url as string) || null,
     temperature: agent.temperature ?? 0.7,
     maxOutputTokens: agent.max_output_tokens ?? 2048,
@@ -101,6 +107,9 @@ function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
     provider: state.provider,
     model: state.model,
     provider_credential_id: state.providerCredentialId,
+    fallback_provider: state.fallbackProvider || undefined,
+    fallback_model: state.fallbackModel || undefined,
+    fallback_credential_id: state.fallbackProviderCredentialId || undefined,
     base_url: state.baseUrl,
     temperature: state.temperature,
     max_output_tokens: state.maxOutputTokens,
@@ -141,6 +150,20 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       return updated
     })
   }, [state.providerCredentialId, credentials])
+
+  useEffect(() => {
+    if (!state.fallbackProviderCredentialId || !credentials || credentials.length === 0) return
+    const cred = credentials.find((c: { id: string }) => c.id === state.fallbackProviderCredentialId)
+    if (!cred) return
+    setState(prev => {
+      const updated = {
+        ...prev,
+        fallbackProvider: cred.provider,
+        fallbackModel: cred.metadata?.model || cred.metadata?.model_name || prev.fallbackModel,
+      }
+      return updated
+    })
+  }, [state.fallbackProviderCredentialId, credentials])
 
   const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
     setState(prev => ({ ...prev, [key]: value }))

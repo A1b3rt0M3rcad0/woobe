@@ -188,6 +188,20 @@ function PlaygroundContent() {
               return updated
             })
           },
+          onFallback: (info) => {
+            accumulatedRef.current = ''
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, content: '' }
+              }
+              return updated
+            })
+            toast.info(
+              `Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`,
+            )
+          },
         },
       )
     } catch (err) {

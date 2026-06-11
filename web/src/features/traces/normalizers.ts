@@ -1,4 +1,5 @@
 import type {
+  FallbackInfo,
   Trace,
   TraceDetail,
   TraceDetailNormalized,
@@ -44,6 +45,19 @@ function safeNumber(val: unknown): number | null {
   return null
 }
 
+function normalizeFallbackInfo(raw: unknown): FallbackInfo | null {
+  if (!raw || typeof raw !== 'object') return null
+  const fb = raw as Record<string, unknown>
+  return {
+    primary_model: (fb.primary_model as string) ?? null,
+    primary_provider: (fb.primary_provider as string) ?? null,
+    primary_error: (fb.primary_error as string) ?? '',
+    fallback_model: (fb.fallback_model as string) ?? null,
+    fallback_provider: (fb.fallback_provider as string) ?? null,
+    fallback_credential_id: (fb.fallback_credential_id as string) ?? null,
+  }
+}
+
 export function normalizeTraceSummary(raw: Trace): TraceSummary {
   const data = (raw.data ?? {}) as Record<string, unknown>
   return {
@@ -61,6 +75,8 @@ export function normalizeTraceSummary(raw: Trace): TraceSummary {
     totalTokens: safeNumber(data.total_tokens),
     costUsd: safeNumber(data.cost_usd ?? raw.total_cost_usd),
     createdAt: raw.created_at ?? null,
+    fallbackUsed: raw.fallback_used ?? false,
+    fallbackInfo: normalizeFallbackInfo(data.fallback_info),
   }
 }
 

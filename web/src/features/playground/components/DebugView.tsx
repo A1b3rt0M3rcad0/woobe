@@ -216,6 +216,21 @@ export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) 
       {/* ── Usage inline ── */}
       <UsageInline usage={lastResponse.usage} />
 
+      {/* ── Fallback details ── */}
+      {lastResponse.fallback_used && lastResponse.fallback_info && (
+        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
+          <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+            <span className="text-muted">Primary:</span>
+            <span className="text-white font-mono text-right truncate">{lastResponse.fallback_info.primary_provider}/{lastResponse.fallback_info.primary_model}</span>
+            <span className="text-muted">Fallback:</span>
+            <span className="text-white font-mono text-right truncate">{lastResponse.fallback_info.fallback_provider}/{lastResponse.fallback_info.fallback_model}</span>
+            <span className="text-muted col-span-2">Error:</span>
+            <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{lastResponse.fallback_info.primary_error}</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Answer ── */}
       {lastResponse.answer && (
         <div className="rounded-lg border border-border bg-background p-2.5 mt-2.5">

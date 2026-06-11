@@ -57,15 +57,18 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
   const { state, setField } = useAgentEditor()
 
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
+  const [fallbackSelectedCredential, setFallbackSelectedCredential] = useState<ProviderCredential | null>(null)
   const [showAddCredential, setShowAddCredential] = useState(false)
-  const [fallbackProvider, setFallbackProvider] = useState('')
-  const [fallbackModel, setFallbackModel] = useState('')
-  const [fallbackCredentialId, setFallbackCredentialId] = useState('')
 
   useEffect(() => {
     const cred = credentials.find(c => c.id === state.providerCredentialId) || null
     setSelectedCredential(cred)
   }, [state.providerCredentialId, credentials])
+
+  useEffect(() => {
+    const cred = credentials.find(c => c.id === state.fallbackProviderCredentialId) || null
+    setFallbackSelectedCredential(cred)
+  }, [state.fallbackProviderCredentialId, credentials])
 
   const handleSelectCredential = (id: string) => {
     const cred = credentials.find(c => c.id === id)
@@ -84,6 +87,21 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
     setField('model', '')
   }
 
+  const handleSelectFallbackCredential = (id: string) => {
+    const cred = credentials.find(c => c.id === id)
+    if (cred) {
+      setFallbackSelectedCredential(cred)
+      setField('fallbackProviderCredentialId', cred.id)
+    }
+  }
+
+  const handleRemoveFallbackCredential = () => {
+    setFallbackSelectedCredential(null)
+    setField('fallbackProviderCredentialId', null)
+    setField('fallbackProvider', '')
+    setField('fallbackModel', '')
+  }
+
   const handleCredentialCreated = async (newId: string) => {
     setShowAddCredential(false)
     await refetchCredentials()
@@ -99,6 +117,12 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
     ? (selectedCredential.provider === 'openai' || selectedCredential.provider === 'anthropic' || selectedCredential.provider === 'google')
     : false
   const availableModels = isStandard ? (modelOptions[selectedCredential!.provider] || []) : []
+
+  const isFallbackCustom = fallbackSelectedCredential?.provider === 'custom'
+  const isFallbackStandard = fallbackSelectedCredential
+    ? (fallbackSelectedCredential.provider === 'openai' || fallbackSelectedCredential.provider === 'anthropic' || fallbackSelectedCredential.provider === 'google')
+    : false
+  const availableFallbackModels = isFallbackStandard ? (modelOptions[fallbackSelectedCredential!.provider] || []) : []
 
   const customMissingModel = isCustom && !getCredentialModel(selectedCredential!)
   const customMissingBaseUrl = isCustom && !getCredentialBaseUrl(selectedCredential!)
@@ -261,56 +285,84 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Fallback</p>
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">Fallback Provider</label>
-            <Select
-              value={fallbackProvider}
-              onChange={(e) => setFallbackProvider(e.target.value)}
-              options={[
-                { value: '', label: 'None' },
-                { value: 'openai', label: 'OpenAI' },
-                { value: 'anthropic', label: 'Anthropic' },
-                { value: 'google', label: 'Google' },
-              ]}
-            />
-          </div>
-          {fallbackProvider === 'openai' && (
+          <p className="text-xs text-muted">When the primary model fails, the system will retry using this fallback configuration.</p>
+
+          {fallbackSelectedCredential ? (
+            <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{providerLabels[fallbackSelectedCredential.provider] || fallbackSelectedCredential.provider}</Badge>
+                  <span className="text-sm font-medium">{fallbackSelectedCredential.name}</span>
+                </div>
+                <Badge variant={fallbackSelectedCredential.status === 'active' ? 'success' : 'secondary'}>
+                  {fallbackSelectedCredential.status || 'active'}
+                </Badge>
+              </div>
+              {isFallbackCustom && (
+                <div className="text-xs text-muted space-y-1">
+                  {getCredentialModel(fallbackSelectedCredential) ? (
+                    <p>Model: <code className="bg-background px-1 rounded">{getCredentialModel(fallbackSelectedCredential)}</code></p>
+                  ) : (
+                    <p className="text-red-400">Model not configured</p>
+                  )}
+                  {getCredentialBaseUrl(fallbackSelectedCredential) ? (
+                    <p>Base URL: <code className="bg-background px-1 rounded">{getCredentialBaseUrl(fallbackSelectedCredential)}</code></p>
+                  ) : null}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setFallbackSelectedCredential(null)}>Change</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={handleRemoveFallbackCredential}>Remove</Button>
+              </div>
+            </div>
+          ) : state.fallbackProviderCredentialId && state.fallbackProvider && state.fallbackModel ? (
+            <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{providerLabels[state.fallbackProvider] || state.fallbackProvider}</Badge>
+                <span className="text-sm font-medium">{state.fallbackProvider}/{state.fallbackModel}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setFallbackSelectedCredential(null)}>Change</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={handleRemoveFallbackCredential}>Remove</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Select
+                value=""
+                onChange={(e) => handleSelectFallbackCredential(e.target.value)}
+                options={[
+                  { value: '', label: 'None (no fallback)' },
+                  ...credentials.map(c => ({
+                    value: c.id,
+                    label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
+                  })),
+                ]}
+              />
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
+                Add credential
+              </Button>
+            </div>
+          )}
+
+          {fallbackSelectedCredential && isFallbackStandard && (
             <div>
               <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
               <Select
-                value={fallbackModel}
-                onChange={(e) => setFallbackModel(e.target.value)}
+                value={state.fallbackModel}
+                onChange={(e) => setField('fallbackModel', e.target.value)}
                 options={[
-                  { value: '', label: 'None' },
-                  ...modelOptions.openai,
+                  { value: '', label: 'Select a model' },
+                  ...availableFallbackModels,
                 ]}
               />
             </div>
           )}
-          {fallbackProvider === 'anthropic' && (
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
-              <Select
-                value={fallbackModel}
-                onChange={(e) => setFallbackModel(e.target.value)}
-                options={[
-                  { value: '', label: 'None' },
-                  ...modelOptions.anthropic,
-                ]}
-              />
-            </div>
-          )}
-          {fallbackProvider === 'google' && (
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1">Fallback Model</label>
-              <Select
-                value={fallbackModel}
-                onChange={(e) => setFallbackModel(e.target.value)}
-                options={[
-                  { value: '', label: 'None' },
-                  ...modelOptions.google,
-                ]}
-              />
+
+          {fallbackSelectedCredential && isFallbackCustom && (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-xs text-muted mb-2">Fallback model is defined by the credential.</p>
+              <p className="text-sm">Selected: <code className="bg-background px-1 rounded">{state.fallbackModel || getCredentialModel(fallbackSelectedCredential)}</code></p>
             </div>
           )}
         </div>
