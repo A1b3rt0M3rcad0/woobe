@@ -53,6 +53,7 @@ function PlaygroundContent() {
 
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
+  const syncedSessionRef = useRef<string | null>(null)
 
   const {
     data: backendTraces = [],
@@ -63,23 +64,25 @@ function PlaygroundContent() {
   } = usePlaygroundTraces(projectId, agentId, sessionId)
 
   const selectedSessionId = sessionId
-  const { data: historyMessages, refetch: refetchHistory } = useSessionMessages(
+  const { data: historyMessages } = useSessionMessages(
     selectedSessionId ?? undefined,
   )
 
   useEffect(() => {
-    if (historyMessages && selectedSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
         ...(m.role === 'assistant' ? { model: null, provider: null } : {}),
       }))
+      syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, selectedSessionId])
+  }, [historyMessages, selectedSessionId, isSending])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
+    syncedSessionRef.current = null
     cancelStream()
     setSessionId(sessionIdValue)
     setLastResponse(null)
@@ -88,6 +91,7 @@ function PlaygroundContent() {
   }, [cancelStream])
 
   const handleNewSession = useCallback(() => {
+    syncedSessionRef.current = null
     cancelStream()
     setSessionId(null)
     setMessages([])
@@ -194,7 +198,7 @@ function PlaygroundContent() {
             refetchSessions()
             refetchTraces()
             if (meta.session_id) {
-              setTimeout(() => refetchHistory(), 100)
+              syncedSessionRef.current = meta.session_id
             }
             if (meta.trace_id) {
               setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
