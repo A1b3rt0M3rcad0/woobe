@@ -151,7 +151,7 @@ export function OutputSettingsTab() {
             value={previewExample}
             title="Preview"
             maxHeight={480}
-            actions={['copy', 'format', 'collapse']}
+            actions={['copy', 'format', 'expand']}
           />
         </div>
       </div>
