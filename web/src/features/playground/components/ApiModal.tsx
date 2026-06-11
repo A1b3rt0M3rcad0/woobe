@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/Badge'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Key, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { Agent } from '@/features/agents/types'
 
 interface ApiModalProps {
@@ -66,35 +66,6 @@ const STRUCTURED_RESPONSE_CURL = `curl -X POST http://localhost:8000/runtime/ask
   "session_id": "<session_id>"
 }'`
 
-const STRUCTURED_RESPONSE_EXAMPLE = `{
-  "success": true,
-  "data": {
-    "answer": "{\\"category\\": \\"support\\", \\"priority\\": \\"high\\", \\"summary\\": \\"...\\", \\"should_escalate\\": true}",
-    "session_id": "uuid",
-    "message_id": "uuid",
-    "usage": {
-      "input_tokens": 58,
-      "output_tokens": 22,
-      "total_tokens": 80,
-      "cost_usd": 0.0005
-    },
-    "sources": [],
-    "tool_calls": [],
-    "trace_id": "uuid",
-    "model": "gpt-4o-mini",
-    "provider": "openai",
-    "fallback_used": false,
-    "latency_ms": 1024,
-    "parsed_output": {
-      "category": "support",
-      "priority": "high",
-      "summary": "Customer needs help with billing.",
-      "should_escalate": true
-    },
-    "output_parse_error": null
-  }
-}`
-
 export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: ApiModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -107,11 +78,71 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  const responseFormat = getResponseFormat(agent)
+  const jsonEnabled = Boolean(responseFormat?.enabled && responseFormat?.type === 'json')
+
+  const structuredResponseExample = useMemo(() => {
+    const rawSchema = responseFormat?.schema
+
+    let schemaStr: string
+    let schemaObj: Record<string, unknown> | null
+
+    if (typeof rawSchema === 'string') {
+      schemaStr = rawSchema
+      try {
+        schemaObj = JSON.parse(rawSchema) as Record<string, unknown>
+      } catch {
+        schemaObj = null
+      }
+    } else if (rawSchema && typeof rawSchema === 'object') {
+      schemaStr = JSON.stringify(rawSchema, null, 2)
+      schemaObj = rawSchema as Record<string, unknown>
+    } else {
+      const defaultSchema = {
+        type: 'object',
+        properties: {
+          category: { type: 'string', enum: ['support', 'sales', 'bug', 'other'] },
+          summary: { type: 'string' },
+          confidence: { type: 'number' },
+        },
+        required: ['category', 'summary'],
+      }
+      schemaStr = JSON.stringify(defaultSchema, null, 2)
+      schemaObj = defaultSchema
+    }
+
+    return JSON.stringify(
+      {
+        success: true,
+        data: {
+          answer: schemaStr,
+          session_id: 'uuid',
+          message_id: 'uuid',
+          usage: {
+            input_tokens: 58,
+            output_tokens: 22,
+            total_tokens: 80,
+            cost_usd: 0.0005,
+          },
+          sources: [],
+          tool_calls: [],
+          trace_id: 'uuid',
+          model: 'gpt-4o-mini',
+          provider: 'openai',
+          fallback_used: false,
+          latency_ms: 1024,
+          parsed_output: schemaObj,
+          output_parse_error: null,
+        },
+      },
+      null,
+      2,
+    )
+  }, [responseFormat])
+
   if (!open) return null
 
   const p = orgProjectPathFn
-  const responseFormat = getResponseFormat(agent)
-  const jsonEnabled = Boolean(responseFormat?.enabled && responseFormat?.type === 'json')
 
   return (
     <div
@@ -186,7 +217,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
               </div>
               <div>
                 <p className="text-xs font-medium text-muted mb-1">Expected Response:</p>
-                <JsonCodeBlock value={STRUCTURED_RESPONSE_EXAMPLE} maxHeight={480} actions={['copy', 'format']} />
+                <JsonCodeBlock value={structuredResponseExample} maxHeight={480} actions={['copy', 'format']} />
               </div>
             </>
           )}
