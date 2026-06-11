@@ -3,6 +3,7 @@ import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDo
 import { formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
+import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatMessageProps {
@@ -53,34 +54,43 @@ export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) 
             <Loader2 className="h-4 w-4 animate-spin" />
             Thinking...
           </div>
-        ) : (
-          <div
-            className={cn(
-              'rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
-              isUser
-                ? 'bg-primary text-white rounded-br-md'
-                : 'bg-accent text-white rounded-bl-md',
-            )}
-          >
+        ) : isUser ? (
+          <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-primary text-white rounded-br-md">
             {message.content}
           </div>
-        )}
+        ) : message.parsed_output ? (
+          <JsonCodeBlock value={message.parsed_output} maxHeight={160} />
+        ) : (() => {
+          const { isPureJson, segments } = parseAssistantMessageContent(message.content)
+          if (isPureJson && segments[0].type === 'json') {
+            return <JsonCodeBlock value={segments[0].value} maxHeight={160} />
+          }
+          if (segments.length === 1 && segments[0].type === 'text') {
+            return (
+              <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
+                {message.content}
+              </div>
+            )
+          }
+          return (
+            <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
+              {segments.map((seg, i) =>
+                seg.type === 'text' ? (
+                  <span key={i}>{seg.content}</span>
+                ) : (
+                  <div key={i} className="my-2">
+                    <JsonCodeBlock value={seg.value} maxHeight={160} />
+                  </div>
+                )
+              )}
+            </div>
+          )
+        })()}
 
         {!isUser && !isStreaming && (
           <>
             {message.sources && message.sources.length > 0 && (
               <SourcesCollapsible sources={message.sources} />
-            )}
-
-            {message.parsed_output && (
-              <div className="mt-2">
-                <JsonCodeBlock
-                  value={message.parsed_output}
-                  title="Structured Output"
-                  maxHeight={160}
-                  className="border-l-2 border-emerald-500/30 pl-2"
-                />
-              </div>
             )}
 
             <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
