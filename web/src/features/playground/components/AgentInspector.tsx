@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Save, RotateCcw } from 'lucide-react'
+import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentSettingsTab } from './AgentSettingsTab'
 import { ModelSettingsTab } from './ModelSettingsTab'
 import { KnowledgeTab } from './KnowledgeTab'
+import { ToolsTab } from './ToolsTab'
 import { OutputSettingsTab } from './OutputSettingsTab'
 import { ReleaseTab } from './ReleaseTab'
 import { PanelRightClose } from 'lucide-react'
@@ -30,6 +31,7 @@ const editorSubTabs = [
   { id: 'output', label: 'Output', icon: <FileJson className="h-3 w-3" /> },
   { id: 'model', label: 'Model', icon: <Cpu className="h-3 w-3" /> },
   { id: 'knowledge', label: 'Knowledge', icon: <BookOpen className="h-3 w-3" /> },
+  { id: 'tools', label: 'Tools', icon: <Wrench className="h-3 w-3" /> },
 ]
 
 function EditorHeader() {
@@ -150,6 +152,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
         {editorTab === 'output' && <OutputSettingsTab />}
         {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
         {editorTab === 'knowledge' && <KnowledgeTab projectId={projectId} agentId={agentId} />}
+        {editorTab === 'tools' && <ToolsTab projectId={projectId} agentId={agentId} />}
       </ScrollArea>
     </div>
   )
