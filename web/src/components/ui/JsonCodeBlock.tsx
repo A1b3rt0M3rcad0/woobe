@@ -177,26 +177,37 @@ export function JsonCodeBlock({
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72"
           onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
         >
-          <div className="relative w-full max-w-5xl max-h-[85vh] m-4 rounded-xl border border-[#24324A] bg-surface shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between shrink-0 px-4 py-3 border-b border-border">
+          <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[#24324A] bg-surface shadow-2xl">
+            <div className="flex items-center justify-between shrink-0 px-5 py-4 border-b border-border">
               <span className="text-xs font-medium text-muted truncate">
                 {title || 'JSON'}
               </span>
-              <button
-                onClick={handleCloseExpand}
-                className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleCopy}
+                  className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors"
+                  title={copied ? 'Copied!' : 'Copy'}
+                  aria-label="Copy JSON"
+                >
+                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={handleCloseExpand}
+                  className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <div className="overflow-auto flex-1">
+            <div className="flex-1 min-h-0">
               <CodeMirror
                 value={displayText}
                 extensions={cmExtensions}
                 readOnly
                 basicSetup={cmBasicSetup}
-            theme="none"
+                theme="none"
+                height="100%"
               />
             </div>
           </div>
