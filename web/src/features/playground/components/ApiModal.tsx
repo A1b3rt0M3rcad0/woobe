@@ -147,7 +147,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/60"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <ScrollArea className="w-full max-w-2xl max-h-[80vh] rounded-xl border border-border bg-surface shadow-xl">

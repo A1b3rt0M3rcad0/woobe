@@ -172,7 +172,7 @@ export function StructuredJsonResponse({
       {expanded && (
         <div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72 backdrop-blur-sm"
           onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
         >
           <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[rgba(148,163,184,0.22)] bg-[#0f172a] shadow-2xl">

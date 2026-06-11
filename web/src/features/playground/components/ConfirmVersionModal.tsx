@@ -49,7 +49,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl">

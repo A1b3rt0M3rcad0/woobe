@@ -33,7 +33,7 @@ export function Drawer({ open, onClose, children, title, className }: DrawerProp
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex bg-black/60"
+      className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div className="flex-1" />

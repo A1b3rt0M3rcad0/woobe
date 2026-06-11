@@ -174,7 +174,7 @@ export function JsonCodeBlock({
       {expanded && (
         <div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72 backdrop-blur-sm"
           onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
         >
           <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[#24324A] bg-surface shadow-2xl">
