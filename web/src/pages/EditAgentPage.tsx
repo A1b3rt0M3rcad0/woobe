@@ -207,17 +207,17 @@ export default function EditAgentPage() {
     if (!selectedCredential) return 'Select a provider credential to continue.'
     if (!nameValue) return 'Agent name is required.'
     if (!projectId) return 'Project ID is missing.'
-    if (isCustom) {
-      if (!getCredentialModel(selectedCredential!)) return 'Custom credentials require a model in their metadata.'
-      if (!getCredentialBaseUrl(selectedCredential!)) return 'Custom credentials require a base URL.'
+    if (isCustom && selectedCredential) {
+      if (!getCredentialModel(selectedCredential)) return 'Custom credentials require a model in their metadata.'
+      if (!getCredentialBaseUrl(selectedCredential)) return 'Custom credentials require a base URL.'
     }
     if (isStandard && !form.watch('model')) return 'Select a model to continue.'
     return null
   }
 
   const reason = disabledReason()
-  const customMissingModel = isCustom && !getCredentialModel(selectedCredential!)
-  const customMissingBaseUrl = isCustom && !getCredentialBaseUrl(selectedCredential!)
+  const customMissingModel = isCustom && selectedCredential && !getCredentialModel(selectedCredential)
+  const customMissingBaseUrl = isCustom && selectedCredential && !getCredentialBaseUrl(selectedCredential)
 
   if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={() => navigate(p(projectId!, 'agents'))} />
