@@ -4,12 +4,13 @@ import { TraceList } from './TraceList'
 import { TraceDetails } from './TraceDetails'
 import { SessionsPanel } from './SessionsPanel'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import type { AskResponse, SessionListItem, TraceItem } from '@/features/playground/types'
+import type { AskResponse, RawStreamEvent, SessionListItem, TraceItem } from '@/features/playground/types'
 
 interface OperationsPanelProps {
   activeTab: LeftPanelTab | null
   lastResponse: AskResponse | null
   lastRequestPayload: Record<string, unknown> | null
+  rawEvents: RawStreamEvent[]
   traces: TraceItem[]
   selectedTraceId: string | null
   sessions: SessionListItem[]
@@ -27,6 +28,7 @@ export function OperationsPanel({
   activeTab,
   lastResponse,
   lastRequestPayload,
+  rawEvents,
   traces,
   selectedTraceId,
   sessions,
@@ -44,7 +46,7 @@ export function OperationsPanel({
   const panelContent = () => {
     switch (activeTab) {
       case 'debug':
-        return <DebugView lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} />
+        return <DebugView lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} />
       case 'traces':
         return selectedTraceId && traces.find(t => t.id === selectedTraceId) ? (
           <TraceDetails

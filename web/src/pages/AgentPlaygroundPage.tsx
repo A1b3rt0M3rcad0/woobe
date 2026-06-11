@@ -16,7 +16,7 @@ import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
+import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEvent } from '@/features/playground/types'
 
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
@@ -41,6 +41,8 @@ function PlaygroundContent() {
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
+  const [rawEvents, setRawEvents] = useState<RawStreamEvent[]>([])
+  const rawEventsRef = useRef<RawStreamEvent[]>([])
 
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(true)
@@ -81,6 +83,7 @@ function PlaygroundContent() {
     cancelStream()
     setSessionId(sessionIdValue)
     setLastResponse(null)
+    setRawEvents([])
     setSelectedTraceId(null)
   }, [cancelStream])
 
@@ -89,6 +92,7 @@ function PlaygroundContent() {
     setSessionId(null)
     setMessages([])
     setLastResponse(null)
+    setRawEvents([])
     setSelectedTraceId(null)
   }, [cancelStream])
 
@@ -97,6 +101,7 @@ function PlaygroundContent() {
 
     accumulatedRef.current = ''
     metadataRef.current = {}
+    rawEventsRef.current = []
 
     const userMsg: ChatMessage = { role: 'user', content }
     const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
@@ -120,6 +125,7 @@ function PlaygroundContent() {
         requestPayload as any,
         {
           onMeta: (meta) => {
+            rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
             if (meta.session_id) {
               setSessionId(meta.session_id)
             }
@@ -128,6 +134,7 @@ function PlaygroundContent() {
             }
           },
           onToken: (token) => {
+            rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: { content: token } })
             accumulatedRef.current += token
             setMessages((prev) => {
               const updated = [...prev]
@@ -139,9 +146,11 @@ function PlaygroundContent() {
             })
           },
           onSources: (sources) => {
+            rawEventsRef.current.push({ type: 'sources', timestamp: new Date().toISOString(), payload: { sources } })
             metadataRef.current.sources = sources
           },
           onToolCall: (info) => {
+            rawEventsRef.current.push({ type: 'tool_call', timestamp: new Date().toISOString(), payload: info })
             setMessages((prev) => {
               const updated = [...prev]
               const last = updated[updated.length - 1]
@@ -156,6 +165,8 @@ function PlaygroundContent() {
             })
           },
           onDone: (response) => {
+            rawEventsRef.current.push({ type: 'done', timestamp: new Date().toISOString(), payload: response })
+            setRawEvents([...rawEventsRef.current])
             const meta = response
             if (meta.session_id) {
               setSessionId(meta.session_id)
@@ -190,6 +201,8 @@ function PlaygroundContent() {
             }
           },
           onError: (error) => {
+            rawEventsRef.current.push({ type: 'error', timestamp: new Date().toISOString(), payload: { message: error.message } })
+            setRawEvents([...rawEventsRef.current])
             toast.error(error.message)
             setMessages((prev) => {
               const updated = [...prev]
@@ -204,6 +217,7 @@ function PlaygroundContent() {
             })
           },
           onFallback: (info) => {
+            rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
             accumulatedRef.current = ''
             setMessages((prev) => {
               const updated = [...prev]
@@ -254,6 +268,8 @@ function PlaygroundContent() {
         cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null,
         trace_id: t.id,
         response: null,
+        project_id: t.project_id,
+        agent_id: t.agent_id,
       }
     })
     mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -315,6 +331,7 @@ function PlaygroundContent() {
               activeTab={leftPanelTab}
               lastResponse={lastResponse}
               lastRequestPayload={lastRequestPayload}
+              rawEvents={rawEvents}
               traces={traces}
               selectedTraceId={selectedTraceId}
               sessions={sessions}

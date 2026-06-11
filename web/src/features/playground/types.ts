@@ -135,6 +135,12 @@ export interface ChatMessage {
   created_at?: string | null
 }
 
+export interface RawStreamEvent {
+  type: string
+  timestamp: string
+  payload: unknown
+}
+
 export interface TraceItem {
   id: string
   title: string
@@ -151,4 +157,6 @@ export interface TraceItem {
   response: AskResponse | null
   fallback_used?: boolean
   fallback_info?: FallbackInfo | null
+  project_id?: string
+  agent_id?: string
 }
