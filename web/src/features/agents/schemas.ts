@@ -10,6 +10,7 @@ export const createAgentSchema = z.object({
   max_output_tokens: z.coerce.number().min(1).optional(),
   provider_credential_id: z.string().optional(),
   session_mode: z.enum(['stateful', 'stateless']).default('stateful'),
+  status: z.enum(['active', 'inactive', 'archived']).default('active'),
 }).superRefine((data, ctx) => {
   if (data.provider && data.provider !== 'custom') {
     if (!data.model) {

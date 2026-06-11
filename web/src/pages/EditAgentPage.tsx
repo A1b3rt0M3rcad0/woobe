@@ -17,6 +17,7 @@ import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { toast } from 'sonner'
+import { ArrowLeft } from 'lucide-react'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const modelOptions: Record<string, { value: string; label: string }[]> = {
@@ -96,6 +97,7 @@ export default function EditAgentPage() {
       max_output_tokens: agent.max_output_tokens ?? 2048,
       provider_credential_id: agent.provider_credential_id || '',
       session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless',
+      status: agent.status as 'active' | 'inactive' | 'archived',
     })
     setFormReady(true)
   }, [agent, credentials, form, formReady])
@@ -157,14 +159,6 @@ export default function EditAgentPage() {
     form.setValue('model', '')
   }
 
-  const [status, setStatus] = useState('active')
-
-  useEffect(() => {
-    if (agent) {
-      setStatus(agent.status)
-    }
-  }, [agent])
-
   const onSubmit = async (data: CreateAgentFormData) => {
     if (!selectedCredential) {
       toast.error('Select a provider credential first')
@@ -185,7 +179,7 @@ export default function EditAgentPage() {
         max_output_tokens: data.max_output_tokens,
         provider_credential_id: selectedCredential.id,
         session_mode: data.session_mode || 'stateful',
-        status,
+        status: data.status,
       }
       if (isCustom) {
         const baseUrl = getCredentialBaseUrl(selectedCredential)
@@ -195,7 +189,6 @@ export default function EditAgentPage() {
       }
       await updateAgent.mutateAsync(payload as any)
       toast.success('Agent updated')
-      navigate(p(projectId!, 'agents', agentId!, 'playground'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update agent')
     }
@@ -228,34 +221,39 @@ export default function EditAgentPage() {
       <PageHeader
         title="Edit Agent"
         description={`Update configuration for ${agent.name}`}
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to Playground
+          </Button>
+        }
       />
 
       <Card className="max-w-2xl">
         <CardContent className="p-6">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Name</label>
-                <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Agent Details</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">Name</label>
+                  <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">Status</label>
+                  <Select {...form.register('status')} options={statusOptions} />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">Status</label>
-                <Select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  options={statusOptions}
-                />
+                <label className="block text-xs font-medium text-muted mb-1">Description</label>
+                <Input {...form.register('description')} placeholder="Optional description" />
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Description</label>
-              <Input {...form.register('description')} placeholder="Optional description" />
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="text-sm font-semibold mb-3">Model Credential</p>
+            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model Credential</p>
               {selectedCredential ? (
-                <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                <div className="rounded-lg border border-border bg-background p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{providerLabels[selectedCredential.provider] || selectedCredential.provider}</Badge>
@@ -280,16 +278,12 @@ export default function EditAgentPage() {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>
-                      Change
-                    </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>
-                      Remove
-                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>Change</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button>
                   </div>
                 </div>
               ) : credentials.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <Select
                     value=""
                     onChange={(e) => handleSelectCredential(e.target.value)}
@@ -306,8 +300,8 @@ export default function EditAgentPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border bg-background p-4">
-                  <p className="text-sm text-muted mb-3">No provider credential selected. Add an API key to connect this agent to a model provider.</p>
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <p className="text-xs text-muted mb-2">No provider credential available. Add an API key to connect this agent to a model provider.</p>
                   <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
                     Add credential
                   </Button>
@@ -317,59 +311,54 @@ export default function EditAgentPage() {
 
             {selectedCredential && customMissingModel && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-                <p className="text-sm text-red-400">This custom credential is missing a model. Recreate the credential with a model name.</p>
+                <p className="text-xs text-red-400">This custom credential is missing a model. Recreate the credential with a model name.</p>
               </div>
             )}
 
             {selectedCredential && customMissingBaseUrl && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-                <p className="text-sm text-red-400">This custom credential is missing a base URL. Recreate the credential with a base URL.</p>
+                <p className="text-xs text-red-400">This custom credential is missing a base URL. Recreate the credential with a base URL.</p>
               </div>
             )}
 
             {isStandard && (
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Model</label>
-                <Select {...form.register('model')} options={availableModels} />
+              <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+                <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
+                <Select value={form.watch('model')} onChange={(e) => form.setValue('model', e.target.value)} options={availableModels} />
               </div>
             )}
 
-            <div className="border-t border-border pt-4">
-              <p className="text-sm font-semibold mb-3">Runtime</p>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Generation Settings</p>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-muted mb-1">Session Mode</label>
+                  <label className="block text-xs font-medium text-muted mb-1">Session Mode</label>
                   <Select
                     {...form.register('session_mode')}
                     options={[
-                      { value: 'stateful', label: 'Stateful conversation' },
-                      { value: 'stateless', label: 'Stateless request' },
+                      { value: 'stateful', label: 'Stateful' },
+                      { value: 'stateless', label: 'Stateless' },
                     ]}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-muted mb-1">Temperature</label>
+                  <label className="block text-xs font-medium text-muted mb-1">Temperature</label>
                   <Input type="number" step="0.1" min="0" max="2" {...form.register('temperature')} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-3">
-                <div>
-                  <label className="block text-sm font-medium text-muted mb-1">Max Output Tokens</label>
-                  <Input type="number" step="1" min="1" {...form.register('max_output_tokens')} />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Max Output Tokens</label>
+                <Input type="number" step="1" min="1" {...form.register('max_output_tokens')} />
               </div>
             </div>
 
-            <div className="border-t border-border pt-4">
-              <p className="text-sm font-semibold mb-3">Prompt</p>
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">System Prompt</label>
-                <Textarea
-                  {...form.register('system_prompt')}
-                  placeholder="You are a helpful AI assistant..."
-                  className="min-h-[120px]"
-                />
-              </div>
+            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Prompt</p>
+              <Textarea
+                {...form.register('system_prompt')}
+                placeholder="You are a helpful AI assistant..."
+                className="min-h-[160px] font-mono text-xs leading-relaxed"
+              />
             </div>
 
             <div className="flex flex-col items-end gap-1">
@@ -377,7 +366,7 @@ export default function EditAgentPage() {
                 <p className="text-xs text-muted">{reason}</p>
               )}
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>Back</Button>
                 <Button type="submit" loading={updateAgent.isPending} disabled={!!reason}>
                   Save Changes
                 </Button>
