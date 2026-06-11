@@ -305,6 +305,7 @@ function PlaygroundContent() {
               messages={messages}
               isSending={isSending}
               onSend={handleSend}
+              agentName={agent?.name}
             />
           </div>
 

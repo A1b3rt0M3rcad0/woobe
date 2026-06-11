@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { formatNumber } from '@/lib/formatters/number'
+import { formatNumber, formatLatency, formatDateTime } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
+import { StructuredJsonResponse } from './StructuredJsonResponse'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
@@ -10,6 +11,7 @@ interface ChatMessageProps {
   message: ChatMessageType
   isStreaming?: boolean
   isLast?: boolean
+  agentName?: string
 }
 
 function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType['sources']> }) {
@@ -43,7 +45,7 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
   )
 }
 
-export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) {
+export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMessageProps) {
   const isUser = message.role === 'user'
 
   return (
@@ -59,11 +61,20 @@ export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) 
             {message.content}
           </div>
         ) : message.parsed_output ? (
-          <JsonCodeBlock value={message.parsed_output} maxHeight={160} />
+          <StructuredJsonResponse
+            value={message.parsed_output}
+            agentName={agentName}
+          />
         ) : (() => {
           const { isPureJson, segments } = parseAssistantMessageContent(message.content)
           if (isPureJson && segments[0].type === 'json') {
-            return <JsonCodeBlock value={segments[0].value} maxHeight={160} />
+            return (
+              <StructuredJsonResponse
+                value={segments[0].value}
+                raw={segments[0].raw}
+                agentName={agentName}
+              />
+            )
           }
           if (segments.length === 1 && segments[0].type === 'text') {
             return (
@@ -94,11 +105,14 @@ export function ChatMessage({ message, isStreaming, isLast }: ChatMessageProps) 
             )}
 
             <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
+              {message.created_at && (
+                <span>{formatDateTime(message.created_at)}</span>
+              )}
               {message.model && (
                 <span>{message.provider || ''} {message.model}</span>
               )}
               {message.latency_ms != null && (
-                <span>{Math.round(message.latency_ms)}ms</span>
+                <span>{formatLatency(message.latency_ms)}</span>
               )}
               {message.usage && (
                 <span>

@@ -224,4 +224,106 @@ describe('parseAssistantMessageContent', () => {
     expect(result.segments).toHaveLength(1)
     expect(result.segments[0].type).toBe('text')
   })
+
+  it('pure JSON string — isPureJson: false (only object/array get card)', () => {
+    const input = '"hello world"'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('pure JSON number — isPureJson: false', () => {
+    const input = '42'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('pure JSON boolean — isPureJson: false', () => {
+    const input = 'true'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('JSON with escaped quotes inside strings', () => {
+    const input = '{"quote": "He said \\"hello\\""}'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(true)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('json')
+    if (result.segments[0].type === 'json') {
+      expect(result.segments[0].value).toEqual({ quote: 'He said "hello"' })
+    }
+  })
+
+  it('JavaScript code with braces — not treated as JSON', () => {
+    const input = 'function test() { return true }'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('text with template interpolation braces — not treated as JSON', () => {
+    const input = 'Use {id} for interpolation in the URL'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('multiple template braces like {foo} {bar} — not treated as JSON', () => {
+    const input = 'Values: {foo} and {bar}'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('text with SQL like SELECT {columns} FROM {table} — not treated as JSON', () => {
+    const input = 'SELECT {columns} FROM {table} WHERE id = {id}'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(false)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('text')
+  })
+
+  it('JSON with array at root — isPureJson: true', () => {
+    const input = '[{"name": "Alice"}, {"name": "Bob"}]'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(true)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('json')
+    if (result.segments[0].type === 'json') {
+      expect(result.segments[0].value).toEqual([{ name: 'Alice' }, { name: 'Bob' }])
+    }
+  })
+
+  it('nested JSON with brackets inside strings', () => {
+    const input = '{"nested": {"deep": [1, {"key": "value [with] brackets"}]}}'
+    const result = parseAssistantMessageContent(input)
+
+    expect(result.isPureJson).toBe(true)
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments[0].type).toBe('json')
+    if (result.segments[0].type === 'json') {
+      const v = result.segments[0].value as Record<string, unknown>
+      const nested = v.nested as Record<string, unknown>
+      const deep = nested.deep as unknown[]
+      expect(deep[1]).toEqual({ key: 'value [with] brackets' })
+    }
+  })
 })

@@ -112,6 +112,7 @@ export interface ChatMessage {
   latency_ms?: number | null
   trace_id?: string | null
   parsed_output?: Record<string, unknown> | null
+  created_at?: string | null
 }
 
 export interface TraceItem {

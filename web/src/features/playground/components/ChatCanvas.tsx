@@ -9,6 +9,7 @@ interface ChatCanvasProps {
   messages: ChatMessageType[]
   isSending: boolean
   onSend: (content: string) => void
+  agentName?: string
 }
 
 const suggestions = [
@@ -17,7 +18,7 @@ const suggestions = [
   'Show me an example API response',
 ]
 
-export function ChatCanvas({ messages, isSending, onSend }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export function ChatCanvas({ messages, isSending, onSend }: ChatCanvasProps) {
                 message={msg}
                 isStreaming={msg.role === 'assistant' && !msg.content && isSending && i === messages.length - 1}
                 isLast={i === messages.length - 1}
+                agentName={agentName}
               />
             ))}
             <div />
