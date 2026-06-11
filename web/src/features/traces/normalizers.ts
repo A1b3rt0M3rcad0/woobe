@@ -94,15 +94,23 @@ function normalizeSources(raw: unknown): TraceSource[] {
 
 function normalizeToolCalls(raw: unknown): TraceToolCall[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((t: Record<string, unknown>) => ({
-    tool_name: (t.tool_name as string) ?? 'unknown',
-    input: t.input ?? null,
-    output: t.output ?? null,
-    duration_ms: safeNumber(t.duration_ms),
-    status: (t.status as string) ?? null,
-    latency_ms: safeNumber(t.latency_ms),
-    error: (t.error as string) ?? null,
-  }))
+  return raw.map((t: Record<string, unknown>) => {
+    const success = t.success !== undefined ? t.success : null
+    let status = (t.status as string) ?? null
+    if (status === null && success !== null) {
+      status = success ? 'success' : 'error'
+    }
+    return {
+      tool_name: (t.tool_name as string) ?? 'unknown',
+      input: t.input ?? null,
+      output: t.output ?? null,
+      duration_ms: safeNumber(t.duration_ms),
+      success: success !== null ? Boolean(success) : null,
+      status,
+      latency_ms: safeNumber(t.latency_ms),
+      error: (t.error as string) ?? null,
+    }
+  })
 }
 
 function normalizeEvents(raw: unknown): TraceEvent[] {

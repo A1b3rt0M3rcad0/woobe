@@ -17,7 +17,7 @@ class TestToolType:
         assert issubclass(ToolType, StrEnum)
 
     def test_members(self):
-        assert len(ToolType) == 7
+        assert len(ToolType) == 8
 
 
 class TestRiskLevel:

@@ -11,6 +11,7 @@ from modules.runtime.service.dtos import (
     MessageResponse,
     SendMessageInput,
     SendMessageOutput,
+    ToolCallInfo,
 )
 
 
@@ -166,3 +167,53 @@ class TestSendMessageOutput:
         dto = SendMessageOutput(message=msg, session_id=sid)
         assert dto.message.content == "Hello"
         assert dto.session_id == sid
+
+
+class TestToolCallInfo:
+    def test_minimal(self):
+        info = ToolCallInfo(tool_name="weather")
+        assert info.tool_name == "weather"
+        assert info.input is None
+        assert info.output is None
+        assert info.duration_ms is None
+        assert info.success is True
+        assert info.error is None
+
+    def test_with_success(self):
+        info = ToolCallInfo(
+            tool_name="search",
+            input={"q": "hello"},
+            output={"results": ["a"]},
+            duration_ms=1200,
+            success=True,
+            error=None,
+        )
+        assert info.tool_name == "search"
+        assert info.input == {"q": "hello"}
+        assert info.success is True
+        assert info.error is None
+
+    def test_with_failure(self):
+        info = ToolCallInfo(
+            tool_name="db_query",
+            input={"sql": "SELECT *"},
+            output={"error": "timeout"},
+            duration_ms=30000,
+            success=False,
+            error="Connection timed out",
+        )
+        assert info.tool_name == "db_query"
+        assert info.success is False
+        assert info.error == "Connection timed out"
+        assert info.duration_ms == 30000
+
+    def test_model_dump_includes_new_fields(self):
+        info = ToolCallInfo(
+            tool_name="test",
+            success=False,
+            error="something broke",
+        )
+        dumped = info.model_dump()
+        assert dumped["tool_name"] == "test"
+        assert dumped["success"] is False
+        assert dumped["error"] == "something broke"

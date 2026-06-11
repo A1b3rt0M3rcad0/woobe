@@ -128,6 +128,8 @@ class ToolCallInfo(BaseModel):
     input: dict | None = None
     output: dict | None = None
     duration_ms: float | None = None
+    success: bool = True
+    error: str | None = None
 
 
 class AskOutput(BaseModel):

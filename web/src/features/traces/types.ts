@@ -54,6 +54,7 @@ export interface TraceToolCall {
   input?: unknown
   output?: unknown
   duration_ms?: number | null
+  success?: boolean | null
   status?: string | null
   latency_ms?: number | null
   error?: string | null

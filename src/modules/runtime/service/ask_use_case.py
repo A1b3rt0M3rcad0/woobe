@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from modules.ai.domain.entities import Agent, AgentRelease, ProviderCredential
 from modules.ai.domain.errors import AgentNotFoundError, CredentialNotFoundError
@@ -38,8 +38,13 @@ from modules.runtime.service.dtos import (
     AskInput,
     AskOutput,
     SourceInfo,
+    ToolCallInfo,
     UsageInfo,
 )
+from modules.tools.domain.repositories import ToolRepository
+from modules.tools.service.tool_converter import safe_tool_name, tools_to_openai_definitions
+from modules.tools.service.use_cases import ExecuteToolUseCase
+from modules.tools.service.dtos import ExecuteToolInput
 from shared.domain.events import OutboxEventWriter
 from shared.domain.time import utc_now
 from shared.infra.config import Settings
@@ -47,6 +52,18 @@ from shared.infra.crypto import decrypt_secret
 from shared.infra.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _has_tool_calls(result) -> bool:
+    return bool(getattr(result, "tool_calls", None))
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 
 class AskAgentUseCase:
@@ -63,6 +80,7 @@ class AskAgentUseCase:
         trace_event_repo: TraceEventRepository,
         usage_repo: UsageEventRepository,
         outbox: OutboxEventWriter,
+        tool_repo: ToolRepository | None = None,
         release_repo: AgentReleaseRepository | None = None,
         encryption_key: str | None = None,
     ) -> None:
@@ -76,6 +94,7 @@ class AskAgentUseCase:
         self._trace_event_repo = trace_event_repo
         self._usage_repo = usage_repo
         self._outbox = outbox
+        self._tool_repo = tool_repo
         self._release_repo = release_repo
         self._encryption_key = encryption_key or Settings().encryption_key
 
@@ -95,6 +114,22 @@ class AskAgentUseCase:
             and response_format.get("type") == "json"
         )
 
+        agent_tools: list[dict] = []
+        execute_use_case: ExecuteToolUseCase | None = None
+        tool_name_to_id: dict[str, str] = {}
+        has_tools = False
+        if self._tool_repo:
+            try:
+                tools = await self._tool_repo.list_by_agent(agent.id, status="active")
+                if tools:
+                    agent_tools = tools_to_openai_definitions(tools)
+                    execute_use_case = ExecuteToolUseCase(tool_repo=self._tool_repo)
+                    for t in tools:
+                        tool_name_to_id[safe_tool_name(t)] = str(t.id)
+                    has_tools = True
+            except Exception as e:
+                logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
+
         chat_model = create_chat_model(
             provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
             model=agent.model,
@@ -102,8 +137,11 @@ class AskAgentUseCase:
             base_url=base_url,
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,
-            response_format={"type": "json_object"} if json_enabled else None,
+            response_format={"type": "json_object"} if (json_enabled and not has_tools) else None,
         )
+
+        if has_tools:
+            chat_model = chat_model.bind_tools(agent_tools, tool_choice="auto")
 
         session = await self._resolve_session(input_dto, agent)
 
@@ -122,10 +160,114 @@ class AskAgentUseCase:
         fallback_info_result: dict | None = None
         fallback_provider_val: str | None = None
 
+        tool_calls_recorded: list[ToolCallInfo] = []
+        tool_was_called = False
+        json_format_latency_ms: int | None = None
+
         try:
             llm_latency_start = time.monotonic()
             result = await chat_model.ainvoke(messages)
             llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
+
+            tool_call_rounds = 0
+            while _has_tool_calls(result) and tool_call_rounds < 5:
+                tool_was_called = True
+                messages.append(result)
+                for tc in (getattr(result, "tool_calls", None) or []):
+                    tool_start = time.monotonic()
+                    resolved_tool_id = tool_name_to_id.get(tc["name"], tc["name"])
+                    tool_output = await self._execute_single_tool(tc, execute_use_case, resolved_tool_id)
+                    tool_duration = round((time.monotonic() - tool_start) * 1000)
+                    tool_success = tool_output.get("success", False) if isinstance(tool_output, dict) else True
+                    tool_error = tool_output.get("error") if isinstance(tool_output, dict) else None
+                    tool_calls_recorded.append(ToolCallInfo(
+                        tool_name=tc["name"],
+                        input=tc.get("args"),
+                        output=tool_output,
+                        duration_ms=tool_duration,
+                        success=tool_success,
+                        error=tool_error,
+                    ))
+                    try:
+                        event = TraceEvent(
+                            trace_id=trace_id,
+                            project_id=input_dto.project_id,
+                            event_type=TraceEventType.tool_call,
+                            latency_ms=tool_duration,
+                            payload={
+                                "tool_name": tc["name"],
+                                "input": tc.get("args"),
+                                "output": tool_output,
+                                "success": tool_success,
+                                "error": tool_error,
+                            },
+                        )
+                        await self._trace_event_repo.save(event)
+                    except Exception:
+                        pass
+                    messages.append(ToolMessage(
+                        content=json.dumps(tool_output) if isinstance(tool_output, dict) else str(tool_output),
+                        tool_call_id=tc["id"],
+                    ))
+
+                tool_call_rounds += 1
+                try:
+                    result = await chat_model.ainvoke(messages)
+                    llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
+                except Exception as tool_e:
+                    logger.warning("Tool call follow-up LLM invoke failed: %s", tool_e)
+                    break
+
+            if json_enabled and tool_was_called:
+                try:
+                    answer_text = result.content if hasattr(result, "content") else str(result)
+                    schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+                    json_model = create_chat_model(
+                        provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                        model=agent.model,
+                        api_key=api_key,
+                        base_url=base_url,
+                        temperature=0.0,
+                        max_tokens=agent.max_output_tokens or 1000,
+                        response_format={"type": "json_object"},
+                    )
+                    json_start = time.monotonic()
+                    json_result = await json_model.ainvoke([
+                        SystemMessage(
+                            content=(
+                                "Responda APENAS com JSON válido seguindo este schema.\n"
+                                "NÃO inclua markdown, explicações ou texto fora do JSON.\n"
+                                f"<schema>\n{schema_json}\n</schema>"
+                            )
+                        ),
+                        HumanMessage(content=f"Converta a resposta abaixo para JSON válido:\n\n{answer_text}"),
+                    ])
+                    json_format_latency_ms = round((time.monotonic() - json_start) * 1000)
+                    result = json_result
+
+                    json_raw_usage = normalize_llm_usage(json_result)
+                    try:
+                        json_event = TraceEvent(
+                            trace_id=trace_id,
+                            project_id=input_dto.project_id,
+                            event_type=TraceEventType.llm_call,
+                            latency_ms=json_format_latency_ms,
+                            payload={
+                                "phase": "json_format",
+                                "input_tokens": json_raw_usage["input_tokens"],
+                                "output_tokens": json_raw_usage["output_tokens"],
+                                "total_tokens": json_raw_usage["total_tokens"],
+                                "cost_usd": json_raw_usage["cost_usd"],
+                                "model": agent.model,
+                                "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                            },
+                        )
+                        await self._trace_event_repo.save(json_event)
+                    except Exception:
+                        pass
+                except Exception as json_e:
+                    logger.warning("JSON formatting phase (Fase 2) failed: %s", json_e)
+
         except Exception as e:
             primary_error = str(e)
 
@@ -209,9 +351,10 @@ class AskAgentUseCase:
                 sources=sources,
                 parsed_output=parsed_output,
                 output_parse_error=output_parse_error,
-                tool_calls=[],
+                tool_calls=[tc.model_dump() for tc in tool_calls_recorded] if tool_calls_recorded else [],
                 fallback_used=fallback_used,
                 fallback_info=fallback_info_result,
+                json_format_latency_ms=json_format_latency_ms,
             )
         except Exception as e:
             logger.warning("Failed to complete trace: %s", e)
@@ -224,7 +367,7 @@ class AskAgentUseCase:
             message_id=message_id,
             usage=usage,
             sources=sources,
-            tool_calls=[],
+            tool_calls=tool_calls_recorded,
             trace_id=trace_id,
             model=response_model,
             provider=response_provider,
@@ -234,6 +377,20 @@ class AskAgentUseCase:
             parsed_output=parsed_output,
             output_parse_error=output_parse_error,
         )
+
+    async def _execute_single_tool(self, tool_call: dict, execute_use_case: ExecuteToolUseCase | None, tool_id: str) -> dict:
+        if not execute_use_case:
+            return {"success": False, "error": "Tool execution not available"}
+        try:
+            args = tool_call.get("args", {}) or {}
+            result = await execute_use_case.execute(ExecuteToolInput(
+                tool_id=UUID(tool_id),
+                input_data=args,
+            ))
+            return result.model_dump()
+        except Exception as e:
+            logger.warning("Tool execution failed: %s", e)
+            return {"success": False, "error": str(e)}
 
     async def _load_agent(self, input_dto: AskInput) -> Agent:
         agent = await self._agent_repo.get_by_id(input_dto.agent_id)
@@ -674,6 +831,7 @@ class AskAgentUseCase:
         tool_calls: list | None = None,
         fallback_used: bool = False,
         fallback_info: dict | None = None,
+        json_format_latency_ms: int | None = None,
     ) -> None:
         if not trace_id:
             return
@@ -695,6 +853,7 @@ class AskAgentUseCase:
                     "tool_calls": tool_calls or None,
                     "parsed_output": parsed_output,
                     "output_parse_error": output_parse_error,
+                    "json_format_latency_ms": json_format_latency_ms,
                 }
                 if fallback_info:
                     data["fallback_info"] = fallback_info

@@ -23,6 +23,7 @@ from modules.runtime.presentation.controllers.ask_agent_controller import (
     AskAgentController,
 )
 from modules.runtime.service.ask_use_case import AskAgentUseCase
+from modules.tools.infra.repositories import SQLAlchemyToolRepository
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.config import Settings
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
@@ -42,6 +43,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
     trace_repo = SQLAlchemyTraceRepository(uow)
     trace_event_repo = SQLAlchemyTraceEventRepository(uow)
     usage_repo = SQLAlchemyUsageEventRepository(uow)
+    tool_repo = SQLAlchemyToolRepository(uow)
 
     outbox = SQLAlchemyOutboxEventWriter(uow)
 
@@ -56,6 +58,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
         trace_event_repo=trace_event_repo,
         usage_repo=usage_repo,
         outbox=outbox,
+        tool_repo=tool_repo,
         release_repo=release_repo,
         encryption_key=settings.encryption_key,
     )

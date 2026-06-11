@@ -141,6 +141,20 @@ function PlaygroundContent() {
           onSources: (sources) => {
             metadataRef.current.sources = sources
           },
+          onToolCall: (info) => {
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant') {
+                const existing = last.tool_calls ?? []
+                updated[updated.length - 1] = {
+                  ...last,
+                  tool_calls: [...existing, info] as ChatMessage['tool_calls'],
+                }
+              }
+              return updated
+            })
+          },
           onDone: (response) => {
             const meta = response
             if (meta.session_id) {
@@ -155,6 +169,7 @@ function PlaygroundContent() {
                   content: accumulatedRef.current,
                   usage: meta.usage ?? null,
                   sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
+                  tool_calls: (meta.tool_calls ?? null) as ChatMessage['tool_calls'],
                   model: meta.model ?? null,
                   provider: meta.provider ?? null,
                   latency_ms: meta.latency_ms ?? null,
@@ -348,13 +363,11 @@ function PlaygroundContent() {
 }
 
 export default function AgentPlaygroundPage() {
-  const { agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const { data: agent, isLoading } = useAgent(agentId)
 
   if (isLoading) return <LoadingState />
   if (!agent) return <ErrorState message="Agent not found" />
-
-  const { projectId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
 
   return (
     <AgentEditorProvider agent={agent} projectId={projectId}>

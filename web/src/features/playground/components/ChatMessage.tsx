@@ -4,6 +4,7 @@ import { formatNumber, formatLatency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { StructuredJsonResponse } from './StructuredJsonResponse'
+import { ToolCallsCollapsible } from './ToolCallsCollapsible'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
@@ -124,6 +125,9 @@ export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMes
           <>
             {message.sources && message.sources.length > 0 && (
               <SourcesCollapsible sources={message.sources} />
+            )}
+            {message.tool_calls && message.tool_calls.length > 0 && (
+              <ToolCallsCollapsible toolCalls={message.tool_calls} />
             )}
 
             <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">

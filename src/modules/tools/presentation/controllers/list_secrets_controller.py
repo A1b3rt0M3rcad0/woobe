@@ -1,3 +1,4 @@
+from modules.tools.presentation.schemas import SecretResponse
 from modules.tools.service.use_cases import ListSecretsUseCase
 from modules.tools.service.dtos import ListSecretsInput
 from shared.presentation.interface.controller import Controller
@@ -15,5 +16,9 @@ class ListSecretsController(Controller):
         result = await self._use_case.execute(input_dto)
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": [r.model_dump() for r in result]},
+            body={
+                "success": True,
+                "message": "ok",
+                "data": [SecretResponse(**{k: v for k, v in vars(r).items() if k != "encrypted_value"}).model_dump() for r in result],
+            },
         )

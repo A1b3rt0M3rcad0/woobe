@@ -61,6 +61,7 @@ export interface ToolCallInfo {
   input?: unknown
   output?: unknown
   duration_ms?: number
+  success?: boolean | null
   status?: string | null
   latency_ms?: number | null
   error?: string | null
@@ -125,6 +126,7 @@ export interface ChatMessage {
   content: string
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
+  tool_calls?: ToolCallInfo[] | null
   model?: string | null
   provider?: string | null
   latency_ms?: number | null

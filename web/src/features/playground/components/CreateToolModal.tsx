@@ -4,24 +4,17 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Play, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-
-interface MockTool {
-  id: string
-  name: string
-  description: string
-  type: string
-  risk_level: string
-  config?: Record<string, unknown>
-}
+import { useCreateTool, useTestTool } from '@/features/tools/hooks'
+import type { Tool } from '@/features/tools/types'
 
 interface CreateToolModalProps {
   open: boolean
   onClose: () => void
   projectId: string
   agentId: string
-  onCreated: (tool: MockTool) => void
+  onCreated: (tool: Tool) => void
 }
 
 const HTTP_METHODS = [
@@ -33,11 +26,18 @@ const HTTP_METHODS = [
 ]
 
 const RISK_LEVELS = [
-  { value: 'read_only', label: 'Read Only' },
-  { value: 'write', label: 'Write' },
-  { value: 'destructive', label: 'Destructive' },
-  { value: 'restricted', label: 'Restricted' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'critical', label: 'Critical' },
 ]
+
+const RISK_LEVEL_MAP: Record<string, string> = {
+  read_only: 'low',
+  write: 'medium',
+  destructive: 'high',
+  restricted: 'critical',
+}
 
 function extractUrlVariables(url: string): string[] {
   const matches = url.match(/\{\{(\w+)\}\}/g)
@@ -57,7 +57,14 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
   const [url, setUrl] = useState('')
   const [headers, setHeaders] = useState<{ id: string; key: string; value: string }[]>([])
   const [body, setBody] = useState('')
-  const [riskLevel, setRiskLevel] = useState('read_only')
+  const [riskLevel, setRiskLevel] = useState('low')
+  const [timeoutMs, setTimeoutMs] = useState(30000)
+
+  const createTool = useCreateTool()
+  const testTool = useTestTool()
+
+  const [testResult, setTestResult] = useState<string | null>(null)
+  const [testError, setTestError] = useState<string | null>(null)
 
   const showBody = ['POST', 'PUT', 'PATCH'].includes(method)
 
@@ -102,11 +109,57 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
     setUrl('')
     setHeaders([])
     setBody('')
-    setRiskLevel('read_only')
+    setRiskLevel('low')
+    setTimeoutMs(30000)
     setVariableValues({})
+    setTestResult(null)
+    setTestError(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const buildConfig = () => {
+    const config: Record<string, unknown> = {
+      url: url.trim(),
+      method,
+      headers: headers.filter(h => h.key.trim()).map(h => ({ key: h.key.trim(), value: h.value })),
+    }
+    if (showBody && body.trim()) {
+      config.body = body.trim()
+    }
+    if (urlVariables.length > 0) {
+      config.variables = urlVariables.reduce<Record<string, string>>((acc, v) => {
+        acc[v] = variableValues[v] || ''
+        return acc
+      }, {})
+    }
+    return config
+  }
+
+  const handleTest = async () => {
+    if (!url.trim()) {
+      toast.error('URL is required to test')
+      return
+    }
+    setTestResult(null)
+    setTestError(null)
+    try {
+      const result = await testTool.mutateAsync({
+        config: buildConfig(),
+      })
+      if (result.success) {
+        setTestResult(`Status: ${result.status_code}\nBody: ${result.body?.slice(0, 500)}`)
+        toast.success('Tool test succeeded')
+      } else {
+        setTestError(result.error || 'Request failed')
+        toast.error('Tool test failed')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Test request failed'
+      setTestError(msg)
+      toast.error(msg)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!name.trim()) {
@@ -118,36 +171,26 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
       return
     }
 
-    const config: Record<string, unknown> = {
-      url: url.trim(),
-      method,
-      headers: headers.filter(h => h.key.trim()).map(h => ({ key: h.key.trim(), value: h.value })),
-    }
+    const config = buildConfig()
 
-    if (showBody && body.trim()) {
-      config.body = body.trim()
+    try {
+      const tool = await createTool.mutateAsync({
+        project_id: projectId,
+        agent_id: agentId,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        type: 'http_mcp',
+        config,
+        risk_level: riskLevel,
+        timeout_ms: timeoutMs,
+      })
+      onCreated(tool)
+      resetForm()
+      onClose()
+      toast.success(`Tool "${tool.name}" created`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create tool')
     }
-
-    if (urlVariables.length > 0) {
-      config.variables = urlVariables.reduce<Record<string, string>>((acc, v) => {
-        acc[v] = variableValues[v] || ''
-        return acc
-      }, {})
-    }
-
-    const tool: MockTool = {
-      id: `tool_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: name.trim(),
-      description: description.trim(),
-      type: 'http_mcp',
-      risk_level: riskLevel,
-      config,
-    }
-
-    onCreated(tool)
-    resetForm()
-    onClose()
-    toast.success(`Tool "${tool.name}" created`)
   }
 
   const handleClose = () => {
@@ -168,9 +211,15 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
           <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" />
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-muted mb-1">HTTP Method</label>
-          <Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">HTTP Method</label>
+            <Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label>
+            <Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} />
+          </div>
         </div>
 
         <div>
@@ -254,13 +303,31 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
           <Select value={riskLevel} onChange={e => setRiskLevel(e.target.value)} options={RISK_LEVELS} />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <Button type="button" variant="outline" onClick={handleClose}>
-            Cancel
+        {testResult && (
+          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3">
+            <pre className="text-xs text-green-300 whitespace-pre-wrap font-mono">{testResult}</pre>
+          </div>
+        )}
+
+        {testError && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+            <pre className="text-xs text-red-300 whitespace-pre-wrap font-mono">{testError}</pre>
+          </div>
+        )}
+
+        <div className="flex justify-between gap-2 pt-2 border-t border-border">
+          <Button type="button" size="sm" variant="outline" onClick={handleTest} disabled={testTool.isPending || !url.trim()}>
+            {testTool.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+            Test
           </Button>
-          <Button type="submit">
-            Create
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={createTool.isPending}>
+              Create
+            </Button>
+          </div>
         </div>
       </form>
     </Dialog>

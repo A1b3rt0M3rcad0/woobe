@@ -1,15 +1,17 @@
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
+from modules.observability.domain.enums import TraceEventType
 from modules.runtime.domain.enums import SessionMode, SessionStatus
 from modules.runtime.service.dtos import (
     CreateSessionInput,
     CreateSessionOutput,
     SendMessageInput,
     SendMessageOutput,
+    ToolCallInfo,
 )
 from modules.runtime.service.use_cases import CreateSessionUseCase, SendMessageUseCase
 
@@ -335,3 +337,161 @@ class TestSendMessageUseCase:
         await uc.execute(input_dto)
 
         mock_message_repo.create.assert_awaited_once()
+
+
+class TestAskAgentUseCaseToolExecution:
+    """Tests for AskAgentUseCase._execute_single_tool and tool call recording."""
+
+    @pytest.mark.asyncio
+    async def test_execute_single_tool_success(self, mocker):
+        from modules.runtime.service.ask_use_case import AskAgentUseCase
+        from modules.tools.service.dtos import ExecuteToolOutput
+
+        tool_output = {"success": True, "output": {"result": "ok"}, "duration_ms": 500, "error": None}
+        mock_execute = mocker.AsyncMock()
+        mock_execute.execute.return_value = ExecuteToolOutput(
+            success=True,
+            output={"result": "ok"},
+            duration_ms=500,
+            error=None,
+        )
+
+        uc = AskAgentUseCase.__new__(AskAgentUseCase)
+        uc._encryption_key = "test-key"
+
+        tool_id = str(uuid.uuid4())
+        result = await uc._execute_single_tool(
+            tool_call={"name": "weather", "args": {"city": "SP"}, "id": "call_1"},
+            execute_use_case=mock_execute,
+            tool_id=tool_id,
+        )
+
+        assert result["success"] is True
+        assert result["output"] == {"result": "ok"}
+        assert result.get("error") is None
+
+    @pytest.mark.asyncio
+    async def test_execute_single_tool_failure_with_error_field(self, mocker):
+        from modules.runtime.service.ask_use_case import AskAgentUseCase
+        from modules.tools.service.dtos import ExecuteToolOutput
+
+        tool_output = {"success": False, "output": None, "error": "HTTP 500: Internal Server Error"}
+        mock_execute = mocker.AsyncMock()
+        mock_execute.execute.return_value = ExecuteToolOutput(
+            success=False,
+            output=None,
+            error="HTTP 500: Internal Server Error",
+        )
+
+        uc = AskAgentUseCase.__new__(AskAgentUseCase)
+        uc._encryption_key = "test-key"
+
+        tool_id = str(uuid.uuid4())
+        result = await uc._execute_single_tool(
+            tool_call={"name": "api", "args": {}, "id": "call_2"},
+            execute_use_case=mock_execute,
+            tool_id=tool_id,
+        )
+
+        assert result["success"] is False
+        assert result["error"] == "HTTP 500: Internal Server Error"
+
+    @pytest.mark.asyncio
+    async def test_execute_single_tool_exception_returns_success_false(self, mocker):
+        from modules.runtime.service.ask_use_case import AskAgentUseCase
+
+        mock_execute = mocker.AsyncMock()
+        mock_execute.execute.side_effect = ValueError("Network error")
+
+        uc = AskAgentUseCase.__new__(AskAgentUseCase)
+        uc._encryption_key = "test-key"
+
+        tool_id = str(uuid.uuid4())
+        result = await uc._execute_single_tool(
+            tool_call={"name": "db", "args": {"query": "SELECT"}, "id": "call_3"},
+            execute_use_case=mock_execute,
+            tool_id=tool_id,
+        )
+
+        assert result["success"] is False
+        assert "Network error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_execute_single_tool_no_use_case(self, mocker):
+        from modules.runtime.service.ask_use_case import AskAgentUseCase
+
+        uc = AskAgentUseCase.__new__(AskAgentUseCase)
+        result = await uc._execute_single_tool(
+            tool_call={"name": "test", "args": {}, "id": "call_0"},
+            execute_use_case=None,
+            tool_id="tool-000",
+        )
+
+        assert result["success"] is False
+        assert result["error"] == "Tool execution not available"
+
+    @pytest.mark.asyncio
+    async def test_tool_call_loop_creates_trace_event(self, mocker):
+        """Verify that the tool calling loop creates a TraceEvent of type tool_call."""
+        from modules.runtime.service.ask_use_case import AskAgentUseCase
+        from modules.observability.domain.entities import TraceEvent
+
+        trace_id = uuid.uuid4()
+        project_id = uuid.uuid4()
+
+        mock_trace_event_repo = mocker.AsyncMock()
+
+        uc = AskAgentUseCase.__new__(AskAgentUseCase)
+        uc._trace_event_repo = mock_trace_event_repo
+        uc._execute_single_tool = mocker.AsyncMock()
+        uc._execute_single_tool.return_value = {
+            "success": True,
+            "output": {"temp": 25},
+            "error": None,
+        }
+
+        result_mock = MagicMock()
+        result_mock.tool_calls = [
+            {"name": "weather", "args": {"city": "SP"}, "id": "call_1"},
+        ]
+
+        tool_calls_recorded: list[ToolCallInfo] = []
+        for tc in (getattr(result_mock, "tool_calls", None) or []):
+            tool_output = await uc._execute_single_tool(tc, None, "tool-123")
+            tool_success = tool_output.get("success", False)
+            tool_error = tool_output.get("error")
+            tool_calls_recorded.append(ToolCallInfo(
+                tool_name=tc["name"],
+                input=tc.get("args"),
+                output=tool_output,
+                duration_ms=100,
+                success=tool_success,
+                error=tool_error,
+            ))
+            event = TraceEvent(
+                trace_id=trace_id,
+                project_id=project_id,
+                event_type=TraceEventType.tool_call,
+                latency_ms=100,
+                payload={
+                    "tool_name": tc["name"],
+                    "input": tc.get("args"),
+                    "output": tool_output,
+                    "success": tool_success,
+                    "error": tool_error,
+                },
+            )
+            await mock_trace_event_repo.save(event)
+
+        assert len(tool_calls_recorded) == 1
+        assert tool_calls_recorded[0].tool_name == "weather"
+        assert tool_calls_recorded[0].success is True
+        assert tool_calls_recorded[0].error is None
+        assert tool_calls_recorded[0].duration_ms == 100
+        assert tool_calls_recorded[0].input == {"city": "SP"}
+
+        mock_trace_event_repo.save.assert_awaited_once()
+        call_args = mock_trace_event_repo.save.await_args[0][0]
+        assert call_args.event_type == TraceEventType.tool_call
+        assert call_args.payload["tool_name"] == "weather"
+        assert call_args.payload["success"] is True

@@ -1,3 +1,24 @@
+export interface HttpHeader {
+  key: string
+  value: string
+  sensitive?: boolean
+}
+
+export interface HttpAuth {
+  type: 'none' | 'api_key' | 'bearer' | 'basic'
+  credentials?: string[]
+}
+
+export interface HttpToolConfig {
+  url: string
+  method: string
+  headers: HttpHeader[]
+  body?: string
+  variables?: Record<string, string>
+  auth?: HttpAuth
+  timeout_ms?: number
+}
+
 export interface Tool {
   id: string
   project_id: string
@@ -26,6 +47,24 @@ export interface CreateToolRequest {
   output_schema?: Record<string, unknown>
   risk_level?: string
   timeout_ms?: number
+}
+
+export interface TestToolRequest {
+  config: Record<string, unknown>
+  input_data?: Record<string, unknown>
+}
+
+export interface TestToolResponse {
+  success: boolean
+  status_code?: number
+  headers?: Record<string, string>
+  body?: string
+  duration_ms?: number
+  error?: string
+}
+
+export interface UpdateToolStatusRequest {
+  status: 'active' | 'inactive'
 }
 
 export interface Secret {

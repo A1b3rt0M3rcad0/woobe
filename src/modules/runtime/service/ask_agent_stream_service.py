@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import UUID
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.domain.entities import Agent, AgentRelease, ProviderCredential
@@ -58,6 +58,7 @@ from modules.runtime.infra.repositories import (
 from modules.runtime.service.dtos import (
     AskInput,
     SourceInfo,
+    ToolCallInfo,
     UsageInfo,
 )
 from shared.domain.events import OutboxEventWriter
@@ -65,6 +66,11 @@ from shared.domain.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
 from shared.infra.llm_usage import normalize_llm_usage
+from modules.tools.domain.repositories import ToolRepository
+from modules.tools.infra.repositories import SQLAlchemyToolRepository
+from modules.tools.service.use_cases import ExecuteToolUseCase
+from modules.tools.service.dtos import ExecuteToolInput
+from modules.tools.service.tool_converter import safe_tool_name, tools_to_openai_definitions
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +101,7 @@ class AskAgentStreamService:
                 chunk_repo: DocumentChunkRepository = SQLAlchemyDocumentChunkRepository(db_session)
                 trace_repo: TraceRepository = SQLAlchemyTraceRepository(db_session)
                 trace_event_repo: TraceEventRepository = SQLAlchemyTraceEventRepository(db_session)
+                tool_repo: ToolRepository = SQLAlchemyToolRepository(db_session)
 
                 release_repo: AgentReleaseRepository = SQLAlchemyAgentReleaseRepository(db_session)
 
@@ -134,6 +141,22 @@ class AskAgentStreamService:
                     "trace_id": str(trace_id) if trace_id else None,
                 })
 
+            agent_tools: list[dict] = []
+            execute_use_case: ExecuteToolUseCase | None = None
+            tool_name_to_id: dict[str, str] = {}
+            has_tools = False
+            if tool_repo:
+                try:
+                    tools = await tool_repo.list_by_agent(agent.id, status="active")
+                    if tools:
+                        agent_tools = tools_to_openai_definitions(tools)
+                        execute_use_case = ExecuteToolUseCase(tool_repo=tool_repo)
+                        for t in tools:
+                            tool_name_to_id[safe_tool_name(t)] = str(t.id)
+                        has_tools = True
+                except Exception as e:
+                    logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
+
             chat_model = create_chat_model(
                 provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
                 model=agent.model,
@@ -142,8 +165,11 @@ class AskAgentStreamService:
                 temperature=agent.temperature or 0.2,
                 max_tokens=agent.max_output_tokens or 1000,
                 streaming=True,
-                response_format={"type": "json_object"} if json_enabled else None,
+                response_format={"type": "json_object"} if (json_enabled and not has_tools) else None,
             )
+
+            if has_tools:
+                chat_model = chat_model.bind_tools(agent_tools, tool_choice="auto")
 
             fallback_used = False
             fallback_info_result: dict | None = None
@@ -153,12 +179,18 @@ class AskAgentStreamService:
             output_tokens: int | None = None
             total_tokens: int | None = None
 
+            tool_calls_recorded: list[ToolCallInfo] = []
+            tool_was_called = False
+            json_format_latency_ms: int | None = None
+            aggregated_message = None
+
             async def _run_stream(chat_model_instance):
-                nonlocal accumulated, input_tokens, output_tokens, total_tokens
+                nonlocal accumulated, input_tokens, output_tokens, total_tokens, aggregated_message
                 local_accumulated: list[str] = []
                 local_input_tokens: int | None = None
                 local_output_tokens: int | None = None
                 local_total_tokens: int | None = None
+                local_aggregated = None
                 async for chunk in chat_model_instance.astream(messages):
                     content = chunk.content if hasattr(chunk, "content") and chunk.content else ""
                     if content:
@@ -172,15 +204,155 @@ class AskAgentStreamService:
                             local_output_tokens = usage_meta["output_tokens"]
                         if usage_meta.get("total_tokens") is not None:
                             local_total_tokens = usage_meta["total_tokens"]
+                    if local_aggregated is None:
+                        local_aggregated = chunk
+                    else:
+                        local_aggregated = local_aggregated + chunk
                 accumulated = local_accumulated
                 input_tokens = local_input_tokens
                 output_tokens = local_output_tokens
                 total_tokens = local_total_tokens
+                aggregated_message = local_aggregated
+
+            def _has_tool_calls(msg) -> bool:
+                return bool(getattr(msg, "tool_calls", None))
 
             llm_latency_start = time.monotonic()
             try:
                 async for event in _run_stream(chat_model):
                     yield event
+                llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
+
+                tool_call_rounds = 0
+                while aggregated_message and _has_tool_calls(aggregated_message) and tool_call_rounds < 5:
+                    tool_was_called = True
+                    messages.append(aggregated_message)
+                    for tc in (getattr(aggregated_message, "tool_calls", None) or []):
+                        tool_start = time.monotonic()
+                        resolved_tool_id = tool_name_to_id.get(tc["name"], tc["name"])
+                        tool_output = {"success": False, "error": "Tool execution not available"}
+                        if execute_use_case:
+                            try:
+                                tool_args = tc.get("args", {}) or {}
+                                exec_result = await execute_use_case.execute(ExecuteToolInput(
+                                    tool_id=UUID(resolved_tool_id),
+                                    input_data=tool_args,
+                                ))
+                                tool_output = exec_result.model_dump()
+                            except Exception as tool_e:
+                                logger.warning("Tool execution failed: %s", tool_e)
+                                tool_output = {"success": False, "error": str(tool_e)}
+                        tool_duration = round((time.monotonic() - tool_start) * 1000)
+                        tool_success = tool_output.get("success", False)
+                        tool_error = tool_output.get("error")
+                        tool_calls_recorded.append(ToolCallInfo(
+                            tool_name=tc["name"],
+                            input=tc.get("args"),
+                            output=tool_output,
+                            duration_ms=tool_duration,
+                            success=tool_success,
+                            error=tool_error,
+                        ))
+                        yield self._sse_event("tool_call", {
+                            "tool_name": tc["name"],
+                            "input": tc.get("args"),
+                            "output": tool_output,
+                            "duration_ms": tool_duration,
+                            "success": tool_success,
+                            "error": tool_error,
+                        })
+                        try:
+                            async with self._session_factory() as te_session:
+                                te_repo = SQLAlchemyTraceEventRepository(te_session)
+                                te_event = TraceEvent(
+                                    trace_id=trace_id,
+                                    project_id=input_dto.project_id,
+                                    event_type=TraceEventType.tool_call,
+                                    latency_ms=tool_duration,
+                                    payload={
+                                        "tool_name": tc["name"],
+                                        "input": tc.get("args"),
+                                        "output": tool_output,
+                                        "success": tool_success,
+                                        "error": tool_error,
+                                    },
+                                )
+                                await te_repo.save(te_event)
+                                await te_session.commit()
+                        except Exception:
+                            pass
+                        messages.append(ToolMessage(
+                            content=json.dumps(tool_output) if isinstance(tool_output, dict) else str(tool_output),
+                            tool_call_id=tc["id"],
+                        ))
+
+                    tool_call_rounds += 1
+                    aggregated_message = None
+                    accumulated = []
+                    input_tokens = None
+                    output_tokens = None
+                    total_tokens = None
+
+                    try:
+                        async for event in _run_stream(chat_model):
+                            yield event
+                        llm_latency_ms = round((time.monotonic() - llm_latency_start) * 1000)
+                    except Exception as tool_stream_e:
+                        logger.warning("Tool call follow-up LLM stream failed: %s", tool_stream_e)
+                        break
+
+                if json_enabled and tool_was_called:
+                    try:
+                        answer_text = "".join(accumulated)
+                        schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+                        json_model = create_chat_model(
+                            provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                            model=agent.model,
+                            api_key=api_key,
+                            base_url=base_url,
+                            temperature=0.0,
+                            max_tokens=agent.max_output_tokens or 1000,
+                            response_format={"type": "json_object"},
+                        )
+                        json_start = time.monotonic()
+                        json_result = await json_model.ainvoke([
+                            SystemMessage(
+                                content=(
+                                    "Responda APENAS com JSON válido seguindo este schema.\n"
+                                    "NÃO inclua markdown, explicações ou texto fora do JSON.\n"
+                                    f"<schema>\n{schema_json}\n</schema>"
+                                )
+                            ),
+                            HumanMessage(content=f"Converta a resposta abaixo para JSON válido:\n\n{answer_text}"),
+                        ])
+                        json_format_latency_ms = round((time.monotonic() - json_start) * 1000)
+                        accumulated = [json_result.content]
+
+                        json_raw_usage = normalize_llm_usage(json_result)
+                        try:
+                            async with self._session_factory() as te_session:
+                                te_repo = SQLAlchemyTraceEventRepository(te_session)
+                                await te_repo.save(TraceEvent(
+                                    trace_id=trace_id,
+                                    project_id=input_dto.project_id,
+                                    event_type=TraceEventType.llm_call,
+                                    latency_ms=json_format_latency_ms,
+                                    payload={
+                                        "phase": "json_format",
+                                        "input_tokens": json_raw_usage["input_tokens"],
+                                        "output_tokens": json_raw_usage["output_tokens"],
+                                        "total_tokens": json_raw_usage["total_tokens"],
+                                        "cost_usd": json_raw_usage["cost_usd"],
+                                        "model": agent.model,
+                                        "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                                    },
+                                ))
+                                await te_session.commit()
+                        except Exception:
+                            pass
+                    except Exception as json_e:
+                        logger.warning("JSON formatting phase (Fase 2) failed: %s", json_e)
+
             except Exception as e:
                 primary_error = str(e)
 
@@ -317,9 +489,10 @@ class AskAgentStreamService:
                         sources=sources,
                         parsed_output=parsed_output,
                         output_parse_error=output_parse_error,
-                        tool_calls=[],
+                        tool_calls=[tc.model_dump() for tc in tool_calls_recorded] if tool_calls_recorded else [],
                         fallback_used=fallback_used,
                         fallback_info=fallback_info_result,
+                        json_format_latency_ms=json_format_latency_ms,
                     )
                 except Exception as e:
                     logger.warning("Failed to complete trace: %s", e)
@@ -346,6 +519,7 @@ class AskAgentStreamService:
                     "output_parse_error": output_parse_error,
                     "fallback_used": fallback_used,
                     "fallback_info": fallback_info_result,
+                    "tool_calls": [tc.model_dump() for tc in tool_calls_recorded] if tool_calls_recorded else [],
                 }
 
                 yield self._sse_event("done", done_payload)
@@ -777,6 +951,7 @@ class AskAgentStreamService:
         tool_calls: list | None = None,
         fallback_used: bool = False,
         fallback_info: dict | None = None,
+        json_format_latency_ms: int | None = None,
     ) -> None:
         if not trace_id:
             return
@@ -798,6 +973,7 @@ class AskAgentStreamService:
                     "tool_calls": tool_calls or None,
                     "parsed_output": parsed_output,
                     "output_parse_error": output_parse_error,
+                    "json_format_latency_ms": json_format_latency_ms,
                 }
                 if fallback_info:
                     data["fallback_info"] = fallback_info

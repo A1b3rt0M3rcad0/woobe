@@ -4,46 +4,53 @@ import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/common/EmptyState'
-
-// TODO: Replace mock data with useAgentTools(agentId) from @/features/tools/hooks
-interface MockTool {
-  id: string
-  name: string
-  description: string
-  type: string
-  risk_level: string
-}
-
-const MOCK_TOOLS: MockTool[] = [
-  { id: 'web-search', name: 'Web Search', description: 'Search the web for real-time information', type: 'builtin', risk_level: 'low' },
-  { id: 'calculator', name: 'Calculator', description: 'Perform mathematical calculations and conversions', type: 'builtin', risk_level: 'none' },
-  { id: 'code-executor', name: 'Code Executor', description: 'Execute Python code in a sandboxed environment', type: 'builtin', risk_level: 'medium' },
-  { id: 'database-query', name: 'Database Query', description: 'Execute read-only SQL queries against connected databases', type: 'custom', risk_level: 'high' },
-  { id: 'http-request', name: 'HTTP Request', description: 'Make HTTP requests to external APIs and services', type: 'builtin', risk_level: 'medium' },
-  { id: 'file-reader', name: 'File Reader', description: 'Read and parse files from allowed directories', type: 'custom', risk_level: 'medium' },
-]
+import { LoadingState } from '@/components/common/LoadingState'
+import { useTools, useUpdateTool } from '@/features/tools/hooks'
+import type { Tool } from '@/features/tools/types'
+import { toast } from 'sonner'
 
 const riskVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  none: 'default',
   low: 'success',
   medium: 'warning',
   high: 'destructive',
+  critical: 'destructive',
 }
 
 interface ImportToolsModalProps {
   open: boolean
   onClose: () => void
-  importedToolIds: string[]
-  onImport: (toolId: string) => void
+  projectId: string
+  agentId: string
+  importedToolIds: Set<string>
+  onImport: () => void
 }
 
-export function ImportToolsModal({ open, onClose, importedToolIds, onImport }: ImportToolsModalProps) {
-  const availableTools = MOCK_TOOLS.filter(t => !importedToolIds.includes(t.id))
+export function ImportToolsModal({ open, onClose, projectId, agentId, importedToolIds, onImport }: ImportToolsModalProps) {
+  const { data: allTools = [], isLoading } = useTools(projectId)
+  const updateTool = useUpdateTool()
+
+  const availableTools = allTools.filter(t => !importedToolIds.has(t.id))
+
+  const handleImport = async (tool: Tool) => {
+    try {
+      await updateTool.mutateAsync({
+        toolId: tool.id,
+        data: { agent_id: agentId },
+      })
+      toast.success(`"${tool.name}" imported`)
+      onImport()
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to import tool')
+    }
+  }
 
   return (
     <Dialog open={open} onClose={onClose} title="Import Tool">
       <div className="space-y-4">
-        {availableTools.length === 0 ? (
+        {isLoading ? (
+          <LoadingState />
+        ) : availableTools.length === 0 ? (
           <div className="py-6">
             <EmptyState
               icon={<Wrench className="h-10 w-10" />}
@@ -59,7 +66,7 @@ export function ImportToolsModal({ open, onClose, importedToolIds, onImport }: I
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{tool.name}</p>
-                      <p className="text-xs text-muted mt-0.5">{tool.description}</p>
+                      <p className="text-xs text-muted mt-0.5">{tool.description || 'No description'}</p>
                     </div>
                     <Badge variant={riskVariant[tool.risk_level] || 'default'}>{tool.risk_level}</Badge>
                   </div>
@@ -67,10 +74,8 @@ export function ImportToolsModal({ open, onClose, importedToolIds, onImport }: I
                     <span className="text-[10px] text-muted uppercase tracking-wider">{tool.type}</span>
                     <Button
                       size="sm"
-                      onClick={() => {
-                        onImport(tool.id)
-                        onClose()
-                      }}
+                      onClick={() => handleImport(tool)}
+                      loading={updateTool.isPending}
                     >
                       Import
                     </Button>
