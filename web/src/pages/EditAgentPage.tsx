@@ -55,7 +55,6 @@ const providerLabels: Record<string, string> = {
 const statusOptions = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
-  { value: 'archived', label: 'Archived' },
 ]
 
 function getCredentialModel(credential: ProviderCredential): string {
@@ -97,7 +96,7 @@ export default function EditAgentPage() {
       max_output_tokens: agent.max_output_tokens ?? 2048,
       provider_credential_id: agent.provider_credential_id || '',
       session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless',
-      status: agent.status as 'active' | 'inactive' | 'archived',
+      status: agent.status === 'active' ? 'active' : 'inactive',
     })
     setFormReady(true)
   }, [agent, credentials, form, formReady])
