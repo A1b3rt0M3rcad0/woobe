@@ -9,14 +9,12 @@ import { jsonDarkTheme, jsonSyntaxHighlight } from '@/components/ui/json-cm-them
 interface StructuredJsonResponseProps {
   value: unknown
   raw?: string
-  agentName?: string
   maxHeight?: number | string
   className?: string
 }
 
 export function StructuredJsonResponse({
   value,
-  agentName,
   maxHeight = 420,
   className,
 }: StructuredJsonResponseProps) {
@@ -94,13 +92,8 @@ export function StructuredJsonResponse({
         >
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <Braces className="h-4 w-4 shrink-0 text-[#818cf8]" />
-            <span className="text-sm truncate">
-              {agentName && (
-                <span className="font-semibold text-[#818cf8]">{agentName}</span>
-              )}
-              <span className="text-[rgba(226,232,240,0.92)]">
-                {agentName ? ' · ' : ''}Structured response
-              </span>
+            <span className="text-sm font-medium text-[rgba(226,232,240,0.92)] truncate">
+              Structured response
             </span>
           </div>
 
@@ -184,13 +177,8 @@ export function StructuredJsonResponse({
         >
           <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[rgba(148,163,184,0.22)] bg-[#0f172a] shadow-2xl">
             <div className="flex items-center justify-between shrink-0 px-5 py-4 border-b border-[rgba(148,163,184,0.1)]">
-              <span className="text-sm truncate">
-                {agentName && (
-                  <span className="font-semibold text-[#818cf8]">{agentName}</span>
-                )}
-                <span className="text-[rgba(226,232,240,0.92)]">
-                  {agentName ? ' · ' : ''}Structured response
-                </span>
+              <span className="text-sm font-medium text-[rgba(226,232,240,0.92)]">
+                Structured response
               </span>
               <div className="flex items-center gap-1">
                 <button

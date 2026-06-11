@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { formatNumber, formatLatency, formatDateTime } from '@/lib/formatters/number'
+import { formatNumber, formatLatency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { StructuredJsonResponse } from './StructuredJsonResponse'
@@ -48,66 +48,85 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
 export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMessageProps) {
   const isUser = message.role === 'user'
 
-  return (
-    <div className={cn('flex gap-3 overflow-hidden', isUser ? 'justify-end' : 'justify-start')}>
-      <div className={cn('max-w-[80%]', isUser ? 'order-1' : 'order-1')}>
-        {isStreaming ? (
-          <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Thinking...
-          </div>
-        ) : isUser ? (
+  // --- User message layout ---
+  if (isUser) {
+    return (
+      <div className="flex gap-3 justify-end overflow-hidden">
+        <div className="max-w-[80%]">
           <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-primary text-white rounded-br-md">
             {message.content}
           </div>
-        ) : message.parsed_output ? (
-          <StructuredJsonResponse
-            value={message.parsed_output}
-            agentName={agentName}
-          />
-        ) : (() => {
-          const { isPureJson, segments } = parseAssistantMessageContent(message.content)
-          if (isPureJson && segments[0].type === 'json') {
-            return (
-              <StructuredJsonResponse
-                value={segments[0].value}
-                raw={segments[0].raw}
-                agentName={agentName}
-              />
-            )
-          }
-          if (segments.length === 1 && segments[0].type === 'text') {
-            return (
-              <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
-                {message.content}
-              </div>
-            )
-          }
-          return (
-            <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
-              {segments.map((seg, i) =>
-                seg.type === 'text' ? (
-                  <span key={i}>{seg.content}</span>
-                ) : (
-                  <div key={i} className="my-2">
-                    <JsonCodeBlock value={seg.value} maxHeight={160} />
-                  </div>
-                )
-              )}
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
+          <User className="h-4 w-4 text-primary" />
+        </div>
+      </div>
+    )
+  }
+
+  // --- Assistant message layout ---
+  const assistantContent = isStreaming ? (
+    <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Thinking...
+    </div>
+  ) : message.parsed_output ? (
+    <StructuredJsonResponse value={message.parsed_output} />
+  ) : (() => {
+    const { isPureJson, segments } = parseAssistantMessageContent(message.content)
+    if (isPureJson && segments[0].type === 'json') {
+      return <StructuredJsonResponse value={segments[0].value} raw={segments[0].raw} />
+    }
+    if (segments.length === 1 && segments[0].type === 'text') {
+      return (
+        <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
+          {message.content}
+        </div>
+      )
+    }
+    return (
+      <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
+        {segments.map((seg, i) =>
+          seg.type === 'text' ? (
+            <span key={i}>{seg.content}</span>
+          ) : (
+            <div key={i} className="my-2">
+              <JsonCodeBlock value={seg.value} maxHeight={160} />
             </div>
           )
-        })()}
+        )}
+      </div>
+    )
+  })()
 
-        {!isUser && !isStreaming && (
+  return (
+    <div className="flex gap-3 justify-start overflow-hidden">
+      {/* Avatar + name column */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 w-14">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
+          <Bot className="h-4 w-4 text-primary" />
+        </div>
+        {agentName && (
+          <span
+            className="text-[10px] text-muted text-center leading-tight truncate w-full"
+            title={agentName}
+          >
+            {agentName}
+          </span>
+        )}
+      </div>
+
+      {/* Content column */}
+      <div className="max-w-[80%]">
+        {assistantContent}
+
+        {!isStreaming && (
           <>
             {message.sources && message.sources.length > 0 && (
               <SourcesCollapsible sources={message.sources} />
             )}
 
             <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
-              {message.created_at && (
-                <span>{formatDateTime(message.created_at)}</span>
-              )}
               {message.model && (
                 <span>{message.provider || ''} {message.model}</span>
               )}
@@ -136,18 +155,6 @@ export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMes
               </button>
             </div>
           </>
-        )}
-      </div>
-
-      <div className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-full shrink-0',
-        isUser ? 'bg-primary/10' : 'bg-accent',
-        isUser ? 'order-2' : 'order-2',
-      )}>
-        {isUser ? (
-          <User className="h-4 w-4 text-primary" />
-        ) : (
-          <Bot className="h-4 w-4 text-primary" />
         )}
       </div>
     </div>
