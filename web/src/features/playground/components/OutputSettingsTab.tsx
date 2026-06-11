@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/Button'
+import { useMemo } from 'react'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
@@ -46,36 +46,9 @@ export function OutputSettingsTab() {
     setField('responseFormat', { ...responseFormat, schema: value })
   }
 
-  const previewExample = responseFormat.enabled
-    ? {
-        success: true,
-        data: {
-          answer: '{"category":"support","priority":"high","summary":"...","should_escalate":true}',
-          session_id: 'uuid',
-          message_id: 'uuid',
-          usage: {
-            input_tokens: 58,
-            output_tokens: 22,
-            total_tokens: 80,
-            cost_usd: 0.0005,
-          },
-          sources: [],
-          tool_calls: [],
-          trace_id: 'uuid',
-          model: 'gpt-4o-mini',
-          provider: 'openai',
-          fallback_used: false,
-          latency_ms: 1024,
-          parsed_output: {
-            category: 'support',
-            priority: 'high',
-            summary: 'Customer needs help with billing.',
-            should_escalate: true,
-          },
-          output_parse_error: null,
-        },
-      }
-    : {
+  const previewExample = useMemo(() => {
+    if (!responseFormat.enabled) {
+      return {
         success: true,
         data: {
           answer: 'Hello! How can I help you?',
@@ -98,6 +71,51 @@ export function OutputSettingsTab() {
           output_parse_error: null,
         },
       }
+    }
+
+    const rawSchema = responseFormat.schema
+    let schemaStr: string
+    let schemaObj: Record<string, unknown> | null
+
+    if (typeof rawSchema === 'string') {
+      schemaStr = rawSchema
+      try {
+        schemaObj = JSON.parse(rawSchema) as Record<string, unknown>
+      } catch {
+        schemaObj = null
+      }
+    } else if (rawSchema && typeof rawSchema === 'object') {
+      schemaStr = JSON.stringify(rawSchema, null, 2)
+      schemaObj = rawSchema as Record<string, unknown>
+    } else {
+      schemaStr = DEFAULT_SCHEMA
+      schemaObj = JSON.parse(DEFAULT_SCHEMA) as Record<string, unknown>
+    }
+
+    return {
+      success: true,
+      data: {
+        answer: schemaStr,
+        session_id: 'uuid',
+        message_id: 'uuid',
+        usage: {
+          input_tokens: 58,
+          output_tokens: 22,
+          total_tokens: 80,
+          cost_usd: 0.0005,
+        },
+        sources: [],
+        tool_calls: [],
+        trace_id: 'uuid',
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        fallback_used: false,
+        latency_ms: 1024,
+        parsed_output: schemaObj,
+        output_parse_error: null,
+      },
+    }
+  }, [responseFormat.enabled, responseFormat.schema])
 
   return (
     <div className="p-4 space-y-4">
