@@ -1,0 +1,228 @@
+# Runtime da Migração Arquitetural para Agent
+
+## Objetivo da migração
+
+Migrar incrementalmente `src/modules/ai`, `src/modules/knowledge` e `src/modules/runtime` para um único bounded context `src/modules/agent`, preservando o modular monolith, fronteiras internas, rastreabilidade, idempotência e consistência transacional por módulo.
+
+## Decisão arquitetural principal
+
+`ai`, `knowledge` e `runtime` não devem permanecer como módulos independentes no estado final. O contexto correto é `agent`, porque execução de agente, composição de prompt, integração com LLM, uso de knowledge base, sessões, mensagens, releases e ask jobs formam um fluxo operacional único. A separação atual gera acoplamento artificial.
+
+## Regra absoluta de comunicação entre módulos
+
+Toda mudança de estado entre módulos deve ocorrer por eventos persistidos na Outbox do produtor, publicados no RabbitMQ e gravados na Inbox do consumidor antes de ack. O produtor não conhece consumidores. O consumidor não altera tabelas de outro módulo.
+
+## Regra absoluta de ownership de banco e Foreign Keys
+
+No estado final, é proibida qualquer `ForeignKey` física entre tabelas pertencentes a módulos/bounded contexts distintos. Outbox/Inbox é o mecanismo de integração entre módulos; Foreign Keys são permitidas somente dentro do mesmo módulo dono do dado.
+
+Regras objetivas:
+
+- `agent.* -> agent.*`: permitido.
+- `billing.* -> billing.*`: permitido.
+- `metering.* -> metering.*`: permitido.
+- `identity.* -> identity.*`: permitido.
+- `agent.* -> billing|metering|identity|core|tools|observability.*`: proibido.
+- `billing|metering|identity|core|tools|observability.* -> agent.*`: proibido.
+- IDs de outro módulo podem ser armazenados como referências opacas, sem constraint física, sem cascade, sem join para alteração de estado e sem repository/model externo.
+- Projeções locais/read models alimentados por eventos são permitidos quando pertencem ao módulo consumidor.
+- FKs legadas entre `ai`, `knowledge` e `runtime` são tratadas como dívida de migração e devem ser consolidadas dentro de `agent`; após a consolidação, nenhuma FK deve apontar para schemas legados `ai`, `knowledge` ou `runtime`.
+
+A validação final deve falhar se existir `ForeignKey("<schema_externo>.<tabela>.id")`, `ForeignKey('<schema_externo>.<tabela>.id')` ou constraint equivalente entre módulos.
+
+Toda alteração de estado de um módulo só pode ocorrer por API pública do próprio módulo ou por processamento de evento persistido na Inbox do próprio módulo. Nenhum módulo pode importar repository, model, entity, service, use case ou infra de outro módulo para alterar estado.
+
+## Fluxo obrigatório Outbox/Inbox
+
+1. O módulo altera somente seu próprio estado.
+2. Na mesma transação, a application layer persiste Outbox do próprio módulo via UoW.
+3. O dispatcher do próprio módulo publica no RabbitMQ usando publisher confirms.
+4. O dispatcher marca Outbox como published somente após confirmação do broker.
+5. O consumer do módulo interessado recebe a mensagem, persiste na Inbox própria e só então faz ack.
+6. O processor do módulo consome Inbox pendente, chama handler/use case interno e atualiza estado, Inbox e eventual nova Outbox na mesma transação.
+
+## Papel do Unit of Work
+
+O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW não é serviço de domínio e não atravessa fronteiras de módulo.
+
+## Regra sobre workers
+
+`shared/workers` contém apenas infraestrutura genérica. Workers concretos ficam em `src/modules/<module>/infra/workers`. O runner central apenas descobre registries de módulos e executa workers registrados; ele não conhece eventos de negócio, filas, bindings ou handlers específicos.
+
+## Fora de escopo
+
+- Microservices.
+- Separar `ai`, `knowledge` e `runtime` em outros bounded contexts.
+- Criar comunicação síncrona direta entre módulos para mudança de estado.
+- Mover domínio para `shared`.
+- Remoção big bang dos módulos legados.
+
+## Estado atual da migração
+
+Status inicial: `pending`.
+
+Estado preliminar observado no ProjectRAI em 2026-06-12:
+
+- `src/main.py` registra diretamente os routers `modules.ai`, `modules.knowledge` e `modules.runtime`.
+- `src/workers/runner.py` instancia `OutboxPublisherWorker`, `InboxConsumerWorker`, `InboxDispatcherWorker` e `AskJobWorker` diretamente.
+- `src/workers/dispatcher.py` contém handlers por evento de negócio e conhece eventos de `identity`, `core`, `ai`, `knowledge` e `metering`.
+- `src/shared/workers/outbox_publisher.py` e `src/shared/workers/inbox_dispatcher.py` mantêm listas fixas de módulos, incluindo `ai`, `knowledge` e `runtime`.
+- `src/shared/workers/inbox_consumer.py` roteia eventos pelo primeiro segmento do `event_type`, usando uma queue global `projectrai.inbox` e import dinâmico de models do produtor.
+- `src/modules/runtime/service/ask_use_case.py` importa diretamente domínio/repositórios de `ai`, `knowledge`, `metering` e `observability`.
+- `src/modules/runtime/infra/ask_job_worker.py` monta um caso de uso com repositórios de `ai`, `knowledge`, `runtime`, `metering` e `observability` sob um UoW compartilhado.
+- `src/modules/ai/infra/models.py`, `src/modules/knowledge/infra/models.py` e `src/modules/runtime/infra/models.py` têm schemas separados e Outbox/Inbox próprias.
+- `migrations/env.py` importa explicitamente models de `ai`, `knowledge` e `runtime` para metadata do Alembic.
+
+
+## Status das specs
+
+| Spec | Status | Data | Arquivos alterados | Pendências | Próxima recomendada |
+|---|---|---|---|---|---|
+| 000-architecture-decision-record-agent-bounded-context | pending | 2026-06-12 | - | executar spec | 001-architecture-rules-modular-monolith-boundaries.md |
+| 001-architecture-rules-modular-monolith-boundaries | pending | 2026-06-12 | - | executar spec | 002-agent-target-directory-structure.md |
+| 002-agent-target-directory-structure | pending | 2026-06-12 | - | executar spec | 003-create-current-repository-inventory.md |
+| 003-create-current-repository-inventory | pending | 2026-06-12 | - | executar spec | 004-create-current-import-dependency-map.md |
+| 004-create-current-import-dependency-map | pending | 2026-06-12 | - | executar spec | 005-create-current-database-ownership-map.md |
+| 005-create-current-database-ownership-map | pending | 2026-06-12 | - | executar spec | 006-create-current-api-route-map.md |
+| 006-create-current-api-route-map | pending | 2026-06-12 | - | executar spec | 007-create-current-event-catalog.md |
+| 007-create-current-event-catalog | pending | 2026-06-12 | - | executar spec | 008-create-current-worker-inventory.md |
+| 008-create-current-worker-inventory | pending | 2026-06-12 | - | executar spec | 009-create-migration-risk-register.md |
+| 009-create-migration-risk-register | pending | 2026-06-12 | - | executar spec | 010-create-agent-module-skeleton.md |
+| 010-create-agent-module-skeleton | pending | 2026-06-12 | - | executar spec | 011-create-agent-domain-layer-skeleton.md |
+| 011-create-agent-domain-layer-skeleton | pending | 2026-06-12 | - | executar spec | 012-create-agent-application-layer-skeleton.md |
+| 012-create-agent-application-layer-skeleton | pending | 2026-06-12 | - | executar spec | 013-create-agent-infra-layer-skeleton.md |
+| 013-create-agent-infra-layer-skeleton | pending | 2026-06-12 | - | executar spec | 014-create-agent-presentation-layer-skeleton.md |
+| 014-create-agent-presentation-layer-skeleton | pending | 2026-06-12 | - | executar spec | 015-add-temporary-architecture-boundary-tests.md |
+| 015-add-temporary-architecture-boundary-tests | pending | 2026-06-12 | - | executar spec | 016-add-shared-layer-architecture-tests.md |
+| 016-add-shared-layer-architecture-tests | pending | 2026-06-12 | - | executar spec | 017-add-worker-location-architecture-tests.md |
+| 017-add-worker-location-architecture-tests | pending | 2026-06-12 | - | executar spec | 018-add-agent-boundary-architecture-tests.md |
+| 018-add-agent-boundary-architecture-tests | pending | 2026-06-12 | - | executar spec | 019-add-legacy-module-allowlist.md |
+| 019-add-legacy-module-allowlist | pending | 2026-06-12 | - | executar spec | 020-map-ai-to-agent.md |
+| 020-map-ai-to-agent | pending | 2026-06-12 | - | executar spec | 021-move-ai-domain-to-agent-domain.md |
+| 021-move-ai-domain-to-agent-domain | pending | 2026-06-12 | - | executar spec | 022-move-ai-application-to-agent-application.md |
+| 022-move-ai-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 023-move-ai-infra-llm-to-agent-infra-llm.md |
+| 023-move-ai-infra-llm-to-agent-infra-llm | pending | 2026-06-12 | - | executar spec | 024-move-ai-presentation-to-agent-presentation.md |
+| 024-move-ai-presentation-to-agent-presentation | pending | 2026-06-12 | - | executar spec | 025-update-ai-imports-to-agent-imports.md |
+| 025-update-ai-imports-to-agent-imports | pending | 2026-06-12 | - | executar spec | - |
+| 030-map-knowledge-to-agent | pending | 2026-06-12 | - | executar spec | 031-move-knowledge-domain-to-agent-domain.md |
+| 031-move-knowledge-domain-to-agent-domain | pending | 2026-06-12 | - | executar spec | 032-move-knowledge-application-to-agent-application.md |
+| 032-move-knowledge-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 033-move-knowledge-infra-to-agent-infra.md |
+| 033-move-knowledge-infra-to-agent-infra | pending | 2026-06-12 | - | executar spec | 034-move-knowledge-presentation-to-agent-presentation.md |
+| 034-move-knowledge-presentation-to-agent-presentation | pending | 2026-06-12 | - | executar spec | 035-update-knowledge-imports-to-agent-imports.md |
+| 035-update-knowledge-imports-to-agent-imports | pending | 2026-06-12 | - | executar spec | - |
+| 040-map-runtime-to-agent | pending | 2026-06-12 | - | executar spec | 041-move-runtime-domain-to-agent-domain.md |
+| 041-move-runtime-domain-to-agent-domain | pending | 2026-06-12 | - | executar spec | 042-move-runtime-application-to-agent-application.md |
+| 042-move-runtime-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 043-move-runtime-infra-to-agent-infra.md |
+| 043-move-runtime-infra-to-agent-infra | pending | 2026-06-12 | - | executar spec | 044-move-runtime-presentation-to-agent-presentation.md |
+| 044-move-runtime-presentation-to-agent-presentation | pending | 2026-06-12 | - | executar spec | 045-update-runtime-imports-to-agent-imports.md |
+| 045-update-runtime-imports-to-agent-imports | pending | 2026-06-12 | - | executar spec | - |
+| 050-create-shared-worker-contracts | pending | 2026-06-12 | - | executar spec | 051-create-shared-outbox-dispatcher-base.md |
+| 051-create-shared-outbox-dispatcher-base | pending | 2026-06-12 | - | executar spec | 052-create-shared-inbox-consumer-base.md |
+| 052-create-shared-inbox-consumer-base | pending | 2026-06-12 | - | executar spec | 053-create-shared-inbox-processor-base.md |
+| 053-create-shared-inbox-processor-base | pending | 2026-06-12 | - | executar spec | 054-create-shared-worker-runner.md |
+| 054-create-shared-worker-runner | pending | 2026-06-12 | - | executar spec | 055-create-shared-worker-registry-contract.md |
+| 055-create-shared-worker-registry-contract | pending | 2026-06-12 | - | executar spec | - |
+| 060-move-root-workers-to-shared-workers | pending | 2026-06-12 | - | executar spec | 061-remove-domain-worker-implementation-from-src-workers.md |
+| 061-remove-domain-worker-implementation-from-src-workers | pending | 2026-06-12 | - | executar spec | 062-create-module-worker-registry-pattern.md |
+| 062-create-module-worker-registry-pattern | pending | 2026-06-12 | - | executar spec | 063-wire-central-runner-to-module-worker-registries.md |
+| 063-wire-central-runner-to-module-worker-registries | pending | 2026-06-12 | - | executar spec | - |
+| 070-create-agent-outbox-model-and-repository | pending | 2026-06-12 | - | executar spec | 071-create-agent-inbox-model-and-repository.md |
+| 071-create-agent-inbox-model-and-repository | pending | 2026-06-12 | - | executar spec | 072-create-agent-event-contracts.md |
+| 072-create-agent-event-contracts | pending | 2026-06-12 | - | executar spec | 073-create-agent-event-mappers.md |
+| 073-create-agent-event-mappers | pending | 2026-06-12 | - | executar spec | 074-create-agent-unit-of-work.md |
+| 074-create-agent-unit-of-work | pending | 2026-06-12 | - | executar spec | 075-create-agent-outbox-database-migration.md |
+| 075-create-agent-outbox-database-migration | pending | 2026-06-12 | - | executar spec | 076-create-agent-inbox-database-migration.md |
+| 076-create-agent-inbox-database-migration | pending | 2026-06-12 | - | executar spec | 077-create-agent-outbox-status-transition-policy.md |
+| 077-create-agent-outbox-status-transition-policy | pending | 2026-06-12 | - | executar spec | 078-create-agent-inbox-status-transition-policy.md |
+| 078-create-agent-inbox-status-transition-policy | pending | 2026-06-12 | - | executar spec | 079-create-agent-outbox-inbox-locking-policy.md |
+| 079-create-agent-outbox-inbox-locking-policy | pending | 2026-06-12 | - | executar spec | 080-implement-agent-outbox-dispatcher.md |
+| 080-implement-agent-outbox-dispatcher | pending | 2026-06-12 | - | executar spec | 081-implement-agent-rabbitmq-publisher.md |
+| 081-implement-agent-rabbitmq-publisher | pending | 2026-06-12 | - | executar spec | 082-implement-agent-inbox-consumer.md |
+| 082-implement-agent-inbox-consumer | pending | 2026-06-12 | - | executar spec | 083-implement-agent-inbox-processor.md |
+| 083-implement-agent-inbox-processor | pending | 2026-06-12 | - | executar spec | 084-implement-agent-inbox-handlers.md |
+| 084-implement-agent-inbox-handlers | pending | 2026-06-12 | - | executar spec | 085-implement-agent-worker-registry.md |
+| 085-implement-agent-worker-registry | pending | 2026-06-12 | - | executar spec | - |
+| 090-create-billing-worker-structure | pending | 2026-06-12 | - | executar spec | 091-create-metering-worker-structure.md |
+| 091-create-metering-worker-structure | pending | 2026-06-12 | - | executar spec | 092-create-identity-worker-structure.md |
+| 092-create-identity-worker-structure | pending | 2026-06-12 | - | executar spec | 093-create-tools-worker-structure.md |
+| 093-create-tools-worker-structure | pending | 2026-06-12 | - | executar spec | 094-create-observability-worker-structure.md |
+| 094-create-observability-worker-structure | pending | 2026-06-12 | - | executar spec | - |
+| 100-standardize-module-outbox-pattern | pending | 2026-06-12 | - | executar spec | 101-standardize-module-inbox-pattern.md |
+| 101-standardize-module-inbox-pattern | pending | 2026-06-12 | - | executar spec | 102-standardize-event-envelope.md |
+| 102-standardize-event-envelope | pending | 2026-06-12 | - | executar spec | 103-standardize-event-idempotency.md |
+| 103-standardize-event-idempotency | pending | 2026-06-12 | - | executar spec | 104-standardize-event-retry-policy.md |
+| 104-standardize-event-retry-policy | pending | 2026-06-12 | - | executar spec | 105-standardize-dead-letter-policy.md |
+| 105-standardize-dead-letter-policy | pending | 2026-06-12 | - | executar spec | 106-standardize-rabbitmq-topology.md |
+| 106-standardize-rabbitmq-topology | pending | 2026-06-12 | - | executar spec | 107-standardize-event-versioning-policy.md |
+| 107-standardize-event-versioning-policy | pending | 2026-06-12 | - | executar spec | 108-standardize-event-observability-and-tracing.md |
+| 108-standardize-event-observability-and-tracing | pending | 2026-06-12 | - | executar spec | 109-standardize-event-compatibility-policy.md |
+| 109-standardize-event-compatibility-policy | pending | 2026-06-12 | - | executar spec | 110-update-import-boundary-rules.md |
+| 110-update-import-boundary-rules | pending | 2026-06-12 | - | executar spec | 111-add-architecture-tests-for-module-boundaries.md |
+| 111-add-architecture-tests-for-module-boundaries | pending | 2026-06-12 | - | executar spec | 112-add-architecture-tests-for-shared-layer.md |
+| 112-add-architecture-tests-for-shared-layer | pending | 2026-06-12 | - | executar spec | 113-add-architecture-tests-for-workers.md |
+| 113-add-architecture-tests-for-workers | pending | 2026-06-12 | - | executar spec | 114-add-architecture-tests-for-agent-module.md |
+| 114-add-architecture-tests-for-agent-module | pending | 2026-06-12 | - | executar spec | - |
+| 120-add-agent-unit-tests | pending | 2026-06-12 | - | executar spec | 121-add-agent-integration-tests.md |
+| 121-add-agent-integration-tests | pending | 2026-06-12 | - | executar spec | 122-add-outbox-dispatcher-tests.md |
+| 122-add-outbox-dispatcher-tests | pending | 2026-06-12 | - | executar spec | 123-add-inbox-consumer-tests.md |
+| 123-add-inbox-consumer-tests | pending | 2026-06-12 | - | executar spec | 124-add-inbox-processor-tests.md |
+| 124-add-inbox-processor-tests | pending | 2026-06-12 | - | executar spec | 125-add-idempotency-tests.md |
+| 125-add-idempotency-tests | pending | 2026-06-12 | - | executar spec | 126-add-unit-of-work-transaction-tests.md |
+| 126-add-unit-of-work-transaction-tests | pending | 2026-06-12 | - | executar spec | 127-add-rabbitmq-publisher-confirm-tests.md |
+| 127-add-rabbitmq-publisher-confirm-tests | pending | 2026-06-12 | - | executar spec | 128-add-inbox-deduplication-concurrency-tests.md |
+| 128-add-inbox-deduplication-concurrency-tests | pending | 2026-06-12 | - | executar spec | 129-add-outbox-dispatch-concurrency-tests.md |
+| 129-add-outbox-dispatch-concurrency-tests | pending | 2026-06-12 | - | executar spec | 130-update-application-bootstrap.md |
+| 130-update-application-bootstrap | pending | 2026-06-12 | - | executar spec | 131-update-api-routes-to-agent.md |
+| 131-update-api-routes-to-agent | pending | 2026-06-12 | - | executar spec | 132-update-dependency-injection-bindings.md |
+| 132-update-dependency-injection-bindings | pending | 2026-06-12 | - | executar spec | 133-update-settings-and-config.md |
+| 133-update-settings-and-config | pending | 2026-06-12 | - | executar spec | 134-update-alembic-or-database-migrations.md |
+| 134-update-alembic-or-database-migrations | pending | 2026-06-12 | - | executar spec | - |
+| 140-deprecate-ai-module | pending | 2026-06-12 | - | executar spec | 141-deprecate-knowledge-module.md |
+| 141-deprecate-knowledge-module | pending | 2026-06-12 | - | executar spec | 142-deprecate-runtime-module.md |
+| 142-deprecate-runtime-module | pending | 2026-06-12 | - | executar spec | 143-remove-legacy-ai-module.md |
+| 143-remove-legacy-ai-module | pending | 2026-06-12 | - | executar spec | 144-remove-legacy-knowledge-module.md |
+| 144-remove-legacy-knowledge-module | pending | 2026-06-12 | - | executar spec | 145-remove-legacy-runtime-module.md |
+| 145-remove-legacy-runtime-module | pending | 2026-06-12 | - | executar spec | - |
+| 150-final-cleanup-imports | pending | 2026-06-12 | - | executar spec | 151-final-cleanup-dead-code.md |
+| 151-final-cleanup-dead-code | pending | 2026-06-12 | - | executar spec | 152-final-cleanup-src-workers.md |
+| 152-final-cleanup-src-workers | pending | 2026-06-12 | - | executar spec | 153-final-architecture-validation.md |
+| 153-final-architecture-validation | pending | 2026-06-12 | - | executar spec | 154-final-migration-report.md |
+| 154-final-migration-report | pending | 2026-06-12 | - | executar spec | - |
+
+## Specs executadas
+
+Nenhuma spec executada no momento da criação deste pacote.
+
+## Specs pendentes
+
+Todas as specs listadas no MANIFEST estão pendentes.
+
+## Decisões tomadas durante a execução
+
+| Data | Decisão | Motivo | Impacto | Reversível? |
+|---|---|---|---|---|
+| 2026-06-12 | Unificar `ai`, `knowledge` e `runtime` em `agent` | O runtime depende diretamente de IA e conhecimento; os três representam o mesmo domínio operacional | Reorganização de módulos, rotas, imports, schemas e workers | Sim, enquanto os shims estiverem ativos; não após contract final |
+| 2026-06-12 | Manter modular monolith | O objetivo é reforçar fronteiras internas sem custo operacional de microservices | Comunicação interna por eventos e UoW por módulo | Sim |
+| 2026-06-12 | Workers concretos por módulo | Evita regra de negócio em runner/global workers | `src/workers` removido no estado final | Sim durante migração |
+
+## Riscos ativos
+
+| Risco | Severidade | Spec origem | Mitigação | Status |
+|---|---|---|---|---|
+| Imports cruzados diretos em `runtime` para `ai`, `knowledge`, `metering` e `observability` | alta | 004, 040, 110 | Inventário, allowlist temporária, migração para `agent`, integração com outros módulos via Inbox | aberto |
+| UoW compartilhado coordenando repositories de vários módulos | crítica | 074, 126 | Criar `AgentUnitOfWork`; remover coordenação cross-module | aberto |
+| Workers globais conhecendo módulos e eventos de negócio | alta | 008, 050-063, 080-085 | Base genérica em shared; workers concretos por módulo | aberto |
+| Schemas `ai`, `knowledge`, `runtime` separados | média | 005, 134 | Expand-migrate-contract para schema/tabelas `agent` | aberto |
+| Event types inconsistentes sem envelope versionado completo | alta | 007, 102-109 | Padronizar envelope, idempotency_key, correlation_id e causation_id | aberto |
+
+## Inconsistências encontradas
+
+- `src/workers/dispatcher.py` contém handlers de negócio em pacote global.
+- `src/shared/workers/outbox_publisher.py` conhece módulos concretos.
+- `src/shared/workers/inbox_consumer.py` consome `#` em queue global e infere módulo pelo produtor.
+- `AskJobWorker` monta use case com repositories de múltiplos módulos.
+- `AskAgentUseCase` persiste metering e observability diretamente em vez de publicar eventos para consumidores próprios.
+
+## Próxima spec recomendada
+
+`000-architecture-decision-record-agent-bounded-context.md`.
