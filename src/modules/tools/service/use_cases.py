@@ -65,7 +65,7 @@ class CreateToolUseCase:
             payload={
                 "tool_id": str(created.id),
                 "project_id": str(created.project_id),
-                "agent_id": str(created.agent_id),
+                "agent_id": str(created.agent_id) if created.agent_id else None,
                 "name": created.name,
                 "type": created.type,
                 "risk_level": created.risk_level,
@@ -154,7 +154,7 @@ class UpdateToolUseCase:
             tool.name = input_dto.name
         if input_dto.description is not None:
             tool.description = input_dto.description
-        if input_dto.agent_id is not None:
+        if "agent_id" in input_dto.model_fields_set:
             tool.agent_id = input_dto.agent_id
         if input_dto.config is not None:
             tool.config = input_dto.config

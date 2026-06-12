@@ -22,7 +22,7 @@ export interface HttpToolConfig {
 export interface Tool {
   id: string
   project_id: string
-  agent_id: string
+  agent_id?: string | null
   name: string
   description?: string
   type: string
@@ -38,7 +38,7 @@ export interface Tool {
 
 export interface CreateToolRequest {
   project_id: string
-  agent_id: string
+  agent_id?: string | null
   name: string
   description?: string
   type?: string

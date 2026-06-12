@@ -16,7 +16,7 @@ class ToolModel(BaseModel):
     __table_args__ = {"schema": "tools"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID | None] = mapped_column(ForeignKey("ai.agents.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     type: Mapped[str] = mapped_column(String(64))

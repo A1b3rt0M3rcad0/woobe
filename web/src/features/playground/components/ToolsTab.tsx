@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { Wrench, Plus, Link2, AlertTriangle, Circle, XCircle } from 'lucide-react'
+import { Wrench, Plus, Link2, AlertTriangle, Circle, XCircle, Pencil } from 'lucide-react'
 import { ImportToolsModal } from './ImportToolsModal'
 import { CreateToolModal } from './CreateToolModal'
-import { useAgentTools, useUpdateToolStatus, useDeleteTool } from '@/features/tools/hooks'
+import { EditToolModal } from './EditToolModal'
+import { useAgentTools, useUpdateToolStatus, useUpdateTool, useTools } from '@/features/tools/hooks'
 import type { Tool } from '@/features/tools/types'
 import { toast } from 'sonner'
 
@@ -24,13 +25,15 @@ const riskVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning
 
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const { data: tools = [], isLoading, refetch } = useAgentTools(agentId)
+  const { refetch: refetchProjectTools } = useTools(projectId)
   const updateStatus = useUpdateToolStatus()
-  const deleteTool = useDeleteTool()
+  const updateTool = useUpdateTool()
 
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
-  const activeToolIds = new Set(tools.filter(t => t.status === 'active').map(t => t.id))
+  const agentToolIds = new Set(tools.map(t => t.id))
 
   const handleToggleActive = async (tool: Tool) => {
     try {
@@ -43,22 +46,35 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
     }
   }
 
-  const handleRemove = async (toolId: string) => {
+  const handleRemove = async (tool: Tool) => {
     try {
-      await deleteTool.mutateAsync(toolId)
-      toast.success('Tool removed')
+      await updateTool.mutateAsync({ toolId: tool.id, data: { agent_id: null } })
+      toast.success(`"${tool.name}" removed from agent`)
       refetch()
+      refetchProjectTools()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove tool')
+      toast.error(err instanceof Error ? err.message : 'Failed to remove tool from agent')
     }
   }
 
   const handleCreated = (_tool?: Tool) => {
     refetch()
+    refetchProjectTools()
   }
 
   const handleImport = () => {
     refetch()
+    refetchProjectTools()
+  }
+
+  const handleEdit = (tool: Tool) => {
+    setEditingTool(tool)
+  }
+
+  const handleEditSaved = () => {
+    setEditingTool(null)
+    refetch()
+    refetchProjectTools()
   }
 
   if (isLoading) return <LoadingState />
@@ -112,7 +128,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
         <>
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-muted uppercase tracking-wider">Agent Tools</p>
-            <span className="text-[10px] text-muted">{activeToolIds.size} of {tools.length} active</span>
+            <span className="text-[10px] text-muted">{tools.filter(t => t.status === 'active').length} of {tools.length} active</span>
           </div>
           <div className="space-y-2">
             {tools.map((tool) => {
@@ -149,8 +165,15 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                     <Button
                       size="sm"
                       variant="ghost"
+                      onClick={() => handleEdit(tool)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       className="text-red-400 hover:text-red-300"
-                      onClick={() => handleRemove(tool.id)}
+                      onClick={() => handleRemove(tool)}
                     >
                       Remove
                     </Button>
@@ -168,7 +191,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
         onClose={() => setShowImportModal(false)}
         projectId={projectId}
         agentId={agentId}
-        importedToolIds={activeToolIds}
+        importedToolIds={agentToolIds}
         onImport={handleImport}
       />
 
@@ -178,6 +201,12 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
         projectId={projectId}
         agentId={agentId}
         onCreated={handleCreated}
+      />
+
+      <EditToolModal
+        tool={editingTool}
+        onClose={() => setEditingTool(null)}
+        onSaved={handleEditSaved}
       />
     </div>
   )

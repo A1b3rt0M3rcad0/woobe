@@ -108,6 +108,7 @@ class SQLAlchemyToolRepository(ToolRepository):
             raise ToolNotFoundError(tool.id)
         model.name = tool.name
         model.description = tool.description
+        model.agent_id = tool.agent_id
         model.type = tool.type
         model.config = tool.config
         model.input_schema = tool.input_schema

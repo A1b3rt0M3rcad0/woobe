@@ -176,7 +176,6 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
     try {
       const tool = await createTool.mutateAsync({
         project_id: projectId,
-        agent_id: agentId,
         name: name.trim(),
         description: description.trim() || undefined,
         type: 'http_mcp',
@@ -187,7 +186,7 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
       onCreated(tool)
       resetForm()
       onClose()
-      toast.success(`Tool "${tool.name}" created`)
+      toast.success(`Tool "${tool.name}" created. Use Import to add it to this agent.`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create tool')
     }

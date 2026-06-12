@@ -10,7 +10,7 @@ from modules.tools.domain.enums import RiskLevel, SecretType, ToolStatus, ToolTy
 
 class CreateToolInput(BaseModel):
     project_id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = None
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     type: ToolType = ToolType.FUNCTION
@@ -24,7 +24,7 @@ class CreateToolInput(BaseModel):
 class CreateToolOutput(BaseModel):
     id: UUID
     project_id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = None
     name: str
     description: str | None
     type: ToolType
