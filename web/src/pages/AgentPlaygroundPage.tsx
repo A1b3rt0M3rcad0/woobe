@@ -64,12 +64,12 @@ function PlaygroundContent() {
   } = usePlaygroundTraces(projectId, agentId, sessionId)
 
   const selectedSessionId = sessionId
-  const { data: historyMessages } = useSessionMessages(
+  const { data: historyMessages, isFetching } = useSessionMessages(
     selectedSessionId ?? undefined,
   )
 
   useEffect(() => {
-    if (historyMessages && selectedSessionId && !isSending && syncedSessionRef.current !== selectedSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -82,16 +82,18 @@ function PlaygroundContent() {
       syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, selectedSessionId, isSending])
+  }, [historyMessages, selectedSessionId, isSending, isFetching])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
     syncedSessionRef.current = null
     cancelStream()
     setSessionId(sessionIdValue)
+    setMessages([])
     setLastResponse(null)
     setRawEvents([])
     setSelectedTraceId(null)
-  }, [cancelStream])
+    queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
+  }, [cancelStream, queryClient])
 
   const handleNewSession = useCallback(() => {
     syncedSessionRef.current = null
@@ -201,6 +203,7 @@ function PlaygroundContent() {
             refetchSessions()
             refetchTraces()
             if (meta.session_id) {
+              queryClient.invalidateQueries({ queryKey: ['session-messages', meta.session_id] })
               syncedSessionRef.current = meta.session_id
             }
             if (meta.trace_id) {
