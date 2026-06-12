@@ -9,7 +9,7 @@ interface ToolCallsCollapsibleProps {
 }
 
 export function ToolCallsCollapsible({ toolCalls }: ToolCallsCollapsibleProps) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
 
   if (!toolCalls || toolCalls.length === 0) return null
 
