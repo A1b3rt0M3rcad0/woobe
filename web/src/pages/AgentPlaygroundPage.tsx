@@ -74,7 +74,10 @@ function PlaygroundContent() {
         role: m.role as 'user' | 'assistant',
         content: m.content,
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
-        ...(m.role === 'assistant' ? { model: null, provider: null } : {}),
+        tool_calls: (m.data?.tool_calls ?? null) as ChatMessage['tool_calls'],
+        sources: (m.data?.sources ?? null) as ChatMessage['sources'],
+        model: (m.data?.model as string | undefined) ?? null,
+        provider: (m.data?.provider as string | undefined) ?? null,
       }))
       syncedSessionRef.current = selectedSessionId
       setMessages(mapped)

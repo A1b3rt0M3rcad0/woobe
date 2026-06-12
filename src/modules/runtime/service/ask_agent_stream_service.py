@@ -466,7 +466,11 @@ class AskAgentStreamService:
                 message_id = None
                 if session:
                     assistant_msg = await self._save_assistant_message(
-                        message_repo, session_repo, outbox, session, full_answer or "", usage_info, agent
+                        message_repo, session_repo, outbox, session, full_answer or "", usage_info, agent,
+                        tool_calls=tool_calls_recorded,
+                        sources=sources,
+                        model=response_model or agent.model,
+                        provider=response_provider,
                     )
                     message_id = assistant_msg.id
 
@@ -710,6 +714,10 @@ class AskAgentStreamService:
         content: str,
         usage: UsageInfo,
         agent: Agent,
+        tool_calls: list[ToolCallInfo] | None = None,
+        sources: list[SourceInfo] | None = None,
+        model: str | None = None,
+        provider: str | None = None,
     ) -> Message:
         msg = Message(
             project_id=session.project_id,
@@ -720,6 +728,12 @@ class AskAgentStreamService:
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
+            data={
+                "tool_calls": [tc.model_dump() for tc in tool_calls] if tool_calls else None,
+                "sources": [s.model_dump() for s in sources] if sources else None,
+                "model": model,
+                "provider": provider,
+            } if tool_calls or sources or model or provider else None,
         )
         created = await message_repo.create(msg)
         session.last_message_at = utc_now()
