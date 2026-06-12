@@ -124,6 +124,7 @@ class SourceInfo(BaseModel):
 
 
 class ToolCallInfo(BaseModel):
+    tool_call_id: str | None = None
     tool_name: str
     input: dict | None = None
     output: dict | None = None

@@ -181,6 +181,7 @@ class AskAgentUseCase:
                     tool_success = tool_output.get("success", False) if isinstance(tool_output, dict) else True
                     tool_error = tool_output.get("error") if isinstance(tool_output, dict) else None
                     tool_calls_recorded.append(ToolCallInfo(
+                        tool_call_id=tc["id"],
                         tool_name=tc["name"],
                         input=tc.get("args"),
                         output=tool_output,
@@ -330,7 +331,8 @@ class AskAgentUseCase:
         message_id = None
         if session:
             assistant_msg = await self._save_assistant_message(
-                session, answer, usage, agent
+                session, answer, usage, agent,
+                tool_calls=tool_calls_recorded,
             )
             message_id = assistant_msg.id
 
@@ -547,7 +549,8 @@ class AskAgentUseCase:
         return created
 
     async def _save_assistant_message(
-        self, session: Session, content: str, usage: UsageInfo, agent: Agent
+        self, session: Session, content: str, usage: UsageInfo, agent: Agent,
+        tool_calls: list[ToolCallInfo] | None = None,
     ) -> Message:
         msg = Message(
             project_id=session.project_id,
@@ -558,6 +561,9 @@ class AskAgentUseCase:
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
+            data={
+                "tool_calls": [tc.model_dump() for tc in tool_calls] if tool_calls else None,
+            } if tool_calls else None,
         )
         created = await self._message_repo.create(msg)
         session.last_message_at = utc_now()
@@ -589,7 +595,22 @@ class AskAgentUseCase:
                 if role == "user":
                     history.append(HumanMessage(content=m.content))
                 elif role == "assistant":
-                    history.append(AIMessage(content=m.content))
+                    raw_tool_calls = (m.data or {}).get("tool_calls") or []
+                    tool_calls = None
+                    if raw_tool_calls:
+                        tool_calls = [
+                            {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
+                            for tc in raw_tool_calls if tc.get("tool_call_id")
+                        ]
+                    msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    history.append(msg)
+                    if tool_calls:
+                        for tc in raw_tool_calls:
+                            if tc.get("tool_call_id") and tc.get("output") is not None:
+                                history.append(ToolMessage(
+                                    content=json.dumps(tc["output"]),
+                                    tool_call_id=tc["tool_call_id"],
+                                ))
             return history
         except Exception:
             return []

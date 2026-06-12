@@ -246,6 +246,7 @@ class AskAgentStreamService:
                         tool_success = tool_output.get("success", False)
                         tool_error = tool_output.get("error")
                         tool_calls_recorded.append(ToolCallInfo(
+                            tool_call_id=tc["id"],
                             tool_name=tc["name"],
                             input=tc.get("args"),
                             output=tool_output,
@@ -765,7 +766,22 @@ class AskAgentStreamService:
                 if role == "user":
                     history.append(HumanMessage(content=m.content))
                 elif role == "assistant":
-                    history.append(AIMessage(content=m.content))
+                    raw_tool_calls = (m.data or {}).get("tool_calls") or []
+                    tool_calls = None
+                    if raw_tool_calls:
+                        tool_calls = [
+                            {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
+                            for tc in raw_tool_calls if tc.get("tool_call_id")
+                        ]
+                    msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    history.append(msg)
+                    if tool_calls:
+                        for tc in raw_tool_calls:
+                            if tc.get("tool_call_id") and tc.get("output") is not None:
+                                history.append(ToolMessage(
+                                    content=json.dumps(tc["output"]),
+                                    tool_call_id=tc["tool_call_id"],
+                                ))
             return history
         except Exception:
             return []
