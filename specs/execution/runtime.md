@@ -59,7 +59,7 @@ O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW nã
 
 ## Estado atual da migração
 
-Status inicial: `pending`.
+Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12.
 
 Estado preliminar observado no ProjectRAI em 2026-06-12:
 
@@ -78,7 +78,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 
 | Spec | Status | Data | Arquivos alterados | Pendências | Próxima recomendada |
 |---|---|---|---|---|---|
-| 000-architecture-decision-record-agent-bounded-context | pending | 2026-06-12 | - | executar spec | 001-architecture-rules-modular-monolith-boundaries.md |
+| 000-architecture-decision-record-agent-bounded-context | completed | 2026-06-12 | tests/architecture/__init__.py, tests/architecture/test_architecture_decision_record_agent_bounded_context.py | - | 001-architecture-rules-modular-monolith-boundaries.md |
 | 001-architecture-rules-modular-monolith-boundaries | pending | 2026-06-12 | - | executar spec | 002-agent-target-directory-structure.md |
 | 002-agent-target-directory-structure | pending | 2026-06-12 | - | executar spec | 003-create-current-repository-inventory.md |
 | 003-create-current-repository-inventory | pending | 2026-06-12 | - | executar spec | 004-create-current-import-dependency-map.md |
@@ -191,7 +191,9 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 
 ## Specs executadas
 
-Nenhuma spec executada no momento da criação deste pacote.
+| Spec | Data | Agente | Resultado | Arquivos alterados |
+|---|---|---|---|---|
+| 000-architecture-decision-record-agent-bounded-context | 2026-06-12 | opencode/deepseek-v4-pro | completed | tests/architecture/__init__.py, tests/architecture/test_architecture_decision_record_agent_bounded_context.py |
 
 ## Specs pendentes
 
@@ -222,7 +224,17 @@ Todas as specs listadas no MANIFEST estão pendentes.
 - `src/shared/workers/inbox_consumer.py` consome `#` em queue global e infere módulo pelo produtor.
 - `AskJobWorker` monta use case com repositories de múltiplos módulos.
 - `AskAgentUseCase` persiste metering e observability diretamente em vez de publicar eventos para consumidores próprios.
+- `tests/unit/test_core` e `tests/unit/test_identity` não possuem `__init__.py`, causando erros de coleção no pytest (pré-existente).
+- `ruff check src tests` reporta 29 erros pré-existentes (F401, F821, F841) em módulos legados.
 
 ## Próxima spec recomendada
 
-`000-architecture-decision-record-agent-bounded-context.md`.
+`001-architecture-rules-modular-monolith-boundaries.md`.
+
+## Pendências de ferramentas
+
+| Ferramenta | Status | Impacto |
+|---|---|---|
+| rg (ripgrep) | indisponível no ambiente | detecção usa grep tool interno; não bloqueia execução |
+| alembic (database) | conexão PostgreSQL indisponível no ambiente local | validações de migração DB registradas como pendência; não bloqueia specs de documentação/testes |
+| pytest (full suite) | 10 erros de coleção pré-existentes em test_core e test_identity (faltam __init__.py) | não causados pela migração; não bloqueia spec 000 |
