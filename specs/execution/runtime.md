@@ -59,7 +59,7 @@ O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW nã
 
 ## Estado atual da migração
 
-Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13. Spec 008 (create current worker inventory) concluída em 2026-06-13. Spec 009 (create migration risk register) concluída em 2026-06-13. Spec 010 (create agent module skeleton) concluída em 2026-06-13. Spec 011 (create agent domain layer skeleton) concluída em 2026-06-13.
+Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13. Spec 008 (create current worker inventory) concluída em 2026-06-13. Spec 009 (create migration risk register) concluída em 2026-06-13. Spec 010 (create agent module skeleton) concluída em 2026-06-13. Spec 011 (create agent domain layer skeleton) concluída em 2026-06-13. Spec 012 (create agent application layer skeleton) concluída em 2026-06-13.
 
 Estado preliminar observado no ProjectRAI em 2026-06-12:
 
@@ -90,7 +90,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 009-create-migration-risk-register | completed | 2026-06-13 | specs/execution/risks.md, tests/architecture/test_specs_inventory_outputs.py | - | 010-create-agent-module-skeleton.md |
 | 010-create-agent-module-skeleton | completed | 2026-06-13 | src/modules/agent/**/__init__.py (14 files), tests/architecture/test_create_agent_module_skeleton.py | - | 011-create-agent-domain-layer-skeleton.md |
 | 011-create-agent-domain-layer-skeleton | completed | 2026-06-13 | src/modules/agent/domain/{entities,value_objects,events,enums,errors,repositories,services}.py, tests/architecture/test_create_agent_domain_layer_skeleton.py | - | 012-create-agent-application-layer-skeleton.md |
-| 012-create-agent-application-layer-skeleton | pending | 2026-06-12 | - | executar spec | 013-create-agent-infra-layer-skeleton.md |
+| 012-create-agent-application-layer-skeleton | completed | 2026-06-13 | tests/architecture/test_create_agent_application_layer_skeleton.py | - | 013-create-agent-infra-layer-skeleton.md |
 | 013-create-agent-infra-layer-skeleton | pending | 2026-06-12 | - | executar spec | 014-create-agent-presentation-layer-skeleton.md |
 | 014-create-agent-presentation-layer-skeleton | pending | 2026-06-12 | - | executar spec | 015-add-temporary-architecture-boundary-tests.md |
 | 015-add-temporary-architecture-boundary-tests | pending | 2026-06-12 | - | executar spec | 016-add-shared-layer-architecture-tests.md |
@@ -205,6 +205,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 009-create-migration-risk-register | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/risks.md, tests/architecture/test_specs_inventory_outputs.py |
 | 010-create-agent-module-skeleton | 2026-06-13 | opencode/deepseek-v4-pro | completed | src/modules/agent/**/__init__.py (14 files), tests/architecture/test_create_agent_module_skeleton.py |
 | 011-create-agent-domain-layer-skeleton | 2026-06-13 | opencode/deepseek-v4-pro | completed | src/modules/agent/domain/{entities,value_objects,events,enums,errors,repositories,services}.py, tests/architecture/test_create_agent_domain_layer_skeleton.py |
+| 012-create-agent-application-layer-skeleton | 2026-06-13 | opencode/deepseek-v4-pro | completed | tests/architecture/test_create_agent_application_layer_skeleton.py |
 
 ## Specs pendentes
 
@@ -255,7 +256,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`012-create-agent-application-layer-skeleton.md`.
+`013-create-agent-infra-layer-skeleton.md`.
 
 ## Pendências de ferramentas
 
