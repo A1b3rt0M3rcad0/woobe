@@ -59,7 +59,7 @@ O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW nã
 
 ## Estado atual da migração
 
-Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13.
+Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13. Spec 008 (create current worker inventory) concluída em 2026-06-13.
 
 Estado preliminar observado no ProjectRAI em 2026-06-12:
 
@@ -86,7 +86,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 005-create-current-database-ownership-map | completed | 2026-06-13 | specs/execution/inventory/database-ownership.md, tests/architecture/test_specs_inventory_outputs.py | - | 006-create-current-api-route-map.md |
 | 006-create-current-api-route-map | completed | 2026-06-13 | specs/execution/inventory/routes.md, tests/architecture/test_specs_inventory_outputs.py | - | 007-create-current-event-catalog.md |
 | 007-create-current-event-catalog | completed | 2026-06-13 | specs/execution/inventory/events.md, tests/architecture/test_specs_inventory_outputs.py | - | 008-create-current-worker-inventory.md |
-| 008-create-current-worker-inventory | pending | 2026-06-12 | - | executar spec | 009-create-migration-risk-register.md |
+| 008-create-current-worker-inventory | completed | 2026-06-13 | specs/execution/inventory/workers.md, tests/architecture/test_specs_inventory_outputs.py | - | 009-create-migration-risk-register.md |
 | 009-create-migration-risk-register | pending | 2026-06-12 | - | executar spec | 010-create-agent-module-skeleton.md |
 | 010-create-agent-module-skeleton | pending | 2026-06-12 | - | executar spec | 011-create-agent-domain-layer-skeleton.md |
 | 011-create-agent-domain-layer-skeleton | pending | 2026-06-12 | - | executar spec | 012-create-agent-application-layer-skeleton.md |
@@ -201,6 +201,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 005-create-current-database-ownership-map | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/database-ownership.md, tests/architecture/test_specs_inventory_outputs.py |
 | 006-create-current-api-route-map | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/routes.md, tests/architecture/test_specs_inventory_outputs.py |
 | 007-create-current-event-catalog | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/events.md, tests/architecture/test_specs_inventory_outputs.py |
+| 008-create-current-worker-inventory | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/workers.md, tests/architecture/test_specs_inventory_outputs.py |
 
 ## Specs pendentes
 
@@ -228,6 +229,9 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | InboxConsumer routing quebrado para 19/27 event_types | crítica | 007, 100-109 | event_type sem prefixo de módulo faz `_module_for_event_type()` rotear para módulo inexistente; eventos nunca chegam ao Inbox | aberto |
 | Dispatcher handler keys não correspondem aos event_types reais | alta | 007, 100-109 | 4/5 handlers registrados com chave diferente do event_type produzido; handlers nunca disparam | aberto |
 | Runtime produz evento `usage_event.recorded` de domínio do metering | alta | 007, 040-045, 074 | ask_use_case.py:928, ask_agent_stream_service.py:1062 escrevem evento de metering no outbox de runtime | aberto |
+| Runner importa AskJobWorker diretamente de `modules.runtime.infra` | alta | 008, 054, 063 | `src/workers/runner.py:13` — cross-module import de infra interna | aberto |
+| AskJobWorker não herda BaseWorker | média | 008, 085 | `src/modules/runtime/infra/ask_job_worker.py:35` — não é compatível com contratos genéricos de worker | aberto |
+| InboxConsumerWorker silencia erros para módulos sem InboxEventModel | alta | 008, 050-055 | `src/shared/workers/inbox_consumer.py:39-40` — ImportError/AttributeError ignorados, eventos perdidos sem log | aberto |
 
 ## Inconsistências encontradas
 
@@ -242,10 +246,13 @@ Todas as specs listadas no MANIFEST estão pendentes.
 - Dispatcher handler keys (`identity.organization_created`, `core.project_created`, `ai.agent_created`, `metering.usage_recorded`) não correspondem aos event_types produzidos (`organization.created`, `project.created`, `agent.created`, `usage_event.recorded`).
 - Envelope publicado no RabbitMQ não contém timestamp, producer_module, idempotency_key ou schema_version.
 - Queue global `projectrai.inbox` com binding `#` recebe todos os eventos sem isolamento por módulo.
+- `AskJobWorker` não herda `BaseWorker` — incompatível com runner genérico e discovery automática.
+- `InboxConsumerWorker` silencia `ImportError`/`AttributeError` quando módulo não possui `InboxEventModel` — eventos descartados sem log ou alerta.
+- Nenhum worker registry pattern existe; workers são instanciados diretamente no runner com imports concretos.
 
 ## Próxima spec recomendada
 
-`008-create-current-worker-inventory.md`.
+`009-create-migration-risk-register.md`.
 
 ## Pendências de ferramentas
 
