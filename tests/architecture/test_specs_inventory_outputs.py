@@ -4,6 +4,7 @@ INVENTORY_DIR = Path(__file__).resolve().parents[2] / "specs" / "execution" / "i
 FILES_INVENTORY = INVENTORY_DIR / "files.md"
 IMPORTS_INVENTORY = INVENTORY_DIR / "imports.md"
 DATABASE_OWNERSHIP_INVENTORY = INVENTORY_DIR / "database-ownership.md"
+ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
 
 
 class TestSpecsInventoryOutputs:
@@ -114,4 +115,41 @@ class TestSpecsInventoryOutputs:
         )
         assert found_evidence, (
             "Inventory file must reference actual database models/schemas as evidence"
+        )
+
+    def test_create_current_api_route_map_output_exists(self):
+        assert ROUTES_INVENTORY.exists(), (
+            f"Inventory file not found: {ROUTES_INVENTORY}"
+        )
+
+    def test_create_current_api_route_map_output_has_no_placeholder_only_content(self):
+        assert ROUTES_INVENTORY.exists(), (
+            f"Inventory file not found: {ROUTES_INVENTORY}"
+        )
+
+        content = ROUTES_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+        assert len(lines) > 10, (
+            "Inventory file must contain real evidence, not just headers. "
+            f"Found only {len(lines)} non-header lines."
+        )
+
+        evidence_markers = [
+            "src/modules/",
+            "APIRouter",
+            "/ai",
+            "/knowledge",
+            "/runtime",
+            "include_router",
+        ]
+        found_evidence = any(
+            marker in content for marker in evidence_markers
+        )
+        assert found_evidence, (
+            "Inventory file must reference actual route definitions as evidence"
         )

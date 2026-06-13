@@ -59,7 +59,7 @@ O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW nã
 
 ## Estado atual da migração
 
-Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13.
+Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13.
 
 Estado preliminar observado no ProjectRAI em 2026-06-12:
 
@@ -84,7 +84,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 003-create-current-repository-inventory | completed | 2026-06-13 | specs/execution/inventory/files.md, tests/architecture/test_specs_inventory_outputs.py | - | 004-create-current-import-dependency-map.md |
 | 004-create-current-import-dependency-map | completed | 2026-06-13 | specs/execution/inventory/imports.md, tests/architecture/test_specs_inventory_outputs.py | - | 005-create-current-database-ownership-map.md |
 | 005-create-current-database-ownership-map | completed | 2026-06-13 | specs/execution/inventory/database-ownership.md, tests/architecture/test_specs_inventory_outputs.py | - | 006-create-current-api-route-map.md |
-| 006-create-current-api-route-map | pending | 2026-06-12 | - | executar spec | 007-create-current-event-catalog.md |
+| 006-create-current-api-route-map | completed | 2026-06-13 | specs/execution/inventory/routes.md, tests/architecture/test_specs_inventory_outputs.py | - | 007-create-current-event-catalog.md |
 | 007-create-current-event-catalog | pending | 2026-06-12 | - | executar spec | 008-create-current-worker-inventory.md |
 | 008-create-current-worker-inventory | pending | 2026-06-12 | - | executar spec | 009-create-migration-risk-register.md |
 | 009-create-migration-risk-register | pending | 2026-06-12 | - | executar spec | 010-create-agent-module-skeleton.md |
@@ -199,6 +199,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 003-create-current-repository-inventory | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/files.md, tests/architecture/test_specs_inventory_outputs.py |
 | 004-create-current-import-dependency-map | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/imports.md, tests/architecture/test_specs_inventory_outputs.py |
 | 005-create-current-database-ownership-map | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/database-ownership.md, tests/architecture/test_specs_inventory_outputs.py |
+| 006-create-current-api-route-map | 2026-06-13 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/routes.md, tests/architecture/test_specs_inventory_outputs.py |
 
 ## Specs pendentes
 
@@ -236,7 +237,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`006-create-current-api-route-map.md`.
+`007-create-current-event-catalog.md`.
 
 ## Pendências de ferramentas
 
