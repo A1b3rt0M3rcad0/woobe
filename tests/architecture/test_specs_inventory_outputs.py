@@ -1,12 +1,14 @@
 from pathlib import Path
 
 INVENTORY_DIR = Path(__file__).resolve().parents[2] / "specs" / "execution" / "inventory"
+EXECUTION_DIR = Path(__file__).resolve().parents[2] / "specs" / "execution"
 FILES_INVENTORY = INVENTORY_DIR / "files.md"
 IMPORTS_INVENTORY = INVENTORY_DIR / "imports.md"
 DATABASE_OWNERSHIP_INVENTORY = INVENTORY_DIR / "database-ownership.md"
 ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
 EVENTS_INVENTORY = INVENTORY_DIR / "events.md"
 WORKERS_INVENTORY = INVENTORY_DIR / "workers.md"
+RISKS_INVENTORY = EXECUTION_DIR / "risks.md"
 
 
 class TestSpecsInventoryOutputs:
@@ -229,4 +231,43 @@ class TestSpecsInventoryOutputs:
         )
         assert found_evidence, (
             "Inventory file must reference actual worker definitions as evidence"
+        )
+
+    def test_create_migration_risk_register_output_exists(self):
+        assert RISKS_INVENTORY.exists(), (
+            f"Risk register file not found: {RISKS_INVENTORY}"
+        )
+
+    def test_create_migration_risk_register_output_has_no_placeholder_only_content(self):
+        assert RISKS_INVENTORY.exists(), (
+            f"Risk register file not found: {RISKS_INVENTORY}"
+        )
+
+        content = RISKS_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+        assert len(lines) > 10, (
+            "Risk register must contain real evidence, not just headers. "
+            f"Found only {len(lines)} non-header lines."
+        )
+
+        evidence_markers = [
+            "src/modules/",
+            "src/shared/workers/",
+            "src/workers/",
+            "critical",
+            "high",
+            "Outbox",
+            "Inbox",
+            "ForeignKey",
+        ]
+        found_evidence = any(
+            marker in content for marker in evidence_markers
+        )
+        assert found_evidence, (
+            "Risk register must reference actual repository evidence"
         )
