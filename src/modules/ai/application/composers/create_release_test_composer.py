@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentReleaseTestRepository
-from modules.ai.service.use_cases import CreateReleaseTestUseCase
-from modules.ai.presentation.controllers.create_release_test_controller import CreateReleaseTestController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.create_release_test_composer is deprecated. "
+    "Use modules.agent.application.composers.create_release_test_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.create_release_test_composer import create_release_test_composer  # noqa: E402, F401
 
-def create_release_test_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentReleaseTestRepository(uow)
-    use_case = CreateReleaseTestUseCase(repo)
-    controller = CreateReleaseTestController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["create_release_test_composer"]

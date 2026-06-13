@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentModelConfigRepository
-from modules.ai.service.use_cases import CreateModelConfigUseCase
-from modules.ai.presentation.controllers.create_model_config_controller import CreateModelConfigController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.create_model_config_composer is deprecated. "
+    "Use modules.agent.application.composers.create_model_config_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.create_model_config_composer import create_model_config_composer  # noqa: E402, F401
 
-def create_model_config_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentModelConfigRepository(uow)
-    use_case = CreateModelConfigUseCase(repo)
-    controller = CreateModelConfigController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["create_model_config_composer"]

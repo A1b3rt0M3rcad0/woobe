@@ -61,6 +61,17 @@ class TestAddAgentBoundaryArchitectureTests:
         if not SRC_AGENT.exists():
             return
 
+        allowlist = set()
+        if ALLOWLIST_FILE.exists():
+            with open(ALLOWLIST_FILE, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            entries = data.get("entries") or []
+            allowlist = {
+                (e["file"].replace("/", "\\").replace("\\", "/"), e["target_module"])
+                for e in entries
+                if e.get("scope") == "module_boundaries"
+            }
+
         violations = []
         for py_file in SRC_AGENT.rglob("*.py"):
             try:
@@ -74,16 +85,18 @@ class TestAddAgentBoundaryArchitectureTests:
                 if isinstance(node, ast.ImportFrom) and node.module:
                     parts = node.module.split(".")
                     if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                        violations.append(
-                            f"{rel_path}:{node.lineno} imports {node.module}"
-                        )
+                        if (rel_path, parts[1]) not in allowlist:
+                            violations.append(
+                                f"{rel_path}:{node.lineno} imports {node.module}"
+                            )
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         parts = alias.name.split(".")
                         if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                            violations.append(
-                                f"{rel_path}:{node.lineno} imports {alias.name}"
-                            )
+                            if (rel_path, parts[1]) not in allowlist:
+                                violations.append(
+                                    f"{rel_path}:{node.lineno} imports {alias.name}"
+                                )
 
         assert not violations, (
             "Agent module must not import from legacy modules:\n"

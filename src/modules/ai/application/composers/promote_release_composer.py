@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentReleaseRepository
-from modules.ai.service.use_cases import PromoteReleaseUseCase
-from modules.ai.presentation.controllers.promote_release_controller import PromoteReleaseController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.promote_release_composer is deprecated. "
+    "Use modules.agent.application.composers.promote_release_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.promote_release_composer import promote_release_composer  # noqa: E402, F401
 
-def promote_release_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentReleaseRepository(uow)
-    use_case = PromoteReleaseUseCase(repo)
-    controller = PromoteReleaseController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["promote_release_composer"]

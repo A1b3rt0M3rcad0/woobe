@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentContractRepository
-from modules.ai.service.use_cases import UpdateContractUseCase
-from modules.ai.presentation.controllers.update_contract_version_controller import UpdateContractVersionController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.update_contract_version_composer is deprecated. "
+    "Use modules.agent.application.composers.update_contract_version_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.update_contract_version_composer import update_contract_version_composer  # noqa: E402, F401
 
-def update_contract_version_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentContractRepository(uow)
-    use_case = UpdateContractUseCase(repo)
-    controller = UpdateContractVersionController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["update_contract_version_composer"]

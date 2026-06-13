@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentRepository
-from modules.ai.service.use_cases import ListAgentsUseCase
-from modules.ai.presentation.controllers.list_agents_controller import ListAgentsController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.list_agents_composer is deprecated. "
+    "Use modules.agent.application.composers.list_agents_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.list_agents_composer import list_agents_composer  # noqa: E402, F401
 
-def list_agents_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentRepository(uow)
-    use_case = ListAgentsUseCase(repo)
-    controller = ListAgentsController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["list_agents_composer"]

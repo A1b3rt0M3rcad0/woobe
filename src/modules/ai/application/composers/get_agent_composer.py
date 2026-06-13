@@ -1,15 +1,12 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.ai.infra.repositories import SQLAlchemyAgentRepository
-from modules.ai.service.use_cases import GetAgentByIdUseCase
-from modules.ai.presentation.controllers.get_agent_controller import GetAgentController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.ai.application.composers.get_agent_composer is deprecated. "
+    "Use modules.agent.application.composers.get_agent_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from modules.agent.application.composers.get_agent_composer import get_agent_composer  # noqa: E402, F401
 
-def get_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentRepository(uow)
-    use_case = GetAgentByIdUseCase(repo)
-    controller = GetAgentController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+__all__ = ["get_agent_composer"]

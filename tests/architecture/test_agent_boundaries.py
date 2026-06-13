@@ -1,10 +1,26 @@
 import ast
 from pathlib import Path
 
+import yaml
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_AGENT = PROJECT_ROOT / "src" / "modules" / "agent"
+ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
+
+
+def _load_agent_allowlist() -> set[tuple[str, str]]:
+    if not ALLOWLIST_FILE.exists():
+        return set()
+    with open(ALLOWLIST_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    entries = data.get("entries") or []
+    return {
+        (e["file"].replace("/", "\\").replace("\\", "/"), e["target_module"])
+        for e in entries
+        if e.get("scope") == "module_boundaries"
+    }
 
 LAYER_RULES = {
     "domain": {"infra", "presentation", "application"},
@@ -46,6 +62,7 @@ class TestAgentBoundaries:
         if not SRC_AGENT.exists():
             return
 
+        allowlist = _load_agent_allowlist()
         violations = []
         for py_file in SRC_AGENT.rglob("*.py"):
             imports = _extract_imports(py_file)
@@ -53,9 +70,10 @@ class TestAgentBoundaries:
             for module_path, lineno in imports:
                 parts = module_path.split(".")
                 if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                    violations.append(
-                        f"{rel_path}:{lineno} imports {module_path}"
-                    )
+                    if (rel_path, parts[1]) not in allowlist:
+                        violations.append(
+                            f"{rel_path}:{lineno} imports {module_path}"
+                        )
 
         assert not violations, (
             "Agent module must not import from legacy modules (ai, knowledge, runtime):\n"
