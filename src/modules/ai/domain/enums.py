@@ -1,79 +1,37 @@
-from enum import StrEnum, auto
+import warnings
 
+warnings.warn(
+    "modules.ai.domain.enums is deprecated. Use modules.agent.domain.enums instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class Provider(StrEnum):
-    openai = auto()
-    anthropic = auto()
-    google = auto()
-    azure = auto()
-    aws_bedrock = auto()
-    custom = auto()
-    groq = auto()
+from modules.agent.domain.enums import (  # noqa: E402, F401
+    AgentStatus,
+    AgentType,
+    ContractStatus,
+    CredentialStatus,
+    KnowledgeVersionStatus,
+    ModelConfigStatus,
+    PromptStatus,
+    Provider,
+    ReleaseStatus,
+    ReleaseTestStatus,
+    SessionMode,
+    ValidationMode,
+)
 
-
-class CredentialStatus(StrEnum):
-    active = auto()
-    expired = auto()
-    revoked = auto()
-    invalid = auto()
-
-
-class AgentStatus(StrEnum):
-    active = auto()
-    inactive = auto()
-    archived = auto()
-
-
-class SessionMode(StrEnum):
-    stateless = auto()
-    stateful = auto()
-
-
-class AgentType(StrEnum):
-    chat = auto()
-    completion = auto()
-    assistant = auto()
-    custom = auto()
-
-
-class PromptStatus(StrEnum):
-    draft = auto()
-    released = auto()
-    archived = auto()
-
-
-class ContractStatus(StrEnum):
-    draft = auto()
-    released = auto()
-    archived = auto()
-
-
-class ValidationMode(StrEnum):
-    strict = auto()
-    loose = auto()
-
-
-class ModelConfigStatus(StrEnum):
-    draft = auto()
-    released = auto()
-    archived = auto()
-
-
-class ReleaseStatus(StrEnum):
-    draft = auto()
-    staging = auto()
-    production = auto()
-    archived = auto()
-    rolled_back = auto()
-
-
-class ReleaseTestStatus(StrEnum):
-    pending = auto()
-    passed = auto()
-    failed = auto()
-
-
-class KnowledgeVersionStatus(StrEnum):
-    draft = auto()
-    released = auto()
-    archived = auto()
+__all__ = [
+    "AgentStatus",
+    "AgentType",
+    "ContractStatus",
+    "CredentialStatus",
+    "KnowledgeVersionStatus",
+    "ModelConfigStatus",
+    "PromptStatus",
+    "Provider",
+    "ReleaseStatus",
+    "ReleaseTestStatus",
+    "SessionMode",
+    "ValidationMode",
+]

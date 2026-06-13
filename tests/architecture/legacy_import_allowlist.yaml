@@ -105,6 +105,27 @@ entries:
     removal_spec: "070-085"
     scope: module_boundaries
 
+  # ai → agent (shims delegating to new module during migration)
+  - file: src/modules/ai/domain/entities.py
+    target_module: agent
+    removal_spec: "140"
+    scope: module_boundaries
+
+  - file: src/modules/ai/domain/enums.py
+    target_module: agent
+    removal_spec: "140"
+    scope: module_boundaries
+
+  - file: src/modules/ai/domain/errors.py
+    target_module: agent
+    removal_spec: "140"
+    scope: module_boundaries
+
+  - file: src/modules/ai/domain/repositories.py
+    target_module: agent
+    removal_spec: "140"
+    scope: module_boundaries
+
   # --- scope: worker_locations ---
   # runner imports module internal worker
   - file: src/workers/runner.py

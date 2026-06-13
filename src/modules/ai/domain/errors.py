@@ -1,29 +1,27 @@
-from shared.domain.errors import NotFoundError
+import warnings
 
+warnings.warn(
+    "modules.ai.domain.errors is deprecated. Use modules.agent.domain.errors instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class CredentialNotFoundError(NotFoundError):
-    pass
+from modules.agent.domain.errors import (  # noqa: E402, F401
+    AgentNotFoundError,
+    ContractNotFoundError,
+    CredentialNotFoundError,
+    ModelConfigNotFoundError,
+    PromptNotFoundError,
+    ReleaseNotFoundError,
+    ReleaseTestNotFoundError,
+)
 
-
-class AgentNotFoundError(NotFoundError):
-    pass
-
-
-class PromptNotFoundError(NotFoundError):
-    pass
-
-
-class ContractNotFoundError(NotFoundError):
-    pass
-
-
-class ModelConfigNotFoundError(NotFoundError):
-    pass
-
-
-class ReleaseNotFoundError(NotFoundError):
-    pass
-
-
-class ReleaseTestNotFoundError(NotFoundError):
-    pass
+__all__ = [
+    "AgentNotFoundError",
+    "ContractNotFoundError",
+    "CredentialNotFoundError",
+    "ModelConfigNotFoundError",
+    "PromptNotFoundError",
+    "ReleaseNotFoundError",
+    "ReleaseTestNotFoundError",
+]
