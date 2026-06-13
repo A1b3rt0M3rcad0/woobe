@@ -59,7 +59,7 @@ O UoW coordena somente repositories, Outbox e Inbox do próprio módulo. UoW nã
 
 ## Estado atual da migração
 
-Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13. Spec 008 (create current worker inventory) concluída em 2026-06-13. Spec 009 (create migration risk register) concluída em 2026-06-13. Spec 010 (create agent module skeleton) concluída em 2026-06-13. Spec 011 (create agent domain layer skeleton) concluída em 2026-06-13. Spec 012 (create agent application layer skeleton) concluída em 2026-06-13. Spec 013 (create agent infra layer skeleton) concluída em 2026-06-13. Spec 014 (create agent presentation layer skeleton) concluída em 2026-06-13. Spec 015 (add temporary architecture boundary tests) concluída em 2026-06-13. Spec 016 (add shared layer architecture tests) concluída em 2026-06-13. Spec 017 (add worker location architecture tests) concluída em 2026-06-13. Spec 018 (add agent boundary architecture tests) concluída em 2026-06-13.
+Status: `in_progress`. Spec 000 (ADR) concluída em 2026-06-12. Spec 001 (architecture rules modular monolith boundaries) concluída em 2026-06-12. Spec 002 (agent target directory structure) concluída em 2026-06-13. Spec 003 (create current repository inventory) concluída em 2026-06-13. Spec 004 (create current import dependency map) concluída em 2026-06-13. Spec 005 (create current database ownership map) concluída em 2026-06-13. Spec 006 (create current api route map) concluída em 2026-06-13. Spec 007 (create current event catalog) concluída em 2026-06-13. Spec 008 (create current worker inventory) concluída em 2026-06-13. Spec 009 (create migration risk register) concluída em 2026-06-13. Spec 010 (create agent module skeleton) concluída em 2026-06-13. Spec 011 (create agent domain layer skeleton) concluída em 2026-06-13. Spec 012 (create agent application layer skeleton) concluída em 2026-06-13. Spec 013 (create agent infra layer skeleton) concluída em 2026-06-13. Spec 014 (create agent presentation layer skeleton) concluída em 2026-06-13. Spec 015 (add temporary architecture boundary tests) concluída em 2026-06-13. Spec 016 (add shared layer architecture tests) concluída em 2026-06-13. Spec 017 (add worker location architecture tests) concluída em 2026-06-13. Spec 018 (add agent boundary architecture tests) concluída em 2026-06-13. Spec 019 (add legacy module allowlist) concluída em 2026-06-13.
 
 Estado preliminar observado no ProjectRAI em 2026-06-12:
 
@@ -97,7 +97,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 016-add-shared-layer-architecture-tests | completed | 2026-06-13 | tests/architecture/test_add_shared_layer_architecture_tests.py | - | 017-add-worker-location-architecture-tests.md |
 | 017-add-worker-location-architecture-tests | completed | 2026-06-13 | tests/architecture/test_add_worker_location_architecture_tests.py | - | 018-add-agent-boundary-architecture-tests.md |
 | 018-add-agent-boundary-architecture-tests | completed | 2026-06-13 | tests/architecture/test_add_agent_boundary_architecture_tests.py | - | 019-add-legacy-module-allowlist.md |
-| 019-add-legacy-module-allowlist | pending | 2026-06-12 | - | executar spec | 020-map-ai-to-agent.md |
+| 019-add-legacy-module-allowlist | completed | 2026-06-13 | tests/architecture/test_add_legacy_module_allowlist.py | - | 020-map-ai-to-agent.md |
 | 020-map-ai-to-agent | pending | 2026-06-12 | - | executar spec | 021-move-ai-domain-to-agent-domain.md |
 | 021-move-ai-domain-to-agent-domain | pending | 2026-06-12 | - | executar spec | 022-move-ai-application-to-agent-application.md |
 | 022-move-ai-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 023-move-ai-infra-llm-to-agent-infra-llm.md |
@@ -212,6 +212,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 016-add-shared-layer-architecture-tests | 2026-06-13 | opencode/deepseek-v4-pro | completed | tests/architecture/test_add_shared_layer_architecture_tests.py |
 | 017-add-worker-location-architecture-tests | 2026-06-13 | opencode/deepseek-v4-pro | completed | tests/architecture/test_add_worker_location_architecture_tests.py |
 | 018-add-agent-boundary-architecture-tests | 2026-06-13 | opencode/deepseek-v4-pro | completed | tests/architecture/test_add_agent_boundary_architecture_tests.py |
+| 019-add-legacy-module-allowlist | 2026-06-13 | opencode/deepseek-v4-pro | completed | tests/architecture/test_add_legacy_module_allowlist.py |
 
 ## Specs pendentes
 
@@ -263,7 +264,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`019-add-legacy-module-allowlist.md`.
+`020-map-ai-to-agent.md`.
 
 ## Pendências de ferramentas
 
