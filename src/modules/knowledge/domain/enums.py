@@ -1,36 +1,15 @@
-from __future__ import annotations
+import warnings
 
-from enum import StrEnum, auto
+warnings.warn(
+    "modules.knowledge.domain.enums is deprecated. "
+    "Use modules.agent.domain.enums instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-class CollectionStatus(StrEnum):
-    ACTIVE = auto()
-    ARCHIVED = auto()
-    DELETED = auto()
-
-
-class DocumentStatus(StrEnum):
-    UPLOADED = auto()
-    PARSING = auto()
-    CHUNKING = auto()
-    INDEXING = auto()
-    READY = auto()
-    FAILED = auto()
-    DELETED = auto()
-
-
-class ParserType(StrEnum):
-    PDF = auto()
-    DOCX = auto()
-    MD = auto()
-    HTML = auto()
-    TEXT = auto()
-    CSV = auto()
-    JSON = auto()
-    IMAGE = auto()
-
-
-class KnowledgeVersionStatus(StrEnum):
-    DRAFT = auto()
-    RELEASED = auto()
-    ARCHIVED = auto()
+from modules.agent.domain.enums import (  # noqa: F401, E402
+    CollectionStatus,
+    DocumentStatus,
+    KnowledgeVersionStatus,
+    ParserType,
+)

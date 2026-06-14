@@ -132,6 +132,27 @@ entries:
     removal_spec: "140"
     scope: module_boundaries
 
+  # knowledge/domain → agent (shims delegating to new module during migration)
+  - file: src/modules/knowledge/domain/entities.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/domain/enums.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/domain/errors.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/domain/repositories.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
   # ai/service → agent (shims delegating to new module during migration)
   - file: src/modules/ai/service/dtos.py
     target_module: agent
