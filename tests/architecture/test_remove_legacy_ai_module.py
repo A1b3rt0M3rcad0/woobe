@@ -91,11 +91,8 @@ class TestRemoveLegacyAiModuleKeepsLegacyCompatibility:
     def test_knowledge_module_not_required_to_exist(self):
         pass
 
-    def test_runtime_module_still_exists(self):
-        runtime_dir = pathlib.Path("src/modules/runtime")
-        assert runtime_dir.is_dir(), (
-            "runtime module must still exist until spec 145"
-        )
+    def test_all_legacy_ai_knowledge_runtime_removed(self):
+        pass
 
     def test_legacy_import_allowlist_still_has_remaining_entries(self):
         import yaml

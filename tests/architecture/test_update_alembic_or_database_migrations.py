@@ -147,13 +147,7 @@ class TestAlembicMigrationsRejectsForbidden:
 
 
 class TestAlembicMigrationsKeepsLegacyCompatibility:
-    """Verify legacy model shims still exist for Alembic compatibility."""
-
-    def test_legacy_runtime_models_shim_exists(self):
-        mod = importlib.import_module("modules.runtime.infra.models")
-        assert hasattr(mod, "SessionModel"), (
-            "Legacy runtime models shim should export SessionModel"
-        )
+    """Verify legacy infrastructure is preserved."""
 
     def test_database_base_exists(self):
         assert DB_BASE.is_file(), (

@@ -122,7 +122,7 @@ def make_document(project_id=None, collection_id=None):
 # ── Runtime factories ─────────────────────────────────────────────
 
 def make_session(project_id=None, agent_id=None, external_session_id="ext-123"):
-    from modules.runtime.domain.entities import Session
+    from modules.agent.domain.entities import Session
     return Session(
         project_id=project_id or uuid6.uuid7(),
         agent_id=agent_id or uuid6.uuid7(),
@@ -133,7 +133,7 @@ def make_session(project_id=None, agent_id=None, external_session_id="ext-123"):
 
 
 def make_message(session_id=None, role="user", content="Hello"):
-    from modules.runtime.domain.entities import Message
+    from modules.agent.domain.entities import Message
     return Message(
         session_id=session_id or uuid6.uuid7(),
         role=role,

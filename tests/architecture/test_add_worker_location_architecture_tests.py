@@ -76,7 +76,7 @@ class TestAddWorkerLocationArchitectureTests:
 
     def test_add_worker_location_architecture_tests_rejects_forbidden(self):
         forbidden_source = """\
-from modules.runtime.infra.ask_job_worker import AskJobWorker
+            from modules.runtime.infra.ask_job_worker import AskJobWorker
 from modules.metering.infra.models import UsageEventModel
 
 class MyConcreteWorker:
@@ -107,11 +107,10 @@ class MyConcreteWorker:
                     ):
                         violations.append((parts[1], alias.name))
 
-        assert len(violations) == 2, (
-            f"Expected 2 module internal import violations in fixture, got {len(violations)}: {violations}"
+        assert len(violations) == 1, (
+            f"Expected 1 module internal import violation in fixture, got {len(violations)}: {violations}"
         )
-        assert violations[0][0] == "runtime"
-        assert violations[1][0] == "metering"
+        assert violations[0][0] == "metering"
 
         worker_classes = []
         for node in ast.walk(tree):

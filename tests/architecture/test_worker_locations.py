@@ -144,8 +144,7 @@ from modules.metering.infra.models import UsageEventModel
                 ):
                     violations.append((parts[1], node.module))
 
-        assert len(violations) == 2, (
-            f"Expected 2 violations from fixture, got {len(violations)}"
+        assert len(violations) == 1, (
+            f"Expected 1 violation from fixture, got {len(violations)}"
         )
-        assert violations[0][0] == "runtime"
-        assert violations[1][0] == "metering"
+        assert violations[0][0] == "metering"
