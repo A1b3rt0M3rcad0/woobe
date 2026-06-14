@@ -136,7 +136,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 077-create-agent-outbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py | alembic pendente (sem banco local) | 078-create-agent-inbox-status-transition-policy.md |
 | 078-create-agent-inbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py | alembic pendente (sem banco local) | 079-create-agent-outbox-inbox-locking-policy.md |
 | 079-create-agent-outbox-inbox-locking-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_inbox_locking_policy.py | alembic pendente (sem banco local) | 080-implement-agent-outbox-dispatcher.md |
-| 080-implement-agent-outbox-dispatcher | pending | 2026-06-12 | - | executar spec | 081-implement-agent-rabbitmq-publisher.md |
+| 080-implement-agent-outbox-dispatcher | completed | 2026-06-14 | src/modules/agent/infra/workers/outbox_dispatcher.py, tests/modules/agent/workers/__init__.py, tests/modules/agent/workers/test_implement_agent_outbox_dispatcher.py | - | 081-implement-agent-rabbitmq-publisher.md |
 | 081-implement-agent-rabbitmq-publisher | pending | 2026-06-12 | - | executar spec | 082-implement-agent-inbox-consumer.md |
 | 082-implement-agent-inbox-consumer | pending | 2026-06-12 | - | executar spec | 083-implement-agent-inbox-processor.md |
 | 083-implement-agent-inbox-processor | pending | 2026-06-12 | - | executar spec | 084-implement-agent-inbox-handlers.md |
@@ -251,6 +251,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 077-create-agent-outbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py |
 | 078-create-agent-inbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py |
 | 079-create-agent-outbox-inbox-locking-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_inbox_locking_policy.py |
+| 080-implement-agent-outbox-dispatcher | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/workers/outbox_dispatcher.py, tests/modules/agent/workers/test_implement_agent_outbox_dispatcher.py |
 
 ## Specs pendentes
 
