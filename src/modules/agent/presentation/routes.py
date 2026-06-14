@@ -48,7 +48,8 @@ from modules.agent.application.composers.list_messages_composer import list_mess
 from modules.agent.application.composers.send_message_composer import send_message_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
-router = APIRouter(prefix="/ai", tags=["ai"])
+router = APIRouter(prefix="/ai", tags=["ai", "agent"])
+
 
 
 @router.post("/credentials")
@@ -226,7 +227,8 @@ async def list_release_tests(request: FastAPIRequest):
     return response_adapter(response)
 
 
-knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge", "agent"])
+
 
 
 @knowledge_router.get("/collections")
@@ -313,7 +315,8 @@ async def list_knowledge_versions(request: FastAPIRequest):
     return response_adapter(response)
 
 
-runtime_router = APIRouter(prefix="/runtime", tags=["runtime"])
+runtime_router = APIRouter(prefix="/runtime", tags=["runtime", "agent"])
+
 
 
 @runtime_router.post("/sessions")
@@ -369,3 +372,9 @@ async def send_message(request: FastAPIRequest):
     handler = send_message_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+agent_router = APIRouter(prefix="/agent", tags=["agent"])
+agent_router.include_router(router)
+agent_router.include_router(knowledge_router)
+agent_router.include_router(runtime_router)

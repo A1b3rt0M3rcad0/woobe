@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
+from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
 from modules.agent.presentation.routes import runtime_router as agent_runtime_router
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
 
     app.include_router(identity_router)
     app.include_router(core_router)
+    app.include_router(agent_router)
     app.include_router(agent_ai_router)
     app.include_router(agent_knowledge_router)
     app.include_router(agent_runtime_router)

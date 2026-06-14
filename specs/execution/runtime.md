@@ -173,7 +173,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 128-add-inbox-deduplication-concurrency-tests | completed | 2026-06-14 | tests/modules/agent/test_add_inbox_deduplication_concurrency_tests.py | - | 129-add-outbox-dispatch-concurrency-tests.md |
 | 129-add-outbox-dispatch-concurrency-tests | completed | 2026-06-14 | tests/modules/agent/test_add_outbox_dispatch_concurrency_tests.py | - | 130-update-application-bootstrap.md |
 | 130-update-application-bootstrap | completed | 2026-06-14 | src/main.py (router imports/registrations), tests/architecture/test_update_application_bootstrap.py | - | 131-update-api-routes-to-agent.md |
-| 131-update-api-routes-to-agent | pending | 2026-06-12 | - | executar spec | 132-update-dependency-injection-bindings.md |
+| 131-update-api-routes-to-agent | completed | 2026-06-14 | src/modules/agent/presentation/routes.py, src/main.py, tests/architecture/test_update_api_routes_to_agent.py | - | 132-update-dependency-injection-bindings.md |
 | 132-update-dependency-injection-bindings | pending | 2026-06-12 | - | executar spec | 133-update-settings-and-config.md |
 | 133-update-settings-and-config | pending | 2026-06-12 | - | executar spec | 134-update-alembic-or-database-migrations.md |
 | 134-update-alembic-or-database-migrations | pending | 2026-06-12 | - | executar spec | - |
@@ -288,6 +288,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 128-add-inbox-deduplication-concurrency-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_inbox_deduplication_concurrency_tests.py |
 | 129-add-outbox-dispatch-concurrency-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_outbox_dispatch_concurrency_tests.py |
 | 130-update-application-bootstrap | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/main.py, tests/architecture/test_update_application_bootstrap.py |
+| 131-update-api-routes-to-agent | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/presentation/routes.py, src/main.py, tests/architecture/test_update_api_routes_to_agent.py |
 
 ## Specs pendentes
 
@@ -329,6 +330,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | 2026-06-14 | Criado legacy_database_fk_allowlist.yaml com 37 entradas de FK cross-module | Spec 111 exige testes de fronteira de banco com allowlist explícita; 37 FKs cross-module documentadas (agent→core/identity, billing→identity, core→identity, tools→core/agent, observability→core/agent, metering→core/agent) | Allowlist temporária; remoção na spec 134 | Sim, até spec 134 |
 | 2026-06-14 | Bootstrap do main.py atualizado para importar routers de agent diretamente | Spec 130 exige que src/main.py importe modules.agent.presentation.routes; legacy routers (ai/knowledge/runtime) mantidos como shims mas não registrados separadamente | agent_ai_router, agent_knowledge_router, agent_runtime_router registrados via include_router; imports legacy removidos de main.py | Sim (reversível restaurando imports legacy) |
 | 2026-06-14 | Testes transacionais de UoW, Outbox, Inbox, concurrency, retry e dead-letter criados | Spec 126 exige cobertura estrutural dos contratos transacionais do agent: AgentUnitOfWork commit/rollback, Outbox mesma transação, Inbox antes ack, publisher confirm, SKIP LOCKED, backoff exponencial, dead-letter, ausência de cross-module imports | 97 testes estruturais em test_add_unit_of_work_transaction_tests.py; sem alteração de código fonte | Não (testes incrementais) |
+| 2026-06-14 | Consolidado agent_router com prefix /agent no routes.py do agent | Spec 131 exige prefixo final /agent com routers legados mantidos como shims; agent_router inclui os três routers existentes (/ai, /knowledge, /runtime) | Novo APIRouter agent_router em routes.py; main.py registra agent_router antes dos routers legados | Sim (reversível removendo o include_router) |
 
 ## Riscos ativos
 
@@ -367,7 +369,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`131-update-api-routes-to-agent.md`.
+`132-update-dependency-injection-bindings.md`.
 
 ## Pendências de ferramentas
 
