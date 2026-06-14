@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.ai.infra.repositories import SQLAlchemyAgentModelConfigRepository
+from modules.agent.infra.database.repositories import SQLAlchemyAgentModelConfigRepository
 from modules.agent.application.use_cases.ai_use_cases import ListModelConfigsUseCase
 from modules.agent.presentation.controllers.list_model_configs_controller import ListModelConfigsController
 from shared.application.transactional_handler import TransactionalHandler

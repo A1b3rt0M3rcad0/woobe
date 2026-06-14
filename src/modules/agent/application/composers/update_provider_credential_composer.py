@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.ai.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyProviderCredentialRepository
+from modules.agent.infra.database.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyProviderCredentialRepository
 from modules.agent.application.use_cases.ai_use_cases import UpdateProviderCredentialUseCase
 from modules.agent.presentation.controllers.update_provider_credential_controller import UpdateProviderCredentialController
 from shared.application.transactional_handler import TransactionalHandler

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.ai.infra.repositories import SQLAlchemyProviderCredentialRepository
+from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
 from modules.agent.application.use_cases.ai_use_cases import ListProviderCredentialsUseCase
 from modules.agent.presentation.controllers.list_provider_credentials_controller import ListProviderCredentialsController
 from shared.application.transactional_handler import TransactionalHandler

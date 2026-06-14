@@ -410,130 +410,20 @@ entries:
     removal_spec: "140"
     scope: module_boundaries
 
-  # agent/application/composers → ai (temporary: infra/database not yet moved)
-  - file: src/modules/agent/application/composers/create_agent_composer.py
-    target_module: ai
-    removal_spec: "025"
+  # ai/infra → agent (shims delegating to new module during migration)
+  - file: src/modules/ai/infra/models.py
+    target_module: agent
+    removal_spec: "140"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/create_contract_version_composer.py
-    target_module: ai
-    removal_spec: "025"
+  - file: src/modules/ai/infra/repositories.py
+    target_module: agent
+    removal_spec: "140"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/create_model_config_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/create_prompt_version_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/create_provider_credential_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/create_release_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/create_release_test_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/delete_release_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/get_agent_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/get_contract_version_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/get_model_config_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/get_prompt_version_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/get_release_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_agents_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_contract_versions_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_model_configs_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_prompt_versions_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_provider_credentials_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_release_tests_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/list_releases_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/promote_release_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/rollback_release_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/update_agent_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/update_contract_version_composer.py
-    target_module: ai
-    removal_spec: "025"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/update_provider_credential_composer.py
-    target_module: ai
-    removal_spec: "025"
+  - file: src/modules/ai/infra/mappers.py
+    target_module: agent
+    removal_spec: "140"
     scope: module_boundaries
 
   # --- scope: worker_locations ---

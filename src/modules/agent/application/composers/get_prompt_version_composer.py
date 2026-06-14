@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.ai.infra.repositories import SQLAlchemyAgentPromptRepository
+from modules.agent.infra.database.repositories import SQLAlchemyAgentPromptRepository
 from modules.agent.application.use_cases.ai_use_cases import GetPromptUseCase
 from modules.agent.presentation.controllers.get_prompt_version_controller import GetPromptVersionController
 from shared.application.transactional_handler import TransactionalHandler
