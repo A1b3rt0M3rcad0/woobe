@@ -85,6 +85,7 @@ from modules.agent.infra.database.mappers import (
 from modules.agent.infra.database.models import (
     AgentCollectionModel,
     AgentContractModel,
+    AgentInboxEventModel,
     AgentModel,
     AgentModelConfigModel,
     AgentOutboxEventModel,
@@ -1374,4 +1375,98 @@ class SQLAlchemyAgentOutboxRepository:
         if allowed is None or target not in allowed:
             raise ValueError(
                 f"Invalid outbox status transition: {current} -> {target}"
+            )
+
+
+AGENT_INBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
+    "received": {"processing"},
+    "processing": {"processed", "retryable", "dead"},
+    "retryable": {"processing"},
+}
+
+
+class SQLAlchemyAgentInboxRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def save_received(self, event: AgentInboxEventModel) -> AgentInboxEventModel:
+        self._session.add(event)
+        await self._session.flush()
+        return event
+
+    async def claim_batch(
+        self, batch_size: int, locked_by: str
+    ) -> list[AgentInboxEventModel]:
+        now = datetime.now(timezone.utc)
+        stmt = (
+            select(AgentInboxEventModel)
+            .where(AgentInboxEventModel.status.in_(["received", "retryable"]))
+            .where(AgentInboxEventModel.available_at <= func.now())
+            .where(
+                (AgentInboxEventModel.locked_at.is_(None))
+                | (AgentInboxEventModel.locked_at < func.now() - text("INTERVAL '5 minutes'"))
+            )
+            .order_by(AgentInboxEventModel.created_at.asc())
+            .limit(batch_size)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self._session.execute(stmt)
+        events = list(result.scalars().all())
+        for event in events:
+            event.locked_at = now
+            event.locked_by = locked_by
+            event.status = "processing"
+            event.attempts += 1
+        await self._session.flush()
+        return events
+
+    async def mark_processing(self, event_id: UUID, locked_by: str) -> None:
+        event = await self._session.get(AgentInboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "processing")
+        event.status = "processing"
+        event.locked_at = datetime.now(timezone.utc)
+        event.locked_by = locked_by
+        event.attempts += 1
+
+    async def mark_processed(self, event_id: UUID) -> None:
+        event = await self._session.get(AgentInboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "processed")
+        event.status = "processed"
+        event.processed_at = datetime.now(timezone.utc)
+        event.locked_at = None
+        event.locked_by = None
+
+    async def mark_retryable(
+        self, event_id: UUID, error: str, available_at: datetime
+    ) -> None:
+        event = await self._session.get(AgentInboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "retryable")
+        event.status = "retryable"
+        event.error = error
+        event.available_at = available_at
+        event.locked_at = None
+        event.locked_by = None
+
+    async def mark_dead(self, event_id: UUID, error: str) -> None:
+        event = await self._session.get(AgentInboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "dead")
+        event.status = "dead"
+        event.error = error
+        event.locked_at = None
+        event.locked_by = None
+
+    @staticmethod
+    def _validate_transition(current: str, target: str) -> None:
+        allowed = AGENT_INBOX_VALID_TRANSITIONS.get(current)
+        if allowed is None or target not in allowed:
+            raise ValueError(
+                f"Invalid inbox status transition: {current} -> {target}"
             )

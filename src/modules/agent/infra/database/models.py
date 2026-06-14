@@ -382,3 +382,41 @@ class AgentOutboxEventModel(BaseModel):
     locked_by: Mapped[str | None] = mapped_column(String(128))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class AgentInboxEventModel(BaseModel):
+    __tablename__ = "agent_inbox_events"
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_agent_inbox_message_id"),
+        UniqueConstraint("idempotency_key", name="uq_agent_inbox_idempotency_key"),
+        Index(
+            "ix_agent_inbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('received', 'retryable')"),
+        ),
+        Index("ix_agent_inbox_correlation_id", "correlation_id"),
+        {"schema": "agent"},
+    )
+
+    message_id: Mapped[str] = mapped_column(String(255))
+    producer_module: Mapped[str] = mapped_column(String(64))
+    consumer_module: Mapped[str] = mapped_column(String(64), default="agent")
+    event_type: Mapped[str] = mapped_column(String(255))
+    event_version: Mapped[int] = mapped_column(Integer)
+    routing_key: Mapped[str] = mapped_column(String(255))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    headers: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    correlation_id: Mapped[UUID]
+    causation_id: Mapped[UUID | None]
+    status: Mapped[str] = mapped_column(String(32), default="received")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
