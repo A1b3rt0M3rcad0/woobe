@@ -1,148 +1,59 @@
-﻿import asyncio
+"""Deprecated - domain worker orchestration removed (spec 061).
+
+The generic WorkerRunner lives in src/shared/workers/runner.py.
+Module-specific workers are exposed via module registries (specs 062-063).
+This file is kept as a compatibility shim during the migration.
+"""
+import asyncio
 import logging
-import signal
 import sys
-from typing import Never
+import warnings
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
-from shared.infra.config import Settings
-from shared.infra.database.session import create_engine
-from shared.infra.rabbitmq import RabbitMQManager
-from shared.workers.base_worker import BaseWorker
-from modules.runtime.infra.ask_job_worker import AskJobWorker
+from shared.workers.runner import WorkerRunner
 from workers import (
     InboxConsumerWorker,
-    InboxDispatcherWorker,
     OutboxPublisherWorker,
 )
-from workers.dispatcher import build_dispatcher
+
+warnings.warn(
+    "workers.runner is deprecated. Use shared.workers.runner.WorkerRunner with module registries.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _build_engine(settings: Settings | None = None) -> tuple[AsyncEngine, Settings]:
+async def run_all_workers_deprecated(settings=None) -> None:
+    from shared.infra.config import Settings
+    from shared.infra.database.session import create_engine
+    from shared.infra.rabbitmq import RabbitMQManager
+
     s = settings or Settings()
-    return create_engine(s), s
-
-
-async def run_once(
-    worker_class: type[BaseWorker] | None = None,
-    worker: BaseWorker | None = None,
-    settings: Settings | None = None,
-) -> None:
-    engine, _ = _build_engine(settings)
-    instance = worker or (worker_class(engine) if worker_class else None)
-    if instance is None:
-        raise ValueError("provide worker_class or worker instance")
-    try:
-        await instance.run()
-    finally:
-        await engine.dispose()
-
-
-async def run_loop(
-    worker_class: type[BaseWorker] | None = None,
-    worker: BaseWorker | None = None,
-    interval: float | None = None,
-    settings: Settings | None = None,
-) -> Never:
-    engine, s = _build_engine(settings)
-    if interval is None:
-        interval = s.worker_interval
-    instance = worker or (worker_class(engine) if worker_class else None)
-    if instance is None:
-        raise ValueError("provide worker_class or worker instance")
-
-    stop = asyncio.Event()
-
-    def _signal_handler() -> None:
-        stop.set()
-
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, _signal_handler)
-        except NotImplementedError:
-            pass
-
-    try:
-        while not stop.is_set():
-            await instance.run()
-            await asyncio.sleep(interval)
-    finally:
-        await engine.dispose()
-        sys.exit(0)
-
-
-async def run_all_workers(settings: Settings | None = None) -> None:
-    engine, s = _build_engine(settings)
+    engine = create_engine(s)
 
     async with RabbitMQManager(s.rabbitmq_url, s.rabbitmq_exchange) as rmq:
         publisher = OutboxPublisherWorker(engine, rmq)
         consumer = InboxConsumerWorker(engine, rmq)
-        dispatcher = build_dispatcher(engine)
-
+        runner = WorkerRunner(workers=[publisher, consumer])
         try:
-            await publisher.run()
-            await consumer.run()
-            await dispatcher.run()
+            await runner.run_once()
         finally:
             await engine.dispose()
-
-
-async def run_publisher(settings: Settings | None = None) -> None:
-    engine, s = _build_engine(settings)
-    async with RabbitMQManager(s.rabbitmq_url, s.rabbitmq_exchange) as rmq:
-        worker = OutboxPublisherWorker(engine, rmq)
-        try:
-            await worker.run()
-        finally:
-            await engine.dispose()
-
-
-async def run_consumer(settings: Settings | None = None) -> None:
-    engine, s = _build_engine(settings)
-    async with RabbitMQManager(s.rabbitmq_url, s.rabbitmq_exchange) as rmq:
-        worker = InboxConsumerWorker(engine, rmq)
-        try:
-            await worker.run()
-        finally:
-            await engine.dispose()
-
-
-async def run_dispatcher(settings: Settings | None = None) -> None:
-    engine, s = _build_engine(settings)
-    worker = build_dispatcher(engine)
-    try:
-        await worker.run()
-    finally:
-        await engine.dispose()
-
-
-async def run_ask_jobs(settings: Settings | None = None) -> None:
-    engine, s = _build_engine(settings)
-    worker = AskJobWorker(engine)
-    try:
-        await worker.run()
-    finally:
-        await engine.dispose()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logger.warning(
+        "workers.runner is deprecated. Use shared.workers.runner.WorkerRunner."
+    )
 
     match sys.argv[1] if len(sys.argv) > 1 else "all":
-        case "publisher":
-            asyncio.run(run_publisher())
-        case "consumer":
-            asyncio.run(run_consumer())
-        case "dispatcher":
-            asyncio.run(run_dispatcher())
-        case "ask_jobs":
-            asyncio.run(run_ask_jobs())
         case "all":
-            asyncio.run(run_all_workers())
+            asyncio.run(run_all_workers_deprecated())
         case _:
-            print("Usage: python -m workers.runner [publisher|consumer|dispatcher|ask_jobs|all]")
+            print(
+                "Deprecated runner. Only 'all' is supported as compatibility shim.\n"
+                "Use module-specific worker registries (specs 062-063)."
+            )
             sys.exit(1)
