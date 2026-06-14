@@ -168,7 +168,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 123-add-inbox-consumer-tests | completed | 2026-06-14 | tests/modules/agent/test_add_inbox_consumer_tests.py | - | 124-add-inbox-processor-tests.md |
 | 124-add-inbox-processor-tests | completed | 2026-06-14 | tests/modules/agent/test_add_inbox_processor_tests.py | - | 125-add-idempotency-tests.md |
 | 125-add-idempotency-tests | completed | 2026-06-14 | tests/modules/agent/test_add_idempotency_tests.py | - | 126-add-unit-of-work-transaction-tests.md |
-| 126-add-unit-of-work-transaction-tests | pending | 2026-06-12 | - | executar spec | 127-add-rabbitmq-publisher-confirm-tests.md |
+| 126-add-unit-of-work-transaction-tests | completed | 2026-06-14 | tests/modules/agent/test_add_unit_of_work_transaction_tests.py | - | 127-add-rabbitmq-publisher-confirm-tests.md |
 | 127-add-rabbitmq-publisher-confirm-tests | pending | 2026-06-12 | - | executar spec | 128-add-inbox-deduplication-concurrency-tests.md |
 | 128-add-inbox-deduplication-concurrency-tests | pending | 2026-06-12 | - | executar spec | 129-add-outbox-dispatch-concurrency-tests.md |
 | 129-add-outbox-dispatch-concurrency-tests | pending | 2026-06-12 | - | executar spec | 130-update-application-bootstrap.md |
@@ -283,6 +283,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 123-add-inbox-consumer-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_inbox_consumer_tests.py |
 | 124-add-inbox-processor-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_inbox_processor_tests.py |
 | 125-add-idempotency-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_idempotency_tests.py |
+| 126-add-unit-of-work-transaction-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_unit_of_work_transaction_tests.py |
 
 ## Specs pendentes
 
@@ -322,6 +323,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | 2026-06-14 | Estado `ignored` adicionado à política de transição do Inbox | Spec 078 exige received→ignored para eventos válidos sem handler registrado no módulo; evita processar eventos irrelevantes | AGENT_INBOX_VALID_TRANSITIONS atualizado; mark_ignored adicionado ao SQLAlchemyAgentInboxRepository | Não (política definitiva) |
 | 2026-06-14 | Lock timeout configurável (300s default) e batch size padrão (50) definidos | Spec 079 exige locks expirados recuperáveis após timeout configurável; constantes AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS, AGENT_INBOX_LOCK_TIMEOUT_SECONDS, AGENT_DEFAULT_BATCH_SIZE | claim_batch aceita lock_timeout_seconds como parâmetro; batch_size tem default 50 | Sim (valores ajustáveis) |
 | 2026-06-14 | Criado legacy_database_fk_allowlist.yaml com 37 entradas de FK cross-module | Spec 111 exige testes de fronteira de banco com allowlist explícita; 37 FKs cross-module documentadas (agent→core/identity, billing→identity, core→identity, tools→core/agent, observability→core/agent, metering→core/agent) | Allowlist temporária; remoção na spec 134 | Sim, até spec 134 |
+| 2026-06-14 | Testes transacionais de UoW, Outbox, Inbox, concurrency, retry e dead-letter criados | Spec 126 exige cobertura estrutural dos contratos transacionais do agent: AgentUnitOfWork commit/rollback, Outbox mesma transação, Inbox antes ack, publisher confirm, SKIP LOCKED, backoff exponencial, dead-letter, ausência de cross-module imports | 97 testes estruturais em test_add_unit_of_work_transaction_tests.py; sem alteração de código fonte | Não (testes incrementais) |
 
 ## Riscos ativos
 
@@ -360,7 +362,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`126-add-unit-of-work-transaction-tests.md`.
+`127-add-rabbitmq-publisher-confirm-tests.md`.
 
 ## Pendências de ferramentas
 
