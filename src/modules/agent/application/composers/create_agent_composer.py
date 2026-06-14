@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.infra.repositories import SQLAlchemyAgentRepository, SQLAlchemyOutboxEventWriter, SQLAlchemyProviderCredentialRepository
 from modules.agent.application.use_cases.ai_use_cases import CreateAgentUseCase
-from modules.ai.presentation.controllers.create_agent_controller import CreateAgentController
+from modules.agent.presentation.controllers.create_agent_controller import CreateAgentController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

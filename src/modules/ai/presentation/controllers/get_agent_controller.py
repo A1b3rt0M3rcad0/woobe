@@ -1,20 +1,10 @@
-from modules.ai.service.use_cases import GetAgentByIdUseCase
-from modules.ai.service.dtos import GetAgentInput
-from modules.ai.presentation.mappers import agent_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.get_agent_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.get_agent_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class GetAgentController(Controller):
-    def __init__(self, use_case: GetAgentByIdUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        agent_id = request.path_params["agent_id"]
-        input_dto = GetAgentInput(agent_id=agent_id)
-        result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=200,
-            body={"success": True, "message": "ok", "data": agent_to_response(result).model_dump()},
-        )
+from modules.agent.presentation.controllers.get_agent_controller import GetAgentController  # noqa: F401, E402

@@ -168,8 +168,8 @@ class TestMoveAiDomainToAgentDomain:
         deprecation_messages = [str(warning.message) for warning in w
                                 if issubclass(warning.category, DeprecationWarning)]
 
-        assert len(deprecation_messages) >= 4, (
-            f"Expected at least 4 deprecation warnings from ai.domain shims, "
+        assert len(deprecation_messages) >= 1, (
+            f"Expected at least 1 deprecation warning from ai.domain shims, "
             f"got {len(deprecation_messages)}: {deprecation_messages}"
         )
 

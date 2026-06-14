@@ -1,19 +1,10 @@
-from modules.ai.service.use_cases import CreateAgentUseCase
-from modules.ai.service.dtos import CreateAgentInput
-from modules.ai.presentation.mappers import agent_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.create_agent_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.create_agent_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class CreateAgentController(Controller):
-    def __init__(self, use_case: CreateAgentUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        input_dto = CreateAgentInput(**request.body)
-        result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=201,
-            body={"success": True, "message": "created", "data": agent_to_response(result).model_dump()},
-        )
+from modules.agent.presentation.controllers.create_agent_controller import CreateAgentController  # noqa: F401, E402

@@ -1,0 +1,19 @@
+from modules.agent.application.use_cases.ai_use_cases import ListPromptsUseCase
+from modules.agent.presentation.mappers import list_prompts_to_response
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class ListPromptVersionsController(Controller):
+    def __init__(self, use_case: ListPromptsUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        agent_id = request.path_params["agent_id"]
+        result = await self._use_case.execute(agent_id)
+        items = [list_prompts_to_response(p).model_dump() for p in result]
+        return Response(
+            status_code=200,
+            body={"success": True, "data": items},
+        )

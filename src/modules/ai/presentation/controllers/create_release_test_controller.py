@@ -1,19 +1,10 @@
-from modules.ai.service.use_cases import CreateReleaseTestUseCase
-from modules.ai.service.dtos import CreateReleaseTestInput
-from modules.ai.presentation.mappers import release_test_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.create_release_test_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.create_release_test_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class CreateReleaseTestController(Controller):
-    def __init__(self, use_case: CreateReleaseTestUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        input_dto = CreateReleaseTestInput(**request.body)
-        result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=201,
-            body={"success": True, "data": release_test_to_response(result).model_dump()},
-        )
+from modules.agent.presentation.controllers.create_release_test_controller import CreateReleaseTestController  # noqa: F401, E402

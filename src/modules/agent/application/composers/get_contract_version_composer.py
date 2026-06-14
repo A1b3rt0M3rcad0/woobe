@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.infra.repositories import SQLAlchemyAgentContractRepository
 from modules.agent.application.use_cases.ai_use_cases import GetContractUseCase
-from modules.ai.presentation.controllers.get_contract_version_controller import GetContractVersionController
+from modules.agent.presentation.controllers.get_contract_version_controller import GetContractVersionController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

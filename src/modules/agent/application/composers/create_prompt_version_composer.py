@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.infra.repositories import SQLAlchemyAgentPromptRepository
 from modules.agent.application.use_cases.ai_use_cases import CreatePromptUseCase
-from modules.ai.presentation.controllers.create_prompt_version_controller import CreatePromptVersionController
+from modules.agent.presentation.controllers.create_prompt_version_controller import CreatePromptVersionController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

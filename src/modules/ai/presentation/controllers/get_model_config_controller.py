@@ -1,19 +1,10 @@
-from uuid import UUID
-from modules.ai.service.use_cases import GetModelConfigUseCase
-from modules.ai.presentation.mappers import model_config_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.get_model_config_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.get_model_config_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class GetModelConfigController(Controller):
-    def __init__(self, use_case: GetModelConfigUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        config_id = request.path_params["config_id"]
-        result = await self._use_case.execute(UUID(config_id))
-        return Response(
-            status_code=200,
-            body={"success": True, "data": model_config_to_response(result).model_dump()},
-        )
+from modules.agent.presentation.controllers.get_model_config_controller import GetModelConfigController  # noqa: F401, E402

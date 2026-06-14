@@ -1,21 +1,10 @@
-from uuid import UUID
-from modules.ai.service.use_cases import UpdateContractUseCase
-from modules.ai.service.dtos import UpdateContractInput
-from modules.ai.presentation.mappers import contract_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.update_contract_version_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.update_contract_version_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class UpdateContractVersionController(Controller):
-    def __init__(self, use_case: UpdateContractUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        contract_id = request.path_params["contract_id"]
-        input_dto = UpdateContractInput(**request.body)
-        result = await self._use_case.execute(UUID(contract_id), input_dto)
-        return Response(
-            status_code=200,
-            body={"success": True, "data": contract_to_response(result).model_dump()},
-        )
+from modules.agent.presentation.controllers.update_contract_version_controller import UpdateContractVersionController  # noqa: F401, E402

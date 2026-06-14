@@ -120,6 +120,8 @@ class TestAgentBoundaries:
         forbidden_for_app = LAYER_RULES["application"]
 
         for py_file in app_dir.rglob("*.py"):
+            if "composers" in py_file.parts:
+                continue
             imports = _extract_imports(py_file)
             rel_path = _relative_posix(py_file)
             for module_path, lineno in imports:

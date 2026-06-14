@@ -1,19 +1,10 @@
-from modules.ai.service.use_cases import ListPromptsUseCase
-from modules.ai.presentation.mappers import list_prompts_to_response
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.ai.presentation.controllers.list_prompt_versions_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.list_prompt_versions_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class ListPromptVersionsController(Controller):
-    def __init__(self, use_case: ListPromptsUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        agent_id = request.path_params["agent_id"]
-        result = await self._use_case.execute(agent_id)
-        items = [list_prompts_to_response(p).model_dump() for p in result]
-        return Response(
-            status_code=200,
-            body={"success": True, "data": items},
-        )
+from modules.agent.presentation.controllers.list_prompt_versions_controller import ListPromptVersionsController  # noqa: F401, E402

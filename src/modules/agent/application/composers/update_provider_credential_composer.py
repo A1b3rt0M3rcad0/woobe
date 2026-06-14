@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.ai.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyProviderCredentialRepository
 from modules.agent.application.use_cases.ai_use_cases import UpdateProviderCredentialUseCase
-from modules.ai.presentation.controllers.update_provider_credential_controller import UpdateProviderCredentialController
+from modules.agent.presentation.controllers.update_provider_credential_controller import UpdateProviderCredentialController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.config import Settings
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
