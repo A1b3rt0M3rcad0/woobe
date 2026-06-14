@@ -24,7 +24,7 @@ def upgrade() -> None:
         sa.Column("event_type", sa.String(255), nullable=False),
         sa.Column("event_version", sa.Integer, nullable=False, server_default="1"),
         sa.Column("routing_key", sa.String(255), nullable=False),
-        sa.Column("payload", JSONB, nullable=False, server_default="'{}'"),
+        sa.Column("payload", JSONB, nullable=False, server_default=sa.text("'{}'")),
         sa.Column("metadata", JSONB, nullable=True),
         sa.Column("idempotency_key", sa.String(255), nullable=False),
         sa.Column("correlation_id", UUID, nullable=False),
