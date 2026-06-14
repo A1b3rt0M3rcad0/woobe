@@ -246,6 +246,9 @@ class DocumentRepository(ABC):
     ) -> list[Document]: ...
 
     @abstractmethod
+    async def list_by_project(self, project_id: UUID) -> list[Document]: ...
+
+    @abstractmethod
     async def paginate_by_collection(
         self, collection_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Document]: ...

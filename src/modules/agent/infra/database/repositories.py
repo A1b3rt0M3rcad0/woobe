@@ -765,6 +765,13 @@ class SQLAlchemyDocumentRepository(DocumentRepository):
         result = await self._session.execute(stmt)
         return [model_to_document(m) for m in result.scalars().all()]
 
+    async def list_by_project(self, project_id: UUID) -> list[Document]:
+        stmt = select(DocumentModel).where(
+            DocumentModel.project_id == project_id
+        ).order_by(DocumentModel.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [model_to_document(m) for m in result.scalars().all()]
+
     async def paginate_by_collection(
         self, collection_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Document]:

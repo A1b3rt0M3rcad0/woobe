@@ -262,12 +262,7 @@ class ListDocumentsUseCase:
         if input_dto.collection_id:
             return await self._repo.list_by_collection(input_dto.collection_id)
         if input_dto.project_id:
-            from sqlalchemy import select
-            from modules.knowledge.infra.models import DocumentModel
-            from modules.knowledge.infra.mappers import model_to_document
-            stmt = select(DocumentModel).where(DocumentModel.project_id == input_dto.project_id).order_by(DocumentModel.created_at.desc())
-            result = await self._uow.session.execute(stmt)
-            return [model_to_document(m) for m in result.scalars().all()]
+            return await self._repo.list_by_project(input_dto.project_id)
         return []
 
 

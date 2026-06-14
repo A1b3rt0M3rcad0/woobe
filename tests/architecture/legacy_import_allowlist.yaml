@@ -317,12 +317,6 @@ entries:
     removal_spec: "141"
     scope: module_boundaries
 
-  # agent/use_cases → knowledge.infra (lazy import via shim in ListDocumentsUseCase)
-  - file: src/modules/agent/application/use_cases/knowledge_use_cases.py
-    target_module: knowledge
-    removal_spec: "035"
-    scope: module_boundaries
-
   # ai/service → agent (shims delegating to new module during migration)
   - file: src/modules/ai/service/dtos.py
     target_module: agent
