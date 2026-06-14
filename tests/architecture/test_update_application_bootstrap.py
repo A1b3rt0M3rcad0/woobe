@@ -1,0 +1,234 @@
+"""Tests for spec 130 — update application bootstrap.
+
+Validates that src/main.py imports and registers routers from the agent module
+directly, with legacy ai/knowledge/runtime routers retained only as deprecation
+shims. Also verifies the bootstrap sets up engine, session_factory, settings,
+CORS, exception handlers, and the startup/shutdown lifecycle.
+"""
+import importlib
+import inspect
+import warnings
+
+from fastapi import FastAPI
+
+
+class TestBootstrapAgentRouterRegistration:
+    """Verify src/main.py registers agent routers directly."""
+
+    def test_bootstrap_imports_agent_presentation_routes(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod)
+        assert "modules.agent.presentation.routes" in source
+
+    def test_bootstrap_registers_agent_ai_router(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "agent_ai_router" in source
+
+    def test_bootstrap_registers_agent_knowledge_router(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "agent_knowledge_router" in source
+
+    def test_bootstrap_registers_agent_runtime_router(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "agent_runtime_router" in source
+
+    def test_bootstrap_uses_include_router_for_agent_routers(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "include_router(agent_ai_router)" in source
+        assert "include_router(agent_knowledge_router)" in source
+        assert "include_router(agent_runtime_router)" in source
+
+
+class TestBootstrapLegacyRouterShims:
+    """Verify legacy routes files still exist as deprecation shims."""
+
+    def test_legacy_ai_routes_module_exists(self):
+        mod = importlib.import_module("modules.ai.presentation.routes")
+        assert hasattr(mod, "router")
+
+    def test_legacy_knowledge_routes_module_exists(self):
+        mod = importlib.import_module("modules.knowledge.presentation.routes")
+        assert hasattr(mod, "router")
+
+    def test_legacy_runtime_routes_module_exists(self):
+        mod = importlib.import_module("modules.runtime.presentation.routes")
+        assert hasattr(mod, "router")
+
+    def test_legacy_ai_shim_is_deprecated(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            import sys
+            if "modules.ai.presentation.routes" in sys.modules:
+                del sys.modules["modules.ai.presentation.routes"]
+            __import__("modules.ai.presentation.routes")
+            deprecation_warnings = [
+                _w for _w in w
+                if issubclass(_w.category, DeprecationWarning)
+                and "modules.ai" in str(_w.message).lower()
+            ]
+            assert len(deprecation_warnings) >= 1, "ai routes shim should emit DeprecationWarning"
+
+    def test_legacy_knowledge_shim_is_deprecated(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            import sys
+            if "modules.knowledge.presentation.routes" in sys.modules:
+                del sys.modules["modules.knowledge.presentation.routes"]
+            __import__("modules.knowledge.presentation.routes")
+            deprecation_warnings = [
+                _w for _w in w
+                if issubclass(_w.category, DeprecationWarning)
+                and "modules.knowledge" in str(_w.message).lower()
+            ]
+            assert len(deprecation_warnings) >= 1, "knowledge routes shim should emit DeprecationWarning"
+
+    def test_legacy_runtime_shim_is_deprecated(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            import sys
+            if "modules.runtime.presentation.routes" in sys.modules:
+                del sys.modules["modules.runtime.presentation.routes"]
+            __import__("modules.runtime.presentation.routes")
+            deprecation_warnings = [
+                _w for _w in w
+                if issubclass(_w.category, DeprecationWarning)
+                and "modules.runtime" in str(_w.message).lower()
+            ]
+            assert len(deprecation_warnings) >= 1, "runtime routes shim should emit DeprecationWarning"
+
+
+class TestBootstrapAllModules:
+    """Verify all module routers are registered."""
+
+    def test_all_non_legacy_modules_registered(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        expected_routers = [
+            "identity", "core", "tools", "metering", "billing", "observability",
+            "agent_ai_router", "agent_knowledge_router", "agent_runtime_router",
+        ]
+        for name in expected_routers:
+            assert name in source, f"Missing router registration: {name}"
+
+    def test_legacy_routers_not_registered_separately(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "include_router(ai_router)" not in source
+        assert "include_router(knowledge_router)" not in source
+        assert "include_router(runtime_router)" not in source
+
+
+class TestBootstrapInfrastructure:
+    """Verify bootstrap creates required infrastructure."""
+
+    def test_create_app_returns_fastapi_instance(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert isinstance(app, FastAPI)
+
+    def test_create_app_sets_settings_on_state(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert hasattr(app.state, "settings")
+
+    def test_create_app_sets_async_engine_on_state(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert hasattr(app.state, "async_engine")
+
+    def test_create_app_sets_session_factory_on_state(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert hasattr(app.state, "session_factory")
+
+    def test_create_app_has_cors_middleware(self):
+        from fastapi.middleware.cors import CORSMiddleware
+        from src.main import create_app
+
+        app = create_app()
+        middlewares = [m.cls for m in app.user_middleware]
+        assert CORSMiddleware in middlewares
+
+    def test_create_app_has_health_endpoint(self):
+        from src.main import create_app
+
+        app = create_app()
+        routes = [r.path for r in app.routes if hasattr(r, "path")]
+        assert "/health" in routes
+
+    def test_create_app_has_startup_handler(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert len(app.router.on_startup) >= 1
+
+    def test_create_app_has_shutdown_handler(self):
+        from src.main import create_app
+
+        app = create_app()
+        assert len(app.router.on_shutdown) >= 1
+
+
+class TestBootstrapExceptionHandlers:
+    """Verify all required exception handlers are registered."""
+
+    def test_domain_error_handler_registered(self):
+        from src.main import create_app
+        from shared.domain.errors import DomainError
+
+        app = create_app()
+        assert DomainError in app.exception_handlers
+
+    def test_not_found_error_handler_registered(self):
+        from src.main import create_app
+        from shared.domain.errors import NotFoundError
+
+        app = create_app()
+        assert NotFoundError in app.exception_handlers
+
+    def test_conflict_error_handler_registered(self):
+        from src.main import create_app
+        from shared.domain.errors import ConflictError
+
+        app = create_app()
+        assert ConflictError in app.exception_handlers
+
+    def test_validation_error_handler_registered(self):
+        from src.main import create_app
+        from shared.domain.errors import ValidationError
+
+        app = create_app()
+        assert ValidationError in app.exception_handlers
+
+
+class TestBootstrapNoCrossModuleImports:
+    """Verify src/main.py imports from agent module directly (not legacy)."""
+
+    def test_main_imports_agent_directly(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod)
+        assert "modules.agent.presentation.routes" in source
+
+    def test_main_registers_agent_routers_not_legacy(self):
+        import src.main as main_mod
+
+        source = inspect.getsource(main_mod.create_app)
+        assert "agent_ai_router" in source
+        assert "agent_knowledge_router" in source
+        assert "agent_runtime_router" in source
