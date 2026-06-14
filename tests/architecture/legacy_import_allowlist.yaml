@@ -126,6 +126,12 @@ entries:
     removal_spec: "140"
     scope: module_boundaries
 
+  # ai/infra/llm → agent (shim delegating to new module during migration)
+  - file: src/modules/ai/infra/llm/langchain_factory.py
+    target_module: agent
+    removal_spec: "140"
+    scope: module_boundaries
+
   # ai/service → agent (shims delegating to new module during migration)
   - file: src/modules/ai/service/dtos.py
     target_module: agent

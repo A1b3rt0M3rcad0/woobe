@@ -1,45 +1,10 @@
-from __future__ import annotations
+import warnings
 
-from langchain_core.language_models import BaseChatModel
-from langchain_openai import ChatOpenAI
+warnings.warn(
+    "modules.ai.infra.llm.langchain_factory is deprecated. "
+    "Use modules.agent.infra.llm.langchain_factory instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def create_chat_model(
-    provider: str,
-    model: str,
-    api_key: str,
-    base_url: str | None = None,
-    temperature: float = 0.2,
-    max_tokens: int = 1000,
-    streaming: bool = False,
-    response_format: dict | None = None,
-) -> BaseChatModel:
-    if provider in ("openai", "custom"):
-        kwargs: dict = {
-            "model": model,
-            "api_key": api_key,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if streaming:
-            kwargs["streaming"] = True
-            kwargs["stream_usage"] = True
-        if base_url:
-            kwargs["base_url"] = base_url
-        if response_format:
-            kwargs["response_format"] = response_format
-        return ChatOpenAI(**kwargs)
-
-    if provider == "anthropic":
-        raise NotImplementedError(
-            "Provider anthropic is not implemented yet. "
-            "Install langchain-anthropic and add support."
-        )
-
-    if provider == "google":
-        raise NotImplementedError(
-            "Provider google is not implemented yet. "
-            "Install langchain-google-genai and add support."
-        )
-
-    raise ValueError(f"Unsupported provider: {provider}")
+from modules.agent.infra.llm.langchain_factory import create_chat_model  # noqa: F401, E402
