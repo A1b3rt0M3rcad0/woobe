@@ -1296,8 +1296,9 @@ class SQLAlchemyAskJobRepository(AskJobRepository):
 
 
 AGENT_OUTBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"published", "retryable", "dead"},
-    "retryable": {"published", "retryable", "dead"},
+    "pending": {"publishing"},
+    "publishing": {"published", "retryable", "dead"},
+    "retryable": {"publishing"},
 }
 
 
@@ -1329,6 +1330,7 @@ class SQLAlchemyAgentOutboxRepository:
         result = await self._session.execute(stmt)
         events = list(result.scalars().all())
         for event in events:
+            event.status = "publishing"
             event.locked_at = now
             event.locked_by = locked_by
         await self._session.flush()

@@ -64,19 +64,23 @@ class TestAgentOutboxModelStructure:
 
 
 class TestAgentOutboxStatusTransitions:
-    """Verify status transitions follow expected policy."""
+    """Verify status transitions follow expected policy (updated by spec 077)."""
 
     def test_valid_transitions_from_pending(self):
         allowed = AGENT_OUTBOX_VALID_TRANSITIONS["pending"]
+        assert "publishing" in allowed
+        assert len(allowed) == 1
+
+    def test_valid_transitions_from_publishing(self):
+        allowed = AGENT_OUTBOX_VALID_TRANSITIONS["publishing"]
         assert "published" in allowed
         assert "retryable" in allowed
         assert "dead" in allowed
 
     def test_valid_transitions_from_retryable(self):
         allowed = AGENT_OUTBOX_VALID_TRANSITIONS["retryable"]
-        assert "published" in allowed
-        assert "retryable" in allowed
-        assert "dead" in allowed
+        assert "publishing" in allowed
+        assert len(allowed) == 1
 
     def test_invalid_transition_from_published(self):
         assert "published" not in AGENT_OUTBOX_VALID_TRANSITIONS
@@ -89,9 +93,10 @@ class TestAgentOutboxStatusTransitions:
             SQLAlchemyAgentOutboxRepository._validate_transition("published", "pending")
 
     def test_validate_transition_accepts_valid(self):
-        SQLAlchemyAgentOutboxRepository._validate_transition("pending", "published")
-        SQLAlchemyAgentOutboxRepository._validate_transition("pending", "retryable")
-        SQLAlchemyAgentOutboxRepository._validate_transition("retryable", "dead")
+        SQLAlchemyAgentOutboxRepository._validate_transition("pending", "publishing")
+        SQLAlchemyAgentOutboxRepository._validate_transition("publishing", "published")
+        SQLAlchemyAgentOutboxRepository._validate_transition("publishing", "retryable")
+        SQLAlchemyAgentOutboxRepository._validate_transition("retryable", "publishing")
 
 
 class TestAgentOutboxRepositoryInterface:
