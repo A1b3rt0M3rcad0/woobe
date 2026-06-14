@@ -134,7 +134,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 075-create-agent-outbox-database-migration | completed | 2026-06-14 | migrations/versions/0013_create_agent_outbox_events.py, tests/modules/agent/test_create_agent_outbox_database_migration.py | alembic upgrade/downgrade pendente (sem banco local) | 076-create-agent-inbox-database-migration.md |
 | 076-create-agent-inbox-database-migration | completed | 2026-06-14 | migrations/versions/0014_create_agent_inbox_events.py, tests/modules/agent/test_create_agent_inbox_database_migration.py | alembic upgrade/downgrade pendente (sem banco local) | 077-create-agent-outbox-status-transition-policy.md |
 | 077-create-agent-outbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py | alembic pendente (sem banco local) | 078-create-agent-inbox-status-transition-policy.md |
-| 078-create-agent-inbox-status-transition-policy | pending | 2026-06-12 | - | executar spec | 079-create-agent-outbox-inbox-locking-policy.md |
+| 078-create-agent-inbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py | alembic pendente (sem banco local) | 079-create-agent-outbox-inbox-locking-policy.md |
 | 079-create-agent-outbox-inbox-locking-policy | pending | 2026-06-12 | - | executar spec | 080-implement-agent-outbox-dispatcher.md |
 | 080-implement-agent-outbox-dispatcher | pending | 2026-06-12 | - | executar spec | 081-implement-agent-rabbitmq-publisher.md |
 | 081-implement-agent-rabbitmq-publisher | pending | 2026-06-12 | - | executar spec | 082-implement-agent-inbox-consumer.md |
@@ -249,6 +249,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 075-create-agent-outbox-database-migration | 2026-06-14 | opencode/deepseek-v4-pro | completed | migrations/versions/0013_create_agent_outbox_events.py, tests/modules/agent/test_create_agent_outbox_database_migration.py |
 | 076-create-agent-inbox-database-migration | 2026-06-14 | opencode/deepseek-v4-pro | completed | migrations/versions/0014_create_agent_inbox_events.py, tests/modules/agent/test_create_agent_inbox_database_migration.py |
 | 077-create-agent-outbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py |
+| 078-create-agent-inbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py |
 
 ## Specs pendentes
 
@@ -285,6 +286,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | 2026-06-14 | runtime/presentation (routes, schemas, 8 controllers) movido para agent/presentation com shims | runtime_router criado separado do ai router com prefix /runtime; allowlist entries composers→runtime removidas completamente | Zero imports modules.runtime no agent module; shims em runtime/presentation delegam para agent | Sim, até spec 142 |
 | 2026-06-14 | Domain handlers e AskJobWorker import removidos de src/workers/ | src/workers/dispatcher.py tinha 5 event handlers de negócio; src/workers/runner.py importava modules.runtime.infra.ask_job_worker; ambos substituídos por shims deprecados | src/workers/ é deprecated stub; funcionalidade delegada a shared.workers.runner.WorkerRunner e future module registries (062-063) | Sim, até specs 062-063 |
 | 2026-06-14 | Estado intermediário `publishing` adicionado à política de transição do Outbox | Spec 077 exige que claim com lock transicione pending/retryable→publishing antes de publicar; evita estados ambíguos durante publish e permite retry seguro | AGENT_OUTBOX_VALID_TRANSITIONS atualizado; claim_batch agora seta status="publishing"; mark_published/retryable/dead validam a partir de publishing | Não (política definitiva) |
+| 2026-06-14 | Estado `ignored` adicionado à política de transição do Inbox | Spec 078 exige received→ignored para eventos válidos sem handler registrado no módulo; evita processar eventos irrelevantes | AGENT_INBOX_VALID_TRANSITIONS atualizado; mark_ignored adicionado ao SQLAlchemyAgentInboxRepository | Não (política definitiva) |
 
 ## Riscos ativos
 

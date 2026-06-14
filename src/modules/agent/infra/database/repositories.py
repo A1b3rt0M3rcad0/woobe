@@ -1381,7 +1381,7 @@ class SQLAlchemyAgentOutboxRepository:
 
 
 AGENT_INBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
-    "received": {"processing"},
+    "received": {"processing", "ignored"},
     "processing": {"processed", "retryable", "dead"},
     "retryable": {"processing"},
 }
@@ -1462,6 +1462,16 @@ class SQLAlchemyAgentInboxRepository:
         self._validate_transition(event.status, "dead")
         event.status = "dead"
         event.error = error
+        event.locked_at = None
+        event.locked_by = None
+
+    async def mark_ignored(self, event_id: UUID, reason: str) -> None:
+        event = await self._session.get(AgentInboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "ignored")
+        event.status = "ignored"
+        event.error = reason
         event.locked_at = None
         event.locked_by = None
 
