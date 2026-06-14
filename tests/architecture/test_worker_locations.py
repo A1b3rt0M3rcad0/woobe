@@ -128,7 +128,7 @@ class TestWorkerLocations:
     def test_detects_forbidden_module_import_in_workers(self):
         forbidden_source = """\
 from modules.runtime.infra.ask_job_worker import AskJobWorker
-from modules.ai.domain.entities import Agent
+from modules.metering.infra.models import UsageEventModel
 """
         tree = ast.parse(forbidden_source)
         violations = []
@@ -148,4 +148,4 @@ from modules.ai.domain.entities import Agent
             f"Expected 2 violations from fixture, got {len(violations)}"
         )
         assert violations[0][0] == "runtime"
-        assert violations[1][0] == "ai"
+        assert violations[1][0] == "metering"

@@ -51,10 +51,6 @@ class TestBootstrapAgentRouterRegistration:
 class TestBootstrapLegacyRouterShims:
     """Verify legacy routes files still exist as deprecation shims."""
 
-    def test_legacy_ai_routes_module_exists(self):
-        mod = importlib.import_module("modules.ai.presentation.routes")
-        assert hasattr(mod, "router")
-
     def test_legacy_knowledge_routes_module_exists(self):
         mod = importlib.import_module("modules.knowledge.presentation.routes")
         assert hasattr(mod, "router")
@@ -62,20 +58,6 @@ class TestBootstrapLegacyRouterShims:
     def test_legacy_runtime_routes_module_exists(self):
         mod = importlib.import_module("modules.runtime.presentation.routes")
         assert hasattr(mod, "router")
-
-    def test_legacy_ai_shim_is_deprecated(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            import sys
-            if "modules.ai.presentation.routes" in sys.modules:
-                del sys.modules["modules.ai.presentation.routes"]
-            __import__("modules.ai.presentation.routes")
-            deprecation_warnings = [
-                _w for _w in w
-                if issubclass(_w.category, DeprecationWarning)
-                and "modules.ai" in str(_w.message).lower()
-            ]
-            assert len(deprecation_warnings) >= 1, "ai routes shim should emit DeprecationWarning"
 
     def test_legacy_knowledge_shim_is_deprecated(self):
         with warnings.catch_warnings(record=True) as w:

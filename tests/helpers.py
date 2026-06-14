@@ -67,8 +67,8 @@ def make_api_key(project_id=None, name="TestKey"):
 # ── AI factories ──────────────────────────────────────────────────
 
 def make_agent(project_id=None, name="TestAgent"):
-    from modules.ai.domain.entities import Agent
-    from modules.ai.domain.enums import Provider
+    from modules.agent.domain.entities import Agent
+    from modules.agent.domain.enums import Provider
     return Agent(
         project_id=project_id or uuid6.uuid7(),
         name=name,
@@ -80,8 +80,8 @@ def make_agent(project_id=None, name="TestAgent"):
 
 
 def make_provider_credential(project_id=None, provider=None):
-    from modules.ai.domain.entities import ProviderCredential
-    from modules.ai.domain.enums import Provider as ProviderEnum
+    from modules.agent.domain.entities import ProviderCredential
+    from modules.agent.domain.enums import Provider as ProviderEnum
     return ProviderCredential(
         project_id=project_id or uuid6.uuid7(),
         provider=provider or ProviderEnum.openai,

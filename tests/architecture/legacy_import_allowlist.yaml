@@ -1,850 +1,401 @@
-# Temporary Legacy Import Allowlist
-# Each entry permits a known cross-module import violation during migration.
-# Fields: file, target_module, removal_spec, scope
-# This file must have zero entries after all migration specs complete (specs 140-154).
-
 entries:
-  # --- scope: module_boundaries ---
-  # runtime → ai (will merge into agent)
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: ai
-    removal_spec: "020-025"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: ai
-    removal_spec: "020-025"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/ask_job_worker.py
-    target_module: ai
-    removal_spec: "020-025"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: ai
-    removal_spec: "020-025"
-    scope: module_boundaries
-
-  # runtime → knowledge (will merge into agent)
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: knowledge
-    removal_spec: "030-035"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: knowledge
-    removal_spec: "030-035"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/ask_job_worker.py
-    target_module: knowledge
-    removal_spec: "030-035"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: knowledge
-    removal_spec: "030-035"
-    scope: module_boundaries
-
-  # runtime → metering (must use Outbox/Inbox)
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/ask_job_worker.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  # runtime → observability (must use Outbox/Inbox)
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/ask_job_worker.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  # runtime → tools (must use public contract or Inbox)
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  # ai/domain → agent (shims delegating to new module during migration)
-  - file: src/modules/ai/domain/entities.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/domain/enums.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/domain/errors.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/domain/repositories.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  # ai/infra/llm → agent (shim delegating to new module during migration)
-  - file: src/modules/ai/infra/llm/langchain_factory.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  # knowledge/domain → agent (shims delegating to new module during migration)
-  - file: src/modules/knowledge/domain/entities.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/domain/enums.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/domain/errors.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/domain/repositories.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  # knowledge/service → agent (shims delegating to new module during migration)
-  - file: src/modules/knowledge/service/dtos.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/service/use_cases.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  # knowledge/application/composers → agent (shims delegating to new module during migration)
-  - file: src/modules/knowledge/application/composers/attach_collection_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/create_collection_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/create_knowledge_version_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/detach_collection_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/get_collection_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/get_document_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/list_agent_collections_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/list_collections_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/list_documents_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/list_knowledge_versions_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/search_chunks_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/application/composers/upload_document_composer.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  # knowledge/infra → agent (shims delegating to new module during migration)
-  - file: src/modules/knowledge/infra/models.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/infra/mappers.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/infra/repositories.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  # knowledge/presentation → agent (shims delegating to new module during migration)
-  - file: src/modules/knowledge/presentation/routes.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/schemas.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/mappers.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/attach_collection_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/create_collection_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/create_knowledge_version_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/detach_collection_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/get_collection_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/get_document_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/list_agent_collections_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/list_collections_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/list_documents_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/list_knowledge_versions_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/search_chunks_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  - file: src/modules/knowledge/presentation/controllers/upload_document_controller.py
-    target_module: agent
-    removal_spec: "141"
-    scope: module_boundaries
-
-  # runtime/domain → agent (shims delegating to new module during migration)
-  - file: src/modules/runtime/domain/entities.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/domain/enums.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/domain/errors.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/domain/repositories.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-
-  # agent/use_cases+composers → runtime/metering/observability/tools (temporary during migration)
-  - file: src/modules/agent/application/use_cases/ask_use_case.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/use_cases/ask_use_case.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/use_cases/ask_use_case.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/ask_agent_composer.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/ask_agent_composer.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/application/composers/ask_agent_composer.py
-    target_module: tools
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  # runtime/presentation → agent (shims delegating to new module during migration)
-  - file: src/modules/runtime/presentation/routes.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/schemas.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/ask_agent_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/ask_agent_stream_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/create_ask_job_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/create_session_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/get_ask_job_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/list_agent_sessions_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/list_messages_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/presentation/controllers/send_message_controller.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  # ai/service → agent (shims delegating to new module during migration)
-  - file: src/modules/ai/service/dtos.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/service/use_cases.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  # ai/application/composers → agent (shims delegating to new module during migration)
-  - file: src/modules/ai/application/composers/create_agent_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_contract_version_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_model_config_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_prompt_version_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_provider_credential_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_release_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/create_release_test_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/delete_release_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/get_agent_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/get_contract_version_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/get_model_config_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/get_prompt_version_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/get_release_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_agents_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_contract_versions_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_model_configs_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_prompt_versions_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_provider_credentials_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_release_tests_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/list_releases_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/promote_release_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/rollback_release_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/update_agent_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/update_contract_version_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/application/composers/update_provider_credential_composer.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  # ai/presentation → agent (shims delegating to new module during migration)
-  - file: src/modules/ai/presentation/routes.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/schemas.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/mappers.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_agent_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_contract_version_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_model_config_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_prompt_version_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_provider_credential_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_release_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/create_release_test_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/delete_release_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/get_agent_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/get_contract_version_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/get_model_config_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/get_prompt_version_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/get_release_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_agents_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_contract_versions_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_model_configs_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_prompt_versions_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_provider_credentials_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_release_tests_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/list_releases_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/promote_release_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/rollback_release_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/update_agent_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/update_contract_version_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/presentation/controllers/update_provider_credential_controller.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  # ai/infra → agent (shims delegating to new module during migration)
-  - file: src/modules/ai/infra/models.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/infra/repositories.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-  - file: src/modules/ai/infra/mappers.py
-    target_module: agent
-    removal_spec: "140"
-    scope: module_boundaries
-
-
-  # runtime/infra → agent (shims delegating to new module during migration)
-  - file: src/modules/runtime/infra/models.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/mappers.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/repositories.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/infra/ask_job_worker.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  # agent/infra/workers → metering/observability (cross-module, pre-existing debt)
-  - file: src/modules/agent/infra/workers/ask_job_worker.py
-    target_module: metering
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  - file: src/modules/agent/infra/workers/ask_job_worker.py
-    target_module: observability
-    removal_spec: "070-085"
-    scope: module_boundaries
-
-  # runtime/service → agent (shims delegating to new module during migration)
-  - file: src/modules/runtime/service/dtos.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/use_cases.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_use_case.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/service/ask_agent_stream_service.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  # runtime/application/composers → agent (shims delegating to new module during migration)
-  - file: src/modules/runtime/application/composers/ask_agent_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/ask_agent_stream_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/create_ask_job_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/create_session_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/get_ask_job_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/list_agent_sessions_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/list_messages_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  - file: src/modules/runtime/application/composers/send_message_composer.py
-    target_module: agent
-    removal_spec: "142"
-    scope: module_boundaries
-
-  # --- scope: worker_locations ---
-  # runner imports module internal worker
-  - file: src/workers/runner.py
-    target_module: runtime
-    removal_spec: "060-063"
-    scope: worker_locations
-
-  # --- scope: shared_boundaries ---
-  # shared workers hard-code module lists
-  - file: src/shared/workers/outbox_publisher.py
-    target_module: "*"
-    removal_spec: "050-063"
-    scope: shared_boundaries
-
-  - file: src/shared/workers/inbox_dispatcher.py
-    target_module: "*"
-    removal_spec: "050-063"
-    scope: shared_boundaries
-
-  - file: src/shared/workers/inbox_consumer.py
-    target_module: "*"
-    removal_spec: "050-063"
-    scope: shared_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: ai
+  removal_spec: 020-025
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: ai
+  removal_spec: 020-025
+  scope: module_boundaries
+- file: src/modules/runtime/infra/ask_job_worker.py
+  target_module: ai
+  removal_spec: 020-025
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: ai
+  removal_spec: 020-025
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: knowledge
+  removal_spec: 030-035
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: knowledge
+  removal_spec: 030-035
+  scope: module_boundaries
+- file: src/modules/runtime/infra/ask_job_worker.py
+  target_module: knowledge
+  removal_spec: 030-035
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: knowledge
+  removal_spec: 030-035
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/infra/ask_job_worker.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/infra/ask_job_worker.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/knowledge/domain/entities.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/domain/enums.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/domain/errors.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/domain/repositories.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/service/dtos.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/service/use_cases.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/attach_collection_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/create_collection_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/create_knowledge_version_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/detach_collection_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/get_collection_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/get_document_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/list_agent_collections_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/list_collections_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/list_documents_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/list_knowledge_versions_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/search_chunks_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/application/composers/upload_document_composer.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/infra/models.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/infra/mappers.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/infra/repositories.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/routes.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/schemas.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/mappers.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/attach_collection_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/create_collection_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/create_knowledge_version_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/detach_collection_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/get_collection_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/get_document_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/list_agent_collections_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/list_collections_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/list_documents_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/list_knowledge_versions_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/search_chunks_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/knowledge/presentation/controllers/upload_document_controller.py
+  target_module: agent
+  removal_spec: '141'
+  scope: module_boundaries
+- file: src/modules/runtime/domain/entities.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/domain/enums.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/domain/errors.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/domain/repositories.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_use_case.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_use_case.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_use_case.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/composers/ask_agent_composer.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/composers/ask_agent_composer.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/application/composers/ask_agent_composer.py
+  target_module: tools
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/routes.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/schemas.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/ask_agent_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/ask_agent_stream_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/create_ask_job_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/create_session_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/get_ask_job_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/list_agent_sessions_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/list_messages_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/presentation/controllers/send_message_controller.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/infra/models.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/infra/mappers.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/infra/repositories.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/infra/ask_job_worker.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/agent/infra/workers/ask_job_worker.py
+  target_module: metering
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/agent/infra/workers/ask_job_worker.py
+  target_module: observability
+  removal_spec: 070-085
+  scope: module_boundaries
+- file: src/modules/runtime/service/dtos.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/service/use_cases.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_use_case.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/service/ask_agent_stream_service.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/ask_agent_stream_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/create_ask_job_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/create_session_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/get_ask_job_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/list_agent_sessions_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/list_messages_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/modules/runtime/application/composers/send_message_composer.py
+  target_module: agent
+  removal_spec: '142'
+  scope: module_boundaries
+- file: src/workers/runner.py
+  target_module: runtime
+  removal_spec: 060-063
+  scope: worker_locations
+- file: src/shared/workers/outbox_publisher.py
+  target_module: '*'
+  removal_spec: 050-063
+  scope: shared_boundaries
+- file: src/shared/workers/inbox_dispatcher.py
+  target_module: '*'
+  removal_spec: 050-063
+  scope: shared_boundaries
+- file: src/shared/workers/inbox_consumer.py
+  target_module: '*'
+  removal_spec: 050-063
+  scope: shared_boundaries
