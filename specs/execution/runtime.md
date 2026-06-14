@@ -135,7 +135,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 076-create-agent-inbox-database-migration | completed | 2026-06-14 | migrations/versions/0014_create_agent_inbox_events.py, tests/modules/agent/test_create_agent_inbox_database_migration.py | alembic upgrade/downgrade pendente (sem banco local) | 077-create-agent-outbox-status-transition-policy.md |
 | 077-create-agent-outbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py | alembic pendente (sem banco local) | 078-create-agent-inbox-status-transition-policy.md |
 | 078-create-agent-inbox-status-transition-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py | alembic pendente (sem banco local) | 079-create-agent-outbox-inbox-locking-policy.md |
-| 079-create-agent-outbox-inbox-locking-policy | pending | 2026-06-12 | - | executar spec | 080-implement-agent-outbox-dispatcher.md |
+| 079-create-agent-outbox-inbox-locking-policy | completed | 2026-06-14 | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_inbox_locking_policy.py | alembic pendente (sem banco local) | 080-implement-agent-outbox-dispatcher.md |
 | 080-implement-agent-outbox-dispatcher | pending | 2026-06-12 | - | executar spec | 081-implement-agent-rabbitmq-publisher.md |
 | 081-implement-agent-rabbitmq-publisher | pending | 2026-06-12 | - | executar spec | 082-implement-agent-inbox-consumer.md |
 | 082-implement-agent-inbox-consumer | pending | 2026-06-12 | - | executar spec | 083-implement-agent-inbox-processor.md |
@@ -250,6 +250,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 076-create-agent-inbox-database-migration | 2026-06-14 | opencode/deepseek-v4-pro | completed | migrations/versions/0014_create_agent_inbox_events.py, tests/modules/agent/test_create_agent_inbox_database_migration.py |
 | 077-create-agent-outbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_status_transition_policy.py, tests/modules/agent/test_create_agent_outbox_model_and_repository.py |
 | 078-create-agent-inbox-status-transition-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_inbox_status_transition_policy.py |
+| 079-create-agent-outbox-inbox-locking-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/repositories.py, tests/modules/agent/test_create_agent_outbox_inbox_locking_policy.py |
 
 ## Specs pendentes
 
@@ -287,6 +288,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | 2026-06-14 | Domain handlers e AskJobWorker import removidos de src/workers/ | src/workers/dispatcher.py tinha 5 event handlers de negócio; src/workers/runner.py importava modules.runtime.infra.ask_job_worker; ambos substituídos por shims deprecados | src/workers/ é deprecated stub; funcionalidade delegada a shared.workers.runner.WorkerRunner e future module registries (062-063) | Sim, até specs 062-063 |
 | 2026-06-14 | Estado intermediário `publishing` adicionado à política de transição do Outbox | Spec 077 exige que claim com lock transicione pending/retryable→publishing antes de publicar; evita estados ambíguos durante publish e permite retry seguro | AGENT_OUTBOX_VALID_TRANSITIONS atualizado; claim_batch agora seta status="publishing"; mark_published/retryable/dead validam a partir de publishing | Não (política definitiva) |
 | 2026-06-14 | Estado `ignored` adicionado à política de transição do Inbox | Spec 078 exige received→ignored para eventos válidos sem handler registrado no módulo; evita processar eventos irrelevantes | AGENT_INBOX_VALID_TRANSITIONS atualizado; mark_ignored adicionado ao SQLAlchemyAgentInboxRepository | Não (política definitiva) |
+| 2026-06-14 | Lock timeout configurável (300s default) e batch size padrão (50) definidos | Spec 079 exige locks expirados recuperáveis após timeout configurável; constantes AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS, AGENT_INBOX_LOCK_TIMEOUT_SECONDS, AGENT_DEFAULT_BATCH_SIZE | claim_batch aceita lock_timeout_seconds como parâmetro; batch_size tem default 50 | Sim (valores ajustáveis) |
 
 ## Riscos ativos
 

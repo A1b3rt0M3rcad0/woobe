@@ -1301,6 +1301,10 @@ AGENT_OUTBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
     "retryable": {"publishing"},
 }
 
+AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS: int = 300
+AGENT_INBOX_LOCK_TIMEOUT_SECONDS: int = 300
+AGENT_DEFAULT_BATCH_SIZE: int = 50
+
 
 class SQLAlchemyAgentOutboxRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -1312,7 +1316,10 @@ class SQLAlchemyAgentOutboxRepository:
         return event
 
     async def claim_batch(
-        self, batch_size: int, locked_by: str
+        self,
+        batch_size: int = AGENT_DEFAULT_BATCH_SIZE,
+        locked_by: str = "",
+        lock_timeout_seconds: int = AGENT_OUTBOX_LOCK_TIMEOUT_SECONDS,
     ) -> list[AgentOutboxEventModel]:
         now = datetime.now(timezone.utc)
         stmt = (
@@ -1321,7 +1328,10 @@ class SQLAlchemyAgentOutboxRepository:
             .where(AgentOutboxEventModel.available_at <= func.now())
             .where(
                 (AgentOutboxEventModel.locked_at.is_(None))
-                | (AgentOutboxEventModel.locked_at < func.now() - text("INTERVAL '5 minutes'"))
+                | (
+                    AgentOutboxEventModel.locked_at
+                    < func.now() - text(f"INTERVAL '{lock_timeout_seconds} seconds'")
+                )
             )
             .order_by(AgentOutboxEventModel.created_at.asc())
             .limit(batch_size)
@@ -1397,7 +1407,10 @@ class SQLAlchemyAgentInboxRepository:
         return event
 
     async def claim_batch(
-        self, batch_size: int, locked_by: str
+        self,
+        batch_size: int = AGENT_DEFAULT_BATCH_SIZE,
+        locked_by: str = "",
+        lock_timeout_seconds: int = AGENT_INBOX_LOCK_TIMEOUT_SECONDS,
     ) -> list[AgentInboxEventModel]:
         now = datetime.now(timezone.utc)
         stmt = (
@@ -1406,7 +1419,10 @@ class SQLAlchemyAgentInboxRepository:
             .where(AgentInboxEventModel.available_at <= func.now())
             .where(
                 (AgentInboxEventModel.locked_at.is_(None))
-                | (AgentInboxEventModel.locked_at < func.now() - text("INTERVAL '5 minutes'"))
+                | (
+                    AgentInboxEventModel.locked_at
+                    < func.now() - text(f"INTERVAL '{lock_timeout_seconds} seconds'")
+                )
             )
             .order_by(AgentInboxEventModel.created_at.asc())
             .limit(batch_size)
