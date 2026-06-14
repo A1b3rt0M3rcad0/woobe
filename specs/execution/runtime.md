@@ -147,7 +147,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 092-create-identity-worker-structure | completed | 2026-06-14 | src/modules/identity/infra/workers/{__init__,registry}.py, tests/architecture/test_create_identity_worker_structure.py | - | 093-create-tools-worker-structure.md |
 | 093-create-tools-worker-structure | completed | 2026-06-14 | src/modules/tools/infra/workers/{__init__,registry}.py, tests/architecture/test_create_tools_worker_structure.py | - | 094-create-observability-worker-structure.md |
 | 094-create-observability-worker-structure | completed | 2026-06-14 | src/modules/observability/infra/workers/{__init__,registry}.py, tests/architecture/test_create_observability_worker_structure.py | - | 100-standardize-module-outbox-pattern.md |
-| 100-standardize-module-outbox-pattern | pending | 2026-06-12 | - | executar spec | 101-standardize-module-inbox-pattern.md |
+| 100-standardize-module-outbox-pattern | completed | 2026-06-14 | src/shared/messaging/{__init__,outbox_contracts}.py, tests/messaging/{__init__,test_standardize_module_outbox_pattern}.py | - | 101-standardize-module-inbox-pattern.md |
 | 101-standardize-module-inbox-pattern | pending | 2026-06-12 | - | executar spec | 102-standardize-event-envelope.md |
 | 102-standardize-event-envelope | pending | 2026-06-12 | - | executar spec | 103-standardize-event-idempotency.md |
 | 103-standardize-event-idempotency | pending | 2026-06-12 | - | executar spec | 104-standardize-event-retry-policy.md |
@@ -262,6 +262,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 092-create-identity-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/identity/infra/workers/{__init__,registry}.py, tests/architecture/test_create_identity_worker_structure.py |
 | 093-create-tools-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/tools/infra/workers/{__init__,registry}.py, tests/architecture/test_create_tools_worker_structure.py |
 | 094-create-observability-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/observability/infra/workers/{__init__,registry}.py, tests/architecture/test_create_observability_worker_structure.py |
+| 100-standardize-module-outbox-pattern | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/{__init__,outbox_contracts}.py, tests/messaging/{__init__,test_standardize_module_outbox_pattern}.py |
 
 ## Specs pendentes
 
@@ -338,7 +339,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`100-standardize-module-outbox-pattern.md`.
+`101-standardize-module-inbox-pattern.md`.
 
 ## Pendências de ferramentas
 
