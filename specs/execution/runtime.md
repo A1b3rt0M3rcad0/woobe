@@ -176,7 +176,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 131-update-api-routes-to-agent | completed | 2026-06-14 | src/modules/agent/presentation/routes.py, src/main.py, tests/architecture/test_update_api_routes_to_agent.py | - | 132-update-dependency-injection-bindings.md |
 | 132-update-dependency-injection-bindings | completed | 2026-06-14 | tests/architecture/test_update_dependency_injection_bindings.py | - | 133-update-settings-and-config.md |
 | 133-update-settings-and-config | completed | 2026-06-14 | src/shared/infra/config/config.py, .env, tests/architecture/test_update_settings_and_config.py | - | 134-update-alembic-or-database-migrations.md |
-| 134-update-alembic-or-database-migrations | pending | 2026-06-12 | - | executar spec | - |
+| 134-update-alembic-or-database-migrations | completed | 2026-06-14 | migrations/env.py, tests/architecture/test_update_alembic_or_database_migrations.py | alembic upgrade/downgrade pendente (sem banco local) | 140-deprecate-ai-module.md |
 | 140-deprecate-ai-module | pending | 2026-06-12 | - | executar spec | 141-deprecate-knowledge-module.md |
 | 141-deprecate-knowledge-module | pending | 2026-06-12 | - | executar spec | 142-deprecate-runtime-module.md |
 | 142-deprecate-runtime-module | pending | 2026-06-12 | - | executar spec | 143-remove-legacy-ai-module.md |
@@ -291,6 +291,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 131-update-api-routes-to-agent | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/presentation/routes.py, src/main.py, tests/architecture/test_update_api_routes_to_agent.py |
 | 132-update-dependency-injection-bindings | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/architecture/test_update_dependency_injection_bindings.py |
 | 133-update-settings-and-config | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/infra/config/config.py, .env, tests/architecture/test_update_settings_and_config.py |
+| 134-update-alembic-or-database-migrations | 2026-06-14 | opencode/deepseek-v4-pro | completed | migrations/env.py, tests/architecture/test_update_alembic_or_database_migrations.py |
 
 ## Specs pendentes
 
@@ -371,7 +372,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`134-update-alembic-or-database-migrations.md`.
+`140-deprecate-ai-module.md`.
 
 ## Pendências de ferramentas
 
