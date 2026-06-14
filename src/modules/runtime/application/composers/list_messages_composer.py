@@ -1,15 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.runtime.infra.repositories import SQLAlchemyMessageRepository
-from modules.runtime.service.use_cases import ListMessagesUseCase
-from modules.runtime.presentation.controllers.list_messages_controller import ListMessagesController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.runtime.application.composers.list_messages_composer is deprecated. "
+    "Use modules.agent.application.composers.list_messages_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def list_messages_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyMessageRepository(uow)
-    use_case = ListMessagesUseCase(repo)
-    controller = ListMessagesController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+from modules.agent.application.composers.list_messages_composer import *  # noqa: E402, F401, F403

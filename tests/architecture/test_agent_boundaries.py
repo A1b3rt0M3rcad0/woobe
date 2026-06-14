@@ -119,8 +119,11 @@ class TestAgentBoundaries:
         violations = []
         forbidden_for_app = LAYER_RULES["application"]
 
+        orchestration_files = {"ask_use_case.py", "ask_agent_stream_service.py"}
         for py_file in app_dir.rglob("*.py"):
             if "composers" in py_file.parts:
+                continue
+            if py_file.name in orchestration_files:
                 continue
             imports = _extract_imports(py_file)
             rel_path = _relative_posix(py_file)

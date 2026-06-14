@@ -1,15 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.runtime.infra.repositories import SQLAlchemyAskJobRepository
-from modules.runtime.presentation.controllers.get_ask_job_controller import (
-    GetAskJobController,
+warnings.warn(
+    "modules.runtime.application.composers.get_ask_job_composer is deprecated. "
+    "Use modules.agent.application.composers.get_ask_job_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
-from modules.runtime.service.use_cases import GetAskJobUseCase
 
-
-def get_ask_job_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> GetAskJobController:
-    repo = SQLAlchemyAskJobRepository(session_factory)
-    use_case = GetAskJobUseCase(repo)
-    return GetAskJobController(use_case)
+from modules.agent.application.composers.get_ask_job_composer import *  # noqa: E402, F401, F403

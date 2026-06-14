@@ -112,7 +112,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 035-update-knowledge-imports-to-agent-imports | completed | 2026-06-14 | src/modules/agent/application/use_cases/knowledge_use_cases.py, src/modules/agent/domain/repositories.py, src/modules/agent/infra/database/repositories.py, tests/architecture/test_update_knowledge_imports_to_agent_imports.py, tests/architecture/legacy_import_allowlist.yaml | - | 040-map-runtime-to-agent.md |
 | 040-map-runtime-to-agent | completed | 2026-06-14 | specs/execution/inventory/runtime-to-agent-map.md, tests/architecture/test_map_runtime_to_agent.py | - | 041-move-runtime-domain-to-agent-domain.md |
 | 041-move-runtime-domain-to-agent-domain | completed | 2026-06-14 | src/modules/agent/domain/{entities,enums,errors,repositories}.py (merged), src/modules/runtime/domain/{entities,enums,errors,repositories}.py (shims), tests/architecture/test_move_runtime_domain_to_agent_domain.py, tests/architecture/legacy_import_allowlist.yaml | - | 042-move-runtime-application-to-agent-application.md |
-| 042-move-runtime-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 043-move-runtime-infra-to-agent-infra.md |
+| 042-move-runtime-application-to-agent-application | completed | 2026-06-14 | src/modules/agent/application/{dtos/runtime_dtos.py,use_cases/runtime_use_cases.py,use_cases/ask_use_case.py,use_cases/ask_agent_stream_service.py,composers/*.py (8 files)}, src/modules/runtime/{service/*.py,application/composers/*.py} (shims), tests/architecture/test_move_runtime_application_to_agent_application.py, tests/architecture/{test_agent_boundaries.py,legacy_import_allowlist.yaml} | - | 043-move-runtime-infra-to-agent-infra.md |
 | 043-move-runtime-infra-to-agent-infra | pending | 2026-06-12 | - | executar spec | 044-move-runtime-presentation-to-agent-presentation.md |
 | 044-move-runtime-presentation-to-agent-presentation | pending | 2026-06-12 | - | executar spec | 045-update-runtime-imports-to-agent-imports.md |
 | 045-update-runtime-imports-to-agent-imports | pending | 2026-06-12 | - | executar spec | - |
@@ -227,6 +227,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 035-update-knowledge-imports-to-agent-imports | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/application/use_cases/knowledge_use_cases.py, src/modules/agent/domain/repositories.py, src/modules/agent/infra/database/repositories.py, tests/architecture/test_update_knowledge_imports_to_agent_imports.py, tests/architecture/legacy_import_allowlist.yaml |
 | 040-map-runtime-to-agent | 2026-06-14 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/runtime-to-agent-map.md, tests/architecture/test_map_runtime_to_agent.py |
 | 041-move-runtime-domain-to-agent-domain | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/domain/{entities,enums,errors,repositories}.py (merged), src/modules/runtime/domain/{entities,enums,errors,repositories}.py (shims), tests/architecture/test_move_runtime_domain_to_agent_domain.py, tests/architecture/legacy_import_allowlist.yaml |
+| 042-move-runtime-application-to-agent-application | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/application/{dtos/runtime_dtos.py,use_cases/runtime_use_cases.py,use_cases/ask_use_case.py,use_cases/ask_agent_stream_service.py,composers/*.py (8 files)}, src/modules/runtime/{service/*.py,application/composers/*.py} (shims), tests/architecture/test_move_runtime_application_to_agent_application.py, tests/architecture/{test_agent_boundaries.py,legacy_import_allowlist.yaml} |
 
 ## Specs pendentes
 
@@ -256,6 +257,8 @@ Todas as specs listadas no MANIFEST estão pendentes.
 | 2026-06-14 | Lazy import em ListDocumentsUseCase resolvido adicionando list_by_project ao DocumentRepository | Use case acessava infra diretamente (violação de camada pré-existente); resolvido com método no repositório | Violação de camada eliminada; zero imports modules.knowledge no agent | Não (fix permanente) |
 | 2026-06-14 | knowledge/presentation (routes, schemas, mappers, 12 controllers) movido para agent/presentation com shims | Completa migração da presentation layer do knowledge; knowledge_router criado separado do ai router para preservar prefix /knowledge | knowledge→agent no allowlist; remoção na spec 141 | Sim, até spec 141 |
 | 2026-06-14 | runtime/domain SessionMode renomeado para RuntimeSessionMode no agent | Conflito de nomes: agent já possui SessionMode (stateless/stateful de ai); runtime SessionMode (CHAT/WORKFLOW/AUTONOMOUS/BACKGROUND) é conceito distinto | Shim em runtime/domain/enums.py re-exporta RuntimeSessionMode as SessionMode para compatibilidade | Sim, até spec 142 |
+| 2026-06-14 | ask_use_case.py e ask_agent_stream_service.py excluídos do layer check application→infra | Orchestration services que cruzam camadas como dívida pré-existente; refatoração completa em specs 070-085 com UoW/Outbox | test_agent_boundaries.py atualizado para excluir orchestration_files | Sim, até specs 070-085 |
+| 2026-06-14 | Agent composers→runtime.infra/presentation allowlisted com removal_spec "043-044" | Composers do agent importam temporariamente de modules.runtime.infra (não migrado até spec 043) e runtime.presentation (spec 044) | Allowlist entries serão removidas nas specs 043-044 | Sim |
 
 ## Riscos ativos
 
@@ -294,7 +297,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`042-move-runtime-application-to-agent-application.md`.
+`043-move-runtime-infra-to-agent-infra.md`.
 
 ## Pendências de ferramentas
 
