@@ -144,7 +144,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 085-implement-agent-worker-registry | completed | 2026-06-14 | src/modules/agent/infra/workers/registry.py, tests/modules/agent/workers/test_implement_agent_worker_registry.py | - | 090-create-billing-worker-structure.md |
 | 090-create-billing-worker-structure | completed | 2026-06-14 | src/modules/billing/infra/workers/{__init__,registry}.py, tests/architecture/test_create_billing_worker_structure.py | - | 091-create-metering-worker-structure.md |
 | 091-create-metering-worker-structure | completed | 2026-06-14 | src/modules/metering/infra/workers/{__init__,registry}.py, tests/architecture/test_create_metering_worker_structure.py | - | 092-create-identity-worker-structure.md |
-| 092-create-identity-worker-structure | pending | 2026-06-12 | - | executar spec | 093-create-tools-worker-structure.md |
+| 092-create-identity-worker-structure | completed | 2026-06-14 | src/modules/identity/infra/workers/{__init__,registry}.py, tests/architecture/test_create_identity_worker_structure.py | - | 093-create-tools-worker-structure.md |
 | 093-create-tools-worker-structure | pending | 2026-06-12 | - | executar spec | 094-create-observability-worker-structure.md |
 | 094-create-observability-worker-structure | pending | 2026-06-12 | - | executar spec | - |
 | 100-standardize-module-outbox-pattern | pending | 2026-06-12 | - | executar spec | 101-standardize-module-inbox-pattern.md |
@@ -259,6 +259,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 085-implement-agent-worker-registry | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/workers/registry.py, tests/modules/agent/workers/test_implement_agent_worker_registry.py |
 | 090-create-billing-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/billing/infra/workers/{__init__,registry}.py, tests/architecture/test_create_billing_worker_structure.py |
 | 091-create-metering-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/metering/infra/workers/{__init__,registry}.py, tests/architecture/test_create_metering_worker_structure.py |
+| 092-create-identity-worker-structure | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/identity/infra/workers/{__init__,registry}.py, tests/architecture/test_create_identity_worker_structure.py |
 
 ## Specs pendentes
 
@@ -335,7 +336,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`092-create-identity-worker-structure.md`.
+`093-create-tools-worker-structure.md`.
 
 ## Pendências de ferramentas
 
