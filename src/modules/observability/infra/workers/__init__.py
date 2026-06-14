@@ -1,0 +1,1 @@
+"""Observability module worker infrastructure."""

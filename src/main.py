@@ -6,14 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from modules.ai.presentation.routes import router as ai_router
+from modules.agent.presentation.routes import agent_router
+from modules.agent.presentation.routes import router as agent_ai_router
+from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
+from modules.agent.presentation.routes import runtime_router as agent_runtime_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
-from modules.knowledge.presentation.routes import router as knowledge_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.observability.presentation.routes import router as observability_router
-from modules.runtime.presentation.routes import router as runtime_router
 from modules.tools.presentation.routes import router as tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -82,9 +83,10 @@ def create_app() -> FastAPI:
 
     app.include_router(identity_router)
     app.include_router(core_router)
-    app.include_router(ai_router)
-    app.include_router(knowledge_router)
-    app.include_router(runtime_router)
+    app.include_router(agent_router)
+    app.include_router(agent_ai_router)
+    app.include_router(agent_knowledge_router)
+    app.include_router(agent_runtime_router)
     app.include_router(tools_router)
     app.include_router(metering_router)
     app.include_router(billing_router)

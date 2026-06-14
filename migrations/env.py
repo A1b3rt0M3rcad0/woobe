@@ -14,9 +14,7 @@ from shared.infra.database.base import Base
 from shared.infra.config import Settings
 from modules.identity.infra.models import *  # noqa: F401, F403
 from modules.core.infra.models import *      # noqa: F401, F403
-from modules.ai.infra.models import *        # noqa: F401, F403
-from modules.knowledge.infra.models import * # noqa: F401, F403
-from modules.runtime.infra.models import *   # noqa: F401, F403
+from modules.agent.infra.database.models import *  # noqa: F401, F403
 from modules.tools.infra.models import *     # noqa: F401, F403
 from modules.metering.infra.models import *  # noqa: F401, F403
 from modules.billing.infra.models import *   # noqa: F401, F403

@@ -1,0 +1,21 @@
+from modules.agent.application.use_cases.ai_use_cases import UpdateProviderCredentialUseCase
+from modules.agent.application.dtos.ai_dtos import UpdateProviderCredentialInput
+from modules.agent.presentation.mappers import credential_to_response
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class UpdateProviderCredentialController(Controller):
+    def __init__(self, use_case: UpdateProviderCredentialUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        credential_id = request.path_params["credential_id"]
+        raw = {k: v for k, v in request.body.items() if v is not None}
+        input_dto = UpdateProviderCredentialInput(**raw)
+        result = await self._use_case.execute(credential_id, input_dto)
+        return Response(
+            status_code=200,
+            body={"success": True, "message": "ok", "data": credential_to_response(result).model_dump()},
+        )
