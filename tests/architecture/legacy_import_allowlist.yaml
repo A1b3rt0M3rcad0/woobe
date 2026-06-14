@@ -225,71 +225,87 @@ entries:
     removal_spec: "141"
     scope: module_boundaries
 
-  # agent/composers → knowledge.infra (temporary, until infra moves in spec 033)
+  # knowledge/infra → agent (shims delegating to new module during migration)
+  - file: src/modules/knowledge/infra/models.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/infra/mappers.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/infra/repositories.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  # agent/composers → knowledge.presentation (temporary, until presentation moves in spec 034)
   - file: src/modules/agent/application/composers/attach_collection_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/create_collection_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/create_knowledge_version_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/detach_collection_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/get_collection_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/get_document_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_agent_collections_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_collections_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_documents_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_knowledge_versions_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/search_chunks_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/upload_document_composer.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "034"
     scope: module_boundaries
 
-  # agent/use_cases → knowledge.infra (temporary lazy import in ListDocumentsUseCase)
+  # agent/use_cases → knowledge.infra (lazy import via shim in ListDocumentsUseCase)
   - file: src/modules/agent/application/use_cases/knowledge_use_cases.py
     target_module: knowledge
-    removal_spec: "033"
+    removal_spec: "035"
     scope: module_boundaries
 
   # ai/service → agent (shims delegating to new module during migration)

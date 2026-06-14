@@ -1,162 +1,20 @@
-from __future__ import annotations
+import warnings
 
-from modules.knowledge.domain.entities import (
-    AgentCollection,
-    Document,
-    DocumentChunk,
-    DocumentCollection,
-    KnowledgeVersion,
-)
-from modules.knowledge.domain.enums import CollectionStatus, DocumentStatus, KnowledgeVersionStatus, ParserType
-from modules.knowledge.infra.models import (
-    AgentCollectionModel,
-    DocumentChunkModel,
-    DocumentCollectionModel,
-    DocumentModel,
-    KnowledgeVersionModel,
+warnings.warn(
+    "modules.knowledge.infra.mappers is deprecated. Use modules.agent.infra.database.mappers instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
-
-def agent_collection_to_model(entity: AgentCollection) -> AgentCollectionModel:
-    return AgentCollectionModel(
-        id=entity.id,
-        agent_id=entity.agent_id,
-        collection_id=entity.collection_id,
-    )
-
-
-def agent_collection_model_to_entity(model: AgentCollectionModel) -> AgentCollection:
-    return AgentCollection(
-        id=model.id,
-        agent_id=model.agent_id,
-        collection_id=model.collection_id,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def collection_to_model(entity: DocumentCollection) -> DocumentCollectionModel:
-    return DocumentCollectionModel(
-        id=entity.id,
-        project_id=entity.project_id,
-        name=entity.name,
-        description=entity.description,
-        status=entity.status.value if isinstance(entity.status, CollectionStatus) else entity.status,
-    )
-
-
-def model_to_collection(model: DocumentCollectionModel) -> DocumentCollection:
-    return DocumentCollection(
-        id=model.id,
-        project_id=model.project_id,
-        name=model.name,
-        description=model.description,
-        status=CollectionStatus(model.status),
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def document_to_model(entity: Document) -> DocumentModel:
-    return DocumentModel(
-        id=entity.id,
-        project_id=entity.project_id,
-        collection_id=entity.collection_id,
-        title=entity.title,
-        file_name=entity.file_name,
-        content_type=entity.content_type,
-        size_bytes=entity.size_bytes,
-        storage_key=entity.storage_key,
-        parser=entity.parser.value if isinstance(entity.parser, ParserType) else entity.parser,
-        status=entity.status.value if isinstance(entity.status, DocumentStatus) else entity.status,
-        error=entity.error,
-        page_count=entity.page_count,
-        chunk_count=entity.chunk_count,
-        sha256=entity.sha256,
-        indexed_at=entity.indexed_at,
-    )
-
-
-def model_to_document(model: DocumentModel) -> Document:
-    return Document(
-        id=model.id,
-        project_id=model.project_id,
-        collection_id=model.collection_id,
-        title=model.title,
-        file_name=model.file_name,
-        content_type=model.content_type,
-        size_bytes=model.size_bytes,
-        storage_key=model.storage_key,
-        parser=ParserType(model.parser),
-        status=DocumentStatus(model.status),
-        error=model.error,
-        page_count=model.page_count,
-        chunk_count=model.chunk_count,
-        sha256=model.sha256,
-        indexed_at=model.indexed_at,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def chunk_to_model(entity: DocumentChunk) -> DocumentChunkModel:
-    return DocumentChunkModel(
-        id=entity.id,
-        project_id=entity.project_id,
-        collection_id=entity.collection_id,
-        document_id=entity.document_id,
-        content=entity.content,
-        chunk_index=entity.chunk_index,
-        token_count=entity.token_count,
-        page_number=entity.page_number,
-        section_title=entity.section_title,
-        data=entity.data,
-        embedding=entity.embedding,
-    )
-
-
-def model_to_chunk(model: DocumentChunkModel) -> DocumentChunk:
-    return DocumentChunk(
-        id=model.id,
-        project_id=model.project_id,
-        collection_id=model.collection_id,
-        document_id=model.document_id,
-        content=model.content,
-        chunk_index=model.chunk_index,
-        token_count=model.token_count,
-        page_number=model.page_number,
-        section_title=model.section_title,
-        data=model.data,
-        embedding=model.embedding,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def knowledge_version_to_model(entity: KnowledgeVersion) -> KnowledgeVersionModel:
-    return KnowledgeVersionModel(
-        id=entity.id,
-        project_id=entity.project_id,
-        agent_id=entity.agent_id,
-        version=entity.version,
-        collection_ids=entity.collection_ids or [],
-        document_ids=entity.document_ids,
-        snapshot_metadata=entity.snapshot_metadata,
-        status=entity.status.value if isinstance(entity.status, KnowledgeVersionStatus) else entity.status,
-    )
-
-
-def knowledge_version_model_to_entity(model: KnowledgeVersionModel) -> KnowledgeVersion:
-    return KnowledgeVersion(
-        id=model.id,
-        project_id=model.project_id,
-        agent_id=model.agent_id,
-        version=model.version,
-        collection_ids=list(model.collection_ids or []),
-        document_ids=list(model.document_ids) if model.document_ids else None,
-        snapshot_metadata=model.snapshot_metadata,
-        status=KnowledgeVersionStatus(model.status),
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
+from modules.agent.infra.database.mappers import (  # noqa: E402, F401
+    agent_collection_model_to_entity,
+    agent_collection_to_model,
+    chunk_to_model,
+    collection_to_model,
+    document_to_model,
+    knowledge_version_model_to_entity,
+    knowledge_version_to_model,
+    model_to_chunk,
+    model_to_collection,
+    model_to_document,
+)

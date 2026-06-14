@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.knowledge.infra.repositories import SQLAlchemyDocumentChunkRepository
+from modules.agent.infra.database.repositories import SQLAlchemyDocumentChunkRepository
 from modules.knowledge.presentation.controllers.search_chunks_controller import SearchChunksController
 from modules.agent.application.use_cases.knowledge_use_cases import SearchChunksUseCase
 from shared.application.transactional_handler import TransactionalHandler

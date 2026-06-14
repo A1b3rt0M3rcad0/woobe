@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.knowledge.infra.repositories import SQLAlchemyDocumentRepository
+from modules.agent.infra.database.repositories import SQLAlchemyDocumentRepository
 from modules.knowledge.presentation.controllers.list_documents_controller import ListDocumentsController
 from modules.agent.application.use_cases.knowledge_use_cases import ListDocumentsUseCase
 from shared.application.transactional_handler import TransactionalHandler
