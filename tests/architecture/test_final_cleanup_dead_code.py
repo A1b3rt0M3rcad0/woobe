@@ -215,6 +215,6 @@ class TestFinalCleanupDeadCodeKeepsLegacyCompatibility:
         shared_dir = pathlib.Path("src/shared")
         assert shared_dir.is_dir(), "src/shared must still exist"
 
-    def test_src_workers_deprecated_file_exists(self):
+    def test_src_workers_deprecated_directory_removed(self):
         workers_dir = pathlib.Path("src/workers")
-        assert workers_dir.is_dir(), "src/workers exists (handled by spec 152)"
+        assert not workers_dir.exists(), "src/workers must be removed (spec 152)"

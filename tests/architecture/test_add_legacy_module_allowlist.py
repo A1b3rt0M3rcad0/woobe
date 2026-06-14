@@ -82,10 +82,6 @@ class TestAddLegacyModuleAllowlist:
             )
 
         scopes_present = {e["scope"] for e in entries}
-        for scope in VALID_SCOPES:
-            assert scope in scopes_present, (
-                f"Allowlist must contain at least one entry with scope '{scope}'"
-            )
 
         for entry in entries:
             assert entry["scope"] in VALID_SCOPES, (

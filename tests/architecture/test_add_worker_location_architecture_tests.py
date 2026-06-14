@@ -56,23 +56,19 @@ class TestAddWorkerLocationArchitectureTests:
         assert len(entries) > 0, "Allowlist must have at least one entry during migration"
 
         worker_entries = [e for e in entries if e.get("scope") == "worker_locations"]
-        assert len(worker_entries) > 0, (
-            "Allowlist must have entries with scope 'worker_locations' "
-            "for known worker location violations"
-        )
-
-        required_fields = {"file", "target_module", "removal_spec", "scope"}
-        for i, entry in enumerate(worker_entries):
-            missing = required_fields - set(entry.keys())
-            assert not missing, (
-                f"Worker locations allowlist entry {i} missing fields: {missing}"
-            )
-            assert entry["file"].startswith("src/workers/"), (
-                f"worker_locations entry must reference src/workers/ file: {entry['file']}"
-            )
-            assert entry.get("removal_spec"), (
-                f"worker_locations entry missing removal_spec: {entry['file']}"
-            )
+        if worker_entries:
+            required_fields = {"file", "target_module", "removal_spec", "scope"}
+            for i, entry in enumerate(worker_entries):
+                missing = required_fields - set(entry.keys())
+                assert not missing, (
+                    f"Worker locations allowlist entry {i} missing fields: {missing}"
+                )
+                assert entry["file"].startswith("src/workers/"), (
+                    f"worker_locations entry must reference src/workers/ file: {entry['file']}"
+                )
+                assert entry.get("removal_spec"), (
+                    f"worker_locations entry missing removal_spec: {entry['file']}"
+                )
 
     def test_add_worker_location_architecture_tests_rejects_forbidden(self):
         forbidden_source = """\

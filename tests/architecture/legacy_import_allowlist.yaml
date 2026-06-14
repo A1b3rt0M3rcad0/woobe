@@ -43,10 +43,6 @@ entries:
   target_module: observability
   removal_spec: 070-085
   scope: module_boundaries
-- file: src/workers/runner.py
-  target_module: runtime
-  removal_spec: 060-063
-  scope: worker_locations
 - file: src/shared/workers/outbox_publisher.py
   target_module: '*'
   removal_spec: 050-063
