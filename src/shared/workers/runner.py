@@ -6,7 +6,7 @@ import signal
 import sys
 from typing import Never
 
-from shared.workers.contracts import WorkerProtocol
+from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 class WorkerRunner:
     def __init__(self, workers: list[WorkerProtocol]) -> None:
         self._workers = workers
+
+    @classmethod
+    def from_registries(cls, registries: list[WorkerRegistryProtocol]) -> WorkerRunner:
+        workers: list[WorkerProtocol] = []
+        for registry in registries:
+            workers.extend(registry.iter_workers())
+        return cls(workers=workers)
 
     async def run_once(self) -> None:
         for worker in self._workers:
