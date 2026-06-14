@@ -1,60 +1,14 @@
-from fastapi import APIRouter, Request as FastAPIRequest
+"""Deprecated: runtime presentation routes have moved to modules.agent.presentation.routes.
 
-from modules.runtime.application.composers.ask_agent_composer import ask_agent_composer
-from modules.runtime.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
-from modules.runtime.application.composers.create_ask_job_composer import create_ask_job_composer
-from modules.runtime.application.composers.create_session_composer import create_session_composer
-from modules.runtime.application.composers.get_ask_job_composer import get_ask_job_composer
-from modules.runtime.application.composers.list_agent_sessions_composer import list_agent_sessions_composer
-from modules.runtime.application.composers.list_messages_composer import list_messages_composer
-from shared.presentation.http.adapter import request_adapter, response_adapter
+This shim exists for backward compatibility during migration.
+Removal spec: 142.
+"""
+import warnings
 
-router = APIRouter(prefix="/runtime", tags=["runtime"])
+warnings.warn(
+    "modules.runtime.presentation.routes is deprecated. Use modules.agent.presentation.routes.runtime_router instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-@router.post("/sessions")
-async def create_session(request: FastAPIRequest):
-    handler = create_session_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
-
-
-@router.get("/agents/{agent_id}/sessions")
-async def list_agent_sessions(request: FastAPIRequest):
-    handler = list_agent_sessions_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
-
-
-@router.post("/ask")
-async def ask(request: FastAPIRequest):
-    handler = ask_agent_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
-
-
-@router.post("/ask/stream")
-async def ask_stream(request: FastAPIRequest):
-    handler = ask_agent_stream_composer(request.app.state.session_factory)
-    return await handler(request)
-
-
-@router.post("/ask/jobs", status_code=201)
-async def create_ask_job(request: FastAPIRequest):
-    handler = create_ask_job_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
-
-
-@router.get("/ask/jobs/{job_id}")
-async def get_ask_job(request: FastAPIRequest):
-    handler = get_ask_job_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
-
-
-@router.get("/sessions/{session_id}/messages")
-async def list_messages(request: FastAPIRequest):
-    handler = list_messages_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+from modules.agent.presentation.routes import runtime_router as router  # noqa: F401, E402

@@ -38,6 +38,14 @@ from modules.agent.application.composers.list_documents_composer import list_doc
 from modules.agent.application.composers.list_knowledge_versions_composer import list_knowledge_versions_composer
 from modules.agent.application.composers.search_chunks_composer import search_chunks_composer
 from modules.agent.application.composers.upload_document_composer import upload_document_composer
+from modules.agent.application.composers.ask_agent_composer import ask_agent_composer
+from modules.agent.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
+from modules.agent.application.composers.create_ask_job_composer import create_ask_job_composer
+from modules.agent.application.composers.create_session_composer import create_session_composer
+from modules.agent.application.composers.get_ask_job_composer import get_ask_job_composer
+from modules.agent.application.composers.list_agent_sessions_composer import list_agent_sessions_composer
+from modules.agent.application.composers.list_messages_composer import list_messages_composer
+from modules.agent.application.composers.send_message_composer import send_message_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -301,5 +309,63 @@ async def create_knowledge_version(request: FastAPIRequest):
 @knowledge_router.get("/agents/{agent_id}/knowledge-versions")
 async def list_knowledge_versions(request: FastAPIRequest):
     handler = list_knowledge_versions_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+runtime_router = APIRouter(prefix="/runtime", tags=["runtime"])
+
+
+@runtime_router.post("/sessions")
+async def create_session(request: FastAPIRequest):
+    handler = create_session_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.get("/agents/{agent_id}/sessions")
+async def list_agent_sessions(request: FastAPIRequest):
+    handler = list_agent_sessions_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.post("/ask")
+async def ask(request: FastAPIRequest):
+    handler = ask_agent_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.post("/ask/stream")
+async def ask_stream(request: FastAPIRequest):
+    handler = ask_agent_stream_composer(request.app.state.session_factory)
+    return await handler(request)
+
+
+@runtime_router.post("/ask/jobs", status_code=201)
+async def create_ask_job(request: FastAPIRequest):
+    handler = create_ask_job_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.get("/ask/jobs/{job_id}")
+async def get_ask_job(request: FastAPIRequest):
+    handler = get_ask_job_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.get("/sessions/{session_id}/messages")
+async def list_messages(request: FastAPIRequest):
+    handler = list_messages_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@runtime_router.post("/messages")
+async def send_message(request: FastAPIRequest):
+    handler = send_message_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)

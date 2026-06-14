@@ -1,28 +1,4 @@
-from uuid import UUID
-
-from modules.runtime.service.use_cases import ListAgentSessionsUseCase
-from modules.runtime.service.dtos import ListAgentSessionsInput
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
-
-
-class ListAgentSessionsController(Controller):
-    def __init__(self, use_case: ListAgentSessionsUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        agent_id = UUID(request.path_params["agent_id"])
-        project_id = UUID(request.query_params["project_id"])
-        input_dto = ListAgentSessionsInput(project_id=project_id, agent_id=agent_id)
-        try:
-            result = await self._use_case.execute(input_dto)
-        except Exception as e:
-            return Response(
-                status_code=400,
-                body={"success": False, "message": str(e), "data": None},
-            )
-        return Response(
-            status_code=200,
-            body={"success": True, "message": "ok", "data": [r.model_dump() for r in result]},
-        )
+"""Deprecated: use modules.agent.presentation.controllers.list_agent_sessions_controller. Removal spec: 142."""
+import warnings
+warnings.warn("modules.runtime.presentation.controllers.list_agent_sessions_controller is deprecated.", DeprecationWarning, stacklevel=2)
+from modules.agent.presentation.controllers.list_agent_sessions_controller import ListAgentSessionsController  # noqa: F401, E402

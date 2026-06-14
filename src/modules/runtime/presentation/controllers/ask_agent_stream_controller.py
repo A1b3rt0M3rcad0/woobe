@@ -1,23 +1,4 @@
-from fastapi import Request as FastAPIRequest
-from fastapi.responses import StreamingResponse
-
-from modules.runtime.service.ask_agent_stream_service import AskAgentStreamService
-from modules.runtime.service.dtos import AskInput
-
-
-async def handle_ask_stream(
-    fastapi_request: FastAPIRequest,
-    service: AskAgentStreamService,
-) -> StreamingResponse:
-    body: dict = await fastapi_request.json()
-    input_dto = AskInput(**body)
-
-    return StreamingResponse(
-        service.generate(input_dto),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+"""Deprecated: use modules.agent.presentation.controllers.ask_agent_stream_controller. Removal spec: 142."""
+import warnings
+warnings.warn("modules.runtime.presentation.controllers.ask_agent_stream_controller is deprecated.", DeprecationWarning, stacklevel=2)
+from modules.agent.presentation.controllers.ask_agent_stream_controller import handle_ask_stream  # noqa: F401, E402

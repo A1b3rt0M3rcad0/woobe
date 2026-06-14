@@ -4,7 +4,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
     SQLAlchemySessionRepository,
 )
-from modules.runtime.presentation.controllers.list_agent_sessions_controller import (
+from modules.agent.presentation.controllers.list_agent_sessions_controller import (
     ListAgentSessionsController,
 )
 from modules.agent.application.use_cases.runtime_use_cases import ListAgentSessionsUseCase

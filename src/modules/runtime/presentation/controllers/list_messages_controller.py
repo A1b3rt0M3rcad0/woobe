@@ -1,25 +1,4 @@
-from modules.runtime.service.use_cases import ListMessagesUseCase
-from modules.runtime.service.dtos import ListMessagesInput
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
-from shared.domain.errors import NotFoundError
-
-
-class ListMessagesController(Controller):
-    def __init__(self, use_case: ListMessagesUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        session_id = request.path_params["session_id"]
-        offset = int(request.query_params.get("offset", 0))
-        limit = int(request.query_params.get("limit", 100))
-        input_dto = ListMessagesInput(session_id=session_id, offset=offset, limit=limit)
-        try:
-            result = await self._use_case.execute(input_dto)
-        except NotFoundError as e:
-            return Response(status_code=404, body={"success": False, "message": str(e), "data": None})
-        return Response(
-            status_code=200,
-            body={"success": True, "message": "ok", "data": [r.model_dump() for r in result]},
-        )
+"""Deprecated: use modules.agent.presentation.controllers.list_messages_controller. Removal spec: 142."""
+import warnings
+warnings.warn("modules.runtime.presentation.controllers.list_messages_controller is deprecated.", DeprecationWarning, stacklevel=2)
+from modules.agent.presentation.controllers.list_messages_controller import ListMessagesController  # noqa: F401, E402

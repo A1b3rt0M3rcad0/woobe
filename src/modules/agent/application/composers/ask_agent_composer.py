@@ -19,7 +19,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyRuntimeOutboxEventWriter,
     SQLAlchemySessionRepository,
 )
-from modules.runtime.presentation.controllers.ask_agent_controller import (
+from modules.agent.presentation.controllers.ask_agent_controller import (
     AskAgentController,
 )
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
