@@ -1,27 +1,13 @@
-from __future__ import annotations
+import warnings
 
-from enum import StrEnum, auto
+warnings.warn(
+    "modules.runtime.domain.enums is deprecated. Use modules.agent.domain.enums instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-class SessionStatus(StrEnum):
-    ACTIVE = auto()
-    WAITING = auto()
-    IDLE = auto()
-    CLOSED = auto()
-    EXPIRED = auto()
-    ERROR = auto()
-
-
-class MessageRole(StrEnum):
-    SYSTEM = auto()
-    USER = auto()
-    ASSISTANT = auto()
-    TOOL_CALL = auto()
-    TOOL_RESULT = auto()
-
-
-class SessionMode(StrEnum):
-    CHAT = auto()
-    WORKFLOW = auto()
-    AUTONOMOUS = auto()
-    BACKGROUND = auto()
+from modules.agent.domain.enums import (  # noqa: E402, F401
+    MessageRole,
+    RuntimeSessionMode as SessionMode,
+    SessionStatus,
+)

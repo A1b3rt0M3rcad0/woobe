@@ -15,13 +15,16 @@ from modules.agent.domain.enums import (
     CredentialStatus,
     DocumentStatus,
     KnowledgeVersionStatus,
+    MessageRole,
     ModelConfigStatus,
     ParserType,
     PromptStatus,
     Provider,
     ReleaseStatus,
     ReleaseTestStatus,
+    RuntimeSessionMode,
     SessionMode,
+    SessionStatus,
     ValidationMode,
 )
 
@@ -238,5 +241,54 @@ class KnowledgeVersion:
     snapshot_metadata: dict | None = None
     status: KnowledgeVersionStatus = KnowledgeVersionStatus.DRAFT
     id: UUID = field(default_factory=uuid4)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class Session:
+    id: UUID = field(default_factory=uuid4)
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    external_session_id: str | None = None
+    tenant_id: str | None = None
+    user_id: str | None = None
+    status: SessionStatus = SessionStatus.ACTIVE
+    mode: RuntimeSessionMode = RuntimeSessionMode.CHAT
+    data: dict | None = None
+    last_message_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class Message:
+    id: UUID = field(default_factory=uuid4)
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
+    role: MessageRole = MessageRole.USER
+    content: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+    data: dict | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class AskJob:
+    id: UUID = field(default_factory=uuid4)
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
+    status: str = "pending"
+    params: dict | None = None
+    result: dict | None = None
+    error: str | None = None
+    trace_id: UUID | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
