@@ -110,7 +110,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 033-move-knowledge-infra-to-agent-infra | completed | 2026-06-14 | src/modules/agent/infra/database/{models,mappers,repositories}.py (merged), src/modules/knowledge/infra/{models,mappers,repositories}.py (shims), src/modules/agent/application/{composers/*.py (12 updated),use_cases/knowledge_use_cases.py}, tests/architecture/test_move_knowledge_infra_to_agent_infra.py, tests/architecture/legacy_import_allowlist.yaml | - | 034-move-knowledge-presentation-to-agent-presentation.md |
 | 034-move-knowledge-presentation-to-agent-presentation | completed | 2026-06-14 | src/modules/agent/presentation/{routes,schemas,mappers,controllers/*.py (12 files)}, src/modules/knowledge/presentation/{routes,schemas,mappers,controllers/*.py} (shims), src/modules/agent/application/composers/*.py (12 updated), tests/architecture/test_move_knowledge_presentation_to_agent_presentation.py, tests/architecture/legacy_import_allowlist.yaml | - | 035-update-knowledge-imports-to-agent-imports.md |
 | 035-update-knowledge-imports-to-agent-imports | completed | 2026-06-14 | src/modules/agent/application/use_cases/knowledge_use_cases.py, src/modules/agent/domain/repositories.py, src/modules/agent/infra/database/repositories.py, tests/architecture/test_update_knowledge_imports_to_agent_imports.py, tests/architecture/legacy_import_allowlist.yaml | - | 040-map-runtime-to-agent.md |
-| 040-map-runtime-to-agent | pending | 2026-06-12 | - | executar spec | 041-move-runtime-domain-to-agent-domain.md |
+| 040-map-runtime-to-agent | completed | 2026-06-14 | specs/execution/inventory/runtime-to-agent-map.md, tests/architecture/test_map_runtime_to_agent.py | - | 041-move-runtime-domain-to-agent-domain.md |
 | 041-move-runtime-domain-to-agent-domain | pending | 2026-06-12 | - | executar spec | 042-move-runtime-application-to-agent-application.md |
 | 042-move-runtime-application-to-agent-application | pending | 2026-06-12 | - | executar spec | 043-move-runtime-infra-to-agent-infra.md |
 | 043-move-runtime-infra-to-agent-infra | pending | 2026-06-12 | - | executar spec | 044-move-runtime-presentation-to-agent-presentation.md |
@@ -225,6 +225,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 033-move-knowledge-infra-to-agent-infra | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/infra/database/{models,mappers,repositories}.py (merged), src/modules/knowledge/infra/{models,mappers,repositories}.py (shims), src/modules/agent/application/{composers/*.py (12 updated),use_cases/knowledge_use_cases.py}, tests/architecture/test_move_knowledge_infra_to_agent_infra.py, tests/architecture/legacy_import_allowlist.yaml |
 | 034-move-knowledge-presentation-to-agent-presentation | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/presentation/{routes,schemas,mappers,controllers/*.py (12 files)}, src/modules/knowledge/presentation/{routes,schemas,mappers,controllers/*.py} (shims), src/modules/agent/application/composers/*.py (12 updated), tests/architecture/test_move_knowledge_presentation_to_agent_presentation.py, tests/architecture/legacy_import_allowlist.yaml |
 | 035-update-knowledge-imports-to-agent-imports | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/modules/agent/application/use_cases/knowledge_use_cases.py, src/modules/agent/domain/repositories.py, src/modules/agent/infra/database/repositories.py, tests/architecture/test_update_knowledge_imports_to_agent_imports.py, tests/architecture/legacy_import_allowlist.yaml |
+| 040-map-runtime-to-agent | 2026-06-14 | opencode/deepseek-v4-pro | completed | specs/execution/inventory/runtime-to-agent-map.md, tests/architecture/test_map_runtime_to_agent.py |
 
 ## Specs pendentes
 
@@ -291,7 +292,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`040-map-runtime-to-agent.md`.
+`041-move-runtime-domain-to-agent-domain.md`.
 
 ## Pendências de ferramentas
 
