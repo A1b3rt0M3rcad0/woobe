@@ -50,9 +50,9 @@ from modules.observability.infra.repositories import (
 from modules.agent.domain.entities import Message, Session
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
 from modules.agent.domain.repositories import MessageRepository, SessionRepository
-from modules.runtime.infra.repositories import (
+from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
-    SQLAlchemyOutboxEventWriter,
+    SQLAlchemyRuntimeOutboxEventWriter,
     SQLAlchemySessionRepository,
 )
 from modules.agent.application.dtos.runtime_dtos import (
@@ -462,7 +462,7 @@ class AskAgentStreamService:
                 trace_repo = SQLAlchemyTraceRepository(db_session)
                 trace_event_repo = SQLAlchemyTraceEventRepository(db_session)
                 usage_repo: UsageEventRepository = SQLAlchemyUsageEventRepository(db_session)
-                outbox: OutboxEventWriter = SQLAlchemyOutboxEventWriter(db_session)
+                outbox: OutboxEventWriter = SQLAlchemyRuntimeOutboxEventWriter(db_session)
 
                 message_id = None
                 if session:

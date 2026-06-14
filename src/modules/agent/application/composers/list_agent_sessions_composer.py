@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.runtime.infra.repositories import (
+from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
     SQLAlchemySessionRepository,
 )

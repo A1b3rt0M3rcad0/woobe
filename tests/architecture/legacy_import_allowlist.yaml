@@ -370,14 +370,9 @@ entries:
     removal_spec: "070-085"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
-    target_module: runtime
-    removal_spec: "043"
-    scope: module_boundaries
-
   - file: src/modules/agent/application/composers/ask_agent_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/ask_agent_composer.py
@@ -402,32 +397,32 @@ entries:
 
   - file: src/modules/agent/application/composers/create_ask_job_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/create_session_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/get_ask_job_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_agent_sessions_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/list_messages_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   - file: src/modules/agent/application/composers/send_message_composer.py
     target_module: runtime
-    removal_spec: "043-044"
+    removal_spec: "044"
     scope: module_boundaries
 
   # ai/service → agent (shims delegating to new module during migration)
@@ -724,6 +719,38 @@ entries:
     removal_spec: "140"
     scope: module_boundaries
 
+
+  # runtime/infra → agent (shims delegating to new module during migration)
+  - file: src/modules/runtime/infra/models.py
+    target_module: agent
+    removal_spec: "142"
+    scope: module_boundaries
+
+  - file: src/modules/runtime/infra/mappers.py
+    target_module: agent
+    removal_spec: "142"
+    scope: module_boundaries
+
+  - file: src/modules/runtime/infra/repositories.py
+    target_module: agent
+    removal_spec: "142"
+    scope: module_boundaries
+
+  - file: src/modules/runtime/infra/ask_job_worker.py
+    target_module: agent
+    removal_spec: "142"
+    scope: module_boundaries
+
+  # agent/infra/workers → metering/observability (cross-module, pre-existing debt)
+  - file: src/modules/agent/infra/workers/ask_job_worker.py
+    target_module: metering
+    removal_spec: "070-085"
+    scope: module_boundaries
+
+  - file: src/modules/agent/infra/workers/ask_job_worker.py
+    target_module: observability
+    removal_spec: "070-085"
+    scope: module_boundaries
 
   # runtime/service → agent (shims delegating to new module during migration)
   - file: src/modules/runtime/service/dtos.py

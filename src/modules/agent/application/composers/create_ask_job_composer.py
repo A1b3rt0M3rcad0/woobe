@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.runtime.infra.repositories import SQLAlchemyAskJobRepository
+from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.runtime.presentation.controllers.create_ask_job_controller import (
     CreateAskJobController,
 )

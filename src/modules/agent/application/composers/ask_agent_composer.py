@@ -14,9 +14,9 @@ from modules.observability.infra.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
 )
-from modules.runtime.infra.repositories import (
+from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
-    SQLAlchemyOutboxEventWriter,
+    SQLAlchemyRuntimeOutboxEventWriter,
     SQLAlchemySessionRepository,
 )
 from modules.runtime.presentation.controllers.ask_agent_controller import (
@@ -45,7 +45,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
     usage_repo = SQLAlchemyUsageEventRepository(uow)
     tool_repo = SQLAlchemyToolRepository(uow)
 
-    outbox = SQLAlchemyOutboxEventWriter(uow)
+    outbox = SQLAlchemyRuntimeOutboxEventWriter(uow)
 
     use_case = AskAgentUseCase(
         agent_repo=agent_repo,

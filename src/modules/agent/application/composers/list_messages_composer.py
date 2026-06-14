@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.runtime.infra.repositories import SQLAlchemyMessageRepository
+from modules.agent.infra.database.repositories import SQLAlchemyMessageRepository
 from modules.agent.application.use_cases.runtime_use_cases import ListMessagesUseCase
 from modules.runtime.presentation.controllers.list_messages_controller import ListMessagesController
 from shared.application.transactional_handler import TransactionalHandler
