@@ -152,7 +152,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 102-standardize-event-envelope | completed | 2026-06-14 | src/shared/messaging/event_envelope.py, tests/messaging/test_standardize_event_envelope.py | - | 103-standardize-event-idempotency.md |
 | 103-standardize-event-idempotency | completed | 2026-06-14 | src/shared/messaging/idempotency_contracts.py, tests/messaging/test_standardize_event_idempotency.py | - | 104-standardize-event-retry-policy.md |
 | 104-standardize-event-retry-policy | completed | 2026-06-14 | src/shared/messaging/retry_policy.py, tests/messaging/test_standardize_event_retry_policy.py | - | 105-standardize-dead-letter-policy.md |
-| 105-standardize-dead-letter-policy | pending | 2026-06-12 | - | executar spec | 106-standardize-rabbitmq-topology.md |
+| 105-standardize-dead-letter-policy | completed | 2026-06-14 | src/shared/messaging/dead_letter_policy.py, tests/messaging/test_standardize_dead_letter_policy.py | - | 106-standardize-rabbitmq-topology.md |
 | 106-standardize-rabbitmq-topology | pending | 2026-06-12 | - | executar spec | 107-standardize-event-versioning-policy.md |
 | 107-standardize-event-versioning-policy | pending | 2026-06-12 | - | executar spec | 108-standardize-event-observability-and-tracing.md |
 | 108-standardize-event-observability-and-tracing | pending | 2026-06-12 | - | executar spec | 109-standardize-event-compatibility-policy.md |
@@ -267,6 +267,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 102-standardize-event-envelope | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/event_envelope.py, tests/messaging/test_standardize_event_envelope.py |
 | 103-standardize-event-idempotency | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/idempotency_contracts.py, tests/messaging/test_standardize_event_idempotency.py |
 | 104-standardize-event-retry-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/retry_policy.py, tests/messaging/test_standardize_event_retry_policy.py |
+| 105-standardize-dead-letter-policy | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/dead_letter_policy.py, tests/messaging/test_standardize_dead_letter_policy.py |
 
 ## Specs pendentes
 
@@ -343,7 +344,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`105-standardize-dead-letter-policy.md`.
+`106-standardize-rabbitmq-topology.md`.
 
 ## Pendências de ferramentas
 
