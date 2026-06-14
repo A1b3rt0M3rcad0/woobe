@@ -1,15 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.knowledge.infra.repositories import SQLAlchemyDocumentChunkRepository
-from modules.knowledge.presentation.controllers.search_chunks_controller import SearchChunksController
-from modules.knowledge.service.use_cases import SearchChunksUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.knowledge.application.composers.search_chunks_composer is deprecated. "
+    "Use modules.agent.application.composers.search_chunks_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def search_chunks_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyDocumentChunkRepository(uow)
-    use_case = SearchChunksUseCase(repo)
-    controller = SearchChunksController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+from modules.agent.application.composers.search_chunks_composer import search_chunks_composer  # noqa: E402, F401

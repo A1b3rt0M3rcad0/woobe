@@ -1,16 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.knowledge.infra.repositories import SQLAlchemyDocumentCollectionRepository, SQLAlchemyOutboxEventWriter
-from modules.knowledge.presentation.controllers.create_collection_controller import CreateCollectionController
-from modules.knowledge.service.use_cases import CreateCollectionUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.knowledge.application.composers.create_collection_composer is deprecated. "
+    "Use modules.agent.application.composers.create_collection_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def create_collection_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyDocumentCollectionRepository(uow)
-    outbox = SQLAlchemyOutboxEventWriter(uow)
-    use_case = CreateCollectionUseCase(repo, outbox)
-    controller = CreateCollectionController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+from modules.agent.application.composers.create_collection_composer import create_collection_composer  # noqa: E402, F401

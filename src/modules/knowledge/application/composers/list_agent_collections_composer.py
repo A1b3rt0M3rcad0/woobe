@@ -1,15 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.knowledge.infra.repositories import SQLAlchemyAgentCollectionRepository
-from modules.knowledge.presentation.controllers.list_agent_collections_controller import ListAgentCollectionsController
-from modules.knowledge.service.use_cases import ListAgentCollectionsUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.knowledge.application.composers.list_agent_collections_composer is deprecated. "
+    "Use modules.agent.application.composers.list_agent_collections_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def list_agent_collections_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAgentCollectionRepository(uow)
-    use_case = ListAgentCollectionsUseCase(repo)
-    controller = ListAgentCollectionsController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+from modules.agent.application.composers.list_agent_collections_composer import list_agent_collections_composer  # noqa: E402, F401

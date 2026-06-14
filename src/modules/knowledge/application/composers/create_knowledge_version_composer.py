@@ -1,15 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import warnings
 
-from modules.knowledge.infra.repositories import SQLAlchemyKnowledgeVersionRepository
-from modules.knowledge.presentation.controllers.create_knowledge_version_controller import CreateKnowledgeVersionController
-from modules.knowledge.service.use_cases import CreateKnowledgeVersionUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+warnings.warn(
+    "modules.knowledge.application.composers.create_knowledge_version_composer is deprecated. "
+    "Use modules.agent.application.composers.create_knowledge_version_composer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def create_knowledge_version_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyKnowledgeVersionRepository(uow)
-    use_case = CreateKnowledgeVersionUseCase(repo)
-    controller = CreateKnowledgeVersionController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+from modules.agent.application.composers.create_knowledge_version_composer import create_knowledge_version_composer  # noqa: E402, F401

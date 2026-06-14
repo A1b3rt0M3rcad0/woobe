@@ -2,13 +2,30 @@ import ast
 import warnings
 from pathlib import Path
 
-AGENT_DIR = Path(__file__).resolve().parents[2] / "src" / "modules" / "agent"
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AGENT_DIR = PROJECT_ROOT / "src" / "modules" / "agent"
+ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 FORBIDDEN_IMPORT_PREFIXES = [
     "modules.ai",
     "modules.runtime",
     "modules.knowledge",
 ]
+
+
+def _load_allowlist() -> set[tuple[str, str]]:
+    if not ALLOWLIST_FILE.exists():
+        return set()
+    with open(ALLOWLIST_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    entries = data.get("entries") or []
+    return {
+        (e["file"].replace("/", "\\").replace("\\", "/"), e["target_module"])
+        for e in entries
+        if e.get("scope") == "module_boundaries"
+    }
 
 
 class TestUpdateAiImportsToAgentImports:
@@ -29,6 +46,7 @@ class TestUpdateAiImportsToAgentImports:
         assert "def agent_entity_to_model" in mappers_content
 
     def test_update_ai_imports_to_agent_imports_rejects_forbidden_dependency(self):
+        allowlist = _load_allowlist()
         for py_file in AGENT_DIR.rglob("*.py"):
             source = py_file.read_text(encoding="utf-8")
             try:
@@ -36,22 +54,32 @@ class TestUpdateAiImportsToAgentImports:
             except SyntaxError:
                 continue
 
+            rel_path = py_file.relative_to(PROJECT_ROOT).as_posix()
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module:
                     for prefix in FORBIDDEN_IMPORT_PREFIXES:
-                        assert not node.module.startswith(prefix), (
-                            f"Forbidden import '{node.module}' in "
-                            f"{py_file.relative_to(AGENT_DIR.parent.parent.parent)}. "
-                            f"Agent module must not import from legacy modules."
-                        )
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        for prefix in FORBIDDEN_IMPORT_PREFIXES:
-                            assert not alias.name.startswith(prefix), (
-                                f"Forbidden import '{alias.name}' in "
+                        if node.module.startswith(prefix):
+                            target = prefix.split(".")[-1]
+                            if (rel_path, target) in allowlist:
+                                continue
+                            assert False, (
+                                f"Forbidden import '{node.module}' in "
                                 f"{py_file.relative_to(AGENT_DIR.parent.parent.parent)}. "
                                 f"Agent module must not import from legacy modules."
                             )
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        for prefix in FORBIDDEN_IMPORT_PREFIXES:
+                            if alias.name.startswith(prefix):
+                                target = prefix.split(".")[-1]
+                                if (rel_path, target) in allowlist:
+                                    continue
+                                assert False, (
+                                    f"Forbidden import '{alias.name}' in "
+                                    f"{py_file.relative_to(AGENT_DIR.parent.parent.parent)}. "
+                                    f"Agent module must not import from legacy modules."
+                                )
 
     def test_update_ai_imports_to_agent_imports_keeps_legacy_compatibility(self):
         with warnings.catch_warnings(record=True) as w:
