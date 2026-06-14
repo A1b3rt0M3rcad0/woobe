@@ -170,7 +170,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 125-add-idempotency-tests | completed | 2026-06-14 | tests/modules/agent/test_add_idempotency_tests.py | - | 126-add-unit-of-work-transaction-tests.md |
 | 126-add-unit-of-work-transaction-tests | completed | 2026-06-14 | tests/modules/agent/test_add_unit_of_work_transaction_tests.py | - | 127-add-rabbitmq-publisher-confirm-tests.md |
 | 127-add-rabbitmq-publisher-confirm-tests | completed | 2026-06-14 | tests/modules/agent/test_add_rabbitmq_publisher_confirm_tests.py | - | 128-add-inbox-deduplication-concurrency-tests.md |
-| 128-add-inbox-deduplication-concurrency-tests | pending | 2026-06-12 | - | executar spec | 129-add-outbox-dispatch-concurrency-tests.md |
+| 128-add-inbox-deduplication-concurrency-tests | completed | 2026-06-14 | tests/modules/agent/test_add_inbox_deduplication_concurrency_tests.py | - | 129-add-outbox-dispatch-concurrency-tests.md |
 | 129-add-outbox-dispatch-concurrency-tests | pending | 2026-06-12 | - | executar spec | 130-update-application-bootstrap.md |
 | 130-update-application-bootstrap | pending | 2026-06-12 | - | executar spec | 131-update-api-routes-to-agent.md |
 | 131-update-api-routes-to-agent | pending | 2026-06-12 | - | executar spec | 132-update-dependency-injection-bindings.md |
@@ -285,6 +285,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 125-add-idempotency-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_idempotency_tests.py |
 | 126-add-unit-of-work-transaction-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_unit_of_work_transaction_tests.py |
 | 127-add-rabbitmq-publisher-confirm-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_rabbitmq_publisher_confirm_tests.py |
+| 128-add-inbox-deduplication-concurrency-tests | 2026-06-14 | opencode/deepseek-v4-pro | completed | tests/modules/agent/test_add_inbox_deduplication_concurrency_tests.py |
 
 ## Specs pendentes
 
@@ -363,7 +364,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`128-add-inbox-deduplication-concurrency-tests.md`.
+`129-add-outbox-dispatch-concurrency-tests.md`.
 
 ## Pendências de ferramentas
 
