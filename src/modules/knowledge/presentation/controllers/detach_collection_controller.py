@@ -1,17 +1,10 @@
-from modules.knowledge.service.use_cases import DetachCollectionUseCase
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.knowledge.presentation.controllers.detach_collection_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.detach_collection_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class DetachCollectionController(Controller):
-    def __init__(self, use_case: DetachCollectionUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        link_id = request.path_params["link_id"]
-        await self._use_case.execute(link_id)
-        return Response(
-            status_code=200,
-            body={"success": True, "message": "deleted", "data": None},
-        )
+from modules.agent.presentation.controllers.detach_collection_controller import DetachCollectionController  # noqa: E402, F401

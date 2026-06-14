@@ -1,31 +1,10 @@
-from modules.knowledge.presentation.mappers import collection_to_response
-from modules.knowledge.service.dtos import GetCollectionInput
-from modules.knowledge.service.use_cases import GetCollectionUseCase
-from shared.domain.errors import NotFoundError
-from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+import warnings
 
+warnings.warn(
+    "modules.knowledge.presentation.controllers.get_collection_controller is deprecated. "
+    "Use modules.agent.presentation.controllers.get_collection_controller instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-class GetCollectionController(Controller):
-    def __init__(self, use_case: GetCollectionUseCase) -> None:
-        self._use_case = use_case
-
-    async def handle(self, request: Request) -> Response:
-        try:
-            collection_id = request.path_params["collection_id"]
-            input_dto = GetCollectionInput(collection_id=collection_id)
-            result = await self._use_case.execute(input_dto)
-            return Response(
-                status_code=200,
-                body={
-                    "success": True,
-                    "message": "ok",
-                    "data": collection_to_response(result).model_dump(),
-                },
-            )
-        except NotFoundError as e:
-            return Response(
-                status_code=404,
-                body={"success": False, "message": str(e), "data": None},
-            )
+from modules.agent.presentation.controllers.get_collection_controller import GetCollectionController  # noqa: E402, F401

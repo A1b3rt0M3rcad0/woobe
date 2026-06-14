@@ -26,6 +26,18 @@ from modules.agent.application.composers.rollback_release_composer import rollba
 from modules.agent.application.composers.delete_release_composer import delete_release_composer
 from modules.agent.application.composers.create_release_test_composer import create_release_test_composer
 from modules.agent.application.composers.list_release_tests_composer import list_release_tests_composer
+from modules.agent.application.composers.attach_collection_composer import attach_collection_composer
+from modules.agent.application.composers.create_collection_composer import create_collection_composer
+from modules.agent.application.composers.create_knowledge_version_composer import create_knowledge_version_composer
+from modules.agent.application.composers.detach_collection_composer import detach_collection_composer
+from modules.agent.application.composers.get_collection_composer import get_collection_composer
+from modules.agent.application.composers.get_document_composer import get_document_composer
+from modules.agent.application.composers.list_agent_collections_composer import list_agent_collections_composer
+from modules.agent.application.composers.list_collections_composer import list_collections_composer
+from modules.agent.application.composers.list_documents_composer import list_documents_composer
+from modules.agent.application.composers.list_knowledge_versions_composer import list_knowledge_versions_composer
+from modules.agent.application.composers.search_chunks_composer import search_chunks_composer
+from modules.agent.application.composers.upload_document_composer import upload_document_composer
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -202,5 +214,92 @@ async def create_release_test(request: FastAPIRequest):
 @router.get("/agents/{agent_id}/releases/{release_id}/tests")
 async def list_release_tests(request: FastAPIRequest):
     handler = list_release_tests_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+@knowledge_router.get("/collections")
+async def list_collections(request: FastAPIRequest):
+    handler = list_collections_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.post("/collections")
+async def create_collection(request: FastAPIRequest):
+    handler = create_collection_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.get("/collections/{collection_id}")
+async def get_collection(request: FastAPIRequest):
+    handler = get_collection_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.get("/agent-collections")
+async def list_agent_collections(request: FastAPIRequest):
+    handler = list_agent_collections_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.post("/agent-collections")
+async def attach_collection(request: FastAPIRequest):
+    handler = attach_collection_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.delete("/agent-collections/{link_id}")
+async def detach_collection(request: FastAPIRequest):
+    handler = detach_collection_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.get("/documents")
+async def list_documents(request: FastAPIRequest):
+    handler = list_documents_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.post("/documents")
+async def upload_document(request: FastAPIRequest):
+    handler = upload_document_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.get("/documents/{document_id}")
+async def get_document(request: FastAPIRequest):
+    handler = get_document_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.post("/search")
+async def search_chunks(request: FastAPIRequest):
+    handler = search_chunks_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201)
+async def create_knowledge_version(request: FastAPIRequest):
+    handler = create_knowledge_version_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@knowledge_router.get("/agents/{agent_id}/knowledge-versions")
+async def list_knowledge_versions(request: FastAPIRequest):
+    handler = list_knowledge_versions_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)

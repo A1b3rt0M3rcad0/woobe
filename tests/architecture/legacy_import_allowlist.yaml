@@ -241,65 +241,80 @@ entries:
     removal_spec: "141"
     scope: module_boundaries
 
-  # agent/composers → knowledge.presentation (temporary, until presentation moves in spec 034)
-  - file: src/modules/agent/application/composers/attach_collection_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  # knowledge/presentation → agent (shims delegating to new module during migration)
+  - file: src/modules/knowledge/presentation/routes.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/create_collection_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/schemas.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/create_knowledge_version_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/mappers.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/detach_collection_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/attach_collection_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/get_collection_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/create_collection_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/get_document_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/create_knowledge_version_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/list_agent_collections_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/detach_collection_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/list_collections_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/get_collection_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/list_documents_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/get_document_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/list_knowledge_versions_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/list_agent_collections_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/search_chunks_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/list_collections_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
-  - file: src/modules/agent/application/composers/upload_document_composer.py
-    target_module: knowledge
-    removal_spec: "034"
+  - file: src/modules/knowledge/presentation/controllers/list_documents_controller.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/presentation/controllers/list_knowledge_versions_controller.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/presentation/controllers/search_chunks_controller.py
+    target_module: agent
+    removal_spec: "141"
+    scope: module_boundaries
+
+  - file: src/modules/knowledge/presentation/controllers/upload_document_controller.py
+    target_module: agent
+    removal_spec: "141"
     scope: module_boundaries
 
   # agent/use_cases → knowledge.infra (lazy import via shim in ListDocumentsUseCase)
