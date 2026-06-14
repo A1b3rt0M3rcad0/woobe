@@ -95,7 +95,7 @@ def make_provider_credential(project_id=None, provider=None):
 # ── Knowledge factories ───────────────────────────────────────────
 
 def make_document_collection(project_id=None, name="TestCollection"):
-    from modules.knowledge.domain.entities import DocumentCollection
+    from modules.agent.domain.entities import DocumentCollection
     return DocumentCollection(
         project_id=project_id or uuid6.uuid7(),
         name=name,
@@ -105,7 +105,7 @@ def make_document_collection(project_id=None, name="TestCollection"):
 
 
 def make_document(project_id=None, collection_id=None):
-    from modules.knowledge.domain.entities import Document
+    from modules.agent.domain.entities import Document
     return Document(
         project_id=project_id or uuid6.uuid7(),
         collection_id=collection_id or uuid6.uuid7(),

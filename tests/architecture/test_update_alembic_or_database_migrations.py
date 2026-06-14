@@ -149,12 +149,6 @@ class TestAlembicMigrationsRejectsForbidden:
 class TestAlembicMigrationsKeepsLegacyCompatibility:
     """Verify legacy model shims still exist for Alembic compatibility."""
 
-    def test_legacy_knowledge_models_shim_exists(self):
-        mod = importlib.import_module("modules.knowledge.infra.models")
-        assert hasattr(mod, "DocumentCollectionModel"), (
-            "Legacy knowledge models shim should export DocumentCollectionModel"
-        )
-
     def test_legacy_runtime_models_shim_exists(self):
         mod = importlib.import_module("modules.runtime.infra.models")
         assert hasattr(mod, "SessionModel"), (

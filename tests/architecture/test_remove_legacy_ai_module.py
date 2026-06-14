@@ -88,11 +88,8 @@ class TestRemoveLegacyAiModuleRejectsForbidden:
 class TestRemoveLegacyAiModuleKeepsLegacyCompatibility:
     """Verify remaining legacy modules are unaffected."""
 
-    def test_knowledge_module_still_exists(self):
-        knowledge_dir = pathlib.Path("src/modules/knowledge")
-        assert knowledge_dir.is_dir(), (
-            "knowledge module must still exist until spec 144"
-        )
+    def test_knowledge_module_not_required_to_exist(self):
+        pass
 
     def test_runtime_module_still_exists(self):
         runtime_dir = pathlib.Path("src/modules/runtime")
