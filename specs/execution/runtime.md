@@ -150,7 +150,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 100-standardize-module-outbox-pattern | completed | 2026-06-14 | src/shared/messaging/{__init__,outbox_contracts}.py, tests/messaging/{__init__,test_standardize_module_outbox_pattern}.py | - | 101-standardize-module-inbox-pattern.md |
 | 101-standardize-module-inbox-pattern | completed | 2026-06-14 | src/shared/messaging/inbox_contracts.py, tests/messaging/test_standardize_module_inbox_pattern.py | - | 102-standardize-event-envelope.md |
 | 102-standardize-event-envelope | completed | 2026-06-14 | src/shared/messaging/event_envelope.py, tests/messaging/test_standardize_event_envelope.py | - | 103-standardize-event-idempotency.md |
-| 103-standardize-event-idempotency | pending | 2026-06-12 | - | executar spec | 104-standardize-event-retry-policy.md |
+| 103-standardize-event-idempotency | completed | 2026-06-14 | src/shared/messaging/idempotency_contracts.py, tests/messaging/test_standardize_event_idempotency.py | - | 104-standardize-event-retry-policy.md |
 | 104-standardize-event-retry-policy | pending | 2026-06-12 | - | executar spec | 105-standardize-dead-letter-policy.md |
 | 105-standardize-dead-letter-policy | pending | 2026-06-12 | - | executar spec | 106-standardize-rabbitmq-topology.md |
 | 106-standardize-rabbitmq-topology | pending | 2026-06-12 | - | executar spec | 107-standardize-event-versioning-policy.md |
@@ -265,6 +265,7 @@ Estado preliminar observado no ProjectRAI em 2026-06-12:
 | 100-standardize-module-outbox-pattern | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/{__init__,outbox_contracts}.py, tests/messaging/{__init__,test_standardize_module_outbox_pattern}.py |
 | 101-standardize-module-inbox-pattern | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/inbox_contracts.py, tests/messaging/test_standardize_module_inbox_pattern.py |
 | 102-standardize-event-envelope | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/event_envelope.py, tests/messaging/test_standardize_event_envelope.py |
+| 103-standardize-event-idempotency | 2026-06-14 | opencode/deepseek-v4-pro | completed | src/shared/messaging/idempotency_contracts.py, tests/messaging/test_standardize_event_idempotency.py |
 
 ## Specs pendentes
 
@@ -341,7 +342,7 @@ Todas as specs listadas no MANIFEST estão pendentes.
 
 ## Próxima spec recomendada
 
-`103-standardize-event-idempotency.md`.
+`104-standardize-event-retry-policy.md`.
 
 ## Pendências de ferramentas
 
