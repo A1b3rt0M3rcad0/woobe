@@ -87,6 +87,7 @@ from modules.agent.infra.database.models import (
     AgentContractModel,
     AgentModel,
     AgentModelConfigModel,
+    AgentOutboxEventModel,
     AgentPromptModel,
     AgentReleaseModel,
     AgentReleaseTestModel,
@@ -1291,3 +1292,86 @@ class SQLAlchemyAskJobRepository(AskJobRepository):
             model.status = "failed"
             model.error = error
             model.completed_at = datetime.now(timezone.utc)
+
+
+AGENT_OUTBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"published", "retryable", "dead"},
+    "retryable": {"published", "retryable", "dead"},
+}
+
+
+class SQLAlchemyAgentOutboxRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, event: AgentOutboxEventModel) -> AgentOutboxEventModel:
+        self._session.add(event)
+        await self._session.flush()
+        return event
+
+    async def claim_batch(
+        self, batch_size: int, locked_by: str
+    ) -> list[AgentOutboxEventModel]:
+        now = datetime.now(timezone.utc)
+        stmt = (
+            select(AgentOutboxEventModel)
+            .where(AgentOutboxEventModel.status.in_(["pending", "retryable"]))
+            .where(AgentOutboxEventModel.available_at <= func.now())
+            .where(
+                (AgentOutboxEventModel.locked_at.is_(None))
+                | (AgentOutboxEventModel.locked_at < func.now() - text("INTERVAL '5 minutes'"))
+            )
+            .order_by(AgentOutboxEventModel.created_at.asc())
+            .limit(batch_size)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self._session.execute(stmt)
+        events = list(result.scalars().all())
+        for event in events:
+            event.locked_at = now
+            event.locked_by = locked_by
+        await self._session.flush()
+        return events
+
+    async def mark_published(self, event_id: UUID) -> None:
+        event = await self._session.get(AgentOutboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "published")
+        event.status = "published"
+        event.published_at = datetime.now(timezone.utc)
+        event.locked_at = None
+        event.locked_by = None
+
+    async def mark_retryable(
+        self, event_id: UUID, error: str, available_at: datetime
+    ) -> None:
+        event = await self._session.get(AgentOutboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "retryable")
+        event.status = "retryable"
+        event.attempts += 1
+        event.error = error
+        event.available_at = available_at
+        event.locked_at = None
+        event.locked_by = None
+
+    async def mark_dead(self, event_id: UUID, error: str) -> None:
+        event = await self._session.get(AgentOutboxEventModel, event_id)
+        if event is None:
+            return
+        self._validate_transition(event.status, "dead")
+        event.status = "dead"
+        event.attempts += 1
+        event.error = error
+        event.locked_at = None
+        event.locked_by = None
+
+    @staticmethod
+    def _validate_transition(current: str, target: str) -> None:
+        allowed = AGENT_OUTBOX_VALID_TRANSITIONS.get(current)
+        if allowed is None or target not in allowed:
+            raise ValueError(
+                f"Invalid outbox status transition: {current} -> {target}"
+            )

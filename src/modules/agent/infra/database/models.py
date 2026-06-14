@@ -9,11 +9,13 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
@@ -341,3 +343,42 @@ class RuntimeOutboxEventModel(BaseOutbox):
 class RuntimeInboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
     __table_args__ = {"schema": "runtime"}
+
+
+class AgentOutboxEventModel(BaseModel):
+    __tablename__ = "agent_outbox_events"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_agent_outbox_idempotency_key"),
+        Index(
+            "ix_agent_outbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('pending', 'retryable')"),
+        ),
+        Index("ix_agent_outbox_correlation_id", "correlation_id"),
+        Index("ix_agent_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        {"schema": "agent"},
+    )
+
+    aggregate_type: Mapped[str] = mapped_column(String(128))
+    aggregate_id: Mapped[UUID]
+    event_type: Mapped[str] = mapped_column(String(255))
+    event_version: Mapped[int] = mapped_column(Integer, default=1)
+    routing_key: Mapped[str] = mapped_column(String(255))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    correlation_id: Mapped[UUID]
+    causation_id: Mapped[UUID | None]
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
