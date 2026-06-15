@@ -131,7 +131,7 @@ src/modules/<module>/
 | 004 | completed | 2026-06-14 | `tests/architecture/test_application_boundaries.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); agent/tools use_cases allowlistados por importarem sqlalchemy | 005 |
 | 005 | completed | 2026-06-14 | `tests/architecture/test_uow_ownership.py`, `tests/integration/test_module_uow_transactions.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; PostgresUnitOfWork em todos os composers (allowlistado em uow_ownership scope, removal_spec 025-036); `rg` indisponível (substituído por grep) | 006 |
 | 006 | completed | 2026-06-14 | `tests/contract/__init__.py`, `tests/contract/test_http_routes_compatibility.py`, `execution/runtime.md` | mappers.py condicional (5 módulos sem mappers ainda); `rg` indisponível (substituído por grep) | 007 |
-| 007 | pending | - | - | - | 008 |
+| 007 | completed | 2026-06-14 | `tests/integration/test_outbox_inbox_flow.py`, `execution/runtime.md` | `test_worker_locations.py` pré-existente inalterado (4 testes válidos); `rg` indisponível (substituído por grep) | 008 |
 | 008 | pending | - | - | - | 009 |
 | 009 | pending | - | - | - | 010 |
 | 010 | pending | - | - | - | 011 |
@@ -245,7 +245,8 @@ src/modules/<module>/
 | 003 | 2026-06-14 | 14eddd1 | `__init__.py` de todos os 7 módulos expõem `routes` e `registry` via `__all__`. `test_public_module_entrypoints.py` com 5 testes: routes exportadas, registry exportado, __all__ definido, rotas importáveis, registries importáveis. |
 | 004 | 2026-06-14 | 639a77c | Contratos domain/application definidos. `test_application_boundaries.py` com 3 testes: nenhum use case importa FastAPI/SQLAlchemy (2 allowlistados), composer sem lógica de domínio, DTOs fora de shared. |
 | 005 | 2026-06-14 | acc92b6 | Contrato infra/database/UoW definido. `test_uow_ownership.py` com 3 testes: UoW sem imports cross-module, PostgresUnitOfWork allowlistado em composers, agent UoW expõe outbox/inbox. `test_module_uow_transactions.py` com 4 testes de contrato de transação. Allowlist scope `uow_ownership` para todos os composers com PostgresUnitOfWork. |
-| 006 | 2026-06-14 | acc92b6 | Contrato presentation definido. `test_http_routes_compatibility.py` com 5 testes: estrutura obrigatória, routes sem infra/domain, controllers sem sessão SQLAlchemy, mappers condicionais. |
+| 006 | 2026-06-14 | ea56b9c | Contrato presentation definido. `test_http_routes_compatibility.py` com 5 testes: estrutura obrigatória, routes sem infra/domain, controllers sem sessão SQLAlchemy, mappers condicionais. |
+| 007 | 2026-06-14 | ea56b9c | Contrato messaging/worker definido. `test_outbox_inbox_flow.py` com 5 testes de contrato (consumer antes ack, processor idempotente, dispatcher pós-commit, claim/process, dead letter). `test_worker_locations.py` pré-existente confirmado. |
 
 ## Specs pendentes
 
@@ -262,6 +263,7 @@ Specs 006 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Contratos domain/application definidos | Use cases não importam FastAPI/SQLAlchemy; composers sem lógica de domínio; DTOs fora de shared | `test_application_boundaries.py` com 3 testes; 2 allowlist entries para sqlalchemy em use_cases | Sim, revertendo teste e allowlist |
 | 2026-06-14 | Contrato infra/database/UoW definido | Estabelecer que cada módulo tem UoW concreto que coordena apenas seus repositories, outbox e inbox | `test_uow_ownership.py` com 3 testes; allowlist uow_ownership para PostgresUnitOfWork em todos os composers; `test_module_uow_transactions.py` com 4 testes de contrato | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Contrato presentation definido | Padronizar controllers, routes, schemas e mappers sem alterar contratos HTTP | `test_http_routes_compatibility.py` com 5 testes; mappers.py condicionais para 5 módulos | Sim, revertendo testes e runtime.md |
+| 2026-06-14 | Contrato messaging/worker definido | Padronizar Outbox/Inbox flow: consumer salva Inbox antes ack, processor idempotente, dispatcher pós-commit | `test_outbox_inbox_flow.py` com 5 testes de contrato; `test_worker_locations.py` confirmado | Sim, revertendo testes e runtime.md |
 
 ## Riscos ativos
 
@@ -279,4 +281,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`006-define-presentation-contract.md`
+`008-define-database-ownership-and-no-cross-module-foreign-keys.md`
