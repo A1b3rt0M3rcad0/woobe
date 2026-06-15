@@ -198,7 +198,7 @@ src/modules/<module>/
 | 071 | completed | 2026-06-15 | `src/modules/observability/application/dtos/__init__.py`, `src/modules/observability/application/use_cases/__init__.py`, `src/modules/observability/application/handlers/__init__.py`, `src/modules/observability/infra/database/__init__.py`, `src/modules/observability/infra/messaging/__init__.py`, `src/modules/observability/domain/events.py`, `src/modules/observability/domain/services.py`, `src/modules/observability/domain/value_objects.py`, `src/modules/observability/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; caminhos legados mantidos; nenhum comportamento alterado | 072 |
 | 072 | completed | 2026-06-15 | `tests/modules/observability/unit/domain/test_entities.py`, `tests/architecture/test_observability_domain_dependencies.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; domínio já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 6 testes de entidade + 4 testes de arquitetura de dependências adicionados; 2 entidades (Trace, TraceEvent) e 2 repositories interfaces (ABC) validados | 073 |
 | 073 | completed | 2026-06-15 | `src/modules/observability/application/dtos/observability_dtos.py`, `src/modules/observability/application/dtos/__init__.py`, `src/modules/observability/application/use_cases/observability_use_cases.py`, `src/modules/observability/application/use_cases/__init__.py`, `src/modules/observability/application/composers/*.py` (4 files), `src/modules/observability/presentation/controllers/*.py` (4 files), `src/modules/observability/service/dtos.py`, `src/modules/observability/service/use_cases.py`, `tests/modules/observability/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_observability_service_imports.py`, `execution/runtime.md` | ruff clean; 11 tests passing (10 use case + 1 arch); shims mantidos em service/; 0 imports de service/ em composers/controllers | 074 |
-| 074 | pending | - | - | - | 075 |
+| 074 | completed | 2026-06-15 | `tests/modules/observability/contract/test_routes.py`, `tests/modules/observability/unit/presentation/test_controllers.py`, `execution/runtime.md` | ruff clean; presentation layer já estava normalizada (controllers importam de application/ após spec 073); 7 testes de rota (prefixo /observability, delegação a compositores, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados | 075 |
 | 075 | pending | - | - | - | 076 |
 | 076 | pending | - | - | - | 077 |
 | 077 | pending | - | - | - | 078 |
@@ -314,6 +314,7 @@ src/modules/<module>/
 | 071 | 2026-06-15 | HEAD | Canonical skeleton for observability created: 5 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. 1 arch structure test (test_observability_structure) passing. Next: 072. |
 | 072 | 2026-06-15 | HEAD | Domain layer validated for observability: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 6 entity invariant tests + 4 architecture dependency tests added. 2 entities (Trace, TraceEvent) and 2 repository interfaces (ABC) validated. Next: 073. |
 | 073 | 2026-06-15 | HEAD | service → application migration for observability: 8 DTOs and 4 use cases moved from service/ to application/dtos and application/use_cases; 4 composers and 4 controllers updated to import from application/; service/ shims preserved; 10 use case tests + 1 arch test added. Next: 074. |
+| 074 | 2026-06-15 | HEAD | Presentation layer normalized for observability: routes, controllers, schemas, mappers already in canonical state; 7 route contract tests + 5 controller tests added; 22/22 observability tests passing. Next: 075. |
 
 ## Specs pendentes
 
@@ -396,4 +397,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`074-normalize-presentation-layer-observability.md`
+`075-move-infra-to-database-layer-observability.md`
