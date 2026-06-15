@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy.exc import PendingRollbackError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from shared.infra.config.interface.unit_of_work import UnitOfWork
+
+from modules.identity.infra.database.repositories import (
+    SQLAlchemyOrganizationInviteRepository,
+    SQLAlchemyOrganizationMemberRepository,
+    SQLAlchemyOrganizationRepository,
+    SQLAlchemyOutboxEventWriter,
+    SQLAlchemyUserRepository,
+    SQLAlchemyUserSessionRepository,
+)
+
+
+class IdentityUnitOfWork(UnitOfWork):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+        self._session: AsyncSession | None = None
+        self._users: SQLAlchemyUserRepository | None = None
+        self._organizations: SQLAlchemyOrganizationRepository | None = None
+        self._members: SQLAlchemyOrganizationMemberRepository | None = None
+        self._invites: SQLAlchemyOrganizationInviteRepository | None = None
+        self._user_sessions: SQLAlchemyUserSessionRepository | None = None
+        self._outbox: SQLAlchemyOutboxEventWriter | None = None
+
+    @property
+    def session(self) -> AsyncSession:
+        if self._session is None:
+            raise RuntimeError("IdentityUnitOfWork session not started")
+        return self._session
+
+    @property
+    def users(self) -> SQLAlchemyUserRepository:
+        if self._users is None:
+            self._users = SQLAlchemyUserRepository(self.session)
+        return self._users
+
+    @property
+    def organizations(self) -> SQLAlchemyOrganizationRepository:
+        if self._organizations is None:
+            self._organizations = SQLAlchemyOrganizationRepository(self.session)
+        return self._organizations
+
+    @property
+    def members(self) -> SQLAlchemyOrganizationMemberRepository:
+        if self._members is None:
+            self._members = SQLAlchemyOrganizationMemberRepository(self.session)
+        return self._members
+
+    @property
+    def invites(self) -> SQLAlchemyOrganizationInviteRepository:
+        if self._invites is None:
+            self._invites = SQLAlchemyOrganizationInviteRepository(self.session)
+        return self._invites
+
+    @property
+    def user_sessions(self) -> SQLAlchemyUserSessionRepository:
+        if self._user_sessions is None:
+            self._user_sessions = SQLAlchemyUserSessionRepository(self.session)
+        return self._user_sessions
+
+    @property
+    def outbox(self) -> SQLAlchemyOutboxEventWriter:
+        if self._outbox is None:
+            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+        return self._outbox
+
+    async def commit(self) -> None:
+        if self._session is not None:
+            try:
+                await self._session.commit()
+            except PendingRollbackError:
+                await self.rollback()
+                raise
+
+    async def rollback(self) -> None:
+        if self._session is not None:
+            await self._session.rollback()
+
+    async def __aenter__(self) -> "IdentityUnitOfWork":
+        self._session = self._session_factory()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if exc_type is not None:
+            await self.rollback()
+        else:
+            await self.commit()
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+        self._users = None
+        self._organizations = None
+        self._members = None
+        self._invites = None
+        self._user_sessions = None
+        self._outbox = None

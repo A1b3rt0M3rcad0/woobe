@@ -27,8 +27,10 @@ from modules.identity.infra.database.repositories import (
     SQLAlchemyUserRepository,
     SQLAlchemyUserSessionRepository,
 )
+from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 
 __all__ = [
+    "IdentityUnitOfWork",
     "InboxEventModel",
     "OrganizationInviteModel",
     "OrganizationMemberModel",
