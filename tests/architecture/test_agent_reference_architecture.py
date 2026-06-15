@@ -202,3 +202,17 @@ class TestAgentReferenceArchitecture:
                 if pattern.replace(".", "") in content.replace(".", ""):
                     rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                     pytest.fail(f"Composer {rel} still uses legacy use case import: {pattern}")
+
+    def test_agent_database_has_all_canonical_files(self):
+        db_dir = AGENT_DIR / "infra" / "database"
+        required = {"mappers.py", "models.py", "repositories.py", "unit_of_work.py"}
+        existing = {f.name for f in db_dir.iterdir() if f.suffix == ".py" and not f.name.startswith("__")}
+        missing = required - existing
+        assert not missing, f"Database files missing: {missing}"
+
+    def test_agent_unit_of_work_coordinates_agent_repos_and_outbox_inbox(self):
+        uow_file = AGENT_DIR / "infra" / "database" / "unit_of_work.py"
+        content = uow_file.read_text(encoding="utf-8")
+        assert "outbox" in content.lower(), "UoW must have outbox property"
+        assert "inbox" in content.lower(), "UoW must have inbox property"
+        assert "SQLAlchemyAgentRepository" in content, "UoW must host agent repository"
