@@ -264,3 +264,37 @@ class TestAgentReferenceArchitecture:
             content = py_file.read_text(encoding="utf-8")
             for mod in ("modules.ai", "modules.knowledge", "modules.runtime"):
                 assert mod not in content, f"{py_file.name} references {mod}"
+
+    def test_agent_workers_has_all_canonical_files(self):
+        workers_dir = AGENT_DIR / "infra" / "workers"
+        required = {"__init__.py", "inbox_consumer.py", "inbox_processor.py",
+                     "outbox_dispatcher.py", "registry.py", "ask_job_worker.py"}
+        existing = {f.name for f in workers_dir.iterdir() if f.suffix == ".py"}
+        missing = required - existing
+        assert not missing, f"Worker files missing: {missing}"
+
+    def test_agent_workers_have_expected_classes(self):
+        workers_dir = AGENT_DIR / "infra" / "workers"
+        expected = {
+            "AgentInboxConsumerWorker",
+            "AgentInboxProcessorWorker",
+            "AgentOutboxDispatcherWorker",
+            "AgentWorkerRegistry",
+            "AskJobWorker",
+        }
+        found = set()
+        for py_file in workers_dir.glob("*.py"):
+            if py_file.name.startswith("__"):
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            for cls_name in expected:
+                if f"class {cls_name}" in content:
+                    found.add(cls_name)
+        missing = expected - found
+        assert not missing, f"Worker classes missing: {missing}"
+
+    def test_agent_registry_registers_all_core_workers(self):
+        content = (AGENT_DIR / "infra" / "workers" / "registry.py").read_text(encoding="utf-8")
+        assert "registry.register(outbox_dispatcher)" in content
+        assert "registry.register(inbox_consumer)" in content
+        assert "registry.register(inbox_processor)" in content
