@@ -210,7 +210,7 @@ src/modules/<module>/
 | 083 | completed | 2026-06-15 | `src/modules/tools/application/dtos/tools_dtos.py`, `src/modules/tools/application/dtos/__init__.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `src/modules/tools/application/use_cases/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `src/modules/tools/presentation/controllers/*.py` (10 files), `tests/modules/tools/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_tools_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers; 10 use case tests + 2 arch tests | 084 |
 | 084 | completed | 2026-06-15 | `tests/modules/tools/contract/test_routes.py`, `tests/modules/tools/unit/presentation/test_controllers.py`, `execution/runtime.md`, `src/modules/tools/application/tool_converter.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `tests/modules/tools/unit/application/test_use_cases.py` | 8 route tests (prefix /tools, composer delegation, no repo/domain/service imports) + 5 controller tests (import from application/use_cases, no repos, implement handle(), no service imports); presentation already normalized; minor ruff fixes | 085 (when suite resumed — batch limit 5 reached) |
 | 085 | completed | 2026-06-15 | `src/modules/tools/infra/database/models.py`, `src/modules/tools/infra/database/repositories.py`, `src/modules/tools/infra/database/mappers.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/models.py` (shim), `src/modules/tools/infra/repositories.py` (shim), `src/modules/tools/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/tools/integration/database/test_repositories.py`, `tests/architecture/test_tools_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 39/39 tools tests passing; 8/8 arch location tests passing; 8/8 integration import tests passing; alembic não executado (sem PostgreSQL) | 086 |
-| 086 | pending | - | - | - | 087 |
+| 086 | completed | 2026-06-15 | `src/modules/tools/infra/database/unit_of_work.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `tests/modules/tools/integration/database/test_unit_of_work.py`, `tests/modules/tools/integration/test_outbox_atomicity.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 53/53 tools tests passing; 14 UoW/atomicity tests added; alembic não executado (sem PostgreSQL) | 087 |
 | 087 | pending | - | - | - | 088 |
 | 088 | pending | - | - | - | 089 |
 | 089 | pending | - | - | - | 090 |
@@ -387,6 +387,8 @@ Specs 061 a 109 do `MANIFEST.md`.
 
 | 2026-06-15 | Tools infra moved to database layer | Spec 085: models, repositories, mappers copied to infra/database/ with shims at old paths; env.py updated to canonical import | 10 source files changed; 39 tools tests passing; 8 arch location tests + 8 integration import tests added; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL); ruff apenas erros pré-existentes (service/ legado); next: spec 086 | Reverter imports e restaurar infra/ original |
 
+| 2026-06-15 | ToolsUnitOfWork implemented | Spec 086: ToolsUnitOfWork with 3 lazy properties (tools, secrets, outbox); 10 composers migrated from PostgresUnitOfWork to ToolsUnitOfWork using uow.property pattern | 14 UoW/atomicity tests added; 53 tools tests passing; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL); ruff apenas erros pré-existentes (service/ legado); next: spec 087 | Reverter composers e restaurar unit_of_work.py |
+
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
@@ -410,4 +412,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`086-implement-module-specific-unit-of-work-tools.md`
+`087-implement-module-messaging-workers-and-registry-tools.md`

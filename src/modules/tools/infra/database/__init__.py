@@ -9,6 +9,7 @@ from modules.tools.infra.database.repositories import (
     SQLAlchemySecretRepository,
     SQLAlchemyToolRepository,
 )
+from modules.tools.infra.database.unit_of_work import ToolsUnitOfWork
 
 __all__ = [
     "ToolModel",
@@ -18,4 +19,5 @@ __all__ = [
     "SQLAlchemyToolRepository",
     "SQLAlchemySecretRepository",
     "SQLAlchemyOutboxEventWriter",
+    "ToolsUnitOfWork",
 ]
