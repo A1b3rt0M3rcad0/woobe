@@ -43,7 +43,7 @@ class TestAlembicMigrationsSuccess:
             "modules.tools.infra.models",
             "modules.metering.infra.database.models",
             "modules.billing.infra.database.models",
-            "modules.observability.infra.models",
+            "modules.observability.infra.database.models",
             "modules.agent.infra.database.models",
         ]
         for module_path in required_imports:
