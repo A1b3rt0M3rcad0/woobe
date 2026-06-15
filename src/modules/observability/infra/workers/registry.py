@@ -14,6 +14,10 @@ class ObservabilityWorkerRegistry:
         return list(self._workers)
 
 
+def register_observability_workers(registry: WorkerRegistryProtocol) -> None:
+    pass
+
+
 assert isinstance(ObservabilityWorkerRegistry, type)
 _check: WorkerRegistryProtocol = ObservabilityWorkerRegistry()
 del _check
