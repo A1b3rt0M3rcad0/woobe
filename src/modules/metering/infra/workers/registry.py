@@ -14,6 +14,10 @@ class MeteringWorkerRegistry:
         return list(self._workers)
 
 
+def register_metering_workers(registry: WorkerRegistryProtocol) -> None:
+    pass
+
+
 assert isinstance(MeteringWorkerRegistry, type)
 _check: WorkerRegistryProtocol = MeteringWorkerRegistry()
 del _check
