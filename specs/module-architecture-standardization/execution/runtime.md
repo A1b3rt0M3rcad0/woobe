@@ -134,7 +134,7 @@ src/modules/<module>/
 | 007 | completed | 2026-06-14 | `tests/integration/test_outbox_inbox_flow.py`, `execution/runtime.md` | `test_worker_locations.py` pré-existente inalterado (4 testes válidos); `rg` indisponível (substituído por grep) | 008 |
 | 008 | completed | 2026-06-14 | `tests/architecture/test_no_cross_module_foreign_keys.py`, `specs/module-architecture-standardization/execution/inventory/database-ownership.md`, `execution/runtime.md` | 32 critical legacy schema refs (ai/knowledge/runtime) catalogued; `rg` indisponível (substituído por grep) | 009 |
 | 009 | completed | 2026-06-14 | `tests/architecture/test_runtime_manifest_consistency.py`, `execution/runtime.md` | `rg` indisponível (substituído por grep); pyright com 482 erros pré-existentes não relacionados | 010 |
-| 010 | pending | - | - | - | 011 |
+| 010 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/files.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find` Unix tool unavailable (substituted with Get-ChildItem); `rg` unavailable (not used in this spec) | 011 |
 | 011 | pending | - | - | - | 012 |
 | 012 | pending | - | - | - | 013 |
 | 013 | pending | - | - | - | 014 |
@@ -249,10 +249,11 @@ src/modules/<module>/
 | 007 | 2026-06-14 | e7dab1a | Contrato messaging/worker definido. `test_outbox_inbox_flow.py` com 5 testes de contrato (consumer antes ack, processor idempotente, dispatcher pós-commit, claim/process, dead letter). `test_worker_locations.py` pré-existente confirmado. |
 | 008 | 2026-06-14 | ababd34 | Database ownership inventory. `test_no_cross_module_foreign_keys.py` com 3 testes: classificação intra/cross, legacy schemas críticos, migrations. `database-ownership.md` inventário com ~33 cross-module FKs e 32 legacy refs. |
 | 009 | 2026-06-14 | ababd34 | Runtime protocol definido. `test_runtime_manifest_consistency.py` com 6 testes: runtime.md existente, todas as specs 000-109, próxima recomendada, allowlist fields, manifest completo, spec ordering. |
+| 010 | 2026-06-14 | 76f1f07 | File inventory criado: `files.md` com listing completo dos 7 módulos (284 source files), gaps vs canonical structure identificados. `test_inventory_artifacts.py` criado com 9 testes. |
 
 ## Specs pendentes
 
-Specs 006 a 109 do `MANIFEST.md`.
+Specs 011 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
@@ -268,6 +269,7 @@ Specs 006 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Contrato messaging/worker definido | Padronizar Outbox/Inbox flow: consumer salva Inbox antes ack, processor idempotente, dispatcher pós-commit | `test_outbox_inbox_flow.py` com 5 testes de contrato; `test_worker_locations.py` confirmado | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Database ownership inventory criado | Classificar todas as FKs como intra/cross, catalogar legacy schemas | `test_no_cross_module_foreign_keys.py` com 3 testes; `database-ownership.md` com inventário completo | Sim, revertendo inventário e runtime.md |
 | 2026-06-14 | Runtime protocol definido | Estabelecer protocolo operacional: pending/in_progress/completed/blocked, uma spec por commit, shim antes de remoção, allowlist com removal_spec | `test_runtime_manifest_consistency.py` com 6 testes de consistência | Sim, revertendo testes e runtime.md |
+| 2026-06-14 | File inventory gerado | Produzir mapa completo de arquivos por módulo antes de qualquer movimentação física | `files.md` com 284 source files; `test_inventory_artifacts.py` com 9 testes; `find` Unix indisponível (substituído por Get-ChildItem) | Sim, revertendo files.md e test |
 
 ## Riscos ativos
 
@@ -285,4 +287,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`010-create-module-file-inventory.md`
+`011-create-current-to-target-structure-matrix.md`
