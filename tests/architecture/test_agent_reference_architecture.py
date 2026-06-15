@@ -298,3 +298,16 @@ class TestAgentReferenceArchitecture:
         assert "registry.register(outbox_dispatcher)" in content
         assert "registry.register(inbox_consumer)" in content
         assert "registry.register(inbox_processor)" in content
+
+    def test_agent_presentation_has_all_canonical_files(self):
+        pres_dir = AGENT_DIR / "presentation"
+        required = {"__init__.py", "routes.py", "schemas.py", "mappers.py"}
+        existing = {f.name for f in pres_dir.iterdir() if f.suffix == ".py"}
+        missing = required - existing
+        assert not missing, f"Presentation files missing: {missing}"
+
+    def test_agent_presentation_routes_preserve_legacy_prefixes(self):
+        content = (AGENT_DIR / "presentation" / "routes.py").read_text(encoding="utf-8")
+        for prefix in ("/ai", "/knowledge", "/runtime"):
+            assert f'prefix="{prefix}"' in content, f"Missing legacy prefix {prefix}"
+        assert 'prefix="/agent"' in content, "Missing canonical /agent prefix"
