@@ -592,3 +592,16 @@ def test_alembic_no_destructive_rename():
             continue
         text = v.read_text(encoding="utf-8")
         assert "op.rename_table" not in text, f"{v.name} uses rename_table"
+
+
+# --- Spec 099: Remove cross-module FKs and legacy schema refs ---
+
+
+def test_no_legacy_ai_schema_in_agent_models():
+    """Spec 099: agent models must not reference legacy ai schema."""
+    text = Path("src/modules/agent/infra/database/models.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"ai.' not in text, "agent models still reference ai schema"
+    assert '"knowledge.' not in text, "agent models still reference knowledge schema"
+    assert '"runtime.' not in text, "agent models still reference runtime schema"
