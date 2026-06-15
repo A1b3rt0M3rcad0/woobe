@@ -9,6 +9,7 @@ from modules.observability.infra.database.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
 )
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 
 __all__ = [
     "TraceModel",
@@ -18,4 +19,5 @@ __all__ = [
     "SQLAlchemyTraceRepository",
     "SQLAlchemyTraceEventRepository",
     "SQLAlchemyOutboxEventWriter",
+    "ObservabilityUnitOfWork",
 ]
