@@ -126,7 +126,7 @@ src/modules/<module>/
 |---|---|---|---|---|---|
 | 000 | completed | 2026-06-14 | `specs/module-architecture-standardization/000-architecture-decision-record-canonical-module-architecture.md`, `tests/architecture/test_adr_presence.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec) | 001 |
 | 001 | completed | 2026-06-14 | `specs/module-architecture-standardization/001-layer-dependency-rules.md`, `tests/architecture/test_layer_dependencies.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); layer_dependencies: agent use_cases e tools/service/use_cases allowlistados | 002 |
-| 002 | pending | - | - | - | 003 |
+| 002 | completed | 2026-06-14 | `specs/module-architecture-standardization/002-define-canonical-module-directory-contract.md`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); domain/services.py, events.py, value_objects.py condicionais (não obrigatórios) | 003 |
 | 003 | pending | - | - | - | 004 |
 | 004 | pending | - | - | - | 005 |
 | 005 | pending | - | - | - | 006 |
@@ -241,10 +241,11 @@ src/modules/<module>/
 |---|---|---|---|
 | 000 | 2026-06-14 | c128cb0 | ADR canônico registrado: agente como referência, 6 módulos-alvo, proibição FK/imports cross-module. Teste arquitetural criado e validado. |
 | 001 | 2026-06-14 | 8b01eb4 | Regras de dependência por camada e módulo documentadas. Teste `test_layer_dependencies.py` criado com AST scan e allowlist. `test_module_boundaries.py` verificado (4/4 pass). Allowlist com scope `layer_dependencies` para 3 violações legadas (use_cases → infra). |
+| 002 | 2026-06-14 | ff62fa0 | Estrutura canônica documentada e testada. `test_module_structure.py` com 4 testes: estrutura geral, service/ legado, agent infra canônica, infra plana dos demais módulos. Domain files obrigatórios e condicionais distinguidos. |
 
 ## Specs pendentes
 
-Specs 002 a 109 do `MANIFEST.md`.
+Specs 003 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
@@ -252,6 +253,7 @@ Specs 002 a 109 do `MANIFEST.md`.
 |---|---|---|---|---|
 | 2026-06-14 | ADR canônico registrado e aceito | Estabelecer base arquitetural obrigatória antes de qualquer migração física | Todos os módulos devem seguir o mesmo contrato estrutural; proibição de FK e imports cross-module | Sim, revertendo o ADR e runtime.md |
 | 2026-06-14 | Regras de dependência por camada definidas | Especificar imports permitidos/proibidos por camada antes de mover arquivos | Layer test + AST scan + allowlist com scope layer_dependencies; composers exempt por serem raiz de DI | Sim, removendo regras e allowlist |
+| 2026-06-14 | Estrutura canônica de diretórios definida | Padronizar responsabilidades sem criar abstrações vazias | `test_module_structure.py` com 4 testes; domain files obrigatórios vs condicionais; agent infra canônica vs outros com infra plana | Sim, revertendo teste e doc |
 
 ## Riscos ativos
 
@@ -269,4 +271,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`002-define-canonical-module-directory-contract.md`
+`003-define-module-public-api-and-entrypoints.md`
