@@ -14,7 +14,7 @@
 |---:|---|---|---|---|
 | 000 | completed | a41994c | Decisão registrada. SHA registrado. Baseline `development` = a64dad4. | - |
 | 001 | completed | 6ac12dd | 3 testes de caracterização criados. 2 vermelhos (D1, D3), 1 verde confirmando D4. Inventário criado. | - |
-| 002 | pending | - | - | - |
+| 002 | completed | bbc57fa | Contrato normativo definido. 6 testes de contrato criados: 1 vermelho (session_id inválido não deve criar sessão) | - |
 | 003 | pending | - | - | - |
 | 004 | pending | - | - | - |
 | 005 | pending | - | - | - |
@@ -48,6 +48,15 @@
 6. Sync e stream devem usar o mesmo componente de resolução e montagem de contexto.
 7. Estado de conversa do provider, quando futuramente usado, será otimização subordinada ao histórico local, nunca fonte exclusiva.
 
+### Spec 002
+
+1. Stateful sem session_id → criar sessão, persistir, retornar ID.
+2. Stateful com session_id válido → reutilizar, carregar histórico, retornar mesmo ID, zero creates.
+3. Stateful com session_id inválido → erro explícito (404/409/422), zero creates.
+4. Stateless → não criar sessão, não persistir, retornar null.
+5. Session status (active/inactive) não controla memória.
+6. `snapshot_override.session_mode` é o modo efetivo do playground.
+
 ## Evidências de comandos
 
 ### Spec 000
@@ -66,6 +75,21 @@ git merge-base HEAD development → a64dad406a1ccdc2198c5add8dc53eaad1e98a9d
 `previous_response_id`, `conversation_id`, `thread_id`: **zero ocorrências** no código. `session_id` é a identidade canônica. Confirmado.
 
 `rg` indisponível no Windows; substituído por `Select-String`.
+
+### Spec 002
+
+Contrato normativo registrado em `002-define-stateful-stateless-and-session-reuse-contract.md`.
+
+Testes de contrato criados em `tests/contract/test_session_contract.py`:
+
+| Teste | Status | Descrição |
+|---|---|---|
+| `test_stateful_without_session_id_creates_new_session` | PASSED | Stateful sem ID cria sessão |
+| `test_stateful_with_valid_session_reuses_exactly` | PASSED | Stateful com ID válido reutiliza |
+| `test_stateful_with_invalid_session_id_raises_error` | FAILED | **RED** — current code cria nova sessão silenciosamente |
+| `test_stateless_does_not_create_session` | PASSED | Stateless não cria sessão |
+| `test_stateless_does_not_persist_messages` | PASSED | Stateless não persiste |
+| `test_session_status_active_is_not_a_memory_signal` | PASSED | Status não controla memória |
 
 ### Spec 001
 
@@ -96,4 +120,4 @@ Inventário: `execution/inventory/session-history-flow.md` criado.
 
 ## Próxima spec recomendada
 
-**002** — define-stateful-stateless-and-session-reuse-contract
+**003** — fix-history-message-reconstruction
