@@ -552,3 +552,43 @@ def test_settings_has_required_fields():
     existing = set(Settings.model_fields.keys())
     missing = required - existing
     assert not missing, f"Settings missing: {missing}"
+
+
+# --- Spec 098: Alembic expand-migrate contract ---
+
+
+def test_alembic_env_imports_canonical_modules():
+    """Spec 098: env.py must import from canonical module paths."""
+    env_text = Path("migrations/env.py").read_text(encoding="utf-8")
+    for mod in MODULES:
+        assert f"modules.{mod}.infra.database.models" in env_text, (
+            f"env.py missing {mod}"
+        )
+
+
+def test_alembic_env_no_legacy_schemas():
+    """Spec 098: env.py must not import legacy ai/knowledge/runtime."""
+    env_text = Path("migrations/env.py").read_text(encoding="utf-8")
+    for legacy in ("modules.ai", "modules.knowledge", "modules.runtime"):
+        assert legacy not in env_text, (
+            f"env.py still references {legacy}"
+        )
+
+
+def test_alembic_versions_have_upgrade_downgrade():
+    """Spec 098: all migration versions define upgrade() and downgrade()."""
+    versions = sorted(Path("migrations/versions").glob("[0-9]*.py"))
+    assert len(versions) > 0
+    for v in versions:
+        text = v.read_text(encoding="utf-8")
+        assert "def upgrade()" in text, f"{v.name} missing upgrade()"
+        assert "def downgrade()" in text, f"{v.name} missing downgrade()"
+
+
+def test_alembic_no_destructive_rename():
+    """Spec 098: no destructive rename_table in migrations."""
+    for v in Path("migrations/versions").glob("*.py"):
+        if v.name == "__init__.py":
+            continue
+        text = v.read_text(encoding="utf-8")
+        assert "op.rename_table" not in text, f"{v.name} uses rename_table"
