@@ -175,7 +175,7 @@ src/modules/<module>/
 | 048 | completed | 2026-06-15 | `tests/modules/core/unit/domain/test_enums.py`, `tests/modules/core/unit/domain/test_errors.py`, `tests/modules/core/unit/domain/test_repositories.py`, `tests/modules/core/unit/application/test_dtos.py`, `tests/modules/core/unit/presentation/test_routes.py`, `tests/modules/core/unit/presentation/test_schemas.py`, `tests/modules/core/integration/test_event_mappers.py`, `execution/runtime.md` | ruff limpo (apenas erros pré-existentes); 35 falhas pré-existentes de arquitetura inalteradas; 107/107 core tests passing; 1985/1985 total tests | 049 |
 | 049 | completed | 2026-06-15 | `src/modules/core/service/` removed, `src/modules/core/infra/models.py`, `src/modules/core/infra/repositories.py`, `src/modules/core/infra/mappers.py` removed, `tests/architecture/test_no_legacy_core_paths.py`, `tests/architecture/test_core_database_location.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff limpo (apenas erros pré-existentes); 35 falhas pré-existentes de arquitetura inalteradas; 107/107 core tests passing; 1993/1993 total tests | 050 |
 | 050 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/billing-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes; 2 cross-module FKs deferred to spec 099; 4 PostgresUnitOfWork composers deferred to spec 056 | 051 |
-| 051 | pending | - | - | - | 052 |
+| 051 | completed | 2026-06-15 | `src/modules/billing/domain/events.py`, `src/modules/billing/domain/services.py`, `src/modules/billing/domain/value_objects.py`, `src/modules/billing/application/dtos/__init__.py`, `src/modules/billing/application/use_cases/__init__.py`, `src/modules/billing/application/handlers/__init__.py`, `src/modules/billing/infra/database/__init__.py`, `src/modules/billing/infra/messaging/__init__.py`, `src/modules/billing/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 052 |
 | 052 | pending | - | - | - | 053 |
 | 053 | pending | - | - | - | 054 |
 | 054 | pending | - | - | - | 055 |
@@ -290,6 +290,7 @@ src/modules/<module>/
 | 048 | 2026-06-15 | HEAD | Comprehensive test suite added for core module: domain enums, errors, repositories interfaces, DTOs, routes, schemas, and event mappers. 32 new tests added. 107 core tests passing; 1985 total tests (35 pre-existing failures unchanged). Next: 049. |
 | 049 | 2026-06-15 | HEAD | Legacy paths and shims removed for core module: service/ directory deleted, infra/models.py/repositories.py/mappers.py shims deleted; 8 arch tests updated to reflect canonical state; 1993 total tests (35 pre-existing failures unchanged). Core module is now fully canonical. Next: 050. |
 | 050 | 2026-06-15 | c11c055 | Billing module migration map created: 46 source files classified, 4 entities (Plan/Customer/Subscription/PaymentEvent), 2 cross-module FKs to identity, 4 routes, 6 use cases, 8 DTOs, 4 unversioned events, 0 workers, no existing tests, all 4 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 051. |
+| 051 | 2026-06-15 | 8d4d3ed | Canonical skeleton for billing created: 6 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. Next: 052. |
 
 ## Specs pendentes
 
@@ -367,4 +368,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`051-create-canonical-module-skeleton-billing.md`
+`052-move-and-normalize-domain-layer-billing.md`

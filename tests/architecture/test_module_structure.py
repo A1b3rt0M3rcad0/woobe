@@ -215,3 +215,40 @@ class TestModuleStructure:
         assert "mappers.py" in pres_files, (
             "core/presentation/mappers.py must exist"
         )
+
+    def test_billing_structure(self):
+        billing_dirs = _get_module_dirs("billing")
+
+        assert "infra/database" in billing_dirs, (
+            "billing must have infra/database/"
+        )
+        assert "infra/messaging" in billing_dirs, (
+            "billing must have infra/messaging/"
+        )
+        assert "infra/workers" in billing_dirs, (
+            "billing must have infra/workers/"
+        )
+
+        assert "application/dtos" in billing_dirs, (
+            "billing must have application/dtos/"
+        )
+        assert "application/use_cases" in billing_dirs, (
+            "billing must have application/use_cases/"
+        )
+        assert "application/handlers" in billing_dirs, (
+            "billing must have application/handlers/"
+        )
+        assert "application/composers" in billing_dirs, (
+            "billing must have application/composers/"
+        )
+
+        domain_files = _get_module_files("billing", "domain")
+        for f in ("events.py", "services.py", "value_objects.py"):
+            assert f in domain_files, (
+                f"billing/domain/{f} must exist"
+            )
+
+        pres_files = _get_module_files("billing", "presentation")
+        assert "mappers.py" in pres_files, (
+            "billing/presentation/mappers.py must exist"
+        )
