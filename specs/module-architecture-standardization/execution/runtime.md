@@ -18,7 +18,7 @@ Padronizar `identity`, `core`, `billing`, `metering`, `observability` e `tools` 
 expected_branch: project-rai-playground_module-architecture-standardization
 source_baseline: project-rai-playground
 initial_sha: c128cb06372ecd0d748a144a91093ca3417a590c
-last_validated_sha: 9297dff8251f338bf8957048cf8360f6498a780c
+last_validated_sha: ababd34dcef91919e89a2ec0c2f3bccef3cde692
 branch_guard_status: active
 ```
 
@@ -133,7 +133,7 @@ src/modules/<module>/
 | 006 | completed | 2026-06-14 | `tests/contract/__init__.py`, `tests/contract/test_http_routes_compatibility.py`, `execution/runtime.md` | mappers.py condicional (5 módulos sem mappers ainda); `rg` indisponível (substituído por grep) | 007 |
 | 007 | completed | 2026-06-14 | `tests/integration/test_outbox_inbox_flow.py`, `execution/runtime.md` | `test_worker_locations.py` pré-existente inalterado (4 testes válidos); `rg` indisponível (substituído por grep) | 008 |
 | 008 | completed | 2026-06-14 | `tests/architecture/test_no_cross_module_foreign_keys.py`, `specs/module-architecture-standardization/execution/inventory/database-ownership.md`, `execution/runtime.md` | 32 critical legacy schema refs (ai/knowledge/runtime) catalogued; `rg` indisponível (substituído por grep) | 009 |
-| 009 | pending | - | - | - | 010 |
+| 009 | completed | 2026-06-14 | `tests/architecture/test_runtime_manifest_consistency.py`, `execution/runtime.md` | `rg` indisponível (substituído por grep); pyright com 482 erros pré-existentes não relacionados | 010 |
 | 010 | pending | - | - | - | 011 |
 | 011 | pending | - | - | - | 012 |
 | 012 | pending | - | - | - | 013 |
@@ -247,7 +247,8 @@ src/modules/<module>/
 | 005 | 2026-06-14 | acc92b6 | Contrato infra/database/UoW definido. `test_uow_ownership.py` com 3 testes: UoW sem imports cross-module, PostgresUnitOfWork allowlistado em composers, agent UoW expõe outbox/inbox. `test_module_uow_transactions.py` com 4 testes de contrato de transação. Allowlist scope `uow_ownership` para todos os composers com PostgresUnitOfWork. |
 | 006 | 2026-06-14 | ea56b9c | Contrato presentation definido. `test_http_routes_compatibility.py` com 5 testes: estrutura obrigatória, routes sem infra/domain, controllers sem sessão SQLAlchemy, mappers condicionais. |
 | 007 | 2026-06-14 | e7dab1a | Contrato messaging/worker definido. `test_outbox_inbox_flow.py` com 5 testes de contrato (consumer antes ack, processor idempotente, dispatcher pós-commit, claim/process, dead letter). `test_worker_locations.py` pré-existente confirmado. |
-| 008 | 2026-06-14 | e7dab1a | Database ownership inventory. `test_no_cross_module_foreign_keys.py` com 3 testes: classificação intra/cross, legacy schemas críticos, migrations. `database-ownership.md` inventário com ~33 cross-module FKs e 32 legacy refs. |
+| 008 | 2026-06-14 | ababd34 | Database ownership inventory. `test_no_cross_module_foreign_keys.py` com 3 testes: classificação intra/cross, legacy schemas críticos, migrations. `database-ownership.md` inventário com ~33 cross-module FKs e 32 legacy refs. |
+| 009 | 2026-06-14 | ababd34 | Runtime protocol definido. `test_runtime_manifest_consistency.py` com 6 testes: runtime.md existente, todas as specs 000-109, próxima recomendada, allowlist fields, manifest completo, spec ordering. |
 
 ## Specs pendentes
 
@@ -266,6 +267,7 @@ Specs 006 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Contrato presentation definido | Padronizar controllers, routes, schemas e mappers sem alterar contratos HTTP | `test_http_routes_compatibility.py` com 5 testes; mappers.py condicionais para 5 módulos | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Contrato messaging/worker definido | Padronizar Outbox/Inbox flow: consumer salva Inbox antes ack, processor idempotente, dispatcher pós-commit | `test_outbox_inbox_flow.py` com 5 testes de contrato; `test_worker_locations.py` confirmado | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Database ownership inventory criado | Classificar todas as FKs como intra/cross, catalogar legacy schemas | `test_no_cross_module_foreign_keys.py` com 3 testes; `database-ownership.md` com inventário completo | Sim, revertendo inventário e runtime.md |
+| 2026-06-14 | Runtime protocol definido | Estabelecer protocolo operacional: pending/in_progress/completed/blocked, uma spec por commit, shim antes de remoção, allowlist com removal_spec | `test_runtime_manifest_consistency.py` com 6 testes de consistência | Sim, revertendo testes e runtime.md |
 
 ## Riscos ativos
 
@@ -283,4 +285,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`009-define-incremental-migration-and-runtime-protocol.md`
+`010-create-module-file-inventory.md`
