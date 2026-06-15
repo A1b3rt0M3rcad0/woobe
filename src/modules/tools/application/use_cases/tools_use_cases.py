@@ -10,7 +10,7 @@ import httpx
 from shared.domain.events import OutboxEventWriter
 from shared.infra.crypto import encrypt_secret
 from modules.tools.domain.entities import Secret, Tool
-from modules.tools.domain.enums import SecretType, ToolStatus
+from modules.tools.domain.enums import ToolStatus
 from modules.tools.domain.errors import ToolNotFoundError
 from modules.tools.domain.repositories import SecretRepository, ToolRepository
 from modules.tools.application.dtos.tools_dtos import (

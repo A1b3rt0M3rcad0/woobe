@@ -208,7 +208,7 @@ src/modules/<module>/
 | 081 | completed | 2026-06-15 | `src/modules/tools/application/dtos/__init__.py`, `src/modules/tools/application/use_cases/__init__.py`, `src/modules/tools/application/handlers/__init__.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/messaging/__init__.py`, `src/modules/tools/domain/events.py`, `src/modules/tools/domain/services.py`, `src/modules/tools/domain/value_objects.py`, `src/modules/tools/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 082 |
 | 082 | completed | 2026-06-15 | `tests/modules/tools/unit/domain/test_entities.py`, `tests/architecture/test_tools_domain_dependencies.py`, `execution/runtime.md` | Domínio do tools já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 8 testes de entidade + 3 testes de arquitetura de dependências adicionados; 2 entidades (Tool/Secret) e 2 repositories interfaces (ABC) validados | 083 |
 | 083 | completed | 2026-06-15 | `src/modules/tools/application/dtos/tools_dtos.py`, `src/modules/tools/application/dtos/__init__.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `src/modules/tools/application/use_cases/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `src/modules/tools/presentation/controllers/*.py` (10 files), `tests/modules/tools/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_tools_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers; 10 use case tests + 2 arch tests | 084 |
-| 084 | pending | - | - | - | 085 |
+| 084 | completed | 2026-06-15 | `tests/modules/tools/contract/test_routes.py`, `tests/modules/tools/unit/presentation/test_controllers.py`, `execution/runtime.md`, `src/modules/tools/application/tool_converter.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `tests/modules/tools/unit/application/test_use_cases.py` | 8 route tests (prefix /tools, composer delegation, no repo/domain/service imports) + 5 controller tests (import from application/use_cases, no repos, implement handle(), no service imports); presentation already normalized; minor ruff fixes | 085 (when suite resumed — batch limit 5 reached) |
 | 085 | pending | - | - | - | 086 |
 | 086 | pending | - | - | - | 087 |
 | 087 | pending | - | - | - | 088 |
@@ -383,6 +383,8 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Tools domain layer validated | Spec 082: domain layer already canonical; 8 entity tests + 3 architecture tests added | No production code changed; domain clean of framework imports; next: spec 083 | Sim, revertendo testes |
 | 2026-06-15 | Tools service→application migration completed | Spec 083: DTOs and use cases moved from service/ to application/ with shims | 15 DTOs, 10 use cases, 10 composers, 10 controllers updated; service/ kept as shim; 10 use case tests + 2 arch tests added (0 imports de service/ em composers/controllers); next: spec 084 | Sim, revertendo imports e restaurando service/ original |
 
+| 2026-06-15 | Tools presentation layer normalized | Spec 084: route contract tests + controller arch tests added; presentation already canonical | 8 route tests + 5 controller tests; 2 unused import fixes in application/; no production code changes needed; next: spec 085 (next batch) | Reverter criação de testes de rota/controller |
+
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
@@ -406,4 +408,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`084-normalize-presentation-layer-tools.md`
+`085-normalize-infra-layer-tools.md` (próximo batch)

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from modules.tools.domain.entities import Tool
-from modules.tools.domain.enums import ToolType
 
 
 def tool_to_openai_definition(tool: Tool) -> dict:

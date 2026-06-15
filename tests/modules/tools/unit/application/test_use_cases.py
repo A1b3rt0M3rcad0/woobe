@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from modules.tools.domain.entities import Secret, Tool
-from modules.tools.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
+from modules.tools.domain.enums import SecretType, ToolStatus, ToolType
 from modules.tools.application.dtos import (
     CreateSecretInput,
     CreateSecretOutput,
@@ -11,7 +11,6 @@ from modules.tools.application.dtos import (
     CreateToolOutput,
     DeleteToolInput,
     ExecuteToolInput,
-    ExecuteToolOutput,
     ListSecretsInput,
     ListToolsByAgentInput,
     ListToolsInput,
