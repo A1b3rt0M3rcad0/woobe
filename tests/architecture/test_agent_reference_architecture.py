@@ -243,3 +243,24 @@ class TestAgentReferenceArchitecture:
         content = uow_file.read_text(encoding="utf-8")
         for mod in ("identity", "core", "billing", "metering", "observability", "tools"):
             assert f"modules.{mod}" not in content, f"AgentUnitOfWork references modules.{mod}"
+
+    def test_agent_messaging_has_all_canonical_files(self):
+        msg_dir = AGENT_DIR / "infra" / "messaging"
+        required = {"__init__.py", "consumers.py", "event_mappers.py", "inbox_handlers.py", "publishers.py"}
+        existing = {f.name for f in msg_dir.iterdir() if f.suffix == ".py"}
+        missing = required - existing
+        assert not missing, f"Messaging files missing: {missing}"
+
+    def test_agent_consumers_file_is_populated(self):
+        consumers_file = AGENT_DIR / "infra" / "messaging" / "consumers.py"
+        content = consumers_file.read_text(encoding="utf-8")
+        assert "AgentRabbitMQConsumer" in content
+        assert "async def consume" in content
+
+    def test_agent_messaging_has_no_legacy_imports(self):
+        for py_file in (AGENT_DIR / "infra" / "messaging").glob("*.py"):
+            if py_file.name.startswith("__"):
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            for mod in ("modules.ai", "modules.knowledge", "modules.runtime"):
+                assert mod not in content, f"{py_file.name} references {mod}"
