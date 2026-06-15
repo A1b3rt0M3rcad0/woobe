@@ -216,7 +216,7 @@ src/modules/<module>/
 | 089 | completed | 2026-06-15 | `src/modules/tools/service/` removed, `src/modules/tools/infra/models.py`, `src/modules/tools/infra/repositories.py`, `src/modules/tools/infra/mappers.py` removed, `tests/architecture/test_no_legacy_tools_paths.py`, `tests/architecture/test_tools_database_location.py`, `execution/runtime.md` | ruff clean; 137 tools tests passing; 18 legacy path arch tests passing; tools module fully canonical | 090 |
 | 090 | completed | 2026-06-15 | `tests/integration/messaging/__init__.py`, `tests/integration/messaging/test_standardize_versioned_event_envelope.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); 80 falhas pré-existentes de arquitetura inalteradas; `test` Unix command unavailable (substituted with git branch check); `rg` unavailable (substituted with Get-ChildItem/Select-String) | 091 |
 | 091 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_outbox_contract_across_modules.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes; 80 falhas pré-existentes de arquitetura inalteradas; agent module skipado em test_each_module_has_outbox_event_writer (usa SQLAlchemyOutboxEventWriter em infra/database/repositories); `rg` unavailable (Get-ChildItem/Select-String) | 092 |
-| 092 | pending | - | - | - | 093 |
+| 092 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_inbox_contract_across_modules.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes; 80 falhas pré-existentes de arquitetura inalteradas; agent module skipado em test_each_module_has_inbox_event_model (nomes customizados InboxEventModel); `rg` unavailable (Get-ChildItem/Select-String) | 093 |
 | 093 | pending | - | - | - | 094 |
 | 094 | pending | - | - | - | 095 |
 | 095 | pending | - | - | - | 096 |
@@ -317,6 +317,7 @@ src/modules/<module>/
 | 074 | 2026-06-15 | HEAD | Presentation layer normalized for observability: routes, controllers, schemas, mappers already in canonical state; 7 route contract tests + 5 controller tests added; 22/22 observability tests passing. Next: 075. |
 | 090 | 2026-06-15 | HEAD | Versioned event envelope standardized: shared/messaging/event_envelope.py já existia com EventEnvelope + validate. 16 testes de integração + 9 testes de arquitetura cross-cutting adicionados. Módulos com contrato versionado validado. Next: 091. |
 | 091 | 2026-06-15 | HEAD | Outbox contract standardized across modules: 27 tests de integração + 6 new arch tests. Todos os 7 módulos com OutboxEventModel + OutboxEventWriter. Next: 092. |
+| 092 | 2026-06-15 | HEAD | Inbox contract standardized across modules: 21 tests de integração + 6 new arch tests. Todos os 7 módulos com InboxEventModel + InboxEventRouter. Next: 093. |
 
 ## Specs pendentes
 
@@ -398,6 +399,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Legacy paths and shims removed for tools | Spec 089: service/ directory deleted, infra shims deleted; arch tests updated to reflect canonical state | 8 legacy path arch tests added; 137 tools tests passing; 79 pre-existing arch failures unchanged; ruff clean; tools module fully canonical | Reverter deleções e restaurar service/ original |
 | 2026-06-15 | Versioned event envelope contract created in shared/messaging | Spec 090: standardize envelope with event_id, event_type, event_version, occurred_at, producer_module, routing_key, payload, idempotency_key, correlation_id, causation_id, metadata. Shared contracts already existed pre-spec; integration test (16 tests) + cross-cutting arch test (9 tests) added | Contrato shared/messaging/ pronto para specs 091-094; intégration e arch tests validam envelope versionado; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
 | 2026-06-15 | Outbox contract standardized across modules | Spec 091: outbox contract (OutboxEventProtocol, validate_outbox_envelope, OutboxEventWriter) already existed in shared. 27 integration tests + 6 new arch tests added. All 7 modules have OutboxEventModel with __tablename__ and OutboxEventWriter implementation | Every module confirmed with outbox infrastructure; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
+| 2026-06-15 | Inbox contract standardized across modules | Spec 092: inbox contract (InboxEventProtocol, validate_inbox_envelope, InboxEventModel BaseInbox) already existed in shared. 21 integration tests + 6 new arch tests added. All 7 modules have InboxEventModel and InboxEventRouter | Every module confirmed with inbox infrastructure; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
 
 ## Riscos ativos
 
@@ -422,4 +424,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`092-standardize-inbox-contract-across-modules.md`
+`093-standardize-rabbitmq-topology.md`

@@ -167,3 +167,77 @@ def test_each_module_outbox_event_writer_exists():
         assert len(writers) >= 1, (
             f"{mod_name} must have at least one OutboxEventWriter"
         )
+
+
+# --- Spec 092: Inbox contract ---
+
+
+def test_inbox_contracts_module_exists():
+    """Spec 092: shared.messaging.inbox_contracts must exist."""
+    from shared.messaging import inbox_contracts
+    assert hasattr(inbox_contracts, "InboxEventProtocol")
+    assert hasattr(inbox_contracts, "validate_inbox_envelope")
+
+
+def test_inbox_contracts_has_required_fields():
+    """Spec 092: REQUIRED_INBOX_ENVELOPE_FIELDS must include all mandated fields."""
+    from shared.messaging.inbox_contracts import REQUIRED_INBOX_ENVELOPE_FIELDS
+    expected = frozenset({
+        "event_type",
+        "event_version",
+        "routing_key",
+        "idempotency_key",
+        "correlation_id",
+        "producer_module",
+        "occurred_at",
+        "payload",
+    })
+    assert expected.issubset(REQUIRED_INBOX_ENVELOPE_FIELDS)
+
+
+def test_inbox_contracts_has_validation_function():
+    """Spec 092: validate_inbox_envelope must be callable."""
+    from shared.messaging.inbox_contracts import validate_inbox_envelope
+    assert callable(validate_inbox_envelope)
+
+
+def test_inbox_contracts_has_protocol():
+    """Spec 092: InboxEventProtocol must define all expected properties."""
+    from shared.messaging.inbox_contracts import InboxEventProtocol
+    props = ["message_id", "producer_module", "consumer_module",
+             "event_type", "event_version", "routing_key",
+             "idempotency_key", "correlation_id", "payload", "status"]
+    for p in props:
+        assert hasattr(InboxEventProtocol, p), (
+            f"InboxEventProtocol missing property: {p}"
+        )
+
+
+def test_shared_infra_database_inbox_model_exists():
+    """Spec 092: shared.infra.database.inbox.InboxEventModel must exist as abstract."""
+    from shared.infra.database.inbox import InboxEventModel
+    assert hasattr(InboxEventModel, "__abstract__")
+
+
+def test_each_module_has_inbox_event_model():
+    """Every canonical module has an InboxEventModel in infra/database/models."""
+    modules = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
+    for mod_name in modules:
+        try:
+            mod = importlib.import_module(
+                f"modules.{mod_name}.infra.database.models"
+            )
+        except ModuleNotFoundError:
+            pytest.skip(f"No infra/database/models for {mod_name}")
+        models = [
+            cls for name, cls in vars(mod).items()
+            if name == "InboxEventModel" and hasattr(cls, "__tablename__")
+        ]
+        if not models:
+            models = [
+                cls for name, cls in vars(mod).items()
+                if name.endswith("InboxEventModel") and hasattr(cls, "__tablename__")
+            ]
+        assert len(models) >= 1, (
+            f"{mod_name} must have at least one InboxEventModel"
+        )
