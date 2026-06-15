@@ -1,7 +1,16 @@
 # Database Ownership Inventory
 
-Generated during spec 008 execution. Lists all ForeignKey constraints from model files,
+**Date:** 2026-06-14
+**Branch:** project-rai-playground_module-architecture-standardization
+**SHA:** 8ffa987
+
+Updated during spec 013 execution. Lists all ForeignKey constraints from model files,
 classified as intra-module or cross-module.
+
+**Notes:**
+- `rg` unavailable; substituted with `Select-String -Pattern '__tablename__|schema.*=|ForeignKey\('`.
+- Detection covers `src/modules/` and `migrations/` directories.
+- All existing `ai`/`knowledge`/`runtime` schema refs are legacy from before the `agent` consolidation.
 
 ## Cross-Module Foreign Keys (allowlisted)
 
@@ -81,10 +90,29 @@ References to schemas `ai`, `knowledge`, or `runtime` that must be migrated to `
 | billing | subscriptions | plan_id | billing.plans |
 | observability | trace_events | trace_id | observability.traces |
 
+## Migration Schema Inventory
+
+Migrations reference the following database schemas (from `migrations/*.py`):
+
+| Schema | Used In Migrations | Status |
+|---|---|---|
+| `identity` | 0001-0002 | active |
+| `core` | 0001-0002 | active |
+| `ai` | 0001-0011 (extensively) | LEGACY — must become `agent` |
+| `knowledge` | 0001-0002, 0007 | LEGACY — must become `agent` |
+| `runtime` | 0001-0002, 0004, 0006 | LEGACY — must become `agent` |
+| `agent` | 0013-0014 | active (new canonical module) |
+| `tools` | 0001-0002, 0012 | active |
+| `metering` | 0001-0002 | active |
+| `billing` | 0001-0002 | active |
+| `observability` | 0001-0002 | active |
+
 ## Summary
 
-- Total FK declarations: 69
+- Total FK declarations: ~69
 - Intra-module: ~16
 - Cross-module (allowlisted): 33
 - Legacy schema refs (critical): 18
+- Legacy schemas still in use: ai, knowledge, runtime
 - Modules without own UoW yet: 6 (all except agent)
+- Active module schemas: agent, identity, core, billing, metering, observability, tools

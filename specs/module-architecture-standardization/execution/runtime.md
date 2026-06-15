@@ -137,7 +137,7 @@ src/modules/<module>/
 | 010 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/files.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find` Unix tool unavailable (substituted with Get-ChildItem); `rg` unavailable (not used in this spec) | 011 |
 | 011 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/structure-matrix.md`, `execution/runtime.md` | `find` Unix tool unavailable (substituted with Get-ChildItem) | 012 |
 | 012 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/imports.md`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); `scripts/architecture/import_graph.py` not found | 013 |
-| 013 | pending | - | - | - | 014 |
+| 013 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/database-ownership.md`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); inventory already populated by spec 008, extended with migration schema section | 014 |
 | 014 | pending | - | - | - | 015 |
 | 015 | pending | - | - | - | 016 |
 | 016 | pending | - | - | - | 017 |
@@ -251,11 +251,12 @@ src/modules/<module>/
 | 009 | 2026-06-14 | ababd34 | Runtime protocol definido. `test_runtime_manifest_consistency.py` com 6 testes: runtime.md existente, todas as specs 000-109, próxima recomendada, allowlist fields, manifest completo, spec ordering. |
 | 010 | 2026-06-14 | 763ef71 | File inventory criado: `files.md` com listing completo dos 7 módulos (284 source files), gaps vs canonical structure identificados. `test_inventory_artifacts.py` criado com 9 testes. |
 | 011 | 2026-06-14 | d6ee29c | Current-to-target structure matrix criado: `structure-matrix.md` com mapeamento completo por módulo (keep/move/create), gaps catalogados. |
-| 012 | 2026-06-14 | d6ee29c | Import dependency map criado: `imports.md` com classificação cross/intra-module, legacy refs catalogadas, service layer gap identificado. |
+| 012 | 2026-06-14 | 8ffa987 | Import dependency map criado: `imports.md` com classificação cross/intra-module, legacy refs catalogadas, service layer gap identificado. |
+| 013 | 2026-06-14 | 8ffa987 | Database ownership inventory atualizado: `database-ownership.md` verificado e estendido com migration schema section; ~69 FKs catalogadas (33 cross-module, 18 legacy, ~16 intra). |
 
 ## Specs pendentes
 
-Specs 013 a 109 do `MANIFEST.md`.
+Specs 014 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
@@ -274,6 +275,7 @@ Specs 013 a 109 do `MANIFEST.md`.
 | 2026-06-14 | File inventory gerado | Produzir mapa completo de arquivos por módulo antes de qualquer movimentação física | `files.md` com 284 source files; `test_inventory_artifacts.py` com 9 testes; `find` Unix indisponível (substituído por Get-ChildItem) | Sim, revertendo files.md e test |
 | 2026-06-14 | Current-to-target structure matrix gerado | Mapear current path → canonical path → action para cada módulo antes de mover arquivos | `structure-matrix.md` com 7 módulos mapeados; agent canônico, demais com dezenas de gaps | Sim, revertendo structure-matrix.md |
 | 2026-06-14 | Import dependency map gerado | Catalogar imports intra/inter módulos e camadas antes de mover arquivos | `imports.md` com grafo de imports; `rg` indisponível (Select-String); import_graph.py não encontrado; 1 cross-module production import (agent → identity) identified | Sim, revertendo imports.md |
+| 2026-06-14 | Database ownership inventory atualizado | Verificar e estender inventário de FKs e schemas contra branch atual | `database-ownership.md` estendido; migration schemas inventory adicionado; 3 schemas legados (ai, knowledge, runtime) pendentes de migração | Sim, revertendo database-ownership.md |
 
 ## Riscos ativos
 
@@ -291,4 +293,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`013-create-database-ownership-and-foreign-key-inventory.md`
+`014-create-route-controller-composer-inventory.md`
