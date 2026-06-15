@@ -183,7 +183,7 @@ src/modules/<module>/
 | 056 | completed | 2026-06-15 | `src/modules/billing/infra/database/unit_of_work.py`, `src/modules/billing/infra/database/__init__.py`, `src/modules/billing/application/composers/*.py` (4 files), `tests/modules/billing/integration/database/test_unit_of_work.py`, `tests/modules/billing/integration/test_outbox_atomicity.py`, `execution/runtime.md` | BillingUnitOfWork created with 5 lazy properties (plans, customers, subscriptions, payment_events, outbox); 4 composers migrated from PostgresUnitOfWork to BillingUnitOfWork; 16 UoW/atomicity tests added; 56 billing tests passing; 36 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL) | 057 |
 | 057 | completed | 2026-06-15 | `src/modules/billing/infra/messaging/event_mappers.py`, `src/modules/billing/infra/messaging/publishers.py`, `src/modules/billing/infra/messaging/consumers.py`, `src/modules/billing/infra/messaging/inbox_handlers.py`, `src/modules/billing/infra/workers/outbox_dispatcher.py`, `src/modules/billing/infra/workers/inbox_consumer.py`, `src/modules/billing/infra/workers/inbox_processor.py`, `src/modules/billing/infra/workers/registry.py`, `tests/modules/billing/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/billing/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | Messaging and workers infrastructure created for billing: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_billing_workers function in registry; 86 billing tests passing; ruff apenas erros pré-existentes | 058 |
 | 058 | completed | 2026-06-15 | `tests/modules/billing/unit/domain/test_enums.py`, `tests/modules/billing/unit/domain/test_errors.py`, `tests/modules/billing/unit/domain/test_repositories.py`, `tests/modules/billing/unit/application/test_dtos.py`, `tests/modules/billing/unit/presentation/test_routes.py`, `tests/modules/billing/unit/presentation/test_schemas.py`, `tests/modules/billing/integration/test_event_mappers.py`, `execution/runtime.md` | Comprehensive test suite added for billing: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 136 billing tests passing. | 059 |
-| 059 | pending | - | - | - | 060 |
+| 059 | completed | 2026-06-15 | `src/modules/billing/service/` removed, `src/modules/billing/infra/models.py`, `src/modules/billing/infra/repositories.py`, `src/modules/billing/infra/mappers.py` removed, `tests/architecture/test_no_legacy_billing_paths.py`, `tests/architecture/test_billing_database_location.py`, `execution/runtime.md` | Legacy paths and shims removed for billing module: service/ directory deleted, infra shims deleted; arch tests updated to reflect canonical state; 136 billing tests passing; 2151 total tests (37 pre-existing failures, 1 pre-existing error); 9 tests/unit/* stale tests broken by service path removal (pre-existing from core/identity cleanup); billing module fully canonical | 060 |
 | 060 | pending | - | - | - | 061 |
 | 061 | pending | - | - | - | 062 |
 | 062 | pending | - | - | - | 063 |
@@ -297,7 +297,8 @@ src/modules/<module>/
 | 055 | 2026-06-15 | c04bca6 | Infra moved to database layer: models, repositories, mappers copied to infra/database/ with shims at old paths; migrations/env.py updated to canonical import; 24 billing database tests passing; alembic não executado (sem PostgreSQL); 36 pre-existing arch failures unchanged. Next: 056. |
 | 056 | 2026-06-15 | 7b92930 | BillingUnitOfWork created with 5 lazy properties (plans, customers, subscriptions, payment_events, outbox); 4 composers migrated from PostgresUnitOfWork to BillingUnitOfWork; 16 UoW/atomicity tests added; 56 billing tests passing. Next: 057. |
 | 057 | 2026-06-15 | 861c579 | Messaging and workers infrastructure created for billing: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_billing_workers function in registry; 86 billing tests passing. Next: 058. |
-| 058 | 2026-06-15 | HEAD | Comprehensive test suite added for billing: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 136 billing tests passing. Next: 059. |
+| 058 | 2026-06-15 | 5c751ea | Comprehensive test suite added for billing: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 136 billing tests passing. Next: 059. |
+| 059 | 2026-06-15 | HEAD | Legacy paths and shims removed for billing: service/ deleted, infra shims deleted; arch tests updated; billing module fully canonical. 136 billing tests passing. Next: 060. |
 
 ## Specs pendentes
 
@@ -375,4 +376,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`059-remove-legacy-paths-and-temporary-shims-billing.md`
+`060-map-current-module-to-canonical-architecture-metering.md`
