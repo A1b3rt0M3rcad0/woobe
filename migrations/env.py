@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from shared.infra.database.base import Base
 from shared.infra.config import Settings
-from modules.identity.infra.models import *  # noqa: F401, F403
+from modules.identity.infra.database.models import *  # noqa: F401, F403
 from modules.core.infra.models import *      # noqa: F401, F403
 from modules.agent.infra.database.models import *  # noqa: F401, F403
 from modules.tools.infra.models import *     # noqa: F401, F403

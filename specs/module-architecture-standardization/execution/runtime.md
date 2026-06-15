@@ -159,7 +159,7 @@ src/modules/<module>/
 | 032 | completed | 2026-06-14 | `tests/modules/identity/unit/domain/test_entities.py`, `tests/architecture/test_identity_domain_dependencies.py`, `execution/runtime.md` | Domínio do identity já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy. 13 testes de entidade + 3 testes de arquitetura de dependências adicionados. 5 entidades (User, Organization, OrganizationMember, OrganizationInvite, UserSession) e 5 repositories interfaces (ABC) validados. | 033 |
 | 033 | completed | 2026-06-14 | `src/modules/identity/service/dtos.py`, `src/modules/identity/service/use_cases.py`, `src/modules/identity/application/dtos/*`, `src/modules/identity/application/use_cases/*`, `src/modules/identity/application/composers/*.py` (13 files), `src/modules/identity/presentation/controllers/*.py` (13 files), `tests/modules/identity/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_identity_service_imports.py`, `execution/runtime.md` | service/ → application/ migration: 26 DTOs e 14 use cases movidos de service/dtos.py e service/use_cases.py para application/dtos/ e application/use_cases/. 13 composers e 13 controllers atualizados para importar de application/ em vez de service/. Shims de compatibilidade mantidos em service/. 5 testes de use cases + 3 testes de arquitetura (sem novos imports service/) adicionados. 15/15 identity tests passing. | 034 |
 | 034 | completed | 2026-06-14 | `tests/modules/identity/contract/test_routes.py`, `tests/modules/identity/unit/presentation/test_controllers.py`, `execution/runtime.md` | Presentation layer já estava normalizada (controllers importam de application/, routes finas, schemas/mappers presentes). 7 testes de rota (prefixo /identity, delegação a composers, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados. 27/27 identity tests passing. | 035 |
-| 035 | pending | - | - | - | 036 |
+| 035 | completed | 2026-06-14 | `src/modules/identity/infra/database/models.py`, `src/modules/identity/infra/database/repositories.py`, `src/modules/identity/infra/database/mappers.py`, `src/modules/identity/infra/database/__init__.py`, `src/modules/identity/infra/models.py`, `src/modules/identity/infra/repositories.py`, `src/modules/identity/infra/mappers.py`, `migrations/env.py`, `tests/modules/identity/integration/database/test_repositories.py`, `tests/architecture/test_identity_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff pre-existing only; 34 pre-existing arch test failures; `test` Unix command unavailable (substituted with git branch check); `rg` unavailable (substituted with Get-ChildItem/Select-String) | 036 |
 | 036 | pending | - | - | - | 037 |
 | 037 | pending | - | - | - | 038 |
 | 038 | pending | - | - | - | 039 |
@@ -274,6 +274,7 @@ src/modules/<module>/
 | 032 | 2026-06-14 | HEAD | Domain layer normalized for identity: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 13 entity invariant tests + 3 architecture dependency tests added. Next: 033. |
 | 033 | 2026-06-14 | HEAD | service → application migration: DTOs and use cases moved from service/ to application/dtos and application/use_cases; 13 composers and 13 controllers updated to import from application/; service/ shims preserved; 5 use case tests + 3 arch tests added. 15 identity tests passing. Next: 034. |
 | 034 | 2026-06-14 | HEAD | Presentation layer normalized: 7 route contract tests (prefix, composer delegation, no repo/domain/service imports) + 5 controller tests (application/use_cases imports, handle() method, no repo/service imports). 27 identity tests passing. Next: 035. |
+| 035 | 2026-06-14 | HEAD | Infra moved to database layer: models.py, repositories.py, mappers.py copied from infra/ to infra/database/ with shims at old paths; migrations/env.py updated to import from canonical location; 8 arch location tests + 21 integration import tests added; 43 identity tests passing; alembic env test updated; 1982 tests passing (36 pre-existing failures unchanged). Next: 036. |
 
 ## Specs pendentes
 
@@ -341,4 +342,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`035-move-infra-to-database-layer-identity.md`
+`036-implement-module-specific-unit-of-work-identity.md`
