@@ -1,13 +1,15 @@
-"""Architecture tests for cross-cutting messaging contracts (specs 090-094).
+"""Architecture tests for cross-cutting messaging contracts (specs 090-100).
 
 Each spec in the transversal phase adds validation clauses to this file.
 """
 from __future__ import annotations
 
+import ast
 import importlib
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 SHARED_MESSAGING_DIR = Path("src/shared/messaging")
@@ -605,3 +607,134 @@ def test_no_legacy_ai_schema_in_agent_models():
     assert '"ai.' not in text, "agent models still reference ai schema"
     assert '"knowledge.' not in text, "agent models still reference knowledge schema"
     assert '"runtime.' not in text, "agent models still reference runtime schema"
+
+
+# --- Spec 100: Final layer dependency tests ---
+
+
+def test_all_modules_have_canonical_layers():
+    """Spec 100: every module must have domain, application, infra, presentation dirs."""
+    required = {"domain", "application", "infra", "presentation"}
+    for mod in MODULES:
+        module_path = Path(f"src/modules/{mod}")
+        present = {d.name for d in module_path.iterdir() if d.is_dir() and not d.name.startswith("_")}
+        missing = required - present
+        assert not missing, f"{mod}: missing canonical layer(s): {missing}"
+
+
+PROJECT_ROOT_SPEC100 = Path(__file__).resolve().parents[2]
+ALLOWLIST_FILE_SPEC100 = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
+
+
+def _relative_posix(path: Path) -> str:
+    try:
+        return path.relative_to(PROJECT_ROOT_SPEC100).as_posix()
+    except ValueError:
+        return path.resolve().relative_to(PROJECT_ROOT_SPEC100).as_posix()
+
+
+def _load_allowlist_spec100(scope: str) -> set[tuple[str, str]]:
+    if not ALLOWLIST_FILE_SPEC100.exists():
+        return set()
+    with open(ALLOWLIST_FILE_SPEC100, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    entries = data.get("entries") or []
+    return {
+        (e["file"].replace("/", "\\").replace("\\", "/"), e.get("target_layer", ""))
+        for e in entries
+        if e.get("scope") == scope
+    }
+
+
+FORBIDDEN_WORKER_PATHS = [
+    "src/shared/workers",
+    "src/workers",
+    "src/modules/shared/workers",
+]
+
+
+def test_no_concrete_workers_outside_modules():
+    """Spec 100: concrete workers must only live in modules/*/infra/workers/."""
+    for wp in FORBIDDEN_WORKER_PATHS:
+        p = Path(wp)
+        if not p.exists():
+            continue
+        for py_file in p.rglob("*.py"):
+            if py_file.name == "__init__.py":
+                continue
+            text = py_file.read_text(encoding="utf-8")
+            if "class " in text and "async def run" in text and "abstractmethod" not in text and "Protocol" not in text:
+                rel = _relative_posix(py_file)
+                pytest.fail(f"Concrete worker found at {rel}")
+
+
+def test_shared_infra_does_not_import_modules():
+    """Spec 100: shared/ infra must not import from any module."""
+    shared_infra = Path("src/shared/infra")
+    for py_file in shared_infra.rglob("*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        if "from modules" in text or "import modules" in text:
+            pytest.fail(f"{_relative_posix(py_file)} imports from a module")
+
+
+def test_shared_messaging_does_not_import_modules():
+    """Spec 100: shared/ messaging must not import from any module."""
+    shared_messaging = Path("src/shared/messaging")
+    for py_file in shared_messaging.rglob("*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        if "from modules" in text or "import modules" in text:
+            pytest.fail(f"{_relative_posix(py_file)} imports from a module")
+
+
+def test_all_layers_follow_dependency_direction():
+    """Spec 100: validate layer direction rules across ALL modules via AST.
+
+    Rules enforced:
+      - domain/ may NOT import from application, infra, presentation
+      - presentation/ may NOT import from infra
+      - use_cases may NOT import from infra
+    """
+    allowlist = _load_allowlist_spec100("layer_dependencies")
+    violations = []
+
+    for mod in MODULES:
+        module_path = Path(f"src/modules/{mod}")
+        for py_file in module_path.rglob("*.py"):
+            rel = _relative_posix(py_file)
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+
+            is_domain = "/domain/" in rel
+            is_presentation = "/presentation/" in rel
+            is_use_case = "/service/use_cases.py" in rel or "/application/use_cases/" in rel
+            is_composer = "/composers/" in rel
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom) or not node.module:
+                    continue
+                imp_parts = node.module.split(".")
+                if (len(imp_parts) >= 4 and imp_parts[0] == "modules"
+                        and imp_parts[1] == mod):
+                    target = imp_parts[2]
+                    if target not in {"domain", "application", "service", "infra", "presentation"}:
+                        continue
+
+                    if is_composer:
+                        continue
+                    if is_domain and target in ("application", "service", "infra", "presentation"):
+                        if (rel, target) not in allowlist:
+                            violations.append(f"{rel}: domain imports from {target} ({node.module})")
+                    elif is_presentation and target == "infra":
+                        if (rel, target) not in allowlist:
+                            violations.append(f"{rel}: presentation imports from infra ({node.module})")
+                    elif is_use_case and target == "infra":
+                        if (rel, target) not in allowlist:
+                            violations.append(f"{rel}: use_case imports from infra ({node.module})")
+
+    assert not violations, (
+        f"Layer direction violations found:\n"
+        + "\n".join(f"  - {v}" for v in violations[:30])
+    )

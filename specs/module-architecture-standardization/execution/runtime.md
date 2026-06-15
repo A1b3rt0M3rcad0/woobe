@@ -224,8 +224,7 @@ src/modules/<module>/
 | 097 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_bootstrap_dependency_injection_and_config.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 5 integration tests + 3 arch tests added; 9/9 spec 097 tests passing; bootstrap pattern validated: routes, UoW, registries, Settings | 098 |
 | 098 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_alembic_expand_migrate_contract.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 5 integration tests + 4 arch tests added; 9/9 spec 098 tests passing; alembic env.py validated with canonical imports, no destructive operations; `alembic upgrade/downgrade` não executados (sem PostgreSQL disponível) | 099 |
 | 099 | completed | 2026-06-15 | `tests/integration/messaging/test_remove_cross_module_foreign_keys_and_legacy_schema_references.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 8 integration tests + 1 arch test added; 7/8 integration tests document remaining cross-module FKs (expected — removal requires alembic migration); `alembic upgrade/downgrade` não executados (sem PostgreSQL); FK physical removal in models.py and migration creation deferred until PostgreSQL available | 100 |
-| 100 | pending | - | - | - | 101 |
-| 101 | pending | - | - | - | 102 |
+| 100 | completed | 2026-06-15 | `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | 5 new arch tests: canonical layers, no concrete workers outside modules, shared/infra pure, shared/messaging pure, final layer direction; all 5 pass; contract tests 5/5 pass; 47 arch failures pre-existing; 7 integration failures from spec 099 cross-module FKs (expected blocker); `alembic upgrade/downgrade` e startup FastAPI não executados (sem PostgreSQL); ruff 20 erros pré-existentes; allowlist **não vazia** — entries com removal_spec de specs 042-085 permanecem pendentes de resolução | 101 |
 | 102 | pending | - | - | - | 103 |
 | 103 | pending | - | - | - | 104 |
 | 104 | pending | - | - | - | 105 |
@@ -444,4 +443,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`100-add-final-layer-dependency-tests.md`
+`101` (próxima spec disponível na suite, fora do lote atual de 5 commits)
