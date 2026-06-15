@@ -180,7 +180,7 @@ src/modules/<module>/
 | 053 | completed | 2026-06-15 | `src/modules/billing/application/dtos/billing_dtos.py`, `src/modules/billing/application/dtos/__init__.py`, `src/modules/billing/application/use_cases/billing_use_cases.py`, `src/modules/billing/application/use_cases/__init__.py`, `src/modules/billing/application/composers/*.py` (4 files), `src/modules/billing/presentation/controllers/*.py` (4 files), `src/modules/billing/service/dtos.py`, `src/modules/billing/service/use_cases.py`, `tests/modules/billing/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_billing_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers | 054 |
 | 054 | completed | 2026-06-15 | `tests/modules/billing/contract/test_routes.py`, `tests/modules/billing/unit/presentation/test_controllers.py`, `execution/runtime.md` | Apresentação já estava normalizada após spec 053; 7 testes de rota (prefixo /billing, delegação a compositores, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados | 055 |
 | 055 | completed | 2026-06-15 | `src/modules/billing/infra/database/models.py`, `src/modules/billing/infra/database/repositories.py`, `src/modules/billing/infra/database/mappers.py`, `src/modules/billing/infra/database/__init__.py`, `src/modules/billing/infra/models.py` (shim), `src/modules/billing/infra/repositories.py` (shim), `src/modules/billing/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/billing/integration/database/test_repositories.py`, `tests/architecture/test_billing_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | Infra moved to database layer: models, repositories, mappers copied to infra/database/ with shims at old paths; migrations/env.py updated to canonical import; 24 billing database tests passing; alembic não executado (sem PostgreSQL disponível); ruff apenas erros pré-existentes; 36 falhas arquiteturais pré-existentes inalteradas | 056 |
-| 056 | pending | - | - | - | 057 |
+| 056 | completed | 2026-06-15 | `src/modules/billing/infra/database/unit_of_work.py`, `src/modules/billing/infra/database/__init__.py`, `src/modules/billing/application/composers/*.py` (4 files), `tests/modules/billing/integration/database/test_unit_of_work.py`, `tests/modules/billing/integration/test_outbox_atomicity.py`, `execution/runtime.md` | BillingUnitOfWork created with 5 lazy properties (plans, customers, subscriptions, payment_events, outbox); 4 composers migrated from PostgresUnitOfWork to BillingUnitOfWork; 16 UoW/atomicity tests added; 56 billing tests passing; 36 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL) | 057 |
 | 057 | pending | - | - | - | 058 |
 | 058 | pending | - | - | - | 059 |
 | 059 | pending | - | - | - | 060 |
@@ -295,6 +295,7 @@ src/modules/<module>/
 | 053 | 2026-06-15 | 4889eab | service → application migration for billing: 8 DTOs and 6 use cases moved from service/ to application/dtos and application/use_cases; 4 composers and 4 controllers updated to import from application/; service/ shims preserved; 5 use case tests + 2 arch tests added. Next: 054. |
 | 054 | 2026-06-15 | f708f99 | Presentation layer normalized for billing: routes, controllers, schemas already in canonical state; 7 route contract tests + 5 controller tests added; 25/25 billing tests passing. Next: 055. |
 | 055 | 2026-06-15 | 1c6b869 | Infra moved to database layer: models, repositories, mappers copied to infra/database/ with shims at old paths; migrations/env.py updated to canonical import; 24 billing database tests passing; alembic não executado (sem PostgreSQL); 36 pre-existing arch failures unchanged. Next: 056. |
+| 056 | 2026-06-15 | c04bca6 | BillingUnitOfWork created with 5 lazy properties (plans, customers, subscriptions, payment_events, outbox); 4 composers migrated from PostgresUnitOfWork to BillingUnitOfWork; 16 UoW/atomicity tests added; 56 billing tests passing. Next: 057. |
 
 ## Specs pendentes
 
@@ -372,4 +373,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`056-implement-module-specific-unit-of-work-billing.md`
+`057-implement-module-messaging-workers-and-registry-billing.md`

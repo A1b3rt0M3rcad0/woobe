@@ -13,8 +13,10 @@ from modules.billing.infra.database.repositories import (
     SQLAlchemyPlanRepository,
     SQLAlchemySubscriptionRepository,
 )
+from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
 
 __all__ = [
+    "BillingUnitOfWork",
     "CustomerModel",
     "InboxEventModel",
     "OutboxEventModel",
