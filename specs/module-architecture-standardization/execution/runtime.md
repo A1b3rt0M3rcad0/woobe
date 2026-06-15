@@ -142,7 +142,7 @@ src/modules/<module>/
 | 015 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/transactions.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); 89 composers using PostgresUnitOfWork (generic); 6 modules without module-specific UoW | 016 |
 | 016 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/events.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); only agent uses versioned events; 6 modules use unversioned event_type strings; agent has 3 separate outbox/inbox writer pairs | 017 |
 | 017 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/workers.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`rg` unavailable (substituted with Get-ChildItem/Select-String); core has no workers dir; 5 modules have empty registry stubs; AskJobWorker has cross-module import | 018 |
-| 018 | pending | - | - | - | 019 |
+| 018 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/tests-bootstrap.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`sed` unavailable (substituted with Get-ChildItem/Get-Content); e2e dir empty; core unit tests missing __init__.py; 34 pre-existing arch test failures | 019 |
 | 019 | pending | - | - | - | 020 |
 | 020 | pending | - | - | - | 021 |
 | 021 | pending | - | - | - | 022 |
@@ -257,6 +257,7 @@ src/modules/<module>/
 | 015 | 2026-06-14 | 369546b | Transaction/UoW inventory criado: `transactions.md` com 3 UoW classes catalogadas, 89 compositores usando PostgresUnitOfWork, commit/rollback call sites, gaps e riscos. `rg` indisponível (Select-String). |
 | 016 | 2026-06-14 | d12e2b6 | Event/Outbox/Inbox catalog criado: `events.md` com 19 event_types catalogados, agent com eventos versionados (5 tipos), demais módulos sem versionamento, 3 OutboxEventWriter no agent, 6 módulos com outbox/inbox models. |
 | 017 | 2026-06-14 | bd9aa35 | Worker/registry inventory criado: `workers.md` com 26 arquivos catalogados; agent tem 4 workers concretos + registry; billing/identity/metering/observability/tools têm registries vazios; core sem workers dir; AskJobWorker com import cross-module. |
+| 018 | 2026-06-14 | 54ab80e | Tests/bootstrap/config inventory criado: `tests-bootstrap.md` com 150 test files catalogados, bootstrap (main.py), Alembic (15 migrações), pyproject.toml; e2e dir vazio; wildcard imports em env.py. |
 
 ## Specs pendentes
 
@@ -284,6 +285,7 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Transaction/UoW inventory catalogado | Catalogar UoW classes, commit/rollback call sites, e coordenação de repositories antes de migrar agent para AgentUnitOfWork e criar UoW específicos por módulo | `transactions.md` com classificação completa; 89 compositores usando PostgresUnitOfWork genérico; agent com AgentUnitOfWork + PostgresUnitOfWork redundantes; 6 módulos sem UoW próprio | Sim, revertendo transactions.md |
 | 2026-06-14 | Event/Outbox/Inbox catalog catalogado | Catalogar event_types, routing_keys, Outbox/Inbox models e publishers antes de padronizar envelopes e versionamento | `events.md` com ~65 arquivos analisados; 19 event_types catalogados; agent-only versioned events; 3 namespace legados (ai/knowledge/runtime) ainda em uso | Sim, revertendo events.md |
 | 2026-06-14 | Worker/registry inventory catalogado | Catalogar workers, registries e runner antes de criar workers por módulo e wire central | `workers.md` com 26 arquivos; apenas agent tem workers reais; 5 módulos com registries vazios; core sem workers dir; AskJobWorker cruza módulos | Sim, revertendo workers.md |
+| 2026-06-14 | Tests/bootstrap/config inventory catalogado | Catalogar tests, main.py, Alembic e pyproject.toml antes de migrar bootstrap e config | `tests-bootstrap.md` com 150 test files, 14 migrações, main.py com 7 módulos de rotas; e2e dir vazio; wildcard imports frágeis em env.py | Sim, revertendo tests-bootstrap.md |
 
 ## Riscos ativos
 
@@ -301,4 +303,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`018-create-tests-bootstrap-config-inventory.md`
+`019-create-standardization-risk-register-and-order.md`

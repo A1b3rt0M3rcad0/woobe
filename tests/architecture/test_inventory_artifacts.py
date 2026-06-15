@@ -10,6 +10,7 @@ ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
 TRANSACTIONS_INVENTORY = INVENTORY_DIR / "transactions.md"
 EVENTS_INVENTORY = INVENTORY_DIR / "events.md"
 WORKERS_INVENTORY = INVENTORY_DIR / "workers.md"
+TESTS_BOOTSTRAP_INVENTORY = INVENTORY_DIR / "tests-bootstrap.md"
 
 
 class TestInventoryArtifacts:
@@ -132,3 +133,18 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["Worker", "registry", "Runner"]
         assert any(m in content for m in evidence_markers), "Must reference worker/registry evidence"
+
+    def test_tests_bootstrap_md_exists(self):
+        assert TESTS_BOOTSTRAP_INVENTORY.exists(), f"File not found: {TESTS_BOOTSTRAP_INVENTORY}"
+
+    def test_tests_bootstrap_md_has_real_content(self):
+        assert TESTS_BOOTSTRAP_INVENTORY.exists()
+        content = TESTS_BOOTSTRAP_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["tests", "main.py", "migrations"]
+        assert any(m in content for m in evidence_markers), "Must reference tests/bootstrap/config evidence"
