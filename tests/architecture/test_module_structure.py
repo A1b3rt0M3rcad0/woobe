@@ -252,3 +252,40 @@ class TestModuleStructure:
         assert "mappers.py" in pres_files, (
             "billing/presentation/mappers.py must exist"
         )
+
+    def test_metering_structure(self):
+        metering_dirs = _get_module_dirs("metering")
+
+        assert "infra/database" in metering_dirs, (
+            "metering must have infra/database/"
+        )
+        assert "infra/messaging" in metering_dirs, (
+            "metering must have infra/messaging/"
+        )
+        assert "infra/workers" in metering_dirs, (
+            "metering must have infra/workers/"
+        )
+
+        assert "application/dtos" in metering_dirs, (
+            "metering must have application/dtos/"
+        )
+        assert "application/use_cases" in metering_dirs, (
+            "metering must have application/use_cases/"
+        )
+        assert "application/handlers" in metering_dirs, (
+            "metering must have application/handlers/"
+        )
+        assert "application/composers" in metering_dirs, (
+            "metering must have application/composers/"
+        )
+
+        domain_files = _get_module_files("metering", "domain")
+        for f in ("events.py", "services.py", "value_objects.py"):
+            assert f in domain_files, (
+                f"metering/domain/{f} must exist"
+            )
+
+        pres_files = _get_module_files("metering", "presentation")
+        assert "mappers.py" in pres_files, (
+            "metering/presentation/mappers.py must exist"
+        )

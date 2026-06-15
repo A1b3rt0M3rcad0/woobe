@@ -185,7 +185,7 @@ src/modules/<module>/
 | 058 | completed | 2026-06-15 | `tests/modules/billing/unit/domain/test_enums.py`, `tests/modules/billing/unit/domain/test_errors.py`, `tests/modules/billing/unit/domain/test_repositories.py`, `tests/modules/billing/unit/application/test_dtos.py`, `tests/modules/billing/unit/presentation/test_routes.py`, `tests/modules/billing/unit/presentation/test_schemas.py`, `tests/modules/billing/integration/test_event_mappers.py`, `execution/runtime.md` | Comprehensive test suite added for billing: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 136 billing tests passing. | 059 |
 | 059 | completed | 2026-06-15 | `src/modules/billing/service/` removed, `src/modules/billing/infra/models.py`, `src/modules/billing/infra/repositories.py`, `src/modules/billing/infra/mappers.py` removed, `tests/architecture/test_no_legacy_billing_paths.py`, `tests/architecture/test_billing_database_location.py`, `execution/runtime.md` | Legacy paths and shims removed for billing module: service/ directory deleted, infra shims deleted; arch tests updated to reflect canonical state; 136 billing tests passing; 2151 total tests (37 pre-existing failures, 1 pre-existing error); 9 tests/unit/* stale tests broken by service path removal (pre-existing from core/identity cleanup); billing module fully canonical | 060 |
 | 060 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/metering-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 3 cross-module FKs (2 legacy ai.agents, 1 core.projects); 3 PostgresUnitOfWork composers (deferred spec 066); 3 controllers import from service/ | 061 |
-| 061 | pending | - | - | - | 062 |
+| 061 | completed | 2026-06-15 | `src/modules/metering/infra/database/__init__.py`, `src/modules/metering/infra/messaging/__init__.py`, `src/modules/metering/application/dtos/__init__.py`, `src/modules/metering/application/use_cases/__init__.py`, `src/modules/metering/application/handlers/__init__.py`, `src/modules/metering/domain/events.py`, `src/modules/metering/domain/services.py`, `src/modules/metering/domain/value_objects.py`, `src/modules/metering/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 062 |
 | 062 | pending | - | - | - | 063 |
 | 063 | pending | - | - | - | 064 |
 | 064 | pending | - | - | - | 065 |
@@ -300,7 +300,8 @@ src/modules/<module>/
 | 058 | 2026-06-15 | 5c751ea | Comprehensive test suite added for billing: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 136 billing tests passing. Next: 059. |
 | 059 | 2026-06-15 | HEAD | Legacy paths and shims removed for billing: service/ deleted, infra shims deleted; arch tests updated; billing module fully canonical. 136 billing tests passing. Next: 060. |
 
-| 060 | 2026-06-15 | HEAD | Metering module migration map created: 27 source files classified, 3 entities (UsageEvent/UsageDailyProject/UsageDailyAgent), 5 cross-module FKs (2 legacy ai.agents, 3 core.projects), 3 routes, 3 use cases, 3 DTOs, 1 unversioned event type, 0 workers, no existing dedicated tests, all 3 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 061. |
+| 060 | 2026-06-15 | c5e42ca | Metering module migration map created: 27 source files classified, 3 entities (UsageEvent/UsageDailyProject/UsageDailyAgent), 5 cross-module FKs (2 legacy ai.agents, 3 core.projects), 3 routes, 3 use cases, 3 DTOs, 1 unversioned event type, 0 workers, no existing dedicated tests, all 3 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 061. |
+| 061 | 2026-06-15 | HEAD | Canonical skeleton for metering created: 5 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. Next: 062. |
 
 ## Specs pendentes
 
@@ -355,6 +356,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Core comprehensive test suite added | Spec 048: 7 new test files covering domain enums, errors, repository interfaces, DTOs, routes, schemas, event mappers | 32 new tests added; 107 core tests passing; 1985 total tests (35 pre-existing arch failures unchanged); ruff clean (pre-existing only) | Sim, revertendo todos os arquivos de teste |
 | 2026-06-15 | Core legacy paths and shims removed | Spec 049: service/ dir deleted, infra/ shims deleted, arch tests updated | 10 arch test files + 2 assert changes; 107 core tests passing; 1993 total tests (35 pre-existing arch failures unchanged); ruff clean (pre-existing only); core module fully canonical | Sim, revertendo deleções e restaurando service/ original |
 | 2026-06-15 | Metering migration map created | Spec 060: discovery-only inventory of metering module before physical moves | 27 source files classified, 5 cross-module FKs (3 to core, 2 legacy to ai), 3 routes, 3 use cases, 3 DTOs, 1 unversioned event, PostgresUnitOfWork in all composers (deferred to spec 066); `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 30 inventory tests pass; next: spec 061 | Sim, revertendo metering-migration-map.md |
+| 2026-06-15 | Metering canonical skeleton created | Spec 061: create canonical directories and stub files for metering module | 5 new directories created, 3 domain stubs, 1 presentation stub; legacy paths preserved; no behavior changes; 29 structure tests pass; next: spec 062 | Sim, revertendo __init__.py e restaurando test |
 
 ## Riscos ativos
 
@@ -379,4 +381,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`061-create-canonical-module-skeleton-metering.md`
+`062-move-and-normalize-domain-layer-metering.md`
