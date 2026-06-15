@@ -195,7 +195,7 @@ src/modules/<module>/
 | 068 | completed | 2026-06-15 | `tests/modules/metering/unit/domain/test_enums.py`, `tests/modules/metering/unit/domain/test_errors.py`, `tests/modules/metering/unit/domain/test_repositories.py`, `tests/modules/metering/unit/application/test_dtos.py`, `tests/modules/metering/unit/presentation/test_routes_structure.py`, `tests/modules/metering/unit/presentation/test_schemas.py`, `tests/modules/metering/integration/test_event_mappers.py`, `execution/runtime.md` | ruff limpo; 103/103 metering tests passing; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 069 |
 | 069 | completed | 2026-06-15 | `src/modules/metering/service/` removed, `src/modules/metering/infra/models.py`, `src/modules/metering/infra/repositories.py`, `src/modules/metering/infra/mappers.py` removed, `tests/architecture/test_no_legacy_metering_paths.py`, `tests/architecture/test_metering_database_location.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff limpo; 103/103 metering tests passing; 19/19 legacy path arch tests passing; metering module fully canonical; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 070 |
 | 070 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/observability-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 4 compositores com PostgresUnitOfWork (deferido spec 076); 4 FKs cross-module (deferido spec 099); 0 testes observability pré-existentes | 071 |
-| 071 | pending | - | - | - | 072 |
+| 071 | completed | 2026-06-15 | `src/modules/observability/application/dtos/__init__.py`, `src/modules/observability/application/use_cases/__init__.py`, `src/modules/observability/application/handlers/__init__.py`, `src/modules/observability/infra/database/__init__.py`, `src/modules/observability/infra/messaging/__init__.py`, `src/modules/observability/domain/events.py`, `src/modules/observability/domain/services.py`, `src/modules/observability/domain/value_objects.py`, `src/modules/observability/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; caminhos legados mantidos; nenhum comportamento alterado | 072 |
 | 072 | pending | - | - | - | 073 |
 | 073 | pending | - | - | - | 074 |
 | 074 | pending | - | - | - | 075 |
@@ -311,6 +311,7 @@ src/modules/<module>/
 | 068 | 2026-06-15 | 35444c6 | Comprehensive test suite added for metering: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 30 new tests added. 103 metering tests passing; ruff limpo. Next: 069. |
 | 069 | 2026-06-15 | HEAD | Legacy paths and shims removed for metering: service/ directory deleted, infra shims deleted; arch tests updated to reflect canonical state; 103 metering tests passing; ruff limpo; metering module fully canonical. Next: 070. |
 | 070 | 2026-06-15 | HEAD | Observability module current-to-canonical migration map created: 29 source files classified, 2 entities (Trace/TraceEvent), 4 FKs cross-module (2 core.projects, 1 legacy ai.agents, 1 legacy runtime.sessions), 4 rotas, 4 use cases, 8 DTOs, 2 eventos não versionados, registry vazio, 4 compositores com PostgresUnitOfWork, 0 testes. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 32 tests passing (32 inventory artifacts). Next: 071. |
+| 071 | 2026-06-15 | HEAD | Canonical skeleton for observability created: 5 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. 1 arch structure test (test_observability_structure) passing. Next: 072. |
 
 ## Specs pendentes
 
@@ -393,4 +394,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`071-create-canonical-module-skeleton-observability.md`
+`072-move-and-normalize-domain-layer-observability.md`

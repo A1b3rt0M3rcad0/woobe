@@ -289,3 +289,40 @@ class TestModuleStructure:
         assert "mappers.py" in pres_files, (
             "metering/presentation/mappers.py must exist"
         )
+
+    def test_observability_structure(self):
+        obs_dirs = _get_module_dirs("observability")
+
+        assert "infra/database" in obs_dirs, (
+            "observability must have infra/database/"
+        )
+        assert "infra/messaging" in obs_dirs, (
+            "observability must have infra/messaging/"
+        )
+        assert "infra/workers" in obs_dirs, (
+            "observability must have infra/workers/"
+        )
+
+        assert "application/dtos" in obs_dirs, (
+            "observability must have application/dtos/"
+        )
+        assert "application/use_cases" in obs_dirs, (
+            "observability must have application/use_cases/"
+        )
+        assert "application/handlers" in obs_dirs, (
+            "observability must have application/handlers/"
+        )
+        assert "application/composers" in obs_dirs, (
+            "observability must have application/composers/"
+        )
+
+        domain_files = _get_module_files("observability", "domain")
+        for f in ("events.py", "services.py", "value_objects.py"):
+            assert f in domain_files, (
+                f"observability/domain/{f} must exist"
+            )
+
+        pres_files = _get_module_files("observability", "presentation")
+        assert "mappers.py" in pres_files, (
+            "observability/presentation/mappers.py must exist"
+        )
