@@ -8,6 +8,7 @@ IMPORTS_INVENTORY = INVENTORY_DIR / "imports.md"
 DATABASE_OWNERSHIP_INVENTORY = INVENTORY_DIR / "database-ownership.md"
 ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
 TRANSACTIONS_INVENTORY = INVENTORY_DIR / "transactions.md"
+EVENTS_INVENTORY = INVENTORY_DIR / "events.md"
 
 
 class TestInventoryArtifacts:
@@ -100,3 +101,18 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["UnitOfWork", "commit", "rollback"]
         assert any(m in content for m in evidence_markers), "Must reference UoW/transaction evidence"
+
+    def test_events_md_exists(self):
+        assert EVENTS_INVENTORY.exists(), f"File not found: {EVENTS_INVENTORY}"
+
+    def test_events_md_has_real_content(self):
+        assert EVENTS_INVENTORY.exists()
+        content = EVENTS_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["event_type", "Outbox", "Inbox"]
+        assert any(m in content for m in evidence_markers), "Must reference event/messaging evidence"
