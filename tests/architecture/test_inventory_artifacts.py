@@ -9,6 +9,7 @@ DATABASE_OWNERSHIP_INVENTORY = INVENTORY_DIR / "database-ownership.md"
 ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
 TRANSACTIONS_INVENTORY = INVENTORY_DIR / "transactions.md"
 EVENTS_INVENTORY = INVENTORY_DIR / "events.md"
+WORKERS_INVENTORY = INVENTORY_DIR / "workers.md"
 
 
 class TestInventoryArtifacts:
@@ -116,3 +117,18 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["event_type", "Outbox", "Inbox"]
         assert any(m in content for m in evidence_markers), "Must reference event/messaging evidence"
+
+    def test_workers_md_exists(self):
+        assert WORKERS_INVENTORY.exists(), f"File not found: {WORKERS_INVENTORY}"
+
+    def test_workers_md_has_real_content(self):
+        assert WORKERS_INVENTORY.exists()
+        content = WORKERS_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["Worker", "registry", "Runner"]
+        assert any(m in content for m in evidence_markers), "Must reference worker/registry evidence"
