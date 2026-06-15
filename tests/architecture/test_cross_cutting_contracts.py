@@ -12,6 +12,7 @@ import pytest
 
 SHARED_MESSAGING_DIR = Path("src/shared/messaging")
 
+MODULES = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
 
 def test_event_envelope_module_exists():
     """Spec 090: shared.messaging.event_envelope must exist."""
@@ -515,3 +516,39 @@ def test_shared_messaging_outbox_writer_exists():
     mod = importlib.import_module("shared.messaging.outbox_writer")
     writer_cls = getattr(mod, "OutboxEventWriter")
     assert hasattr(writer_cls.write, "__isabstractmethod__")
+
+
+# --- Spec 097: Bootstrap, DI and config ---
+
+
+def test_each_module_has_uow_in_database():
+    """Spec 097: Every canonical module has a UoW in infra/database/unit_of_work."""
+    for mod_name in MODULES:
+        uow_path = f"modules.{mod_name}.infra.database.unit_of_work"
+        mod = importlib.import_module(uow_path)
+        uow_name = f"{mod_name.capitalize()}UnitOfWork"
+        assert hasattr(mod, uow_name), f"{mod_name} missing {uow_name}"
+
+
+def test_each_module_uow_has_outbox_property():
+    """Spec 097: Every module UoW defines an outbox property."""
+    for mod_name in MODULES:
+        uow_mod = importlib.import_module(
+            f"modules.{mod_name}.infra.database.unit_of_work"
+        )
+        uow_name = f"{mod_name.capitalize()}UnitOfWork"
+        uow_cls = getattr(uow_mod, uow_name)
+        assert hasattr(uow_cls, "outbox"), (
+            f"{uow_name} missing outbox"
+        )
+
+
+def test_settings_has_required_fields():
+    """Spec 097: Settings must define database_url, rabbitmq_url,
+    rabbitmq_exchange, cors_origins, secret_key."""
+    from shared.infra.config import Settings
+    required = {"database_url", "rabbitmq_url", "rabbitmq_exchange",
+                "cors_origins", "secret_key", "encryption_key"}
+    existing = set(Settings.model_fields.keys())
+    missing = required - existing
+    assert not missing, f"Settings missing: {missing}"
