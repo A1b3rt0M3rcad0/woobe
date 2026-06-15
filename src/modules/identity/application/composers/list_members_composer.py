@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.identity.infra.repositories import SQLAlchemyOrganizationMemberRepository
-from modules.identity.service.use_cases import ListMembersUseCase
+from modules.identity.application.use_cases import ListMembersUseCase
 from modules.identity.presentation.controllers.list_members_controller import ListMembersController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

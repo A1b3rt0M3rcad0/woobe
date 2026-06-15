@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.identity.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyUserRepository
-from modules.identity.service.use_cases import CreateUserUseCase
+from modules.identity.application.use_cases import CreateUserUseCase
 from modules.identity.presentation.controllers.create_user_controller import CreateUserController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

@@ -6,7 +6,7 @@ from modules.identity.infra.repositories import (
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyUserRepository,
 )
-from modules.identity.service.use_cases import RegisterUseCase
+from modules.identity.application.use_cases import RegisterUseCase
 from modules.identity.presentation.controllers.register_controller import RegisterController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
