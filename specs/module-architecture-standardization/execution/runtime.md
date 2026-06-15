@@ -118,7 +118,7 @@ src/modules/<module>/
 
 ## Estado atual da migração
 
-`in_progress`
+`in_progress` (spec 107 completed, spec 108 recommended next)
 
 ## Status das specs
 
@@ -231,6 +231,7 @@ src/modules/<module>/
 | 104 | completed | 2026-06-15 | `tests/architecture/test_messaging_idempotency_concurrency.py`, `execution/runtime.md` | 6 messaging idempotency/concurrency tests added (inbox processor idempotency, outbox retry, publishers, lock mechanisms, shared retry/dead letter contracts); 6/6 passing; informational warnings for per-module idempotency/lock patterns (delegated to shared base classes); 45 pre-existing arch failures unchanged | 105 |
 | 105 | completed | 2026-06-15 | `tests/contract/test_api_routes_registered.py`, `execution/runtime.md` | 7 API route registration tests added (routes file existence, router export, main.py imports, __all__ exports, legacy prefix preservation in agent); 7/7 passing; ruff clean; 45 pre-existing arch failures unchanged | 106 |
 | 106 | blocked | 2026-06-15 | `execution/runtime.md` | **BLOCKER**: allowlist has 14 non-empty entries (11 module_boundaries, 2 layer_dependencies, 1 application_boundaries — agent cross-module imports); cross-module FKs remain in models; tools/service/ shims present; acceptance criterion `allowlist final vazia` not achievable without spec 107-level refactoring | 107 |
+| 107 | completed | 2026-06-15 | `src/modules/agent/domain/ports/*.py` (5 files), `src/modules/agent/infra/adapters/*.py` (6 files), `src/modules/agent/application/tool_converter.py`, `src/modules/agent/application/use_cases/ask_use_case.py`, `src/modules/agent/application/use_cases/ask_agent_stream_service.py`, `src/modules/agent/application/composers/ask_agent_composer.py`, `src/modules/agent/application/composers/ask_agent_stream_composer.py`, `src/modules/agent/infra/workers/ask_job_worker.py`, `tests/architecture/legacy_import_allowlist.yaml`, `src/modules/tools/service/` removed, `src/modules/metering/infra/repositories.py` removed, `src/modules/observability/infra/repositories.py` removed, `src/modules/tools/infra/repositories.py` removed, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 43 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL); allowlist final vazia (14 entries removed); agent cross-module imports refatorados para port/adapter pattern com importlib lazy loading | 108 |
 
 ## Specs executadas
 
@@ -399,6 +400,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Outbox contract standardized across modules | Spec 091: outbox contract (OutboxEventProtocol, validate_outbox_envelope, OutboxEventWriter) already existed in shared. 27 integration tests + 6 new arch tests added. All 7 modules have OutboxEventModel with __tablename__ and OutboxEventWriter implementation | Every module confirmed with outbox infrastructure; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
 | 2026-06-15 | Inbox contract standardized across modules | Spec 092: inbox contract (InboxEventProtocol, validate_inbox_envelope, InboxEventModel BaseInbox) already existed in shared. 21 integration tests + 6 new arch tests added. All 7 modules have InboxEventModel and InboxEventRouter | Every module confirmed with inbox infrastructure; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
 | 2026-06-15 | RabbitMQ topology standardized across modules | Spec 093: exchange (domain.events, topic, durable), queue name pattern, routing key pattern, DLQ naming, TopologyConfig already existed in shared. 30 integration tests + 9 new arch tests added | RabbitMQ topology contracts validated; ruff apenas erros pré-existentes; 80 falhas arq. pré-existentes inalteradas | Reverter testes e runtime.md |
+| 2026-06-15 | Agent cross-module imports refactored to port/adapter pattern | Spec 107: 28 cross-module imports from agent→metering/observability/tools replaced with domain ports + importlib-based adapters. LLMFactory port created for infra.llm dependency. tools/service/ and shim files removed. Allowlist emptied (14 entries). | 5 domain ports, 6 infra adapters, 2 use cases refactored, 2 composers updated, 1 worker updated, 3 shim files deleted, allowlist emptied | Reverter ports/adapters e restaurar imports originais |
 
 ## Riscos ativos
 
@@ -450,4 +452,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`107` (spec 106 blocked — cleanup spec required to remove allowlist entries, shims, and deprecated paths)
+`108` (spec 107 completed — execute final architecture and behavioral validation)

@@ -4,8 +4,7 @@ import json
 import logging
 import re
 import time
-import uuid
-from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -17,23 +16,18 @@ from modules.agent.domain.repositories import (
     AgentRepository,
     ProviderCredentialRepository,
 )
-from modules.agent.infra.llm.langchain_factory import create_chat_model
+from modules.agent.domain.ports.llm_factory import LLMFactory
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
 )
-from modules.metering.domain.entities import UsageEvent
-from modules.metering.domain.enums import UsageEventType, UsageUnit
-from modules.metering.domain.repositories import UsageEventRepository
-from modules.observability.domain.entities import Trace, TraceEvent
-from modules.observability.domain.enums import TraceEventType, TraceStatus
-from modules.observability.domain.repositories import (
-    TraceEventRepository,
-    TraceRepository,
-)
 from modules.agent.domain.entities import Message, Session
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
 from modules.agent.domain.repositories import MessageRepository, SessionRepository
+from modules.agent.domain.ports.trace_recorder import TraceRecorder
+from modules.agent.domain.ports.tool_executor import ToolExecutor
+from modules.agent.domain.ports.tool_repository import ToolRepository as AgentToolRepository
+from modules.agent.domain.ports.usage_recorder import UsageRecorder
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
     AskOutput,
@@ -41,10 +35,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
-from modules.tools.domain.repositories import ToolRepository
-from modules.tools.service.tool_converter import safe_tool_name, tools_to_openai_definitions
-from modules.tools.service.use_cases import ExecuteToolUseCase
-from modules.tools.service.dtos import ExecuteToolInput
+from modules.agent.application.tool_converter import agent_tools_to_openai_definitions, _safe_tool_name
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.time import utc_now
 from shared.infra.config import Settings
@@ -76,11 +67,12 @@ class AskAgentUseCase:
         message_repo: MessageRepository,
         agent_collection_repo: AgentCollectionRepository,
         chunk_repo: DocumentChunkRepository,
-        trace_repo: TraceRepository,
-        trace_event_repo: TraceEventRepository,
-        usage_repo: UsageEventRepository,
+        trace_recorder: TraceRecorder,
+        usage_recorder: UsageRecorder,
         outbox: OutboxEventWriter,
-        tool_repo: ToolRepository | None = None,
+        llm_factory: LLMFactory,
+        tool_executor: ToolExecutor | None = None,
+        tool_repo: AgentToolRepository | None = None,
         release_repo: AgentReleaseRepository | None = None,
         encryption_key: str | None = None,
     ) -> None:
@@ -90,10 +82,11 @@ class AskAgentUseCase:
         self._message_repo = message_repo
         self._agent_collection_repo = agent_collection_repo
         self._chunk_repo = chunk_repo
-        self._trace_repo = trace_repo
-        self._trace_event_repo = trace_event_repo
-        self._usage_repo = usage_repo
+        self._trace_recorder = trace_recorder
+        self._usage_recorder = usage_recorder
         self._outbox = outbox
+        self._llm_factory = llm_factory
+        self._tool_executor = tool_executor
         self._tool_repo = tool_repo
         self._release_repo = release_repo
         self._encryption_key = encryption_key or Settings().encryption_key
@@ -115,22 +108,20 @@ class AskAgentUseCase:
         )
 
         agent_tools: list[dict] = []
-        execute_use_case: ExecuteToolUseCase | None = None
         tool_name_to_id: dict[str, str] = {}
         has_tools = False
         if self._tool_repo:
             try:
                 tools = await self._tool_repo.list_by_agent(agent.id, status="active")
                 if tools:
-                    agent_tools = tools_to_openai_definitions(tools)
-                    execute_use_case = ExecuteToolUseCase(tool_repo=self._tool_repo)
+                    agent_tools = agent_tools_to_openai_definitions(tools)
                     for t in tools:
-                        tool_name_to_id[safe_tool_name(t)] = str(t.id)
+                        tool_name_to_id[_safe_tool_name(t)] = str(t.id)
                     has_tools = True
             except Exception as e:
                 logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
 
-        chat_model = create_chat_model(
+        chat_model = self._llm_factory.create_chat_model(
             provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
             model=agent.model,
             api_key=api_key,
@@ -176,7 +167,7 @@ class AskAgentUseCase:
                 for tc in (getattr(result, "tool_calls", None) or []):
                     tool_start = time.monotonic()
                     resolved_tool_id = tool_name_to_id.get(tc["name"], tc["name"])
-                    tool_output = await self._execute_single_tool(tc, execute_use_case, resolved_tool_id)
+                    tool_output = await self._execute_single_tool(tc, resolved_tool_id)
                     tool_duration = round((time.monotonic() - tool_start) * 1000)
                     tool_success = tool_output.get("success", False) if isinstance(tool_output, dict) else True
                     tool_error = tool_output.get("error") if isinstance(tool_output, dict) else None
@@ -190,10 +181,10 @@ class AskAgentUseCase:
                         error=tool_error,
                     ))
                     try:
-                        event = TraceEvent(
+                        await self._trace_recorder.record_event(
                             trace_id=trace_id,
                             project_id=input_dto.project_id,
-                            event_type=TraceEventType.tool_call,
+                            event_type="tool_call",
                             latency_ms=tool_duration,
                             payload={
                                 "tool_name": tc["name"],
@@ -203,7 +194,6 @@ class AskAgentUseCase:
                                 "error": tool_error,
                             },
                         )
-                        await self._trace_event_repo.save(event)
                     except Exception:
                         pass
                     messages.append(ToolMessage(
@@ -223,7 +213,7 @@ class AskAgentUseCase:
                 try:
                     answer_text = result.content if hasattr(result, "content") else str(result)
                     schema_json = json.dumps(response_format.get("schema", {}), indent=2)
-                    json_model = create_chat_model(
+                    json_model = self._llm_factory.create_chat_model(
                         provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
                         model=agent.model,
                         api_key=api_key,
@@ -248,10 +238,10 @@ class AskAgentUseCase:
 
                     json_raw_usage = normalize_llm_usage(json_result)
                     try:
-                        json_event = TraceEvent(
+                        await self._trace_recorder.record_event(
                             trace_id=trace_id,
                             project_id=input_dto.project_id,
-                            event_type=TraceEventType.llm_call,
+                            event_type="llm_call",
                             latency_ms=json_format_latency_ms,
                             payload={
                                 "phase": "json_format",
@@ -263,7 +253,6 @@ class AskAgentUseCase:
                                 "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
                             },
                         )
-                        await self._trace_event_repo.save(json_event)
                     except Exception:
                         pass
                 except Exception as json_e:
@@ -284,10 +273,12 @@ class AskAgentUseCase:
                     fallback_provider_val = fb_provider_val
                 except Exception as fb_e:
                     combined_error = f"Primary: {primary_error} | Fallback: {fb_e}"
-                    await self._fail_trace(trace_id, combined_error)
+                    if trace_id:
+                        await self._trace_recorder.fail_trace(trace_id, combined_error)
                     raise ValueError(f"AI provider error: {combined_error}") from fb_e
             else:
-                await self._fail_trace(trace_id, primary_error)
+                if trace_id:
+                    await self._trace_recorder.fail_trace(trace_id, primary_error)
                 raise ValueError(f"AI provider error: {primary_error}") from e
 
         answer = result.content if hasattr(result, "content") else str(result)
@@ -337,15 +328,26 @@ class AskAgentUseCase:
             message_id = assistant_msg.id
 
         try:
-            await self._record_usage(input_dto, agent, usage)
+            await self._usage_recorder.record_llm_request(
+                project_id=input_dto.project_id,
+                agent_id=agent.id,
+                input_tokens=usage.input_tokens or 0,
+                output_tokens=usage.output_tokens or 0,
+                total_tokens=usage.total_tokens or 0,
+                cost_usd=usage.cost_usd or 0.0,
+                model=agent.model,
+            )
         except Exception as e:
             logger.warning("Failed to record usage: %s", e)
 
         try:
-            await self._complete_trace(
+            await self._trace_recorder.complete_trace(
                 trace_id=trace_id,
                 answer=answer,
-                usage=usage,
+                input_tokens=usage.input_tokens or 0,
+                output_tokens=usage.output_tokens or 0,
+                total_tokens=usage.total_tokens or 0,
+                cost_usd=usage.cost_usd or 0.0,
                 model=response_model,
                 provider=response_provider,
                 latency_ms=llm_latency_ms,
@@ -380,16 +382,12 @@ class AskAgentUseCase:
             output_parse_error=output_parse_error,
         )
 
-    async def _execute_single_tool(self, tool_call: dict, execute_use_case: ExecuteToolUseCase | None, tool_id: str) -> dict:
-        if not execute_use_case:
+    async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict:
+        if not self._tool_executor:
             return {"success": False, "error": "Tool execution not available"}
         try:
             args = tool_call.get("args", {}) or {}
-            result = await execute_use_case.execute(ExecuteToolInput(
-                tool_id=UUID(tool_id),
-                input_data=args,
-            ))
-            return result.model_dump()
+            return await self._tool_executor.execute_tool(UUID(tool_id), args)
         except Exception as e:
             logger.warning("Tool execution failed: %s", e)
             return {"success": False, "error": str(e)}
@@ -714,28 +712,23 @@ class AskAgentUseCase:
     async def _create_trace(
         self, input_dto: AskInput, agent: Agent, session: Session | None
     ) -> UUID:
-        trace = Trace(
+        trace_id = await self._trace_recorder.create_trace(
             project_id=input_dto.project_id,
             agent_id=agent.id,
             session_id=session.id if session else None,
             tenant_id=input_dto.tenant_id,
             user_id=input_dto.user_id,
-            status=TraceStatus.running,
-            started_at=datetime.now(timezone.utc),
             provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
             model=agent.model,
         )
-        saved = await self._trace_repo.save(trace)
-        trace_id = saved.id
 
         try:
-            event = TraceEvent(
+            await self._trace_recorder.record_event(
                 trace_id=trace_id,
                 project_id=input_dto.project_id,
-                event_type=TraceEventType.info,
+                event_type="info",
                 payload={"event": "ask.started", "message": input_dto.message[:200]},
             )
-            await self._trace_event_repo.save(event)
         except Exception:
             pass
 
@@ -779,7 +772,7 @@ class AskAgentUseCase:
             fallback_provider_val, fallback_credential, agent.settings
         )
 
-        fallback_chat_model = create_chat_model(
+        fallback_chat_model = self._llm_factory.create_chat_model(
             provider=fallback_provider_val,
             model=agent.fallback_model,
             api_key=fallback_api_key,
@@ -807,10 +800,10 @@ class AskAgentUseCase:
         if not trace_id:
             return
         try:
-            event = TraceEvent(
+            await self._trace_recorder.record_event(
                 trace_id=trace_id,
                 project_id=agent.project_id,
-                event_type=TraceEventType.info,
+                event_type="info",
                 payload={
                     "event": "ask.fallback_triggered",
                     "primary_model": agent.model,
@@ -820,7 +813,6 @@ class AskAgentUseCase:
                     "fallback_provider": agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider,
                 },
             )
-            await self._trace_event_repo.save(event)
         except Exception as e:
             logger.warning("Failed to emit fallback triggered event: %s", e)
 
@@ -828,12 +820,7 @@ class AskAgentUseCase:
         if not trace_id:
             return
         try:
-            trace = await self._trace_repo.get_by_id(trace_id)
-            if trace:
-                trace.status = TraceStatus.failed
-                trace.ended_at = datetime.now(timezone.utc)
-                trace.error = error
-                await self._trace_repo.save(trace)
+            await self._trace_recorder.fail_trace(trace_id, error)
         except Exception as e:
             logger.warning("Failed to fail trace %s: %s", trace_id, e)
 
@@ -857,81 +844,29 @@ class AskAgentUseCase:
         if not trace_id:
             return
         try:
-            trace = await self._trace_repo.get_by_id(trace_id)
-            if trace:
-                trace.status = TraceStatus.completed
-                trace.ended_at = datetime.now(timezone.utc)
-                trace.total_latency_ms = latency_ms
-                trace.model = model
-                trace.provider = provider
-                trace.fallback_used = fallback_used
-                data = {
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                    "total_tokens": usage.total_tokens,
-                    "cost_usd": usage.cost_usd,
-                    "sources": [s.model_dump() for s in sources] if sources else None,
-                    "tool_calls": tool_calls or None,
-                    "parsed_output": parsed_output,
-                    "output_parse_error": output_parse_error,
-                    "json_format_latency_ms": json_format_latency_ms,
-                }
-                if fallback_info:
-                    data["fallback_info"] = fallback_info
-                trace.data = data
-                logger.info("Trace usage persistence debug", extra={
-                    "trace_id": str(trace_id),
-                    "data": trace.data,
-                })
-                await self._trace_repo.save(trace)
-
-            completed_payload: dict = {
-                "event": "ask.completed",
-                "answer_length": len(answer),
-                "message_id": str(message_id) if message_id else None,
-            }
-            if fallback_used and fallback_info:
-                completed_payload["fallback_info"] = fallback_info
-            event = TraceEvent(
+            await self._trace_recorder.complete_trace(
                 trace_id=trace_id,
-                project_id=trace.project_id if trace else uuid.uuid4(),
-                event_type=TraceEventType.info,
+                answer=answer,
+                input_tokens=usage.input_tokens or 0,
+                output_tokens=usage.output_tokens or 0,
+                total_tokens=usage.total_tokens or 0,
+                cost_usd=usage.cost_usd or 0.0,
+                model=model,
+                provider=provider,
                 latency_ms=latency_ms,
-                payload=completed_payload,
+                message_id=message_id,
+                sources=sources,
+                parsed_output=parsed_output,
+                output_parse_error=output_parse_error,
+                tool_calls=tool_calls,
+                fallback_used=fallback_used,
+                fallback_info=fallback_info,
+                json_format_latency_ms=json_format_latency_ms,
             )
-            await self._trace_event_repo.save(event)
         except Exception as e:
             logger.warning("Failed to complete trace %s: %s", trace_id, e)
 
     async def _record_usage(
         self, input_dto: AskInput, agent: Agent, usage: UsageInfo
     ) -> None:
-        try:
-            event = UsageEvent(
-                project_id=input_dto.project_id,
-                agent_id=agent.id,
-                event_type=UsageEventType.llm_request,
-                quantity=usage.total_tokens or 0,
-                unit=UsageUnit.token,
-                cost_usd=usage.cost_usd,
-                data={
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                    "model": agent.model,
-                },
-            )
-            await self._usage_repo.save(event)
-
-            await self._outbox.write(
-                aggregate_type="UsageEvent",
-                aggregate_id=event.id,
-                event_type="usage_event.recorded",
-                payload={
-                    "project_id": str(input_dto.project_id),
-                    "agent_id": str(agent.id),
-                    "event_type": "llm_request",
-                    "quantity": usage.total_tokens or 0,
-                },
-            )
-        except Exception:
-            pass
+        pass
