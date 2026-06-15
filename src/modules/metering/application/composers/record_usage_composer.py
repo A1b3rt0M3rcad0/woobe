@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.metering.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyUsageEventRepository
-from modules.metering.service.use_cases import RecordUsageUseCase
+from modules.metering.application.use_cases import RecordUsageUseCase
 from modules.metering.presentation.controllers.record_usage_controller import RecordUsageController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

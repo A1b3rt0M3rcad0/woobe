@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.metering.infra.repositories import SQLAlchemyUsageDailyProjectRepository
-from modules.metering.service.use_cases import GetProjectDailyUsageUseCase
+from modules.metering.application.use_cases import GetProjectDailyUsageUseCase
 from modules.metering.presentation.controllers.get_project_daily_usage_controller import GetProjectDailyUsageController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
