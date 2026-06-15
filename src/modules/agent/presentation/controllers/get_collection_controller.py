@@ -1,5 +1,5 @@
 from modules.agent.presentation.mappers import collection_to_response
-from modules.agent.application.dtos.knowledge_dtos import GetCollectionInput
+from modules.agent.application.dtos import GetCollectionInput
 from modules.agent.application.use_cases.knowledge_use_cases import GetCollectionUseCase
 from shared.domain.errors import NotFoundError
 from shared.presentation.interface.controller import Controller

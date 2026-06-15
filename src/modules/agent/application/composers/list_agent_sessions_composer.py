@@ -7,7 +7,7 @@ from modules.agent.infra.database.repositories import (
 from modules.agent.presentation.controllers.list_agent_sessions_controller import (
     ListAgentSessionsController,
 )
-from modules.agent.application.use_cases.runtime_use_cases import ListAgentSessionsUseCase
+from modules.agent.application.use_cases import ListAgentSessionsUseCase
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

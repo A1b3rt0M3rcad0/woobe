@@ -4,7 +4,7 @@ from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.presentation.controllers.create_ask_job_controller import (
     CreateAskJobController,
 )
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
+from modules.agent.application.use_cases import CreateAskJobUseCase
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.ai_use_cases import CreateProviderCredentialUseCase
-from modules.agent.application.dtos.ai_dtos import CreateProviderCredentialInput
+from modules.agent.application.dtos import CreateProviderCredentialInput
 from modules.agent.presentation.schemas import ProviderCredentialResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

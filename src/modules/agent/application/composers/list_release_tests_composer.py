@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseTestRepository
-from modules.agent.application.use_cases.ai_use_cases import ListReleaseTestsUseCase
+from modules.agent.application.use_cases import ListReleaseTestsUseCase
 from modules.agent.presentation.controllers.list_release_tests_controller import ListReleaseTestsController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

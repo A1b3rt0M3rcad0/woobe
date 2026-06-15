@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.repositories import SQLAlchemyAgentCollectionRepository
 from modules.agent.presentation.controllers.attach_collection_controller import AttachCollectionController
-from modules.agent.application.use_cases.knowledge_use_cases import AttachCollectionUseCase
+from modules.agent.application.use_cases import AttachCollectionUseCase
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

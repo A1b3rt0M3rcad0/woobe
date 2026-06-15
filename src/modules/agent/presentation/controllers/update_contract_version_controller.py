@@ -1,6 +1,6 @@
 from uuid import UUID
 from modules.agent.application.use_cases.ai_use_cases import UpdateContractUseCase
-from modules.agent.application.dtos.ai_dtos import UpdateContractInput
+from modules.agent.application.dtos import UpdateContractInput
 from modules.agent.presentation.mappers import contract_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

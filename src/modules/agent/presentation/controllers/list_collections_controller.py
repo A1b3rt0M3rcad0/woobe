@@ -1,5 +1,5 @@
 from modules.agent.presentation.mappers import collection_to_response
-from modules.agent.application.dtos.knowledge_dtos import ListCollectionsInput
+from modules.agent.application.dtos import ListCollectionsInput
 from modules.agent.application.use_cases.knowledge_use_cases import ListCollectionsUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

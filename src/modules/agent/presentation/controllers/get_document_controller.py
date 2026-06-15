@@ -1,5 +1,5 @@
 from modules.agent.presentation.mappers import document_to_response
-from modules.agent.application.dtos.knowledge_dtos import GetDocumentInput
+from modules.agent.application.dtos import GetDocumentInput
 from modules.agent.application.use_cases.knowledge_use_cases import GetDocumentUseCase
 from shared.domain.errors import NotFoundError
 from shared.presentation.interface.controller import Controller

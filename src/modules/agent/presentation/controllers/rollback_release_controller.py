@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from modules.agent.application.dtos.ai_dtos import RollbackReleaseInput
+from modules.agent.application.dtos import RollbackReleaseInput
 from modules.agent.application.use_cases.ai_use_cases import RollbackReleaseUseCase
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller

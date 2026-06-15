@@ -170,3 +170,35 @@ class TestAgentReferenceArchitecture:
     def test_agent_application_has_composers_and_handlers(self):
         assert (AGENT_DIR / "application" / "composers" / "__init__.py").exists()
         assert (AGENT_DIR / "application" / "handlers" / "__init__.py").exists()
+
+    def test_agent_composers_import_use_cases_from_package(self):
+        composers_dir = AGENT_DIR / "application" / "composers"
+        count = 0
+        for py_file in composers_dir.glob("*.py"):
+            if py_file.name.startswith("__"):
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            if "from modules.agent.application.use_cases import" in content:
+                count += 1
+        assert count >= 40, f"Expected 40+ composers using use_cases package, found {count}"
+
+    def test_agent_controllers_import_dtos_from_package(self):
+        controllers_dir = AGENT_DIR / "presentation" / "controllers"
+        count = 0
+        for py_file in controllers_dir.glob("*.py"):
+            if py_file.name.startswith("__"):
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            if "from modules.agent.application.dtos import" in content:
+                count += 1
+        assert count >= 25, f"Expected 25+ controllers using dtos package, found {count}"
+
+    def test_agent_no_legacy_use_case_module_imports_in_composers(self):
+        composers_dir = AGENT_DIR / "application" / "composers"
+        legacy_uc = {".use_cases.ai_use_cases", ".use_cases.knowledge_use_cases", ".use_cases.runtime_use_cases"}
+        for py_file in composers_dir.glob("*.py"):
+            content = py_file.read_text(encoding="utf-8")
+            for pattern in legacy_uc:
+                if pattern.replace(".", "") in content.replace(".", ""):
+                    rel = py_file.relative_to(PROJECT_ROOT).as_posix()
+                    pytest.fail(f"Composer {rel} still uses legacy use case import: {pattern}")

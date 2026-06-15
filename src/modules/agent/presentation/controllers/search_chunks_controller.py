@@ -1,5 +1,5 @@
 from modules.agent.presentation.mappers import chunk_output_to_response
-from modules.agent.application.dtos.knowledge_dtos import SearchChunksInput
+from modules.agent.application.dtos import SearchChunksInput
 from modules.agent.application.use_cases.knowledge_use_cases import SearchChunksUseCase
 from shared.domain.errors import ValidationError
 from shared.presentation.interface.controller import Controller

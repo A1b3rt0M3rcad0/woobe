@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.ai_use_cases import ListProviderCredentialsUseCase
-from modules.agent.application.dtos.ai_dtos import ListProviderCredentialsInput
+from modules.agent.application.dtos import ListProviderCredentialsInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

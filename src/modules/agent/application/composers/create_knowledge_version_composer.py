@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeVersionRepository
 from modules.agent.presentation.controllers.create_knowledge_version_controller import CreateKnowledgeVersionController
-from modules.agent.application.use_cases.knowledge_use_cases import CreateKnowledgeVersionUseCase
+from modules.agent.application.use_cases import CreateKnowledgeVersionUseCase
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 

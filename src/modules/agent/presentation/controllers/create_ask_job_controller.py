@@ -1,6 +1,6 @@
 import logging
 
-from modules.agent.application.dtos.runtime_dtos import CreateAskJobInput
+from modules.agent.application.dtos import CreateAskJobInput
 from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from shared.domain.errors import ValidationError
 from shared.presentation.http.request import Request

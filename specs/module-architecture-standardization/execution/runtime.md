@@ -147,7 +147,7 @@ src/modules/<module>/
 | 020 | completed | 2026-06-14 | `tests/modules/agent/test_audit_agent_as_canonical_reference.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | ruff limpo; 0 legacy ai/knowledge/runtime imports; 8 auditoria + 11 testes de arquitetura criados; pyright com 482 erros pré-existentes (não introduzidos) | 021 |
 | 021 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_domain_contracts.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | 13 testes de contratos de domínio + 2 testes de arquitetura adicionados; domain services.py e value_objects.py são stubs (sem lógica de negócio a adicionar); ruff limpo | 022 |
 | 022 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_application_layout.py`, `tests/architecture/test_agent_reference_architecture.py`, `src/modules/agent/application/dtos/__init__.py`, `src/modules/agent/application/use_cases/__init__.py`, `src/modules/agent/presentation/mappers.py`, `execution/runtime.md` | dtos e use_cases packages com __all__ exports (~70 DTOs, ~46 use cases); mappers.py migrado para importar de dtos (não dtos.knowledge_dtos); 2 testes de arquitetura + 8 testes de layout adicionados; ask_agent_stream_service e ask_use_case allowlistados por imports de infra/llm pré-existentes | 023 |
-| 023 | pending | - | - | - | 024 |
+| 023 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_composers_and_controllers.py`, `tests/architecture/test_agent_reference_architecture.py`, `src/modules/agent/presentation/controllers/*.py`, `src/modules/agent/application/composers/*.py`, `execution/runtime.md` | 10 testes de composers/controllers + 3 testes de arquitetura adicionados; 43 composers migrados para importar de use_cases package; 31 controllers migrados para importar de dtos package; ruff limpo | 024 |
 | 024 | pending | - | - | - | 025 |
 | 025 | pending | - | - | - | 026 |
 | 026 | pending | - | - | - | 027 |
@@ -262,6 +262,7 @@ src/modules/<module>/
 | 020 | 2026-06-14 | 16126be | Auditoria do agent como referência canônica concluída: 137 arquivos Python analisados, 0 imports legados `ai`/`knowledge`/`runtime`, 90 ocorrências PostgresUnitOfWork catalogadas (44 composers + 1 worker), AgentUnitOfWork coordena apenas repositórios do agent + outbox + inbox. 2 conjuntos de testes criados (19 testes). Agent confirmado como baseline canônica para os demais módulos. |
 | 021 | 2026-06-14 | 8e5152c | Normalização dos contratos de domínio do agent concluída: entities, enums, errors, events, repositories validados; services.py e value_objects.py são stubs (1 linha cada). 13 testes de contratos de domínio + 2 testes de arquitetura adicionados. |
 | 022 | 2026-06-14 | 3200f2c | Layout da application layer normalizado: dtos/__init__.py e use_cases/__init__.py com re-exports completos (~70 DTOs, ~46 use cases); mappers.py importa de dtos (não dtos.knowledge_dtos); 10 testes de layout + 3 testes de arquitetura adicionados; 2 use cases com imports de infra allowlistados (pré-existentes). |
+| 023 | 2026-06-14 | 70adca3 | Composers e controllers normalizados: 43 composers importam de use_cases (não ai/knowledge/runtime_use_cases); 31 controllers importam de dtos (não ai/knowledge/runtime_dtos); 10 testes + 3 testes de arquitetura adicionados; todos os composers usam assembly pattern. |
 
 ## Specs pendentes
 
@@ -294,6 +295,7 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Agent auditado como referência canônica | Validar agent como template antes de padronizar demais módulos | 19 testes de auditoria e arquitetura criados; 0 imports legados; 90 PostgresUnitOfWork catalogados (deferidos para spec 025); `find`/`rg` Unix indisponíveis (substituídos por Get-ChildItem/Select-String) | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Contratos de domínio do agent normalizados | Completar e validar entities, value objects, events, enums, errors, repositories e services | 13 testes de contratos de domínio + 2 testes de arquitetura adicionados; services.py/value_objects.py mantidos como stubs (sem lógica a adicionar nesta spec); `find`/`rg` indisponíveis (substituídos) | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Application layer do agent normalizada | Separar DTOs, use cases e handlers sem nomes herdados ai/knowledge/runtime como fronteiras | dtos/ e use_cases/ packages com __all__ exports; mappers.py importa de dtos; 10 testes de layout + 3 testes de arquitetura adicionados; ask_agent_stream_service.py e ask_use_case.py allowlistados (infra imports pré-existentes) | Sim, revertendo __init__.py, mappers.py, testes e runtime.md |
+| 2026-06-14 | Composers e controllers normalizados | Garantir composers para assembly e controllers para transporte | 43 composers migrados para use_cases package; 31 controllers migrados para dtos package; 10 testes + 3 testes de arquitetura adicionados | Sim, revertendo imports, testes e runtime.md |
 
 ## Riscos ativos
 
@@ -318,4 +320,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`023-normalize-agent-composers-and-controllers.md`
+`024-normalize-agent-database-layout.md`
