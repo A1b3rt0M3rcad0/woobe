@@ -40,7 +40,7 @@ class TestAlembicMigrationsSuccess:
         required_imports = [
             "modules.identity.infra.database.models",
             "modules.core.infra.database.models",
-            "modules.tools.infra.models",
+            "modules.tools.infra.database.models",
             "modules.metering.infra.database.models",
             "modules.billing.infra.database.models",
             "modules.observability.infra.database.models",

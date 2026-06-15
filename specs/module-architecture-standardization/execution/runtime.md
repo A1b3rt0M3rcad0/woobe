@@ -209,7 +209,7 @@ src/modules/<module>/
 | 082 | completed | 2026-06-15 | `tests/modules/tools/unit/domain/test_entities.py`, `tests/architecture/test_tools_domain_dependencies.py`, `execution/runtime.md` | Domínio do tools já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 8 testes de entidade + 3 testes de arquitetura de dependências adicionados; 2 entidades (Tool/Secret) e 2 repositories interfaces (ABC) validados | 083 |
 | 083 | completed | 2026-06-15 | `src/modules/tools/application/dtos/tools_dtos.py`, `src/modules/tools/application/dtos/__init__.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `src/modules/tools/application/use_cases/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `src/modules/tools/presentation/controllers/*.py` (10 files), `tests/modules/tools/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_tools_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers; 10 use case tests + 2 arch tests | 084 |
 | 084 | completed | 2026-06-15 | `tests/modules/tools/contract/test_routes.py`, `tests/modules/tools/unit/presentation/test_controllers.py`, `execution/runtime.md`, `src/modules/tools/application/tool_converter.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `tests/modules/tools/unit/application/test_use_cases.py` | 8 route tests (prefix /tools, composer delegation, no repo/domain/service imports) + 5 controller tests (import from application/use_cases, no repos, implement handle(), no service imports); presentation already normalized; minor ruff fixes | 085 (when suite resumed — batch limit 5 reached) |
-| 085 | pending | - | - | - | 086 |
+| 085 | completed | 2026-06-15 | `src/modules/tools/infra/database/models.py`, `src/modules/tools/infra/database/repositories.py`, `src/modules/tools/infra/database/mappers.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/models.py` (shim), `src/modules/tools/infra/repositories.py` (shim), `src/modules/tools/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/tools/integration/database/test_repositories.py`, `tests/architecture/test_tools_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 39/39 tools tests passing; 8/8 arch location tests passing; 8/8 integration import tests passing; alembic não executado (sem PostgreSQL) | 086 |
 | 086 | pending | - | - | - | 087 |
 | 087 | pending | - | - | - | 088 |
 | 088 | pending | - | - | - | 089 |
@@ -385,6 +385,8 @@ Specs 061 a 109 do `MANIFEST.md`.
 
 | 2026-06-15 | Tools presentation layer normalized | Spec 084: route contract tests + controller arch tests added; presentation already canonical | 8 route tests + 5 controller tests; 2 unused import fixes in application/; no production code changes needed; next: spec 085 (next batch) | Reverter criação de testes de rota/controller |
 
+| 2026-06-15 | Tools infra moved to database layer | Spec 085: models, repositories, mappers copied to infra/database/ with shims at old paths; env.py updated to canonical import | 10 source files changed; 39 tools tests passing; 8 arch location tests + 8 integration import tests added; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL); ruff apenas erros pré-existentes (service/ legado); next: spec 086 | Reverter imports e restaurar infra/ original |
+
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
@@ -408,4 +410,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`085-normalize-infra-layer-tools.md` (próximo batch)
+`086-implement-module-specific-unit-of-work-tools.md`
