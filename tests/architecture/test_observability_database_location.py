@@ -55,6 +55,18 @@ class TestObservabilityDatabaseLocation:
             "infra/database/mappers.py must import from infra/database/models"
         )
 
+    def test_no_infra_flat_models_shim(self):
+        path = OBSERVABILITY_INFRA_DIR / "models.py"
+        assert not path.is_file(), "observability/infra/models.py shim must be removed"
+
+    def test_no_infra_flat_repositories_shim(self):
+        path = OBSERVABILITY_INFRA_DIR / "repositories.py"
+        assert not path.is_file(), "observability/infra/repositories.py shim must be removed"
+
+    def test_no_infra_flat_mappers_shim(self):
+        path = OBSERVABILITY_INFRA_DIR / "mappers.py"
+        assert not path.is_file(), "observability/infra/mappers.py shim must be removed"
+
     def test_no_repository_concrete_outside_database(self):
         infra_py_files = [
             p for p in OBSERVABILITY_INFRA_DIR.rglob("*.py")

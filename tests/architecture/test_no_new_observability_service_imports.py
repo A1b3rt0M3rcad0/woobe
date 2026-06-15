@@ -8,11 +8,7 @@ DISALLOWED_SERVICE_IMPORTS = {
     "modules.observability.service",
 }
 
-ALLOWED_SERVICE_FILES = {
-    "service/dtos.py",
-    "service/use_cases.py",
-    "service/__init__.py",
-}
+ALLOWED_SERVICE_FILES: set[str] = set()
 
 
 def _get_import_strings_from_file(filepath: Path) -> list[str]:
