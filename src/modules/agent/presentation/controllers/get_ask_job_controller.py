@@ -2,7 +2,7 @@ import logging
 from uuid import UUID
 
 from modules.agent.application.use_cases.runtime_use_cases import GetAskJobUseCase
-from shared.domain.errors import NotFoundError
+from shared.infra.errors import NotFoundError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

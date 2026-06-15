@@ -16,8 +16,8 @@ from modules.core.infra.database.mappers import (
     project_model_to_entity,
 )
 from modules.core.infra.database.models import ApiKeyModel, OutboxEventModel, ProjectModel
-from shared.domain.events import OutboxEventWriter
-from shared.domain.objects import CursorPage
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.objects import CursorPage
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 

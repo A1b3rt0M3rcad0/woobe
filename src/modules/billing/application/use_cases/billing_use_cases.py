@@ -27,7 +27,7 @@ from modules.billing.application.dtos.billing_dtos import (
     GetOrganizationSubscriptionOutput,
     ListActivePlansOutput,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class CreatePlanUseCase:

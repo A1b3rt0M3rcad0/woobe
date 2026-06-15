@@ -16,8 +16,8 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageInput,
     SendMessageOutput,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.time import utc_now
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.time import utc_now
 
 
 class CreateSessionUseCase:

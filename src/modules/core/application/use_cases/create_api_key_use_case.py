@@ -5,7 +5,7 @@ from modules.core.domain.entities import ApiKey
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
 from modules.core.application.dtos.create_api_key_dtos import CreateApiKeyInput, CreateApiKeyOutput
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class CreateApiKeyUseCase:

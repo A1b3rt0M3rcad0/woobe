@@ -18,7 +18,7 @@ from modules.observability.application.dtos import (
 from modules.observability.domain.entities import Trace, TraceEvent
 from modules.observability.domain.enums import TraceEventType
 from modules.observability.domain.repositories import TraceEventRepository, TraceRepository
-from shared.domain.errors import NotFoundError
+from shared.infra.errors import NotFoundError
 
 
 class FakeTraceRepository(TraceRepository):

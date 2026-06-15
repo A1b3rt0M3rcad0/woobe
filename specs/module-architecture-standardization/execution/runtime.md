@@ -220,8 +220,7 @@ src/modules/<module>/
 | 093 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_rabbitmq_topology.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes; 80 falhas pré-existentes de arquitetura inalteradas; `rg` unavailable (Get-ChildItem/Select-String) | 094 |
 | 094 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_idempotency_retry_and_dead_letter.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes; 80 falhas pré-existentes de arquitetura inalteradas; `test` Unix command unavailable (git branch check); `rg` unavailable (Get-ChildItem/Select-String) | 095 |
 | 095 | completed | 2026-06-15 | `src/shared/workers/discovery.py`, `src/shared/workers/__init__.py`, `src/main.py`, `src/modules/*/infra/workers/registry.py` (3 stubs), `src/modules/metering/infra/repositories.py` (shim), `src/modules/observability/infra/repositories.py` (shim), `src/modules/tools/infra/repositories.py` (shim), `src/modules/tools/service/*.py` (4 shims), `src/modules/*/infra/workers/outbox_dispatcher.py` (3 modules: mark_dead/mark_retryable), `src/modules/*/infra/workers/inbox_processor.py` (3 modules: mark_dead/mark_retryable), `tests/integration/messaging/test_wire_central_runner_to_module_worker_registries.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | `rg` unavailable (Get-ChildItem/Select-String); `find` unavailable (Get-ChildItem); shims para 3 módulos (cross-module imports de agent não limpos); 80 falhas pré-existentes de arquitetura inalteradas | 096 |
-| 095 | pending | - | - | - | 096 |
-| 096 | pending | - | - | - | 097 |
+| 096 | completed | 2026-06-15 | `src/shared/domain/` removed, `src/shared/application/` removed, `src/shared/workers/inbox_consumer.py`, `src/shared/workers/inbox_dispatcher.py`, `src/shared/workers/outbox_publisher.py` removed, `src/shared/domain/errors.py`→`src/shared/infra/errors.py`, `src/shared/domain/events.py`→`src/shared/messaging/outbox_writer.py`, `src/shared/domain/objects.py`→`src/shared/infra/objects.py`, `src/shared/domain/time.py`→`src/shared/infra/time.py`, `src/shared/application/transactional_handler.py`→`src/shared/infra/transactional_handler.py`, `tests/integration/messaging/test_clean_shared_and_keep_only_technical_contracts.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821/F841; 9 integration tests + 5 arch tests added; 60/60 spec 096 tests passing; `find`/`rg` indisponíveis (Get-ChildItem/Select-String) | 097 |
 | 097 | pending | - | - | - | 098 |
 | 098 | pending | - | - | - | 099 |
 | 099 | pending | - | - | - | 100 |
@@ -425,6 +424,24 @@ Specs 061 a 109 do `MANIFEST.md`.
 
 Registrar aqui divergências entre inventário e premissas das specs.
 
+## Specs executadas
+
+| Spec | Data | SHA | Resumo |
+|---|---|---|---|---|
+| 096 | 2026-06-15 | HEAD | Clean shared: removed domain/ (errors→infra/errors, events→messaging/outbox_writer, objects→infra/objects, time→infra/time), removed application/ (transactional_handler→infra/transactional_handler), removed concrete workers (inbox_consumer.py, inbox_dispatcher.py, outbox_publisher.py). All imports updated across 120+ files. 9 integration tests + 5 arch tests created. All spec 096 tests (60/60) passing. Next: 097.
+
+## Decisões tomadas durante a execução
+
+| Data | Decisão | Motivo | Impacto | Reversível? |
+|---|---|---|---|---|
+| 2026-06-15 | shared/domain/* files redistributed to shared/infra/ and shared/messaging/ instead of deleted outright | OutboxEventWriter ABC, DomainError hierarchy, CursorPage, and utc_now are technical contracts used by all modules — deleting them would break 120+ files | 4 files moved to infra/, 1 file moved to messaging/, all imports updated across src/ and tests/ | Sim, revertendo commit e restaurando shared/domain/ |
+
+## Riscos ativos
+
+| Risco | Severidade | Spec origem | Mitigação | Status |
+|---|---|---|---|---|---|
+| shared/domain/objects.py → shared/infra/objects.py (CursorPage) amplamente usado em repositories | baixa | 096 | Já migrado com imports atualizados e validados por testes | mitigated |
+
 ## Próxima spec recomendada
 
-`094-standardize-idempotency-retry-and-dead-letter.md`
+`097-standardize-bootstrap-dependency-injection-and-config.md`

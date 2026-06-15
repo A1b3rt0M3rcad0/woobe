@@ -12,7 +12,7 @@ from modules.metering.application.dtos.metering_dtos import (
     RecordUsageInput,
     RecordUsageOutput,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class RecordUsageUseCase:

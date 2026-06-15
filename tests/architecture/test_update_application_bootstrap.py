@@ -135,28 +135,28 @@ class TestBootstrapExceptionHandlers:
 
     def test_domain_error_handler_registered(self):
         from src.main import create_app
-        from shared.domain.errors import DomainError
+        from shared.infra.errors import DomainError
 
         app = create_app()
         assert DomainError in app.exception_handlers
 
     def test_not_found_error_handler_registered(self):
         from src.main import create_app
-        from shared.domain.errors import NotFoundError
+        from shared.infra.errors import NotFoundError
 
         app = create_app()
         assert NotFoundError in app.exception_handlers
 
     def test_conflict_error_handler_registered(self):
         from src.main import create_app
-        from shared.domain.errors import ConflictError
+        from shared.infra.errors import ConflictError
 
         app = create_app()
         assert ConflictError in app.exception_handlers
 
     def test_validation_error_handler_registered(self):
         from src.main import create_app
-        from shared.domain.errors import ValidationError
+        from shared.infra.errors import ValidationError
 
         app = create_app()
         assert ValidationError in app.exception_handlers

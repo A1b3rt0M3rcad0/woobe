@@ -1,7 +1,7 @@
 import pytest
 
 from modules.metering.domain.errors import UsageEventNotFoundError
-from shared.domain.errors import NotFoundError, DomainError
+from shared.infra.errors import NotFoundError, DomainError
 
 
 class TestUsageEventNotFoundError:

@@ -40,8 +40,8 @@ from modules.identity.infra.database.models import (
     UserModel,
     UserSessionModel,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.objects import CursorPage
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 

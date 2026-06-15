@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.tools.application.use_cases import ListSecretsUseCase
 from modules.tools.infra.database.unit_of_work import ToolsUnitOfWork
 from modules.tools.presentation.controllers.list_secrets_controller import ListSecretsController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def list_secrets_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

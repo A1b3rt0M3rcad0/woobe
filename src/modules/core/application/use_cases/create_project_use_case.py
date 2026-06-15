@@ -2,7 +2,7 @@ from modules.core.domain.entities import Project
 from modules.core.domain.errors import DuplicateSlugError
 from modules.core.domain.repositories import ProjectRepository
 from modules.core.application.dtos.create_project_dtos import CreateProjectInput, CreateProjectOutput
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class CreateProjectUseCase:

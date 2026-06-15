@@ -7,7 +7,7 @@ from uuid import UUID
 
 import httpx
 
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.crypto import encrypt_secret
 from modules.tools.domain.entities import Secret, Tool
 from modules.tools.domain.enums import ToolStatus

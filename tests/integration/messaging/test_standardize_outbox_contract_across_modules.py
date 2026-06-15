@@ -152,5 +152,5 @@ def test_each_module_outbox_event_model_has_tablename(module_name):
 
 def test_shared_outbox_event_writer_abstract():
     """shared.domain.events.OutboxEventWriter must have abstract write method."""
-    from shared.domain.events import OutboxEventWriter
+    from shared.messaging.outbox_writer import OutboxEventWriter
     assert hasattr(OutboxEventWriter.write, "__isabstractmethod__")

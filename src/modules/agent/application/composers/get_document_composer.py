@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.presentation.controllers.get_document_controller import GetDocumentController
 from modules.agent.application.use_cases import GetDocumentUseCase
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 

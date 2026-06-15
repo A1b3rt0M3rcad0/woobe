@@ -1,7 +1,7 @@
 from modules.agent.presentation.mappers import upload_document_output_to_response
 from modules.agent.application.dtos import UploadDocumentInput
 from modules.agent.application.use_cases.knowledge_use_cases import UploadDocumentUseCase
-from shared.domain.errors import NotFoundError, ValidationError
+from shared.infra.errors import NotFoundError, ValidationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

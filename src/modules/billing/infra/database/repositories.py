@@ -28,7 +28,7 @@ from modules.billing.infra.database.models import (
     PlanModel,
     SubscriptionModel,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 

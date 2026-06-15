@@ -104,8 +104,8 @@ from modules.agent.infra.database.models import (
     RuntimeOutboxEventModel,
     SessionModel,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.objects import CursorPage
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 

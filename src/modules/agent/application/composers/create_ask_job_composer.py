@@ -4,7 +4,7 @@ from modules.agent.presentation.controllers.create_ask_job_controller import (
     CreateAskJobController,
 )
 from modules.agent.application.use_cases import CreateAskJobUseCase
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 

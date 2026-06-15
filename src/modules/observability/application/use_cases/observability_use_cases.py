@@ -14,8 +14,8 @@ from modules.observability.application.dtos.observability_dtos import (
     TraceListItemResponse,
     TraceSummaryResponse,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.errors import NotFoundError
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.errors import NotFoundError
 
 logger = logging.getLogger(__name__)
 

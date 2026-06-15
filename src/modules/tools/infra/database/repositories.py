@@ -18,8 +18,8 @@ from modules.tools.infra.database.mappers import (
     tool_to_model,
 )
 from modules.tools.infra.database.models import OutboxEventModel, SecretModel, ToolModel
-from shared.domain.events import OutboxEventWriter
-from shared.domain.objects import CursorPage
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 

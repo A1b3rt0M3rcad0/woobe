@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shared.domain.errors import NotFoundError
+from shared.infra.errors import NotFoundError
 
 
 class PlanNotFoundError(NotFoundError):

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeOutboxEventWriter
 from modules.agent.presentation.controllers.upload_document_controller import UploadDocumentController
 from modules.agent.application.use_cases import UploadDocumentUseCase
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 

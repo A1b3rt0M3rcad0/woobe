@@ -4,7 +4,7 @@ from modules.billing.infra.database.repositories import SQLAlchemyOutboxEventWri
 from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
 from modules.billing.application.use_cases import CreateSubscriptionUseCase
 from modules.billing.presentation.controllers.create_subscription_controller import CreateSubscriptionController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def create_subscription_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

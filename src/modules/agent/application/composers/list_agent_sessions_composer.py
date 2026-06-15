@@ -4,7 +4,7 @@ from modules.agent.presentation.controllers.list_agent_sessions_controller impor
     ListAgentSessionsController,
 )
 from modules.agent.application.use_cases import ListAgentSessionsUseCase
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 

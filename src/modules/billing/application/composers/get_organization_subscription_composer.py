@@ -4,7 +4,7 @@ from modules.billing.infra.database.repositories import SQLAlchemySubscriptionRe
 from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
 from modules.billing.application.use_cases import GetOrganizationSubscriptionUseCase
 from modules.billing.presentation.controllers.get_organization_subscription_controller import GetOrganizationSubscriptionController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def get_organization_subscription_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

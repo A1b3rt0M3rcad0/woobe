@@ -146,7 +146,7 @@ def test_outbox_contracts_has_protocol():
 
 def test_shared_domain_events_has_abstract_outbox_writer():
     """Spec 091: shared.domain.events.OutboxEventWriter must exist with abstract write()."""
-    from shared.domain.events import OutboxEventWriter
+    from shared.messaging.outbox_writer import OutboxEventWriter
     assert hasattr(OutboxEventWriter.write, "__isabstractmethod__")
 
 
@@ -481,3 +481,37 @@ def test_module_worker_entry_is_domain_agnostic():
     from shared.workers.discovery import ModuleWorkerEntry
     assert not hasattr(ModuleWorkerEntry, "event_type")
     assert not hasattr(ModuleWorkerEntry, "routing_key")
+
+
+# --- Spec 096: Clean shared — keep only technical contracts ---
+
+
+def test_shared_domain_removed():
+    """Spec 096: shared/domain/ directory must not exist."""
+    assert not SHARED_MESSAGING_DIR.parent.joinpath("domain").is_dir()
+
+
+def test_shared_application_removed():
+    """Spec 096: shared/application/ directory must not exist."""
+    assert not SHARED_MESSAGING_DIR.parent.joinpath("application").is_dir()
+
+
+def test_shared_workers_no_concrete():
+    """Spec 096: shared/workers/ has no concrete worker implementations."""
+    concrete = {"inbox_consumer.py", "inbox_dispatcher.py", "outbox_publisher.py"}
+    wdir = SHARED_MESSAGING_DIR.parent.joinpath("workers")
+    if wdir.is_dir():
+        existing = {p.name for p in wdir.iterdir() if p.suffix == ".py"}
+        assert not (concrete & existing)
+
+
+def test_shared_infra_errors_exists():
+    """Spec 096: shared/infra/errors.py must exist (relocated from domain)."""
+    assert SHARED_MESSAGING_DIR.parent.joinpath("infra", "errors.py").is_file()
+
+
+def test_shared_messaging_outbox_writer_exists():
+    """Spec 096: shared/messaging/outbox_writer.py must exist (relocated from domain)."""
+    mod = importlib.import_module("shared.messaging.outbox_writer")
+    writer_cls = getattr(mod, "OutboxEventWriter")
+    assert hasattr(writer_cls.write, "__isabstractmethod__")

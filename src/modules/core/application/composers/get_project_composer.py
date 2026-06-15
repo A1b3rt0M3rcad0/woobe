@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.core.application.use_cases import GetProjectByIdUseCase
 from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from modules.core.presentation.controllers.get_project_controller import GetProjectController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def get_project_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

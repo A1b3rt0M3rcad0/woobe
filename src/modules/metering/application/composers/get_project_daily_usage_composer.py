@@ -4,7 +4,7 @@ from modules.metering.infra.database.repositories import SQLAlchemyUsageDailyPro
 from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 from modules.metering.application.use_cases import GetProjectDailyUsageUseCase
 from modules.metering.presentation.controllers.get_project_daily_usage_controller import GetProjectDailyUsageController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def get_project_daily_usage_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

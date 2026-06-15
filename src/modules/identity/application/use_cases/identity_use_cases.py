@@ -48,8 +48,8 @@ from modules.identity.application.dtos import (
     CreateUserInput,
     CreateUserOutput,
 )
-from shared.domain.errors import ConflictError
-from shared.domain.events import OutboxEventWriter
+from shared.infra.errors import ConflictError
+from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.crypto import hash_password, verify_password
 
 
@@ -203,7 +203,7 @@ class UpdateOrganizationUseCase:
         if input_dto.slug is not None:
             existing = await self._org_repo.get_by_slug(input_dto.slug)
             if existing and existing.id != org_id:
-                from shared.domain.errors import ConflictError
+                from shared.infra.errors import ConflictError
                 raise ConflictError(f"Organization with slug '{input_dto.slug}' already exists")
             org.slug = input_dto.slug
 

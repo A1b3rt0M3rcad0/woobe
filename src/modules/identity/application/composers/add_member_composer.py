@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 from modules.identity.application.use_cases import AddMemberToOrganizationUseCase
 from modules.identity.presentation.controllers.add_member_controller import AddMemberController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def add_member_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

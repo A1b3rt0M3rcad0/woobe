@@ -2,7 +2,7 @@ from modules.observability.application.use_cases import GetTraceUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
-from shared.domain.errors import NotFoundError
+from shared.infra.errors import NotFoundError
 
 
 class GetTraceController(Controller):

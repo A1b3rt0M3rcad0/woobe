@@ -45,8 +45,8 @@ from modules.tools.domain.repositories import ToolRepository
 from modules.tools.service.tool_converter import safe_tool_name, tools_to_openai_definitions
 from modules.tools.service.use_cases import ExecuteToolUseCase
 from modules.tools.service.dtos import ExecuteToolInput
-from shared.domain.events import OutboxEventWriter
-from shared.domain.time import utc_now
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
 from shared.infra.llm_usage import normalize_llm_usage
@@ -401,7 +401,7 @@ class AskAgentUseCase:
         if agent.project_id != input_dto.project_id:
             raise AgentNotFoundError(input_dto.agent_id)
         if hasattr(agent, "status") and agent.status and hasattr(agent.status, "value") and agent.status.value != "active":
-            from shared.domain.errors import ValidationError
+            from shared.infra.errors import ValidationError
             raise ValidationError(f"Agent {input_dto.agent_id} is not active")
 
         if input_dto.execution_context == "production":
@@ -487,7 +487,7 @@ class AskAgentUseCase:
 
     async def _load_credential(self, agent: Agent) -> ProviderCredential:
         if not agent.provider_credential_id:
-            from shared.domain.errors import ValidationError
+            from shared.infra.errors import ValidationError
             raise ValidationError(
                 "Agent has no provider credential configured"
             )
@@ -498,7 +498,7 @@ class AskAgentUseCase:
             return decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as e:
             logger.error("Failed to decrypt credential %s: %s", credential.id, e)
-            from shared.domain.errors import ValidationError
+            from shared.infra.errors import ValidationError
             raise ValidationError(
                 "Provider credential secret could not be decrypted. Recreate the credential."
             )
@@ -756,13 +756,13 @@ class AskAgentUseCase:
                 or (credential.metadata or {}).get("base_url")
             )
             if not base_url:
-                from shared.domain.errors import ValidationError
+                from shared.infra.errors import ValidationError
                 raise ValidationError(
                     "Custom provider requires base_url in credential metadata or agent settings"
                 )
             model = (settings or {}).get("model") or (credential.metadata or {}).get("model")
             if not model:
-                from shared.domain.errors import ValidationError
+                from shared.infra.errors import ValidationError
                 raise ValidationError(
                     "Custom provider requires model in agent or credential metadata"
                 )

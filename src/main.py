@@ -28,7 +28,7 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
-from shared.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
 from shared.workers.discovery import build_registries, discover_module_entries
 from shared.workers.runner import WorkerRunner
 

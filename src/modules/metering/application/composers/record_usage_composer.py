@@ -4,7 +4,7 @@ from modules.metering.infra.database.repositories import SQLAlchemyOutboxEventWr
 from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 from modules.metering.application.use_cases import RecordUsageUseCase
 from modules.metering.presentation.controllers.record_usage_controller import RecordUsageController
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def record_usage_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:

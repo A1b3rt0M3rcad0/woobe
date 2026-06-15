@@ -19,7 +19,7 @@ from modules.agent.presentation.controllers.ask_agent_controller import (
 )
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.tools.infra.repositories import SQLAlchemyToolRepository
-from shared.application.transactional_handler import TransactionalHandler
+from shared.infra.transactional_handler import TransactionalHandler
 from shared.infra.config import Settings
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 

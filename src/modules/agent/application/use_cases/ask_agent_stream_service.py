@@ -61,8 +61,8 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.time import utc_now
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
 from shared.infra.llm_usage import normalize_llm_usage
