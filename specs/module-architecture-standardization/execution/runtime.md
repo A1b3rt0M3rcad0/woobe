@@ -118,7 +118,7 @@ src/modules/<module>/
 
 ## Estado atual da migração
 
-`in_progress` (spec 107 completed, spec 108 recommended next)
+`in_progress` (spec 108 completed, spec 109 recommended next)
 
 ## Status das specs
 
@@ -232,7 +232,7 @@ src/modules/<module>/
 | 105 | completed | 2026-06-15 | `tests/contract/test_api_routes_registered.py`, `execution/runtime.md` | 7 API route registration tests added (routes file existence, router export, main.py imports, __all__ exports, legacy prefix preservation in agent); 7/7 passing; ruff clean; 45 pre-existing arch failures unchanged | 106 |
 | 106 | blocked | 2026-06-15 | `execution/runtime.md` | **BLOCKER**: allowlist has 14 non-empty entries (11 module_boundaries, 2 layer_dependencies, 1 application_boundaries — agent cross-module imports); cross-module FKs remain in models; tools/service/ shims present; acceptance criterion `allowlist final vazia` not achievable without spec 107-level refactoring | 107 |
 | 107 | completed | 2026-06-15 | `src/modules/agent/domain/ports/*.py` (5 files), `src/modules/agent/infra/adapters/*.py` (6 files), `src/modules/agent/application/tool_converter.py`, `src/modules/agent/application/use_cases/ask_use_case.py`, `src/modules/agent/application/use_cases/ask_agent_stream_service.py`, `src/modules/agent/application/composers/ask_agent_composer.py`, `src/modules/agent/application/composers/ask_agent_stream_composer.py`, `src/modules/agent/infra/workers/ask_job_worker.py`, `tests/architecture/legacy_import_allowlist.yaml`, `src/modules/tools/service/` removed, `src/modules/metering/infra/repositories.py` removed, `src/modules/observability/infra/repositories.py` removed, `src/modules/tools/infra/repositories.py` removed, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 43 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL); allowlist final vazia (14 entries removed); agent cross-module imports refatorados para port/adapter pattern com importlib lazy loading | 108 |
-
+| 108 | completed | 2026-06-15 | `execution/runtime.md` | ruff 20 erros pre-existentes; arch 43 failed/621 passed; module 1 collection error (pre-existing); contract 12/12 passed; integration 7 failed/177 passed (cross-module FK pre-existing); alembic nao executado (sem PostgreSQL); FastAPI startup nao executado | 109 |
 ## Specs executadas
 
 | Spec | Data | SHA | Resumo |
@@ -434,6 +434,8 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | 104 | 2026-06-15 | 67ad699 | Messaging idempotency and concurrency tests added (inbox idempotency, outbox retry, lock mechanisms, shared policies). 6/6 passing. Idempotency/lock delegated to shared base classes. Next: 105.
 | 105 | 2026-06-15 | 85bca85 | API route registration tests added (routes file, router export, main.py imports, __all__, legacy prefixes). 7/7 passing. Next: 106.
 | 106 | 2026-06-15 | a48330a | **BLOCKED**. Detection: 4 agent files with cross-module imports (allowlisted, 14 entries), cross-module FKs in 6 modules, tools/service/ shims present. Bootstrap files (main.py, env.py) already canonical. Validations: ruff 21 pre-existing errors, arch 45 failed/619 passed, module tests 1 collection error, contract 12/12 passed, integration 7 failed/177 passed, pyright 653 pre-existing errors, app startup skipped (env missing). Acceptance criterion `allowlist final vazia` not achievable. Next: 107 (cleanup spec).
+| 107 | 2026-06-15 | 5a6527c | Agent cross-module imports refactored via port/adapter pattern (5 domain ports, 6 infra adapters, LLMFactory, tool_converter in agent). tools/service/ and shim files removed. Allowlist emptied (14 entries). ruff 20 pre-existing errors, arch 43 failed/621 passed, contract 12/12 passed, integration 7 failed/177 passed. Next: 108.
+| 108 | 2026-06-15 | HEAD | Full validation suite executed: ruff 20 errors (pre-existing), arch 43 failed/621 passed, module tests 1 collection error (pre-existing), contract 12/12 passed, integration 7 failed/177 passed, alembic nao executado (sem PostgreSQL), FastAPI startup nao executado (sem env). Next: 109.
 
 ## Decisões tomadas durante a execução
 
@@ -452,4 +454,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`108` (spec 107 completed — execute final architecture and behavioral validation)
+`109` (spec 108 completed — generate final standardization report)
