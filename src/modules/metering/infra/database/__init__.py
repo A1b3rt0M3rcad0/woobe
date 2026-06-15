@@ -11,9 +11,11 @@ from modules.metering.infra.database.repositories import (
     SQLAlchemyUsageDailyProjectRepository,
     SQLAlchemyUsageEventRepository,
 )
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 
 __all__ = [
     "InboxEventModel",
+    "MeteringUnitOfWork",
     "OutboxEventModel",
     "SQLAlchemyOutboxEventWriter",
     "SQLAlchemyUsageDailyAgentRepository",
