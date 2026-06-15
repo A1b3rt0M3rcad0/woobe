@@ -1,4 +1,8 @@
-# 000 — architecture-decision-record-canonical-module-architecture
+# 000 — Architecture Decision Record — Canonical Module Architecture
+
+**Status:** accepted
+
+**Data:** 2026-06-14
 
 ## Tipo
 
@@ -6,7 +10,7 @@ architecture
 
 ## Objetivo
 
-Registrar a decisão mandatória de usar uma arquitetura canônica em todos os módulos de domínio, tomando `agent` como referência a ser estabilizada.
+Registrar a decisão mandatória de usar uma arquitetura canônica nos módulos de domínio `identity`, `core`, `billing`, `metering`, `observability` e `tools`, tomando `agent` como referência estrutural a ser estabilizada.
 
 ## Contexto
 
@@ -82,6 +86,12 @@ Comandos dependentes de serviços externos, banco ou RabbitMQ são condicionais 
 - arquivo ADR existe e contém status accepted
 - ADR cita todos os módulos-alvo
 - ADR proíbe FK e imports cross-module
+
+## Consequências
+
+- Positivas: manutenção uniforme entre módulos; direção de dependências clara (presentation → application → domain); testes arquiteturais reutilizáveis; onboarding mais rápido.
+- Negativas: necessidade de mover arquivos e atualizar imports nos 6 módulos-alvo; risco de copiar inconsistências do agent sem estabilizá-lo primeiro; esforço adicional de alinhamento dos contratos de banco e mensageria.
+- Riscos: FK físicas cross-module existentes impedirem isolamento imediato; workers registrados em locais não padronizados; dependências de schemas legados `ai` e `runtime` em módulos consumidores.
 
 ## Rollback
 

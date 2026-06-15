@@ -17,9 +17,9 @@ Padronizar `identity`, `core`, `billing`, `metering`, `observability` e `tools` 
 ```yaml
 expected_branch: project-rai-playground_module-architecture-standardization
 source_baseline: project-rai-playground
-initial_sha: null
-last_validated_sha: null
-branch_guard_status: pending
+initial_sha: c128cb06372ecd0d748a144a91093ca3417a590c
+last_validated_sha: c128cb06372ecd0d748a144a91093ca3417a590c
+branch_guard_status: active
 ```
 
 Comando obrigatório antes de qualquer spec:
@@ -118,13 +118,13 @@ src/modules/<module>/
 
 ## Estado atual da migração
 
-`pending`
+`in_progress`
 
 ## Status das specs
 
 | Spec | Status | Data | Arquivos alterados | Pendências | Próxima recomendada |
 |---|---|---|---|---|---|
-| 000 | pending | - | - | - | 001 |
+| 000 | completed | 2026-06-14 | `specs/module-architecture-standardization/000-architecture-decision-record-canonical-module-architecture.md`, `tests/architecture/test_adr_presence.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec) | 001 |
 | 001 | pending | - | - | - | 002 |
 | 002 | pending | - | - | - | 003 |
 | 003 | pending | - | - | - | 004 |
@@ -237,16 +237,19 @@ src/modules/<module>/
 
 ## Specs executadas
 
-Nenhuma.
+| Spec | Data | SHA | Resumo |
+|---|---|---|---|
+| 000 | 2026-06-14 | c128cb0 | ADR canônico registrado: agente como referência, 6 módulos-alvo, proibição FK/imports cross-module. Teste arquitetural criado e validado. |
 
 ## Specs pendentes
 
-Todas as specs do `MANIFEST.md`.
+Specs 001 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
 | Data | Decisão | Motivo | Impacto | Reversível? |
 |---|---|---|---|---|
+| 2026-06-14 | ADR canônico registrado e aceito | Estabelecer base arquitetural obrigatória antes de qualquer migração física | Todos os módulos devem seguir o mesmo contrato estrutural; proibição de FK e imports cross-module | Sim, revertendo o ADR e runtime.md |
 
 ## Riscos ativos
 
@@ -264,4 +267,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`000-architecture-decision-record-canonical-module-architecture.md`
+`001-define-layer-and-module-dependency-rules.md`
