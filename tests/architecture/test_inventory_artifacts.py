@@ -12,6 +12,7 @@ EVENTS_INVENTORY = INVENTORY_DIR / "events.md"
 WORKERS_INVENTORY = INVENTORY_DIR / "workers.md"
 TESTS_BOOTSTRAP_INVENTORY = INVENTORY_DIR / "tests-bootstrap.md"
 RISKS_INVENTORY = INVENTORY_DIR / "risks.md"
+IDENTITY_MIGRATION_MAP = INVENTORY_DIR / "identity-migration-map.md"
 
 
 class TestInventoryArtifacts:
@@ -164,3 +165,18 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["Risco", "Severity", "mitigação"]
         assert any(m in content for m in evidence_markers), "Must reference risk/severity/mitigation evidence"
+
+    def test_identity_migration_map_exists(self):
+        assert IDENTITY_MIGRATION_MAP.exists(), f"File not found: {IDENTITY_MIGRATION_MAP}"
+
+    def test_identity_migration_map_has_real_content(self):
+        assert IDENTITY_MIGRATION_MAP.exists()
+        content = IDENTITY_MIGRATION_MAP.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["src/modules/identity", "Current Path", "action"]
+        assert any(m in content for m in evidence_markers), "Must reference identity module paths and actions"
