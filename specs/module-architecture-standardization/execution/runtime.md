@@ -143,7 +143,7 @@ src/modules/<module>/
 | 016 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/events.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); only agent uses versioned events; 6 modules use unversioned event_type strings; agent has 3 separate outbox/inbox writer pairs | 017 |
 | 017 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/workers.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`rg` unavailable (substituted with Get-ChildItem/Select-String); core has no workers dir; 5 modules have empty registry stubs; AskJobWorker has cross-module import | 018 |
 | 018 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/tests-bootstrap.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`sed` unavailable (substituted with Get-ChildItem/Get-Content); e2e dir empty; core unit tests missing __init__.py; 34 pre-existing arch test failures | 019 |
-| 019 | pending | - | - | - | 020 |
+| 019 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/risks.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | 25 riscos catalogados (5 críticos, 12 altos, 6 médios, 2 baixos); `rg`/`find`/`cat` indisponíveis (substituídos) | 020 |
 | 020 | pending | - | - | - | 021 |
 | 021 | pending | - | - | - | 022 |
 | 022 | pending | - | - | - | 023 |
@@ -258,6 +258,7 @@ src/modules/<module>/
 | 016 | 2026-06-14 | d12e2b6 | Event/Outbox/Inbox catalog criado: `events.md` com 19 event_types catalogados, agent com eventos versionados (5 tipos), demais módulos sem versionamento, 3 OutboxEventWriter no agent, 6 módulos com outbox/inbox models. |
 | 017 | 2026-06-14 | bd9aa35 | Worker/registry inventory criado: `workers.md` com 26 arquivos catalogados; agent tem 4 workers concretos + registry; billing/identity/metering/observability/tools têm registries vazios; core sem workers dir; AskJobWorker com import cross-module. |
 | 018 | 2026-06-14 | 54ab80e | Tests/bootstrap/config inventory criado: `tests-bootstrap.md` com 150 test files catalogados, bootstrap (main.py), Alembic (15 migrações), pyproject.toml; e2e dir vazio; wildcard imports em env.py. |
+| 019 | 2026-06-14 | 1e87c8e | Risk register and execution order criado: `risks.md` com 25 riscos consolidados dos 10 inventários (010-018); ordem executável em 9 fases; 5 riscos críticos (FKs cross-module, schemas legados), 12 altos, 6 médios, 2 baixos. |
 
 ## Specs pendentes
 
@@ -286,16 +287,24 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Event/Outbox/Inbox catalog catalogado | Catalogar event_types, routing_keys, Outbox/Inbox models e publishers antes de padronizar envelopes e versionamento | `events.md` com ~65 arquivos analisados; 19 event_types catalogados; agent-only versioned events; 3 namespace legados (ai/knowledge/runtime) ainda em uso | Sim, revertendo events.md |
 | 2026-06-14 | Worker/registry inventory catalogado | Catalogar workers, registries e runner antes de criar workers por módulo e wire central | `workers.md` com 26 arquivos; apenas agent tem workers reais; 5 módulos com registries vazios; core sem workers dir; AskJobWorker cruza módulos | Sim, revertendo workers.md |
 | 2026-06-14 | Tests/bootstrap/config inventory catalogado | Catalogar tests, main.py, Alembic e pyproject.toml antes de migrar bootstrap e config | `tests-bootstrap.md` com 150 test files, 14 migrações, main.py com 7 módulos de rotas; e2e dir vazio; wildcard imports frágeis em env.py | Sim, revertendo tests-bootstrap.md |
+| 2026-06-14 | Risk register and execution order criado | Consolidar 10 inventários em registro de riscos e ordem executável | `risks.md` com 25 riscos; ordem em 9 fases (agent baseline → 6 módulos → transversal → final); 5 riscos críticos, 12 altos, 6 médios, 2 baixos | Sim, revertendo risks.md |
 
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | Padronizar copiando defeitos do agent | alta | 020 | auditar e estabilizar baseline antes dos demais módulos | active |
 | FKs cross-module impedirem isolamento | crítica | 013/099 | expand-migrate-contract e IDs opacos | active |
-| Rotas quebrarem durante moves | alta | 014 | shims temporários e testes de contrato | active |
+| Rotas quebrarem durante moves | alta | 014/028 | shims temporários e testes de contrato | active |
 | Transações permanecerem em UoW genérico | alta | 015/025 | UoW concreto por módulo | active |
 | Eventos incompatíveis/duplicados | alta | 016/090-094 | envelope versionado e Inbox idempotente | active |
+| 32 legacy schema refs (ai/knowledge/runtime) bloqueiam migração | crítica | 013/099 | expand-migrate-contract + migrate to agent schema | active |
+| 89 compositores usam PostgresUnitOfWork genérico | alta | 015/025-036 | migrar para UoW específico por módulo | active |
+| AskJobWorker importa de metering/observability (cross-module) | alta | 017/027 | refatorar para event-driven | active |
+| Apenas agent tem workers concretos (5 módulos sem workers) | alta | 017/037-087 | criar workers por módulo | active |
+| 6 módulos usam event_types sem versionamento | alta | 016/090 | padronizar envelope versionado | active |
+| 34 falhas pré-existentes em testes de arquitetura | média | 018/107 | corrigir ou remover na limpeza final | active |
+| 25 erros ruff pré-existentes (F821/F401/F841) | baixa | 019/107 | aceitar como pré-existentes, corrigir no cleanup | active |
 
 ## Inconsistências encontradas
 
@@ -303,4 +312,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`019-create-standardization-risk-register-and-order.md`
+`020-audit-agent-as-canonical-reference.md`
