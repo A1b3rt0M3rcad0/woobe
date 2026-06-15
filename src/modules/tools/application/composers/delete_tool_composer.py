@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.tools.infra.repositories import SQLAlchemyToolRepository
-from modules.tools.service.use_cases import DeleteToolUseCase
+from modules.tools.application.use_cases import DeleteToolUseCase
 from modules.tools.presentation.controllers.delete_tool_controller import DeleteToolController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

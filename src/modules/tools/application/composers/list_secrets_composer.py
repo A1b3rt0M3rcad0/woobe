@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.tools.infra.repositories import SQLAlchemySecretRepository
-from modules.tools.service.use_cases import ListSecretsUseCase
+from modules.tools.application.use_cases import ListSecretsUseCase
 from modules.tools.presentation.controllers.list_secrets_controller import ListSecretsController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

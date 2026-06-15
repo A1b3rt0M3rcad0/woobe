@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.tools.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyToolRepository
-from modules.tools.service.use_cases import CreateToolUseCase
+from modules.tools.application.use_cases import CreateToolUseCase
 from modules.tools.presentation.controllers.create_tool_controller import CreateToolController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

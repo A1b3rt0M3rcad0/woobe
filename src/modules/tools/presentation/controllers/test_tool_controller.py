@@ -1,5 +1,5 @@
-from modules.tools.service.use_cases import TestToolUseCase
-from modules.tools.service.dtos import TestToolInput
+from modules.tools.application.use_cases import TestToolUseCase
+from modules.tools.application.dtos import TestToolInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

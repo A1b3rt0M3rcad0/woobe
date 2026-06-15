@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from modules.tools.service.use_cases import DeleteToolUseCase
-from modules.tools.service.dtos import DeleteToolInput
+from modules.tools.application.use_cases import DeleteToolUseCase
+from modules.tools.application.dtos import DeleteToolInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
