@@ -197,7 +197,7 @@ src/modules/<module>/
 | 070 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/observability-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 4 compositores com PostgresUnitOfWork (deferido spec 076); 4 FKs cross-module (deferido spec 099); 0 testes observability pré-existentes | 071 |
 | 071 | completed | 2026-06-15 | `src/modules/observability/application/dtos/__init__.py`, `src/modules/observability/application/use_cases/__init__.py`, `src/modules/observability/application/handlers/__init__.py`, `src/modules/observability/infra/database/__init__.py`, `src/modules/observability/infra/messaging/__init__.py`, `src/modules/observability/domain/events.py`, `src/modules/observability/domain/services.py`, `src/modules/observability/domain/value_objects.py`, `src/modules/observability/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; caminhos legados mantidos; nenhum comportamento alterado | 072 |
 | 072 | completed | 2026-06-15 | `tests/modules/observability/unit/domain/test_entities.py`, `tests/architecture/test_observability_domain_dependencies.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; domínio já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 6 testes de entidade + 4 testes de arquitetura de dependências adicionados; 2 entidades (Trace, TraceEvent) e 2 repositories interfaces (ABC) validados | 073 |
-| 073 | pending | - | - | - | 074 |
+| 073 | completed | 2026-06-15 | `src/modules/observability/application/dtos/observability_dtos.py`, `src/modules/observability/application/dtos/__init__.py`, `src/modules/observability/application/use_cases/observability_use_cases.py`, `src/modules/observability/application/use_cases/__init__.py`, `src/modules/observability/application/composers/*.py` (4 files), `src/modules/observability/presentation/controllers/*.py` (4 files), `src/modules/observability/service/dtos.py`, `src/modules/observability/service/use_cases.py`, `tests/modules/observability/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_observability_service_imports.py`, `execution/runtime.md` | ruff clean; 11 tests passing (10 use case + 1 arch); shims mantidos em service/; 0 imports de service/ em composers/controllers | 074 |
 | 074 | pending | - | - | - | 075 |
 | 075 | pending | - | - | - | 076 |
 | 076 | pending | - | - | - | 077 |
@@ -313,6 +313,7 @@ src/modules/<module>/
 | 070 | 2026-06-15 | HEAD | Observability module current-to-canonical migration map created: 29 source files classified, 2 entities (Trace/TraceEvent), 4 FKs cross-module (2 core.projects, 1 legacy ai.agents, 1 legacy runtime.sessions), 4 rotas, 4 use cases, 8 DTOs, 2 eventos não versionados, registry vazio, 4 compositores com PostgresUnitOfWork, 0 testes. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 32 tests passing (32 inventory artifacts). Next: 071. |
 | 071 | 2026-06-15 | HEAD | Canonical skeleton for observability created: 5 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. 1 arch structure test (test_observability_structure) passing. Next: 072. |
 | 072 | 2026-06-15 | HEAD | Domain layer validated for observability: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 6 entity invariant tests + 4 architecture dependency tests added. 2 entities (Trace, TraceEvent) and 2 repository interfaces (ABC) validated. Next: 073. |
+| 073 | 2026-06-15 | HEAD | service → application migration for observability: 8 DTOs and 4 use cases moved from service/ to application/dtos and application/use_cases; 4 composers and 4 controllers updated to import from application/; service/ shims preserved; 10 use case tests + 1 arch test added. Next: 074. |
 
 ## Specs pendentes
 
@@ -395,4 +396,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`073-move-service-to-application-layer-observability.md`
+`074-normalize-presentation-layer-observability.md`

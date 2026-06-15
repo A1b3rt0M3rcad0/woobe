@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.observability.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemyTraceEventRepository
-from modules.observability.service.use_cases import CreateTraceEventUseCase
+from modules.observability.application.use_cases import CreateTraceEventUseCase
 from modules.observability.presentation.controllers.add_trace_event_controller import AddTraceEventController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

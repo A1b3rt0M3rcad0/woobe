@@ -1,4 +1,4 @@
-from modules.observability.service.use_cases import GetTraceUseCase
+from modules.observability.application.use_cases import GetTraceUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
