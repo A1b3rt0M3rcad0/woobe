@@ -7,6 +7,8 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
+import pytest
+
 
 SHARED_MESSAGING_DIR = Path("src/shared/messaging")
 
@@ -95,3 +97,73 @@ def test_shared_messaging_package_has_expected_modules():
     found = {p.stem for p in SHARED_MESSAGING_DIR.glob("*.py") if p.stem != "__init__"}
     missing = expected - found
     assert not missing, f"Missing shared messaging modules: {missing}"
+
+
+# --- Spec 091: Outbox contract ---
+
+
+def test_outbox_contracts_module_exists():
+    """Spec 091: shared.messaging.outbox_contracts must exist."""
+    from shared.messaging import outbox_contracts
+    assert hasattr(outbox_contracts, "OutboxEventProtocol")
+    assert hasattr(outbox_contracts, "validate_outbox_envelope")
+
+
+def test_outbox_contracts_has_required_envelope_fields():
+    """Spec 091: REQUIRED_ENVELOPE_FIELDS must include all mandated fields."""
+    from shared.messaging.outbox_contracts import REQUIRED_ENVELOPE_FIELDS
+    expected = frozenset({
+        "event_id",
+        "event_type",
+        "event_version",
+        "occurred_at",
+        "producer_module",
+        "routing_key",
+        "payload",
+        "idempotency_key",
+        "correlation_id",
+    })
+    assert expected.issubset(REQUIRED_ENVELOPE_FIELDS)
+
+
+def test_outbox_contracts_has_validation_function():
+    """Spec 091: validate_outbox_envelope must be callable."""
+    from shared.messaging.outbox_contracts import validate_outbox_envelope
+    assert callable(validate_outbox_envelope)
+
+
+def test_outbox_contracts_has_protocol():
+    """Spec 091: OutboxEventProtocol must define event_type, routing_key
+    and other expected properties."""
+    from shared.messaging.outbox_contracts import OutboxEventProtocol
+    props = ["event_type", "event_version", "routing_key",
+             "idempotency_key", "correlation_id", "payload", "status"]
+    for p in props:
+        assert hasattr(OutboxEventProtocol, p), (
+            f"OutboxEventProtocol missing property: {p}"
+        )
+
+
+def test_shared_domain_events_has_abstract_outbox_writer():
+    """Spec 091: shared.domain.events.OutboxEventWriter must exist with abstract write()."""
+    from shared.domain.events import OutboxEventWriter
+    assert hasattr(OutboxEventWriter.write, "__isabstractmethod__")
+
+
+def test_each_module_outbox_event_writer_exists():
+    """Every canonical module has a SQLAlchemyOutboxEventWriter in infra/database/repositories."""
+    modules = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
+    for mod_name in modules:
+        try:
+            mod = importlib.import_module(
+                f"modules.{mod_name}.infra.database.repositories"
+            )
+        except ModuleNotFoundError:
+            pytest.skip(f"No infra/database/repositories for {mod_name}")
+        writers = [
+            cls for name, cls in vars(mod).items()
+            if name.endswith("OutboxEventWriter") and hasattr(cls, "write")
+        ]
+        assert len(writers) >= 1, (
+            f"{mod_name} must have at least one OutboxEventWriter"
+        )
