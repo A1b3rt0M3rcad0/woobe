@@ -228,6 +228,7 @@ src/modules/<module>/
 | 101 | completed | 2026-06-15 | `tests/architecture/test_public_api_entrypoints.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | 11 module_boundaries entries remain (agent cross-module imports to metering/observability/tools — deferred); 3 layer_dependencies entries remain (agent use_cases infra imports — deferred); 1 application_boundaries entry remains (agent sqlalchemy import — deferred); 45 pre-existing arch failures unchanged; allowlist stripped of 6 stale entries (shared_boundaries, uow_ownership, tools/service dead entries); ruff 21 erros pré-existentes inalterados | 102 |
 | 102 | completed | 2026-06-15 | `tests/architecture/test_database_ownership.py`, `execution/runtime.md` | 5 database ownership tests added (repos, models, mappers, UoW cross-module import blocking + legacy FK warning); 5/5 passing; legacy FK refs in agent models warned (known blocker); 45 pre-existing arch failures unchanged | 103 |
 | 103 | completed | 2026-06-15 | `tests/architecture/test_uow_transaction_atomicity.py`, `execution/runtime.md` | 5 UoW transaction atomicity tests added (commit/rollback per module, PendingRollbackError handling, outbox atomicity test coverage warning for agent); 5/5 passing; 45 pre-existing arch failures unchanged | 104 |
+| 104 | completed | 2026-06-15 | `tests/architecture/test_messaging_idempotency_concurrency.py`, `execution/runtime.md` | 6 messaging idempotency/concurrency tests added (inbox processor idempotency, outbox retry, publishers, lock mechanisms, shared retry/dead letter contracts); 6/6 passing; informational warnings for per-module idempotency/lock patterns (delegated to shared base classes); 45 pre-existing arch failures unchanged | 105 |
 | 103 | pending | - | - | - | 104 |
 | 104 | pending | - | - | - | 105 |
 | 105 | pending | - | - | - | 106 |
@@ -433,6 +434,7 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | 101 | 2026-06-15 | e69d655 | Module boundary and public API entrypoint tests added. Stale allowlist entries removed (shared_boundaries, uow_ownership, tools/service dead). 11 module_boundaries + 3 layer_dependencies + 1 application_boundaries entries remain (agent cross-module imports deferred for architectural refactoring). 5/5 entrypoint tests passing. 78/79 cross-cutting tests passing (1 pre-existing legacy schema failure). 45 pre-existing arch failures unchanged. Next: 102.
 | 102 | 2026-06-15 | 8cde0c1 | Database ownership tests added (repos, models, mappers, UoW — no cross-module imports). Legacy FK schema reference warning in agent models. 5/5 tests passing. Next: 103.
 | 103 | 2026-06-15 | bc31b82 | UoW transaction atomicity tests added (commit/rollback, PendingRollbackError, outbox atomicity coverage). 5/5 passing. Agent missing outbox atomicity test (documented gap). Next: 104.
+| 104 | 2026-06-15 | 67ad699 | Messaging idempotency and concurrency tests added (inbox idempotency, outbox retry, lock mechanisms, shared policies). 6/6 passing. Idempotency/lock delegated to shared base classes. Next: 105.
 
 ## Decisões tomadas durante a execução
 
