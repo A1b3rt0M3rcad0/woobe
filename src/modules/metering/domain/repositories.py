@@ -8,7 +8,7 @@ from modules.metering.domain.entities import (
     UsageDailyProject,
     UsageEvent,
 )
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 
 
 class UsageEventRepository(ABC):

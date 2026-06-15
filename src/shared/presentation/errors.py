@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from shared.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 

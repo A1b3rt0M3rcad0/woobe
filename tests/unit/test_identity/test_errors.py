@@ -4,7 +4,7 @@ from modules.identity.domain.errors import (
     OrganizationNotFoundError,
     UserNotFoundError,
 )
-from shared.domain.errors import ConflictError, DomainError, NotFoundError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError
 
 
 class TestEmailAlreadyExistsError:

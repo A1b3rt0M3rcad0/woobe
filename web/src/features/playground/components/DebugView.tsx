@@ -2,11 +2,12 @@ import { useState, useRef, useLayoutEffect } from 'react'
 import { Bug, CheckCircle, XCircle, AlertTriangle, Copy, ChevronDown, ChevronRight } from 'lucide-react'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens, formatCurrency, formatLatency } from '@/lib/formatters/number'
-import type { AskResponse } from '@/features/playground/types'
+import type { AskResponse, RawStreamEvent } from '@/features/playground/types'
 
 interface DebugViewProps {
   lastResponse: AskResponse | null
   lastRequestPayload: Record<string, unknown> | null
+  rawEvents?: RawStreamEvent[]
 }
 
 // ── Clamped text (CSS line-clamp + fade gradient) ──
@@ -148,9 +149,27 @@ function UsageInline({ usage }: { usage: AskResponse['usage'] }) {
   return <p className="text-[11px] text-muted">{parts.join('  ·  ')}</p>
 }
 
+// ── Event Timeline (for SSE event log) ──
+
+function EventTimeline({ events }: { events: RawStreamEvent[] }) {
+  return (
+    <div className="space-y-1">
+      {events.map((evt, idx) => (
+        <div key={idx} className="rounded-lg border border-border bg-background px-3 py-2">
+          <div className="flex items-center justify-between">
+            <code className="text-[11px] text-white font-mono">{evt.type}</code>
+            <span className="text-[10px] text-muted">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+          </div>
+          <JsonCodeBlock value={evt.payload} maxHeight={72} className="mt-1" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Main component ──
 
-export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) {
+export function DebugView({ lastResponse, lastRequestPayload, rawEvents = [] }: DebugViewProps) {
   if (!lastResponse) {
     return (
       <div className="p-4 text-center">
@@ -165,7 +184,8 @@ export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) 
     (lastResponse.sources?.length ?? 0) > 0 ||
     (lastResponse.tool_calls?.length ?? 0) > 0 ||
     lastResponse.parsed_output ||
-    lastRequestPayload
+    lastRequestPayload ||
+    rawEvents.length > 0
   )
 
   // Parse error blocks the overview (highest priority)
@@ -267,8 +287,13 @@ export function DebugView({ lastResponse, lastRequestPayload }: DebugViewProps) 
               </div>
             </CollapsibleSection>
           )}
+          {rawEvents.length > 0 && (
+            <CollapsibleSection title="Event Log" badge={`${rawEvents.length}`}>
+              <EventTimeline events={rawEvents} />
+            </CollapsibleSection>
+          )}
           <CollapsibleSection title="Raw">
-            <JsonCodeBlock value={lastResponse} maxHeight={128} />
+            <JsonCodeBlock value={{ response: lastResponse, events: rawEvents }} maxHeight={128} />
           </CollapsibleSection>
         </div>
       )}

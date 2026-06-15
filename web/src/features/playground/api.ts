@@ -73,6 +73,7 @@ export interface StreamCallbacks {
   onDone: (response: Partial<AskResponse>) => void
   onError: (error: Error) => void
   onFallback?: (info: FallbackEventInfo) => void
+  onToolCall?: (info: ToolCallInfo) => void
 }
 
 export async function createAskJob(data: CreateAskJobRequest): Promise<{ job_id: string; status: string }> {
@@ -160,6 +161,16 @@ export async function askStream(
               fallback_provider: parsed.fallback_provider ?? '',
               fallback_model: parsed.fallback_model ?? '',
               error: parsed.error ?? 'Unknown error',
+            })
+            break
+          case 'tool_call':
+            callbacks.onToolCall?.({
+              tool_name: parsed.tool_name ?? '',
+              input: parsed.input ?? null,
+              output: parsed.output ?? null,
+              duration_ms: parsed.duration_ms ?? null,
+              success: parsed.success ?? null,
+              error: parsed.error ?? null,
             })
             break
         }

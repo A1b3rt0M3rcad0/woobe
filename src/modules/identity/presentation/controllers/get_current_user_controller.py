@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import GetCurrentUserUseCase
-from modules.identity.service.dtos import GetCurrentUserInput
+from modules.identity.application.use_cases import GetCurrentUserUseCase
+from modules.identity.application.dtos import GetCurrentUserInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

@@ -1,6 +1,6 @@
 import pytest
 
-from shared.domain.errors import DomainError, NotFoundError, ConflictError, ValidationError
+from shared.infra.errors import DomainError, NotFoundError, ConflictError, ValidationError
 
 
 class TestDomainError:

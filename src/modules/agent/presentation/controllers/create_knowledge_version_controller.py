@@ -1,0 +1,31 @@
+from modules.agent.presentation.mappers import knowledge_version_to_response
+from modules.agent.application.dtos import CreateKnowledgeVersionInput
+from modules.agent.application.use_cases.knowledge_use_cases import CreateKnowledgeVersionUseCase
+from shared.infra.errors import ValidationError
+from shared.presentation.interface.controller import Controller
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+
+
+class CreateKnowledgeVersionController(Controller):
+    def __init__(self, use_case: CreateKnowledgeVersionUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        try:
+            body = {**request.body, **request.params}
+            input_dto = CreateKnowledgeVersionInput(**body)
+            result = await self._use_case.execute(input_dto)
+            return Response(
+                status_code=201,
+                body={
+                    "success": True,
+                    "message": "created",
+                    "data": knowledge_version_to_response(result).model_dump(),
+                },
+            )
+        except ValidationError as e:
+            return Response(
+                status_code=422,
+                body={"success": False, "message": str(e), "data": None},
+            )

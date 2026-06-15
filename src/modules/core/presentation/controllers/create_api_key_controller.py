@@ -1,5 +1,5 @@
-from modules.core.service.use_cases import CreateApiKeyUseCase
-from modules.core.service.dtos import CreateApiKeyInput
+from modules.core.application.use_cases import CreateApiKeyUseCase
+from modules.core.application.dtos import CreateApiKeyInput
 from modules.core.presentation.schemas import ApiKeyResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

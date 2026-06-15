@@ -10,7 +10,7 @@ from modules.tools.domain.enums import RiskLevel, SecretType, ToolStatus, ToolTy
 
 class CreateToolRequest(BaseModel):
     project_id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = None
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     type: ToolType = ToolType.FUNCTION
@@ -24,7 +24,7 @@ class CreateToolRequest(BaseModel):
 class ToolResponse(BaseModel):
     id: UUID
     project_id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = None
     name: str
     description: str | None
     type: ToolType
@@ -36,6 +36,48 @@ class ToolResponse(BaseModel):
     status: ToolStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class UpdateToolRequest(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    agent_id: UUID | None = None
+    config: dict | None = None
+    input_schema: dict | None = None
+    output_schema: dict | None = None
+    risk_level: RiskLevel | None = None
+    timeout_ms: int | None = None
+
+
+class UpdateToolStatusRequest(BaseModel):
+    status: ToolStatus
+
+
+class TestToolRequest(BaseModel):
+    config: dict
+    input_data: dict | None = None
+
+
+class TestToolResponse(BaseModel):
+    success: bool
+    status_code: int | None = None
+    headers: dict | None = None
+    body: str | None = None
+    duration_ms: float | None = None
+    error: str | None = None
+
+
+class ExecuteToolRequest(BaseModel):
+    tool_id: UUID
+    input_data: dict | None = None
+    agent_id: UUID | None = None
+
+
+class ExecuteToolResponse(BaseModel):
+    success: bool
+    output: dict | None = None
+    duration_ms: float | None = None
+    error: str | None = None
 
 
 class CreateSecretRequest(BaseModel):

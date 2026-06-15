@@ -1,4 +1,4 @@
-from modules.billing.service.use_cases import ListActivePlansUseCase
+from modules.billing.application.use_cases import ListActivePlansUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

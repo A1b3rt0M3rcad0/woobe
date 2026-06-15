@@ -1,5 +1,5 @@
-from modules.metering.service.use_cases import RecordUsageUseCase
-from modules.metering.service.dtos import RecordUsageInput
+from modules.metering.application.use_cases import RecordUsageUseCase
+from modules.metering.application.dtos import RecordUsageInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

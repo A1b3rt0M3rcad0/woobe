@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import GetOrganizationUseCase
-from modules.identity.service.dtos import GetOrganizationInput
+from modules.identity.application.use_cases import GetOrganizationUseCase
+from modules.identity.application.dtos import GetOrganizationInput
 from modules.identity.presentation.schemas import OrganizationResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

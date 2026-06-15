@@ -256,8 +256,12 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
   )
 }
 
-function DetailView({ traceId, status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, outputParseError, events, fallbackInfo }: {
+function DetailView({ traceId, projectId, agentId, sessionId, messageId, status, model, provider, latencyMs, usage, sources, toolCalls, parsedOutput, outputParseError, events, fallbackInfo }: {
   traceId: string
+  projectId?: string | null
+  agentId?: string | null
+  sessionId?: string | null
+  messageId?: string | null
   status: string
   model?: string | null
   provider?: string | null
@@ -362,6 +366,10 @@ function DetailView({ traceId, status, model, provider, latencyMs, usage, source
 
       <div className="border-t border-border pt-1.5 space-y-1">
         <CopyableIdRow label="trace" value={traceId} />
+        {sessionId && <CopyableIdRow label="session" value={sessionId} />}
+        {messageId && <CopyableIdRow label="message" value={messageId} />}
+        {projectId && <CopyableIdRow label="project" value={projectId} />}
+        {agentId && <CopyableIdRow label="agent" value={agentId} />}
       </div>
     </div>
   )
@@ -409,6 +417,10 @@ function BackendTraceDetail({ traceId, onBack }: { traceId: string; onBack: () =
       {detail && (
         <DetailView
           traceId={traceId}
+          projectId={detail.projectId}
+          agentId={detail.agentId}
+          sessionId={detail.sessionId}
+          messageId={detail.messageId}
           status={detail.status}
           model={detail.model}
           provider={detail.provider}
@@ -521,6 +533,10 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
         {trace.trace_id && (
           <div className="border-t border-border pt-1.5 space-y-1">
             <CopyableIdRow label="trace" value={trace.trace_id} />
+            {response.session_id && <CopyableIdRow label="session" value={response.session_id} />}
+            {response.message_id && <CopyableIdRow label="message" value={response.message_id} />}
+            {trace.project_id && <CopyableIdRow label="project" value={trace.project_id} />}
+            {trace.agent_id && <CopyableIdRow label="agent" value={trace.agent_id} />}
           </div>
         )}
       </div>

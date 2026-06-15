@@ -5,7 +5,7 @@ from modules.tools.domain.errors import (
     SecretNotFoundError,
     ToolNotFoundError,
 )
-from shared.domain.errors import ConflictError, NotFoundError
+from shared.infra.errors import ConflictError, NotFoundError
 
 
 class TestToolNotFoundError:

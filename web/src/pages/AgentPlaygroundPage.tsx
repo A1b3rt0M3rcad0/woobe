@@ -16,7 +16,7 @@ import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, SessionListItem, ChatMessage, TraceItem } from '@/features/playground/types'
+import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEvent } from '@/features/playground/types'
 
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
@@ -41,6 +41,8 @@ function PlaygroundContent() {
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
+  const [rawEvents, setRawEvents] = useState<RawStreamEvent[]>([])
+  const rawEventsRef = useRef<RawStreamEvent[]>([])
 
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
   const [showLeftPanel, setShowLeftPanel] = useState(true)
@@ -51,6 +53,7 @@ function PlaygroundContent() {
 
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
+  const syncedSessionRef = useRef<string | null>(null)
 
   const {
     data: backendTraces = [],
@@ -61,34 +64,44 @@ function PlaygroundContent() {
   } = usePlaygroundTraces(projectId, agentId, sessionId)
 
   const selectedSessionId = sessionId
-  const { data: historyMessages, refetch: refetchHistory } = useSessionMessages(
+  const { data: historyMessages, isFetching } = useSessionMessages(
     selectedSessionId ?? undefined,
   )
 
   useEffect(() => {
-    if (historyMessages && selectedSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
-        ...(m.role === 'assistant' ? { model: null, provider: null } : {}),
+        tool_calls: (m.data?.tool_calls ?? null) as ChatMessage['tool_calls'],
+        sources: (m.data?.sources ?? null) as ChatMessage['sources'],
+        model: (m.data?.model as string | undefined) ?? null,
+        provider: (m.data?.provider as string | undefined) ?? null,
       }))
+      syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, selectedSessionId])
+  }, [historyMessages, selectedSessionId, isSending, isFetching])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
+    syncedSessionRef.current = null
     cancelStream()
     setSessionId(sessionIdValue)
+    setMessages([])
     setLastResponse(null)
+    setRawEvents([])
     setSelectedTraceId(null)
-  }, [cancelStream])
+    queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
+  }, [cancelStream, queryClient])
 
   const handleNewSession = useCallback(() => {
+    syncedSessionRef.current = null
     cancelStream()
     setSessionId(null)
     setMessages([])
     setLastResponse(null)
+    setRawEvents([])
     setSelectedTraceId(null)
   }, [cancelStream])
 
@@ -97,6 +110,7 @@ function PlaygroundContent() {
 
     accumulatedRef.current = ''
     metadataRef.current = {}
+    rawEventsRef.current = []
 
     const userMsg: ChatMessage = { role: 'user', content }
     const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
@@ -120,6 +134,7 @@ function PlaygroundContent() {
         requestPayload as any,
         {
           onMeta: (meta) => {
+            rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
             if (meta.session_id) {
               setSessionId(meta.session_id)
             }
@@ -128,6 +143,7 @@ function PlaygroundContent() {
             }
           },
           onToken: (token) => {
+            rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: { content: token } })
             accumulatedRef.current += token
             setMessages((prev) => {
               const updated = [...prev]
@@ -139,9 +155,27 @@ function PlaygroundContent() {
             })
           },
           onSources: (sources) => {
+            rawEventsRef.current.push({ type: 'sources', timestamp: new Date().toISOString(), payload: { sources } })
             metadataRef.current.sources = sources
           },
+          onToolCall: (info) => {
+            rawEventsRef.current.push({ type: 'tool_call', timestamp: new Date().toISOString(), payload: info })
+            setMessages((prev) => {
+              const updated = [...prev]
+              const last = updated[updated.length - 1]
+              if (last?.role === 'assistant') {
+                const existing = last.tool_calls ?? []
+                updated[updated.length - 1] = {
+                  ...last,
+                  tool_calls: [...existing, info] as ChatMessage['tool_calls'],
+                }
+              }
+              return updated
+            })
+          },
           onDone: (response) => {
+            rawEventsRef.current.push({ type: 'done', timestamp: new Date().toISOString(), payload: response })
+            setRawEvents([...rawEventsRef.current])
             const meta = response
             if (meta.session_id) {
               setSessionId(meta.session_id)
@@ -155,6 +189,7 @@ function PlaygroundContent() {
                   content: accumulatedRef.current,
                   usage: meta.usage ?? null,
                   sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
+                  tool_calls: (meta.tool_calls ?? null) as ChatMessage['tool_calls'],
                   model: meta.model ?? null,
                   provider: meta.provider ?? null,
                   latency_ms: meta.latency_ms ?? null,
@@ -168,13 +203,16 @@ function PlaygroundContent() {
             refetchSessions()
             refetchTraces()
             if (meta.session_id) {
-              setTimeout(() => refetchHistory(), 100)
+              queryClient.invalidateQueries({ queryKey: ['session-messages', meta.session_id] })
+              syncedSessionRef.current = meta.session_id
             }
             if (meta.trace_id) {
               setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
             }
           },
           onError: (error) => {
+            rawEventsRef.current.push({ type: 'error', timestamp: new Date().toISOString(), payload: { message: error.message } })
+            setRawEvents([...rawEventsRef.current])
             toast.error(error.message)
             setMessages((prev) => {
               const updated = [...prev]
@@ -189,6 +227,7 @@ function PlaygroundContent() {
             })
           },
           onFallback: (info) => {
+            rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
             accumulatedRef.current = ''
             setMessages((prev) => {
               const updated = [...prev]
@@ -239,6 +278,8 @@ function PlaygroundContent() {
         cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null,
         trace_id: t.id,
         response: null,
+        project_id: t.project_id,
+        agent_id: t.agent_id,
       }
     })
     mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -300,6 +341,7 @@ function PlaygroundContent() {
               activeTab={leftPanelTab}
               lastResponse={lastResponse}
               lastRequestPayload={lastRequestPayload}
+              rawEvents={rawEvents}
               traces={traces}
               selectedTraceId={selectedTraceId}
               sessions={sessions}
@@ -348,13 +390,11 @@ function PlaygroundContent() {
 }
 
 export default function AgentPlaygroundPage() {
-  const { agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const { data: agent, isLoading } = useAgent(agentId)
 
   if (isLoading) return <LoadingState />
   if (!agent) return <ErrorState message="Agent not found" />
-
-  const { projectId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
 
   return (
     <AgentEditorProvider agent={agent} projectId={projectId}>

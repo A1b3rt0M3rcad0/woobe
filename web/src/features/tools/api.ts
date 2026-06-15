@@ -1,5 +1,6 @@
-import { get, post } from '@/lib/api/client'
-import type { Tool, CreateToolRequest, Secret, CreateSecretRequest } from './types'
+import { get, post, patch, del } from '@/lib/api/client'
+
+import type { Tool, CreateToolRequest, Secret, CreateSecretRequest, TestToolRequest, TestToolResponse, UpdateToolStatusRequest } from './types'
 
 export async function getTools(projectId?: string): Promise<Tool[]> {
   return get<Tool[]>('/tools/tools', { params: { project_id: projectId } })
@@ -11,6 +12,22 @@ export async function getAgentTools(agentId: string): Promise<Tool[]> {
 
 export async function createTool(data: CreateToolRequest): Promise<Tool> {
   return post<Tool>('/tools/tools', data)
+}
+
+export async function updateTool(toolId: string, data: Partial<CreateToolRequest>): Promise<Tool> {
+  return patch<Tool>(`/tools/tools/${toolId}`, data)
+}
+
+export async function updateToolStatus(toolId: string, data: UpdateToolStatusRequest): Promise<Tool> {
+  return patch<Tool>(`/tools/tools/${toolId}/status`, data)
+}
+
+export async function deleteTool(toolId: string): Promise<void> {
+  return del<void>(`/tools/tools/${toolId}`)
+}
+
+export async function testTool(data: TestToolRequest): Promise<TestToolResponse> {
+  return post<TestToolResponse>('/tools/tools/test', data)
 }
 
 export async function getSecrets(projectId?: string): Promise<Secret[]> {

@@ -61,6 +61,7 @@ export interface ToolCallInfo {
   input?: unknown
   output?: unknown
   duration_ms?: number
+  success?: boolean | null
   status?: string | null
   latency_ms?: number | null
   error?: string | null
@@ -125,12 +126,19 @@ export interface ChatMessage {
   content: string
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
+  tool_calls?: ToolCallInfo[] | null
   model?: string | null
   provider?: string | null
   latency_ms?: number | null
   trace_id?: string | null
   parsed_output?: Record<string, unknown> | null
   created_at?: string | null
+}
+
+export interface RawStreamEvent {
+  type: string
+  timestamp: string
+  payload: unknown
 }
 
 export interface TraceItem {
@@ -149,4 +157,6 @@ export interface TraceItem {
   response: AskResponse | null
   fallback_used?: boolean
   fallback_info?: FallbackInfo | null
+  project_id?: string
+  agent_id?: string
 }

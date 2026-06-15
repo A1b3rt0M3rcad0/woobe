@@ -1,5 +1,5 @@
-from modules.observability.service.use_cases import CreateTraceEventUseCase
-from modules.observability.service.dtos import CreateTraceEventInput
+from modules.observability.application.use_cases import CreateTraceEventUseCase
+from modules.observability.application.dtos import CreateTraceEventInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

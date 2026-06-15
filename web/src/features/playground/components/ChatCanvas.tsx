@@ -71,7 +71,7 @@ export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanva
               <ChatMessage
                 key={i}
                 message={msg}
-                isStreaming={msg.role === 'assistant' && !msg.content && isSending && i === messages.length - 1}
+                isStreaming={msg.role === 'assistant' && isSending && i === messages.length - 1}
                 isLast={i === messages.length - 1}
                 agentName={agentName}
               />
