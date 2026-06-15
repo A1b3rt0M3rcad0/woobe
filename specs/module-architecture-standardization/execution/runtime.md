@@ -205,7 +205,7 @@ src/modules/<module>/
 | 078 | completed | 2026-06-15 | `tests/modules/observability/unit/domain/test_enums.py`, `tests/modules/observability/unit/domain/test_errors.py`, `tests/modules/observability/unit/domain/test_repositories.py`, `tests/modules/observability/unit/application/test_dtos.py`, `tests/modules/observability/unit/presentation/test_routes_structure.py`, `tests/modules/observability/unit/presentation/test_schemas.py`, `tests/modules/observability/integration/test_event_mappers.py`, `execution/runtime.md` | ruff clean; 107 observability tests passing; 79 pre-existing arch failures unchanged | 079 |
 | 079 | completed | 2026-06-15 | `src/modules/observability/service/` removed, `src/modules/observability/infra/models.py`, `src/modules/observability/infra/repositories.py`, `src/modules/observability/infra/mappers.py` removed, `tests/architecture/test_no_legacy_observability_paths.py`, `tests/architecture/test_observability_database_location.py`, `tests/architecture/test_module_structure.py`, `tests/architecture/test_no_new_observability_service_imports.py`, `execution/runtime.md` | ruff clean; 107 observability tests passing; 8 legacy path arch tests passing; observability module fully canonical; 79 pre-existing architecture failures unchanged | 080 |
 | 080 | completed | 2026-06-15 | `execution/inventory/tools-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 3 cross-module FKs (2 core.projects, 1 legacy ai.agents); 10 PostgresUnitOfWork composers (deferred spec 086); 0 tools tests | 081 |
-| 081 | pending | - | - | - | 082 |
+| 081 | completed | 2026-06-15 | `src/modules/tools/application/dtos/__init__.py`, `src/modules/tools/application/use_cases/__init__.py`, `src/modules/tools/application/handlers/__init__.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/messaging/__init__.py`, `src/modules/tools/domain/events.py`, `src/modules/tools/domain/services.py`, `src/modules/tools/domain/value_objects.py`, `src/modules/tools/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 082 |
 | 082 | pending | - | - | - | 083 |
 | 083 | pending | - | - | - | 084 |
 | 084 | pending | - | - | - | 085 |
@@ -379,6 +379,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Comprehensive test suite added for observability | Spec 078: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers | 35 new tests added; 107 observability tests passing; 79 pre-existing arch failures unchanged | Sim, revertendo todos os arquivos de teste |
 | 2026-06-15 | Legacy paths and shims removed for observability | Spec 079: service/ directory deleted, infra shims deleted, arch tests updated to reflect canonical state | 8 legacy path arch tests added; 107 observability tests passing; 79 pre-existing arch failures unchanged; observability module fully canonical | Sim, revertendo deleções e restaurando service/ original |
 | 2026-06-15 | Tools module migration map created | Spec 080: discovery-only inventory of tools module before physical moves | 32 source files classified, 2 entities (Tool/Secret), 3 cross-module FKs (2 core.projects, 1 legacy ai.agents), 10 routes, 10 use cases, 15 DTOs, 4 unversioned events, registry empty no workers, 0 existing tests, all 10 composers use PostgresUnitOfWork; `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 36 inventory tests pass; next: spec 081 | Sim, revertendo tools-migration-map.md |
+| 2026-06-15 | Tools canonical skeleton created | Spec 081: create canonical directories and stub files for tools module | 5 new directories created (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py; legacy paths preserved; no behavior changes; 1 arch structure test added; next: spec 082 | Sim, revertendo __init__.py e restaurando test |
 
 ## Riscos ativos
 
@@ -403,4 +404,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`081-create-canonical-module-skeleton-tools.md`
+`082-move-and-normalize-domain-layer-tools.md`
