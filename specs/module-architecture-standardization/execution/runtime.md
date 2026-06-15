@@ -230,7 +230,7 @@ src/modules/<module>/
 | 103 | completed | 2026-06-15 | `tests/architecture/test_uow_transaction_atomicity.py`, `execution/runtime.md` | 5 UoW transaction atomicity tests added (commit/rollback per module, PendingRollbackError handling, outbox atomicity test coverage warning for agent); 5/5 passing; 45 pre-existing arch failures unchanged | 104 |
 | 104 | completed | 2026-06-15 | `tests/architecture/test_messaging_idempotency_concurrency.py`, `execution/runtime.md` | 6 messaging idempotency/concurrency tests added (inbox processor idempotency, outbox retry, publishers, lock mechanisms, shared retry/dead letter contracts); 6/6 passing; informational warnings for per-module idempotency/lock patterns (delegated to shared base classes); 45 pre-existing arch failures unchanged | 105 |
 | 105 | completed | 2026-06-15 | `tests/contract/test_api_routes_registered.py`, `execution/runtime.md` | 7 API route registration tests added (routes file existence, router export, main.py imports, __all__ exports, legacy prefix preservation in agent); 7/7 passing; ruff clean; 45 pre-existing arch failures unchanged | 106 |
-| 106 | pending | - | - | - | 107 |
+| 106 | blocked | 2026-06-15 | `execution/runtime.md` | **BLOCKER**: allowlist has 14 non-empty entries (11 module_boundaries, 2 layer_dependencies, 1 application_boundaries — agent cross-module imports); cross-module FKs remain in models; tools/service/ shims present; acceptance criterion `allowlist final vazia` not achievable without spec 107-level refactoring | 107 |
 
 ## Specs executadas
 
@@ -431,6 +431,7 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | 103 | 2026-06-15 | bc31b82 | UoW transaction atomicity tests added (commit/rollback, PendingRollbackError, outbox atomicity coverage). 5/5 passing. Agent missing outbox atomicity test (documented gap). Next: 104.
 | 104 | 2026-06-15 | 67ad699 | Messaging idempotency and concurrency tests added (inbox idempotency, outbox retry, lock mechanisms, shared policies). 6/6 passing. Idempotency/lock delegated to shared base classes. Next: 105.
 | 105 | 2026-06-15 | 85bca85 | API route registration tests added (routes file, router export, main.py imports, __all__, legacy prefixes). 7/7 passing. Next: 106.
+| 106 | 2026-06-15 | a48330a | **BLOCKED**. Detection: 4 agent files with cross-module imports (allowlisted, 14 entries), cross-module FKs in 6 modules, tools/service/ shims present. Bootstrap files (main.py, env.py) already canonical. Validations: ruff 21 pre-existing errors, arch 45 failed/619 passed, module tests 1 collection error, contract 12/12 passed, integration 7 failed/177 passed, pyright 653 pre-existing errors, app startup skipped (env missing). Acceptance criterion `allowlist final vazia` not achievable. Next: 107 (cleanup spec).
 
 ## Decisões tomadas durante a execução
 
@@ -438,14 +439,15 @@ Registrar aqui divergências entre inventário e premissas das specs.
 |---|---|---|---|---|
 | 2026-06-15 | shared/domain/* files redistributed to shared/infra/ and shared/messaging/ instead of deleted outright | OutboxEventWriter ABC, DomainError hierarchy, CursorPage, and utc_now are technical contracts used by all modules — deleting them would break 120+ files | 4 files moved to infra/, 1 file moved to messaging/, all imports updated across src/ and tests/ | Sim, revertendo commit e restaurando shared/domain/ |
 | 2026-06-15 | Stale allowlist entries removed (shared_boundaries, uow_ownership, tools/service) | shared/workers/*.py files deleted by spec 096; all composers migrated to module-specific UoW; tools/service/use_cases.py is now a pure re-export shim without infra/sqlalchemy imports | 6 allowlist entries removed; 14 remain (module_boundaries: 11, layer_dependencies: 2, application_boundaries: 1) | Sim, revertendo allowlist |
+| 2026-06-15 | Spec 106 blocked — `allowlist final vazia` not achievable | 14 allowlist entries for agent cross-module imports (metering/observability/tools) have expired removal_spec values (070-085) but actual imports still exist; removing entries without refactoring would break AST-based tests | Spec 106 cannot complete until agent cross-module imports are refactored to event-driven (spec 107 scope); bootstrap files (main.py, env.py) already canonical | Sim, refatorando agent use_cases e removendo allowlist |
 
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
 |---|---|---|---|---|
 | shared/domain/objects.py → shared/infra/objects.py (CursorPage) amplamente usado em repositories | baixa | 096 | Já migrado com imports atualizados e validados por testes | mitigated |
-| 14 allowlist entries still active (agent cross-module imports to metering/observability/tools + infra/sqlalchemy in use_cases) | alta | 101 | Bloqueia "allowlist final vazia" acceptance criterion; requires architectural refactoring of agent use_cases to event-driven | active |
+| 14 allowlist entries still active (agent cross-module imports to metering/observability/tools + infra/sqlalchemy in use_cases) | alta | 101 | Bloqueia "allowlist final vazia" acceptance criterion of spec 106; requires architectural refactoring of agent use_cases to event-driven (spec 107 scope) | active (blocking spec 106) |
 
 ## Próxima spec recomendada
 
-`106`
+`107` (spec 106 blocked — cleanup spec required to remove allowlist entries, shims, and deprecated paths)
