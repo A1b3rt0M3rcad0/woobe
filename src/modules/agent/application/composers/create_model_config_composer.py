@@ -4,11 +4,11 @@ from modules.agent.infra.database.repositories import SQLAlchemyAgentModelConfig
 from modules.agent.application.use_cases import CreateModelConfigUseCase
 from modules.agent.presentation.controllers.create_model_config_controller import CreateModelConfigController
 from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def create_model_config_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
+    uow = AgentUnitOfWork(session_factory)
     repo = SQLAlchemyAgentModelConfigRepository(uow)
     use_case = CreateModelConfigUseCase(repo)
     controller = CreateModelConfigController(use_case)

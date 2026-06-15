@@ -4,11 +4,11 @@ from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseRepo
 from modules.agent.application.use_cases import CreateReleaseUseCase
 from modules.agent.presentation.controllers.create_release_controller import CreateReleaseController
 from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def create_release_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
+    uow = AgentUnitOfWork(session_factory)
     repo = SQLAlchemyAgentReleaseRepository(uow)
     use_case = CreateReleaseUseCase(repo)
     controller = CreateReleaseController(use_case)

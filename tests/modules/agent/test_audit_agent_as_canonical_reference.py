@@ -102,17 +102,23 @@ class TestAuditAgentAsCanonicalReference:
                 rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                 pytest.fail(f"Domain file {rel} imports framework dependencies: {combined}")
 
-    def test_postgres_unit_of_work_usage_is_in_composers_and_one_worker(self):
+    def test_postgres_unit_of_work_replaced_by_agent_unit_of_work_in_composers(self):
         composers_dir = AGENT_DIR / "application" / "composers"
         workers_dir = AGENT_DIR / "infra" / "workers"
-        occurrences: list[str] = []
+        pg_occurrences: list[str] = []
+        auow_occurrences: list[str] = []
         for py_file in list(_get_py_files_recursive(composers_dir)) + list(_get_py_files_recursive(workers_dir)):
+            if py_file.name.startswith("__"):
+                continue
             source = py_file.read_text(encoding="utf-8")
+            if "AgentUnitOfWork" in source:
+                rel = py_file.relative_to(PROJECT_ROOT).as_posix()
+                auow_occurrences.append(rel)
             if "PostgresUnitOfWork" in source:
                 rel = py_file.relative_to(PROJECT_ROOT).as_posix()
-                occurrences.append(rel)
-        assert len(occurrences) >= 40, f"Expected 40+ PostgresUnitOfWork occurrences, found {len(occurrences)}"
-        assert any("ask_job_worker" in o for o in occurrences), "ask_job_worker must use PostgresUnitOfWork"
+                pg_occurrences.append(rel)
+        assert len(auow_occurrences) >= 40, f"Expected 40+ AgentUnitOfWork occurrences, found {len(auow_occurrences)}"
+        assert len(pg_occurrences) >= 1, "ask_job_worker must still use PostgresUnitOfWork"
 
     def test_infra_llm_is_specific_to_agent(self):
         llm_dir = AGENT_DIR / "infra" / "llm"

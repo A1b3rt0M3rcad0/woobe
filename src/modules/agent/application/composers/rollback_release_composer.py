@@ -4,11 +4,11 @@ from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseRepo
 from modules.agent.application.use_cases import RollbackReleaseUseCase
 from modules.agent.presentation.controllers.rollback_release_controller import RollbackReleaseController
 from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def rollback_release_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
+    uow = AgentUnitOfWork(session_factory)
     repo = SQLAlchemyAgentReleaseRepository(uow)
     use_case = RollbackReleaseUseCase(repo)
     controller = RollbackReleaseController(use_case)

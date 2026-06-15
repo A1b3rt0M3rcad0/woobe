@@ -2,12 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentReleaseRepository,
-    SQLAlchemyAgentRepository,
-    SQLAlchemyProviderCredentialRepository,
 )
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentCollectionRepository,
-    SQLAlchemyDocumentChunkRepository,
 )
 from modules.metering.infra.repositories import SQLAlchemyUsageEventRepository
 from modules.observability.infra.repositories import (
@@ -15,9 +12,7 @@ from modules.observability.infra.repositories import (
     SQLAlchemyTraceRepository,
 )
 from modules.agent.infra.database.repositories import (
-    SQLAlchemyMessageRepository,
     SQLAlchemyRuntimeOutboxEventWriter,
-    SQLAlchemySessionRepository,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import (
     AskAgentController,
@@ -26,20 +21,20 @@ from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.tools.infra.repositories import SQLAlchemyToolRepository
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.config import Settings
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     settings = Settings()
-    uow = PostgresUnitOfWork(session_factory)
+    uow = AgentUnitOfWork(session_factory)
 
-    agent_repo = SQLAlchemyAgentRepository(uow)
-    credential_repo = SQLAlchemyProviderCredentialRepository(uow)
+    agent_repo = uow.agents
+    credential_repo = uow.provider_credentials
     release_repo = SQLAlchemyAgentReleaseRepository(uow)
-    session_repo = SQLAlchemySessionRepository(uow)
-    message_repo = SQLAlchemyMessageRepository(uow)
+    session_repo = uow.sessions
+    message_repo = uow.messages
     agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
-    chunk_repo = SQLAlchemyDocumentChunkRepository(uow)
+    chunk_repo = uow.document_chunks
     trace_repo = SQLAlchemyTraceRepository(uow)
     trace_event_repo = SQLAlchemyTraceEventRepository(uow)
     usage_repo = SQLAlchemyUsageEventRepository(uow)

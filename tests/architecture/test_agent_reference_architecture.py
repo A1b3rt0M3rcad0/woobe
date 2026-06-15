@@ -216,3 +216,30 @@ class TestAgentReferenceArchitecture:
         assert "outbox" in content.lower(), "UoW must have outbox property"
         assert "inbox" in content.lower(), "UoW must have inbox property"
         assert "SQLAlchemyAgentRepository" in content, "UoW must host agent repository"
+
+    def test_all_composers_use_agent_unit_of_work(self):
+        composers_dir = AGENT_DIR / "application" / "composers"
+        skip = {"ask_agent_stream_composer.py", "get_ask_job_composer.py"}
+        for py_file in composers_dir.glob("*.py"):
+            if py_file.name.startswith("__") or py_file.name in skip:
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            assert "AgentUnitOfWork" in content, f"{py_file.name} must use AgentUnitOfWork"
+            assert "PostgresUnitOfWork" not in content, f"{py_file.name} must not use PostgresUnitOfWork"
+
+    def test_agent_unit_of_work_exposes_all_expected_lazy_properties(self):
+        uow_file = AGENT_DIR / "infra" / "database" / "unit_of_work.py"
+        content = uow_file.read_text(encoding="utf-8")
+        expected_props = [
+            "agents", "provider_credentials", "sessions", "messages",
+            "ask_jobs", "document_collections", "documents", "document_chunks",
+            "knowledge_versions", "outbox", "inbox",
+        ]
+        for prop in expected_props:
+            assert f"def {prop}" in content, f"AgentUnitOfWork missing property: {prop}"
+
+    def test_agent_unit_of_work_has_no_cross_module_references(self):
+        uow_file = AGENT_DIR / "infra" / "database" / "unit_of_work.py"
+        content = uow_file.read_text(encoding="utf-8")
+        for mod in ("identity", "core", "billing", "metering", "observability", "tools"):
+            assert f"modules.{mod}" not in content, f"AgentUnitOfWork references modules.{mod}"

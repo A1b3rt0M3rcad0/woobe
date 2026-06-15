@@ -4,11 +4,11 @@ from modules.agent.infra.database.repositories import SQLAlchemyAgentCollectionR
 from modules.agent.presentation.controllers.attach_collection_controller import AttachCollectionController
 from modules.agent.application.use_cases import AttachCollectionUseCase
 from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def attach_collection_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
+    uow = AgentUnitOfWork(session_factory)
     repo = SQLAlchemyAgentCollectionRepository(uow)
     use_case = AttachCollectionUseCase(repo)
     controller = AttachCollectionController(use_case)
