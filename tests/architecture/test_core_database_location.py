@@ -17,23 +17,17 @@ class TestCoreDatabaseLocation:
         path = CORE_DIR / "infra" / "database" / "mappers.py"
         assert path.is_file(), f"Missing: {path}"
 
-    def test_old_models_path_has_shim(self):
+    def test_old_models_path_removed(self):
         path = CORE_DIR / "infra" / "models.py"
-        assert path.is_file(), f"Shim missing: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "from modules.core.infra.database.models import" in content
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_repositories_path_has_shim(self):
+    def test_old_repositories_path_removed(self):
         path = CORE_DIR / "infra" / "repositories.py"
-        assert path.is_file(), f"Shim missing: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "from modules.core.infra.database.repositories import" in content
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_mappers_path_has_shim(self):
+    def test_old_mappers_path_removed(self):
         path = CORE_DIR / "infra" / "mappers.py"
-        assert path.is_file(), f"Shim missing: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "from modules.core.infra.database.mappers import" in content
+        assert not path.exists(), f"Old path should be removed: {path}"
 
     def test_database_init_exports_models(self):
         path = CORE_DIR / "infra" / "database" / "__init__.py"

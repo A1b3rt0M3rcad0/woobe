@@ -91,12 +91,18 @@ class TestModuleStructure:
                 )
 
     def test_legacy_service_dir_noted_for_non_agent_modules(self):
-        legacy_modules = {"core", "billing", "metering", "observability", "tools"}
+        legacy_modules = {"billing", "metering", "observability", "tools"}
+        canonical_modules = {"core"}
         for module in sorted(legacy_modules):
             dirs = _get_module_dirs(module)
             has_service = "service" in dirs
             assert has_service, (
                 f"{module} should have service/ (legacy) or application/use_cases/"
+            )
+        for module in sorted(canonical_modules):
+            dirs = _get_module_dirs(module)
+            assert "service" not in dirs, (
+                f"{module} should no longer have service/"
             )
 
     def test_agent_has_canonical_infra_structure(self):
@@ -123,7 +129,7 @@ class TestModuleStructure:
         )
 
     def test_non_agent_modules_have_flat_infra(self):
-        legacy_modules = {"core", "billing", "metering", "observability", "tools"}
+        legacy_modules = {"billing", "metering", "observability", "tools"}
         for module in sorted(legacy_modules):
             mod_path = SRC_MODULES / module / "infra"
             infra_files = {
