@@ -33,25 +33,25 @@ class MeteringUnitOfWork(UnitOfWork):
     @property
     def usage_events(self) -> SQLAlchemyUsageEventRepository:
         if self._usage_events is None:
-            self._usage_events = SQLAlchemyUsageEventRepository(self.session)
+            self._usage_events = SQLAlchemyUsageEventRepository(self)
         return self._usage_events
 
     @property
     def usage_daily_projects(self) -> SQLAlchemyUsageDailyProjectRepository:
         if self._usage_daily_projects is None:
-            self._usage_daily_projects = SQLAlchemyUsageDailyProjectRepository(self.session)
+            self._usage_daily_projects = SQLAlchemyUsageDailyProjectRepository(self)
         return self._usage_daily_projects
 
     @property
     def usage_daily_agents(self) -> SQLAlchemyUsageDailyAgentRepository:
         if self._usage_daily_agents is None:
-            self._usage_daily_agents = SQLAlchemyUsageDailyAgentRepository(self.session)
+            self._usage_daily_agents = SQLAlchemyUsageDailyAgentRepository(self)
         return self._usage_daily_agents
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:

@@ -31,19 +31,19 @@ class CoreUnitOfWork(UnitOfWork):
     @property
     def projects(self) -> SQLAlchemyProjectRepository:
         if self._projects is None:
-            self._projects = SQLAlchemyProjectRepository(self.session)
+            self._projects = SQLAlchemyProjectRepository(self)
         return self._projects
 
     @property
     def api_keys(self) -> SQLAlchemyApiKeyRepository:
         if self._api_keys is None:
-            self._api_keys = SQLAlchemyApiKeyRepository(self.session)
+            self._api_keys = SQLAlchemyApiKeyRepository(self)
         return self._api_keys
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:

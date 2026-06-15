@@ -47,67 +47,67 @@ class AgentUnitOfWork(UnitOfWork):
     @property
     def agents(self) -> SQLAlchemyAgentRepository:
         if self._agents is None:
-            self._agents = SQLAlchemyAgentRepository(self.session)
+            self._agents = SQLAlchemyAgentRepository(self)
         return self._agents
 
     @property
     def provider_credentials(self) -> SQLAlchemyProviderCredentialRepository:
         if self._provider_credentials is None:
-            self._provider_credentials = SQLAlchemyProviderCredentialRepository(self.session)
+            self._provider_credentials = SQLAlchemyProviderCredentialRepository(self)
         return self._provider_credentials
 
     @property
     def sessions(self) -> SQLAlchemySessionRepository:
         if self._sessions is None:
-            self._sessions = SQLAlchemySessionRepository(self.session)
+            self._sessions = SQLAlchemySessionRepository(self)
         return self._sessions
 
     @property
     def messages(self) -> SQLAlchemyMessageRepository:
         if self._messages is None:
-            self._messages = SQLAlchemyMessageRepository(self.session)
+            self._messages = SQLAlchemyMessageRepository(self)
         return self._messages
 
     @property
     def ask_jobs(self) -> SQLAlchemyAskJobRepository:
         if self._ask_jobs is None:
-            self._ask_jobs = SQLAlchemyAskJobRepository(self.session)
+            self._ask_jobs = SQLAlchemyAskJobRepository(self)
         return self._ask_jobs
 
     @property
     def document_collections(self) -> SQLAlchemyDocumentCollectionRepository:
         if self._document_collections is None:
-            self._document_collections = SQLAlchemyDocumentCollectionRepository(self.session)
+            self._document_collections = SQLAlchemyDocumentCollectionRepository(self)
         return self._document_collections
 
     @property
     def documents(self) -> SQLAlchemyDocumentRepository:
         if self._documents is None:
-            self._documents = SQLAlchemyDocumentRepository(self.session)
+            self._documents = SQLAlchemyDocumentRepository(self)
         return self._documents
 
     @property
     def document_chunks(self) -> SQLAlchemyDocumentChunkRepository:
         if self._document_chunks is None:
-            self._document_chunks = SQLAlchemyDocumentChunkRepository(self.session)
+            self._document_chunks = SQLAlchemyDocumentChunkRepository(self)
         return self._document_chunks
 
     @property
     def knowledge_versions(self) -> SQLAlchemyKnowledgeVersionRepository:
         if self._knowledge_versions is None:
-            self._knowledge_versions = SQLAlchemyKnowledgeVersionRepository(self.session)
+            self._knowledge_versions = SQLAlchemyKnowledgeVersionRepository(self)
         return self._knowledge_versions
 
     @property
     def outbox(self) -> SQLAlchemyAgentOutboxRepository:
         if self._outbox is None:
-            self._outbox = SQLAlchemyAgentOutboxRepository(self.session)
+            self._outbox = SQLAlchemyAgentOutboxRepository(self)
         return self._outbox
 
     @property
     def inbox(self) -> SQLAlchemyAgentInboxRepository:
         if self._inbox is None:
-            self._inbox = SQLAlchemyAgentInboxRepository(self.session)
+            self._inbox = SQLAlchemyAgentInboxRepository(self)
         return self._inbox
 
     async def commit(self) -> None:

@@ -37,37 +37,37 @@ class IdentityUnitOfWork(UnitOfWork):
     @property
     def users(self) -> SQLAlchemyUserRepository:
         if self._users is None:
-            self._users = SQLAlchemyUserRepository(self.session)
+            self._users = SQLAlchemyUserRepository(self)
         return self._users
 
     @property
     def organizations(self) -> SQLAlchemyOrganizationRepository:
         if self._organizations is None:
-            self._organizations = SQLAlchemyOrganizationRepository(self.session)
+            self._organizations = SQLAlchemyOrganizationRepository(self)
         return self._organizations
 
     @property
     def members(self) -> SQLAlchemyOrganizationMemberRepository:
         if self._members is None:
-            self._members = SQLAlchemyOrganizationMemberRepository(self.session)
+            self._members = SQLAlchemyOrganizationMemberRepository(self)
         return self._members
 
     @property
     def invites(self) -> SQLAlchemyOrganizationInviteRepository:
         if self._invites is None:
-            self._invites = SQLAlchemyOrganizationInviteRepository(self.session)
+            self._invites = SQLAlchemyOrganizationInviteRepository(self)
         return self._invites
 
     @property
     def user_sessions(self) -> SQLAlchemyUserSessionRepository:
         if self._user_sessions is None:
-            self._user_sessions = SQLAlchemyUserSessionRepository(self.session)
+            self._user_sessions = SQLAlchemyUserSessionRepository(self)
         return self._user_sessions
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:

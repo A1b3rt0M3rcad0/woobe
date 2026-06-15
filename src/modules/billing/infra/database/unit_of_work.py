@@ -35,31 +35,31 @@ class BillingUnitOfWork(UnitOfWork):
     @property
     def plans(self) -> SQLAlchemyPlanRepository:
         if self._plans is None:
-            self._plans = SQLAlchemyPlanRepository(self.session)
+            self._plans = SQLAlchemyPlanRepository(self)
         return self._plans
 
     @property
     def customers(self) -> SQLAlchemyCustomerRepository:
         if self._customers is None:
-            self._customers = SQLAlchemyCustomerRepository(self.session)
+            self._customers = SQLAlchemyCustomerRepository(self)
         return self._customers
 
     @property
     def subscriptions(self) -> SQLAlchemySubscriptionRepository:
         if self._subscriptions is None:
-            self._subscriptions = SQLAlchemySubscriptionRepository(self.session)
+            self._subscriptions = SQLAlchemySubscriptionRepository(self)
         return self._subscriptions
 
     @property
     def payment_events(self) -> SQLAlchemyPaymentEventRepository:
         if self._payment_events is None:
-            self._payment_events = SQLAlchemyPaymentEventRepository(self.session)
+            self._payment_events = SQLAlchemyPaymentEventRepository(self)
         return self._payment_events
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:

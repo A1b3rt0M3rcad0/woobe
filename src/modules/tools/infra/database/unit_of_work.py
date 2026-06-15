@@ -31,19 +31,19 @@ class ToolsUnitOfWork(UnitOfWork):
     @property
     def tools(self) -> SQLAlchemyToolRepository:
         if self._tools is None:
-            self._tools = SQLAlchemyToolRepository(self.session)
+            self._tools = SQLAlchemyToolRepository(self)
         return self._tools
 
     @property
     def secrets(self) -> SQLAlchemySecretRepository:
         if self._secrets is None:
-            self._secrets = SQLAlchemySecretRepository(self.session)
+            self._secrets = SQLAlchemySecretRepository(self)
         return self._secrets
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:

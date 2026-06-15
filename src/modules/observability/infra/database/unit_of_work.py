@@ -31,19 +31,19 @@ class ObservabilityUnitOfWork(UnitOfWork):
     @property
     def traces(self) -> SQLAlchemyTraceRepository:
         if self._traces is None:
-            self._traces = SQLAlchemyTraceRepository(self.session)
+            self._traces = SQLAlchemyTraceRepository(self)
         return self._traces
 
     @property
     def trace_events(self) -> SQLAlchemyTraceEventRepository:
         if self._trace_events is None:
-            self._trace_events = SQLAlchemyTraceEventRepository(self.session)
+            self._trace_events = SQLAlchemyTraceEventRepository(self)
         return self._trace_events
 
     @property
     def outbox(self) -> SQLAlchemyOutboxEventWriter:
         if self._outbox is None:
-            self._outbox = SQLAlchemyOutboxEventWriter(self.session)
+            self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
 
     async def commit(self) -> None:
