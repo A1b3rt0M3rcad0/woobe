@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from modules.identity.infra.messaging.inbox_handlers import IdentityInboxEventRouter
+from modules.identity.infra.messaging.publishers import IdentityRabbitMQPublisher
+from modules.identity.infra.workers.inbox_consumer import IdentityInboxConsumerWorker
+from modules.identity.infra.workers.inbox_processor import IdentityInboxProcessorWorker
+from modules.identity.infra.workers.outbox_dispatcher import IdentityOutboxDispatcherWorker
+from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
 
@@ -12,6 +22,37 @@ class IdentityWorkerRegistry:
 
     def iter_workers(self) -> list[WorkerProtocol]:
         return list(self._workers)
+
+
+def register_identity_workers(
+    registry: IdentityWorkerRegistry,
+    settings: Any,
+    engine: AsyncEngine,
+    rabbitmq_manager: RabbitMQManager | None = None,
+) -> None:
+    if rabbitmq_manager is None:
+        return
+
+    publisher = IdentityRabbitMQPublisher(rabbitmq_manager)
+
+    outbox_dispatcher = IdentityOutboxDispatcherWorker(
+        async_engine=engine,
+        publisher=publisher,
+    )
+    registry.register(outbox_dispatcher)
+
+    inbox_consumer = IdentityInboxConsumerWorker(
+        async_engine=engine,
+        rabbitmq_manager=rabbitmq_manager,
+    )
+    registry.register(inbox_consumer)
+
+    inbox_handler_router = IdentityInboxEventRouter()
+    inbox_processor = IdentityInboxProcessorWorker(
+        async_engine=engine,
+        handler=inbox_handler_router,
+    )
+    registry.register(inbox_processor)
 
 
 assert isinstance(IdentityWorkerRegistry, type)
