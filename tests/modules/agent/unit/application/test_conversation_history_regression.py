@@ -6,7 +6,7 @@ specific defect:
 
 - assistant without tool_calls erases history (except Exception: return [])
 - current user turn appears twice in the prompt
-- missing session_id silently creates a replacement session
+- missing session_id silently creates a replacement session (FIXED in spec 005)
 """
 
 from __future__ import annotations
@@ -169,8 +169,8 @@ async def test_missing_session_id_must_not_create_replacement_session(
 ) -> None:
     """Exercise _resolve_session with an invalid session_id.
 
-    Current code catches all exceptions in _resolve_session and creates
-    a new session. Expected behavior: propagate the SessionNotFoundError.
+    After spec 005, SessionNotFoundError must propagate instead of
+    creating a replacement session.
     """
     invalid_session_id = uuid4()
     input_dto = AskInput(
@@ -183,15 +183,7 @@ async def test_missing_session_id_must_not_create_replacement_session(
     agent.session_mode = SessionMode.stateful
     agent.id = uuid4()
 
-    result = await use_case._resolve_session(input_dto, agent)
+    with pytest.raises(SessionNotFoundError):
+        await use_case._resolve_session(input_dto, agent)
 
-    # The current bug creates a new session instead of raising
-    # After the fix this should raise SessionNotFoundError.
-    # For the red test, we assert the bug exists:
-    create_calls = mock_session_repo.create.call_count
-    assert create_calls == 1, (
-        f"_resolve_session with invalid session_id created {create_calls} "
-        f"replacement session(s) instead of raising SessionNotFoundError"
-    )
-    assert result is not None
-    assert result.id != invalid_session_id
+    assert mock_session_repo.create.call_count == 0

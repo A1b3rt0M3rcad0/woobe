@@ -17,7 +17,7 @@
 | 002 | completed | bbc57fa | Contrato normativo definido. 6 testes de contrato criados: 1 vermelho (session_id inválido não deve criar sessão) | - |
 | 003 | completed | 795c6a2 | Mapper centralizado criado. AIMessage(tool_calls=None) removido. except Exception: return [] substituído por ConversationHistoryLoadError. Teste de perda de histórico agora VERDE. | - |
 | 004 | completed | 1782162 | Ordem corrigida: carregar histórico → persistir pergunta. Teste de duplicação agora VERDE. | - |
-| 005 | pending | - | - | - |
+| 005 | completed | (this commit) | SessionResolver criado. Ownwership validada. 12 testes unitários + 6 contrato VERDES. | - |
 | 006 | pending | - | - | - |
 | 007 | pending | - | - | - |
 | 008 | pending | - | - | - |
@@ -125,6 +125,38 @@ Evidências:
 - `test_current_user_turn_is_not_present_twice` → **PASSED** (GREEN)
 - `ruff check` → 1 erro pré-existente (não relacionado)
 
+### Spec 005
+
+`SessionResolver` centralizado criado em `src/modules/agent/application/handlers/session_resolver.py`.
+
+Arquivos alterados:
+- `src/modules/agent/domain/errors.py` (+ `SessionOwnershipMismatchError`, `SessionInvalidStatusError`)
+- `src/modules/agent/application/handlers/session_resolver.py` (novo)
+- `src/modules/agent/application/use_cases/ask_use_case.py` (delega `_resolve_session` para `SessionResolver`)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (delega `_resolve_session` para `SessionResolver`)
+- `src/modules/agent/application/use_cases/runtime_use_cases.py` (valida sessão em `CreateAskJobUseCase`)
+- `src/modules/agent/application/composers/create_ask_job_composer.py` (+ `session_repo`)
+- `src/modules/agent/presentation/controllers/create_ask_job_controller.py` (+ catch `NotFoundError`)
+- `tests/modules/agent/unit/application/test_session_resolution.py` (novo — 12 testes)
+- `tests/modules/agent/unit/application/test_conversation_history_regression.py` (test atualizado — agora VERDE)
+
+Evidências:
+- `test_nonexistent_id_does_not_create_session` → **PASSED**
+- `test_session_from_other_agent_is_not_accepted` → **PASSED**
+- `test_session_from_other_project_is_not_accepted` → **PASSED**
+- `test_tenant_mismatch_is_not_accepted` → **PASSED**
+- `test_user_mismatch_is_not_accepted` → **PASSED**
+- `test_tenant_mismatch_with_input_tenant_none_is_allowed` → **PASSED**
+- `test_closed_session_does_not_receive_new_messages` → **PASSED**
+- `test_expired_session_does_not_receive_new_messages` → **PASSED**
+- `test_error_session_does_not_receive_new_messages` → **PASSED**
+- `test_stateful_without_id_creates_exactly_one_session` → **PASSED**
+- `test_stateless_creates_zero_sessions` → **PASSED**
+- `test_stateless_ignores_provided_session_id` → **PASSED**
+- `test_stateful_with_invalid_session_id_raises_error` → **PASSED** (contrato — agora VERDE)
+- `test_missing_session_id_must_not_create_replacement_session` → **PASSED** (regressão — agora VERDE)
+- `ruff check` → 3 erros pré-existentes (não relacionados)
+
 ### Spec 001
 
 ```
@@ -154,4 +186,4 @@ Inventário: `execution/inventory/session-history-flow.md` criado.
 
 ## Próxima spec recomendada
 
-**005** — harden-session-resolution-and-ownership
+**006** — add-recent-deterministic-history-window

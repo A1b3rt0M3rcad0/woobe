@@ -12,11 +12,12 @@ from uuid import UUID
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
 from modules.agent.application.handlers.conversation_history_mapper import load_and_convert_history
+from modules.agent.application.handlers.session_resolver import SessionResolver
 
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
 
 from modules.agent.domain.entities import Agent, AgentRelease, Message, ProviderCredential, Session
-from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
+from modules.agent.domain.enums import MessageRole
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
     AgentReleaseRepository,
@@ -682,24 +683,15 @@ class AskAgentStreamService:
         self, repo: SessionRepository, input_dto: AskInput, agent: Agent
     ) -> Session | None:
         mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
-        if mode == "stateless":
-            return None
-
-        if input_dto.session_id:
-            try:
-                return await repo.get_by_id(input_dto.session_id)
-            except Exception:
-                pass
-
-        session = Session(
+        resolver = SessionResolver(repo)
+        return await resolver.resolve(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
-            external_session_id=None,
+            session_id=input_dto.session_id,
             tenant_id=input_dto.tenant_id,
             user_id=input_dto.user_id,
-            mode=SessionMode.CHAT,
+            session_mode=mode,
         )
-        return await repo.create(session)
 
     async def _save_user_message(
         self,

@@ -86,3 +86,16 @@ class ConversationHistoryLoadError(DomainError):
     def __init__(self, session_id: UUID, message: str = "") -> None:
         self.session_id = session_id
         super().__init__(f"Failed to load conversation history for session {session_id}: {message}")
+
+
+class SessionOwnershipMismatchError(NotFoundError):
+    def __init__(self, session_id: UUID) -> None:
+        self.session_id = session_id
+        super().__init__(f"Session not found: {session_id}")
+
+
+class SessionInvalidStatusError(NotFoundError):
+    def __init__(self, session_id: UUID, status: str) -> None:
+        self.session_id = session_id
+        self.status = status
+        super().__init__(f"Session not found: {session_id}")

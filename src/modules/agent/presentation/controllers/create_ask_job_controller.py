@@ -2,7 +2,7 @@ import logging
 
 from modules.agent.application.dtos import CreateAskJobInput
 from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
-from shared.infra.errors import ValidationError
+from shared.infra.errors import NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -25,6 +25,11 @@ class CreateAskJobController(Controller):
                     "message": "Ask job created",
                     "data": result.model_dump(),
                 },
+            )
+        except NotFoundError as e:
+            return Response(
+                status_code=404,
+                body={"success": False, "message": str(e), "data": None},
             )
         except ValidationError as e:
             return Response(

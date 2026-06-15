@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from modules.agent.application.handlers.session_resolver import SessionResolver
 from modules.agent.domain.entities import AskJob, Message, Session
 from modules.agent.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.agent.application.dtos.runtime_dtos import (
@@ -184,10 +185,20 @@ class ListAgentSessionsUseCase:
 
 class CreateAskJobUseCase:
 
-    def __init__(self, repo: AskJobRepository) -> None:
+    def __init__(self, repo: AskJobRepository, session_repo: SessionRepository) -> None:
         self._repo = repo
+        self._session_resolver = SessionResolver(session_repo)
 
     async def execute(self, input_dto: CreateAskJobInput) -> CreateAskJobOutput:
+        if input_dto.session_id is not None:
+            await self._session_resolver.validate_existing(
+                session_id=input_dto.session_id,
+                project_id=input_dto.project_id,
+                agent_id=input_dto.agent_id,
+                tenant_id=input_dto.tenant_id,
+                user_id=input_dto.user_id,
+            )
+
         job = AskJob(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,

@@ -13,6 +13,7 @@ def create_ask_job_composer(
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     repo = uow.ask_jobs
-    use_case = CreateAskJobUseCase(repo)
+    session_repo = uow.sessions
+    use_case = CreateAskJobUseCase(repo, session_repo)
     controller = CreateAskJobController(use_case)
     return TransactionalHandler(uow, controller.handle)
