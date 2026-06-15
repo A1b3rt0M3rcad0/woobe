@@ -212,7 +212,7 @@ src/modules/<module>/
 | 085 | completed | 2026-06-15 | `src/modules/tools/infra/database/models.py`, `src/modules/tools/infra/database/repositories.py`, `src/modules/tools/infra/database/mappers.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/models.py` (shim), `src/modules/tools/infra/repositories.py` (shim), `src/modules/tools/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/tools/integration/database/test_repositories.py`, `tests/architecture/test_tools_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 39/39 tools tests passing; 8/8 arch location tests passing; 8/8 integration import tests passing; alembic não executado (sem PostgreSQL) | 086 |
 | 086 | completed | 2026-06-15 | `src/modules/tools/infra/database/unit_of_work.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `tests/modules/tools/integration/database/test_unit_of_work.py`, `tests/modules/tools/integration/test_outbox_atomicity.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 53/53 tools tests passing; 14 UoW/atomicity tests added; alembic não executado (sem PostgreSQL) | 087 |
 | 087 | completed | 2026-06-15 | `src/modules/tools/infra/messaging/event_mappers.py`, `src/modules/tools/infra/messaging/publishers.py`, `src/modules/tools/infra/messaging/consumers.py`, `src/modules/tools/infra/messaging/inbox_handlers.py`, `src/modules/tools/infra/messaging/__init__.py`, `src/modules/tools/infra/workers/outbox_dispatcher.py`, `src/modules/tools/infra/workers/inbox_consumer.py`, `src/modules/tools/infra/workers/inbox_processor.py`, `src/modules/tools/infra/workers/registry.py`, `src/modules/tools/infra/workers/__init__.py`, `tests/modules/tools/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/tools/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff clean; 81 tools tests passing; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL) | 088 |
-| 088 | pending | - | - | - | 089 |
+| 088 | completed | 2026-06-15 | `tests/modules/tools/unit/domain/test_enums.py`, `tests/modules/tools/unit/domain/test_errors.py`, `tests/modules/tools/unit/domain/test_repositories.py`, `tests/modules/tools/unit/application/test_dtos.py`, `tests/modules/tools/unit/presentation/test_routes_structure.py`, `tests/modules/tools/unit/presentation/test_schemas.py`, `tests/modules/tools/integration/test_event_mappers.py`, `execution/runtime.md` | ruff clean; 137 tools tests passing; 79 pre-existing arch failures unchanged | 089 |
 | 089 | pending | - | - | - | 090 |
 | 090 | pending | - | - | - | 091 |
 | 091 | pending | - | - | - | 092 |
@@ -391,6 +391,8 @@ Specs 061 a 109 do `MANIFEST.md`.
 
 | 2026-06-15 | Messaging and workers infrastructure created for tools | Spec 087: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_tools_workers function in registry | 28 messaging tests added; 81 tools tests passing; 79 pre-existing arch failures unchanged; ruff clean | Reverter todos os arquivos de messaging/workers |
 
+| 2026-06-15 | Comprehensive test suite added for tools | Spec 088: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers | 56 new tests added; 137 tools tests passing; 79 pre-existing arch failures unchanged; ruff clean | Reverter todos os arquivos de teste |
+
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
@@ -414,4 +416,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`088-add-module-unit-integration-and-contract-tests-tools.md`
+`089-remove-legacy-paths-and-temporary-shims-tools.md`
