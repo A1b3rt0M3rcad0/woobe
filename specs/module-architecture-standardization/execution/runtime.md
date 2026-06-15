@@ -18,7 +18,7 @@ Padronizar `identity`, `core`, `billing`, `metering`, `observability` e `tools` 
 expected_branch: project-rai-playground_module-architecture-standardization
 source_baseline: project-rai-playground
 initial_sha: c128cb06372ecd0d748a144a91093ca3417a590c
-last_validated_sha: c128cb06372ecd0d748a144a91093ca3417a590c
+last_validated_sha: 9297dff8251f338bf8957048cf8360f6498a780c
 branch_guard_status: active
 ```
 
@@ -129,7 +129,7 @@ src/modules/<module>/
 | 002 | completed | 2026-06-14 | `specs/module-architecture-standardization/002-define-canonical-module-directory-contract.md`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); domain/services.py, events.py, value_objects.py condicionais (não obrigatórios) | 003 |
 | 003 | completed | 2026-06-14 | `src/modules/*/__init__.py` (7 modules), `tests/architecture/test_public_module_entrypoints.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec) | 004 |
 | 004 | completed | 2026-06-14 | `tests/architecture/test_application_boundaries.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); agent/tools use_cases allowlistados por importarem sqlalchemy | 005 |
-| 005 | pending | - | - | - | 006 |
+| 005 | completed | 2026-06-14 | `tests/architecture/test_uow_ownership.py`, `tests/integration/test_module_uow_transactions.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes; PostgresUnitOfWork em todos os composers (allowlistado em uow_ownership scope, removal_spec 025-036); `rg` indisponível (substituído por grep) | 006 |
 | 006 | pending | - | - | - | 007 |
 | 007 | pending | - | - | - | 008 |
 | 008 | pending | - | - | - | 009 |
@@ -244,10 +244,11 @@ src/modules/<module>/
 | 002 | 2026-06-14 | ff62fa0 | Estrutura canônica documentada e testada. `test_module_structure.py` com 4 testes: estrutura geral, service/ legado, agent infra canônica, infra plana dos demais módulos. Domain files obrigatórios e condicionais distinguidos. |
 | 003 | 2026-06-14 | 14eddd1 | `__init__.py` de todos os 7 módulos expõem `routes` e `registry` via `__all__`. `test_public_module_entrypoints.py` com 5 testes: routes exportadas, registry exportado, __all__ definido, rotas importáveis, registries importáveis. |
 | 004 | 2026-06-14 | 639a77c | Contratos domain/application definidos. `test_application_boundaries.py` com 3 testes: nenhum use case importa FastAPI/SQLAlchemy (2 allowlistados), composer sem lógica de domínio, DTOs fora de shared. |
+| 005 | 2026-06-14 | 9297dff | Contrato infra/database/UoW definido. `test_uow_ownership.py` com 3 testes: UoW sem imports cross-module, PostgresUnitOfWork allowlistado em composers, agent UoW expõe outbox/inbox. `test_module_uow_transactions.py` com 4 testes de contrato de transação. Allowlist scope `uow_ownership` para todos os composers com PostgresUnitOfWork. |
 
 ## Specs pendentes
 
-Specs 005 a 109 do `MANIFEST.md`.
+Specs 006 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
@@ -258,6 +259,7 @@ Specs 005 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Estrutura canônica de diretórios definida | Padronizar responsabilidades sem criar abstrações vazias | `test_module_structure.py` com 4 testes; domain files obrigatórios vs condicionais; agent infra canônica vs outros com infra plana | Sim, revertendo teste e doc |
 | 2026-06-14 | API pública dos módulos definida via __init__.py | Bootstrap, workers e rotas acessam módulos sem importar internals | Todos os 7 módulos expõem routes e registry via __all__; 5 testes de entrypoint | Sim, revertendo __init__.py e teste |
 | 2026-06-14 | Contratos domain/application definidos | Use cases não importam FastAPI/SQLAlchemy; composers sem lógica de domínio; DTOs fora de shared | `test_application_boundaries.py` com 3 testes; 2 allowlist entries para sqlalchemy em use_cases | Sim, revertendo teste e allowlist |
+| 2026-06-14 | Contrato infra/database/UoW definido | Estabelecer que cada módulo tem UoW concreto que coordena apenas seus repositories, outbox e inbox | `test_uow_ownership.py` com 3 testes; allowlist uow_ownership para PostgresUnitOfWork em todos os composers; `test_module_uow_transactions.py` com 4 testes de contrato | Sim, revertendo testes e runtime.md |
 
 ## Riscos ativos
 
@@ -275,4 +277,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`005-define-infrastructure-database-and-uow-contract.md`
+`006-define-presentation-contract.md`

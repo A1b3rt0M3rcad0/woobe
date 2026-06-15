@@ -75,3 +75,7 @@ entries:
   target_package: sqlalchemy
   removal_spec: 082-083
   scope: application_boundaries
+- file: src/modules/*/application/composers/*.py
+  target_module: shared
+  removal_spec: 025-036
+  scope: uow_ownership
