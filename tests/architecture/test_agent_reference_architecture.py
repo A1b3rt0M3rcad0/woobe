@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AGENT_DIR = PROJECT_ROOT / "src" / "modules" / "agent"
+SPECS_DIR = PROJECT_ROOT / "specs" / "module-architecture-standardization"
+INVENTORY_DIR = SPECS_DIR / "execution" / "inventory"
+
+CANONICAL_LAYERS = {"application", "domain", "infra", "presentation"}
+
+EXPECTED_CANONICAL_PATHS = [
+    "application/composers",
+    "application/dtos",
+    "application/handlers",
+    "application/use_cases",
+    "domain/entities.py",
+    "domain/enums.py",
+    "domain/errors.py",
+    "domain/events.py",
+    "domain/repositories.py",
+    "domain/services.py",
+    "domain/value_objects.py",
+    "infra/database/mappers.py",
+    "infra/database/models.py",
+    "infra/database/repositories.py",
+    "infra/database/unit_of_work.py",
+    "infra/messaging/consumers.py",
+    "infra/messaging/event_mappers.py",
+    "infra/messaging/publishers.py",
+    "infra/workers/inbox_consumer.py",
+    "infra/workers/inbox_processor.py",
+    "infra/workers/outbox_dispatcher.py",
+    "infra/workers/registry.py",
+    "presentation/controllers",
+    "presentation/mappers.py",
+    "presentation/routes.py",
+    "presentation/schemas.py",
+]
+
+
+class TestAgentReferenceArchitecture:
+    def test_agent_has_all_canonical_layers(self):
+        for layer in CANONICAL_LAYERS:
+            layer_dir = AGENT_DIR / layer
+            assert layer_dir.is_dir(), f"Missing layer: {layer}/"
+
+    def test_agent_has_all_canonical_paths(self):
+        for path in EXPECTED_CANONICAL_PATHS:
+            full_path = AGENT_DIR / path
+            exists = full_path.is_dir() or full_path.is_file()
+            assert exists, f"Missing canonical path: {path}"
+
+    def test_agent_all_packages_have_init_py(self):
+        for dir_path in AGENT_DIR.rglob("*/"):
+            if "__pycache__" in dir_path.parts:
+                continue
+            if not any(f.suffix == ".py" for f in dir_path.iterdir() if not f.name.startswith("__")):
+                continue
+            init_file = dir_path / "__init__.py"
+            assert init_file.is_file(), f"Package without __init__.py: {dir_path.relative_to(PROJECT_ROOT).as_posix()}"
+
+    def test_agent_has_routes_file(self):
+        routes_file = AGENT_DIR / "presentation" / "routes.py"
+        assert routes_file.exists()
+        content = routes_file.read_text(encoding="utf-8")
+        assert "APIRouter" in content
+        assert "router" in content
+
+    def test_agent_mappers_file_exists(self):
+        mappers_file = AGENT_DIR / "presentation" / "mappers.py"
+        assert mappers_file.exists()
+
+    def test_agent_schemas_file_exists(self):
+        schemas_file = AGENT_DIR / "presentation" / "schemas.py"
+        assert schemas_file.exists()
+
+    def test_agent_has_controllers_directory_with_multiple_files(self):
+        controllers_dir = AGENT_DIR / "presentation" / "controllers"
+        assert controllers_dir.is_dir()
+        py_files = [f for f in controllers_dir.iterdir() if f.suffix == ".py" and not f.name.startswith("__")]
+        assert len(py_files) >= 30, f"Expected 30+ controllers, found {len(py_files)}"
+
+    def test_agent_inventory_documents_exist(self):
+        required_inventories = [
+            "files.md",
+            "structure-matrix.md",
+            "imports.md",
+            "database-ownership.md",
+            "routes.md",
+            "transactions.md",
+            "events.md",
+            "workers.md",
+        ]
+        for name in required_inventories:
+            inv_path = INVENTORY_DIR / name
+            assert inv_path.exists(), f"Missing inventory: {name}"
+
+    def test_agent_routes_reference_composers(self):
+        routes_file = AGENT_DIR / "presentation" / "routes.py"
+        content = routes_file.read_text(encoding="utf-8")
+        composer_count = content.count("_composer(")
+        assert composer_count >= 40, f"Expected 40+ composer references in routes, found {composer_count}"
+
+    def test_agent_module_can_be_imported(self):
+        init_file = AGENT_DIR / "__init__.py"
+        assert init_file.exists()
+        content = init_file.read_text(encoding="utf-8")
+        assert "routes" in content
+        assert "registry" in content
+
+    def test_agent_has_no_direct_domain_to_infra_imports(self):
+        domain_dir = AGENT_DIR / "domain"
+        infra_dirs = {"database", "messaging", "workers", "llm"}
+        import ast
+        for py_file in domain_dir.rglob("*.py"):
+            if "__pycache__" in py_file.parts:
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    for infra_dir in infra_dirs:
+                        if f"infra.{infra_dir}" in node.module or f"/infra/{infra_dir}" in node.module:
+                            rel = py_file.relative_to(PROJECT_ROOT).as_posix()
+                            pytest.fail(f"Domain {rel} imports infra/{infra_dir}: {node.module}")
