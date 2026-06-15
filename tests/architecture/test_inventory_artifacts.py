@@ -213,3 +213,20 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["src/modules/billing", "Current Path", "action"]
         assert any(m in content for m in evidence_markers), "Must reference billing module paths and actions"
+
+    def test_metering_migration_map_exists(self):
+        METERING_MIGRATION_MAP = INVENTORY_DIR / "metering-migration-map.md"
+        assert METERING_MIGRATION_MAP.exists(), f"File not found: {METERING_MIGRATION_MAP}"
+
+    def test_metering_migration_map_has_real_content(self):
+        METERING_MIGRATION_MAP = INVENTORY_DIR / "metering-migration-map.md"
+        assert METERING_MIGRATION_MAP.exists()
+        content = METERING_MIGRATION_MAP.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["src/modules/metering", "Current Path", "action"]
+        assert any(m in content for m in evidence_markers), "Must reference metering module paths and actions"
