@@ -153,7 +153,7 @@ src/modules/<module>/
 | 026 | completed | 2026-06-14 | `src/modules/agent/infra/messaging/consumers.py`, `tests/modules/agent/test_normalize_agent_messaging_contracts.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | event_mappers, publishers e inbox_handlers já completos pré-spec; gap identificado: consumers.py era stub (1 linha); AgentRabbitMQConsumer implementado como infrastructure class simétrica ao AgentRabbitMQPublisher | 027 |
 | 027 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_workers_and_registry.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | dispatcher, inbox consumer/processor e registry já concretamente implementados pré-spec; spec validada com 11 testes: 5 arquivos obrigatórios, 5 classes esperadas, registry com 3 workers registrados, ask_job_worker preservado com PostgresUnitOfWork (deferido); 990/990 agent tests passing | 028 |
 | 028 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_presentation_contract.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | routes.py já tem 4 routers (/ai, /knowledge, /runtime, /agent) preservando aliases HTTP legados; schemas.py (455 linhas) e mappers.py (317 linhas) populados; 31 controllers na estrutura canônica; spec validada com 12 testes: 4 arquivos obrigatórios, 3 prefixos legados + 1 canônico, agent_router include os 3 sub-routers, controle import legados; 1002/1002 agent tests passing | 029 |
-| 029 | pending | - | - | - | 030 |
+| 029 | completed | 2026-06-14 | `tests/modules/agent/test_lock_agent_reference_with_architecture_tests.py`, `execution/runtime.md` | Agent estabilizado como referência testável para os demais módulos: 20 testes de arquitetura abrangentes (layers, domain, application, infra/database/messaging/workers, presentation, AUoW sem cross-module, sem imports legados, estrutura canônica); 1022/1022 agent tests passing | 030 |
 | 030 | pending | - | - | - | 031 |
 | 031 | pending | - | - | - | 032 |
 | 032 | pending | - | - | - | 033 |
@@ -268,6 +268,7 @@ src/modules/<module>/
 | 026 | 2026-06-14 | HEAD | Contratos de messaging do agent completados: event_mappers.py (137 linhas), publishers.py (27 linhas), inbox_handlers.py (28 linhas) já estavam implementados; gap identificado no consumers.py (era stub de 1 linha); AgentRabbitMQConsumer implementado com consume() simétrico ao AgentRabbitMQPublisher; 10 testes spec + 3 testes arquitetura adicionados para verificar todos os 5 arquivos obrigatórios do pacote messaging, funções esperadas e ausência de imports legados; 979/979 agent tests passing. |
 | 027 | 2026-06-14 | HEAD | Workers e registry do agent validados: todos os 5 arquivos canônicos (inbox_consumer.py, inbox_processor.py, outbox_dispatcher.py, registry.py, ask_job_worker.py) já implementados concretamente; AgentOutboxDispatcherWorker, AgentInboxConsumerWorker, AgentInboxProcessorWorker, AgentWorkerRegistry, AskJobWorker — todas as classes existem e estão populadas; registry registra os 3 workers core; AskJobWorker preserva PostgresUnitOfWork (fora do escopo); 11 testes spec + 3 testes arquitetura adicionados; 990/990 agent tests passing. |
 | 028 | 2026-06-14 | HEAD | Contrato de presentation do agent validado: routes.py com 4 routers (/ai, /knowledge, /runtime, /agent) preservando aliases HTTP legados; agent_router inclui os 3 sub-routers; schemas.py, mappers.py, controllers/ — todos populados; 12 testes spec + 2 testes arquitetura adicionados para verificar arquivos obrigatórios, prefixos preservados, composers referenciados, imports legados ausentes; 1002/1002 agent tests passing. |
+| 029 | 2026-06-14 | HEAD | Agent estabilizado como referência testável para os demais módulos: 20 testes de arquitetura abrangentes criados — todas as 4 camadas canônicas, domain files obrigatórios, application subdirs, infra subdirs (database/messaging/workers), UoW sem cross-module, presentation, proibição de imports legados, estrutura canônica completa. 1022/1022 agent tests passing. |
 
 ## Specs pendentes
 
@@ -305,6 +306,7 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | AgentRabbitMQConsumer implementado | Completar consumer infrastructure simétrica ao publisher; consumers.py era stub | AgentRabbitMQConsumer com consume() wrapper sobre RabbitMQManager; 10 testes spec + 3 testes arquitetura adicionados | Sim, revertendo consumers.py, testes e runtime.md |
 | 2026-06-14 | Workers e registry validados com testes | Dispatcher, inbox consumer/processor e registry já concretos; spec 027 é validação | Todos os 5 arquivos canônicos e 5 classes esperadas confirmados; registry registra 3 workers; AskJobWorker mantido com PostgresUnitOfWork (deferido para spec futura); 11 testes spec + 3 testes arquitetura adicionados | Sim, revertendo testes e runtime.md |
 | 2026-06-14 | Presentation contract validado | Routes, schemas, mappers e controllers já uniformizados; spec 028 é validação | 4 routers preservam prefixos legados (/ai, /knowledge, /runtime) + canônico (/agent); 31 controllers, 455 linhas schemas, 317 linhas mappers; sem imports legados; 12 testes spec + 2 testes arquitetura adicionados | Sim, revertendo testes e runtime.md |
+| 2026-06-14 | Agent locked as testable reference for other modules | Agent baseline phase complete; 029 capstone cements agent as canonical reference | 20 testes abrangentes validam todas as 4 camadas, estrutura de diretórios, UoW sem cross-module, proibição de imports de infra em domínio, legacy imports, estrutura canônica completa; agent baseline ready for identity module migration | Sim, revertendo testes e runtime.md |
 
 ## Riscos ativos
 
@@ -329,4 +331,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`029-lock-agent-reference-with-architecture-tests.md`
+`030-map-current-module-to-canonical-architecture-identity.md`
