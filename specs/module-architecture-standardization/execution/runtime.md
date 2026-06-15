@@ -188,7 +188,7 @@ src/modules/<module>/
 | 061 | completed | 2026-06-15 | `src/modules/metering/infra/database/__init__.py`, `src/modules/metering/infra/messaging/__init__.py`, `src/modules/metering/application/dtos/__init__.py`, `src/modules/metering/application/use_cases/__init__.py`, `src/modules/metering/application/handlers/__init__.py`, `src/modules/metering/domain/events.py`, `src/modules/metering/domain/services.py`, `src/modules/metering/domain/value_objects.py`, `src/modules/metering/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 062 |
 | 062 | completed | 2026-06-15 | `tests/modules/metering/unit/domain/test_entities.py`, `tests/architecture/test_metering_domain_dependencies.py`, `execution/runtime.md` | Domínio do metering já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 6 testes de entidade + 3 testes de arquitetura de dependências adicionados; 3 entidades (UsageEvent/UsageDailyProject/UsageDailyAgent) e 3 repositories interfaces (ABC) validados | 063 |
 | 063 | completed | 2026-06-15 | `src/modules/metering/application/dtos/metering_dtos.py`, `src/modules/metering/application/dtos/__init__.py`, `src/modules/metering/application/use_cases/metering_use_cases.py`, `src/modules/metering/application/use_cases/__init__.py`, `src/modules/metering/application/composers/*.py` (3 files), `src/modules/metering/presentation/controllers/*.py` (3 files), `src/modules/metering/service/dtos.py`, `src/modules/metering/service/use_cases.py`, `tests/modules/metering/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_metering_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers | 064 |
-| 064 | pending | - | - | - | 065 |
+| 064 | completed | 2026-06-15 | `tests/modules/metering/contract/test_routes.py`, `tests/modules/metering/unit/presentation/test_controllers.py`, `execution/runtime.md` | Presentation layer já estava normalizada (routes importam de application/composers, controllers importam de application/ após spec 063); 7 testes de rota (prefixo /metering, delegação a compositores, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados | 065 |
 | 065 | pending | - | - | - | 066 |
 | 066 | pending | - | - | - | 067 |
 | 067 | pending | - | - | - | 068 |
@@ -303,7 +303,8 @@ src/modules/<module>/
 | 060 | 2026-06-15 | c5e42ca | Metering module migration map created: 27 source files classified, 3 entities (UsageEvent/UsageDailyProject/UsageDailyAgent), 5 cross-module FKs (2 legacy ai.agents, 3 core.projects), 3 routes, 3 use cases, 3 DTOs, 1 unversioned event type, 0 workers, no existing dedicated tests, all 3 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 061. |
 | 061 | 2026-06-15 | be7c8dc | Canonical skeleton for metering created: 5 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. Next: 062. |
 | 062 | 2026-06-15 | 37e7859 | Domain layer validated for metering: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 6 entity invariant tests + 3 architecture dependency tests added. Next: 063. |
-| 063 | 2026-06-15 | HEAD | service → application migration for metering: 3 DTOs and 3 use cases moved from service/ to application/dtos and application/use_cases; 3 composers and 3 controllers updated to import from application/; service/ shims preserved; 3 use case tests + 2 arch tests added. Next: 064. |
+| 063 | 2026-06-15 | 8a209f7 | service → application migration for metering: 3 DTOs and 3 use cases moved from service/ to application/dtos and application/use_cases; 3 composers and 3 controllers updated to import from application/; service/ shims preserved; 3 use case tests + 2 arch tests added. Next: 064. |
+| 064 | 2026-06-15 | HEAD | Presentation layer normalized for metering: routes, controllers, schemas already in canonical state; 7 route contract tests + 5 controller tests added; 21/21 metering tests passing. Next: 065. |
 
 ## Specs pendentes
 
@@ -361,6 +362,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Metering canonical skeleton created | Spec 061: create canonical directories and stub files for metering module | 5 new directories created, 3 domain stubs, 1 presentation stub; legacy paths preserved; no behavior changes; 29 structure tests pass; next: spec 062 | Sim, revertendo __init__.py e restaurando test |
 | 2026-06-15 | Metering domain layer validated | Spec 062: domain layer already canonical; 6 entity tests + 3 architecture tests added | No production code changed; domain clean of framework imports; next: spec 063 | Sim, revertendo testes |
 | 2026-06-15 | Metering service→application migration completed | Spec 063: DTOs and use cases moved from service/ to application/ with shims | 3 DTOs, 3 use cases, 3 composers, 3 controllers updated; service/ kept as shim; next: spec 064 | Sim, revertendo imports e restaurando service/ original |
+| 2026-06-15 | Metering presentation layer normalized | Spec 064: routes, controllers, schemas already in canonical state; 12 tests added | No production changes; routes verify thin-composer pattern; controllers verified use application/ imports; next: spec 065 | Sim, revertendo testes |
 
 ## Riscos ativos
 
@@ -385,4 +387,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`064-normalize-presentation-layer-metering.md`
+`065-move-infra-to-database-layer-metering.md`
