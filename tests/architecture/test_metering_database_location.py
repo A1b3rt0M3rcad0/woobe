@@ -41,29 +41,17 @@ class TestMeteringDatabaseLocation:
             "metering/infra/database/mappers.py must exist"
         )
 
-    def test_infra_models_is_shim(self):
+    def test_no_infra_flat_models_shim(self):
         path = METERING_INFRA_DIR / "models.py"
-        assert path.is_file(), "metering/infra/models.py must exist as shim"
-        imports = _get_import_strings_from_file(path)
-        assert any("infra.database.models" in i for i in imports), (
-            "metering/infra/models.py must import from infra/database/models"
-        )
+        assert not path.is_file(), "metering/infra/models.py shim must be removed"
 
-    def test_infra_repositories_is_shim(self):
+    def test_no_infra_flat_repositories_shim(self):
         path = METERING_INFRA_DIR / "repositories.py"
-        assert path.is_file(), "metering/infra/repositories.py must exist as shim"
-        imports = _get_import_strings_from_file(path)
-        assert any("infra.database.repositories" in i for i in imports), (
-            "metering/infra/repositories.py must import from infra/database/repositories"
-        )
+        assert not path.is_file(), "metering/infra/repositories.py shim must be removed"
 
-    def test_infra_mappers_is_shim(self):
+    def test_no_infra_flat_mappers_shim(self):
         path = METERING_INFRA_DIR / "mappers.py"
-        assert path.is_file(), "metering/infra/mappers.py must exist as shim"
-        imports = _get_import_strings_from_file(path)
-        assert any("infra.database.mappers" in i for i in imports), (
-            "metering/infra/mappers.py must import from infra/database/mappers"
-        )
+        assert not path.is_file(), "metering/infra/mappers.py shim must be removed"
 
     def test_repositories_import_from_canonical_models(self):
         path = METERING_DB_DIR / "repositories.py"

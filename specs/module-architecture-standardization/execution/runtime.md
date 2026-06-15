@@ -193,7 +193,7 @@ src/modules/<module>/
 | 066 | completed | 2026-06-15 | `src/modules/metering/infra/database/unit_of_work.py`, `src/modules/metering/infra/database/__init__.py`, `src/modules/metering/application/composers/*.py` (3 files), `tests/modules/metering/integration/database/test_unit_of_work.py`, `tests/modules/metering/integration/test_outbox_atomicity.py`, `execution/runtime.md` | ruff limpo; 45/45 metering tests passing; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 067 |
 | 067 | completed | 2026-06-15 | `src/modules/metering/infra/messaging/event_mappers.py`, `src/modules/metering/infra/messaging/publishers.py`, `src/modules/metering/infra/messaging/consumers.py`, `src/modules/metering/infra/messaging/inbox_handlers.py`, `src/modules/metering/infra/workers/outbox_dispatcher.py`, `src/modules/metering/infra/workers/inbox_consumer.py`, `src/modules/metering/infra/workers/inbox_processor.py`, `src/modules/metering/infra/workers/registry.py`, `tests/modules/metering/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/metering/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff limpo; 73/73 metering tests passing; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 068 |
 | 068 | completed | 2026-06-15 | `tests/modules/metering/unit/domain/test_enums.py`, `tests/modules/metering/unit/domain/test_errors.py`, `tests/modules/metering/unit/domain/test_repositories.py`, `tests/modules/metering/unit/application/test_dtos.py`, `tests/modules/metering/unit/presentation/test_routes_structure.py`, `tests/modules/metering/unit/presentation/test_schemas.py`, `tests/modules/metering/integration/test_event_mappers.py`, `execution/runtime.md` | ruff limpo; 103/103 metering tests passing; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 069 |
-| 069 | pending | - | - | - | 070 |
+| 069 | completed | 2026-06-15 | `src/modules/metering/service/` removed, `src/modules/metering/infra/models.py`, `src/modules/metering/infra/repositories.py`, `src/modules/metering/infra/mappers.py` removed, `tests/architecture/test_no_legacy_metering_paths.py`, `tests/architecture/test_metering_database_location.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff limpo; 103/103 metering tests passing; 19/19 legacy path arch tests passing; metering module fully canonical; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL) | 070 |
 | 070 | pending | - | - | - | 071 |
 | 071 | pending | - | - | - | 072 |
 | 072 | pending | - | - | - | 073 |
@@ -308,7 +308,8 @@ src/modules/<module>/
 | 065 | 2026-06-15 | b9e3ca9 | Infra moved to database layer for metering: models.py, repositories.py, mappers.py copied from infra/ to infra/database/ with shims at old paths; migrations/env.py updated to canonical import; 10 arch location tests + 10 integration import tests added; 30 metering tests passing; ruff apenas erros pré-existentes; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL). Next: 066. |
 | 066 | 2026-06-15 | 7b61fb8 | MeteringUnitOfWork created with 3 lazy properties (usage_events, usage_daily_projects, usage_daily_agents) + outbox; 3 composers migrated from PostgresUnitOfWork to MeteringUnitOfWork; 15 UoW/atomicity tests added; 45 metering tests passing; ruff limpo. Next: 067. |
 | 067 | 2026-06-15 | c79daa5 | Messaging and workers infrastructure created for metering: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_metering_workers function in registry; 28 messaging tests added; 73 metering tests passing; ruff limpo. Next: 068. |
-| 068 | 2026-06-15 | HEAD | Comprehensive test suite added for metering: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 30 new tests added. 103 metering tests passing; ruff limpo. Next: 069. |
+| 068 | 2026-06-15 | 35444c6 | Comprehensive test suite added for metering: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers. 30 new tests added. 103 metering tests passing; ruff limpo. Next: 069. |
+| 069 | 2026-06-15 | HEAD | Legacy paths and shims removed for metering: service/ directory deleted, infra shims deleted; arch tests updated to reflect canonical state; 103 metering tests passing; ruff limpo; metering module fully canonical. Next: 070. |
 
 ## Specs pendentes
 
@@ -391,4 +392,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`069-remove-legacy-paths-and-temporary-shims-metering.md`
+`070-map-current-module-to-canonical-architecture-observability.md`
