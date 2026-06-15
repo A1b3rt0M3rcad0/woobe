@@ -42,7 +42,7 @@ class TestAlembicMigrationsSuccess:
             "modules.core.infra.database.models",
             "modules.tools.infra.models",
             "modules.metering.infra.models",
-            "modules.billing.infra.models",
+            "modules.billing.infra.database.models",
             "modules.observability.infra.models",
             "modules.agent.infra.database.models",
         ]

@@ -17,7 +17,7 @@ from modules.core.infra.database.models import *  # noqa: F401, F403
 from modules.agent.infra.database.models import *  # noqa: F401, F403
 from modules.tools.infra.models import *     # noqa: F401, F403
 from modules.metering.infra.models import *  # noqa: F401, F403
-from modules.billing.infra.models import *   # noqa: F401, F403
+from modules.billing.infra.database.models import *  # noqa: F401, F403
 from modules.observability.infra.models import * # noqa: F401, F403
 
 config = context.config
