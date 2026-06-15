@@ -323,3 +323,100 @@ def test_rabbitmq_topology_has_extract_version():
     """Spec 093: extract_version_from_routing_key must exist."""
     from shared.messaging.rabbitmq_topology import extract_version_from_routing_key
     assert extract_version_from_routing_key("agent.execution.requested.v1") == 1
+
+
+# --- Spec 094: Idempotency, Retry, Dead Letter ---
+
+
+def test_idempotency_contracts_module_exists():
+    """Spec 094: shared.messaging.idempotency_contracts must exist."""
+    from shared.messaging import idempotency_contracts
+    assert hasattr(idempotency_contracts, "validate_idempotency_key")
+    assert hasattr(idempotency_contracts, "assert_idempotency_constraints")
+
+
+def test_idempotency_contracts_has_validate_function():
+    """Spec 094: validate_idempotency_key must be callable."""
+    from shared.messaging.idempotency_contracts import validate_idempotency_key
+    assert callable(validate_idempotency_key)
+
+
+def test_retry_policy_module_exists():
+    """Spec 094: shared.messaging.retry_policy must exist."""
+    from shared.messaging import retry_policy
+    assert hasattr(retry_policy, "RetryClassification")
+    assert hasattr(retry_policy, "classify_error")
+    assert hasattr(retry_policy, "compute_backoff_delay")
+    assert hasattr(retry_policy, "should_retry")
+
+
+def test_retry_policy_has_classification():
+    """Spec 094: RetryClassification must have TRANSIENT and PERMANENT."""
+    from shared.messaging.retry_policy import RetryClassification
+    assert RetryClassification.TRANSIENT is not None
+    assert RetryClassification.PERMANENT is not None
+
+
+def test_retry_policy_has_classify_error():
+    """Spec 094: classify_error must be callable."""
+    from shared.messaging.retry_policy import classify_error
+    assert callable(classify_error)
+
+
+def test_retry_policy_has_compute_backoff():
+    """Spec 094: compute_backoff_delay must be callable."""
+    from shared.messaging.retry_policy import compute_backoff_delay
+    delay = compute_backoff_delay(1)
+    assert delay > 0
+
+
+def test_retry_policy_has_should_retry():
+    """Spec 094: should_retry must be callable."""
+    from shared.messaging.retry_policy import should_retry
+    assert callable(should_retry)
+
+
+def test_dead_letter_policy_module_exists():
+    """Spec 094: shared.messaging.dead_letter_policy must exist."""
+    from shared.messaging import dead_letter_policy
+    assert hasattr(dead_letter_policy, "DeadLetterReason")
+    assert hasattr(dead_letter_policy, "compute_dlq_name")
+    assert hasattr(dead_letter_policy, "DeadLetterRecord")
+
+
+def test_dead_letter_policy_has_dlq_name():
+    """Spec 094: compute_dlq_name must be callable."""
+    from shared.messaging.dead_letter_policy import compute_dlq_name
+    assert compute_dlq_name("agent.test-events") == "agent.test-events.dlq"
+
+
+def test_dead_letter_policy_has_headers():
+    """Spec 094: dead_letter_headers must produce valid headers."""
+    from shared.messaging.dead_letter_policy import (
+        DeadLetterReason,
+        dead_letter_headers,
+        verify_dlq_headers,
+    )
+    headers = dead_letter_headers(
+        reason=DeadLetterReason.MAX_RETRIES_EXCEEDED,
+        original_routing_key="a.b.v1",
+        original_producer_module="test",
+        attempts=3,
+        error="err",
+    )
+    assert headers
+    assert verify_dlq_headers(headers)
+
+
+def test_dead_letter_policy_has_record():
+    """Spec 094: create_dead_letter_record must return DeadLetterRecord."""
+    from shared.messaging.dead_letter_policy import (
+        DeadLetterReason,
+        create_dead_letter_record,
+    )
+    record = create_dead_letter_record(
+        reason=DeadLetterReason.PERMANENT_ERROR,
+        original_routing_key="a.b.v1",
+        original_producer_module="test",
+    )
+    assert record is not None
