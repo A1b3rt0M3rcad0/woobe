@@ -196,3 +196,20 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["src/modules/core", "Current Path", "action"]
         assert any(m in content for m in evidence_markers), "Must reference core module paths and actions"
+
+    def test_billing_migration_map_exists(self):
+        BILLING_MIGRATION_MAP = INVENTORY_DIR / "billing-migration-map.md"
+        assert BILLING_MIGRATION_MAP.exists(), f"File not found: {BILLING_MIGRATION_MAP}"
+
+    def test_billing_migration_map_has_real_content(self):
+        BILLING_MIGRATION_MAP = INVENTORY_DIR / "billing-migration-map.md"
+        assert BILLING_MIGRATION_MAP.exists()
+        content = BILLING_MIGRATION_MAP.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["src/modules/billing", "Current Path", "action"]
+        assert any(m in content for m in evidence_markers), "Must reference billing module paths and actions"

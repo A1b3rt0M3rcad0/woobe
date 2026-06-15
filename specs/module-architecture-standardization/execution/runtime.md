@@ -174,7 +174,7 @@ src/modules/<module>/
 | 047 | completed | 2026-06-15 | `src/modules/core/infra/messaging/event_mappers.py`, `src/modules/core/infra/messaging/publishers.py`, `src/modules/core/infra/messaging/consumers.py`, `src/modules/core/infra/messaging/inbox_handlers.py`, `src/modules/core/infra/workers/outbox_dispatcher.py`, `src/modules/core/infra/workers/inbox_consumer.py`, `src/modules/core/infra/workers/inbox_processor.py`, `src/modules/core/infra/workers/registry.py`, `tests/modules/core/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/core/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff limpo (apenas erros pré-existentes); 35 falhas pré-existentes de arquitetura inalteradas; 75/75 core tests passing; 1953/1953 total tests | 048 |
 | 048 | completed | 2026-06-15 | `tests/modules/core/unit/domain/test_enums.py`, `tests/modules/core/unit/domain/test_errors.py`, `tests/modules/core/unit/domain/test_repositories.py`, `tests/modules/core/unit/application/test_dtos.py`, `tests/modules/core/unit/presentation/test_routes.py`, `tests/modules/core/unit/presentation/test_schemas.py`, `tests/modules/core/integration/test_event_mappers.py`, `execution/runtime.md` | ruff limpo (apenas erros pré-existentes); 35 falhas pré-existentes de arquitetura inalteradas; 107/107 core tests passing; 1985/1985 total tests | 049 |
 | 049 | completed | 2026-06-15 | `src/modules/core/service/` removed, `src/modules/core/infra/models.py`, `src/modules/core/infra/repositories.py`, `src/modules/core/infra/mappers.py` removed, `tests/architecture/test_no_legacy_core_paths.py`, `tests/architecture/test_core_database_location.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | ruff limpo (apenas erros pré-existentes); 35 falhas pré-existentes de arquitetura inalteradas; 107/107 core tests passing; 1993/1993 total tests | 050 |
-| 050 | pending | - | - | - | 051 |
+| 050 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/billing-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes; 2 cross-module FKs deferred to spec 099; 4 PostgresUnitOfWork composers deferred to spec 056 | 051 |
 | 051 | pending | - | - | - | 052 |
 | 052 | pending | - | - | - | 053 |
 | 053 | pending | - | - | - | 054 |
@@ -289,6 +289,7 @@ src/modules/<module>/
 | 047 | 2026-06-15 | HEAD | Messaging and workers infrastructure created for core: event_mappers (outbox_to_rabbit_message, rabbit_message_to_inbox), publishers (CoreRabbitMQPublisher), consumers (CoreRabbitMQConsumer), inbox_handlers (CoreInboxEventRouter), outbox dispatcher (CoreOutboxDispatcherWorker), inbox consumer (CoreInboxConsumerWorker), inbox processor (CoreInboxProcessorWorker), and register_core_workers function in registry. 30 messaging tests added; 75 core tests passing; 1953 total tests (35 pre-existing failures unchanged). Next: 048. |
 | 048 | 2026-06-15 | HEAD | Comprehensive test suite added for core module: domain enums, errors, repositories interfaces, DTOs, routes, schemas, and event mappers. 32 new tests added. 107 core tests passing; 1985 total tests (35 pre-existing failures unchanged). Next: 049. |
 | 049 | 2026-06-15 | HEAD | Legacy paths and shims removed for core module: service/ directory deleted, infra/models.py/repositories.py/mappers.py shims deleted; 8 arch tests updated to reflect canonical state; 1993 total tests (35 pre-existing failures unchanged). Core module is now fully canonical. Next: 050. |
+| 050 | 2026-06-15 | c11c055 | Billing module migration map created: 46 source files classified, 4 entities (Plan/Customer/Subscription/PaymentEvent), 2 cross-module FKs to identity, 4 routes, 6 use cases, 8 DTOs, 4 unversioned events, 0 workers, no existing tests, all 4 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 051. |
 
 ## Specs pendentes
 
@@ -366,4 +367,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`050-map-current-module-to-canonical-architecture-billing.md`
+`051-create-canonical-module-skeleton-billing.md`
