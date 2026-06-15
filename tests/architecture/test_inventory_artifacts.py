@@ -247,3 +247,20 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["src/modules/observability", "Current Path", "action"]
         assert any(m in content for m in evidence_markers), "Must reference observability module paths and actions"
+
+    def test_tools_migration_map_exists(self):
+        TOOLS_MIGRATION_MAP = INVENTORY_DIR / "tools-migration-map.md"
+        assert TOOLS_MIGRATION_MAP.exists(), f"File not found: {TOOLS_MIGRATION_MAP}"
+
+    def test_tools_migration_map_has_real_content(self):
+        TOOLS_MIGRATION_MAP = INVENTORY_DIR / "tools-migration-map.md"
+        assert TOOLS_MIGRATION_MAP.exists()
+        content = TOOLS_MIGRATION_MAP.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["src/modules/tools", "Current Path", "action"]
+        assert any(m in content for m in evidence_markers), "Must reference tools module paths and actions"

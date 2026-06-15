@@ -18,7 +18,7 @@ Padronizar `identity`, `core`, `billing`, `metering`, `observability` e `tools` 
 expected_branch: project-rai-playground_module-architecture-standardization
 source_baseline: project-rai-playground
 initial_sha: c128cb06372ecd0d748a144a91093ca3417a590c
-last_validated_sha: 369546b8ff3c87c9c1a4ce940f91ea4aebcacece
+last_validated_sha: 210c95cb1c4fdea51bf567fc8d388b17dcf4881a
 branch_guard_status: active
 ```
 
@@ -204,7 +204,7 @@ src/modules/<module>/
 | 077 | completed | 2026-06-15 | `src/modules/observability/infra/messaging/event_mappers.py`, `src/modules/observability/infra/messaging/publishers.py`, `src/modules/observability/infra/messaging/consumers.py`, `src/modules/observability/infra/messaging/inbox_handlers.py`, `src/modules/observability/infra/workers/outbox_dispatcher.py`, `src/modules/observability/infra/workers/inbox_consumer.py`, `src/modules/observability/infra/workers/inbox_processor.py`, `src/modules/observability/infra/workers/registry.py`, `tests/modules/observability/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/observability/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff clean; 72 observability tests passing; messaging and workers infrastructure created for observability; alembic não executado (sem PostgreSQL) | 078 |
 | 078 | completed | 2026-06-15 | `tests/modules/observability/unit/domain/test_enums.py`, `tests/modules/observability/unit/domain/test_errors.py`, `tests/modules/observability/unit/domain/test_repositories.py`, `tests/modules/observability/unit/application/test_dtos.py`, `tests/modules/observability/unit/presentation/test_routes_structure.py`, `tests/modules/observability/unit/presentation/test_schemas.py`, `tests/modules/observability/integration/test_event_mappers.py`, `execution/runtime.md` | ruff clean; 107 observability tests passing; 79 pre-existing arch failures unchanged | 079 |
 | 079 | completed | 2026-06-15 | `src/modules/observability/service/` removed, `src/modules/observability/infra/models.py`, `src/modules/observability/infra/repositories.py`, `src/modules/observability/infra/mappers.py` removed, `tests/architecture/test_no_legacy_observability_paths.py`, `tests/architecture/test_observability_database_location.py`, `tests/architecture/test_module_structure.py`, `tests/architecture/test_no_new_observability_service_imports.py`, `execution/runtime.md` | ruff clean; 107 observability tests passing; 8 legacy path arch tests passing; observability module fully canonical; 79 pre-existing architecture failures unchanged | 080 |
-| 080 | pending | - | - | - | 081 |
+| 080 | completed | 2026-06-15 | `execution/inventory/tools-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 3 cross-module FKs (2 core.projects, 1 legacy ai.agents); 10 PostgresUnitOfWork composers (deferred spec 086); 0 tools tests | 081 |
 | 081 | pending | - | - | - | 082 |
 | 082 | pending | - | - | - | 083 |
 | 083 | pending | - | - | - | 084 |
@@ -378,6 +378,7 @@ Specs 061 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Messaging and workers infrastructure created for observability | Spec 077: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_observability_workers function in registry | 28 messaging tests added; 72 observability tests passing; 79 pre-existing arch failures unchanged | Sim, revertendo todos os arquivos de messaging/workers |
 | 2026-06-15 | Comprehensive test suite added for observability | Spec 078: domain enums, errors, repository interfaces, DTOs, routes, schemas, and event mappers | 35 new tests added; 107 observability tests passing; 79 pre-existing arch failures unchanged | Sim, revertendo todos os arquivos de teste |
 | 2026-06-15 | Legacy paths and shims removed for observability | Spec 079: service/ directory deleted, infra shims deleted, arch tests updated to reflect canonical state | 8 legacy path arch tests added; 107 observability tests passing; 79 pre-existing arch failures unchanged; observability module fully canonical | Sim, revertendo deleções e restaurando service/ original |
+| 2026-06-15 | Tools module migration map created | Spec 080: discovery-only inventory of tools module before physical moves | 32 source files classified, 2 entities (Tool/Secret), 3 cross-module FKs (2 core.projects, 1 legacy ai.agents), 10 routes, 10 use cases, 15 DTOs, 4 unversioned events, registry empty no workers, 0 existing tests, all 10 composers use PostgresUnitOfWork; `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`; 36 inventory tests pass; next: spec 081 | Sim, revertendo tools-migration-map.md |
 
 ## Riscos ativos
 
@@ -402,4 +403,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`080-map-current-module-to-canonical-architecture-tools.md`
+`081-create-canonical-module-skeleton-tools.md`
