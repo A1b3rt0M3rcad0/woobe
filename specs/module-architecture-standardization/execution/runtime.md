@@ -164,7 +164,7 @@ src/modules/<module>/
 | 037 | completed | 2026-06-14 | `src/modules/identity/infra/messaging/event_mappers.py`, `src/modules/identity/infra/messaging/publishers.py`, `src/modules/identity/infra/messaging/consumers.py`, `src/modules/identity/infra/messaging/inbox_handlers.py`, `src/modules/identity/infra/workers/outbox_dispatcher.py`, `src/modules/identity/infra/workers/inbox_consumer.py`, `src/modules/identity/infra/workers/inbox_processor.py`, `src/modules/identity/infra/workers/registry.py`, `tests/modules/identity/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/identity/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff clean; 90 identity tests passing; 2029 total tests; 36 pre-existing failures unchanged | 038 |
 | 038 | completed | 2026-06-14 | `tests/modules/identity/unit/domain/test_enums.py`, `tests/modules/identity/unit/domain/test_errors.py`, `tests/modules/identity/unit/domain/test_repositories.py`, `tests/modules/identity/unit/application/test_dtos.py`, `tests/modules/identity/unit/presentation/test_routes.py`, `tests/modules/identity/unit/presentation/test_schemas.py`, `tests/modules/identity/integration/test_event_mappers.py`, `execution/runtime.md` | ruff clean; 133 identity tests passing; 2072 total tests; 36 pre-existing failures unchanged | 039 |
 | 039 | completed | 2026-06-14 | `src/modules/identity/service/` removed, `src/modules/identity/infra/models.py`, `src/modules/identity/infra/repositories.py`, `src/modules/identity/infra/mappers.py` removed, `tests/architecture/test_no_legacy_identity_paths.py`, `tests/architecture/test_identity_database_location.py`, `tests/architecture/test_module_structure.py`, `tests/architecture/test_no_new_identity_service_imports.py`, `tests/modules/identity/unit/presentation/test_routes.py`, `execution/runtime.md` | ruff clean; 2080 total tests; 36 pre-existing failures unchanged; identity module fully canonical | 040 |
-| 040 | pending | - | - | - | 041 |
+| 040 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/core-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 6 compositores com PostgresUnitOfWork (deferido spec 046); 2 FKs cross-module (deferido spec 099); 0 testes core pré-existentes | 041 |
 | 041 | pending | - | - | - | 042 |
 | 042 | pending | - | - | - | 043 |
 | 043 | pending | - | - | - | 044 |
@@ -279,6 +279,7 @@ src/modules/<module>/
 | 037 | 2026-06-14 | 3efd64c | Messaging and workers infrastructure created for identity: event_mappers (outbox_to_rabbit_message, rabbit_message_to_inbox), publishers (IdentityRabbitMQPublisher), consumers (IdentityRabbitMQConsumer), inbox_handlers (IdentityInboxEventRouter), outbox dispatcher (IdentityOutboxDispatcherWorker), inbox consumer (IdentityInboxConsumerWorker), inbox processor (IdentityInboxProcessorWorker), and register_identity_workers function in registry. 29 messaging tests added; 90 identity tests passing; 2029 total tests (36 pre-existing failures unchanged). Next: 038. |
 | 038 | 2026-06-14 | 0a4993f | Comprehensive test suite added for identity module: domain enums, errors, repositories interfaces, DTOs, routes, schemas, and event mappers. 43 new tests added. 133 identity tests passing; 2072 total tests (36 pre-existing failures unchanged). Next: 039. |
 | 039 | 2026-06-14 | HEAD | Legacy paths and shims removed for identity module: service/ directory deleted, infra/models.py/repositories.py/mappers.py shims deleted; 8 arch tests updated to reflect canonical state; 2080 total tests (36 pre-existing failures unchanged). Identity module is now fully canonical. Next: 040. |
+| 040 | 2026-06-15 | HEAD | Core module migration map created: 33 source files classified, 2 entities (Project/ApiKey), 2 cross-module FKs confirmed, 6 routes, 6 use cases, 7 DTOs, 3 events (unversioned), 0 workers, no existing tests, all 6 composers use PostgresUnitOfWork. `find`/`rg` indisponíveis (Get-ChildItem/Select-String). 24 inventory tests pass (22 existing + 2 new). Next: 041. |
 
 ## Specs pendentes
 
@@ -322,6 +323,7 @@ Specs 031 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Identity domain layer validated | Spec 032: domain layer already canonical; 13 entity tests + 3 architecture tests added | No production code changed; domain clean of framework imports; next: spec 033 | Sim, revertendo testes |
 | 2026-06-14 | Identity service→application migration completed | Spec 033: DTOs and use cases moved from service/ to application/ with shims | 26 DTOs, 14 use cases, 13 composers, 13 controllers updated; service/ kept as shim; next: spec 034 | Sim, revertendo imports e restaurando service/ original |
 | 2026-06-14 | Identity presentation layer validated | Spec 034: routes, controllers, schemas, mappers in canonical state; 12 tests added | No production changes; routes verify thin-composer pattern; controllers verified use application/ imports; next: spec 035 | Sim, revertendo testes |
+| 2026-06-15 | Core migration map created | Spec 040: discovery-only inventory of core module before physical moves | 33 source files classified, 2 cross-module FKs, 6 routes, 6 use cases, 7 DTOs, 3 unversioned events, PostgresUnitOfWork in all composers (deferred to spec 046); `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 24 inventory tests pass; next: spec 041 | Sim, revertendo core-migration-map.md |
 
 ## Riscos ativos
 
@@ -346,4 +348,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`040-map-current-module-to-canonical-architecture-core.md`
+`041-create-canonical-module-skeleton-core.md`
