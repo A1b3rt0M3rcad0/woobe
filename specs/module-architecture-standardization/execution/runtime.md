@@ -177,7 +177,7 @@ src/modules/<module>/
 | 050 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/billing-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `Get-ChildItem`/`Select-String` substitutes; 2 cross-module FKs deferred to spec 099; 4 PostgresUnitOfWork composers deferred to spec 056 | 051 |
 | 051 | completed | 2026-06-15 | `src/modules/billing/domain/events.py`, `src/modules/billing/domain/services.py`, `src/modules/billing/domain/value_objects.py`, `src/modules/billing/application/dtos/__init__.py`, `src/modules/billing/application/use_cases/__init__.py`, `src/modules/billing/application/handlers/__init__.py`, `src/modules/billing/infra/database/__init__.py`, `src/modules/billing/infra/messaging/__init__.py`, `src/modules/billing/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Caminhos legados mantidos; nenhum comportamento alterado | 052 |
 | 052 | completed | 2026-06-15 | `tests/modules/billing/unit/domain/test_entities.py`, `tests/architecture/test_billing_domain_dependencies.py`, `execution/runtime.md` | Domínio do billing já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 4 entidades (Plan/Customer/Subscription/PaymentEvent) e 4 repositories interfaces (ABC) validados | 053 |
-| 053 | pending | - | - | - | 054 |
+| 053 | completed | 2026-06-15 | `src/modules/billing/application/dtos/billing_dtos.py`, `src/modules/billing/application/dtos/__init__.py`, `src/modules/billing/application/use_cases/billing_use_cases.py`, `src/modules/billing/application/use_cases/__init__.py`, `src/modules/billing/application/composers/*.py` (4 files), `src/modules/billing/presentation/controllers/*.py` (4 files), `src/modules/billing/service/dtos.py`, `src/modules/billing/service/use_cases.py`, `tests/modules/billing/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_billing_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers | 054 |
 | 054 | pending | - | - | - | 055 |
 | 055 | pending | - | - | - | 056 |
 | 056 | pending | - | - | - | 057 |
@@ -292,6 +292,7 @@ src/modules/<module>/
 | 050 | 2026-06-15 | c11c055 | Billing module migration map created: 46 source files classified, 4 entities (Plan/Customer/Subscription/PaymentEvent), 2 cross-module FKs to identity, 4 routes, 6 use cases, 8 DTOs, 4 unversioned events, 0 workers, no existing tests, all 4 composers use PostgresUnitOfWork. `Get-ChildItem`/`Select-String` substitutes for `find`/`rg`. Next: 051. |
 | 051 | 2026-06-15 | 8d4d3ed | Canonical skeleton for billing created: 6 new directories (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 domain stubs (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. No behavior altered. Next: 052. |
 | 052 | 2026-06-15 | 9da9cb3 | Domain layer normalized for billing: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 8 entity invariant tests + 3 architecture dependency tests added. Next: 053. |
+| 053 | 2026-06-15 | 4889eab | service → application migration for billing: 8 DTOs and 6 use cases moved from service/ to application/dtos and application/use_cases; 4 composers and 4 controllers updated to import from application/; service/ shims preserved; 5 use case tests + 2 arch tests added. Next: 054. |
 
 ## Specs pendentes
 
@@ -369,4 +370,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`053-move-service-to-application-layer-billing.md`
+`054-normalize-presentation-layer-billing.md`

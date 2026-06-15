@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.billing.infra.repositories import SQLAlchemyOutboxEventWriter, SQLAlchemySubscriptionRepository
-from modules.billing.service.use_cases import CreateSubscriptionUseCase
+from modules.billing.application.use_cases import CreateSubscriptionUseCase
 from modules.billing.presentation.controllers.create_subscription_controller import CreateSubscriptionController
 from shared.application.transactional_handler import TransactionalHandler
 from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork

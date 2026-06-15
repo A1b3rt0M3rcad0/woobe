@@ -1,5 +1,5 @@
-from modules.billing.service.use_cases import CreatePlanUseCase
-from modules.billing.service.dtos import CreatePlanInput
+from modules.billing.application.use_cases import CreatePlanUseCase
+from modules.billing.application.dtos import CreatePlanInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
