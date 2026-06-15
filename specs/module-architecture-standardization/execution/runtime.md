@@ -211,7 +211,7 @@ src/modules/<module>/
 | 084 | completed | 2026-06-15 | `tests/modules/tools/contract/test_routes.py`, `tests/modules/tools/unit/presentation/test_controllers.py`, `execution/runtime.md`, `src/modules/tools/application/tool_converter.py`, `src/modules/tools/application/use_cases/tools_use_cases.py`, `tests/modules/tools/unit/application/test_use_cases.py` | 8 route tests (prefix /tools, composer delegation, no repo/domain/service imports) + 5 controller tests (import from application/use_cases, no repos, implement handle(), no service imports); presentation already normalized; minor ruff fixes | 085 (when suite resumed — batch limit 5 reached) |
 | 085 | completed | 2026-06-15 | `src/modules/tools/infra/database/models.py`, `src/modules/tools/infra/database/repositories.py`, `src/modules/tools/infra/database/mappers.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/infra/models.py` (shim), `src/modules/tools/infra/repositories.py` (shim), `src/modules/tools/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/tools/integration/database/test_repositories.py`, `tests/architecture/test_tools_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 39/39 tools tests passing; 8/8 arch location tests passing; 8/8 integration import tests passing; alembic não executado (sem PostgreSQL) | 086 |
 | 086 | completed | 2026-06-15 | `src/modules/tools/infra/database/unit_of_work.py`, `src/modules/tools/infra/database/__init__.py`, `src/modules/tools/application/composers/*.py` (10 files), `tests/modules/tools/integration/database/test_unit_of_work.py`, `tests/modules/tools/integration/test_outbox_atomicity.py`, `execution/runtime.md` | ruff apenas erros pré-existentes (service/ legado); 79 falhas pré-existentes de arquitetura inalteradas; 53/53 tools tests passing; 14 UoW/atomicity tests added; alembic não executado (sem PostgreSQL) | 087 |
-| 087 | pending | - | - | - | 088 |
+| 087 | completed | 2026-06-15 | `src/modules/tools/infra/messaging/event_mappers.py`, `src/modules/tools/infra/messaging/publishers.py`, `src/modules/tools/infra/messaging/consumers.py`, `src/modules/tools/infra/messaging/inbox_handlers.py`, `src/modules/tools/infra/messaging/__init__.py`, `src/modules/tools/infra/workers/outbox_dispatcher.py`, `src/modules/tools/infra/workers/inbox_consumer.py`, `src/modules/tools/infra/workers/inbox_processor.py`, `src/modules/tools/infra/workers/registry.py`, `src/modules/tools/infra/workers/__init__.py`, `tests/modules/tools/integration/messaging/test_outbox_dispatcher.py`, `tests/modules/tools/integration/messaging/test_inbox_flow.py`, `execution/runtime.md` | ruff clean; 81 tools tests passing; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL) | 088 |
 | 088 | pending | - | - | - | 089 |
 | 089 | pending | - | - | - | 090 |
 | 090 | pending | - | - | - | 091 |
@@ -389,6 +389,8 @@ Specs 061 a 109 do `MANIFEST.md`.
 
 | 2026-06-15 | ToolsUnitOfWork implemented | Spec 086: ToolsUnitOfWork with 3 lazy properties (tools, secrets, outbox); 10 composers migrated from PostgresUnitOfWork to ToolsUnitOfWork using uow.property pattern | 14 UoW/atomicity tests added; 53 tools tests passing; 79 pre-existing arch failures unchanged; alembic não executado (sem PostgreSQL); ruff apenas erros pré-existentes (service/ legado); next: spec 087 | Reverter composers e restaurar unit_of_work.py |
 
+| 2026-06-15 | Messaging and workers infrastructure created for tools | Spec 087: event_mappers, publishers, consumers, inbox_handlers, outbox dispatcher, inbox consumer, inbox processor, and register_tools_workers function in registry | 28 messaging tests added; 81 tools tests passing; 79 pre-existing arch failures unchanged; ruff clean | Reverter todos os arquivos de messaging/workers |
+
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
@@ -412,4 +414,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`087-implement-module-messaging-workers-and-registry-tools.md`
+`088-add-module-unit-integration-and-contract-tests-tools.md`

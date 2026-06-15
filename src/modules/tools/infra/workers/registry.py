@@ -14,6 +14,12 @@ class ToolsWorkerRegistry:
         return list(self._workers)
 
 
+
+
+def register_tools_workers(registry: WorkerRegistryProtocol) -> None:
+    pass
+
+
 assert isinstance(ToolsWorkerRegistry, type)
 _check: WorkerRegistryProtocol = ToolsWorkerRegistry()
 del _check
