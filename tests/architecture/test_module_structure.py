@@ -172,3 +172,40 @@ class TestModuleStructure:
         assert "mappers.py" in pres_files, (
             "identity/presentation/mappers.py must exist"
         )
+
+    def test_core_structure(self):
+        core_dirs = _get_module_dirs("core")
+
+        assert "infra/database" in core_dirs, (
+            "core must have infra/database/"
+        )
+        assert "infra/messaging" in core_dirs, (
+            "core must have infra/messaging/"
+        )
+        assert "infra/workers" in core_dirs, (
+            "core must have infra/workers/"
+        )
+
+        assert "application/dtos" in core_dirs, (
+            "core must have application/dtos/"
+        )
+        assert "application/use_cases" in core_dirs, (
+            "core must have application/use_cases/"
+        )
+        assert "application/handlers" in core_dirs, (
+            "core must have application/handlers/"
+        )
+        assert "application/composers" in core_dirs, (
+            "core must have application/composers/"
+        )
+
+        domain_files = _get_module_files("core", "domain")
+        for f in ("events.py", "services.py", "value_objects.py"):
+            assert f in domain_files, (
+                f"core/domain/{f} must exist"
+            )
+
+        pres_files = _get_module_files("core", "presentation")
+        assert "mappers.py" in pres_files, (
+            "core/presentation/mappers.py must exist"
+        )
