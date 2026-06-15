@@ -129,3 +129,28 @@ class TestAgentReferenceArchitecture:
                         if f"infra.{infra_dir}" in node.module or f"/infra/{infra_dir}" in node.module:
                             rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                             pytest.fail(f"Domain {rel} imports infra/{infra_dir}: {node.module}")
+
+    def test_agent_domain_has_all_contract_files(self):
+        domain_dir = AGENT_DIR / "domain"
+        required = {"entities.py", "enums.py", "errors.py", "events.py", "repositories.py", "services.py", "value_objects.py"}
+        existing = {f.name for f in domain_dir.iterdir() if f.suffix == ".py" and not f.name.startswith("__")}
+        missing = required - existing
+        assert not missing, f"Domain contract files missing: {missing}"
+
+    def test_agent_domain_only_imports_self_or_shared(self):
+        domain_dir = AGENT_DIR / "domain"
+        import ast
+        for py_file in domain_dir.rglob("*.py"):
+            if "__pycache__" in py_file.parts:
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    mod = node.module
+                    if mod.startswith("modules.") and not mod.startswith("modules.agent."):
+                        rel = py_file.relative_to(PROJECT_ROOT).as_posix()
+                        pytest.fail(f"Domain file {rel} imports other module: {mod}")

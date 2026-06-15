@@ -145,7 +145,7 @@ src/modules/<module>/
 | 018 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/tests-bootstrap.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`sed` unavailable (substituted with Get-ChildItem/Get-Content); e2e dir empty; core unit tests missing __init__.py; 34 pre-existing arch test failures | 019 |
 | 019 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/risks.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | 25 riscos catalogados (5 críticos, 12 altos, 6 médios, 2 baixos); `rg`/`find`/`cat` indisponíveis (substituídos) | 020 |
 | 020 | completed | 2026-06-14 | `tests/modules/agent/test_audit_agent_as_canonical_reference.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | ruff limpo; 0 legacy ai/knowledge/runtime imports; 8 auditoria + 11 testes de arquitetura criados; pyright com 482 erros pré-existentes (não introduzidos) | 021 |
-| 021 | pending | - | - | - | 022 |
+| 021 | completed | 2026-06-14 | `tests/modules/agent/test_normalize_agent_domain_contracts.py`, `tests/architecture/test_agent_reference_architecture.py`, `execution/runtime.md` | 13 testes de contratos de domínio + 2 testes de arquitetura adicionados; domain services.py e value_objects.py são stubs (sem lógica de negócio a adicionar); ruff limpo | 022 |
 | 022 | pending | - | - | - | 023 |
 | 023 | pending | - | - | - | 024 |
 | 024 | pending | - | - | - | 025 |
@@ -260,6 +260,7 @@ src/modules/<module>/
 | 018 | 2026-06-14 | 54ab80e | Tests/bootstrap/config inventory criado: `tests-bootstrap.md` com 150 test files catalogados, bootstrap (main.py), Alembic (15 migrações), pyproject.toml; e2e dir vazio; wildcard imports em env.py. |
 | 019 | 2026-06-14 | 1e87c8e | Risk register and execution order criado: `risks.md` com 25 riscos consolidados dos 10 inventários (010-018); ordem executável em 9 fases; 5 riscos críticos (FKs cross-module, schemas legados), 12 altos, 6 médios, 2 baixos. |
 | 020 | 2026-06-14 | 16126be | Auditoria do agent como referência canônica concluída: 137 arquivos Python analisados, 0 imports legados `ai`/`knowledge`/`runtime`, 90 ocorrências PostgresUnitOfWork catalogadas (44 composers + 1 worker), AgentUnitOfWork coordena apenas repositórios do agent + outbox + inbox. 2 conjuntos de testes criados (19 testes). Agent confirmado como baseline canônica para os demais módulos. |
+| 021 | 2026-06-14 | 8e5152c | Normalização dos contratos de domínio do agent concluída: entities, enums, errors, events, repositories validados; services.py e value_objects.py são stubs (1 linha cada). 13 testes de contratos de domínio + 2 testes de arquitetura adicionados. |
 
 ## Specs pendentes
 
@@ -290,6 +291,7 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Tests/bootstrap/config inventory catalogado | Catalogar tests, main.py, Alembic e pyproject.toml antes de migrar bootstrap e config | `tests-bootstrap.md` com 150 test files, 14 migrações, main.py com 7 módulos de rotas; e2e dir vazio; wildcard imports frágeis em env.py | Sim, revertendo tests-bootstrap.md |
 | 2026-06-14 | Risk register and execution order criado | Consolidar 10 inventários em registro de riscos e ordem executável | `risks.md` com 25 riscos; ordem em 9 fases (agent baseline → 6 módulos → transversal → final); 5 riscos críticos, 12 altos, 6 médios, 2 baixos | Sim, revertendo risks.md |
 | 2026-06-14 | Agent auditado como referência canônica | Validar agent como template antes de padronizar demais módulos | 19 testes de auditoria e arquitetura criados; 0 imports legados; 90 PostgresUnitOfWork catalogados (deferidos para spec 025); `find`/`rg` Unix indisponíveis (substituídos por Get-ChildItem/Select-String) | Sim, revertendo testes e runtime.md |
+| 2026-06-14 | Contratos de domínio do agent normalizados | Completar e validar entities, value objects, events, enums, errors, repositories e services | 13 testes de contratos de domínio + 2 testes de arquitetura adicionados; services.py/value_objects.py mantidos como stubs (sem lógica a adicionar nesta spec); `find`/`rg` indisponíveis (substituídos) | Sim, revertendo testes e runtime.md |
 
 ## Riscos ativos
 
@@ -314,4 +316,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`021-normalize-agent-domain-contracts.md`
+`022-normalize-agent-application-layout.md`
