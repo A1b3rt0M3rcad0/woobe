@@ -1,5 +1,5 @@
-from modules.tools.service.use_cases import ExecuteToolUseCase
-from modules.tools.service.dtos import ExecuteToolInput
+from modules.tools.application.use_cases import ExecuteToolUseCase
+from modules.tools.application.dtos import ExecuteToolInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

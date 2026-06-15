@@ -1,4 +1,4 @@
-from modules.metering.service.use_cases import GetProjectDailyUsageUseCase
+from modules.metering.application.use_cases import GetProjectDailyUsageUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

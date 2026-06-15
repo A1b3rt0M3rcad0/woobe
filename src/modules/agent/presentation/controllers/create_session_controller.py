@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.runtime_use_cases import CreateSessionUseCase
-from modules.agent.application.dtos.runtime_dtos import CreateSessionInput
+from modules.agent.application.dtos import CreateSessionInput
 from modules.agent.presentation.schemas import SessionResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

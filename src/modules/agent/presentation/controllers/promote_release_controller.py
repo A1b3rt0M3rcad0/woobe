@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from modules.agent.application.dtos.ai_dtos import PromoteReleaseInput
+from modules.agent.application.dtos import PromoteReleaseInput
 from modules.agent.application.use_cases.ai_use_cases import PromoteReleaseUseCase
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller

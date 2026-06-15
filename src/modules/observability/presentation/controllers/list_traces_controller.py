@@ -1,5 +1,5 @@
-from modules.observability.service.use_cases import ListTracesUseCase
-from modules.observability.service.dtos import ListTracesInput
+from modules.observability.application.use_cases import ListTracesUseCase
+from modules.observability.application.dtos import ListTracesInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import importlib
+import logging
+from uuid import UUID
+
+from modules.agent.domain.ports.tool_executor import ToolExecutor
+
+logger = logging.getLogger(__name__)
+
+
+def agent_tool_to_openai_definition(tool) -> dict:
+    config = tool.config or {}
+    input_schema = tool.input_schema or _build_input_schema(config)
+    return {
+        "type": "function",
+        "function": {
+            "name": _safe_tool_name(tool),
+            "description": tool.description or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}",
+            "parameters": input_schema,
+        },
+    }
+
+
+def agent_tools_to_openai_definitions(tools: list) -> list[dict]:
+    return [agent_tool_to_openai_definition(t) for t in tools]
+
+
+def _safe_tool_name(tool) -> str:
+    name = tool.name.lower().strip().replace(" ", "_").replace("-", "_")
+    name = "".join(c for c in name if c.isalnum() or c == "_")
+    if not name or name[0].isdigit():
+        name = f"tool_{name}"
+    return name
+
+
+def _build_input_schema(config: dict) -> dict:
+    url = config.get("url", "")
+    body_template = config.get("body", "")
+    variables = _extract_url_variables(url)
+    if body_template:
+        for v in _extract_url_variables(body_template):
+            if v not in variables:
+                variables.append(v)
+    properties = {}
+    required = []
+    for var_name in variables:
+        properties[var_name] = {
+            "type": "string",
+            "description": f"Parameter {var_name}",
+        }
+        required.append(var_name)
+    return {"type": "object", "properties": properties, "required": required}
+
+
+def _extract_url_variables(url: str) -> list[str]:
+    import re
+    matches = re.findall(r'\{\{(\w+)\}\}', url)
+    seen: set[str] = set()
+    result: list[str] = []
+    for m in matches:
+        if m not in seen:
+            seen.add(m)
+            result.append(m)
+    return result
+
+
+class ToolsToolExecutor(ToolExecutor):
+
+    def __init__(self, tool_repo: object) -> None:
+        self._tool_repo = tool_repo
+
+    async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
+        try:
+            tools_mod = importlib.import_module("modules.tools.application.use_cases")
+            dtos_mod = importlib.import_module("modules.tools.application.dtos")
+            use_case = tools_mod.ExecuteToolUseCase(tool_repo=self._tool_repo)
+            result = await use_case.execute(
+                dtos_mod.ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+            )
+            return result.model_dump()
+        except Exception as e:
+            logger.warning("Tool execution failed: %s", e)
+            return {"success": False, "error": str(e)}
+
+    async def tool_to_openai_definition(self, tool_id: UUID) -> dict | None:
+        try:
+            tool = await self._tool_repo.get_by_id(tool_id)
+            if tool:
+                return agent_tool_to_openai_definition(tool)
+            return None
+        except Exception:
+            logger.exception("Failed to get tool definition")
+            return None

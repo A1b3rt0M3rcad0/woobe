@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.ai_use_cases import ListAgentsUseCase
-from modules.agent.application.dtos.ai_dtos import ListAgentsInput
+from modules.agent.application.dtos import ListAgentsInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

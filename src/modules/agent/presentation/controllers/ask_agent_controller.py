@@ -2,8 +2,8 @@ import logging
 
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from modules.agent.application.dtos.runtime_dtos import AskInput
-from shared.domain.errors import NotFoundError, ValidationError
+from modules.agent.application.dtos import AskInput
+from shared.infra.errors import NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

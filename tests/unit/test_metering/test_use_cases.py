@@ -18,7 +18,7 @@ from modules.metering.domain.repositories import (
     UsageDailyProjectRepository,
     UsageDailyAgentRepository,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from tests.helpers import make_usage_event, fake_uuid
 
 

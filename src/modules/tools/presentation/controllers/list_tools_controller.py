@@ -1,8 +1,8 @@
 from dataclasses import asdict
 
 from modules.tools.presentation.schemas import ToolResponse
-from modules.tools.service.use_cases import ListToolsUseCase
-from modules.tools.service.dtos import ListToolsInput
+from modules.tools.application.use_cases import ListToolsUseCase
+from modules.tools.application.dtos import ListToolsInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

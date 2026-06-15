@@ -1,9 +1,9 @@
 from modules.agent.application.use_cases.runtime_use_cases import ListMessagesUseCase
-from modules.agent.application.dtos.runtime_dtos import ListMessagesInput
+from modules.agent.application.dtos import ListMessagesInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
-from shared.domain.errors import NotFoundError
+from shared.infra.errors import NotFoundError
 
 
 class ListMessagesController(Controller):

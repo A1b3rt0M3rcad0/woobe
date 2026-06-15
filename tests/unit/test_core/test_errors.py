@@ -3,7 +3,7 @@ from modules.core.domain.errors import (
     DuplicateSlugError,
     ProjectNotFoundError,
 )
-from shared.domain.errors import ConflictError, DomainError, NotFoundError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError
 
 
 class TestProjectNotFoundError:

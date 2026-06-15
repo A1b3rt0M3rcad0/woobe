@@ -38,12 +38,12 @@ class TestAlembicMigrationsSuccess:
     def test_alembic_env_imports_all_required_modules(self):
         content = ENV_PATH.read_text(encoding="utf-8")
         required_imports = [
-            "modules.identity.infra.models",
-            "modules.core.infra.models",
-            "modules.tools.infra.models",
-            "modules.metering.infra.models",
-            "modules.billing.infra.models",
-            "modules.observability.infra.models",
+            "modules.identity.infra.database.models",
+            "modules.core.infra.database.models",
+            "modules.tools.infra.database.models",
+            "modules.metering.infra.database.models",
+            "modules.billing.infra.database.models",
+            "modules.observability.infra.database.models",
             "modules.agent.infra.database.models",
         ]
         for module_path in required_imports:

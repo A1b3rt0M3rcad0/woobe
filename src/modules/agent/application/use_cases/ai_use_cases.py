@@ -58,7 +58,7 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateProviderCredentialInput,
     UpdateProviderCredentialOutput,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
 
@@ -871,7 +871,7 @@ class DeleteReleaseUseCase:
             raise ReleaseNotFoundError
 
         if release.status == ReleaseStatus.production:
-            from shared.domain.errors import ValidationError
+            from shared.infra.errors import ValidationError
             raise ValidationError("Cannot delete a production release. Rollback first.")
 
         await self._release_repo.delete(release_id)

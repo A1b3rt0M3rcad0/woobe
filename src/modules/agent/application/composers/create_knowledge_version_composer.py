@@ -1,15 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeVersionRepository
 from modules.agent.presentation.controllers.create_knowledge_version_controller import CreateKnowledgeVersionController
-from modules.agent.application.use_cases.knowledge_use_cases import CreateKnowledgeVersionUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.application.use_cases import CreateKnowledgeVersionUseCase
+from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def create_knowledge_version_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyKnowledgeVersionRepository(uow)
+    uow = AgentUnitOfWork(session_factory)
+    repo = uow.knowledge_versions
     use_case = CreateKnowledgeVersionUseCase(repo)
     controller = CreateKnowledgeVersionController(use_case)
     return TransactionalHandler(uow, controller.handle)

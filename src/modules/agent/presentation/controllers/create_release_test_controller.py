@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.ai_use_cases import CreateReleaseTestUseCase
-from modules.agent.application.dtos.ai_dtos import CreateReleaseTestInput
+from modules.agent.application.dtos import CreateReleaseTestInput
 from modules.agent.presentation.mappers import release_test_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

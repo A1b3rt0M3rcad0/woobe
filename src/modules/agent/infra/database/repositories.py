@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select, text
@@ -104,8 +104,8 @@ from modules.agent.infra.database.models import (
     RuntimeOutboxEventModel,
     SessionModel,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.objects import CursorPage
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
@@ -1307,8 +1307,14 @@ AGENT_DEFAULT_BATCH_SIZE: int = 50
 
 
 class SQLAlchemyAgentOutboxRepository:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return cast(AsyncSession, self._session_or_uow)
 
     async def add(self, event: AgentOutboxEventModel) -> AgentOutboxEventModel:
         self._session.add(event)
@@ -1398,8 +1404,14 @@ AGENT_INBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
 
 
 class SQLAlchemyAgentInboxRepository:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return cast(AsyncSession, self._session_or_uow)
 
     async def save_received(self, event: AgentInboxEventModel) -> AgentInboxEventModel:
         self._session.add(event)

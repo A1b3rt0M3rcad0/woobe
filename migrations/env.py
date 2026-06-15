@@ -12,13 +12,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from shared.infra.database.base import Base
 from shared.infra.config import Settings
-from modules.identity.infra.models import *  # noqa: F401, F403
-from modules.core.infra.models import *      # noqa: F401, F403
+from modules.identity.infra.database.models import *  # noqa: F401, F403
+from modules.core.infra.database.models import *  # noqa: F401, F403
 from modules.agent.infra.database.models import *  # noqa: F401, F403
-from modules.tools.infra.models import *     # noqa: F401, F403
-from modules.metering.infra.models import *  # noqa: F401, F403
-from modules.billing.infra.models import *   # noqa: F401, F403
-from modules.observability.infra.models import * # noqa: F401, F403
+from modules.tools.infra.database.models import *  # noqa: F401, F403
+from modules.metering.infra.database.models import *  # noqa: F401, F403
+from modules.billing.infra.database.models import *  # noqa: F401, F403
+from modules.observability.infra.database.models import *  # noqa: F401, F403
 
 config = context.config
 if config.config_file_name is not None:

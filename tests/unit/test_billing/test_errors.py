@@ -5,7 +5,7 @@ from modules.billing.domain.errors import (
     CustomerNotFoundError,
     SubscriptionNotFoundError,
 )
-from shared.domain.errors import NotFoundError, DomainError
+from shared.infra.errors import NotFoundError, DomainError
 
 
 class TestPlanNotFoundError:

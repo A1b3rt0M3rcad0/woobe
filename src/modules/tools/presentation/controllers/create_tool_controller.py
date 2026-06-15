@@ -1,5 +1,5 @@
-from modules.tools.service.use_cases import CreateToolUseCase
-from modules.tools.service.dtos import CreateToolInput
+from modules.tools.application.use_cases import CreateToolUseCase
+from modules.tools.application.dtos import CreateToolInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

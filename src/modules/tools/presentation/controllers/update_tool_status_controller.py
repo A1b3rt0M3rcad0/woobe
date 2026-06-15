@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from modules.tools.service.use_cases import UpdateToolStatusUseCase
-from modules.tools.service.dtos import UpdateToolStatusInput
+from modules.tools.application.use_cases import UpdateToolStatusUseCase
+from modules.tools.application.dtos import UpdateToolStatusInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

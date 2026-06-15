@@ -31,7 +31,7 @@ from modules.agent.presentation.schemas import (
     ReleaseResponse,
     ReleaseTestResponse,
 )
-from modules.agent.application.dtos.knowledge_dtos import (
+from modules.agent.application.dtos import (
     AgentCollectionOutput,
     AttachCollectionOutput,
     CreateCollectionOutput,

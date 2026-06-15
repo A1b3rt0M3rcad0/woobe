@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
 
@@ -12,6 +17,15 @@ class MeteringWorkerRegistry:
 
     def iter_workers(self) -> list[WorkerProtocol]:
         return list(self._workers)
+
+
+def register_metering_workers(
+    registry: WorkerRegistryProtocol,
+    settings: Any | None = None,
+    engine: AsyncEngine | None = None,
+    rabbitmq_manager: RabbitMQManager | None = None,
+) -> None:
+    pass
 
 
 assert isinstance(MeteringWorkerRegistry, type)

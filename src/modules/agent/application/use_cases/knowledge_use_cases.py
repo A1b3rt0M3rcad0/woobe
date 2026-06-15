@@ -35,7 +35,7 @@ from modules.agent.application.dtos.knowledge_dtos import (
     UploadDocumentOutput,
 )
 
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
@@ -71,7 +71,7 @@ class AttachCollectionUseCase:
             input_dto.agent_id, input_dto.collection_id
         )
         if existing:
-            from shared.domain.errors import ConflictError
+            from shared.infra.errors import ConflictError
             raise ConflictError("Collection already attached to this agent")
 
         link = AgentCollection(

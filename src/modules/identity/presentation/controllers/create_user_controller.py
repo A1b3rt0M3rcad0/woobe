@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import CreateUserUseCase
-from modules.identity.service.dtos import CreateUserInput
+from modules.identity.application.use_cases import CreateUserUseCase
+from modules.identity.application.dtos import CreateUserInput
 from modules.identity.presentation.schemas import UserResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

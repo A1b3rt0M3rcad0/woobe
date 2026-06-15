@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import ListMembersUseCase
-from modules.identity.service.dtos import ListMembersInput
+from modules.identity.application.use_cases import ListMembersUseCase
+from modules.identity.application.dtos import ListMembersInput
 from modules.identity.presentation.schemas import MemberResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

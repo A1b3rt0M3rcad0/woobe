@@ -1,7 +1,7 @@
 from modules.agent.presentation.mappers import attach_collection_output_to_response
-from modules.agent.application.dtos.knowledge_dtos import AttachCollectionInput
+from modules.agent.application.dtos import AttachCollectionInput
 from modules.agent.application.use_cases.knowledge_use_cases import AttachCollectionUseCase
-from shared.domain.errors import ConflictError, ValidationError
+from shared.infra.errors import ConflictError, ValidationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

@@ -25,7 +25,7 @@ from modules.billing.domain.repositories import (
     SubscriptionRepository,
     PaymentEventRepository,
 )
-from shared.domain.events import OutboxEventWriter
+from shared.messaging.outbox_writer import OutboxEventWriter
 from tests.helpers import make_plan, make_subscription, fake_uuid
 
 

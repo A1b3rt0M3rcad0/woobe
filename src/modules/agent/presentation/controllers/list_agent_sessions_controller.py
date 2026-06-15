@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from modules.agent.application.use_cases.runtime_use_cases import ListAgentSessionsUseCase
-from modules.agent.application.dtos.runtime_dtos import ListAgentSessionsInput
+from modules.agent.application.dtos import ListAgentSessionsInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

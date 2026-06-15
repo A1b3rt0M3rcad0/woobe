@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.ai_use_cases import CreateModelConfigUseCase
-from modules.agent.application.dtos.ai_dtos import CreateModelConfigInput
+from modules.agent.application.dtos import CreateModelConfigInput
 from modules.agent.presentation.mappers import model_config_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

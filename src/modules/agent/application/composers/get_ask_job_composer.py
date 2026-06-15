@@ -4,7 +4,7 @@ from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.presentation.controllers.get_ask_job_controller import (
     GetAskJobController,
 )
-from modules.agent.application.use_cases.runtime_use_cases import GetAskJobUseCase
+from modules.agent.application.use_cases import GetAskJobUseCase
 
 
 def get_ask_job_composer(

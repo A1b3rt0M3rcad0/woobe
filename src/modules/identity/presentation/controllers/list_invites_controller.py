@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import ListInvitesUseCase
-from modules.identity.service.dtos import ListInvitesInput
+from modules.identity.application.use_cases import ListInvitesUseCase
+from modules.identity.application.dtos import ListInvitesInput
 from modules.identity.presentation.schemas import InviteResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

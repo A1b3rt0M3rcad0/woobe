@@ -13,11 +13,11 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyRuntimeOutboxEventWriter,
     SQLAlchemySessionRepository,
 )
-from modules.metering.infra.repositories import SQLAlchemyUsageEventRepository
-from modules.observability.infra.repositories import (
-    SQLAlchemyTraceEventRepository,
-    SQLAlchemyTraceRepository,
-)
+from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
+from modules.agent.infra.adapters.observability_trace_recorder import ObservabilityTraceRecorder
+from modules.agent.infra.adapters.tools_tool_executor import ToolsToolExecutor
+from modules.agent.infra.adapters.tools_tool_repository import ToolsToolRepository
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from shared.infra.config import Settings
@@ -62,11 +62,13 @@ class AskJobWorker:
         message_repo = SQLAlchemyMessageRepository(uow)
         agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
         chunk_repo = SQLAlchemyDocumentChunkRepository(uow)
-        trace_repo = SQLAlchemyTraceRepository(uow)
-        trace_event_repo = SQLAlchemyTraceEventRepository(uow)
-        usage_repo = SQLAlchemyUsageEventRepository(uow)
         outbox = SQLAlchemyRuntimeOutboxEventWriter(uow)
         settings = Settings()
+        trace_recorder = ObservabilityTraceRecorder(uow)
+        usage_recorder = MeteringUsageRecorder(uow)
+        tool_repo = ToolsToolRepository(uow)
+        tool_executor = ToolsToolExecutor(tool_repo)
+        llm_factory = LangchainLLMFactory()
 
         use_case = AskAgentUseCase(
             agent_repo=agent_repo,
@@ -75,10 +77,12 @@ class AskJobWorker:
             message_repo=message_repo,
             agent_collection_repo=agent_collection_repo,
             chunk_repo=chunk_repo,
-            trace_repo=trace_repo,
-            trace_event_repo=trace_event_repo,
-            usage_repo=usage_repo,
+            trace_recorder=trace_recorder,
+            usage_recorder=usage_recorder,
             outbox=outbox,
+            llm_factory=llm_factory,
+            tool_executor=tool_executor,
+            tool_repo=tool_repo,
             encryption_key=settings.encryption_key,
         )
 

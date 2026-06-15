@@ -2,7 +2,7 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.dtos import AskInput
 
 
 async def handle_ask_stream(

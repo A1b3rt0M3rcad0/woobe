@@ -1,5 +1,5 @@
-from modules.identity.service.use_cases import AddMemberToOrganizationUseCase
-from modules.identity.service.dtos import AddMemberInput
+from modules.identity.application.use_cases import AddMemberToOrganizationUseCase
+from modules.identity.application.dtos import AddMemberInput
 from modules.identity.presentation.schemas import MemberResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

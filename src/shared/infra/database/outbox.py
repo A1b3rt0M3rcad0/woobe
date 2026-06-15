@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from shared.domain.time import utc_now
+from shared.infra.time import utc_now
 from shared.infra.database.base import BaseModel
 
 

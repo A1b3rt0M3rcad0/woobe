@@ -1,19 +1,18 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.presentation.controllers.create_ask_job_controller import (
     CreateAskJobController,
 )
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from modules.agent.application.use_cases import CreateAskJobUseCase
+from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def create_ask_job_composer(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    repo = SQLAlchemyAskJobRepository(uow)
+    uow = AgentUnitOfWork(session_factory)
+    repo = uow.ask_jobs
     use_case = CreateAskJobUseCase(repo)
     controller = CreateAskJobController(use_case)
     return TransactionalHandler(uow, controller.handle)

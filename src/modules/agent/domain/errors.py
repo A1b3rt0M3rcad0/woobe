@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from shared.domain.errors import ConflictError, NotFoundError
+from shared.infra.errors import ConflictError, NotFoundError
 
 
 class CredentialNotFoundError(NotFoundError):

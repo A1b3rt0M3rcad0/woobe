@@ -1,0 +1,225 @@
+"""Tests for spec 008 — database ownership and no cross-module ForeignKeys.
+
+Validates that:
+- Every FK in models.py is classified as intra-module or cross-module.
+- Cross-module FKs have corresponding allowlist entries.
+- Legacy schema references (ai, knowledge, runtime) are flagged.
+- Migration operations respect module boundaries.
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+FK_ALLOWLIST_FILE = (
+    PROJECT_ROOT / "tests" / "architecture" / "legacy_database_fk_allowlist.yaml"
+)
+
+LEGACY_SCHEMAS = {"ai", "knowledge", "runtime"}
+
+SCHEMA_TO_MODULE: dict[str, str] = {
+    "identity": "identity",
+    "core": "core",
+    "tools": "tools",
+    "billing": "billing",
+    "metering": "metering",
+    "observability": "observability",
+    "ai": "agent",
+    "knowledge": "agent",
+    "runtime": "agent",
+    "agent": "agent",
+}
+
+_FK_PATTERN = re.compile(r'ForeignKey\s*\(\s*["\']([^"\']+)["\']')
+
+
+def _load_fk_allowlist() -> set[tuple[str, str, str, str, str]]:
+    if not FK_ALLOWLIST_FILE.exists():
+        return set()
+    with open(FK_ALLOWLIST_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    entries = data.get("entries") or []
+    return {
+        (
+            e["source_module"],
+            e.get("source_table", ""),
+            e.get("source_column", ""),
+            e["target_schema"],
+            e["target_table"],
+        )
+        for e in entries
+    }
+
+
+def _module_from_path(file_path: Path) -> str:
+    rel = file_path.relative_to(SRC_MODULES)
+    return rel.parts[0]
+
+
+def _relative_posix(path: Path) -> str:
+    return path.relative_to(PROJECT_ROOT).as_posix()
+
+
+def _schema_to_module(schema: str) -> str | None:
+    return SCHEMA_TO_MODULE.get(schema)
+
+
+def _extract_fk_refs(source: str) -> list[tuple[str, str, str]]:
+    results = []
+    for match in _FK_PATTERN.finditer(source):
+        ref = match.group(1)
+        parts = ref.split(".")
+        if len(parts) >= 2:
+            results.append((parts[0], parts[1], ref))
+    return results
+
+
+class TestNoCrossModuleForeignKeys:
+    def test_all_fks_classified_as_intra_or_cross(self):
+        intra_count = 0
+        cross_count = 0
+        legacy_refs = []
+        cross_unlisted = []
+
+        allowlist = _load_fk_allowlist()
+
+        for py_file in sorted(SRC_MODULES.rglob("*.py")):
+            if "models.py" not in py_file.name:
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            source_module = _module_from_path(py_file)
+            fk_refs = _extract_fk_refs(source)
+
+            for schema, table, full_ref in fk_refs:
+                target_module = _schema_to_module(schema)
+                if target_module is None:
+                    continue
+
+                if schema in LEGACY_SCHEMAS:
+                    legacy_refs.append(
+                        f"{_relative_posix(py_file)}: FK('{full_ref}') (legacy schema '{schema}')"
+                    )
+                    cross_count += 1
+                    continue
+
+                if target_module == source_module:
+                    intra_count += 1
+                else:
+                    cross_count += 1
+                    matched = any(
+                        al_key[0] == source_module and al_key[3] == schema and al_key[4] == table
+                        for al_key in allowlist
+                    )
+                    if not matched:
+                        cross_unlisted.append(
+                            f"{_relative_posix(py_file)}: FK('{full_ref}') "
+                            f"({source_module} -> {schema}.{table})"
+                        )
+
+        total = intra_count + cross_count
+        print(f"FK Inventory: {total} total ({intra_count} intra, {cross_count} cross)")
+        print(f"Legacy schema refs: {len(legacy_refs)}")
+
+        if legacy_refs:
+            print("CRITICAL: Legacy schema references found:")
+            for ref in legacy_refs:
+                print(f"  - {ref}")
+
+        assert not cross_unlisted, (
+            f"Cross-module FKs without allowlist entry ({len(cross_unlisted)}):\n"
+            + "\n".join(cross_unlisted[:20])
+        )
+
+    def test_legacy_schema_references_are_critical(self):
+        critical_refs = []
+        for py_file in SRC_MODULES.rglob("*.py"):
+            if "models.py" not in py_file.name:
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            fk_refs = _extract_fk_refs(source)
+            for schema, table, full_ref in fk_refs:
+                if schema in LEGACY_SCHEMAS:
+                    critical_refs.append(
+                        f"{_relative_posix(py_file)}: FK('{full_ref}') "
+                        f"(legacy schema '{schema}', must be migrated to 'agent')"
+                    )
+
+        if critical_refs:
+            import warnings
+            warnings.warn(
+                f"Found {len(critical_refs)} critical legacy schema FK references:\n"
+                + "\n".join(critical_refs)
+            )
+
+    def test_migrations_do_not_create_cross_module_fks(self):
+        if not MIGRATIONS_DIR.is_dir():
+            return
+
+        allowlist = _load_fk_allowlist()
+        violations = []
+
+        for py_file in sorted(MIGRATIONS_DIR.rglob("*.py")):
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            fk_refs = _extract_fk_refs(source)
+            for schema, table, full_ref in fk_refs:
+                if schema in LEGACY_SCHEMAS:
+                    continue
+                target_module = _schema_to_module(schema)
+                if target_module is None:
+                    continue
+
+                matched = any(
+                    al_key[0] == "migrations"
+                    or (al_key[3] == schema and al_key[4] == table)
+                    for al_key in allowlist
+                )
+                if not matched:
+                    violations.append(
+                        f"{_relative_posix(py_file)}: FK('{full_ref}')"
+                    )
+
+            create_fk_pattern = re.compile(
+                r"op\.create_foreign_key\s*\([^)]*?"
+                r"source_schema\s*=\s*['\"]([^'\"]+)['\"]"
+                r".*?"
+                r"referent_schema\s*=\s*['\"]([^'\"]+)['\"]",
+                re.DOTALL,
+            )
+            for match in create_fk_pattern.finditer(source):
+                src_schema, ref_schema = match.group(1), match.group(2)
+                if src_schema in LEGACY_SCHEMAS or ref_schema in LEGACY_SCHEMAS:
+                    continue
+                src_mod = _schema_to_module(src_schema)
+                ref_mod = _schema_to_module(ref_schema)
+                if src_mod and ref_mod and src_mod != ref_mod:
+                    matched = any(
+                        al_key[0] == "migrations" or al_key[3] == ref_schema
+                        for al_key in allowlist
+                    )
+                    if not matched:
+                        violations.append(
+                            f"{_relative_posix(py_file)}: create_foreign_key "
+                            f"{src_schema} -> {ref_schema} (cross-module)"
+                        )
+
+        assert not violations, (
+            "Cross-module FK(s) in migrations not allowlisted:\n"
+            + "\n".join(violations[:20])
+        )
