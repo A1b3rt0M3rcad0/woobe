@@ -11,20 +11,14 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from modules.agent.domain.entities import Message, Session
+from modules.agent.application.handlers.session_resolver import SessionResolver
+from modules.agent.domain.entities import Session
 from modules.agent.domain.enums import (
-    MessageRole,
     RuntimeSessionMode,
-    SessionMode,
     SessionStatus,
 )
 from modules.agent.domain.errors import SessionNotFoundError
-from modules.agent.domain.repositories import (
-    MessageRepository,
-    SessionRepository,
-)
+from modules.agent.domain.repositories import SessionRepository
 
 
 @pytest.fixture
@@ -50,30 +44,9 @@ def mock_session_repo() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_message_repo() -> AsyncMock:
-    repo = AsyncMock(spec=MessageRepository)
-    repo.list_by_session = AsyncMock(return_value=[])
-    repo.create = AsyncMock(side_effect=lambda msg: msg)
-    return repo
-
-
-def _make_use_case(
-    mock_message_repo: AsyncMock,
-    mock_session_repo: AsyncMock,
-) -> AskAgentUseCase:
-    return AskAgentUseCase(
-        agent_repo=AsyncMock(),
-        credential_repo=AsyncMock(),
-        session_repo=mock_session_repo,
-        message_repo=mock_message_repo,
-        agent_collection_repo=AsyncMock(),
-        chunk_repo=AsyncMock(),
-        trace_recorder=AsyncMock(),
-        usage_recorder=AsyncMock(),
-        outbox=AsyncMock(),
-        llm_factory=AsyncMock(),
-        encryption_key="test-encryption-key-for-contract-tests",
-    )
+def resolver(mock_session_repo: tuple[AsyncMock, Session]) -> SessionResolver:
+    repo, _ = mock_session_repo
+    return SessionResolver(repo)
 
 
 # ── Stateful without session_id ──────────────────────────────────────────
@@ -81,20 +54,19 @@ def _make_use_case(
 
 @pytest.mark.asyncio
 async def test_stateful_without_session_id_creates_new_session(
-    mock_message_repo: AsyncMock,
+    resolver: SessionResolver,
     mock_session_repo: tuple[AsyncMock, Session],
 ) -> None:
     """Stateful without session_id must create exactly one new session."""
     repo, _ = mock_session_repo
-    use_case = _make_use_case(mock_message_repo, repo)
-    agent = AsyncMock(session_mode=SessionMode.stateful, id=uuid4())
-    input_dto = AskInput(
+    session = await resolver.resolve(
         project_id=uuid4(),
         agent_id=uuid4(),
-        message="Hello",
         session_id=None,
+        tenant_id=None,
+        user_id=None,
+        session_mode="stateful",
     )
-    session = await use_case._resolve_session(input_dto, agent)
     assert session is not None
     assert repo.create.call_count == 1
 
@@ -104,20 +76,19 @@ async def test_stateful_without_session_id_creates_new_session(
 
 @pytest.mark.asyncio
 async def test_stateful_with_valid_session_reuses_exactly(
-    mock_message_repo: AsyncMock,
+    resolver: SessionResolver,
     mock_session_repo: tuple[AsyncMock, Session],
 ) -> None:
     """Stateful with a known session_id must return that session, not a new one."""
     repo, existing = mock_session_repo
-    use_case = _make_use_case(mock_message_repo, repo)
-    agent = AsyncMock(session_mode=SessionMode.stateful, id=uuid4())
-    input_dto = AskInput(
+    session = await resolver.resolve(
         project_id=existing.project_id,
         agent_id=existing.agent_id,
-        message="Hello again",
         session_id=existing.id,
+        tenant_id=None,
+        user_id=None,
+        session_mode="stateful",
     )
-    session = await use_case._resolve_session(input_dto, agent)
     assert session is not None
     assert session.id == existing.id
     assert repo.create.call_count == 0
@@ -128,26 +99,20 @@ async def test_stateful_with_valid_session_reuses_exactly(
 
 @pytest.mark.asyncio
 async def test_stateful_with_invalid_session_id_raises_error(
-    mock_message_repo: AsyncMock,
+    resolver: SessionResolver,
     mock_session_repo: tuple[AsyncMock, Session],
 ) -> None:
-    """Stateful with an unknown session_id must NOT create a new session.
-
-    This test is expected to FAIL against the current code because
-    _resolve_session catches all exceptions and creates a replacement.
-    After spec 005 the error must be propagated.
-    """
+    """Stateful with an unknown session_id must NOT create a new session."""
     repo, _ = mock_session_repo
-    use_case = _make_use_case(mock_message_repo, repo)
-    agent = AsyncMock(session_mode=SessionMode.stateful, id=uuid4())
-    input_dto = AskInput(
-        project_id=uuid4(),
-        agent_id=uuid4(),
-        message="test",
-        session_id=uuid4(),
-    )
     with pytest.raises(SessionNotFoundError):
-        await use_case._resolve_session(input_dto, agent)
+        await resolver.resolve(
+            project_id=uuid4(),
+            agent_id=uuid4(),
+            session_id=uuid4(),
+            tenant_id=None,
+            user_id=None,
+            session_mode="stateful",
+        )
     assert repo.create.call_count == 0, (
         "Session created despite invalid session_id — contract violation"
     )
@@ -158,40 +123,40 @@ async def test_stateful_with_invalid_session_id_raises_error(
 
 @pytest.mark.asyncio
 async def test_stateless_does_not_create_session(
-    mock_message_repo: AsyncMock,
+    resolver: SessionResolver,
     mock_session_repo: tuple[AsyncMock, Session],
 ) -> None:
     """Stateless mode must NOT create or return a session."""
     repo, _ = mock_session_repo
-    use_case = _make_use_case(mock_message_repo, repo)
-    agent = AsyncMock(session_mode=SessionMode.stateless, id=uuid4())
-    input_dto = AskInput(
+    session = await resolver.resolve(
         project_id=uuid4(),
         agent_id=uuid4(),
-        message="stateless test",
         session_id=uuid4(),
+        tenant_id=None,
+        user_id=None,
+        session_mode="stateless",
     )
-    session = await use_case._resolve_session(input_dto, agent)
     assert session is None
     assert repo.create.call_count == 0
 
 
 @pytest.mark.asyncio
-async def test_stateless_does_not_persist_messages(
-    mock_message_repo: AsyncMock,
-    mock_session_repo: tuple[AsyncMock, Session],
-) -> None:
-    """Stateless mode must NOT persist user or assistant messages."""
-    repo, _ = mock_session_repo
-    use_case = _make_use_case(mock_message_repo, repo)
-    agent = AsyncMock(session_mode=SessionMode.stateless, id=uuid4())
-    input_dto = AskInput(
+async def test_stateless_does_not_persist_messages() -> None:
+    """Stateless mode must NOT persist user or assistant messages.
+
+    Stateless means no session, so no messages can be persisted.
+    This is enforced by the resolver returning None.
+    """
+    repo = AsyncMock(spec=SessionRepository)
+    resolver = SessionResolver(repo)
+    session = await resolver.resolve(
         project_id=uuid4(),
         agent_id=uuid4(),
-        message="stateless test",
         session_id=None,
+        tenant_id=None,
+        user_id=None,
+        session_mode="stateless",
     )
-    session = await use_case._resolve_session(input_dto, agent)
     assert session is None
 
 
@@ -210,6 +175,5 @@ def test_session_status_active_is_not_a_memory_signal() -> None:
     )
     assert session.status == SessionStatus.ACTIVE
     assert session.mode == RuntimeSessionMode.CHAT
-    # Changing status must NOT affect mode
     session.status = SessionStatus.CLOSED
     assert session.mode == RuntimeSessionMode.CHAT

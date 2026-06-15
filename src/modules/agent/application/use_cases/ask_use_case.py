@@ -9,8 +9,7 @@ from uuid import UUID
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
-from modules.agent.application.handlers.conversation_history_mapper import load_and_convert_history
-from modules.agent.application.handlers.session_resolver import SessionResolver
+from modules.agent.application.handlers.conversation_context_builder import ConversationContextBuilder
 
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderCredential
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
@@ -82,8 +81,8 @@ class AskAgentUseCase:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
         self._session_repo = session_repo
-        self._session_resolver = SessionResolver(session_repo)
         self._message_repo = message_repo
+        self._context_builder = ConversationContextBuilder(session_repo, message_repo)
         self._agent_collection_repo = agent_collection_repo
         self._chunk_repo = chunk_repo
         self._trace_recorder = trace_recorder
@@ -138,19 +137,17 @@ class AskAgentUseCase:
         if has_tools:
             chat_model = chat_model.bind_tools(agent_tools, tool_choice="auto")
 
-        session = await self._resolve_session(input_dto, agent)
-
-        history_limit = self._get_history_limit(agent)
-        history = await self._load_history(session, history_limit) if session else []
-
-        if session:
-            await self._save_user_message(session, input_dto.message, agent)
-
-        trace_id = await self._create_trace(input_dto, agent, session)
-
         rag_context, sources = await self._load_rag_context(agent, input_dto.message)
 
-        messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
+        ctx = await self._context_builder.build(
+            input_dto=input_dto,
+            agent=agent,
+            rag_context=rag_context,
+            response_format=response_format if json_enabled else None,
+        )
+
+        messages = list(ctx.prompt_messages)
+        trace_id = await self._create_trace(input_dto, agent, ctx.session)
 
         fallback_used = False
         fallback_info_result: dict | None = None
@@ -325,9 +322,9 @@ class AskAgentUseCase:
             response_provider = response_meta.get("provider", agent.provider.value if hasattr(agent.provider, "value") else agent.provider)
 
         message_id = None
-        if session:
+        if ctx.session:
             assistant_msg = await self._save_assistant_message(
-                session, answer, usage, agent,
+                ctx.session, answer, usage, agent,
                 tool_calls=tool_calls_recorded,
             )
             message_id = assistant_msg.id
@@ -372,7 +369,7 @@ class AskAgentUseCase:
 
         return AskOutput(
             answer=answer,
-            session_id=session.id if session else None,
+            session_id=ctx.session.id if ctx.session else None,
             message_id=message_id,
             usage=usage,
             sources=sources,
@@ -510,37 +507,6 @@ class AskAgentUseCase:
         provider_val = agent.provider.value if hasattr(agent.provider, "value") else agent.provider
         return self._resolve_base_url_for_provider(provider_val, credential, agent.settings)
 
-    async def _resolve_session(
-        self, input_dto: AskInput, agent: Agent
-    ) -> Session | None:
-        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
-        return await self._session_resolver.resolve(
-            project_id=input_dto.project_id,
-            agent_id=input_dto.agent_id,
-            session_id=input_dto.session_id,
-            tenant_id=input_dto.tenant_id,
-            user_id=input_dto.user_id,
-            session_mode=mode,
-        )
-
-    async def _save_user_message(
-        self, session: Session, content: str, agent: Agent
-    ) -> Message:
-        msg = Message(
-            project_id=session.project_id,
-            agent_id=agent.id,
-            session_id=session.id,
-            role=MessageRole.USER,
-            content=content,
-        )
-        created = await self._message_repo.create(msg)
-        session.last_message_at = utc_now()
-        try:
-            await self._session_repo.update(session)
-        except Exception:
-            pass
-        return created
-
     async def _save_assistant_message(
         self, session: Session, content: str, usage: UsageInfo, agent: Agent,
         tool_calls: list[ToolCallInfo] | None = None,
@@ -578,22 +544,6 @@ class AskAgentUseCase:
             },
         )
         return created
-
-    async def _load_history(self, session: Session, limit: int = 100) -> list:
-        return await load_and_convert_history(
-            self._message_repo, session.id, session.id, limit=limit,
-        )
-
-    @staticmethod
-    def _get_history_limit(agent: Agent) -> int:
-        default = 100
-        if not agent.settings:
-            return default
-        try:
-            limit = int(agent.settings.get("history_max_messages", default))
-            return max(10, min(limit, 500))
-        except (ValueError, TypeError):
-            return default
 
     async def _load_rag_context(
         self, agent: Agent, query: str
@@ -638,47 +588,6 @@ class AskAgentUseCase:
             return context, all_sources
         except Exception:
             return None, []
-
-    def _build_messages(
-        self,
-        agent: Agent,
-        rag_context: str | None,
-        history: list,
-        user_message: str,
-        response_format: dict | None = None,
-    ) -> list:
-        messages = []
-
-        system_prompt = agent.system_prompt or ""
-
-        if response_format:
-            schema_json = json.dumps(response_format.get("schema", {}), indent=2)
-            json_instruction = (
-                "\n\nYou must respond with valid JSON only.\n"
-                "Do not include markdown code blocks.\n"
-                "Do not include explanations outside the JSON.\n"
-                "The JSON must follow this schema:\n"
-                f"<schema>\n{schema_json}\n</schema>"
-            )
-            system_prompt += json_instruction
-
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-
-        if rag_context:
-            messages.append(
-                SystemMessage(
-                    content=(
-                        "Use the following context when relevant. "
-                        "If the context is not enough, say you do not know.\n\n"
-                        f"<context>\n{rag_context}\n</context>"
-                    )
-                )
-            )
-
-        messages.extend(history)
-        messages.append(HumanMessage(content=user_message))
-        return messages
 
     def _get_response_format(self, agent: Agent) -> dict:
         settings = agent.settings or {}

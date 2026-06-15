@@ -18,8 +18,8 @@
 | 003 | completed | 795c6a2 | Mapper centralizado criado. AIMessage(tool_calls=None) removido. except Exception: return [] substituído por ConversationHistoryLoadError. Teste de perda de histórico agora VERDE. | - |
 | 004 | completed | 1782162 | Ordem corrigida: carregar histórico → persistir pergunta. Teste de duplicação agora VERDE. | - |
 | 005 | completed | f9cf800 | SessionResolver criado. Ownwership validada. 12 testes unitários + 6 contrato VERDES. | - |
-| 006 | completed | (this commit) | list_recent_by_session adicionado. Ordenação dupla DESC + DESC + reverse. 8 testes unitários VERDES. | - |
-| 007 | pending | - | - | - |
+| 006 | completed | 809169c | list_recent_by_session adicionado. Ordenação dupla DESC + DESC + reverse. 8 testes unitários VERDES. | - |
+| 007 | completed | (this commit) | ConversationContextBuilder unificado. Métodos duplicados removidos. 11 testes unitários + arquitetura VERDES. | - |
 | 008 | pending | - | - | - |
 | 009 | pending | - | - | - |
 | 010 | pending | - | - | - |
@@ -212,6 +212,41 @@ LIMIT :limit
 -- reversed in memory for chronological order
 ```
 
+### Spec 007
+
+`ConversationContextBuilder` criado em `src/modules/agent/application/handlers/conversation_context_builder.py`.
+
+Componente unificado: resolve sessão → carrega histórico → persiste user message → monta prompt.
+
+Sync (`ask_use_case.py`) e stream (`ask_agent_stream_service.py`) agora usam o mesmo builder.
+
+Métodos privados duplicados removidos de ambos os fluxos:
+- `_resolve_session`
+- `_load_history`
+- `_save_user_message`
+- `_build_messages`
+- `_get_history_limit`
+
+Arquivos alterados:
+- `src/modules/agent/application/handlers/conversation_context_builder.py` (novo)
+- `src/modules/agent/application/use_cases/ask_use_case.py` (usa builder; remove métodos duplicados)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (usa builder; remove métodos duplicados)
+- `tests/modules/agent/unit/application/test_conversation_context_builder.py` (novo — 6 testes)
+- `tests/modules/agent/integration/test_stream_and_non_stream_parity.py` (novo — placeholder, requer DB)
+- `tests/modules/agent/unit/application/test_conversation_history_regression.py` (atualizado para usar builder/resolver)
+- `tests/contract/test_session_contract.py` (atualizado para usar `SessionResolver` diretamente)
+- `tests/architecture/test_no_duplicate_conversation_methods.py` (novo — 5 testes de arquitetura)
+
+Evidências:
+- `test_builder_returns_existing_session` → **PASSED**
+- `test_builder_creates_new_session_when_no_id` → **PASSED**
+- `test_history_counters` → **PASSED**
+- `test_builder_propagates_session_not_found` → **PASSED**
+- `test_builder_stateless_returns_none` → **PASSED**
+- `test_builder_uses_history_limit` → **PASSED**
+- `test_no_duplicate_conversation_methods` (x5) → **PASSED**
+- `ruff check` → 1 erro pré-existente (não relacionado)
+
 ## Pendências e riscos
 
 - confirmar versão efetiva de `langchain-core` no lock/ambiente;
@@ -221,4 +256,4 @@ LIMIT :limit
 
 ## Próxima spec recomendada
 
-**007** — unify-sync-and-stream-conversation-context
+**008** — preserve-playground-session-lifecycle
