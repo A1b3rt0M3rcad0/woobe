@@ -385,6 +385,11 @@ class MessageRepository(ABC):
     ) -> list[Message]: ...
 
     @abstractmethod
+    async def list_recent_by_session(
+        self, session_id: UUID, limit: int = 100
+    ) -> list[Message]: ...
+
+    @abstractmethod
     async def paginate_by_session(
         self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Message]: ...

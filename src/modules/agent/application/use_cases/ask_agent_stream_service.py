@@ -125,9 +125,10 @@ class AskAgentStreamService:
 
                 session = await self._resolve_session(session_repo, input_dto, agent)
 
+                history_limit = self._get_history_limit(agent)
                 history: list = []
                 if session:
-                    history = await self._load_history(message_repo, session)
+                    history = await self._load_history(message_repo, session, history_limit)
 
                 if session:
                     await self._save_user_message(message_repo, session_repo, session, input_dto.message, agent)
@@ -767,10 +768,21 @@ class AskAgentStreamService:
         )
         return created
 
-    async def _load_history(self, repo: MessageRepository, session: Session) -> list:
+    async def _load_history(self, repo: MessageRepository, session: Session, limit: int = 100) -> list:
         return await load_and_convert_history(
-            repo, session.id, session.id,
+            repo, session.id, session.id, limit=limit,
         )
+
+    @staticmethod
+    def _get_history_limit(agent: Agent) -> int:
+        default = 100
+        if not agent.settings:
+            return default
+        try:
+            limit = int(agent.settings.get("history_max_messages", default))
+            return max(10, min(limit, 500))
+        except (ValueError, TypeError):
+            return default
 
     async def _load_rag_context(
         self,

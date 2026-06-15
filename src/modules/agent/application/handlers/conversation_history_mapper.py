@@ -60,14 +60,22 @@ async def load_and_convert_history(
     message_repo,
     session_id,
     session_id_for_error,
+    limit: int = 100,
 ) -> list:
     try:
-        messages = await message_repo.list_by_session(session_id)
+        raw_messages = await message_repo.list_recent_by_session(session_id, limit=limit)
+        while raw_messages:
+            role = raw_messages[0].role.value if hasattr(raw_messages[0].role, "value") else raw_messages[0].role
+            if role in ("tool_result", "tool_call"):
+                raw_messages.pop(0)
+            else:
+                break
+        truncated = len(raw_messages) < limit if limit else False
         logger.info(
-            "Loaded %d messages for session %s",
-            len(messages), session_id,
+            "Loaded %d messages for session %s (truncated=%s)",
+            len(raw_messages), session_id, truncated,
         )
-        return messages_to_langchain(messages)
+        return messages_to_langchain(raw_messages)
     except ConversationHistoryLoadError:
         raise
     except Exception as exc:

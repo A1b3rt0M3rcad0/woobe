@@ -1171,6 +1171,20 @@ class SQLAlchemyMessageRepository(MessageRepository):
         result = await self._session.execute(stmt)
         return [model_to_message(m) for m in result.scalars().all()]
 
+    async def list_recent_by_session(
+        self, session_id: UUID, limit: int = 100
+    ) -> list[Message]:
+        stmt = (
+            select(MessageModel)
+            .where(MessageModel.session_id == session_id)
+            .order_by(MessageModel.created_at.desc(), MessageModel.id.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        messages = [model_to_message(m) for m in result.scalars().all()]
+        messages.reverse()
+        return messages
+
     async def paginate_by_session(
         self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Message]:

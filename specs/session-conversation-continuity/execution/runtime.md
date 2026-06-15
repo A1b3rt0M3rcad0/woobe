@@ -17,8 +17,8 @@
 | 002 | completed | bbc57fa | Contrato normativo definido. 6 testes de contrato criados: 1 vermelho (session_id inválido não deve criar sessão) | - |
 | 003 | completed | 795c6a2 | Mapper centralizado criado. AIMessage(tool_calls=None) removido. except Exception: return [] substituído por ConversationHistoryLoadError. Teste de perda de histórico agora VERDE. | - |
 | 004 | completed | 1782162 | Ordem corrigida: carregar histórico → persistir pergunta. Teste de duplicação agora VERDE. | - |
-| 005 | completed | (this commit) | SessionResolver criado. Ownwership validada. 12 testes unitários + 6 contrato VERDES. | - |
-| 006 | pending | - | - | - |
+| 005 | completed | f9cf800 | SessionResolver criado. Ownwership validada. 12 testes unitários + 6 contrato VERDES. | - |
+| 006 | completed | (this commit) | list_recent_by_session adicionado. Ordenação dupla DESC + DESC + reverse. 8 testes unitários VERDES. | - |
 | 007 | pending | - | - | - |
 | 008 | pending | - | - | - |
 | 009 | pending | - | - | - |
@@ -177,6 +177,41 @@ Tests:
 
 Inventário: `execution/inventory/session-history-flow.md` criado.
 
+### Spec 006
+
+`list_recent_by_session` adicionado ao port `MessageRepository` e implementado em `SQLAlchemyMessageRepository`.
+
+Arquivos alterados:
+- `src/modules/agent/domain/repositories.py` (+ `list_recent_by_session` abstract method)
+- `src/modules/agent/infra/database/repositories.py` (+ `list_recent_by_session` com `ORDER BY created_at DESC, id DESC` + `reverse()`)
+- `src/modules/agent/application/handlers/conversation_history_mapper.py` (`load_and_convert_history` agora usa `list_recent_by_session`; remove tool_result/tool_call órfãos no início; loga truncamento)
+- `src/modules/agent/application/use_cases/ask_use_case.py` (+ `_get_history_limit`; `_load_history` aceita `limit`; `execute` passa limite do agent.settings)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (+ `_get_history_limit`; `_load_history` aceita `limit`; `generate` passa limite)
+- `tests/modules/agent/unit/application/test_conversation_history_window.py` (novo — 8 testes)
+- `tests/modules/agent/integration/test_message_repository_recent_history.py` (novo — placeholder, requer DB)
+- `tests/modules/agent/unit/application/test_conversation_history_regression.py` (mock atualizado com `list_recent_by_session`)
+
+Evidências:
+- 150 mensagens → retorna as 100 mais recentes → **PASSED**
+- resultado final está cronológico → **PASSED**
+- timestamps iguais ordenados por ID → **PASSED**
+- tool result órfão no início da janela removido → **PASSED**
+- tool call órfão no início da janela removido → **PASSED**
+- tool call/tool result no meio preservados → **PASSED**
+- limite de 500 normalizado → **PASSED**
+- limite de 10 aceito → **PASSED**
+- `ruff check` → 3 erros pré-existentes (não relacionados)
+- Limite padrão: 100 mensagens, configurável via `agent.settings.history_max_messages` (faixa 10–500)
+
+SQL observado:
+```sql
+SELECT ... FROM messages
+WHERE session_id = :session_id
+ORDER BY created_at DESC, id DESC
+LIMIT :limit
+-- reversed in memory for chronological order
+```
+
 ## Pendências e riscos
 
 - confirmar versão efetiva de `langchain-core` no lock/ambiente;
@@ -186,4 +221,4 @@ Inventário: `execution/inventory/session-history-flow.md` criado.
 
 ## Próxima spec recomendada
 
-**006** — add-recent-deterministic-history-window
+**007** — unify-sync-and-stream-conversation-context

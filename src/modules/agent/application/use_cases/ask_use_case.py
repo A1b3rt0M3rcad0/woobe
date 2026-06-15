@@ -140,7 +140,8 @@ class AskAgentUseCase:
 
         session = await self._resolve_session(input_dto, agent)
 
-        history = await self._load_history(session) if session else []
+        history_limit = self._get_history_limit(agent)
+        history = await self._load_history(session, history_limit) if session else []
 
         if session:
             await self._save_user_message(session, input_dto.message, agent)
@@ -578,10 +579,21 @@ class AskAgentUseCase:
         )
         return created
 
-    async def _load_history(self, session: Session) -> list:
+    async def _load_history(self, session: Session, limit: int = 100) -> list:
         return await load_and_convert_history(
-            self._message_repo, session.id, session.id,
+            self._message_repo, session.id, session.id, limit=limit,
         )
+
+    @staticmethod
+    def _get_history_limit(agent: Agent) -> int:
+        default = 100
+        if not agent.settings:
+            return default
+        try:
+            limit = int(agent.settings.get("history_max_messages", default))
+            return max(10, min(limit, 500))
+        except (ValueError, TypeError):
+            return default
 
     async def _load_rag_context(
         self, agent: Agent, query: str

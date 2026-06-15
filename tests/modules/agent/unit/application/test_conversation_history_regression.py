@@ -69,8 +69,20 @@ def mock_message_repo() -> AsyncMock:
             )
         ])
 
+    async def _list_recent_by_session(session_id, limit=100):
+        return messages.get(session_id, [
+            Message(
+                id=uuid4(),
+                session_id=session_id,
+                role=MessageRole.ASSISTANT,
+                content="Entendido.",
+                data=None,
+            )
+        ])
+
     repo.create = AsyncMock(side_effect=_create)
     repo.list_by_session = AsyncMock(side_effect=_list_by_session)
+    repo.list_recent_by_session = AsyncMock(side_effect=_list_recent_by_session)
     return repo
 
 
