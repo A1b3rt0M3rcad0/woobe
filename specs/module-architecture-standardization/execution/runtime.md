@@ -18,7 +18,7 @@ Padronizar `identity`, `core`, `billing`, `metering`, `observability` e `tools` 
 expected_branch: project-rai-playground_module-architecture-standardization
 source_baseline: project-rai-playground
 initial_sha: c128cb06372ecd0d748a144a91093ca3417a590c
-last_validated_sha: ababd34dcef91919e89a2ec0c2f3bccef3cde692
+last_validated_sha: 369546b8ff3c87c9c1a4ce940f91ea4aebcacece
 branch_guard_status: active
 ```
 
@@ -139,7 +139,7 @@ src/modules/<module>/
 | 012 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/imports.md`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); `scripts/architecture/import_graph.py` not found | 013 |
 | 013 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/database-ownership.md`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); inventory already populated by spec 008, extended with migration schema section | 014 |
 | 014 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/routes.md`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); agent has 4 routers including legacy /ai, /knowledge, /runtime prefixes | 015 |
-| 015 | pending | - | - | - | 016 |
+| 015 | completed | 2026-06-14 | `specs/module-architecture-standardization/execution/inventory/transactions.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `rg` unavailable (substituted with Select-String); 89 composers using PostgresUnitOfWork (generic); 6 modules without module-specific UoW | 016 |
 | 016 | pending | - | - | - | 017 |
 | 017 | pending | - | - | - | 018 |
 | 018 | pending | - | - | - | 019 |
@@ -254,6 +254,7 @@ src/modules/<module>/
 | 012 | 2026-06-14 | 8ffa987 | Import dependency map criado: `imports.md` com classificação cross/intra-module, legacy refs catalogadas, service layer gap identificado. |
 | 013 | 2026-06-14 | a622072 | Database ownership inventory atualizado: `database-ownership.md` verificado e estendido com migration schema section; ~69 FKs catalogadas (33 cross-module, 18 legacy, ~16 intra). |
 | 014 | 2026-06-14 | a622072 | Route-controller-composer inventory criado: `routes.md` com mapeamento rota→composer→controller para 7 módulos; agent tem 4 routers (/ai, /knowledge, /runtime, /agent), demais têm 1 cada. |
+| 015 | 2026-06-14 | 369546b | Transaction/UoW inventory criado: `transactions.md` com 3 UoW classes catalogadas, 89 compositores usando PostgresUnitOfWork, commit/rollback call sites, gaps e riscos. `rg` indisponível (Select-String). |
 
 ## Specs pendentes
 
@@ -278,6 +279,7 @@ Specs 015 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Import dependency map gerado | Catalogar imports intra/inter módulos e camadas antes de mover arquivos | `imports.md` com grafo de imports; `rg` indisponível (Select-String); import_graph.py não encontrado; 1 cross-module production import (agent → identity) identified | Sim, revertendo imports.md |
 | 2026-06-14 | Database ownership inventory atualizado | Verificar e estender inventário de FKs e schemas contra branch atual | `database-ownership.md` estendido; migration schemas inventory adicionado; 3 schemas legados (ai, knowledge, runtime) pendentes de migração | Sim, revertendo database-ownership.md |
 | 2026-06-14 | Route-controller-composer inventory criado | Mapear rota→composer→controller→use case antes de mover presentation | `routes.md` com ~100 rotas mapeadas; agent com 4 routers legacy+canônico; todos modules seguem mesmo padrão composer/controller | Sim, revertendo routes.md |
+| 2026-06-14 | Transaction/UoW inventory catalogado | Catalogar UoW classes, commit/rollback call sites, e coordenação de repositories antes de migrar agent para AgentUnitOfWork e criar UoW específicos por módulo | `transactions.md` com classificação completa; 89 compositores usando PostgresUnitOfWork genérico; agent com AgentUnitOfWork + PostgresUnitOfWork redundantes; 6 módulos sem UoW próprio | Sim, revertendo transactions.md |
 
 ## Riscos ativos
 
@@ -295,4 +297,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`015-create-transaction-and-unit-of-work-inventory.md`
+`016-create-event-outbox-inbox-catalog.md`

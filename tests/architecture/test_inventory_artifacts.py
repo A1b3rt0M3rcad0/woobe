@@ -7,6 +7,7 @@ STRUCTURE_MATRIX = INVENTORY_DIR / "structure-matrix.md"
 IMPORTS_INVENTORY = INVENTORY_DIR / "imports.md"
 DATABASE_OWNERSHIP_INVENTORY = INVENTORY_DIR / "database-ownership.md"
 ROUTES_INVENTORY = INVENTORY_DIR / "routes.md"
+TRANSACTIONS_INVENTORY = INVENTORY_DIR / "transactions.md"
 
 
 class TestInventoryArtifacts:
@@ -84,3 +85,18 @@ class TestInventoryArtifacts:
         assert len(lines) > 10, f"Only {len(lines)} non-header lines"
         evidence_markers = ["src/modules/", "APIRouter", "/"]
         assert any(m in content for m in evidence_markers), "Must reference route definitions"
+
+    def test_transactions_md_exists(self):
+        assert TRANSACTIONS_INVENTORY.exists(), f"File not found: {TRANSACTIONS_INVENTORY}"
+
+    def test_transactions_md_has_real_content(self):
+        assert TRANSACTIONS_INVENTORY.exists()
+        content = TRANSACTIONS_INVENTORY.read_text(encoding="utf-8")
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        assert len(lines) > 10, f"Only {len(lines)} non-header lines"
+        evidence_markers = ["UnitOfWork", "commit", "rollback"]
+        assert any(m in content for m in evidence_markers), "Must reference UoW/transaction evidence"
