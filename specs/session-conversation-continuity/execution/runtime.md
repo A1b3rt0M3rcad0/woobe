@@ -16,7 +16,7 @@
 | 001 | completed | 6ac12dd | 3 testes de caracterização criados. 2 vermelhos (D1, D3), 1 verde confirmando D4. Inventário criado. | - |
 | 002 | completed | bbc57fa | Contrato normativo definido. 6 testes de contrato criados: 1 vermelho (session_id inválido não deve criar sessão) | - |
 | 003 | completed | 795c6a2 | Mapper centralizado criado. AIMessage(tool_calls=None) removido. except Exception: return [] substituído por ConversationHistoryLoadError. Teste de perda de histórico agora VERDE. | - |
-| 004 | pending | - | - | - |
+| 004 | completed | 1782162 | Ordem corrigida: carregar histórico → persistir pergunta. Teste de duplicação agora VERDE. | - |
 | 005 | pending | - | - | - |
 | 006 | pending | - | - | - |
 | 007 | pending | - | - | - |
@@ -107,6 +107,24 @@ Evidências:
 - `ruff check` → 1 erro pré-existente (não relacionado)
 - `pyright` → erros pré-existentes de tipagem (não relacionados)
 
+### Spec 004
+
+Ordem corrigida em ambos os fluxos:
+
+```
+Antes:  resolver sessão → salvar user → carregar histórico → build_messages (duplicação)
+Depois: resolver sessão → carregar histórico anterior → salvar user → build_messages
+```
+
+Arquivos alterados:
+- `src/modules/agent/application/use_cases/ask_use_case.py` (swap save/load order)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (swap save/load order)
+- `tests/modules/agent/unit/application/test_conversation_history_regression.py` (test atualizado)
+
+Evidências:
+- `test_current_user_turn_is_not_present_twice` → **PASSED** (GREEN)
+- `ruff check` → 1 erro pré-existente (não relacionado)
+
 ### Spec 001
 
 ```
@@ -136,4 +154,4 @@ Inventário: `execution/inventory/session-history-flow.md` criado.
 
 ## Próxima spec recomendada
 
-**004** — fix-current-turn-persistence-and-prompt-order
+**005** — harden-session-resolution-and-ownership

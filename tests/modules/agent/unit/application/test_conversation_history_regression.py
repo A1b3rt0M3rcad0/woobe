@@ -136,17 +136,18 @@ async def test_current_user_turn_is_not_present_twice(
     use_case: AskAgentUseCase,
     mock_session: Session,
 ) -> None:
-    """Demonstrate that _save_user_message + _load_history + _build_messages
+    """Verify that _load_history + _save_user_message + _build_messages
     produces the current turn exactly once.
 
-    Current defect: _save_user_message persists the turn,
-    _load_history loads it back, and _build_messages appends
-    HumanMessage(content=user_message) again -> duplication.
+    After spec 004, load happens BEFORE save so the saved turn
+    is not included in history. Build_messages adds it separately.
     """
     user_message = "Qual é o meu código?"
-    await use_case._save_user_message(mock_session, user_message, AsyncMock())
 
     history = await use_case._load_history(mock_session)
+
+    await use_case._save_user_message(mock_session, user_message, AsyncMock())
+
     messages = use_case._build_messages(
         agent=AsyncMock(system_prompt="You are a helpful assistant."),
         rag_context=None,

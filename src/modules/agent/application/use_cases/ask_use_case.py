@@ -138,12 +138,12 @@ class AskAgentUseCase:
 
         session = await self._resolve_session(input_dto, agent)
 
+        history = await self._load_history(session) if session else []
+
         if session:
             await self._save_user_message(session, input_dto.message, agent)
 
         trace_id = await self._create_trace(input_dto, agent, session)
-
-        history = await self._load_history(session) if session else []
 
         rag_context, sources = await self._load_rag_context(agent, input_dto.message)
 
