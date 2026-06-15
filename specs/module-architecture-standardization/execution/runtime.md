@@ -189,7 +189,7 @@ src/modules/<module>/
 | 062 | completed | 2026-06-15 | `tests/modules/metering/unit/domain/test_entities.py`, `tests/architecture/test_metering_domain_dependencies.py`, `execution/runtime.md` | Domínio do metering já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 6 testes de entidade + 3 testes de arquitetura de dependências adicionados; 3 entidades (UsageEvent/UsageDailyProject/UsageDailyAgent) e 3 repositories interfaces (ABC) validados | 063 |
 | 063 | completed | 2026-06-15 | `src/modules/metering/application/dtos/metering_dtos.py`, `src/modules/metering/application/dtos/__init__.py`, `src/modules/metering/application/use_cases/metering_use_cases.py`, `src/modules/metering/application/use_cases/__init__.py`, `src/modules/metering/application/composers/*.py` (3 files), `src/modules/metering/presentation/controllers/*.py` (3 files), `src/modules/metering/service/dtos.py`, `src/modules/metering/service/use_cases.py`, `tests/modules/metering/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_metering_service_imports.py`, `execution/runtime.md` | shims mantidos em service/; 0 imports de service/ em composers/controllers | 064 |
 | 064 | completed | 2026-06-15 | `tests/modules/metering/contract/test_routes.py`, `tests/modules/metering/unit/presentation/test_controllers.py`, `execution/runtime.md` | Presentation layer já estava normalizada (routes importam de application/composers, controllers importam de application/ após spec 063); 7 testes de rota (prefixo /metering, delegação a compositores, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados | 065 |
-| 065 | pending | - | - | - | 066 |
+| 065 | completed | 2026-06-15 | `src/modules/metering/infra/database/models.py`, `src/modules/metering/infra/database/repositories.py`, `src/modules/metering/infra/database/mappers.py`, `src/modules/metering/infra/database/__init__.py`, `src/modules/metering/infra/models.py` (shim), `src/modules/metering/infra/repositories.py` (shim), `src/modules/metering/infra/mappers.py` (shim), `migrations/env.py`, `tests/modules/metering/integration/database/test_repositories.py`, `tests/architecture/test_metering_database_location.py`, `tests/architecture/test_update_alembic_or_database_migrations.py`, `execution/runtime.md` | ruff apenas erros pré-existentes; 37 falhas pré-existentes de arquitetura inalteradas; 30/30 metering tests passing; alembic não executado (sem PostgreSQL) | 066 |
 | 066 | pending | - | - | - | 067 |
 | 067 | pending | - | - | - | 068 |
 | 068 | pending | - | - | - | 069 |
@@ -305,6 +305,7 @@ src/modules/<module>/
 | 062 | 2026-06-15 | 37e7859 | Domain layer validated for metering: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 6 entity invariant tests + 3 architecture dependency tests added. Next: 063. |
 | 063 | 2026-06-15 | 8a209f7 | service → application migration for metering: 3 DTOs and 3 use cases moved from service/ to application/dtos and application/use_cases; 3 composers and 3 controllers updated to import from application/; service/ shims preserved; 3 use case tests + 2 arch tests added. Next: 064. |
 | 064 | 2026-06-15 | HEAD | Presentation layer normalized for metering: routes, controllers, schemas already in canonical state; 7 route contract tests + 5 controller tests added; 21/21 metering tests passing. Next: 065. |
+| 065 | 2026-06-15 | HEAD | Infra moved to database layer for metering: models.py, repositories.py, mappers.py copied from infra/ to infra/database/ with shims at old paths; migrations/env.py updated to canonical import; 10 arch location tests + 10 integration import tests added; 30 metering tests passing; ruff apenas erros pré-existentes; 37 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL). Next: 066. |
 
 ## Specs pendentes
 
@@ -387,4 +388,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`065-move-infra-to-database-layer-metering.md`
+`066-implement-module-specific-unit-of-work-metering.md`
