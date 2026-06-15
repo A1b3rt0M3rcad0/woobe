@@ -229,6 +229,7 @@ src/modules/<module>/
 | 102 | completed | 2026-06-15 | `tests/architecture/test_database_ownership.py`, `execution/runtime.md` | 5 database ownership tests added (repos, models, mappers, UoW cross-module import blocking + legacy FK warning); 5/5 passing; legacy FK refs in agent models warned (known blocker); 45 pre-existing arch failures unchanged | 103 |
 | 103 | completed | 2026-06-15 | `tests/architecture/test_uow_transaction_atomicity.py`, `execution/runtime.md` | 5 UoW transaction atomicity tests added (commit/rollback per module, PendingRollbackError handling, outbox atomicity test coverage warning for agent); 5/5 passing; 45 pre-existing arch failures unchanged | 104 |
 | 104 | completed | 2026-06-15 | `tests/architecture/test_messaging_idempotency_concurrency.py`, `execution/runtime.md` | 6 messaging idempotency/concurrency tests added (inbox processor idempotency, outbox retry, publishers, lock mechanisms, shared retry/dead letter contracts); 6/6 passing; informational warnings for per-module idempotency/lock patterns (delegated to shared base classes); 45 pre-existing arch failures unchanged | 105 |
+| 105 | completed | 2026-06-15 | `tests/contract/test_api_routes_registered.py`, `execution/runtime.md` | 7 API route registration tests added (routes file existence, router export, main.py imports, __all__ exports, legacy prefix preservation in agent); 7/7 passing; ruff clean; 45 pre-existing arch failures unchanged | 106 |
 | 103 | pending | - | - | - | 104 |
 | 104 | pending | - | - | - | 105 |
 | 105 | pending | - | - | - | 106 |
@@ -435,6 +436,7 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | 102 | 2026-06-15 | 8cde0c1 | Database ownership tests added (repos, models, mappers, UoW — no cross-module imports). Legacy FK schema reference warning in agent models. 5/5 tests passing. Next: 103.
 | 103 | 2026-06-15 | bc31b82 | UoW transaction atomicity tests added (commit/rollback, PendingRollbackError, outbox atomicity coverage). 5/5 passing. Agent missing outbox atomicity test (documented gap). Next: 104.
 | 104 | 2026-06-15 | 67ad699 | Messaging idempotency and concurrency tests added (inbox idempotency, outbox retry, lock mechanisms, shared policies). 6/6 passing. Idempotency/lock delegated to shared base classes. Next: 105.
+| 105 | 2026-06-15 | 85bca85 | API route registration tests added (routes file, router export, main.py imports, __all__, legacy prefixes). 7/7 passing. Next: 106.
 
 ## Decisões tomadas durante a execução
 
