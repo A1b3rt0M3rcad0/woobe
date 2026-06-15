@@ -158,7 +158,7 @@ src/modules/<module>/
 | 031 | completed | 2026-06-14 | `src/modules/identity/domain/events.py`, `src/modules/identity/domain/services.py`, `src/modules/identity/domain/value_objects.py`, `src/modules/identity/infra/database/__init__.py`, `src/modules/identity/infra/messaging/__init__.py`, `src/modules/identity/application/__init__.py`, `src/modules/identity/application/dtos/__init__.py`, `src/modules/identity/application/use_cases/__init__.py`, `src/modules/identity/application/handlers/__init__.py`, `src/modules/identity/presentation/mappers.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | Skeleton canônico do identity criado: 5 novos diretórios (infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers), 3 stubs de domínio (events, services, value_objects), mappers.py na presentation. Caminhos legados mantidos. Nenhum comportamento alterado. 27/27 tests passing. | 032 |
 | 032 | completed | 2026-06-14 | `tests/modules/identity/unit/domain/test_entities.py`, `tests/architecture/test_identity_domain_dependencies.py`, `execution/runtime.md` | Domínio do identity já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy. 13 testes de entidade + 3 testes de arquitetura de dependências adicionados. 5 entidades (User, Organization, OrganizationMember, OrganizationInvite, UserSession) e 5 repositories interfaces (ABC) validados. | 033 |
 | 033 | completed | 2026-06-14 | `src/modules/identity/service/dtos.py`, `src/modules/identity/service/use_cases.py`, `src/modules/identity/application/dtos/*`, `src/modules/identity/application/use_cases/*`, `src/modules/identity/application/composers/*.py` (13 files), `src/modules/identity/presentation/controllers/*.py` (13 files), `tests/modules/identity/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_identity_service_imports.py`, `execution/runtime.md` | service/ → application/ migration: 26 DTOs e 14 use cases movidos de service/dtos.py e service/use_cases.py para application/dtos/ e application/use_cases/. 13 composers e 13 controllers atualizados para importar de application/ em vez de service/. Shims de compatibilidade mantidos em service/. 5 testes de use cases + 3 testes de arquitetura (sem novos imports service/) adicionados. 15/15 identity tests passing. | 034 |
-| 034 | pending | - | - | - | 035 |
+| 034 | completed | 2026-06-14 | `tests/modules/identity/contract/test_routes.py`, `tests/modules/identity/unit/presentation/test_controllers.py`, `execution/runtime.md` | Presentation layer já estava normalizada (controllers importam de application/, routes finas, schemas/mappers presentes). 7 testes de rota (prefixo /identity, delegação a composers, sem imports de repositório/domínio/service) + 5 testes de controller (importam de application/use_cases, implementam handle(), sem imports de service/repositories) adicionados. 27/27 identity tests passing. | 035 |
 | 035 | pending | - | - | - | 036 |
 | 036 | pending | - | - | - | 037 |
 | 037 | pending | - | - | - | 038 |
@@ -273,6 +273,7 @@ src/modules/<module>/
 | 031 | 2026-06-14 | HEAD | Canonical skeleton for identity created: infra/database, infra/messaging, application/dtos, application/use_cases, application/handlers, domain stub files (events, services, value_objects), presentation/mappers.py. Legacy paths maintained. 27 tests pass. |
 | 032 | 2026-06-14 | HEAD | Domain layer normalized for identity: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 13 entity invariant tests + 3 architecture dependency tests added. Next: 033. |
 | 033 | 2026-06-14 | HEAD | service → application migration: DTOs and use cases moved from service/ to application/dtos and application/use_cases; 13 composers and 13 controllers updated to import from application/; service/ shims preserved; 5 use case tests + 3 arch tests added. 15 identity tests passing. Next: 034. |
+| 034 | 2026-06-14 | HEAD | Presentation layer normalized: 7 route contract tests (prefix, composer delegation, no repo/domain/service imports) + 5 controller tests (application/use_cases imports, handle() method, no repo/service imports). 27 identity tests passing. Next: 035. |
 
 ## Specs pendentes
 
@@ -315,6 +316,7 @@ Specs 031 a 109 do `MANIFEST.md`.
 | 2026-06-14 | Identity canonical skeleton created | Spec 031: create canonical directories and stub files for identity module | 5 new directories created, 3 domain stubs, 1 presentation stub; legacy paths preserved; no behavior changes; 27 tests pass; next: spec 032 | Sim, revertendo criando __init__.py excluindo e restaurando test |
 | 2026-06-14 | Identity domain layer validated | Spec 032: domain layer already canonical; 13 entity tests + 3 architecture tests added | No production code changed; domain clean of framework imports; next: spec 033 | Sim, revertendo testes |
 | 2026-06-14 | Identity service→application migration completed | Spec 033: DTOs and use cases moved from service/ to application/ with shims | 26 DTOs, 14 use cases, 13 composers, 13 controllers updated; service/ kept as shim; next: spec 034 | Sim, revertendo imports e restaurando service/ original |
+| 2026-06-14 | Identity presentation layer validated | Spec 034: routes, controllers, schemas, mappers in canonical state; 12 tests added | No production changes; routes verify thin-composer pattern; controllers verified use application/ imports; next: spec 035 | Sim, revertendo testes |
 
 ## Riscos ativos
 
@@ -339,4 +341,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`034-normalize-presentation-layer-identity.md`
+`035-move-infra-to-database-layer-identity.md`
