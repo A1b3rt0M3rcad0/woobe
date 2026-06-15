@@ -154,3 +154,19 @@ class TestAgentReferenceArchitecture:
                     if mod.startswith("modules.") and not mod.startswith("modules.agent."):
                         rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                         pytest.fail(f"Domain file {rel} imports other module: {mod}")
+
+    def test_agent_application_has_dtos_package_with_exports(self):
+        dto_init = AGENT_DIR / "application" / "dtos" / "__init__.py"
+        assert dto_init.exists()
+        content = dto_init.read_text(encoding="utf-8")
+        assert "__all__" in content
+
+    def test_agent_application_has_use_cases_package_with_exports(self):
+        uc_init = AGENT_DIR / "application" / "use_cases" / "__init__.py"
+        assert uc_init.exists()
+        content = uc_init.read_text(encoding="utf-8")
+        assert "__all__" in content
+
+    def test_agent_application_has_composers_and_handlers(self):
+        assert (AGENT_DIR / "application" / "composers" / "__init__.py").exists()
+        assert (AGENT_DIR / "application" / "handlers" / "__init__.py").exists()
