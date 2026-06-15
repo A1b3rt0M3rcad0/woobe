@@ -225,6 +225,7 @@ src/modules/<module>/
 | 098 | completed | 2026-06-15 | `tests/integration/messaging/test_standardize_alembic_expand_migrate_contract.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 5 integration tests + 4 arch tests added; 9/9 spec 098 tests passing; alembic env.py validated with canonical imports, no destructive operations; `alembic upgrade/downgrade` não executados (sem PostgreSQL disponível) | 099 |
 | 099 | completed | 2026-06-15 | `tests/integration/messaging/test_remove_cross_module_foreign_keys_and_legacy_schema_references.py`, `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 8 integration tests + 1 arch test added; 7/8 integration tests document remaining cross-module FKs (expected — removal requires alembic migration); `alembic upgrade/downgrade` não executados (sem PostgreSQL); FK physical removal in models.py and migration creation deferred until PostgreSQL available | 100 |
 | 100 | completed | 2026-06-15 | `tests/architecture/test_cross_cutting_contracts.py`, `execution/runtime.md` | 5 new arch tests: canonical layers, no concrete workers outside modules, shared/infra pure, shared/messaging pure, final layer direction; all 5 pass; contract tests 5/5 pass; 47 arch failures pre-existing; 7 integration failures from spec 099 cross-module FKs (expected blocker); `alembic upgrade/downgrade` e startup FastAPI não executados (sem PostgreSQL); ruff 20 erros pré-existentes; allowlist **não vazia** — entries com removal_spec de specs 042-085 permanecem pendentes de resolução | 101 |
+| 101 | completed | 2026-06-15 | `tests/architecture/test_public_api_entrypoints.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | 11 module_boundaries entries remain (agent cross-module imports to metering/observability/tools — deferred); 3 layer_dependencies entries remain (agent use_cases infra imports — deferred); 1 application_boundaries entry remains (agent sqlalchemy import — deferred); 45 pre-existing arch failures unchanged; allowlist stripped of 6 stale entries (shared_boundaries, uow_ownership, tools/service dead entries); ruff 21 erros pré-existentes inalterados | 102 |
 | 102 | pending | - | - | - | 103 |
 | 103 | pending | - | - | - | 104 |
 | 104 | pending | - | - | - | 105 |
@@ -428,19 +429,22 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | Spec | Data | SHA | Resumo |
 |---|---|---|---|---|
 | 096 | 2026-06-15 | HEAD | Clean shared: removed domain/ (errors→infra/errors, events→messaging/outbox_writer, objects→infra/objects, time→infra/time), removed application/ (transactional_handler→infra/transactional_handler), removed concrete workers (inbox_consumer.py, inbox_dispatcher.py, outbox_publisher.py). All imports updated across 120+ files. 9 integration tests + 5 arch tests created. All spec 096 tests (60/60) passing. Next: 097.
+| 101 | 2026-06-15 | e69d655 | Module boundary and public API entrypoint tests added. Stale allowlist entries removed (shared_boundaries, uow_ownership, tools/service dead). 11 module_boundaries + 3 layer_dependencies + 1 application_boundaries entries remain (agent cross-module imports deferred for architectural refactoring). 5/5 entrypoint tests passing. 78/79 cross-cutting tests passing (1 pre-existing legacy schema failure). 45 pre-existing arch failures unchanged. Next: 102.
 
 ## Decisões tomadas durante a execução
 
 | Data | Decisão | Motivo | Impacto | Reversível? |
 |---|---|---|---|---|
 | 2026-06-15 | shared/domain/* files redistributed to shared/infra/ and shared/messaging/ instead of deleted outright | OutboxEventWriter ABC, DomainError hierarchy, CursorPage, and utc_now are technical contracts used by all modules — deleting them would break 120+ files | 4 files moved to infra/, 1 file moved to messaging/, all imports updated across src/ and tests/ | Sim, revertendo commit e restaurando shared/domain/ |
+| 2026-06-15 | Stale allowlist entries removed (shared_boundaries, uow_ownership, tools/service) | shared/workers/*.py files deleted by spec 096; all composers migrated to module-specific UoW; tools/service/use_cases.py is now a pure re-export shim without infra/sqlalchemy imports | 6 allowlist entries removed; 14 remain (module_boundaries: 11, layer_dependencies: 2, application_boundaries: 1) | Sim, revertendo allowlist |
 
 ## Riscos ativos
 
 | Risco | Severidade | Spec origem | Mitigação | Status |
-|---|---|---|---|---|---|
+|---|---|---|---|---|
 | shared/domain/objects.py → shared/infra/objects.py (CursorPage) amplamente usado em repositories | baixa | 096 | Já migrado com imports atualizados e validados por testes | mitigated |
+| 14 allowlist entries still active (agent cross-module imports to metering/observability/tools + infra/sqlalchemy in use_cases) | alta | 101 | Bloqueia "allowlist final vazia" acceptance criterion; requires architectural refactoring of agent use_cases to event-driven | active |
 
 ## Próxima spec recomendada
 
-`101` (próxima spec disponível na suite, fora do lote atual de 5 commits)
+`102`

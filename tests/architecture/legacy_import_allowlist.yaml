@@ -43,22 +43,7 @@ entries:
   target_module: observability
   removal_spec: 070-085
   scope: module_boundaries
-- file: src/shared/workers/outbox_publisher.py
-  target_module: '*'
-  removal_spec: 050-063
-  scope: shared_boundaries
-- file: src/shared/workers/inbox_dispatcher.py
-  target_module: '*'
-  removal_spec: 050-063
-  scope: shared_boundaries
-- file: src/shared/workers/inbox_consumer.py
-  target_module: '*'
-  removal_spec: 050-063
-  scope: shared_boundaries
-- file: src/modules/tools/service/use_cases.py
-  target_layer: infra
-  removal_spec: 082-083
-  scope: layer_dependencies
+
 - file: src/modules/agent/application/use_cases/ask_use_case.py
   target_layer: infra
   removal_spec: 042-043
@@ -71,11 +56,3 @@ entries:
   target_package: sqlalchemy
   removal_spec: 025-026
   scope: application_boundaries
-- file: src/modules/tools/service/use_cases.py
-  target_package: sqlalchemy
-  removal_spec: 082-083
-  scope: application_boundaries
-- file: src/modules/*/application/composers/*.py
-  target_module: shared
-  removal_spec: 025-036
-  scope: uow_ownership
