@@ -118,7 +118,7 @@ src/modules/<module>/
 
 ## Estado atual da migração
 
-`in_progress` (spec 108 completed, spec 109 recommended next)
+`completed` (all specs processed - final report generated)
 
 ## Status das specs
 
@@ -233,6 +233,7 @@ src/modules/<module>/
 | 106 | blocked | 2026-06-15 | `execution/runtime.md` | **BLOCKER**: allowlist has 14 non-empty entries (11 module_boundaries, 2 layer_dependencies, 1 application_boundaries — agent cross-module imports); cross-module FKs remain in models; tools/service/ shims present; acceptance criterion `allowlist final vazia` not achievable without spec 107-level refactoring | 107 |
 | 107 | completed | 2026-06-15 | `src/modules/agent/domain/ports/*.py` (5 files), `src/modules/agent/infra/adapters/*.py` (6 files), `src/modules/agent/application/tool_converter.py`, `src/modules/agent/application/use_cases/ask_use_case.py`, `src/modules/agent/application/use_cases/ask_agent_stream_service.py`, `src/modules/agent/application/composers/ask_agent_composer.py`, `src/modules/agent/application/composers/ask_agent_stream_composer.py`, `src/modules/agent/infra/workers/ask_job_worker.py`, `tests/architecture/legacy_import_allowlist.yaml`, `src/modules/tools/service/` removed, `src/modules/metering/infra/repositories.py` removed, `src/modules/observability/infra/repositories.py` removed, `src/modules/tools/infra/repositories.py` removed, `execution/runtime.md` | ruff apenas erros pré-existentes F821; 43 falhas pré-existentes de arquitetura inalteradas; alembic não executado (sem PostgreSQL); allowlist final vazia (14 entries removed); agent cross-module imports refatorados para port/adapter pattern com importlib lazy loading | 108 |
 | 108 | completed | 2026-06-15 | `execution/runtime.md` | ruff 20 erros pre-existentes; arch 43 failed/621 passed; module 1 collection error (pre-existing); contract 12/12 passed; integration 7 failed/177 passed (cross-module FK pre-existing); alembic nao executado (sem PostgreSQL); FastAPI startup nao executado | 109 |
+| 109 | completed | 2026-06-15 | `execution/inventory/final-report.md`, `execution/runtime.md` | Relatorio final gerado; 3 specs executadas neste batch (107-109); aceite: allowlist vazia, 3/3 specs completed | - |
 ## Specs executadas
 
 | Spec | Data | SHA | Resumo |
@@ -435,7 +436,8 @@ Registrar aqui divergências entre inventário e premissas das specs.
 | 105 | 2026-06-15 | 85bca85 | API route registration tests added (routes file, router export, main.py imports, __all__, legacy prefixes). 7/7 passing. Next: 106.
 | 106 | 2026-06-15 | a48330a | **BLOCKED**. Detection: 4 agent files with cross-module imports (allowlisted, 14 entries), cross-module FKs in 6 modules, tools/service/ shims present. Bootstrap files (main.py, env.py) already canonical. Validations: ruff 21 pre-existing errors, arch 45 failed/619 passed, module tests 1 collection error, contract 12/12 passed, integration 7 failed/177 passed, pyright 653 pre-existing errors, app startup skipped (env missing). Acceptance criterion `allowlist final vazia` not achievable. Next: 107 (cleanup spec).
 | 107 | 2026-06-15 | 5a6527c | Agent cross-module imports refactored via port/adapter pattern (5 domain ports, 6 infra adapters, LLMFactory, tool_converter in agent). tools/service/ and shim files removed. Allowlist emptied (14 entries). ruff 20 pre-existing errors, arch 43 failed/621 passed, contract 12/12 passed, integration 7 failed/177 passed. Next: 108.
-| 108 | 2026-06-15 | HEAD | Full validation suite executed: ruff 20 errors (pre-existing), arch 43 failed/621 passed, module tests 1 collection error (pre-existing), contract 12/12 passed, integration 7 failed/177 passed, alembic nao executado (sem PostgreSQL), FastAPI startup nao executado (sem env). Next: 109.
+| 108 | 2026-06-15 | 4213c2b | Full validation suite executed: ruff 20 errors (pre-existing), arch 43 failed/621 passed, module tests 1 collection error (pre-existing), contract 12/12 passed, integration 7 failed/177 passed, alembic nao executado (sem PostgreSQL), FastAPI startup nao executado (sem env). Next: 109.
+| 109 | 2026-06-15 | HEAD | Final standardization report generated at execution/inventory/final-report.md. Suite execution complete. 3 specs executed in bounded batch (107-109). Next: -. |
 
 ## Decisões tomadas durante a execução
 
@@ -454,4 +456,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`109` (spec 108 completed — generate final standardization report)
+`-` (suite completed)
