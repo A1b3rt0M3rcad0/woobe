@@ -17,23 +17,17 @@ class TestIdentityDatabaseLocation:
         path = IDENTITY_DIR / "infra" / "database" / "mappers.py"
         assert path.is_file(), f"Missing: {path}"
 
-    def test_old_models_path_is_shim(self):
+    def test_old_models_path_removed(self):
         path = IDENTITY_DIR / "infra" / "models.py"
-        assert path.is_file(), f"Old path removed without shim: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "infra.database.models" in content, "Old models.py missing re-export"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_repositories_path_is_shim(self):
+    def test_old_repositories_path_removed(self):
         path = IDENTITY_DIR / "infra" / "repositories.py"
-        assert path.is_file(), f"Old path removed without shim: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "infra.database.repositories" in content, "Old repositories.py missing re-export"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_mappers_path_is_shim(self):
+    def test_old_mappers_path_removed(self):
         path = IDENTITY_DIR / "infra" / "mappers.py"
-        assert path.is_file(), f"Old path removed without shim: {path}"
-        content = path.read_text(encoding="utf-8")
-        assert "infra.database.mappers" in content, "Old mappers.py missing re-export"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
     def test_database_init_exports_models(self):
         path = IDENTITY_DIR / "infra" / "database" / "__init__.py"

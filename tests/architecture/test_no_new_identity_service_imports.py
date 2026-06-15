@@ -64,12 +64,8 @@ class TestNoNewIdentityServiceImports:
             f"Controllers should import from application/, not service/: {violations}"
         )
 
-    def test_service_shims_only_contain_re_exports(self):
-        for shim_rel in ALLOWED_SERVICE_IMPORTERS:
-            shim_path = IDENTITY_SRC / shim_rel
-            assert shim_path.is_file(), f"Service shim missing: {shim_rel}"
-            source = shim_path.read_text(encoding="utf-8")
-            if shim_rel.endswith("__init__.py"):
-                assert "shim" in source.lower() or "legacy" in source.lower(), (
-                    f"{shim_rel} should be a shim"
-                )
+    def test_service_directory_removed(self):
+        service_dir = IDENTITY_SRC / "service"
+        assert not service_dir.exists(), (
+            "Service directory should have been removed after migration"
+        )

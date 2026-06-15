@@ -91,7 +91,7 @@ class TestModuleStructure:
                 )
 
     def test_legacy_service_dir_noted_for_non_agent_modules(self):
-        legacy_modules = {"identity", "core", "billing", "metering", "observability", "tools"}
+        legacy_modules = {"core", "billing", "metering", "observability", "tools"}
         for module in sorted(legacy_modules):
             dirs = _get_module_dirs(module)
             has_service = "service" in dirs
@@ -123,7 +123,7 @@ class TestModuleStructure:
         )
 
     def test_non_agent_modules_have_flat_infra(self):
-        legacy_modules = {"identity", "core", "billing", "metering", "observability", "tools"}
+        legacy_modules = {"core", "billing", "metering", "observability", "tools"}
         for module in sorted(legacy_modules):
             mod_path = SRC_MODULES / module / "infra"
             infra_files = {
