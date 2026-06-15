@@ -4,7 +4,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TOOLS_SRC = PROJECT_ROOT / "src" / "modules" / "tools"
 
-ALLOWED_SERVICE_PATHS = {"service/use_cases.py", "service/dtos.py"}
+
 
 
 def _get_imports_from_file(filepath: Path) -> list[str]:

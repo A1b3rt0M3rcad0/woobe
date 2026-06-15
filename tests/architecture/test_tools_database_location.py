@@ -17,17 +17,17 @@ class TestToolsDatabaseLocation:
         path = TOOLS_DIR / "infra" / "database" / "mappers.py"
         assert path.is_file(), f"Missing: {path}"
 
-    def test_old_models_shim_exists(self):
+    def test_old_models_path_removed(self):
         path = TOOLS_DIR / "infra" / "models.py"
-        assert path.is_file(), f"Shim must exist: {path}"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_repositories_shim_exists(self):
+    def test_old_repositories_path_removed(self):
         path = TOOLS_DIR / "infra" / "repositories.py"
-        assert path.is_file(), f"Shim must exist: {path}"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
-    def test_old_mappers_shim_exists(self):
+    def test_old_mappers_path_removed(self):
         path = TOOLS_DIR / "infra" / "mappers.py"
-        assert path.is_file(), f"Shim must exist: {path}"
+        assert not path.exists(), f"Old path should be removed: {path}"
 
     def test_database_init_exports_models(self):
         path = TOOLS_DIR / "infra" / "database" / "__init__.py"
