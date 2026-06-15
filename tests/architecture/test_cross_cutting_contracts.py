@@ -241,3 +241,85 @@ def test_each_module_has_inbox_event_model():
         assert len(models) >= 1, (
             f"{mod_name} must have at least one InboxEventModel"
         )
+
+
+# --- Spec 093: RabbitMQ topology ---
+
+
+def test_rabbitmq_topology_module_exists():
+    """Spec 093: shared.messaging.rabbitmq_topology must exist."""
+    from shared.messaging import rabbitmq_topology
+    assert hasattr(rabbitmq_topology, "EXCHANGE_NAME")
+    assert hasattr(rabbitmq_topology, "compute_queue_name")
+    assert hasattr(rabbitmq_topology, "validate_routing_key")
+
+
+def test_rabbitmq_topology_exchange_constants():
+    """Spec 093: EXCHANGE_NAME, EXCHANGE_TYPE, EXCHANGE_DURABLE must be defined."""
+    from shared.messaging.rabbitmq_topology import (
+        EXCHANGE_NAME,
+        EXCHANGE_TYPE,
+        EXCHANGE_DURABLE,
+    )
+    assert EXCHANGE_NAME == "domain.events"
+    assert EXCHANGE_TYPE == "topic"
+    assert EXCHANGE_DURABLE is True
+
+
+def test_rabbitmq_topology_has_validation_functions():
+    """Spec 093: validate_queue_name, validate_routing_key, validate_binding
+    and validate_exchange_declaration must be callable."""
+    from shared.messaging.rabbitmq_topology import (
+        validate_queue_name,
+        validate_routing_key,
+        validate_binding,
+        validate_exchange_declaration,
+    )
+    assert callable(validate_queue_name)
+    assert callable(validate_routing_key)
+    assert callable(validate_binding)
+    assert callable(validate_exchange_declaration)
+
+
+def test_rabbitmq_topology_has_topology_config():
+    """Spec 093: TopologyConfig dataclass must exist."""
+    from shared.messaging.rabbitmq_topology import TopologyConfig
+    config = TopologyConfig(
+        consumer_module="agent",
+        producer_module="billing",
+        routing_keys=["billing.plan.created.v1"],
+    )
+    assert config.queue_name == "agent.billing-events"
+
+
+def test_rabbitmq_topology_has_validate_topology_config():
+    """Spec 093: validate_topology_config must be callable."""
+    from shared.messaging.rabbitmq_topology import (
+        TopologyConfig,
+        validate_topology_config,
+    )
+    config = TopologyConfig(
+        consumer_module="agent",
+        producer_module="billing",
+        routing_keys=["billing.plan.created.v1"],
+    )
+    validate_topology_config(config)
+
+
+def test_rabbitmq_topology_has_compute_dlq_name():
+    """Spec 093: compute_dlq_name_for_queue must exist."""
+    from shared.messaging.rabbitmq_topology import compute_dlq_name_for_queue
+    assert callable(compute_dlq_name_for_queue)
+    assert compute_dlq_name_for_queue("agent.billing-events") == "agent.billing-events.dlq"
+
+
+def test_rabbitmq_topology_has_extract_producer():
+    """Spec 093: extract_producer_from_routing_key must exist."""
+    from shared.messaging.rabbitmq_topology import extract_producer_from_routing_key
+    assert extract_producer_from_routing_key("agent.execution.requested.v1") == "agent"
+
+
+def test_rabbitmq_topology_has_extract_version():
+    """Spec 093: extract_version_from_routing_key must exist."""
+    from shared.messaging.rabbitmq_topology import extract_version_from_routing_key
+    assert extract_version_from_routing_key("agent.execution.requested.v1") == 1
