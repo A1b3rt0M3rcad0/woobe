@@ -125,7 +125,7 @@ src/modules/<module>/
 | Spec | Status | Data | Arquivos alterados | Pendências | Próxima recomendada |
 |---|---|---|---|---|---|
 | 000 | completed | 2026-06-14 | `specs/module-architecture-standardization/000-architecture-decision-record-canonical-module-architecture.md`, `tests/architecture/test_adr_presence.py`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec) | 001 |
-| 001 | pending | - | - | - | 002 |
+| 001 | completed | 2026-06-14 | `specs/module-architecture-standardization/001-layer-dependency-rules.md`, `tests/architecture/test_layer_dependencies.py`, `tests/architecture/legacy_import_allowlist.yaml`, `execution/runtime.md` | ruff F821/F401/F841 pré-existentes (não introduzidos pela spec); layer_dependencies: agent use_cases e tools/service/use_cases allowlistados | 002 |
 | 002 | pending | - | - | - | 003 |
 | 003 | pending | - | - | - | 004 |
 | 004 | pending | - | - | - | 005 |
@@ -240,16 +240,18 @@ src/modules/<module>/
 | Spec | Data | SHA | Resumo |
 |---|---|---|---|
 | 000 | 2026-06-14 | c128cb0 | ADR canônico registrado: agente como referência, 6 módulos-alvo, proibição FK/imports cross-module. Teste arquitetural criado e validado. |
+| 001 | 2026-06-14 | 8b01eb4 | Regras de dependência por camada e módulo documentadas. Teste `test_layer_dependencies.py` criado com AST scan e allowlist. `test_module_boundaries.py` verificado (4/4 pass). Allowlist com scope `layer_dependencies` para 3 violações legadas (use_cases → infra). |
 
 ## Specs pendentes
 
-Specs 001 a 109 do `MANIFEST.md`.
+Specs 002 a 109 do `MANIFEST.md`.
 
 ## Decisões tomadas durante a execução
 
 | Data | Decisão | Motivo | Impacto | Reversível? |
 |---|---|---|---|---|
 | 2026-06-14 | ADR canônico registrado e aceito | Estabelecer base arquitetural obrigatória antes de qualquer migração física | Todos os módulos devem seguir o mesmo contrato estrutural; proibição de FK e imports cross-module | Sim, revertendo o ADR e runtime.md |
+| 2026-06-14 | Regras de dependência por camada definidas | Especificar imports permitidos/proibidos por camada antes de mover arquivos | Layer test + AST scan + allowlist com scope layer_dependencies; composers exempt por serem raiz de DI | Sim, removendo regras e allowlist |
 
 ## Riscos ativos
 
@@ -267,4 +269,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`001-define-layer-and-module-dependency-rules.md`
+`002-define-canonical-module-directory-contract.md`
