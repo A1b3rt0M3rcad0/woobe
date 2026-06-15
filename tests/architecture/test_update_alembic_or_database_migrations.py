@@ -39,7 +39,7 @@ class TestAlembicMigrationsSuccess:
         content = ENV_PATH.read_text(encoding="utf-8")
         required_imports = [
             "modules.identity.infra.database.models",
-            "modules.core.infra.models",
+            "modules.core.infra.database.models",
             "modules.tools.infra.models",
             "modules.metering.infra.models",
             "modules.billing.infra.models",
