@@ -420,3 +420,64 @@ def test_dead_letter_policy_has_record():
         original_producer_module="test",
     )
     assert record is not None
+
+
+# --- Spec 095: Wire central runner to module worker registries ---
+
+
+def test_worker_discovery_module_exists():
+    """Spec 095: shared.workers.discovery must exist."""
+    from shared.workers import discovery
+    assert hasattr(discovery, "ModuleWorkerEntry")
+    assert hasattr(discovery, "discover_module_entries")
+    assert hasattr(discovery, "build_registries")
+
+
+def test_worker_discovery_has_constant():
+    """Spec 095: MODULE_WORKER_REGISTRIES must list all 7 modules."""
+    from shared.workers.discovery import MODULE_WORKER_REGISTRIES
+    assert "agent" in MODULE_WORKER_REGISTRIES
+    assert "billing" in MODULE_WORKER_REGISTRIES
+    assert "core" in MODULE_WORKER_REGISTRIES
+    assert "identity" in MODULE_WORKER_REGISTRIES
+    assert "metering" in MODULE_WORKER_REGISTRIES
+    assert "observability" in MODULE_WORKER_REGISTRIES
+    assert "tools" in MODULE_WORKER_REGISTRIES
+
+
+def test_worker_discovery_entries():
+    """Spec 095: discover_module_entries must return ModuleWorkerEntry list."""
+    from shared.workers.discovery import ModuleWorkerEntry, discover_module_entries
+    entries = discover_module_entries()
+    assert len(entries) == 7
+    for entry in entries:
+        assert isinstance(entry, ModuleWorkerEntry)
+        assert isinstance(entry.module_name, str)
+        assert isinstance(entry.registry_class, type)
+        assert callable(entry.register_func)
+
+
+def test_worker_discovery_build_registries():
+    """Spec 095: build_registries must create registries list."""
+    from unittest.mock import MagicMock
+    from shared.workers.discovery import build_registries, discover_module_entries
+    entries = discover_module_entries()
+    registries = build_registries(entries, engine=MagicMock(), settings=MagicMock())
+    assert len(registries) == 7
+    from shared.workers.contracts import WorkerRegistryProtocol
+    for registry in registries:
+        assert isinstance(registry, WorkerRegistryProtocol)
+
+
+def test_worker_runner_module_exists():
+    """Spec 095: WorkerRunner must exist."""
+    from shared.workers.runner import WorkerRunner
+    assert callable(WorkerRunner.from_registries)
+    assert callable(WorkerRunner)
+
+
+def test_module_worker_entry_is_domain_agnostic():
+    """Spec 095: ModuleWorkerEntry must not reference domain concepts."""
+    from shared.workers.discovery import ModuleWorkerEntry
+    assert not hasattr(ModuleWorkerEntry, "event_type")
+    assert not hasattr(ModuleWorkerEntry, "routing_key")

@@ -100,16 +100,32 @@ class CoreInboxProcessorWorker(BaseInboxProcessor):
         await self._session.execute(stmt)
 
     async def mark_failed(self, record: InboxProcessingRecord, error: str) -> None:
+        await super().mark_failed(record, error)
+
+    async def mark_dead(self, record: InboxProcessingRecord) -> None:
         assert self._session is not None
         stmt = (
             update(InboxEventModel)
             .where(InboxEventModel.id == record.id)
             .values(
-                status="failed" if record.attempts + 1 >= self.MAX_ATTEMPTS else "pending",
-                error=error,
-                attempts=InboxEventModel.attempts + 1,
+                status="failed",
+                error=record.error,
+                attempts=record.attempts,
+            )
+        )
+        await self._session.execute(stmt)
+
+    async def mark_retryable(self, record: InboxProcessingRecord) -> None:
+        assert self._session is not None
+        stmt = (
+            update(InboxEventModel)
+            .where(InboxEventModel.id == record.id)
+            .values(
+                status="pending",
+                error=record.error,
+                attempts=record.attempts,
                 available_at=datetime.now(timezone.utc)
-                + timedelta(seconds=RETRY_BACKOFF_BASE_SECONDS * (2**record.attempts)),
+                + timedelta(seconds=RETRY_BACKOFF_BASE_SECONDS * (2 ** (record.attempts - 1))),
             )
         )
         await self._session.execute(stmt)

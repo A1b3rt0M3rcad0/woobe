@@ -18,6 +18,7 @@ from modules.observability.presentation.routes import router as observability_ro
 from modules.tools.presentation.routes import router as tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.rabbitmq import RabbitMQManager
 from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
@@ -28,6 +29,8 @@ from shared.presentation.errors import (
     validation_handler,
 )
 from shared.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.workers.discovery import build_registries, discover_module_entries
+from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +104,35 @@ def create_app() -> FastAPI:
         except Exception:
             pass
 
+        rabbitmq_manager: RabbitMQManager | None = None
+        try:
+            rabbitmq_manager = RabbitMQManager(
+                url=settings.rabbitmq_url,
+                exchange_name=settings.rabbitmq_exchange,
+            )
+            await rabbitmq_manager.connect()
+            app.state.rabbitmq_manager = rabbitmq_manager
+        except Exception:
+            logger.warning("RabbitMQ unavailable - workers will not start")
+
+        entries = discover_module_entries()
+        if entries:
+            registries = build_registries(
+                entries,
+                engine=engine,
+                settings=settings,
+                rabbitmq_manager=rabbitmq_manager,
+            )
+            runner = WorkerRunner.from_registries(registries)
+            app.state.worker_runner = runner
+            logger.info("Worker runner initialized with %d registries", len(registries))
+
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await app.state.async_engine.dispose()
+        rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
+        if rabbitmq_manager is not None:
+            await rabbitmq_manager.close()
 
     @app.get("/health")
     async def health():
