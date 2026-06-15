@@ -13,7 +13,7 @@
 | Spec | Status | SHA | Evidência | Bloqueios |
 |---:|---|---|---|---|
 | 000 | completed | a41994c | Decisão registrada. SHA registrado. Baseline `development` = a64dad4. | - |
-| 001 | pending | - | - | - |
+| 001 | completed | 6ac12dd | 3 testes de caracterização criados. 2 vermelhos (D1, D3), 1 verde confirmando D4. Inventário criado. | - |
 | 002 | pending | - | - | - |
 | 003 | pending | - | - | - |
 | 004 | pending | - | - | - |
@@ -67,6 +67,26 @@ git merge-base HEAD development → a64dad406a1ccdc2198c5add8dc53eaad1e98a9d
 
 `rg` indisponível no Windows; substituído por `Select-String`.
 
+### Spec 001
+
+```
+git branch --show-current → development_session-conversation-continuity ✓
+git rev-parse HEAD → 6ac12dd6b32d53ae81291a18709121630205c7ed
+```
+
+Localizações dos defeitos confirmadas:
+- `AIMessage(content=m.content, tool_calls=tool_calls)` → `ask_use_case.py:603`, `ask_agent_stream_service.py:792`
+- `except Exception:` + `return []` em `_load_history` → `ask_use_case.py:613-614`, `ask_agent_stream_service.py:802-803`
+- `_resolve_session` com `except Exception: pass` → `ask_use_case.py:518`, `ask_agent_stream_service.py:689`
+- `list_by_session` ordena `created_at ASC` (mais antigos primeiro) sem desempate por ID → `repositories.py:1167`
+
+Tests:
+- `test_assistant_without_tool_calls_must_not_erase_history` → **FAILED** (RED) — `assert 0 > 0` — confirma D1+D2
+- `test_current_user_turn_is_not_present_twice` → **FAILED** (RED) — `assert 2 == 1` — confirma D3
+- `test_missing_session_id_must_not_create_replacement_session` → **PASSED** — confirma D4 (fallback silencioso)
+
+Inventário: `execution/inventory/session-history-flow.md` criado.
+
 ## Pendências e riscos
 
 - confirmar versão efetiva de `langchain-core` no lock/ambiente;
@@ -76,4 +96,4 @@ git merge-base HEAD development → a64dad406a1ccdc2198c5add8dc53eaad1e98a9d
 
 ## Próxima spec recomendada
 
-**001** — reproduce-and-inventory-session-history-failure
+**002** — define-stateful-stateless-and-session-reuse-contract
