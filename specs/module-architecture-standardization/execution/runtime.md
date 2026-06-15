@@ -167,7 +167,7 @@ src/modules/<module>/
 | 040 | completed | 2026-06-15 | `specs/module-architecture-standardization/execution/inventory/core-migration-map.md`, `tests/architecture/test_inventory_artifacts.py`, `execution/runtime.md` | `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 6 compositores com PostgresUnitOfWork (deferido spec 046); 2 FKs cross-module (deferido spec 099); 0 testes core pré-existentes | 041 |
 | 041 | completed | 2026-06-15 | `src/modules/core/application/dtos/__init__.py`, `src/modules/core/application/use_cases/__init__.py`, `src/modules/core/application/handlers/__init__.py`, `src/modules/core/infra/database/__init__.py`, `src/modules/core/infra/messaging/__init__.py`, `src/modules/core/infra/workers/__init__.py`, `src/modules/core/domain/events.py`, `src/modules/core/domain/services.py`, `src/modules/core/domain/value_objects.py`, `tests/architecture/test_module_structure.py`, `execution/runtime.md` | `find`/`rg` indisponíveis (Get-ChildItem/Select-String); caminhos legados mantidos; nenhum comportamento alterado | 042 |
 | 042 | completed | 2026-06-15 | `tests/modules/core/unit/domain/test_entities.py`, `tests/architecture/test_core_domain_dependencies.py`, `execution/runtime.md` | Domínio do core já estava na estrutura canônica e sem imports de infra/FastAPI/SQLAlchemy; 4 testes de entidade + 3 testes de arquitetura de dependências adicionados; 2 entidades (Project, ApiKey) e 2 repositories interfaces (ABC) validados | 043 |
-| 043 | pending | - | - | - | 044 |
+| 043 | completed | 2026-06-15 | `src/modules/core/application/dtos/*` (6 files), `src/modules/core/application/use_cases/*` (6 files), `src/modules/core/application/composers/*.py` (6 files), `src/modules/core/presentation/controllers/*.py` (6 files), `src/modules/core/service/dtos.py`, `src/modules/core/service/use_cases.py`, `tests/modules/core/unit/application/test_use_cases.py`, `tests/architecture/test_no_new_core_service_imports.py`, `execution/runtime.md` | ruff clean; 8 tests passing (6 use case + 2 arch); shims mantidos em service/; 0 imports de service/ em composers/controllers | 044 |
 | 044 | pending | - | - | - | 045 |
 | 045 | pending | - | - | - | 046 |
 | 046 | pending | - | - | - | 047 |
@@ -282,6 +282,7 @@ src/modules/<module>/
 | 040 | 2026-06-15 | HEAD | Core module migration map created: 33 source files classified, 2 entities (Project/ApiKey), 2 cross-module FKs confirmed, 6 routes, 6 use cases, 7 DTOs, 3 events (unversioned), 0 workers, no existing tests, all 6 composers use PostgresUnitOfWork. `find`/`rg` indisponíveis (Get-ChildItem/Select-String). 24 inventory tests pass (22 existing + 2 new). Next: 041. |
 | 041 | 2026-06-15 | HEAD | Canonical skeleton for core created: infra/database, infra/messaging, infra/workers, application/dtos, application/use_cases, application/handlers, domain stub files (events, services, value_objects). Legacy paths maintained. 6 arch structure tests pass. Next: 042. |
 | 042 | 2026-06-15 | HEAD | Domain layer normalized for core: domain already in canonical state (no infra/FastAPI/SQLAlchemy imports). 4 entity invariant tests + 3 architecture dependency tests added. Next: 043. |
+| 043 | 2026-06-15 | HEAD | service → application migration for core: 7 DTOs and 6 use cases moved from service/ to application/dtos and application/use_cases; 6 composers and 6 controllers updated to import from application/; service/ shims preserved; 6 use case tests + 2 arch tests added. 8 tests passing. Next: 044. |
 
 ## Specs pendentes
 
@@ -328,6 +329,7 @@ Specs 031 a 109 do `MANIFEST.md`.
 | 2026-06-15 | Core migration map created | Spec 040: discovery-only inventory of core module before physical moves | 33 source files classified, 2 cross-module FKs, 6 routes, 6 use cases, 7 DTOs, 3 unversioned events, PostgresUnitOfWork in all composers (deferred to spec 046); `find`/`rg` indisponíveis (Get-ChildItem/Select-String); 24 inventory tests pass; next: spec 041 | Sim, revertendo core-migration-map.md |
 | 2026-06-15 | Core canonical skeleton created | Spec 041: create canonical directories and stub files for core module | 6 new directories created, 3 domain stubs, legacy paths preserved; no behavior changes; 6 arch structure tests pass; next: spec 042 | Sim, revertendo __init__.py e restaurando test |
 | 2026-06-15 | Core domain layer validated | Spec 042: domain layer already canonical; 4 entity tests + 3 architecture tests added | No production code changed; domain clean of framework imports; next: spec 043 | Sim, revertendo testes |
+| 2026-06-15 | Core service→application migration completed | Spec 043: DTOs and use cases moved from service/ to application/ with shims | 7 DTOs, 6 use cases, 6 composers, 6 controllers updated; service/ kept as shim; next: spec 044 | Sim, revertendo imports e restaurando service/ original |
 
 ## Riscos ativos
 
@@ -352,4 +354,4 @@ Registrar aqui divergências entre inventário e premissas das specs.
 
 ## Próxima spec recomendada
 
-`043-move-service-to-application-layer-core.md`
+`044-normalize-presentation-layer-core.md`

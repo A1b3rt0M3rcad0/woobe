@@ -1,5 +1,5 @@
-from modules.core.service.use_cases import UpdateProjectUseCase
-from modules.core.service.dtos import UpdateProjectInput
+from modules.core.application.use_cases import UpdateProjectUseCase
+from modules.core.application.dtos import UpdateProjectInput
 from modules.core.presentation.schemas import ProjectResponse
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request

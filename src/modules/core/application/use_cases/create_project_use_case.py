@@ -1,0 +1,53 @@
+from modules.core.domain.entities import Project
+from modules.core.domain.errors import DuplicateSlugError
+from modules.core.domain.repositories import ProjectRepository
+from modules.core.application.dtos.create_project_dtos import CreateProjectInput, CreateProjectOutput
+from shared.domain.events import OutboxEventWriter
+
+
+class CreateProjectUseCase:
+
+    def __init__(
+        self,
+        project_repo: ProjectRepository,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        self._project_repo = project_repo
+        self._outbox = outbox
+
+    async def execute(self, input_dto: CreateProjectInput) -> CreateProjectOutput:
+        existing = await self._project_repo.get_by_organization_and_slug(
+            input_dto.organization_id, input_dto.slug
+        )
+        if existing:
+            raise DuplicateSlugError(
+                f"Project with slug '{input_dto.slug}' already exists in this organization"
+            )
+
+        project = Project(
+            organization_id=input_dto.organization_id,
+            name=input_dto.name,
+            slug=input_dto.slug,
+        )
+        saved = await self._project_repo.save(project)
+
+        await self._outbox.write(
+            aggregate_type="project",
+            aggregate_id=saved.id,
+            event_type="project.created",
+            payload={
+                "organization_id": str(saved.organization_id),
+                "name": saved.name,
+                "slug": saved.slug,
+            },
+        )
+
+        return CreateProjectOutput(
+            id=saved.id,
+            organization_id=saved.organization_id,
+            name=saved.name,
+            slug=saved.slug,
+            status=saved.status,
+            created_at=saved.created_at,
+            updated_at=saved.updated_at,
+        )
