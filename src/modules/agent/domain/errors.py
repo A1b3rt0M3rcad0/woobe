@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from shared.infra.errors import ConflictError, NotFoundError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError
 
 
 class CredentialNotFoundError(NotFoundError):
@@ -80,3 +80,9 @@ class AskJobNotFoundError(NotFoundError):
     def __init__(self, job_id: UUID) -> None:
         self.job_id = job_id
         super().__init__(f"Ask job not found: {job_id}")
+
+
+class ConversationHistoryLoadError(DomainError):
+    def __init__(self, session_id: UUID, message: str = "") -> None:
+        self.session_id = session_id
+        super().__init__(f"Failed to load conversation history for session {session_id}: {message}")

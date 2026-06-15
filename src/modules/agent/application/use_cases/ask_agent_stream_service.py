@@ -9,7 +9,9 @@ from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 from uuid import UUID
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+
+from modules.agent.application.handlers.conversation_history_mapper import load_and_convert_history
 
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
 
@@ -774,33 +776,9 @@ class AskAgentStreamService:
         return created
 
     async def _load_history(self, repo: MessageRepository, session: Session) -> list:
-        try:
-            messages = await repo.list_by_session(session.id)
-            history = []
-            for m in messages:
-                role = m.role.value if hasattr(m.role, "value") else m.role
-                if role == "user":
-                    history.append(HumanMessage(content=m.content))
-                elif role == "assistant":
-                    raw_tool_calls = (m.data or {}).get("tool_calls") or []
-                    tool_calls = None
-                    if raw_tool_calls:
-                        tool_calls = [
-                            {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
-                            for tc in raw_tool_calls if tc.get("tool_call_id")
-                        ]
-                    msg = AIMessage(content=m.content, tool_calls=tool_calls)
-                    history.append(msg)
-                    if tool_calls:
-                        for tc in raw_tool_calls:
-                            if tc.get("tool_call_id") and tc.get("output") is not None:
-                                history.append(ToolMessage(
-                                    content=json.dumps(tc["output"]),
-                                    tool_call_id=tc["tool_call_id"],
-                                ))
-            return history
-        except Exception:
-            return []
+        return await load_and_convert_history(
+            repo, session.id, session.id,
+        )
 
     async def _load_rag_context(
         self,

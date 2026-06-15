@@ -15,7 +15,7 @@
 | 000 | completed | a41994c | Decisão registrada. SHA registrado. Baseline `development` = a64dad4. | - |
 | 001 | completed | 6ac12dd | 3 testes de caracterização criados. 2 vermelhos (D1, D3), 1 verde confirmando D4. Inventário criado. | - |
 | 002 | completed | bbc57fa | Contrato normativo definido. 6 testes de contrato criados: 1 vermelho (session_id inválido não deve criar sessão) | - |
-| 003 | pending | - | - | - |
+| 003 | completed | 795c6a2 | Mapper centralizado criado. AIMessage(tool_calls=None) removido. except Exception: return [] substituído por ConversationHistoryLoadError. Teste de perda de histórico agora VERDE. | - |
 | 004 | pending | - | - | - |
 | 005 | pending | - | - | - |
 | 006 | pending | - | - | - |
@@ -91,6 +91,22 @@ Testes de contrato criados em `tests/contract/test_session_contract.py`:
 | `test_stateless_does_not_persist_messages` | PASSED | Stateless não persiste |
 | `test_session_status_active_is_not_a_memory_signal` | PASSED | Status não controla memória |
 
+### Spec 003
+
+Arquivos alterados:
+- `src/modules/agent/application/handlers/conversation_history_mapper.py` (novo)
+- `src/modules/agent/domain/errors.py` (+ `ConversationHistoryLoadError`)
+- `src/modules/agent/application/use_cases/ask_use_case.py` (substituído `_load_history`)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (substituído `_load_history`)
+
+Evidências:
+- `AIMessage(content=..., tool_calls=tool_calls)` removido de ambos os fluxos (agora no mapper)
+- `except Exception: return []` removido de `_load_history` (agora levanta `ConversationHistoryLoadError`)
+- `test_assistant_without_tool_calls_must_not_erase_history` → **PASSED** (GREEN)
+- `test_current_user_turn_is_not_present_twice` → **FAILED** (ainda vermelho — spec 004)
+- `ruff check` → 1 erro pré-existente (não relacionado)
+- `pyright` → erros pré-existentes de tipagem (não relacionados)
+
 ### Spec 001
 
 ```
@@ -120,4 +136,4 @@ Inventário: `execution/inventory/session-history-flow.md` criado.
 
 ## Próxima spec recomendada
 
-**003** — fix-history-message-reconstruction
+**004** — fix-current-turn-persistence-and-prompt-order
