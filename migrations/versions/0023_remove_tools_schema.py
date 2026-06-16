@@ -18,6 +18,9 @@ def upgrade() -> None:
     op.execute("DROP VIEW IF EXISTS tools.secrets")
     op.execute("DROP VIEW IF EXISTS tools.outbox_events")
     op.execute("DROP VIEW IF EXISTS tools.inbox_events")
+    # Drop renamed legacy tables (left over from migration 0022 rename)
+    op.execute("DROP TABLE IF EXISTS tools.outbox_events_migrated")
+    op.execute("DROP TABLE IF EXISTS tools.inbox_events_migrated")
     # Drop tools schema (no CASCADE — must be empty)
     op.execute("DROP SCHEMA IF EXISTS tools")
 

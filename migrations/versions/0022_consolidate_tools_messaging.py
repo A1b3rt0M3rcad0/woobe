@@ -28,8 +28,8 @@ def upgrade() -> None:
         "    ELSE o.event_type "
         "  END, "
         "  o.payload, "
-        "  o.idempotency_key, o.correlation_id, o.causation_id, "
-        "  o.status, o.attempts, o.available_at, o.locked_at, o.locked_by, "
+        "  o.id::text, COALESCE(o.correlation_id, gen_random_uuid()), o.causation_id, "
+        "  o.status, o.attempts, o.available_at, NULL::timestamptz, NULL::varchar, "
         "  o.published_at, o.error, o.created_at, o.updated_at "
         "FROM tools.outbox_events o "
         "WHERE o.status IN ('pending', 'retryable') "
@@ -41,7 +41,7 @@ def upgrade() -> None:
         "UPDATE tools.outbox_events SET status = 'migrated' "
         "WHERE status IN ('pending', 'retryable') "
         "AND id IN (SELECT o.id FROM tools.outbox_events o "
-        "           JOIN agent.agent_outbox_events a ON a.idempotency_key = o.idempotency_key)"
+        "           JOIN agent.agent_outbox_events a ON a.idempotency_key = o.id::text)"
     )
 
     # Copy pending/retryable inbox events from tools schema to agent
@@ -62,8 +62,8 @@ def upgrade() -> None:
         "    ELSE i.event_type "
         "  END, "
         "  i.payload, NULL::jsonb, "
-        "  i.idempotency_key, i.correlation_id, i.causation_id, "
-        "  i.status, i.attempts, i.available_at, i.locked_at, i.locked_by, "
+        "  i.id::text, COALESCE(i.correlation_id, gen_random_uuid()), i.causation_id, "
+        "  i.status, i.attempts, i.available_at, NULL::timestamptz, NULL::varchar, "
         "  i.processed_at, i.error, i.created_at, i.updated_at "
         "FROM tools.inbox_events i "
         "WHERE i.status IN ('received', 'retryable') "
@@ -75,7 +75,7 @@ def upgrade() -> None:
         "UPDATE tools.inbox_events SET status = 'migrated' "
         "WHERE status IN ('received', 'retryable') "
         "AND id IN (SELECT i.id FROM tools.inbox_events i "
-        "           JOIN agent.agent_inbox_events a ON a.idempotency_key = i.idempotency_key)"
+        "           JOIN agent.agent_inbox_events a ON a.idempotency_key = i.id::text)"
     )
 
     # Archive completed/processed/dead outbox events (older than 7 days)
@@ -92,15 +92,31 @@ def upgrade() -> None:
         "AND updated_at < NOW() - INTERVAL '7 days'"
     )
 
-    # Create compatibility views in tools schema
-    op.execute("CREATE OR REPLACE VIEW tools.outbox_events AS SELECT * FROM agent.agent_outbox_events")
-    op.execute("CREATE OR REPLACE VIEW tools.inbox_events AS SELECT * FROM agent.agent_inbox_events")
+    # Rename legacy tables and create compatibility views in tools schema
+    op.execute("ALTER TABLE tools.outbox_events RENAME TO outbox_events_migrated")
+    op.execute("CREATE VIEW tools.outbox_events AS SELECT * FROM agent.agent_outbox_events")
+    op.execute("ALTER TABLE tools.inbox_events RENAME TO inbox_events_migrated")
+    op.execute("CREATE VIEW tools.inbox_events AS SELECT * FROM agent.agent_inbox_events")
 
 
 def downgrade() -> None:
     # Drop compatibility views
     op.execute("DROP VIEW IF EXISTS tools.outbox_events")
     op.execute("DROP VIEW IF EXISTS tools.inbox_events")
+
+    # Restore legacy tables from renamed originals (if they exist)
+    op.execute("""
+        DO $$ BEGIN
+            ALTER TABLE tools.outbox_events_migrated RENAME TO outbox_events;
+        EXCEPTION WHEN undefined_table THEN NULL;
+        END $$
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            ALTER TABLE tools.inbox_events_migrated RENAME TO inbox_events;
+        EXCEPTION WHEN undefined_table THEN NULL;
+        END $$
+    """)
 
     # Reverse archived/migrated status
     op.execute("UPDATE tools.outbox_events SET status = 'published' WHERE status = 'archived' AND published_at IS NOT NULL")
@@ -113,9 +129,9 @@ def downgrade() -> None:
     # Delete copied events from agent tables
     op.execute(
         "DELETE FROM agent.agent_outbox_events "
-        "WHERE idempotency_key IN (SELECT idempotency_key FROM tools.outbox_events WHERE status IN ('pending', 'retryable', 'published', 'dead'))"
+        "WHERE idempotency_key IN (SELECT id::text FROM tools.outbox_events WHERE status IN ('pending', 'retryable', 'published', 'dead'))"
     )
     op.execute(
         "DELETE FROM agent.agent_inbox_events "
-        "WHERE idempotency_key IN (SELECT idempotency_key FROM tools.inbox_events WHERE status IN ('received', 'retryable', 'processed', 'dead'))"
+        "WHERE idempotency_key IN (SELECT id::text FROM tools.inbox_events WHERE status IN ('received', 'retryable', 'processed', 'dead'))"
     )
