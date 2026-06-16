@@ -1,6 +1,6 @@
 # 000 — ADR — incorporar tools ao bounded context agent
 
-**Status:** pending  
+**Status:** completed  
 **Tipo:** architecture  
 **Branch de execução:** `development_tools-to-agent-consolidation`  
 **Baseline obrigatória:** `development` em `209cf8147f87a2e9949fec33a34429ab70f166b5`
