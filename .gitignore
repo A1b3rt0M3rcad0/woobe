@@ -8,6 +8,9 @@ wheels/
 web\node_modules
 */node_modules
 
+# TypeScript incremental build info
+web/tsconfig.tsbuildinfo
+
 # Virtual environments
 .venv
 .env
