@@ -12,14 +12,14 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. No code changes. Repository baseline validated. Inventory files remain empty pending spec 001.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. All 5 inventory files populated with comprehensive mapping of tools module files, imports, API, events, and database. No code changes made.
 
 ## Status
 
 | Spec | Status |
 |---|---|
 | 000 | completed |
-| 001 | pending |
+| 001 | completed |
 | 002 | pending |
 | 003 | pending |
 | 004 | pending |
@@ -86,9 +86,71 @@ Exit code: 0
 - [x] Final state without module/schema tools declared
 - [x] Secret security explicitly addressed
 
+### Spec 001 — Inventariar tools, dependências e contratos públicos
+
+**Status:** completed
+**Tipo:** discovery
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `specs/tools-to-agent-consolidation/execution/inventory/tools-files.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/tools-imports.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/tools-api.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/tools-events.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/tools-database.md` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/tools -Recurse -File -Filter *.py` | 0 | 58 source files inventoried |
+| `Select-String "modules\.tools" src tests migrations` | 0 | Cross-module refs catalogued |
+| `Select-String "tools\.(tool\|secret)\|routing_key\|event_type" src tests` | 0 | Events and routing catalogued |
+| `Select-String "ToolRepository\|SecretRepository\|ToolsUnitOfWork\|ToolModel\|SecretModel" src tests` | 0 | Repository/model refs catalogued |
+| `Select-String "/tools\|/agents/\{agent_id\}/tools\|/secrets" src tests` | 0 | Routes catalogued; frontend/ not found |
+
+**Inventory contents:**
+
+| File | Coverage |
+|---|---|
+| `tools-files.md` | 58 files classified: 46 move, 8 merge, 0 rewrite, 0 delete |
+| `tools-imports.md` | All imports catalogued: shared (allowed), cross-module FKs identified, 0 production consumers from other modules |
+| `tools-api.md` | 10 routes documented: methods, paths, request/response schemas |
+| `tools-events.md` | 4 produced events, 4 consumed events, 3 workers, 2 mapper files |
+| `tools-database.md` | 4 tables (tools schema), 2 cross-schema FKs to `core.projects`, 1 unique constraint |
+
+**Key findings:**
+- Zero production code outside `modules.tools` imports from `modules.tools` — only test/validation code references it
+- 2 cross-schema FKs (`tools.tools.project_id` and `tools.secrets.project_id` -> `core.projects.id`) must be converted to opaque UUIDs
+- `frontend/` directory does not exist in this snapshot — noted as environment variant
+- Worker registry (`register_tools_workers()`) is currently a no-op
+- Inbox handlers declared in `HANDLED_EVENTS` but have no actual implementation logic
+
+**Validation:**
+
+```bash
+test -s specs/tools-to-agent-consolidation/execution/inventory/tools-files.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/tools-imports.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/tools-api.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/tools-events.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/tools-database.md
+```
+
+All 5 files exist and are non-empty. Exit code: 0
+
+**Acceptance criteria:**
+- [x] 100% dos arquivos classificados
+- [x] rotas/eventos registrados
+- [x] consumidores identificados
+- [x] riscos de segredo registrados
+
 ## Decisões tomadas durante a execução
 
-- `frontend/` directory does not exist in this repository snapshot; detection 6 was adapted to omit it. This is a pre-existing environment condition, not a regression.
+- `frontend/` directory does not exist in this repository snapshot; detection was adapted to omit it. This is a pre-existing environment condition, not a regression.
+- `rg` (ripgrep) not available on Windows; `Select-String` (PowerShell) used as equivalent.
 
 ## Riscos ativos
 
@@ -97,7 +159,6 @@ Exit code: 0
 - Resolver de segredos legado parece incompatível com repository async.
 - Paths efetivos devem ser confirmados pelo OpenAPI.
 - Se development avançar, refazer inventário.
-- Inventory files (tools-files, tools-imports, tools-api, tools-events, tools-database) are empty — must be populated in spec 001.
 
 ## Inconsistências encontradas
 
@@ -105,4 +166,4 @@ Exit code: 0
 
 ## Próxima spec recomendada
 
-`001-inventory-tools-dependencies-and-public-contracts.md`
+`002-define-target-architecture-and-current-to-target-map.md`
