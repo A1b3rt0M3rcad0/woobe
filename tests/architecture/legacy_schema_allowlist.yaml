@@ -4,43 +4,24 @@
 # This file must have zero entries after spec 017.
 
 entries:
-  # --- models.py: __table_args__ schema references ---
+  # --- models.py: legacy messaging classes (kept until spec 011) ---
   - file_path: src/modules/agent/infra/database/models.py
     line_pattern: '"schema": "ai"'
     schema: ai
-    reason: "Agent models in legacy ai schema (pre-migration)"
-    removal_spec: "009"
+    reason: "Legacy messaging OutboxEventModel/InboxEventModel (spec 011)"
+    removal_spec: "011"
 
   - file_path: src/modules/agent/infra/database/models.py
     line_pattern: '"schema": "knowledge"'
     schema: knowledge
-    reason: "Agent models in legacy knowledge schema (pre-migration)"
-    removal_spec: "009"
+    reason: "Legacy messaging KnowledgeOutboxEventModel/KnowledgeInboxEventModel (spec 011)"
+    removal_spec: "011"
 
   - file_path: src/modules/agent/infra/database/models.py
     line_pattern: '"schema": "runtime"'
     schema: runtime
-    reason: "Agent models in legacy runtime schema (pre-migration)"
-    removal_spec: "009"
-
-  # --- models.py: ForeignKey legacy schema references ---
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: 'ForeignKey("ai.'
-    schema: ai
-    reason: "Intra-agent FK through legacy schema (pre-migration)"
-    removal_spec: "009"
-
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: 'ForeignKey("knowledge.'
-    schema: knowledge
-    reason: "Intra-agent FK through legacy schema (pre-migration)"
-    removal_spec: "009"
-
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: 'ForeignKey("runtime.'
-    schema: runtime
-    reason: "Intra-agent FK through legacy schema (pre-migration)"
-    removal_spec: "009"
+    reason: "Legacy messaging RuntimeOutboxEventModel/RuntimeInboxEventModel (spec 011)"
+    removal_spec: "011"
 
   # --- models.py from other modules referencing legacy agent schemas ---
   - file_path: src/modules/metering/infra/database/models.py

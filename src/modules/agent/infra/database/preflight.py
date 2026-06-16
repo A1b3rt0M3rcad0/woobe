@@ -9,21 +9,21 @@ AGENT_MODELS = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database"
 MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
 
 AGENT_SCHEMA_TABLES: dict[str, str] = {
-    "provider_credentials": "ai",
-    "agents": "ai",
-    "agent_prompts": "ai",
-    "agent_contracts": "ai",
-    "agent_model_configs": "ai",
-    "agent_releases": "ai",
-    "agent_release_tests": "ai",
-    "document_collections": "knowledge",
-    "agent_collections": "knowledge",
-    "documents": "knowledge",
-    "document_chunks": "knowledge",
-    "knowledge_versions": "knowledge",
-    "sessions": "runtime",
-    "messages": "runtime",
-    "ask_jobs": "runtime",
+    "provider_credentials": "agent",
+    "agents": "agent",
+    "agent_prompts": "agent",
+    "agent_contracts": "agent",
+    "agent_model_configs": "agent",
+    "agent_releases": "agent",
+    "agent_release_tests": "agent",
+    "document_collections": "agent",
+    "agent_collections": "agent",
+    "documents": "agent",
+    "document_chunks": "agent",
+    "knowledge_versions": "agent",
+    "sessions": "agent",
+    "messages": "agent",
+    "ask_jobs": "agent",
     "agent_outbox_events": "agent",
     "agent_inbox_events": "agent",
 }
@@ -134,7 +134,10 @@ def check_target_table_conflicts() -> list[str]:
     expected_agent_tables = {
         t for t, s in assignments.items() if s == "agent"
     }
-    canonical_agent = {"agent_outbox_events", "agent_inbox_events"}
+    canonical_agent = set(AGENT_SCHEMA_TABLES.keys()) - {
+        # Exclude legacy messaging tables that keep their original schemas
+        "outbox_events", "inbox_events",
+    }
     unexpected = expected_agent_tables - canonical_agent
     return list(unexpected)
 

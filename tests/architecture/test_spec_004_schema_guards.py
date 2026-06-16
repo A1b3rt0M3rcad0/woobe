@@ -24,23 +24,23 @@ _LEGACY_TABLE_ARGS_PATTERN = re.compile(r'schema["\']\s*:\s*["\'](ai|knowledge|r
 _FK_LEGACY_PATTERN = re.compile(r'ForeignKey\s*\(\s*["\'](ai|knowledge|runtime)\.')
 
 AGENT_TABLE_SCHEMAS: dict[str, str] = {
-    "provider_credentials": "ai",
-    "agents": "ai",
+    "provider_credentials": "agent",
+    "agents": "agent",
     "outbox_events": "ai",
     "inbox_events": "ai",
-    "agent_prompts": "ai",
-    "agent_contracts": "ai",
-    "agent_model_configs": "ai",
-    "agent_releases": "ai",
-    "agent_release_tests": "ai",
-    "document_collections": "knowledge",
-    "agent_collections": "knowledge",
-    "documents": "knowledge",
-    "document_chunks": "knowledge",
-    "knowledge_versions": "knowledge",
-    "sessions": "runtime",
-    "messages": "runtime",
-    "ask_jobs": "runtime",
+    "agent_prompts": "agent",
+    "agent_contracts": "agent",
+    "agent_model_configs": "agent",
+    "agent_releases": "agent",
+    "agent_release_tests": "agent",
+    "document_collections": "agent",
+    "agent_collections": "agent",
+    "documents": "agent",
+    "document_chunks": "agent",
+    "knowledge_versions": "agent",
+    "sessions": "agent",
+    "messages": "agent",
+    "ask_jobs": "agent",
     "agent_outbox_events": "agent",
     "agent_inbox_events": "agent",
 }
@@ -137,8 +137,6 @@ class TestAgentTableSchemaClassification:
         known_tables = set(AGENT_TABLE_SCHEMAS.keys())
         current_schemas = set(AGENT_TABLE_SCHEMAS.values())
         assert "ai" in current_schemas, "Must have tables in ai schema"
-        assert "knowledge" in current_schemas, "Must have tables in knowledge schema"
-        assert "runtime" in current_schemas, "Must have tables in runtime schema"
         assert "agent" in current_schemas, "Must have tables in agent schema"
         assert len(known_tables) == 19, (
             f"Expected 19 agent-domain tables, found {len(known_tables)}"

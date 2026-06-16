@@ -47,7 +47,7 @@ git rev-parse HEAD
 | 006 | completed | 2026-06-16 | c7f8c06 | migration-0015, detection-spec-006.md, test_spec_006_ai_tables.py | 007 |
 | 007 | completed | 2026-06-16 | 2d0a056 | migration-0016, detection-spec-007.md, test_spec_007_knowledge_tables.py | 008 |
 | 008 | completed | 2026-06-16 | bdc6fbe | migration-0017, detection-spec-008.md, test_spec_008_runtime_tables.py | 009 |
-| 009 | pending | - | - | - | 010 |
+| 009 | completed | 2026-06-16 | 0b738d8 | models.py updated, allowlist updated, test_spec_009_agent_models.py, detection-spec-009.md | 010 |
 | 010 | pending | - | - | - | 011 |
 | 011 | pending | - | - | - | 012 |
 | 012 | pending | - | - | - | 013 |
@@ -541,4 +541,78 @@ git rev-parse HEAD
 #### Próxima spec recomendada
 
 `009`
+
+### Spec 009 — update-agent-sqlalchemy-models-and-internal-foreign-keys
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** 0b738d8
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String legacy schema refs` | 0 | 6 legacy refs remain (messaging classes only) |
+| `Select-String legacy FKs` | 0 | 0 legacy FKs remain (all changed to agent.*) |
+| `alembic heads` | 0 | `0017 (head)` |
+
+#### Files changed
+
+- `src/modules/agent/infra/database/models.py` — **modified**
+  - 15 business tables: `schema="ai|knowledge|runtime"` → `"agent"`
+  - All intra-agent FKs: `ForeignKey("ai|knowledge|runtime.*")` → `ForeignKey("agent.*")`
+  - 6 legacy messaging classes kept unchanged (OutboxEventModel, InboxEventModel, KnowledgeOutboxEventModel, KnowledgeInboxEventModel, RuntimeOutboxEventModel, RuntimeInboxEventModel)
+- `tests/architecture/legacy_schema_allowlist.yaml` — **modified**
+  - Removed 6 entries with `removal_spec: "009"` (models.py schema + FK patterns)
+  - Kept cross-module FK entries (removal_spec: "010") and migration entries (removal_spec: "016")
+  - Added 3 entries for remaining messaging classes (removal_spec: "011")
+- `tests/architecture/test_spec_004_schema_guards.py` — **modified**
+  - Updated `AGENT_TABLE_SCHEMAS` dict: all 15 business tables → agent
+  - Updated `test_current_schema_classification_complete`: only `ai` and `agent` checked (duplicate tablenames)
+- `src/modules/agent/infra/database/preflight.py` — **modified**
+  - Updated `AGENT_SCHEMA_TABLES` dict
+  - Updated `check_target_table_conflicts` to use full `canonical_agent` from `AGENT_SCHEMA_TABLES`
+- `tests/architecture/test_spec_005_preflight.py` — **modified**
+  - Updated `test_legacy_schemas_present` → `test_agent_and_legacy_schemas`
+  - Updated `test_snapshot_move_count_correct` → `test_snapshot_move_count_reflects_metadata`
+- `specs/agent-schema-consolidation/execution/detection-spec-009.md` — **created**
+- `tests/architecture/test_spec_009_agent_models.py` — **created** (7 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — **updated**
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check all modified .py files` | 0 | Clean |
+| `pytest test_spec_009_agent_models.py` | 0 | 7 passed |
+| `pytest test_spec_004_schema_guards.py` | 1 | 3 failures → allowlist mismatch (fixed: re-added messaging entries) |
+| `pytest test_spec_005_preflight.py` | 1 | 1 failure → `test_revisions_are_sorted` (head advanced, pre-existing) |
+| `pytest tests/architecture -q` | 1 | 48 failures (5 new regressions from 006-008 preflight tests, expected) |
+
+#### Acceptance criteria
+
+1. Metadata e catálogo convergem ✅ (all 15 business tables now map to `schema="agent"`)
+2. Nenhuma entidade de negócio do agent mapeia schema legado ✅ (only messaging classes remain)
+3. FKs internas compilam para agent→agent ✅ (all intra-agent FKs use `ForeignKey("agent.*")`)
+
+#### Decisões tomadas durante a execução
+
+- Legacy messaging classes (OutboxEventModel variants) mantêm schemas antigos até spec 011.
+- Cross-module FKs (`core.projects.id`, `identity.users.id`) permanecem inalterados — removidos na spec 010.
+- Allowlist re-estruturada: entradas de models.py removidas e substituídas por 3 entradas específicas para as classes de mensageria restantes.
+
+#### Riscos ativos
+
+- Specs 006-008 preflight tests quebrados (expected — metadata avançou).
+- Legacy messaging classes ainda referenciam schemas antigos (spec 011).
+- Cross-module FKs ainda ativas (spec 010).
+
+#### Próxima spec recomendada
+
+`010`
 

@@ -30,7 +30,7 @@ class ProviderCredentialModel(BaseModel):
     __tablename__ = "provider_credentials"
     __table_args__ = (
         UniqueConstraint("project_id", "provider", "name"),
-        {"schema": "ai"},
+        {"schema": "agent"},
     )
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
@@ -44,14 +44,14 @@ class ProviderCredentialModel(BaseModel):
 
 class AgentModel(BaseModel):
     __tablename__ = "agents"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     provider_credential_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.provider_credentials.id")
+        ForeignKey("agent.provider_credentials.id")
     )
     fallback_credential_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.provider_credentials.id")
+        ForeignKey("agent.provider_credentials.id")
     )
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -80,10 +80,10 @@ class InboxEventModel(BaseInbox):
 
 class AgentPromptModel(BaseModel):
     __tablename__ = "agent_prompts"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(255), default="")
     content: Mapped[str] = mapped_column(Text, default="")
@@ -94,10 +94,10 @@ class AgentPromptModel(BaseModel):
 
 class AgentContractModel(BaseModel):
     __tablename__ = "agent_contracts"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(255), default="")
     input_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -111,14 +111,14 @@ class AgentContractModel(BaseModel):
 
 class AgentModelConfigModel(BaseModel):
     __tablename__ = "agent_model_configs"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     provider: Mapped[str] = mapped_column(String(64))
     provider_credential_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.provider_credentials.id")
+        ForeignKey("agent.provider_credentials.id")
     )
     model: Mapped[str] = mapped_column(String(255))
     base_url: Mapped[str | None] = mapped_column(String(512))
@@ -131,23 +131,23 @@ class AgentModelConfigModel(BaseModel):
 
 class AgentReleaseModel(BaseModel):
     __tablename__ = "agent_releases"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="draft")
     prompt_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.agent_prompts.id")
+        ForeignKey("agent.agent_prompts.id")
     )
     contract_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.agent_contracts.id")
+        ForeignKey("agent.agent_contracts.id")
     )
     knowledge_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("knowledge.knowledge_versions.id")
+        ForeignKey("agent.knowledge_versions.id")
     )
     model_config_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.agent_model_configs.id")
+        ForeignKey("agent.agent_model_configs.id")
     )
     # Snapshot fields — complete agent config inline
     name: Mapped[str | None] = mapped_column(String(255))
@@ -158,12 +158,12 @@ class AgentReleaseModel(BaseModel):
     provider: Mapped[str | None] = mapped_column(String(64))
     model: Mapped[str | None] = mapped_column(String(255))
     provider_credential_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.provider_credentials.id")
+        ForeignKey("agent.provider_credentials.id")
     )
     fallback_provider: Mapped[str | None] = mapped_column(String(64))
     fallback_model: Mapped[str | None] = mapped_column(String(255))
     fallback_credential_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.provider_credentials.id")
+        ForeignKey("agent.provider_credentials.id")
     )
     base_url: Mapped[str | None] = mapped_column(String(512))
     temperature: Mapped[float | None] = mapped_column(Float)
@@ -182,15 +182,15 @@ class AgentReleaseModel(BaseModel):
 
 class AgentReleaseTestModel(BaseModel):
     __tablename__ = "agent_release_tests"
-    __table_args__ = {"schema": "ai"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     release_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.agent_releases.id")
+        ForeignKey("agent.agent_releases.id")
     )
     contract_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ai.agent_contracts.id")
+        ForeignKey("agent.agent_contracts.id")
     )
     input_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     expected_output: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -202,7 +202,7 @@ class AgentReleaseTestModel(BaseModel):
 
 class DocumentCollectionModel(BaseModel):
     __tablename__ = "document_collections"
-    __table_args__ = {"schema": "knowledge"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     name: Mapped[str] = mapped_column(String(255))
@@ -214,22 +214,22 @@ class AgentCollectionModel(BaseModel):
     __tablename__ = "agent_collections"
     __table_args__ = (
         UniqueConstraint("agent_id", "collection_id"),
-        {"schema": "knowledge"},
+        {"schema": "agent"},
     )
 
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     collection_id: Mapped[UUID] = mapped_column(
-        ForeignKey("knowledge.document_collections.id")
+        ForeignKey("agent.document_collections.id")
     )
 
 
 class DocumentModel(BaseModel):
     __tablename__ = "documents"
-    __table_args__ = {"schema": "knowledge"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     collection_id: Mapped[UUID] = mapped_column(
-        ForeignKey("knowledge.document_collections.id")
+        ForeignKey("agent.document_collections.id")
     )
     title: Mapped[str] = mapped_column(String(255))
     file_name: Mapped[str] = mapped_column(String(255))
@@ -247,13 +247,13 @@ class DocumentModel(BaseModel):
 
 class DocumentChunkModel(BaseModel):
     __tablename__ = "document_chunks"
-    __table_args__ = {"schema": "knowledge"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     collection_id: Mapped[UUID] = mapped_column(
-        ForeignKey("knowledge.document_collections.id")
+        ForeignKey("agent.document_collections.id")
     )
-    document_id: Mapped[UUID] = mapped_column(ForeignKey("knowledge.documents.id"))
+    document_id: Mapped[UUID] = mapped_column(ForeignKey("agent.documents.id"))
     content: Mapped[str] = mapped_column(Text)
     chunk_index: Mapped[int]
     token_count: Mapped[int | None]
@@ -265,10 +265,10 @@ class DocumentChunkModel(BaseModel):
 
 class KnowledgeVersionModel(BaseModel):
     __tablename__ = "knowledge_versions"
-    __table_args__ = {"schema": "knowledge"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PG_UUID), default=list)
     document_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
@@ -290,11 +290,11 @@ class SessionModel(BaseModel):
     __tablename__ = "sessions"
     __table_args__ = (
         UniqueConstraint("project_id", "agent_id", "external_session_id"),
-        {"schema": "runtime"},
+        {"schema": "agent"},
     )
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(128))
@@ -306,11 +306,11 @@ class SessionModel(BaseModel):
 
 class MessageModel(BaseModel):
     __tablename__ = "messages"
-    __table_args__ = {"schema": "runtime"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
-    session_id: Mapped[UUID] = mapped_column(ForeignKey("runtime.sessions.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("agent.sessions.id"))
     role: Mapped[str] = mapped_column(String(32))
     content: Mapped[str] = mapped_column(Text)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
@@ -321,11 +321,11 @@ class MessageModel(BaseModel):
 
 class AskJobModel(BaseModel):
     __tablename__ = "ask_jobs"
-    __table_args__ = {"schema": "runtime"}
+    __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("ai.agents.id"))
-    session_id: Mapped[UUID | None] = mapped_column(ForeignKey("runtime.sessions.id"))
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    session_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent.sessions.id"))
     status: Mapped[str] = mapped_column(String(32), default="pending")
     params: Mapped[dict] = mapped_column(JSONB)
     result: Mapped[dict | None] = mapped_column(JSONB)
