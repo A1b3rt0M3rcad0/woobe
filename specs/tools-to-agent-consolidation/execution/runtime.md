@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter), database models (AgentToolModel, AgentToolSecretModel), controllers (10), schemas (11), routes (10), and full composers (10 with TransactionalHandler) integrated into agent module. Agent tools_router ready for cutover with identical HTTP paths. Legacy tools module presentation files remain as shims.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Spec 010 messaging, events, outbox/inbox, workers, and registry consolidated. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters, database models, controllers, schemas, routes, composers, event handlers, inbox router, worker registry, and entrypoint integrated into agent module. Agent tool event handlers registered for `agent.tool.*.v1` events. Legacy `tools.tool.*` event routing mapped to agent handlers for compatibility. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -28,7 +28,8 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 007 | completed |
 | 008 | completed |
 | 009 | completed |
-| 010 | pending |
+| 010 | completed |
+| 011 | pending |
 | 010 | pending |
 | 011 | pending |
 | 012 | pending |
@@ -616,6 +617,55 @@ Exit code: 0 — No errors
 - [x] bootstrap sem presentation tools após cutover (tools_router ready for cutover; legacy router still active in main.py)
 - [x] sem vazamento (no encrypted_value in routes, schemas exclude encrypted_value from SecretResponse)
 
+### Spec 010 — Consolidar eventos, Outbox, Inbox, workers e registry
+
+**Status:** completed
+**Tipo:** messaging
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/infra/messaging/inbox_handlers.py` (added tool event handlers + register_tool_handlers)
+- `src/modules/agent/infra/workers/registry.py` (updated register_agent_workers to call register_tool_handlers)
+- `src/modules/agent/entrypoint.py` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/tools/infra/messaging -Recurse -File -Filter *.py` | 0 | 5 messaging files in tools module |
+| `Get-ChildItem src/modules/tools/infra/workers -Recurse -File -Filter *.py` | 0 | 5 worker files in tools module |
+| `Get-ChildItem src/modules/agent/infra/messaging -Recurse -File -Filter *.py` | 0 | 5 messaging files in agent module |
+| `Get-ChildItem src/modules/agent/infra/workers -Recurse -File -Filter *.py` | 0 | 6 worker files in agent module (including entrypoint) |
+
+**Key changes:**
+
+| Component | Before | After |
+|---|---|---|
+| Tool event handlers | `tools.infra.messaging.inbox_handlers.ToolsInboxEventRouter` (empty stubs) | `agent.infra.messaging.inbox_handlers` with handlers for agent.tool.created.v1, agent.tool.updated.v1, agent.tool.status_changed.v1, agent.secret.created.v1 |
+| Legacy event mapping | None | `TOOLS_LEGACY_EVENT_MAP` maps tools.tool.* → agent.tool.*.v1 |
+| Worker registration | `register_agent_workers` created bare inbox router | `register_agent_workers` now calls `inbox_handler_router.register_tool_handlers()` |
+| Module entrypoint | None | `src/modules/agent/entrypoint.py` created, exports AgentWorkerRegistry and register_agent_workers |
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/infra/messaging/ src/modules/agent/infra/workers/ src/modules/agent/entrypoint.py
+```
+Exit code: 0 — All checks passed
+
+```bash
+pytest tests/integration/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 32 passed
+
+**Acceptance criteria:**
+- [x] workers no agent (register_agent_workers configures inbox router with tool event handlers)
+- [x] pendentes transformáveis (TOOLS_LEGACY_EVENT_MAP maps legacy tool events to agent handlers)
+- [x] consumidores preservados (agent's AgentInboxEventRouter handles both agent.tool.*.v1 and tools.tool.* events)
+
 ## Próxima spec recomendada
 
-`010-consolidate-events-outbox-inbox-workers-and-registry.md`
+`011-migrate-tools-business-tables-to-agent-schema.md`
