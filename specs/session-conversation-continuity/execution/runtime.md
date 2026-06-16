@@ -23,7 +23,7 @@
 | 008 | completed | (this commit) | sessionId sincronizado com query param ?session=uuid. URL preserva sessão no reload. 29 testes vitess existentes + build VERDES. | - |
 | 009 | completed | (this commit) | Badge efectivo adicionado. Stateless limpa sessão. Build + tests VERDES. | - |
 | 010 | completed | (this commit) | Conversão observability: eventos session_resolved, history_loaded, session_ignored_stateless emitidos via TraceRecorder. Contadores no frontend. 7 testes unitários VERDES. | - |
-| 011 | pending | - | - | - |
+| 011 | completed | (this commit) | Matriz completa de 10 cenários multi-turn. 22 testes unitários comportamentais VERDES. Unit 58 passed, contract 18 passed, integration 7 skipped. | - |
 | 012 | pending | - | - | - |
 | 013 | pending | - | - | - |
 
@@ -267,6 +267,31 @@ Evidências:
 - `npm run build` → **PASSED**
 - `npm run test:run` → 29 passed
 
+### Spec 011
+
+Matriz completa de 10 cenários de conversação multi-turn implementada.
+
+Arquivos alterados:
+- `tests/modules/agent/unit/application/test_conversation_multi_turn.py` (novo — 22 testes)
+
+Cenários cobertos (sync + stream):
+- stateful primeiro turno → sessão + 2 mensagens
+- stateful segundo turno → prompt contém turno anterior
+- assistant sem tools → histórico preservado
+- assistant com tools → tool metadata preservada
+- ID inexistente → erro explícito (SessionNotFoundError)
+- ID de outro agent/project → erro (SessionOwnershipMismatchError)
+- stateless → zero sessão/mensagem
+- sessão > limite → últimos N turnos
+- erro de mapper → erro explícito (ConversationHistoryLoadError)
+- turno atual → aparece uma vez no prompt
+
+Evidências:
+- `pytest tests/modules/agent/unit -q` → **58 passed**
+- `pytest tests/modules/agent/integration -q` → **7 skipped** (requer DB)
+- `pytest tests/contract -q` → **18 passed**
+- `pytest tests/architecture -q` → **42 failed** (pre-existing, fora do escopo)
+
 ### Spec 010
 
 Conversation observability events emitted via existing TraceRecorder port.
@@ -315,4 +340,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**011** — add-backend-unit-integration-and-contract-tests
+**012** — add-playground-session-continuity-tests
