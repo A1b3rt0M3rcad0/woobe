@@ -23,30 +23,6 @@ entries:
     reason: "Legacy messaging RuntimeOutboxEventModel/RuntimeInboxEventModel (spec 011)"
     removal_spec: "011"
 
-  # --- models.py from other modules referencing legacy agent schemas ---
-  - file_path: src/modules/metering/infra/database/models.py
-    line_pattern: 'ForeignKey("ai.'
-    schema: ai
-    reason: "Cross-module FK to legacy agent schema (pre-migration)"
-    removal_spec: "010"
-
-  - file_path: src/modules/observability/infra/database/models.py
-    line_pattern: 'ForeignKey("ai.'
-    schema: ai
-    reason: "Cross-module FK to legacy agent schema (pre-migration)"
-    removal_spec: "010"
-
-  - file_path: src/modules/observability/infra/database/models.py
-    line_pattern: 'ForeignKey("runtime.'
-    schema: runtime
-    reason: "Cross-module FK to legacy agent schema (pre-migration)"
-    removal_spec: "010"
-
-  - file_path: src/modules/tools/infra/database/models.py
-    line_pattern: 'ForeignKey("ai.'
-    schema: ai
-    reason: "Cross-module FK to legacy agent schema (pre-migration)"
-    removal_spec: "010"
 
   # --- historical migrations ---
   - file_path: migrations/versions/*

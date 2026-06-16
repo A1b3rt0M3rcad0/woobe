@@ -17,7 +17,7 @@ class UsageEventModel(BaseModel):
     __table_args__ = {"schema": "metering"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID | None] = mapped_column(ForeignKey("ai.agents.id"))
+    agent_id: Mapped[UUID | None]
     event_type: Mapped[str] = mapped_column(String(64))
     quantity: Mapped[float] = mapped_column(Float)
     unit: Mapped[str] = mapped_column(String(32))
@@ -48,9 +48,7 @@ class UsageDailyAgentModel(Base):
     __tablename__ = "usage_daily_agent"
     __table_args__ = {"schema": "metering"}
 
-    agent_id: Mapped[UUID] = mapped_column(
-        ForeignKey("ai.agents.id"), primary_key=True
-    )
+    agent_id: Mapped[UUID] = mapped_column(primary_key=True)
     day: Mapped[date] = mapped_column(primary_key=True)
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     requests: Mapped[int] = mapped_column(Integer, default=0)

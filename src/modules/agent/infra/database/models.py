@@ -33,7 +33,7 @@ class ProviderCredentialModel(BaseModel):
         {"schema": "agent"},
     )
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     provider: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
     encrypted_secret: Mapped[str] = mapped_column(Text)
@@ -46,7 +46,7 @@ class AgentModel(BaseModel):
     __tablename__ = "agents"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     provider_credential_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.provider_credentials.id")
     )
@@ -82,21 +82,21 @@ class AgentPromptModel(BaseModel):
     __tablename__ = "agent_prompts"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(255), default="")
     content: Mapped[str] = mapped_column(Text, default="")
     content_hash: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), default="draft")
-    created_by: Mapped[UUID | None] = mapped_column(ForeignKey("identity.users.id"))
+    created_by: Mapped[UUID | None]
 
 
 class AgentContractModel(BaseModel):
     __tablename__ = "agent_contracts"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(255), default="")
@@ -113,7 +113,7 @@ class AgentModelConfigModel(BaseModel):
     __tablename__ = "agent_model_configs"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     provider: Mapped[str] = mapped_column(String(64))
@@ -133,7 +133,7 @@ class AgentReleaseModel(BaseModel):
     __tablename__ = "agent_releases"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="draft")
@@ -175,8 +175,8 @@ class AgentReleaseModel(BaseModel):
     # Meta
     release_notes: Mapped[str | None] = mapped_column(Text)
     risk_score: Mapped[int | None] = mapped_column(Integer)
-    created_by: Mapped[UUID | None] = mapped_column(ForeignKey("identity.users.id"))
-    promoted_by: Mapped[UUID | None] = mapped_column(ForeignKey("identity.users.id"))
+    created_by: Mapped[UUID | None]
+    promoted_by: Mapped[UUID | None]
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -184,7 +184,7 @@ class AgentReleaseTestModel(BaseModel):
     __tablename__ = "agent_release_tests"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     release_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_releases.id")
@@ -204,7 +204,7 @@ class DocumentCollectionModel(BaseModel):
     __tablename__ = "document_collections"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -227,7 +227,7 @@ class DocumentModel(BaseModel):
     __tablename__ = "documents"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     collection_id: Mapped[UUID] = mapped_column(
         ForeignKey("agent.document_collections.id")
     )
@@ -249,7 +249,7 @@ class DocumentChunkModel(BaseModel):
     __tablename__ = "document_chunks"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     collection_id: Mapped[UUID] = mapped_column(
         ForeignKey("agent.document_collections.id")
     )
@@ -267,7 +267,7 @@ class KnowledgeVersionModel(BaseModel):
     __tablename__ = "knowledge_versions"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PG_UUID), default=list)
@@ -293,7 +293,7 @@ class SessionModel(BaseModel):
         {"schema": "agent"},
     )
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
@@ -308,7 +308,7 @@ class MessageModel(BaseModel):
     __tablename__ = "messages"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     session_id: Mapped[UUID] = mapped_column(ForeignKey("agent.sessions.id"))
     role: Mapped[str] = mapped_column(String(32))
@@ -323,7 +323,7 @@ class AskJobModel(BaseModel):
     __tablename__ = "ask_jobs"
     __table_args__ = {"schema": "agent"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     session_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent.sessions.id"))
     status: Mapped[str] = mapped_column(String(32), default="pending")

@@ -107,9 +107,6 @@ class TestLegacyForeignKeyReferences:
 
     MODELS_WITH_FK = [
         PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py",
-        PROJECT_ROOT / "src" / "modules" / "metering" / "infra" / "database" / "models.py",
-        PROJECT_ROOT / "src" / "modules" / "observability" / "infra" / "database" / "models.py",
-        PROJECT_ROOT / "src" / "modules" / "tools" / "infra" / "database" / "models.py",
     ]
 
     def test_no_unallowlisted_legacy_fk_in_models(self):

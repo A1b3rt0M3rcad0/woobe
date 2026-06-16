@@ -48,7 +48,7 @@ git rev-parse HEAD
 | 007 | completed | 2026-06-16 | 2d0a056 | migration-0016, detection-spec-007.md, test_spec_007_knowledge_tables.py | 008 |
 | 008 | completed | 2026-06-16 | bdc6fbe | migration-0017, detection-spec-008.md, test_spec_008_runtime_tables.py | 009 |
 | 009 | completed | 2026-06-16 | 0b738d8 | models.py updated, allowlist updated, test_spec_009_agent_models.py, detection-spec-009.md | 010 |
-| 010 | pending | - | - | - | 011 |
+| 010 | completed | 2026-06-16 | bb24f9d | migration-0018, models updated, allowlist updated, test_spec_010_cross_module_fk.py, detection-spec-010.md | 011 |
 | 011 | pending | - | - | - | 012 |
 | 012 | pending | - | - | - | 013 |
 | 013 | pending | - | - | - | 014 |
@@ -78,10 +78,11 @@ git rev-parse HEAD
 - dependências externas por FK, view, function ou raw SQL desconhecidas;
 - migrations históricas criam schemas legados;
 - `alembic current` indisponível: sem PostgreSQL neste ambiente.
+- cross-module FKs removidas em nível de modelo e migration, mas sem execução real no banco PostgreSQL.
 
 ## Próxima spec recomendada
 
-`006`
+`011`
 
 ## Histórico de execução
 
@@ -610,9 +611,87 @@ git rev-parse HEAD
 
 - Specs 006-008 preflight tests quebrados (expected — metadata avançou).
 - Legacy messaging classes ainda referenciam schemas antigos (spec 011).
-- Cross-module FKs ainda ativas (spec 010).
 
 #### Próxima spec recomendada
 
 `010`
+
+### Spec 010 — remove-cross-module-foreign-keys-and-add-logical-id-indexes
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** bb24f9df666db221ced5f093a2442af91fb4fcb7
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| Select-String `ForeignKey("core.` in agent models | 0 | 14 references found (all removed) |
+| Select-String `ForeignKey("identity.` in agent models | 0 | 3 references found (all removed) |
+| Select-String `ForeignKey("(ai|knowledge|runtime).` in external modules | 0 | 5 references found in metering (2), observability (2), tools (1) — all removed |
+| `alembic heads` | 0 | `0017 (head)` (pre-migration) |
+
+#### Files changed
+
+- `migrations/versions/0018_remove_cross_module_foreign_keys.py` — **created**
+  - Upgrade: 22× `op.drop_constraint(..., type_="foreignkey")`
+  - Downgrade: 22× `op.create_foreign_key(...)`
+  - Covers agent→core (14), agent→identity (3), external→legacy (5)
+- `src/modules/agent/infra/database/models.py` — **modified**
+  - Removed `ForeignKey("core.projects.id")` from all 14 project_id columns
+  - Removed `ForeignKey("identity.users.id")` from agent_prompts.created_by, agent_releases.created_by, agent_releases.promoted_by
+- `src/modules/metering/infra/database/models.py` — **modified**
+  - Removed `ForeignKey("ai.agents.id")` from UsageEventModel and UsageDailyAgentModel
+- `src/modules/observability/infra/database/models.py` — **modified**
+  - Removed `ForeignKey("ai.agents.id")` and `ForeignKey("runtime.sessions.id")` from TraceModel
+- `src/modules/tools/infra/database/models.py` — **modified**
+  - Removed `ForeignKey("ai.agents.id")` from ToolModel
+- `tests/architecture/legacy_schema_allowlist.yaml` — **modified**
+  - Removed 4 entries with `removal_spec: "010"` (metering, observability, tools FK patterns)
+- `tests/architecture/test_spec_004_schema_guards.py` — **modified**
+  - `MODELS_WITH_FK` narrowed to agent models.py only
+- `tests/architecture/test_spec_010_cross_module_fk.py` — **created** (8 tests)
+- `specs/agent-schema-consolidation/execution/detection-spec-010.md` — **created**
+- `specs/agent-schema-consolidation/execution/runtime.md` — **updated**
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check modified files` | 0 | Clean |
+| `pytest test_spec_010_cross_module_fk.py` | 0 | 8 passed |
+| `pytest test_spec_004_schema_guards.py` | 0 | 7 passed (regression clean) |
+| `pytest tests/architecture -q` | 1 | 48 failures (pre-existing: final validation, preflight head, spec 006-008 moved tables). 709 passed (incl. all 8 new tests). |
+| `alembic heads` | 0 | `0018 (head)` — migration chain linear |
+
+#### Acceptance criteria
+
+1. Zero `ForeignKey("core.")` or `ForeignKey("identity.")` in agent models ✅ (validated by test)
+2. Zero `ForeignKey("ai|knowledge|runtime.")` in external modules ✅ (validated by test)
+3. Removals documented in migration 0018 with downgrade path ✅ (22× drop/create)
+4. Allowlist cleaned of removal_spec:010 entries ✅ (validated by test)
+
+#### Decisões tomadas durante a execução
+
+- Migration 0018 uses helper functions `_drop_fk`/`_create_fk` for concise, maintainable code.
+- FK constraint names follow PostgreSQL auto-naming convention `<table>_<column>_fkey`.
+- External modules (metering, observability, tools) still have FKs to `core.projects.id` — these are outside agent-schema-consolidation scope.
+- `alembic current` indisponível sem PostgreSQL — pendência consistente com specs anteriores.
+
+#### Riscos ativos
+
+- Migration 0018 não executada (sem PostgreSQL).
+- Spec 005 test `test_revisions_are_sorted` falha (head now 0018).
+- Specs 006-008 preflight tests mantêm asserções contra schemas legados (metadata já aponta agent).
+- Legacy messaging classes em schemas `ai`, `knowledge`, `runtime` permanecem (spec 011).
+- Cross-module FKs de metering/observability/tools para `core.projects.id` permanecem (fora do escopo).
+
+#### Próxima spec recomendada
+
+`011`
 
