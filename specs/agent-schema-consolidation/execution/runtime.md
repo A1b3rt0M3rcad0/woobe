@@ -43,7 +43,7 @@ git rev-parse HEAD
 | 002 | completed | 2026-06-16 | 18b503e | detection-spec-002.md, table-map.md, test_spec_002_table_map.py | 003 |
 | 003 | completed | 2026-06-16 | 45d5eee | detection-spec-003.md, migration-runbook.md, test_spec_003_migration_runbook.py | 004 |
 | 004 | completed | 2026-06-16 | eced77e | detection-spec-004.md, legacy_schema_allowlist.yaml, test_spec_004_schema_guards.py | 005 |
-| 005 | pending | - | - | - | 006 |
+| 005 | completed | 2026-06-16 | ec24714 | detection-spec-005.md, preflight.py, test_spec_005_preflight.py | 006 |
 | 006 | pending | - | - | - | 007 |
 | 007 | pending | - | - | - | 008 |
 | 008 | pending | - | - | - | 009 |
@@ -81,7 +81,7 @@ git rev-parse HEAD
 
 ## Próxima spec recomendada
 
-`001`
+`006`
 
 ## Histórico de execução
 
@@ -303,6 +303,69 @@ git rev-parse HEAD
 #### Próxima spec recomendada
 
 `005`
+
+### Spec 005 — prepare-agent-schema-and-migration-preflight
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** ec2471487512c3e5cd268da37c955bde429a650f
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String schema references` | 0 | 19 schema references (ai: 9, knowledge: 6, runtime: 4, agent: 2) |
+| `Select-String FK references` | 0 | 36 FKs in agent models, 6 cross-module FKs |
+| `alembic heads` | 0 | `0014 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+
+#### Files changed
+
+- `src/modules/agent/infra/database/preflight.py` — created
+  - `collect_current_schema_assignments()` — AST-driven extractor of `{tablename: schema}`
+  - `get_migration_revisions()` — reads revision IDs from migration files
+  - `detect_pending_migrations()` — finds orphan revisions (gaps in chain)
+  - `check_target_table_conflicts()` — detects unexpected tables in agent schema
+  - `capture_preflight_snapshot()` — deterministic pre-move snapshot for specs 006–008
+- `specs/agent-schema-consolidation/execution/detection-spec-005.md` — created
+- `tests/architecture/test_spec_005_preflight.py` — created (13 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | 0 | Clean |
+| `pytest test_spec_005_preflight.py` | 0 | 13 passed |
+| `pytest tests/architecture -q` | 1 | 42 pre-existing failures (unrelated); 670 passed including all 13 new tests |
+
+#### Acceptance criteria
+
+1. Preflight pode rodar repetidamente sem alterar dados ✅ (test `test_preflight_idempotent` — same snapshot on repeated calls)
+2. Estados parciais são detectados com mensagem objetiva ✅ (test `test_preflight_detects_contradictions` patterns, `check_target_table_conflicts` returns clear list)
+3. Snapshot de validação pré-move fica persistido para specs 006–008 ✅ (detection-spec-005.md contains full snapshot; `capture_preflight_snapshot()` callable by later specs)
+
+#### Decisões tomadas durante a execução
+
+- Preflight helpers usam AST puro (não regex) para extrair schema das classes — mais robusto contra reformatação.
+- Sem migration nova: `CREATE SCHEMA IF NOT EXISTS agent` já está na migration 0013 (head).
+- `alembic current` indisponível sem PostgreSQL — registrado como pendência consistente com specs anteriores.
+- Row counts e checksums de dados não disponíveis sem banco real — snapshot é puramente estrutural.
+
+#### Riscos ativos
+
+- `alembic current` indisponível sem PostgreSQL.
+- Drift entre metadata SQLAlchemy e catálogo real não verificado.
+- Preflight snapshot baseado apenas em análise estática; catálogo real pode divergir.
+
+#### Próxima spec recomendada
+
+`006`
 
 ### Spec 004 — add-temporary-schema-and-foreign-key-architecture-guards
 
