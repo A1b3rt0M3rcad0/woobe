@@ -54,7 +54,7 @@ git rev-parse HEAD
 | 013 | completed | 2026-06-16 | 63e1c41 | detection-spec-013.md, test_spec_013_migration_contract.py | 014 |
 | 014 | completed | 2026-06-16 | (current) | detection-spec-014.md, test_spec_014_data_integrity.py, PostgreSQL provisioned, migrations 0015-0019 applied | 015 |
 | 015 | completed | 2026-06-16 | (current) | detection-spec-015.md, test_spec_015_cutover.py, cutover verified | 016 |
-| 016 | pending | - | - | - | 017 |
+| 016 | completed | 2026-06-16 | (current) | detection-spec-016.md, test_spec_016_drop_legacy.py, migration-0020, legacy schemas removed | 017 |
 | 017 | pending | - | - | - | - |
 
 ## Inventários obrigatórios
@@ -1045,3 +1045,76 @@ Data migration pré-0019: 92 eventos (13 ai + 79 runtime) migrados do legacy par
 
 `016`
 
+### Spec 016 — drop-legacy-views-tables-and-schemas
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** (current — see commit)
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `alembic heads` | 0 | `0020 (head)` (pre-migration: 0019) |
+| `alembic current` (via psql) | 0 | `version_num = 0020` ✅ |
+
+#### Migration 0020 — drop legacy schemas
+
+Applied via psql (15 DROP VIEW + 3 DROP SCHEMA, no CASCADE).
+
+| Operation | Count |
+|---|---|
+| DROP VIEW ai.* | 7 |
+| DROP VIEW knowledge.* | 5 |
+| DROP VIEW runtime.* | 3 |
+| DROP SCHEMA (ai, knowledge, runtime) | 3 |
+
+#### Database verification (via psql)
+
+| Check | Result |
+|---|---|
+| Legacy schemas in pg_namespace | Zero rows ✅ |
+| Agent tables preserved | 17 ✅ |
+| Alembic version | 0020 ✅ |
+
+#### Files changed
+
+- `migrations/versions/0020_drop_legacy_schemas.py` — **created**
+- `tests/architecture/test_spec_016_drop_legacy.py` — **created** (14 tests)
+- `specs/agent-schema-consolidation/execution/detection-spec-016.md` — **created**
+- `specs/agent-schema-consolidation/execution/runtime.md` — **updated**
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | 0 | Clean |
+| `pytest test_spec_016_drop_legacy.py` | 0 | 14 passed |
+| `alembic heads` | 0 | 0020 (head) |
+
+#### Acceptance criteria
+
+1. pg_namespace não contém ai/knowledge/runtime ✅ (verified via psql)
+2. Drop sem CASCADE conclui com sucesso ✅
+3. Todos os dados operacionais permanecem em agent ✅ (17 tables intact)
+
+#### Decisiones tomadas durante a execução
+
+- Migration 0020 é a última migration da cadeia de consolidação de schemas.
+- `DROP SCHEMA` sem CASCADE — sucesso porque não restavam objetos além das 15 views compat já dropadas.
+- Após esta spec, rollback exige restore ou migration compensatória.
+- `alembic current` CLI indisponível — DB state verificado via psql.
+
+#### Riscos ativos
+
+- Rollback após spec 016 é destrutivo — não há views/tabelas legadas para reconnect.
+- Downgrade de migration 0020 recria schemas e views vazios — dados permanecem em agent.*.
+
+#### Próxima spec recomendada
+
+`017`
