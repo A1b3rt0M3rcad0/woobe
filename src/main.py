@@ -133,9 +133,13 @@ def create_app() -> FastAPI:
             runner = WorkerRunner.from_registries(registries)
             app.state.worker_runner = runner
             logger.info("Worker runner initialized with %d registries", len(registries))
+            await runner.start()
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
+        runner = getattr(app.state, "worker_runner", None)
+        if runner is not None:
+            await runner.stop()
         await app.state.async_engine.dispose()
         rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
         if rabbitmq_manager is not None:
@@ -143,7 +147,19 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        runner = getattr(app.state, "worker_runner", None)
+        result = {"status": "ok"}
+        if runner is not None:
+            result["workers"] = [
+                {
+                    "name": h.worker_name,
+                    "type": h.worker_type,
+                    "is_running": h.is_running,
+                    "error": h.error,
+                }
+                for h in runner.get_health()
+            ]
+        return result
 
     return app
 

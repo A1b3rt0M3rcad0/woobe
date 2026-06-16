@@ -1,4 +1,3 @@
-
 import aio_pika
 from aio_pika import ExchangeType, Message, RobustChannel, RobustConnection
 
@@ -11,6 +10,8 @@ class RabbitMQManager:
         self._connection: RobustConnection | None = None
         self._channel: RobustChannel | None = None
         self._exchange: aio_pika.Exchange | None = None
+        self._dlx_exchange: aio_pika.Exchange | None = None
+        self._consuming_queues: set[str] = set()
 
     @property
     def channel(self) -> RobustChannel:
@@ -32,6 +33,34 @@ class RabbitMQManager:
             type=ExchangeType.TOPIC,
             durable=True,
         )
+        self._dlx_exchange = await self._channel.declare_exchange(
+            name=f"{self._exchange_name}.dlx",
+            type=ExchangeType.FANOUT,
+            durable=True,
+        )
+
+    async def declare_topology(
+        self,
+        queue_name: str,
+        routing_keys: list[str],
+        dlx_queue_name: str | None = None,
+    ) -> None:
+        dlx = dlx_queue_name or f"{queue_name}.dlq"
+        await self._channel.declare_queue(
+            name=dlx,
+            durable=True,
+        )
+        await self._channel.declare_queue(
+            name=queue_name,
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": f"{self._exchange_name}.dlx",
+                "x-dead-letter-routing-key": dlx,
+            },
+        )
+        for key in routing_keys:
+            queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
+            await queue_obj.bind(exchange=self._exchange_name, routing_key=key)
 
     async def publish(self, routing_key: str, payload: str, correlation_id: str | None = None) -> None:
         message = Message(
@@ -48,20 +77,22 @@ class RabbitMQManager:
         routing_keys: list[str],
         callback,
     ) -> None:
-        queue = await self._channel.declare_queue(
-            name=queue_name,
-            durable=True,
-        )
-        for key in routing_keys:
-            await queue.bind(exchange=self._exchange_name, routing_key=key)
-        await queue.consume(callback=callback)
+        if queue_name in self._consuming_queues:
+            return
+        self._consuming_queues.add(queue_name)
+
+        await self.declare_topology(queue_name=queue_name, routing_keys=routing_keys)
+        queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
+        await queue_obj.consume(callback=callback)
 
     async def close(self) -> None:
+        self._consuming_queues.clear()
         if self._connection is not None:
             await self._connection.close()
             self._connection = None
             self._channel = None
             self._exchange = None
+            self._dlx_exchange = None
 
     async def __aenter__(self) -> "RabbitMQManager":
         await self.connect()

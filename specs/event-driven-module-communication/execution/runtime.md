@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes.
+Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes. WorkerRunner com lifecycle start/stop, classificação long-lived vs poller, health checks, DLX, e guarda de consumer duplicado.
 
 ## Status
 
@@ -23,7 +23,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 003 | completed |
 | 004 | completed |
 | 005 | completed |
-| 006 | pending |
+| 006 | completed |
 | 007 | pending |
 | 008 | pending |
 | 009 | pending |
@@ -277,6 +277,48 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - Migration não testada em banco real — validar em staging antes de produção
 - Agent continua com modelos próprios (não herdados do shared base) — possível inconsistência futura se shared base evoluir separadamente
 
+### 006 — Lifecycle de workers e topologia RabbitMQ
+
+**Status:** completed
+**Tipo:** infrastructure
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `sed -n '107,145p' src/main.py` | 0 |
+| `sed -n '1,180p' src/shared/workers/runner.py` | 0 |
+| `sed -n '1,120p' src/shared/infra/rabbitmq.py` | 0 |
+
+**Files changed:**
+- `src/shared/workers/runner.py` — start/stop lifecycle, classificação long-lived vs poller, tasks supervisionadas, health tracking, run_once preservado
+- `src/shared/infra/rabbitmq.py` — DLX exchange, declare_topology, consume com guarda de duplicação via _consuming_queues set
+- `src/main.py` — startup chama runner.start(), shutdown chama runner.stop(), health inclui workers
+- `tests/integration/workers/test_worker_lifecycle.py` — 24 testes de startup/shutdown, classificação, isolamento de falha, health, consumer duplicado, RabbitMQ indisponível
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- WorkerRunner agora gerencia tasks asyncio supervisionadas
+- Long-lived workers (BaseInboxConsumer) rodam como task persistente
+- Pollers (BaseOutboxDispatcher, BaseInboxProcessor) rodam em loop com intervalo
+- RabbitMQManager declara DLX exchange e bindings idempotentemente
+- consume() ignora filas já em consumo (singleton por queue)
+- Health checks expostos via /health endpoint
+- Nenhum contrato de evento, handler, Outbox/Inbox ou ownership alterado
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/shared/workers src/shared/infra/rabbitmq.py src/main.py` | 0 |
+| `pytest tests/integration/workers -q` | 0 (24 passed) |
+
+**Riscos:**
+- DLX exchange declarado mas sem política de retry/DLQ completa — spec 015 cobre retries e DLQ
+- RabbitMQManager.consume() não é reentrante após close — necessário reconnect explícito em spec futura
+
 ## Próxima spec
 
-`006-fix-worker-lifecycle-and-rabbitmq-topology.md`
+`007-fix-agent-outbox-and-event-catalog.md`

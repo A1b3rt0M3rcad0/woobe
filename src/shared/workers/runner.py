@@ -2,18 +2,33 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import signal
-import sys
-from typing import Never
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
+from shared.workers.inbox_consumer_base import BaseInboxConsumer
 
 logger = logging.getLogger(__name__)
+
+_POLL_INTERVAL: float = 1.0
+
+
+@dataclass
+class WorkerHealth:
+    worker_name: str
+    worker_type: str
+    is_running: bool
+    started_at: datetime | None = None
+    last_run_at: datetime | None = None
+    error: str | None = None
 
 
 class WorkerRunner:
     def __init__(self, workers: list[WorkerProtocol]) -> None:
         self._workers = workers
+        self._tasks: list[asyncio.Task[None]] = []
+        self._health: dict[str, WorkerHealth] = {}
+        self._stop_event = asyncio.Event()
 
     @classmethod
     def from_registries(cls, registries: list[WorkerRegistryProtocol]) -> WorkerRunner:
@@ -22,32 +37,85 @@ class WorkerRunner:
             workers.extend(registry.iter_workers())
         return cls(workers=workers)
 
+    def _health_key(self, worker: WorkerProtocol) -> str:
+        return type(worker).__name__
+
+    def _classify(self, worker: WorkerProtocol) -> str:
+        if isinstance(worker, BaseInboxConsumer):
+            return "long-lived"
+        return "poller"
+
+    async def start(self) -> None:
+        started_at = datetime.now(timezone.utc)
+        for worker in self._workers:
+            key = self._health_key(worker)
+            wtype = self._classify(worker)
+            self._health[key] = WorkerHealth(
+                worker_name=key,
+                worker_type=wtype,
+                is_running=True,
+                started_at=started_at,
+            )
+            if wtype == "long-lived":
+                task = asyncio.create_task(
+                    self._run_long_lived(worker, key),
+                    name=key,
+                )
+            else:
+                task = asyncio.create_task(
+                    self._run_poller(worker, key),
+                    name=key,
+                )
+            self._tasks.append(task)
+            logger.info("Worker %s (%s) started", key, wtype)
+
+    async def _run_long_lived(self, worker: WorkerProtocol, key: str) -> None:
+        try:
+            await worker.run()
+        except asyncio.CancelledError:
+            logger.info("Worker %s cancelled", key)
+            self._health[key].is_running = False
+        except Exception as exc:
+            logger.exception("Worker %s failed: %s", key, exc)
+            self._health[key].is_running = False
+            self._health[key].error = str(exc)
+
+    async def _run_poller(self, worker: WorkerProtocol, key: str) -> None:
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    await worker.run()
+                    self._health[key].last_run_at = datetime.now(timezone.utc)
+                except Exception as exc:
+                    logger.exception("Worker %s poll failed: %s", key, exc)
+                    self._health[key].error = str(exc)
+                try:
+                    await asyncio.wait_for(
+                        self._stop_event.wait(), timeout=_POLL_INTERVAL
+                    )
+                except asyncio.TimeoutError:
+                    pass
+        except asyncio.CancelledError:
+            logger.info("Worker %s cancelled", key)
+            self._health[key].is_running = False
+
+    async def stop(self) -> None:
+        self._stop_event.set()
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        for health in self._health.values():
+            health.is_running = False
+
+    def get_health(self) -> list[WorkerHealth]:
+        return list(self._health.values())
+
     async def run_once(self) -> None:
         for worker in self._workers:
             try:
                 await worker.run()
             except Exception as exc:
                 logger.exception("Worker %s failed: %s", type(worker).__name__, exc)
-
-    async def run_loop(self, interval: float = 1.0) -> Never:
-        stop = asyncio.Event()
-
-        def _signal_handler() -> None:
-            stop.set()
-
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                loop.add_signal_handler(sig, _signal_handler)
-            except NotImplementedError:
-                pass
-
-        try:
-            while not stop.is_set():
-                await self.run_once()
-                try:
-                    await asyncio.wait_for(stop.wait(), timeout=interval)
-                except asyncio.TimeoutError:
-                    pass
-        finally:
-            sys.exit(0)
