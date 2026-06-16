@@ -151,56 +151,15 @@ class TestDependencyInjectionBindingsRejectsForbidden:
 class TestDependencyInjectionBindingsKeepsLegacyCompatibility:
     """Verify legacy cross-module DI is covered by allowlist."""
 
-    def test_legacy_ask_agent_composer_violations_allowlisted(self):
+    def test_legacy_cross_module_imports_resolved(self):
         composer = pathlib.Path(
             "src/modules/agent/application/composers/ask_agent_composer.py"
         )
-        assert composer.is_file(), (
-            "ask_agent_composer.py should exist as legacy debt"
-        )
+        assert composer.is_file()
         violations = _find_forbidden_imports_in_file(composer)
-        assert len(violations) > 0, (
-            "ask_agent_composer should have cross-module imports (pre-existing debt)"
+        assert len(violations) == 0, (
+            f"ask_agent_composer.py should have no cross-module imports: {violations}"
         )
-        assert _is_violation_allowlisted(composer), (
-            "ask_agent_composer.py must be in import allowlist"
-        )
-
-    def test_legacy_ask_job_worker_violations_allowlisted(self):
-        worker = pathlib.Path(
-            "src/modules/agent/infra/workers/ask_job_worker.py"
-        )
-        if not worker.is_file():
-            return
-        violations = _find_forbidden_imports_in_file(worker)
-        if violations:
-            assert _is_violation_allowlisted(worker), (
-                "ask_job_worker.py must be in import allowlist"
-            )
-
-    def test_legacy_ask_agent_stream_service_violations_allowlisted(self):
-        service = pathlib.Path(
-            "src/modules/agent/application/use_cases/ask_agent_stream_service.py"
-        )
-        if not service.is_file():
-            return
-        violations = _find_forbidden_imports_in_file(service)
-        if violations:
-            assert _is_violation_allowlisted(service), (
-                "ask_agent_stream_service.py must be in import allowlist"
-            )
-
-    def test_legacy_ask_use_case_violations_allowlisted(self):
-        use_case = pathlib.Path(
-            "src/modules/agent/application/use_cases/ask_use_case.py"
-        )
-        if not use_case.is_file():
-            return
-        violations = _find_forbidden_imports_in_file(use_case)
-        if violations:
-            assert _is_violation_allowlisted(use_case), (
-                "ask_use_case.py must be in import allowlist"
-            )
 
     def test_allowlist_has_no_unknown_files(self):
         allowlist = _load_allowlist()

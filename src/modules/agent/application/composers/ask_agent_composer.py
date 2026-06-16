@@ -12,8 +12,8 @@ from modules.agent.infra.database.repositories import (
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
 from modules.agent.infra.adapters.observability_trace_recorder import ObservabilityTraceRecorder
-from modules.agent.infra.adapters.tools_tool_executor import ToolsToolExecutor
-from modules.agent.infra.adapters.tools_tool_repository import ToolsToolRepository
+from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
+from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 from modules.agent.presentation.controllers.ask_agent_controller import (
     AskAgentController,
 )
@@ -34,12 +34,12 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
     message_repo = uow.messages
     agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
     chunk_repo = uow.document_chunks
-    tool_repo = ToolsToolRepository(uow)
+    tool_repo = SQLAlchemyAgentToolRepository(uow)
 
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     trace_recorder = ObservabilityTraceRecorder(uow)
     usage_recorder = MeteringUsageRecorder(uow)
-    tool_executor = ToolsToolExecutor(tool_repo)
+    tool_executor = AgentToolExecutor(tool_repo)
     llm_factory = LangchainLLMFactory()
 
     use_case = AskAgentUseCase(

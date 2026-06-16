@@ -15,7 +15,7 @@ from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.observability.presentation.routes import router as observability_router
-from modules.tools.presentation.routes import router as tools_router
+from modules.agent.presentation.routes import tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.rabbitmq import RabbitMQManager

@@ -48,6 +48,7 @@ def register_agent_workers(
     registry.register(inbox_consumer)
 
     inbox_handler_router = AgentInboxEventRouter()
+    inbox_handler_router.register_tool_handlers()
     inbox_processor = AgentInboxProcessorWorker(
         async_engine=engine,
         handler=inbox_handler_router,

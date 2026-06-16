@@ -24,6 +24,8 @@ AGENT_SCHEMA_TABLES: dict[str, str] = {
     "sessions": "agent",
     "messages": "agent",
     "ask_jobs": "agent",
+    "tools": "agent",
+    "tool_secrets": "agent",
     "agent_outbox_events": "agent",
     "agent_inbox_events": "agent",
 }
