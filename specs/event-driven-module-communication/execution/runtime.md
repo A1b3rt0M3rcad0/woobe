@@ -31,7 +31,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 011 | completed |
 | 012 | completed |
 | 013 | completed |
-| 014 | pending |
+| 014 | completed |
 | 015 | pending |
 | 016 | pending |
 | 017 | pending |
@@ -609,6 +609,33 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - handle_trace_started cria Trace real no banco via SQLAlchemyTraceRepository
 - Demais handlers são logs (implementação real em spec 014)
 
+### 014 — Projeção idempotente de observability
+
+**Status:** completed
+**Tipo:** observability
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `src/modules/observability/infra/messaging/inbox_handlers.py` — handlers with idempotent trace projection: _get_or_create_trace for placeholder support, handle_trace_started creates Trace, handle_llm_call creates TraceEvent+updates trace, handle_tool_call creates TraceEvent, handle_trace_fallback flags trace, handle_trace_completed/failed finalize trace
+- `tests/integration/observability/test_spec014_observability_projection.py` — 21 tests: handler contract, missing trace_id, session passthrough, router dispatch, edge cases
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- Observability handlers implement full idempotent projection: trace_id preserved from payload, _get_or_create_trace supports out-of-order events via placeholder, TraceEvent records for LLM/tool calls, state machine running→completed/failed
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/observability tests/integration/observability` | 0 |
+| `pytest tests/integration/observability/ -q` | 0 (32 passed) |
+
+**Decisões:**
+- _get_or_create_trace cria placeholder Trace(id=trace_id, status=pending) quando trace_id não existe — suporta out-of-order
+- handle_trace_started usa TraceStatus.running (enums define running não started)
+- handle_llm_call usa TraceEventType.llm_call (enums define llm_call não llm_request)
+- handle_trace_completed/failed finalizam trace com ended_at e status, mesmo que started nunca chegue
+- Redaction/payload_ref não implementada nesta spec (será coberta em spec futura se necessário)
+
 ## Próxima spec
 
-`014-implement-observability-idempotent-projection.md`
+`015-register-workers-retries-dlq-and-replay.md`

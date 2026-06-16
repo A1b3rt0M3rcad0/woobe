@@ -1,16 +1,61 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.observability.domain.entities import Trace
-from modules.observability.infra.database.repositories import SQLAlchemyTraceRepository
+from modules.observability.domain.entities import Trace, TraceEvent
+from modules.observability.domain.enums import TraceEventType, TraceStatus
+from modules.observability.infra.database.repositories import (
+    SQLAlchemyTraceEventRepository,
+    SQLAlchemyTraceRepository,
+)
 
 logger = logging.getLogger(__name__)
 
 EventHandler = Callable[..., Coroutine[Any, Any, None]]
+
+
+def _get_trace_id(payload: dict) -> UUID | None:
+    raw = payload.get("trace_id") or payload.get("execution_id")
+    if raw:
+        return UUID(raw) if isinstance(raw, str) else raw
+    return None
+
+
+def _get_project_id(payload: dict) -> UUID | None:
+    raw = payload.get("project_id")
+    if raw:
+        return UUID(raw) if isinstance(raw, str) else raw
+    return None
+
+
+def _get_agent_id(payload: dict) -> UUID | None:
+    raw = payload.get("agent_id")
+    if raw:
+        return UUID(raw) if isinstance(raw, str) else raw
+    return None
+
+
+async def _get_or_create_trace(
+    trace_repo: SQLAlchemyTraceRepository,
+    trace_id: UUID,
+    project_id: UUID | None,
+    agent_id: UUID | None,
+) -> Trace:
+    trace = await trace_repo.get_by_id(trace_id)
+    if trace is None:
+        trace = Trace(
+            id=trace_id,
+            project_id=project_id or UUID(int=0),
+            agent_id=agent_id,
+            status=TraceStatus.pending,
+            data={},
+        )
+    return trace
 
 
 async def handle_trace_started(
@@ -20,18 +65,26 @@ async def handle_trace_started(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping trace_started handler")
         return
     trace_repo = SQLAlchemyTraceRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        logger.warning("trace_started without trace_id")
+        return
+
     trace = Trace(
-        project_id=payload.get("project_id"),
-        agent_id=payload.get("agent_id"),
+        id=trace_id,
+        project_id=_get_project_id(payload) or UUID(int=0),
+        agent_id=_get_agent_id(payload),
         session_id=payload.get("session_id"),
-        status="started",
-        data=payload,
+        status=TraceStatus.running,
+        started_at=datetime.now(timezone.utc),
+        provider=payload.get("provider"),
+        model=payload.get("model"),
+        data={"event_type": event_type},
     )
     await trace_repo.save(trace)
-    logger.info("Trace started: %s", trace.id)
+    logger.info("Trace started: %s", trace_id)
 
 
 async def handle_llm_call(
@@ -41,9 +94,37 @@ async def handle_llm_call(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping llm_call handler")
         return
-    logger.info("LLM call recorded for execution_id=%s", payload.get("execution_id"))
+    trace_repo = SQLAlchemyTraceRepository(session)
+    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        return
+
+    project_id = _get_project_id(payload) or UUID(int=0)
+    trace = await _get_or_create_trace(trace_repo, trace_id, project_id, _get_agent_id(payload))
+    trace.provider = payload.get("provider") or trace.provider
+    trace.model = payload.get("model") or trace.model
+    trace.data = trace.data or {}
+    trace.data["input_tokens"] = payload.get("input_tokens")
+    trace.data["output_tokens"] = payload.get("output_tokens")
+    trace.total_cost_usd = (trace.total_cost_usd or 0) + float(payload.get("cost_usd", 0))
+    await trace_repo.save(trace)
+
+    event = TraceEvent(
+        trace_id=trace_id,
+        project_id=project_id,
+        event_type=TraceEventType.llm_call,
+        latency_ms=payload.get("latency_ms"),
+        cost_usd=payload.get("cost_usd"),
+        payload={
+            "input_tokens": payload.get("input_tokens"),
+            "output_tokens": payload.get("output_tokens"),
+            "model": payload.get("model"),
+        },
+    )
+    await event_repo.save(event)
+    logger.info("LLM call recorded for trace=%s", trace_id)
 
 
 async def handle_tool_call(
@@ -53,9 +134,32 @@ async def handle_tool_call(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping tool_call handler")
         return
-    logger.info("Tool call recorded for execution_id=%s, tool=%s", payload.get("execution_id"), payload.get("tool_name"))
+    trace_repo = SQLAlchemyTraceRepository(session)
+    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        return
+
+    project_id = _get_project_id(payload) or UUID(int=0)
+    trace = await _get_or_create_trace(trace_repo, trace_id, project_id, _get_agent_id(payload))
+    trace.data = trace.data or {}
+    trace.data["tool_calls"] = (trace.data.get("tool_calls", 0)) + 1
+    await trace_repo.save(trace)
+
+    event = TraceEvent(
+        trace_id=trace_id,
+        project_id=project_id,
+        event_type=TraceEventType.tool_call,
+        latency_ms=payload.get("latency_ms"),
+        cost_usd=payload.get("cost_usd"),
+        payload={
+            "tool_id": payload.get("tool_id"),
+            "tool_name": payload.get("tool_name"),
+        },
+    )
+    await event_repo.save(event)
+    logger.info("Tool call recorded for trace=%s, tool=%s", trace_id, payload.get("tool_name"))
 
 
 async def handle_trace_fallback(
@@ -65,9 +169,19 @@ async def handle_trace_fallback(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping trace_fallback handler")
         return
-    logger.info("Fallback triggered for execution_id=%s", payload.get("execution_id"))
+    trace_repo = SQLAlchemyTraceRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        return
+
+    project_id = _get_project_id(payload) or UUID(int=0)
+    trace = await _get_or_create_trace(trace_repo, trace_id, project_id, _get_agent_id(payload))
+    trace.fallback_used = True
+    trace.data = trace.data or {}
+    trace.data["fallback_triggered"] = True
+    await trace_repo.save(trace)
+    logger.info("Fallback triggered for trace=%s", trace_id)
 
 
 async def handle_trace_completed(
@@ -77,9 +191,22 @@ async def handle_trace_completed(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping trace_completed handler")
         return
-    logger.info("Trace completed for execution_id=%s", payload.get("execution_id"))
+    trace_repo = SQLAlchemyTraceRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        return
+
+    project_id = _get_project_id(payload) or UUID(int=0)
+    trace = await _get_or_create_trace(trace_repo, trace_id, project_id, _get_agent_id(payload))
+    trace.status = TraceStatus.completed
+    trace.ended_at = datetime.now(timezone.utc)
+    trace.total_cost_usd = payload.get("total_cost_usd") or trace.total_cost_usd
+    trace.total_latency_ms = payload.get("total_latency_ms") or trace.total_latency_ms
+    trace.data = trace.data or {}
+    trace.data["completed"] = True
+    await trace_repo.save(trace)
+    logger.info("Trace completed: %s", trace_id)
 
 
 async def handle_trace_failed(
@@ -89,9 +216,21 @@ async def handle_trace_failed(
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping trace_failed handler")
         return
-    logger.info("Trace failed for execution_id=%s, error=%s", payload.get("execution_id"), payload.get("error"))
+    trace_repo = SQLAlchemyTraceRepository(session)
+    trace_id = _get_trace_id(payload)
+    if trace_id is None:
+        return
+
+    project_id = _get_project_id(payload) or UUID(int=0)
+    trace = await _get_or_create_trace(trace_repo, trace_id, project_id, _get_agent_id(payload))
+    trace.status = TraceStatus.failed
+    trace.ended_at = datetime.now(timezone.utc)
+    trace.error = payload.get("error") or "unknown error"
+    trace.data = trace.data or {}
+    trace.data["failed"] = True
+    await trace_repo.save(trace)
+    logger.info("Trace failed: %s, error=%s", trace_id, trace.error)
 
 
 HANDLER_MAP: dict[str, EventHandler] = {
