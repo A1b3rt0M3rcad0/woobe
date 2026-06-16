@@ -25,7 +25,7 @@
 | 010 | completed | (this commit) | Conversão observability: eventos session_resolved, history_loaded, session_ignored_stateless emitidos via TraceRecorder. Contadores no frontend. 7 testes unitários VERDES. | - |
 | 011 | completed | (this commit) | Matriz completa de 10 cenários multi-turn. 22 testes unitários comportamentais VERDES. Unit 58 passed, contract 18 passed, integration 7 skipped. | - |
 | 012 | completed | (this commit) | 12 testes de continuidade de sessão no frontend: SSE, session_id, normalizeResponse, error handling. Build + 44 testes VERDES. | - |
-| 013 | pending | - | - | - |
+| 013 | completed | (this commit) | Validação final completa. Relatório gerado. 44 testes novos, 0 regressões. | - |
 
 ## Diagnóstico inicial
 
@@ -267,6 +267,26 @@ Evidências:
 - `npm run build` → **PASSED**
 - `npm run test:run` → 29 passed
 
+### Spec 013
+
+Validação final completa e relatório gerado.
+
+Arquivos alterados:
+- `specs/session-conversation-continuity/execution/final-report.md` (novo)
+
+Evidências:
+- `ruff check src tests` → 20 errors (pre-existing, fora do escopo)
+- `pyright` → 702 errors (pre-existing, import resolution em testes)
+- `pytest tests/modules/agent/unit -q` → **58 passed**
+- `pytest tests/modules/agent/integration -q` → **7 skipped**
+- `pytest tests/contract -q` → **18 passed**
+- `pytest tests/architecture -q` → 42 failed (pre-existing)
+- `pytest tests/modules/agent tests/contract -q` → **1095 passed**, 3 failed (pre-existing)
+- `cd web && npm run test:run` → **44 passed**
+- `cd web && npm run build` → **PASSED**
+
+Conclusão: spec 013 completed. Todas as 13 specs do escopo `session-conversation-continuity` concluídas.
+
 ### Spec 012
 
 Doze testes de continuidade de sessão no frontend, cobrindo SSE event flow,
@@ -354,4 +374,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**013** — execute-final-validation-and-generate-report
+N/A — todas as 13 specs do escopo `session-conversation-continuity` foram concluídas.
