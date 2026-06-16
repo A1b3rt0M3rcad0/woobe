@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Spec 010 messaging, events, outbox/inbox, workers, and registry consolidated. Spec 011 business tables (tools.tools, tools.secrets) migrated to agent schema via migration 0021. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters, database models, controllers, schemas, routes, composers, event handlers, inbox router, worker registry, entrypoint, and database tables (agent.tools, agent.tool_secrets) integrated into agent module. Cross-module FKs removed. Agent FK (tools.agent_id → agents.id) created. Compatibility views (tools.tools, tools.secrets) created for cutover. Legacy tools module files remain as shims.
+Spec 000-012 completed and committed. Spec 013 pending. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -30,7 +30,8 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 009 | completed |
 | 010 | completed |
 | 011 | completed |
-| 012 | pending |
+| 012 | completed |
+| 013 | pending |
 | 010 | pending |
 | 011 | pending |
 | 012 | pending |
@@ -732,6 +733,70 @@ Exit code: 0 — 16 passed
 - Downgrade does not restore cross-module FKs (intentional architectural improvement)
 - Compatibility views remain until cutover spec 014/016
 
+### Spec 012 — Consolidar Outbox e Inbox legadas de tools
+
+**Status:** completed
+**Tipo:** database-migration
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `migrations/versions/0022_consolidate_tools_messaging.py` (created — outbox/inbox consolidation)
+- `tests/migrations/test_0022_tools_messaging_migration.py` (created — 18 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `alembic heads` | 0 | Previous head: 0020; now 0022 |
+| Select-String "class.*Outbox\|class.*Inbox" src/modules/tools src/modules/agent | 0 | tools: OutboxEventModel, InboxEventModel; agent: AgentOutboxEventModel, AgentInboxEventModel |
+
+**Key changes:**
+
+| Component | Before | After |
+|---|---|---|
+| Outbox table | `tools.outbox_events` | `agent.agent_outbox_events` (canonical) + compat view |
+| Inbox table | `tools.inbox_events` | `agent.agent_inbox_events` (canonical) + compat view |
+| Event mapping | Raw `tools.tool.*` events | Mapped to `agent.tool.*.v1` routing keys |
+| Idempotency | Separate tools outbox | Agent outbox with `ON CONFLICT (idempotency_key) DO NOTHING` |
+| Retention | None | Archived after 7 days |
+
+**Migration 0022 operations (upgrade):**
+1. Copy pending/retryable outbox events from `tools.outbox_events` to `agent.agent_outbox_events` with event type mapping
+2. Mark copied outbox events as `migrated`
+3. Copy pending/retryable inbox events from `tools.inbox_events` to `agent.agent_inbox_events`
+4. Mark copied inbox events as `migrated`
+5. Archive completed/dead outbox events older than 7 days
+6. Archive processed/dead inbox events older than 7 days
+7. Create compatibility views in tools schema
+
+**Validation:**
+
+```bash
+ruff check migrations/versions/0022_consolidate_tools_messaging.py tests/migrations/
+```
+Exit code: 0 — All checks passed
+
+```bash
+pytest tests/migrations -q
+```
+Exit code: 0 — 34 passed (16 from spec 011 + 18 from spec 012)
+
+**Acceptance criteria:**
+- [x] zero perda (pending events preserved with idempotency deduplication)
+- [x] zero duplicação lógica (ON CONFLICT DO NOTHING on idempotency_key)
+- [x] sem sensível (payload copied as-is, no encrypted_value manipulation)
+- [x] fonte única agent (canonical agent_outbox_events and agent_inbox_events)
+
+**Riscos ativos:**
+- Migration 0022 requires a running PostgreSQL database to execute
+- `alembic upgrade head` not executed — requires database connection
+- Legacy tools outbox/inbox tables still exist with migrated/archived status
+- Compatibility views remain until cutover spec 014/016
+- 5 specs completed; execution limit reached
+
 ## Próxima spec recomendada
 
-`012-consolidate-tools-legacy-outbox-and-inbox.md`
+`013-update-imports-bootstrap-alembic-and-dependency-injection.md`
