@@ -11,13 +11,13 @@
 
 ## Estado atual
 
-Pacote gerado. Nenhuma mudança executada no repositório.
+ADR 000 aceito. Decisões arquiteturais registradas. Nenhuma alteração produtiva.
 
 ## Status
 
 | Spec | Status |
 |---|---|
-| 000 | pending |
+| 000 | completed |
 | 001 | pending |
 | 002 | pending |
 | 003 | pending |
@@ -38,6 +38,38 @@ Pacote gerado. Nenhuma mudança executada no repositório.
 | 018 | pending |
 | 019 | pending |
 
+## Specs executadas
+
+### 000 — ADR — comunicação cross-module por eventos transacionais
+
+**Status:** completed
+**Tipo:** architecture
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `Select-String cross-module imports` | 0 |
+| `Select-String MeteringUsageRecorder/ObservabilityTraceRecorder/AgentToolExecutor` | 0 |
+
+**Files changed:**
+- `000-adr-transactional-event-driven-module-communication.md` — status: pending → accepted
+- `execution/inventory/decision-log.md` — ADR evidence recorded
+- `execution/runtime.md` — runtime updated
+
+**Validation:** Python script check — passed (key terms present)
+
+## Decisões tomadas durante a execução
+
+- Agent→Tool permanece síncrono interno (Tool já está em modules.agent)
+- Agent→Metering e Agent→Observability devem usar Outbox/Inbox
+- Consistência eventual para projeções e métricas
+- Nenhuma alteração produtiva nesta spec
+
 ## Riscos ativos
 
 - A development pode avançar e exigir novo inventário.
@@ -49,4 +81,4 @@ Pacote gerado. Nenhuma mudança executada no repositório.
 
 ## Próxima spec
 
-`000-adr-transactional-event-driven-module-communication.md`
+`001-inventory-cross-module-dependencies-and-flows.md`

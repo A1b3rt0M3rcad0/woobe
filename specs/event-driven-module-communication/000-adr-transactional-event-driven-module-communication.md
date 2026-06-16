@@ -1,8 +1,8 @@
 # 000 — ADR — comunicação cross-module por eventos transacionais
 
-**Status:** pending  
-**Tipo:** architecture  
-**Branch de execução:** `development_event-driven-module-communication`  
+**Status:** accepted
+**Tipo:** architecture
+**Branch de execução:** `development_event-driven-module-communication`
 **Baseline obrigatória:** `development` em `cd8d5867967fea25ea170bd88ebc9a461ed16c09`
 
 ## Objetivo
