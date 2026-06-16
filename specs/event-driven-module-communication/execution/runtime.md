@@ -28,7 +28,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 008 | completed |
 | 009 | completed |
 | 010 | completed |
-| 011 | pending |
+| 011 | completed |
 | 012 | pending |
 | 013 | pending |
 | 014 | pending |
@@ -499,6 +499,50 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - Remoção total de self-consumption (handlers no-op) — zero risco funcional
 - tools_composers.py não alterado — secret resolver já estava no composer
 
+### 011 — Consumer RabbitMQ e Inbox do metering
+
+**Status:** completed
+**Tipo:** metering
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `sed -n '1,120p' src/modules/metering/infra/workers/registry.py` | 0 |
+| `sed -n '1,160p' src/modules/metering/infra/workers/inbox_consumer.py` | 0 |
+| `sed -n '1,120p' src/modules/metering/infra/messaging/inbox_handlers.py` | 0 |
+
+**Files changed:**
+- `src/modules/metering/infra/messaging/event_mappers.py` — rewritten rabbit_message_to_inbox with full envelope fields (message_id, producer_module, consumer_module, routing_key, idempotency_key, headers)
+- `src/modules/metering/infra/database/repositories.py` — added SQLAlchemyMeteringInboxRepository (save_received, claim_batch, mark_processed, mark_dead, mark_retryable)
+- `src/modules/metering/infra/workers/inbox_consumer.py` — rewritten as proper broker consumer extending BaseInboxConsumer (queue: metering.inbox, binds agent.execution.*.v1 routing keys, ACK after persist, invalid→DLQ)
+- `src/modules/metering/infra/workers/inbox_processor.py` — rewritten to follow BaseInboxProcessor pattern with claim_batch/mark_processed/mark_dead/mark_retryable
+- `src/modules/metering/infra/messaging/inbox_handlers.py` — updated HANDLED_EVENTS with 7 agent.execution.*.v1 event types, MeteringInboxEventRouter now supports register/handle/registered_event_types
+- `src/modules/metering/infra/workers/registry.py` — register_metering_workers wires MeteringInboxConsumerWorker and MeteringInboxProcessorWorker
+- `tests/integration/metering/test_spec011_metering_consumer_inbox.py` — 11 tests: mapper, consume callback, routing keys, persist/ack, duplicate, invalid envelope, DB error, binding exactness, registry wiring
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- Metering agora consome eventos agent.execution.*.v1 via RabbitMQ queue metering.inbox
+- Metering não se inscreve em metering.#
+- MeteringInboxEventRouter agora roteia agent.execution.*.v1 para handlers nomeados
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/metering tests/integration/metering` | 0 |
+| `pytest tests/integration/metering/test_spec011_metering_consumer_inbox.py -q` | 0 (11 passed) |
+
+**Decisões:**
+- MeteringInboxConsumerWorker estende BaseInboxConsumer (padrão idêntico ao AgentInboxConsumerWorker)
+- MeteringInboxProcessorWorker estende BaseInboxProcessor (padrão idêntico ao AgentInboxProcessorWorker)
+- rabbit_message_to_inbox agora preenche todos os campos canônicos do envelope, incluindo consumer_module="metering"
+- HANDLED_EVENTS mapeia agent.execution.*.v1 → handlers nomeados (implementação real em spec 012)
+- Registry só registra workers quando engine e rabbitmq_manager são fornecidos (early return)
+
 ## Próxima spec
 
-`011-implement-metering-rabbit-consumer-and-inbox.md`
+`012-implement-metering-dispatcher-and-idempotent-use-cases.md`

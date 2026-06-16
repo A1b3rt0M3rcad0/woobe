@@ -4,6 +4,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from modules.metering.infra.messaging.inbox_handlers import MeteringInboxEventRouter
+from modules.metering.infra.workers.inbox_consumer import MeteringInboxConsumerWorker
+from modules.metering.infra.workers.inbox_processor import MeteringInboxProcessorWorker
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -25,7 +28,21 @@ def register_metering_workers(
     engine: AsyncEngine | None = None,
     rabbitmq_manager: RabbitMQManager | None = None,
 ) -> None:
-    pass
+    if engine is None or rabbitmq_manager is None:
+        return
+
+    inbox_consumer = MeteringInboxConsumerWorker(
+        async_engine=engine,
+        rabbitmq_manager=rabbitmq_manager,
+    )
+    registry.register(inbox_consumer)
+
+    inbox_handler_router = MeteringInboxEventRouter()
+    inbox_processor = MeteringInboxProcessorWorker(
+        async_engine=engine,
+        handler=inbox_handler_router,
+    )
+    registry.register(inbox_processor)
 
 
 assert isinstance(MeteringWorkerRegistry, type)
