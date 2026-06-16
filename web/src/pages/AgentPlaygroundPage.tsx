@@ -29,7 +29,7 @@ function PlaygroundContent() {
   const releaseVersion = productionRelease?.version
   const releaseStatus = productionRelease?.status
 
-  const { state, toSnapshot, isDirty } = useAgentEditor()
+  const { state, toSnapshot, isDirty, activeSource } = useAgentEditor()
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
@@ -70,6 +70,12 @@ function PlaygroundContent() {
       setSessionId(null)
     }
   }, [sessionId, sessions, setSessionId])
+
+  useEffect(() => {
+    if (state.sessionMode === 'stateless' && sessionId) {
+      setSessionId(null)
+    }
+  }, [state.sessionMode, sessionId, setSessionId])
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
@@ -356,6 +362,10 @@ function PlaygroundContent() {
           {statusModified && (
             <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>
           )}
+          <span className="ml-4 text-xs font-medium px-2 py-0.5 rounded-full bg-surface border border-border text-foreground">
+            {state.sessionMode === 'stateful' ? 'Stateful' : 'Stateless'}
+            <span className="ml-1 text-muted text-[10px]">({activeSource === 'draft_unsaved' ? 'draft' : 'saved'})</span>
+          </span>
           <span className="ml-auto text-muted">
             {state.provider}/{state.model}
           </span>

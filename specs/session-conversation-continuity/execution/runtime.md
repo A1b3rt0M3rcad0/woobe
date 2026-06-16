@@ -21,7 +21,7 @@
 | 006 | completed | 809169c | list_recent_by_session adicionado. Ordenação dupla DESC + DESC + reverse. 8 testes unitários VERDES. | - |
 | 007 | completed | (this commit) | ConversationContextBuilder unificado. Métodos duplicados removidos. 11 testes unitários + arquitetura VERDES. | - |
 | 008 | completed | (this commit) | sessionId sincronizado com query param ?session=uuid. URL preserva sessão no reload. 29 testes vitess existentes + build VERDES. | - |
-| 009 | pending | - | - | - |
+| 009 | completed | (this commit) | Badge efectivo adicionado. Stateless limpa sessão. Build + tests VERDES. | - |
 | 010 | pending | - | - | - |
 | 011 | pending | - | - | - |
 | 012 | pending | - | - | - |
@@ -267,6 +267,19 @@ Evidências:
 - `npm run build` → **PASSED**
 - `npm run test:run` → 29 passed
 
+### Spec 009
+
+Modo efetivo exibido no playground. Stateless limpa sessão automaticamente.
+
+Arquivos alterados:
+- `web/src/pages/AgentPlaygroundPage.tsx` (+ badge efetivo; + `activeSource`; + `useEffect` para limpar sessão ao mudar para stateless)
+
+Evidências:
+- Badge `Stateful (saved)` / `Stateless (draft)` exibido na barra de status
+- Ao mudar para stateless, `sessionId` é limpo (incluindo query param)
+- `npm run build` → **PASSED**
+- `npm run test:run` → 29 passed
+
 ## Pendências e riscos
 
 - confirmar versão efetiva de `langchain-core` no lock/ambiente;
@@ -276,4 +289,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**009** — align-runtime-controls-with-effective-execution-mode
+**010** — add-history-session-observability
