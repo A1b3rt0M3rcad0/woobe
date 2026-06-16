@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. 36 characterization tests created. No production code changes made.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Tool, Secret entities, enums, errors, events, and repository interfaces integrated into agent domain.
 
 ## Status
 
@@ -23,7 +23,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 002 | completed |
 | 003 | completed |
 | 004 | completed |
-| 005 | pending |
+| 005 | completed |
 | 006 | pending |
 | 007 | pending |
 | 008 | pending |
@@ -289,6 +289,64 @@ All 36 tests pass. Exit code: 0
 - [x] segredos protegidos (encryption checks, no plaintext in responses)
 - [x] allowlist explícita (baseline tests define current tools module state)
 
+### Spec 005 — Mover contratos de domínio de tools para agent
+
+**Status:** completed
+**Tipo:** refactor
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/domain/entities.py` (added Tool, Secret entities)
+- `src/modules/agent/domain/enums.py` (added ToolType, RiskLevel, SecretType, ToolStatus enums)
+- `src/modules/agent/domain/errors.py` (added ToolNotFoundError, SecretNotFoundError, DuplicateSecretError)
+- `src/modules/agent/domain/events.py` (added AgentToolCreatedV1, AgentToolUpdatedV1, AgentToolStatusChangedV1, AgentSecretCreatedV1)
+- `src/modules/agent/domain/repositories.py` (added ToolRepository, SecretRepository ABCs)
+- `tests/unit/agent/test_tools_domain_contracts.py` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `rg "from modules\.tools\.domain|import modules\.tools\.domain" src tests` | 0 | No external consumers of tools.domain — safe to add to agent |
+
+**Domain contracts moved:**
+
+| Contract | Current (tools) | Target (agent) |
+|---|---|---|
+| Tool entity | `modules.tools.domain.entities.Tool` | `modules.agent.domain.entities.Tool` |
+| Secret entity | `modules.tools.domain.entities.Secret` | `modules.agent.domain.entities.Secret` |
+| ToolType enum | `modules.tools.domain.enums.ToolType` | `modules.agent.domain.enums.ToolType` |
+| RiskLevel enum | `modules.tools.domain.enums.RiskLevel` | `modules.agent.domain.enums.RiskLevel` |
+| SecretType enum | `modules.tools.domain.enums.SecretType` | `modules.agent.domain.enums.SecretType` |
+| ToolStatus enum | `modules.tools.domain.enums.ToolStatus` | `modules.agent.domain.enums.ToolStatus` |
+| ToolNotFoundError | `modules.tools.domain.errors.ToolNotFoundError` | `modules.agent.domain.errors.ToolNotFoundError` |
+| SecretNotFoundError | `modules.tools.domain.errors.SecretNotFoundError` | `modules.agent.domain.errors.SecretNotFoundError` |
+| DuplicateSecretError | `modules.tools.domain.errors.DuplicateSecretError` | `modules.agent.domain.errors.DuplicateSecretError` |
+| ToolRepository ABC | `modules.tools.domain.repositories.ToolRepository` | `modules.agent.domain.repositories.ToolRepository` |
+| SecretRepository ABC | `modules.tools.domain.repositories.SecretRepository` | `modules.agent.domain.repositories.SecretRepository` |
+| Tool events | `tools.tool.*` (no strong event classes) | `agent.tool.*.v1` (AgentToolCreatedV1, etc.) |
+| Secret events | `tools.secret.created` (no strong event class) | `agent.secret.created.v1` (AgentSecretCreatedV1) |
+
+**Shim compatibility:** Legacy `modules.tools.domain.*` files remain intact. All existing consumers continue to work unchanged.
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/domain tests/unit/agent
+pytest tests/unit/agent/test_tools_domain_contracts.py -q
+pytest tests/architecture -q
+```
+
+All checks pass. Exit code: 0
+
+**Acceptance criteria:**
+- [x] domain agent não importa tools (agent.domain has zero imports from modules.tools)
+- [x] IDs/enums preservados (ToolType, RiskLevel, etc. same values as tools.domain)
+- [x] eventos sem segredo (AgentSecretCreatedV1 payload excludes encrypted_value)
+
 ## Inconsistências encontradas
 
 - `frontend/` directory not present in repository, though spec references it. Not a blocker — environment variant.
@@ -296,4 +354,4 @@ All 36 tests pass. Exit code: 0
 
 ## Próxima spec recomendada
 
-`005-move-tools-domain-contracts-into-agent.md`
+`006-move-tools-dtos-and-use-cases-into-agent.md`
