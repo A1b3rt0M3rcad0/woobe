@@ -1,4 +1,4 @@
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 
 
 class TestCursorPage:

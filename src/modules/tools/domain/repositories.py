@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.tools.domain.entities import Secret, Tool
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 
 
 class ToolRepository(ABC):

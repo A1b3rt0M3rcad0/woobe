@@ -5,6 +5,7 @@ from enum import StrEnum, auto
 
 class ToolType(StrEnum):
     FUNCTION = auto()
+    HTTP_MCP = auto()
     API = auto()
     DATABASE_QUERY = auto()
     WEBHOOK = auto()

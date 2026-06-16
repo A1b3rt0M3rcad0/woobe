@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTools, getAgentTools, createTool, getSecrets, createSecret } from './api'
-import type { CreateToolRequest, CreateSecretRequest } from './types'
+import { getTools, getAgentTools, createTool, updateTool, updateToolStatus, deleteTool, testTool, getSecrets, createSecret } from './api'
+import type { CreateToolRequest, CreateSecretRequest, UpdateToolStatusRequest, TestToolRequest } from './types'
 
 export function useTools(projectId?: string) {
   return useQuery({
@@ -26,6 +26,45 @@ export function useCreateTool() {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
     },
+  })
+}
+
+export function useUpdateTool() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ toolId, data }: { toolId: string; data: Partial<CreateToolRequest> }) => updateTool(toolId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
+    },
+  })
+}
+
+export function useUpdateToolStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ toolId, data }: { toolId: string; data: UpdateToolStatusRequest }) => updateToolStatus(toolId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
+    },
+  })
+}
+
+export function useDeleteTool() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (toolId: string) => deleteTool(toolId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tools'] })
+      queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
+    },
+  })
+}
+
+export function useTestTool() {
+  return useMutation({
+    mutationFn: (data: TestToolRequest) => testTool(data),
   })
 }
 

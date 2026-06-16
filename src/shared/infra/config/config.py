@@ -18,4 +18,12 @@ class Settings(BaseSettings):
     port: int = 8000
     worker_interval: float = 5.0
     rabbitmq_url: str = "amqp://projectrai:projectrai@localhost:5672/"
-    rabbitmq_exchange: str = "projectrai.events"
+    rabbitmq_exchange: str = "domain.events"
+    outbox_batch_size: int = 50
+    inbox_batch_size: int = 50
+    outbox_lock_timeout_seconds: int = 300
+    inbox_lock_timeout_seconds: int = 300
+    outbox_max_retries: int = 3
+    retry_base_delay_seconds: float = 1.0
+    retry_max_delay_seconds: float = 300.0
+    retry_backoff_multiplier: float = 2.0

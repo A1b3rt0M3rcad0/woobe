@@ -50,7 +50,6 @@ export default function ToolsPage() {
     try {
       await createTool.mutateAsync({
         project_id: projectId!,
-        agent_id: projectId!,
         name: data.name,
         description: data.description,
         type: data.type,

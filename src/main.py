@@ -6,17 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from modules.ai.presentation.routes import router as ai_router
+from modules.agent.presentation.routes import agent_router
+from modules.agent.presentation.routes import router as agent_ai_router
+from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
+from modules.agent.presentation.routes import runtime_router as agent_runtime_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
-from modules.knowledge.presentation.routes import router as knowledge_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.observability.presentation.routes import router as observability_router
-from modules.runtime.presentation.routes import router as runtime_router
 from modules.tools.presentation.routes import router as tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.rabbitmq import RabbitMQManager
 from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
@@ -26,13 +28,22 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
-from shared.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.workers.discovery import build_registries, discover_module_entries
+from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
     settings = Settings()
+
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logger.info("Logging configured at level %s", settings.log_level)
 
     app = FastAPI(
         title="ProjectRAI",
@@ -82,9 +93,10 @@ def create_app() -> FastAPI:
 
     app.include_router(identity_router)
     app.include_router(core_router)
-    app.include_router(ai_router)
-    app.include_router(knowledge_router)
-    app.include_router(runtime_router)
+    app.include_router(agent_router)
+    app.include_router(agent_ai_router)
+    app.include_router(agent_knowledge_router)
+    app.include_router(agent_runtime_router)
     app.include_router(tools_router)
     app.include_router(metering_router)
     app.include_router(billing_router)
@@ -99,9 +111,35 @@ def create_app() -> FastAPI:
         except Exception:
             pass
 
+        rabbitmq_manager: RabbitMQManager | None = None
+        try:
+            rabbitmq_manager = RabbitMQManager(
+                url=settings.rabbitmq_url,
+                exchange_name=settings.rabbitmq_exchange,
+            )
+            await rabbitmq_manager.connect()
+            app.state.rabbitmq_manager = rabbitmq_manager
+        except Exception:
+            logger.warning("RabbitMQ unavailable - workers will not start")
+
+        entries = discover_module_entries()
+        if entries:
+            registries = build_registries(
+                entries,
+                engine=engine,
+                settings=settings,
+                rabbitmq_manager=rabbitmq_manager,
+            )
+            runner = WorkerRunner.from_registries(registries)
+            app.state.worker_runner = runner
+            logger.info("Worker runner initialized with %d registries", len(registries))
+
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await app.state.async_engine.dispose()
+        rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
+        if rabbitmq_manager is not None:
+            await rabbitmq_manager.close()
 
     @app.get("/health")
     async def health():

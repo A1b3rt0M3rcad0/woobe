@@ -248,7 +248,7 @@ def upgrade() -> None:
         sa.Column("fallback_model", sa.String(255), nullable=True),
         sa.Column("temperature", sa.Float(), nullable=True),
         sa.Column("max_output_tokens", sa.Integer(), nullable=True),
-        sa.Column("session_mode", sa.String(32), nullable=False, server_default=sa.text("'stateless'")),
+        sa.Column("session_mode", sa.String(32), nullable=False, server_default=sa.text("'stateful'")),
         sa.Column("status", sa.String(32), nullable=False, server_default=sa.text("'active'")),
         sa.Column("settings", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.PrimaryKeyConstraint("id"),

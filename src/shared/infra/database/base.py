@@ -5,7 +5,7 @@ import uuid6
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from shared.domain.time import utc_now
+from shared.infra.time import utc_now
 
 
 class Base(DeclarativeBase):

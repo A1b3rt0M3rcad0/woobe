@@ -1,0 +1,313 @@
+# Temporary Legacy Database FK Allowlist
+# Each entry permits a known cross-module ForeignKey during migration.
+# Fields: source_module, source_table, source_column, target_schema, target_table, reason, removal_spec, expires_after_spec
+# This file must have zero entries after specs 143, 144, and 145 are completed.
+
+entries:
+  # --- agent -> core.projects (project_id columns) ---
+  - source_module: agent
+    source_table: provider_credentials
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agents
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_prompts
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_contracts
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_model_configs
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_releases
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_release_tests
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: document_collections
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: documents
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: document_chunks
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: knowledge_versions
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: sessions
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: messages
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: ask_jobs
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- agent -> identity.users ---
+  - source_module: agent
+    source_table: agent_prompts
+    source_column: created_by
+    target_schema: identity
+    target_table: users
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_releases
+    source_column: created_by
+    target_schema: identity
+    target_table: users
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: agent
+    source_table: agent_releases
+    source_column: promoted_by
+    target_schema: identity
+    target_table: users
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- core -> identity ---
+  - source_module: core
+    source_table: projects
+    source_column: organization_id
+    target_schema: identity
+    target_table: organizations
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: core
+    source_table: api_keys
+    source_column: created_by_user_id
+    target_schema: identity
+    target_table: users
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- billing -> identity ---
+  - source_module: billing
+    source_table: customers
+    source_column: organization_id
+    target_schema: identity
+    target_table: organizations
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: billing
+    source_table: subscriptions
+    source_column: organization_id
+    target_schema: identity
+    target_table: organizations
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- tools -> core.projects ---
+  - source_module: tools
+    source_table: tools
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: tools
+    source_table: secrets
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- tools -> agent (ai.agents) ---
+  - source_module: tools
+    source_table: tools
+    source_column: agent_id
+    target_schema: ai
+    target_table: agents
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- observability -> core.projects ---
+  - source_module: observability
+    source_table: traces
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: observability
+    source_table: trace_events
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- observability -> agent (ai.agents) ---
+  - source_module: observability
+    source_table: traces
+    source_column: agent_id
+    target_schema: ai
+    target_table: agents
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- observability -> agent (runtime.sessions) ---
+  - source_module: observability
+    source_table: traces
+    source_column: session_id
+    target_schema: runtime
+    target_table: sessions
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- metering -> core.projects ---
+  - source_module: metering
+    source_table: usage_events
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: metering
+    source_table: usage_daily_project
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: metering
+    source_table: usage_daily_agent
+    source_column: project_id
+    target_schema: core
+    target_table: projects
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  # --- metering -> agent (ai.agents) ---
+  - source_module: metering
+    source_table: usage_events
+    source_column: agent_id
+    target_schema: ai
+    target_table: agents
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"
+
+  - source_module: metering
+    source_table: usage_daily_agent
+    source_column: agent_id
+    target_schema: ai
+    target_table: agents
+    reason: "Temporary FK during migration; remove at spec 134"
+    removal_spec: "134"
+    expires_after_spec: "134"

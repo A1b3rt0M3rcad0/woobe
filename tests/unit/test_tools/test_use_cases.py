@@ -1,10 +1,15 @@
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
 
 from modules.tools.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
+from modules.tools.domain.entities import Tool, Secret
+from modules.tools.presentation.controllers.list_tools_by_agent_controller import ListToolsByAgentController
+from modules.tools.presentation.controllers.list_tools_controller import ListToolsController
+from modules.tools.presentation.schemas import ToolResponse
 from modules.tools.service.dtos import (
     CreateSecretInput,
     CreateSecretOutput,
@@ -50,9 +55,9 @@ class TestCreateToolUseCase:
 
         mock_repo = mocker.AsyncMock()
         mock_repo.create.return_value = created_tool
-        mock_session = mocker.MagicMock()
+        mock_outbox = mocker.AsyncMock()
 
-        uc = CreateToolUseCase(session=mock_session, repo=mock_repo)
+        uc = CreateToolUseCase(repo=mock_repo, outbox=mock_outbox)
         result = await uc.execute(input_dto)
 
         assert isinstance(result, CreateToolOutput)
@@ -74,12 +79,12 @@ class TestCreateToolUseCase:
         assert entity.risk_level == RiskLevel.MEDIUM
         assert entity.timeout_ms == 5000
 
-        mock_session.add.assert_called_once()
-        event = mock_session.add.call_args[0][0]
-        assert event.aggregate_type == "tool"
-        assert event.event_type == "tools.tool.created"
-        assert event.payload["tool_id"] == str(created_tool.id)
-        assert event.payload["name"] == "search-tool"
+        mock_outbox.write.assert_awaited_once()
+        call_kwargs = mock_outbox.write.await_args.kwargs
+        assert call_kwargs["aggregate_type"] == "tool"
+        assert call_kwargs["event_type"] == "tools.tool.created"
+        assert call_kwargs["payload"]["tool_id"] == str(created_tool.id)
+        assert call_kwargs["payload"]["name"] == "search-tool"
 
     @pytest.mark.asyncio
     async def test_with_minimal_input(self, mocker):
@@ -108,9 +113,9 @@ class TestCreateToolUseCase:
 
         mock_repo = mocker.AsyncMock()
         mock_repo.create.return_value = created_tool
-        mock_session = mocker.MagicMock()
+        mock_outbox = mocker.AsyncMock()
 
-        uc = CreateToolUseCase(session=mock_session, repo=mock_repo)
+        uc = CreateToolUseCase(repo=mock_repo, outbox=mock_outbox)
         result = await uc.execute(input_dto)
 
         assert result.name == "minimal-tool"
@@ -263,3 +268,158 @@ class TestCreateSecretUseCase:
         assert result is not None
         assert result.name == "default-key-test"
         mock_repo.create.assert_awaited_once()
+
+
+def _make_tool_domain(**overrides) -> Tool:
+    return Tool(
+        id=overrides.get("id", uuid.uuid4()),
+        project_id=overrides.get("project_id", uuid.uuid4()),
+        agent_id=overrides.get("agent_id", uuid.uuid4()),
+        name=overrides.get("name", "test-tool"),
+        description=overrides.get("description", "A test tool"),
+        type=overrides.get("type", ToolType.HTTP_MCP),
+        config=overrides.get("config", {"url": "https://example.com/api", "method": "GET"}),
+        input_schema=overrides.get("input_schema", {"type": "object", "properties": {}}),
+        output_schema=overrides.get("output_schema", None),
+        risk_level=overrides.get("risk_level", RiskLevel.LOW),
+        timeout_ms=overrides.get("timeout_ms", 30000),
+        status=overrides.get("status", ToolStatus.ACTIVE),
+        created_at=overrides.get("created_at", datetime.now(timezone.utc)),
+        updated_at=overrides.get("updated_at", datetime.now(timezone.utc)),
+    )
+
+
+class TestListToolsByAgentUseCase:
+    @pytest.mark.asyncio
+    async def test_returns_tools_for_agent(self, mocker):
+        agent_id = uuid.uuid4()
+        expected_tools = [_make_tool_domain(agent_id=agent_id) for _ in range(2)]
+
+        mock_repo = mocker.AsyncMock()
+        mock_repo.list_by_agent.return_value = expected_tools
+
+        from modules.tools.service.use_cases import ListToolsByAgentUseCase
+        from modules.tools.service.dtos import ListToolsByAgentInput
+
+        uc = ListToolsByAgentUseCase(repo=mock_repo)
+        result = await uc.execute(ListToolsByAgentInput(agent_id=agent_id))
+
+        assert len(result) == 2
+        assert all(isinstance(r, Tool) for r in result)
+        assert result[0].agent_id == agent_id
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_tools(self, mocker):
+        agent_id = uuid.uuid4()
+
+        mock_repo = mocker.AsyncMock()
+        mock_repo.list_by_agent.return_value = []
+
+        from modules.tools.service.use_cases import ListToolsByAgentUseCase
+        from modules.tools.service.dtos import ListToolsByAgentInput
+
+        uc = ListToolsByAgentUseCase(repo=mock_repo)
+        result = await uc.execute(ListToolsByAgentInput(agent_id=agent_id))
+
+        assert result == []
+
+
+class TestListToolsByAgentControllerSerialization:
+    @pytest.mark.asyncio
+    async def test_serializes_tool_dataclass_correctly(self, mocker):
+        agent_id = uuid.uuid4()
+        tool = _make_tool_domain(agent_id=agent_id)
+
+        mock_use_case = mocker.AsyncMock()
+        mock_use_case.execute.return_value = [tool]
+
+        request = MagicMock()
+        request.path_params = {"agent_id": str(agent_id)}
+
+        controller = ListToolsByAgentController(use_case=mock_use_case)
+        response = await controller.handle(request)
+
+        assert response.status_code == 200
+        data = response.body["data"]
+        assert len(data) == 1
+
+        serialized = data[0]
+        assert serialized["id"] == tool.id
+        assert serialized["project_id"] == tool.project_id
+        assert serialized["agent_id"] == tool.agent_id
+        assert serialized["name"] == tool.name
+        assert serialized["type"] == tool.type
+        assert serialized["config"] == tool.config
+        assert serialized["status"] == tool.status
+        assert "created_at" in serialized
+        assert "updated_at" in serialized
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_tools(self, mocker):
+        agent_id = uuid.uuid4()
+
+        mock_use_case = mocker.AsyncMock()
+        mock_use_case.execute.return_value = []
+
+        request = MagicMock()
+        request.path_params = {"agent_id": str(agent_id)}
+
+        controller = ListToolsByAgentController(use_case=mock_use_case)
+        response = await controller.handle(request)
+
+        assert response.status_code == 200
+        assert response.body["data"] == []
+
+    @pytest.mark.asyncio
+    async def test_serialization_matches_toolresponse_schema(self, mocker):
+        agent_id = uuid.uuid4()
+        tool = _make_tool_domain(agent_id=agent_id)
+
+        expected = ToolResponse(**asdict(tool)).model_dump()
+
+        mock_use_case = mocker.AsyncMock()
+        mock_use_case.execute.return_value = [tool]
+
+        request = MagicMock()
+        request.path_params = {"agent_id": str(agent_id)}
+
+        controller = ListToolsByAgentController(use_case=mock_use_case)
+        response = await controller.handle(request)
+
+        assert response.body["data"][0] == expected
+
+
+class TestListToolsControllerSerialization:
+    @pytest.mark.asyncio
+    async def test_serializes_tools_for_project(self, mocker):
+        project_id = uuid.uuid4()
+        tools = [_make_tool_domain(project_id=project_id) for _ in range(3)]
+
+        mock_use_case = mocker.AsyncMock()
+        mock_use_case.execute.return_value = tools
+
+        request = MagicMock()
+        request.query_params = {"project_id": str(project_id)}
+
+        controller = ListToolsController(use_case=mock_use_case)
+        response = await controller.handle(request)
+
+        assert response.status_code == 200
+        assert len(response.body["data"]) == 3
+        for item in response.body["data"]:
+            assert "id" in item
+            assert "name" in item
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_project_id(self, mocker):
+        mock_use_case = mocker.AsyncMock()
+        mock_use_case.execute.return_value = []
+
+        request = MagicMock()
+        request.query_params = {}
+
+        controller = ListToolsController(use_case=mock_use_case)
+        response = await controller.handle(request)
+
+        assert response.status_code == 200
+        assert response.body["data"] == []

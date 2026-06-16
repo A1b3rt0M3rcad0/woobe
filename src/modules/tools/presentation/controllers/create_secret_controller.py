@@ -1,5 +1,5 @@
-from modules.tools.service.use_cases import CreateSecretUseCase
-from modules.tools.service.dtos import CreateSecretInput
+from modules.tools.application.use_cases import CreateSecretUseCase
+from modules.tools.application.dtos import CreateSecretInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

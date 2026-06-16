@@ -4,6 +4,7 @@ import { formatNumber, formatLatency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { StructuredJsonResponse } from './StructuredJsonResponse'
+import { ToolCallsCollapsible } from './ToolCallsCollapsible'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
@@ -100,63 +101,68 @@ export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMes
   })()
 
   return (
-    <div className="flex gap-3 justify-start overflow-hidden">
-      {/* Avatar + name column */}
-      <div className="flex flex-col items-center gap-1.5 shrink-0 w-14">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
-          <Bot className="h-4 w-4 text-primary" />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-3 justify-start overflow-hidden">
+        {/* Avatar + name column */}
+        <div className="flex flex-col items-center gap-1.5 shrink-0 w-14">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
+            <Bot className="h-4 w-4 text-primary" />
+          </div>
+          {agentName && (
+            <span
+              className="text-[10px] text-muted text-center leading-tight truncate w-full"
+              title={agentName}
+            >
+              {agentName}
+            </span>
+          )}
         </div>
-        {agentName && (
-          <span
-            className="text-[10px] text-muted text-center leading-tight truncate w-full"
-            title={agentName}
-          >
-            {agentName}
-          </span>
-        )}
+
+        {/* Content column */}
+        <div className="max-w-[80%]">
+          {assistantContent}
+        </div>
       </div>
 
-      {/* Content column */}
-      <div className="max-w-[80%]">
-        {assistantContent}
+      {!isStreaming && (
+        <div className="pl-16 space-y-1.5">
+          {message.sources && message.sources.length > 0 && (
+            <SourcesCollapsible sources={message.sources} />
+          )}
+          {message.tool_calls && message.tool_calls.length > 0 && (
+            <ToolCallsCollapsible toolCalls={message.tool_calls} />
+          )}
 
-        {!isStreaming && (
-          <>
-            {message.sources && message.sources.length > 0 && (
-              <SourcesCollapsible sources={message.sources} />
+          <div className="flex items-center gap-3 text-[11px] text-muted">
+            {message.model && (
+              <span>{message.provider || ''} {message.model}</span>
             )}
+            {message.latency_ms != null && (
+              <span>{formatLatency(message.latency_ms)}</span>
+            )}
+            {message.usage && (
+              <span>
+                {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
+              </span>
+            )}
+            {message.trace_id && (
+              <span className="font-mono">{message.trace_id.slice(0, 8)}...</span>
+            )}
+          </div>
 
-            <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
-              {message.model && (
-                <span>{message.provider || ''} {message.model}</span>
-              )}
-              {message.latency_ms != null && (
-                <span>{formatLatency(message.latency_ms)}</span>
-              )}
-              {message.usage && (
-                <span>
-                  {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
-                </span>
-              )}
-              {message.trace_id && (
-                <span className="font-mono">{message.trace_id.slice(0, 8)}...</span>
-              )}
-            </div>
-
-            <div className="mt-1 flex items-center gap-1">
-              <button className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors" title="Copy">
-                <Copy className="h-3 w-3" />
-              </button>
-              <button className="p-1 rounded text-muted hover:text-emerald-400 hover:bg-accent transition-colors" title="Good response">
-                <ThumbsUp className="h-3 w-3" />
-              </button>
-              <button className="p-1 rounded text-muted hover:text-red-400 hover:bg-accent transition-colors" title="Bad response">
-                <ThumbsDown className="h-3 w-3" />
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+          <div className="flex items-center gap-1">
+            <button className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors" title="Copy">
+              <Copy className="h-3 w-3" />
+            </button>
+            <button className="p-1 rounded text-muted hover:text-emerald-400 hover:bg-accent transition-colors" title="Good response">
+              <ThumbsUp className="h-3 w-3" />
+            </button>
+            <button className="p-1 rounded text-muted hover:text-red-400 hover:bg-accent transition-colors" title="Bad response">
+              <ThumbsDown className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

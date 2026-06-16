@@ -1,21 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.identity.infra.repositories import (
-    SQLAlchemyOrganizationInviteRepository,
-    SQLAlchemyOrganizationRepository,
-    SQLAlchemyOutboxEventWriter,
-)
-from modules.identity.service.use_cases import InviteUserUseCase
+from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
+from modules.identity.application.use_cases import InviteUserUseCase
 from modules.identity.presentation.controllers.create_invite_controller import CreateInviteController
-from shared.application.transactional_handler import TransactionalHandler
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
+from shared.infra.transactional_handler import TransactionalHandler
 
 
 def create_invite_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = PostgresUnitOfWork(session_factory)
-    org_repo = SQLAlchemyOrganizationRepository(uow)
-    invite_repo = SQLAlchemyOrganizationInviteRepository(uow)
-    outbox = SQLAlchemyOutboxEventWriter(uow)
-    use_case = InviteUserUseCase(org_repo, invite_repo, outbox)
+    uow = IdentityUnitOfWork(session_factory)
+    use_case = InviteUserUseCase(uow.organizations, uow.invites, uow.outbox)
     controller = CreateInviteController(use_case)
     return TransactionalHandler(uow, controller.handle)

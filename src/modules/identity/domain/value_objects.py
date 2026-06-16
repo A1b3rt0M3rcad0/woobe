@@ -1,0 +1,1 @@
+"""Identity module value objects."""

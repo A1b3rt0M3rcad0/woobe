@@ -22,7 +22,7 @@ from modules.identity.service.use_cases import (
     CreateUserUseCase,
     InviteUserUseCase,
 )
-from shared.domain.errors import ConflictError
+from shared.infra.errors import ConflictError
 from tests.helpers import make_organization, make_organization_member, make_user
 
 

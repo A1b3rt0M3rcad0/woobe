@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.core.domain.entities import ApiKey, Project
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 
 
 class ProjectRepository(ABC):

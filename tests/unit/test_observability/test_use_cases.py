@@ -17,8 +17,8 @@ from modules.observability.service.use_cases import (
     CreateTraceEventUseCase,
     GetTraceUseCase,
 )
-from shared.domain.events import OutboxEventWriter
-from shared.domain.errors import NotFoundError
+from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.errors import NotFoundError
 from tests.helpers import make_trace, fake_uuid
 
 

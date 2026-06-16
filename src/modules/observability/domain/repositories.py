@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.observability.domain.entities import Trace, TraceEvent
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 
 
 class TraceRepository(ABC):

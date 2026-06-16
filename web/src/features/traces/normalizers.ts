@@ -65,6 +65,7 @@ export function normalizeTraceSummary(raw: Trace): TraceSummary {
     projectId: raw.project_id,
     agentId: raw.agent_id ?? null,
     sessionId: raw.session_id ?? null,
+    messageId: (data.message_id as string) ?? null,
     title: inferTitle(raw),
     status: normalizeStatus(raw.status),
     model: raw.model ?? null,
@@ -94,15 +95,23 @@ function normalizeSources(raw: unknown): TraceSource[] {
 
 function normalizeToolCalls(raw: unknown): TraceToolCall[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((t: Record<string, unknown>) => ({
-    tool_name: (t.tool_name as string) ?? 'unknown',
-    input: t.input ?? null,
-    output: t.output ?? null,
-    duration_ms: safeNumber(t.duration_ms),
-    status: (t.status as string) ?? null,
-    latency_ms: safeNumber(t.latency_ms),
-    error: (t.error as string) ?? null,
-  }))
+  return raw.map((t: Record<string, unknown>) => {
+    const success = t.success !== undefined ? t.success : null
+    let status = (t.status as string) ?? null
+    if (status === null && success !== null) {
+      status = success ? 'success' : 'error'
+    }
+    return {
+      tool_name: (t.tool_name as string) ?? 'unknown',
+      input: t.input ?? null,
+      output: t.output ?? null,
+      duration_ms: safeNumber(t.duration_ms),
+      success: success !== null ? Boolean(success) : null,
+      status,
+      latency_ms: safeNumber(t.latency_ms),
+      error: (t.error as string) ?? null,
+    }
+  })
 }
 
 function normalizeEvents(raw: unknown): TraceEvent[] {
@@ -130,13 +139,24 @@ export function normalizeTraceDetail(raw: TraceDetail): TraceDetailNormalized {
     costUsd: safeNumber(data.cost_usd ?? raw.total_cost_usd),
   }
 
+  const events = normalizeEvents(raw.events)
+
+  let messageId = summary.messageId
+  if (!messageId) {
+    const completedEvent = events.find(
+      (e) => e.event_type === 'info' && e.payload?.event === 'ask.completed'
+    )
+    messageId = (completedEvent?.payload?.message_id as string) ?? null
+  }
+
   return {
     ...summary,
     usage,
+    messageId,
     parsedOutput: data.parsed_output ?? null,
     outputParseError: (data.output_parse_error as string) ?? null,
     sources: normalizeSources(data.sources),
     toolCalls: normalizeToolCalls(data.tool_calls),
-    events: normalizeEvents(raw.events),
+    events,
   }
 }

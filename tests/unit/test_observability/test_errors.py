@@ -1,7 +1,7 @@
 import pytest
 
 from modules.observability.domain.errors import TraceNotFoundError
-from shared.domain.errors import NotFoundError, DomainError
+from shared.infra.errors import NotFoundError, DomainError
 
 
 class TestTraceNotFoundError:

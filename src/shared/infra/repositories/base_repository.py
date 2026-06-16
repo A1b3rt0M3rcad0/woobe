@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.domain.objects import CursorPage
+from shared.infra.objects import CursorPage
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.database.base import BaseModel
 

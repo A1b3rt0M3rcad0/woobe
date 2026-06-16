@@ -67,8 +67,8 @@ def make_api_key(project_id=None, name="TestKey"):
 # ── AI factories ──────────────────────────────────────────────────
 
 def make_agent(project_id=None, name="TestAgent"):
-    from modules.ai.domain.entities import Agent
-    from modules.ai.domain.enums import Provider
+    from modules.agent.domain.entities import Agent
+    from modules.agent.domain.enums import Provider
     return Agent(
         project_id=project_id or uuid6.uuid7(),
         name=name,
@@ -80,8 +80,8 @@ def make_agent(project_id=None, name="TestAgent"):
 
 
 def make_provider_credential(project_id=None, provider=None):
-    from modules.ai.domain.entities import ProviderCredential
-    from modules.ai.domain.enums import Provider as ProviderEnum
+    from modules.agent.domain.entities import ProviderCredential
+    from modules.agent.domain.enums import Provider as ProviderEnum
     return ProviderCredential(
         project_id=project_id or uuid6.uuid7(),
         provider=provider or ProviderEnum.openai,
@@ -95,7 +95,7 @@ def make_provider_credential(project_id=None, provider=None):
 # ── Knowledge factories ───────────────────────────────────────────
 
 def make_document_collection(project_id=None, name="TestCollection"):
-    from modules.knowledge.domain.entities import DocumentCollection
+    from modules.agent.domain.entities import DocumentCollection
     return DocumentCollection(
         project_id=project_id or uuid6.uuid7(),
         name=name,
@@ -105,7 +105,7 @@ def make_document_collection(project_id=None, name="TestCollection"):
 
 
 def make_document(project_id=None, collection_id=None):
-    from modules.knowledge.domain.entities import Document
+    from modules.agent.domain.entities import Document
     return Document(
         project_id=project_id or uuid6.uuid7(),
         collection_id=collection_id or uuid6.uuid7(),
@@ -122,7 +122,7 @@ def make_document(project_id=None, collection_id=None):
 # ── Runtime factories ─────────────────────────────────────────────
 
 def make_session(project_id=None, agent_id=None, external_session_id="ext-123"):
-    from modules.runtime.domain.entities import Session
+    from modules.agent.domain.entities import Session
     return Session(
         project_id=project_id or uuid6.uuid7(),
         agent_id=agent_id or uuid6.uuid7(),
@@ -133,7 +133,7 @@ def make_session(project_id=None, agent_id=None, external_session_id="ext-123"):
 
 
 def make_message(session_id=None, role="user", content="Hello"):
-    from modules.runtime.domain.entities import Message
+    from modules.agent.domain.entities import Message
     return Message(
         session_id=session_id or uuid6.uuid7(),
         role=role,
