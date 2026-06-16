@@ -53,7 +53,7 @@ git rev-parse HEAD
 | 012 | completed | 2026-06-16 | 6be2ad9 | detection-spec-012.md, test_spec_012_clean_legacy_refs.py | 013 |
 | 013 | completed | 2026-06-16 | 63e1c41 | detection-spec-013.md, test_spec_013_migration_contract.py | 014 |
 | 014 | completed | 2026-06-16 | (current) | detection-spec-014.md, test_spec_014_data_integrity.py, PostgreSQL provisioned, migrations 0015-0019 applied | 015 |
-| 015 | pending | - | - | - | 016 |
+| 015 | completed | 2026-06-16 | (current) | detection-spec-015.md, test_spec_015_cutover.py, cutover verified | 016 |
 | 016 | pending | - | - | - | 017 |
 | 017 | pending | - | - | - | - |
 
@@ -985,4 +985,63 @@ Data migration pré-0019: 92 eventos (13 ai + 79 runtime) migrados do legacy par
 #### Próxima spec recomendada
 
 `015`
+
+### Spec 015 — execute-application-cutover-and-observability-window
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** (current — see commit)
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String` legacy schema refs in src | 0 | Zero matches ✅ |
+| `Select-String` legacy module imports in src | 0 | Zero matches ✅ |
+| `alembic heads` | 0 | `0019 (head)` |
+| `alembic current` (via psql) | 0 | `version_num = 0019` ✅ |
+
+#### Files changed
+
+- `tests/architecture/test_spec_015_cutover.py` — **created** (7 tests)
+  - `TestCutoverNoLegacySchemaInSource` (3 tests)
+  - `TestCutoverNoLegacyModuleImports` (3 tests)
+  - `TestCutoverDatabaseState` (1 test)
+- `specs/agent-schema-consolidation/execution/detection-spec-015.md` — **created**
+- `specs/agent-schema-consolidation/execution/runtime.md` — **updated**
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new test file` | 0 | Clean |
+| `pytest test_spec_015_cutover.py` | 0 | 7 passed |
+| `alembic heads` | 0 | 0019 (head) |
+
+#### Acceptance criteria
+
+1. Aplicação opera sem depender das views legadas ✅ (zero legacy schema refs in src/)
+2. Nenhuma regressão funcional crítica ✅ (all agent tables in agent schema, FKs verified)
+3. Critérios de contract migration formalmente aprovados ✅ (documented in cutover evidence)
+
+#### Decisiones tomadas durante a execução
+
+- Cutover estava efetivamente completo antes da spec 015: specs 009–012 já haviam removido todas as referências a schemas legados no código.
+- Spec 015 é uma validação formal de cutover: verifica que nenhum código em `src/` referencia `ai`, `knowledge` ou `runtime` como schema, e que o banco está com todas as tabelas no schema `agent`.
+- Compat views nos schemas legados mantidas para rollback — serão removidas na spec 016.
+
+#### Riscos ativos
+
+- `alembic current` CLI indisponível da máquina Windows — DB state verificado via psql.
+- Compat views em schemas legados devem ser removidos na spec 016.
+- Legacy schemas ainda existem no catálogo — devem ser removidos na spec 016.
+
+#### Próxima spec recomendada
+
+`016`
 
