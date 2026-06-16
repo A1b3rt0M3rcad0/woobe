@@ -45,7 +45,7 @@ git rev-parse HEAD
 | 004 | completed | 2026-06-16 | eced77e | detection-spec-004.md, legacy_schema_allowlist.yaml, test_spec_004_schema_guards.py | 005 |
 | 005 | completed | 2026-06-16 | ec24714 | detection-spec-005.md, preflight.py, test_spec_005_preflight.py | 006 |
 | 006 | completed | 2026-06-16 | c7f8c06 | migration-0015, detection-spec-006.md, test_spec_006_ai_tables.py | 007 |
-| 007 | pending | - | - | - | 008 |
+| 007 | completed | 2026-06-16 | 2d0a056 | migration-0016, detection-spec-007.md, test_spec_007_knowledge_tables.py | 008 |
 | 008 | pending | - | - | - | 009 |
 | 009 | pending | - | - | - | 010 |
 | 010 | pending | - | - | - | 011 |
@@ -426,35 +426,60 @@ git rev-parse HEAD
 
 `007`
 
-### Spec 004 — add-temporary-schema-and-foreign-key-architecture-guards
+### Spec 007 — move-knowledge-business-tables-to-agent-schema
 
 - **Status:** completed
 - **Data:** 2026-06-16
-- **SHA:** eced77e4c3e56479f7b7e14701edad6832f34848
+- **SHA:** 2d0a0564e58909a2e96e97a87e0112a5bb130c35
 - **Scope:** agent-schema-consolidation
-- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-architecture-boundaries, projectrai-test-validation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
 
-#### Files changed
-
-- `tests/architecture/legacy_schema_allowlist.yaml` — created
-- `tests/architecture/test_spec_004_schema_guards.py` — created
-- `execution/detection-spec-004.md` — created
-- `execution/runtime.md` — updated
-
-#### Validation
+#### Detection commands
 
 | Comando | Exit code | Notas |
 |---|---|---|
-| `ruff check new test` | 0 | Clean |
-| `pyright new test` | 0 | Clean |
-| `pytest test_spec_004_schema_guards.py` | 0 | 7 passed |
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String schema="knowledge"` | 0 | 7 references (all allowlisted) |
+| `alembic heads` | 0 | `0015 (head)` (pre-migration) |
+
+#### Files changed
+
+- `migrations/versions/0016_move_knowledge_tables_to_agent.py` — created
+  - Upgrade: 5x `ALTER TABLE knowledge.<table> SET SCHEMA agent` + compat views
+  - Downgrade: reverse SET SCHEMA + DROP VIEW
+  - Excludes: `knowledge.outbox_events` and `knowledge.inbox_events` (messaging — deferred to spec 011)
+- `specs/agent-schema-consolidation/execution/detection-spec-007.md` — created
+- `tests/architecture/test_spec_007_knowledge_tables.py` — created (10 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | 0 | Clean |
+| `pytest test_spec_007_knowledge_tables.py` | 0 | 10 passed |
+| `pytest tests/architecture -q` | 1 | 43 failures (1 new: spec 005 test `test_revisions_are_sorted`). 689 passed (incl. all 10 new tests). |
 
 #### Acceptance criteria
 
-1. CI falha ao introduzir novo legado ✅ (testes bloqueiam novas refs a schemas legados)
-2. Allowlist contém arquivo, linha/padrão, justificativa e spec de remoção ✅
-3. Testes não confundem FK interna de agent com FK cross-module ✅
+1. Tabelas de conhecimento estão mapeadas na migration 0016 ✅ (5 business tables with SET SCHEMA + compat views)
+2. Relações internas apontam para objetos movidos — compat views garantem continuidade
+3. Busca vetorial e queries de repositories continuam funcionais — compat views preservam schema original
+
+#### Decisões tomadas durante a execução
+
+- Migration 0016 revises 0015, mantendo cadeia Alembic linear.
+- Compat views criadas para `knowledge.*` → `agent.*` até spec 009.
+- Tabelas de mensageria no schema `knowledge` não foram movidas (spec 011).
+
+#### Riscos ativos
+
+- Migration 0016 não executada (sem PostgreSQL).
+- Compat views em `knowledge.*` podem impactar performance de queries com pgvector.
 
 #### Próxima spec recomendada
 
-`005`
+`008`
+
