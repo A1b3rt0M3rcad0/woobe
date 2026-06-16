@@ -20,7 +20,7 @@
 | 005 | completed | f9cf800 | SessionResolver criado. Ownwership validada. 12 testes unitários + 6 contrato VERDES. | - |
 | 006 | completed | 809169c | list_recent_by_session adicionado. Ordenação dupla DESC + DESC + reverse. 8 testes unitários VERDES. | - |
 | 007 | completed | (this commit) | ConversationContextBuilder unificado. Métodos duplicados removidos. 11 testes unitários + arquitetura VERDES. | - |
-| 008 | pending | - | - | - |
+| 008 | completed | (this commit) | sessionId sincronizado com query param ?session=uuid. URL preserva sessão no reload. 29 testes vitess existentes + build VERDES. | - |
 | 009 | pending | - | - | - |
 | 010 | pending | - | - | - |
 | 011 | pending | - | - | - |
@@ -247,6 +247,26 @@ Evidências:
 - `test_no_duplicate_conversation_methods` (x5) → **PASSED**
 - `ruff check` → 1 erro pré-existente (não relacionado)
 
+### Spec 008
+
+sessionId sincronizado com query param `?session=<uuid>` na URL do playground.
+
+Arquivos alterados:
+- `web/src/pages/AgentPlaygroundPage.tsx` (sessionId via `useSearchParams`; inicialização da URL; validação contra agent sessions; limpeza na troca de agent)
+
+Estratégia implementada:
+1. `useSearchParams` lê/escreve `?session=<uuid>` sem recarregar a página (`replace: true`)
+2. `setSessionId` atualiza tanto state local quanto search params
+3. Inicialização: lê sessionId da URL no mount
+4. Validação: se sessionId não pertence à lista de sessions do agent, é limpo
+5. Troca de agent: sessionId é limpo (via `useEffect` em `agentId`)
+6. "New Session" chama `setSessionId(null)` que remove o param da URL
+7. SSE `meta`/`done` events chamam `setSessionId` que atualiza a URL
+
+Evidências:
+- `npm run build` → **PASSED**
+- `npm run test:run` → 29 passed
+
 ## Pendências e riscos
 
 - confirmar versão efetiva de `langchain-core` no lock/ambiente;
@@ -256,4 +276,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**008** — preserve-playground-session-lifecycle
+**009** — align-runtime-controls-with-effective-execution-mode

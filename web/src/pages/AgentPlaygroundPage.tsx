@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAgent, useReleases } from '@/features/agents/hooks'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
@@ -21,6 +21,7 @@ import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEve
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
   const { data: releases = [] } = useReleases(agentId)
 
@@ -37,7 +38,38 @@ function PlaygroundContent() {
   const { data: sessions = [], refetch: refetchSessions } = useAgentSessions(agentId, projectId)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [sessionId, setSessionId] = useState<string | null>(null)
+
+  const urlSessionId = searchParams.get('session') || null
+  const [sessionId, setSessionIdState] = useState<string | null>(urlSessionId)
+
+  const setSessionId = useCallback((value: string | null) => {
+    setSessionIdState(value)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) {
+        next.set('session', value)
+      } else {
+        next.delete('session')
+      }
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const prevAgentRef = useRef(agentId)
+  useEffect(() => {
+    if (prevAgentRef.current !== agentId) {
+      prevAgentRef.current = agentId
+      setSessionId(null)
+    }
+  }, [agentId, setSessionId])
+
+  useEffect(() => {
+    if (!sessionId || !sessions.length) return
+    const belongs = sessions.some((s) => s.id === sessionId)
+    if (!belongs) {
+      setSessionId(null)
+    }
+  }, [sessionId, sessions, setSessionId])
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
