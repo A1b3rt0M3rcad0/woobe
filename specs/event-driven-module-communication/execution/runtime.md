@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Inventário completo de imports cross-module, writes diretos, FKs, workers e eventos. Nenhuma alteração produtiva.
+Matriz alvo de eventos, ownership e subscriptions definida. Fluxos cross-module mapeados. Nenhuma alteração produtiva.
 
 ## Status
 
@@ -19,7 +19,7 @@ Inventário completo de imports cross-module, writes diretos, FKs, workers e eve
 |---|---|
 | 000 | completed |
 | 001 | completed |
-| 002 | pending |
+| 002 | completed |
 | 003 | pending |
 | 004 | pending |
 | 005 | pending |
@@ -100,13 +100,54 @@ Inventário completo de imports cross-module, writes diretos, FKs, workers e eve
 - 5 inbox_handlers sem handler real registrado (billing, core, identity, metering, observability)
 - Eventos versionados (.v1) apenas nos domain events do agent; demais sem versão explícita
 
+### 002 — Matriz alvo de eventos, ownership e subscriptions
+
+**Status:** completed
+**Tipo:** architecture
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `Select-String _INBOX_ROUTING_KEYS/register_*_workers/HANDLED_EVENTS in src/modules` | 0 |
+
+**Files changed:**
+- `execution/inventory/event-flow-target.md` — fluxo alvo definido
+- `execution/inventory/subscription-matrix.md` — subscriptions alvo definidas
+- `execution/inventory/event-payload-policy.md` — política de payload definida
+- `execution/inventory/compatibility-map.md` — mapa de compatibilidade definido
+- `execution/runtime.md` — runtime updated
+
+**Validation:** `test -s` for event-flow-target, subscription-matrix, event-payload-policy — passed
+
+**Descobertas principais:**
+- Cada módulo se inscreve no próprio prefixo (`agent.#`, `billing.#`, etc.) — self-subscriptions generalizadas
+- Agent: self-subscription justificada para tool events + legacy map `tools.*` → `agent.*`
+- Billing/core/identity: self-subscriptions sem caso de uso real
+- Metering/observability: registries vazios (`pass`), sem subscriptions reais
+- HANDLED_EVENTS em cada módulo lista apenas eventos do próprio módulo (self-events)
+- Nenhum módulo subscreve eventos de outro módulo atualmente
+
+**Decisões:**
+- Agent mantém self-subscription para tool events (justificada: Tool lifecycle interno)
+- Metering subscreverá `agent.execution.*` para fatos quantificáveis
+- Observability subscreverá `agent.execution.*` para tracing
+- Billing/core/identity: remover self-subscriptions ou justificar com caso de uso real
+
 ## Decisões tomadas durante a execução
 
 - Agent→Tool permanece síncrono interno (Tool já está em modules.agent)
 - Agent→Metering e Agent→Observability devem usar Outbox/Inbox
 - Consistência eventual para projeções e métricas
-- Nenhuma alteração produtiva nesta spec ou na anterior
+- Nenhuma alteração produtiva nas specs 000-002
 - Inventário completo de todas as violações classificado por severidade e spec de correção
+- Matriz alvo define subscriptions concretas para metering e observability
+- Agent mantém self-subscription para tool events (justificada)
+- Identity/core/billing: self-subscriptions a serem removidas ou justificadas
 
 ## Riscos ativos
 
@@ -117,7 +158,8 @@ Inventário completo de imports cross-module, writes diretos, FKs, workers e eve
 - Metering/observability não possuem pipeline RabbitMQ funcional.
 - FKs reais exigem inspeção em banco.
 - Imports dinâmicos cross-module criam acoplamento invisível (difícil de detectar staticamente)
+- Remoção de self-subscriptions billing/core/identity pode impactar consumidores não documentados
 
 ## Próxima spec
 
-`002-define-target-event-flow-and-subscription-matrix.md`
+`003-add-characterization-and-architecture-guards.md`
