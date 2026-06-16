@@ -41,7 +41,7 @@ git rev-parse HEAD
 | 000 | completed | 2026-06-16 | cd4da37 | detection-spec-000.md, test_agent_schema_consolidation_adr.py | 001 |
 | 001 | completed | 2026-06-16 | 26b74b4 | detection-spec-001.md, inventory files, test_spec_001_inventories.py | 002 |
 | 002 | completed | 2026-06-16 | 18b503e | detection-spec-002.md, table-map.md, test_spec_002_table_map.py | 003 |
-| 003 | pending | - | - | - | 004 |
+| 003 | completed | 2026-06-16 | 45d5eee | detection-spec-003.md, migration-runbook.md, test_spec_003_migration_runbook.py | 004 |
 | 004 | pending | - | - | - | 005 |
 | 005 | pending | - | - | - | 006 |
 | 006 | pending | - | - | - | 007 |
@@ -263,4 +263,43 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`003`
+`004`
+
+### Spec 003 — define-expand-migrate-contract-and-rollback-protocol
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** 45d5eee78c20eb0f841a939f90c5f6603f2936b2
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations
+
+#### Files changed
+
+- `execution/migration-runbook.md` — created
+- `execution/detection-spec-003.md` — created
+- `execution/runtime.md` — updated
+- `tests/architecture/test_spec_003_migration_runbook.py` — created
+
+#### Validation
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new test` | 0 | Clean |
+| `pyright new test` | 0 | Clean |
+| `pytest test_spec_003_migration_runbook.py` | 0 | 8 passed |
+
+#### Acceptance criteria
+
+1. Runbook de deploy e rollback aprovado ✅ (defined in migration-runbook.md)
+2. Nenhuma etapa destrutiva antes de paridade ✅ (contract phase explicitly after expand+migrate)
+3. Compatibilidade temporária com prazo de remoção ✅ (views de compatibilidade, removidas na spec 012)
+
+#### Decisões tomadas durante a execução
+
+- Todas as 15 tabelas de negócio usam `SET SCHEMA` direto.
+- 6 tabelas de mensageria legadas requerem rename antes do SET SCHEMA (conflito de nomes).
+- Rollback por fase documentado: antes do cutover (fase expand/migrate) vs após contract.
+
+#### Próxima spec recomendada
+
+`004`
