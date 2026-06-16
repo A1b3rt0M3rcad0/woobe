@@ -16,8 +16,8 @@ from modules.agent.infra.database.repositories import (
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
 from modules.agent.infra.adapters.observability_trace_recorder import ObservabilityTraceRecorder
-from modules.agent.infra.adapters.tools_tool_executor import ToolsToolExecutor
-from modules.agent.infra.adapters.tools_tool_repository import ToolsToolRepository
+from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
+from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from shared.infra.config import Settings
@@ -66,8 +66,8 @@ class AskJobWorker:
         settings = Settings()
         trace_recorder = ObservabilityTraceRecorder(uow)
         usage_recorder = MeteringUsageRecorder(uow)
-        tool_repo = ToolsToolRepository(uow)
-        tool_executor = ToolsToolExecutor(tool_repo)
+        tool_repo = SQLAlchemyAgentToolRepository(uow)
+        tool_executor = AgentToolExecutor(tool_repo)
         llm_factory = LangchainLLMFactory()
 
         use_case = AskAgentUseCase(

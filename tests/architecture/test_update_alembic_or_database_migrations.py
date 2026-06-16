@@ -34,13 +34,15 @@ class TestAlembicMigrationsSuccess:
         assert "from modules.runtime.infra.models" not in content, (
             "migrations/env.py must not import from legacy modules.runtime.infra.models"
         )
+        assert "from modules.tools.infra.database.models" not in content, (
+            "migrations/env.py must not import from legacy modules.tools.infra.database.models"
+        )
 
     def test_alembic_env_imports_all_required_modules(self):
         content = ENV_PATH.read_text(encoding="utf-8")
         required_imports = [
             "modules.identity.infra.database.models",
             "modules.core.infra.database.models",
-            "modules.tools.infra.database.models",
             "modules.metering.infra.database.models",
             "modules.billing.infra.database.models",
             "modules.observability.infra.database.models",

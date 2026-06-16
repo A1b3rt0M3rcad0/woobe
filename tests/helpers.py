@@ -146,12 +146,13 @@ def make_message(session_id=None, role="user", content="Hello"):
 # ── Tools factories ───────────────────────────────────────────────
 
 def make_tool(project_id=None, agent_id=None, name="http-tool"):
-    from modules.tools.domain.entities import Tool
+    from modules.agent.domain.entities import Tool
+    from modules.agent.domain.enums import ToolType
     return Tool(
         project_id=project_id or uuid6.uuid7(),
         agent_id=agent_id or uuid6.uuid7(),
         name=name,
-        type="http_mcp",
+        type=ToolType.HTTP_MCP,
         config={"url": "https://api.example.com"},
         created_at=_now,
         updated_at=_now,
@@ -159,11 +160,12 @@ def make_tool(project_id=None, agent_id=None, name="http-tool"):
 
 
 def make_secret(project_id=None, name="api-key"):
-    from modules.tools.domain.entities import Secret
+    from modules.agent.domain.entities import Secret
+    from modules.agent.domain.enums import SecretType
     return Secret(
         project_id=project_id or uuid6.uuid7(),
         name=name,
-        type="bearer_token",
+        type=SecretType.BEARER_TOKEN,
         encrypted_value="enc:value",
         created_at=_now,
         updated_at=_now,

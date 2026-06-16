@@ -11,6 +11,8 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentInboxRepository,
     SQLAlchemyAgentOutboxRepository,
     SQLAlchemyAgentRepository,
+    SQLAlchemyAgentToolRepository,
+    SQLAlchemyAgentToolSecretRepository,
     SQLAlchemyAskJobRepository,
     SQLAlchemyDocumentChunkRepository,
     SQLAlchemyDocumentCollectionRepository,
@@ -35,6 +37,8 @@ class AgentUnitOfWork(UnitOfWork):
         self._documents: SQLAlchemyDocumentRepository | None = None
         self._document_chunks: SQLAlchemyDocumentChunkRepository | None = None
         self._knowledge_versions: SQLAlchemyKnowledgeVersionRepository | None = None
+        self._tools: SQLAlchemyAgentToolRepository | None = None
+        self._tool_secrets: SQLAlchemyAgentToolSecretRepository | None = None
         self._outbox: SQLAlchemyAgentOutboxRepository | None = None
         self._inbox: SQLAlchemyAgentInboxRepository | None = None
 
@@ -110,6 +114,18 @@ class AgentUnitOfWork(UnitOfWork):
             self._inbox = SQLAlchemyAgentInboxRepository(self)
         return self._inbox
 
+    @property
+    def tools(self) -> SQLAlchemyAgentToolRepository:
+        if self._tools is None:
+            self._tools = SQLAlchemyAgentToolRepository(self)
+        return self._tools
+
+    @property
+    def tool_secrets(self) -> SQLAlchemyAgentToolSecretRepository:
+        if self._tool_secrets is None:
+            self._tool_secrets = SQLAlchemyAgentToolSecretRepository(self)
+        return self._tool_secrets
+
     async def commit(self) -> None:
         if self._session is not None:
             try:
@@ -143,5 +159,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._documents = None
         self._document_chunks = None
         self._knowledge_versions = None
+        self._tools = None
+        self._tool_secrets = None
         self._outbox = None
         self._inbox = None

@@ -313,6 +313,42 @@ class AskJobModel(BaseModel):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class AgentToolModel(BaseModel):
+    __tablename__ = "tools"
+    __table_args__ = (
+        Index("ix_agent_tools_project_id", "project_id"),
+        Index("ix_agent_tools_agent_id", "agent_id"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID | None]
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(64))
+    config: Mapped[dict | None] = mapped_column(JSONB)
+    input_schema: Mapped[dict | None] = mapped_column(JSONB)
+    output_schema: Mapped[dict | None] = mapped_column(JSONB)
+    risk_level: Mapped[str] = mapped_column(String(32), default="low")
+    timeout_ms: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), default="active")
+
+
+class AgentToolSecretModel(BaseModel):
+    __tablename__ = "tool_secrets"
+    __table_args__ = (
+        UniqueConstraint("project_id", "name"),
+        Index("ix_agent_tool_secrets_project_id", "project_id"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(String(255))
+    type: Mapped[str] = mapped_column(String(64))
+    encrypted_value: Mapped[str] = mapped_column(Text)
+    data: Mapped[dict | None] = mapped_column(JSONB)
+
+
 class AgentOutboxEventModel(BaseModel):
     __tablename__ = "agent_outbox_events"
     __table_args__ = (

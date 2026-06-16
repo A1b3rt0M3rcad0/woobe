@@ -46,6 +46,18 @@ from modules.agent.application.composers.get_ask_job_composer import get_ask_job
 from modules.agent.application.composers.list_agent_sessions_composer import list_agent_sessions_composer
 from modules.agent.application.composers.list_messages_composer import list_messages_composer
 from modules.agent.application.composers.send_message_composer import send_message_composer
+from modules.agent.application.composers.tools_composers import (
+    create_secret_composer,
+    create_tool_composer,
+    delete_tool_composer,
+    execute_tool_composer,
+    list_secrets_composer,
+    list_tools_by_agent_composer,
+    list_tools_composer,
+    test_tool_composer,
+    update_tool_composer,
+    update_tool_status_composer,
+)
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
@@ -370,6 +382,79 @@ async def list_messages(request: FastAPIRequest):
 @runtime_router.post("/messages")
 async def send_message(request: FastAPIRequest):
     handler = send_message_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+tools_router = APIRouter(prefix="/tools", tags=["tools"])
+
+
+@tools_router.get("/tools")
+async def tools_list_tools(request: FastAPIRequest):
+    handler = list_tools_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.post("/tools")
+async def tools_create_tool(request: FastAPIRequest):
+    handler = create_tool_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.patch("/tools/{tool_id}")
+async def tools_update_tool(request: FastAPIRequest):
+    handler = update_tool_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.patch("/tools/{tool_id}/status")
+async def tools_update_tool_status(request: FastAPIRequest):
+    handler = update_tool_status_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.delete("/tools/{tool_id}")
+async def tools_delete_tool(request: FastAPIRequest):
+    handler = delete_tool_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.post("/tools/test")
+async def tools_test_tool(request: FastAPIRequest):
+    handler = test_tool_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.post("/tools/execute")
+async def tools_execute_tool(request: FastAPIRequest):
+    handler = execute_tool_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.get("/agents/{agent_id}/tools")
+async def tools_list_tools_by_agent(request: FastAPIRequest):
+    handler = list_tools_by_agent_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.get("/secrets")
+async def tools_list_secrets(request: FastAPIRequest):
+    handler = list_secrets_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@tools_router.post("/secrets")
+async def tools_create_secret(request: FastAPIRequest):
+    handler = create_secret_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
