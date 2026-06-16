@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Tool, Secret entities, enums, errors, events, and repository interfaces integrated into agent domain.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, and use cases integrated into agent application layer with infra concerns extracted behind ports.
 
 ## Status
 
@@ -24,7 +24,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 003 | completed |
 | 004 | completed |
 | 005 | completed |
-| 006 | pending |
+| 006 | completed |
 | 007 | pending |
 | 008 | pending |
 | 009 | pending |
@@ -352,6 +352,71 @@ All checks pass. Exit code: 0
 - `frontend/` directory not present in repository, though spec references it. Not a blocker — environment variant.
 - 19 pre-existing test collection errors in `tests/unit/test_tools` and `tests/unit/test_observability` — pre-existing, not caused by this spec.
 
+### Spec 006 — Mover DTOs e casos de uso para application de agent
+
+**Status:** completed
+**Tipo:** refactor
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/application/dtos/tools_dtos.py` (created)
+- `src/modules/agent/application/ports.py` (created)
+- `src/modules/agent/application/use_cases/tools_use_cases.py` (created)
+- `src/modules/agent/application/use_cases/__init__.py` (updated — added 10 tools use cases)
+- `tests/unit/agent/test_tools_application.py` (created — 43 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/tools/application -Recurse -File -Filter *.py` | 0 | 21 source files inventoried |
+| `Select-String "httpx\|encrypt_secret\|decrypt_secret\|os\.getenv\|modules\.tools" src/modules/tools/application` | 0 | Infrastructure deps identified in use cases and composers |
+
+**Key changes:**
+
+| Contract | Current (tools) | Target (agent) |
+|---|---|---|
+| DTOs | `modules.tools.application.dtos.tools_dtos` (11 classes) | `modules.agent.application.dtos.tools_dtos` (11 classes, imports from agent enums) |
+| Ports | — (inline httpx/crypto) | `modules.agent.application.ports` (ToolExecutionPort, SecretCipherPort, ToolSecretResolverPort) |
+| Use Cases | `modules.tools.application.use_cases.tools_use_cases` (8 classes, mixed infra) | `modules.agent.application.use_cases.tools_use_cases` (10 classes, ports extracted) |
+| Events | Raw dict with `tools.*` event types | Agent domain events (`AgentToolCreatedV1`, `AgentToolUpdatedV1`, `AgentToolStatusChangedV1`, `AgentSecretCreatedV1`) |
+| Repositories | `modules.tools.domain.repositories` | `modules.agent.domain.repositories` |
+| Enums | `modules.tools.domain.enums` | `modules.agent.domain.enums` |
+
+**Extracted application ports:**
+- `ToolExecutionPort` — HTTP execution abstraction (replaces direct httpx usage)
+- `SecretCipherPort` — encrypt/decrypt abstraction (replaces shared.infra.crypto + os.getenv)
+- `ToolSecretResolverPort` — secret header resolution abstraction (replaces inline decrypt in headers)
+
+**Shim compatibility:** Legacy `modules.tools.application.*` files remain intact. All existing consumers continue to work unchanged.
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/application tests/unit/agent
+```
+Exit code: 0 (1 pre-existing F821 in runtime_use_cases.py — not caused by this spec)
+
+```bash
+pytest tests/unit/agent -q
+```
+Exit code: 0 — 43 passed
+
+```bash
+pytest tests/architecture -q
+```
+Exit code: 1 — 52 pre-existing failures (baseline: inventory paths from prior migration, migration head, legacy module structure — none caused by this spec)
+
+**Acceptance criteria:**
+- [x] application sem httpx/SQLAlchemy/modules.tools (ports extracted; no infra in application)
+- [x] UoW/repositories agent-owned (all use cases use modules.agent.domain.repositories)
+- [x] contratos preservados (DTO shapes identical; use case signatures preserved)
+- [x] eventos com tipo agent.* (using AgentToolCreatedV1, etc.)
+- [x] segredos nunca em eventos (AgentSecretCreatedV1 payload excludes encrypted_value)
+
 ## Próxima spec recomendada
 
-`006-move-tools-dtos-and-use-cases-into-agent.md`
+`007-consolidate-tool-execution-and-secure-secret-resolution.md`
