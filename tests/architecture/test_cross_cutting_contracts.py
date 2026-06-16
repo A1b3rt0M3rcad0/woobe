@@ -445,14 +445,13 @@ def test_worker_discovery_has_constant():
     assert "identity" in MODULE_WORKER_REGISTRIES
     assert "metering" in MODULE_WORKER_REGISTRIES
     assert "observability" in MODULE_WORKER_REGISTRIES
-    assert "tools" in MODULE_WORKER_REGISTRIES
 
 
 def test_worker_discovery_entries():
     """Spec 095: discover_module_entries must return ModuleWorkerEntry list."""
     from shared.workers.discovery import ModuleWorkerEntry, discover_module_entries
     entries = discover_module_entries()
-    assert len(entries) == 7
+    assert len(entries) == 6
     for entry in entries:
         assert isinstance(entry, ModuleWorkerEntry)
         assert isinstance(entry.module_name, str)
@@ -466,7 +465,7 @@ def test_worker_discovery_build_registries():
     from shared.workers.discovery import build_registries, discover_module_entries
     entries = discover_module_entries()
     registries = build_registries(entries, engine=MagicMock(), settings=MagicMock())
-    assert len(registries) == 7
+    assert len(registries) == 6
     from shared.workers.contracts import WorkerRegistryProtocol
     for registry in registries:
         assert isinstance(registry, WorkerRegistryProtocol)

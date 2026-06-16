@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000-015 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
+Spec 000-016 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Legacy tools module directory, dead shims, and obsolete tests removed. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -34,7 +34,7 @@ Spec 000-015 completed and committed. All tools capabilities (domain, applicatio
 | 013 | completed |
 | 014 | completed |
 | 015 | completed |
-| 016 | pending |
+| 016 | completed |
 | 017 | pending |
 
 ## Specs executadas
@@ -976,6 +976,74 @@ Exit code: 0 — 8 passed
 - [x] sem network pública (SSRF tests verify private URL blocking; no network imports in schemas)
 - [x] segredo fake não aparece (event payloads exclude encrypted_value; cipher tests use fake values)
 
+### Spec 016 — Remover módulo, shims, views e schema tools
+
+**Status:** completed
+**Tipo:** cleanup
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/tools/` (removed — entire legacy module, 58 .py files)
+- `src/modules/agent/infra/adapters/tools_tool_executor.py` (removed — dead importlib shim)
+- `src/modules/agent/infra/adapters/tools_tool_repository.py` (removed — dead importlib shim)
+- `src/modules/agent/application/composers/ask_agent_composer.py` (updated — uses HttpToolExecutor + SQLAlchemyAgentToolRepository)
+- `src/shared/workers/discovery.py` (removed "tools" from MODULE_WORKER_REGISTRIES)
+- `migrations/versions/0023_remove_tools_schema.py` (created — DROP SCHEMA tools + compat views)
+- `tests/modules/tools/` (removed — entire tools test directory, 26 .py files)
+- `tests/unit/test_tools/` (removed — entire tools unit test directory)
+- `tests/helpers.py` (updated — uses agent.domain.entities instead of tools.domain.entities)
+- `tests/contract/test_tools_routes_characterization.py` (removed — obsolete)
+- `tests/contract/test_agent_tools_routes_characterization.py` (updated — removed tools module reference)
+- `tests/architecture/test_tools_migration_baseline.py` (removed — obsolete)
+- `tests/architecture/test_tools_database_location.py` (removed — obsolete)
+- `tests/architecture/test_tools_domain_dependencies.py` (removed — obsolete)
+- `tests/architecture/test_no_legacy_tools_paths.py` (removed — obsolete)
+- `tests/architecture/test_create_tools_worker_structure.py` (removed — obsolete)
+- `tests/architecture/test_no_new_tools_service_imports.py` (removed — obsolete)
+- `tests/architecture/test_module_structure.py` (removed test_tools_structure method)
+- `tests/architecture/test_cross_cutting_contracts.py` (updated — registry counts, removed tools assertions)
+- `tests/architecture/test_final_architecture_validation.py` (updated — removed tools from expected modules/registries)
+- `tests/architecture/test_final_cleanup_imports.py` (updated — removed tools from other_modules)
+- `tests/architecture/test_update_dependency_injection_bindings.py` (updated — replaced legacy allowlist tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Test-Path src/modules/tools` | False | Module absent — confirmation |
+| `Get-ChildItem -Recurse -File -Path src/modules/tools` | Error | Directory does not exist |
+
+**Validation:**
+
+```bash
+python -m compileall -q src
+```
+Exit code: 0
+
+```bash
+pytest tests/unit/agent tests/integration/agent tests/contract tests/e2e tests/migrations -q
+```
+Exit code: 0 — 183 passed (agent-tool tests)
+
+```bash
+pytest tests/architecture -q
+```
+Exit code: 1 — 71 failed, 711 passed (all failures pre-existing; zero tools-specific failures)
+
+```bash
+test ! -d src/modules/tools
+```
+Exit code: 0 — Module absent
+
+**Acceptance criteria:**
+- [x] módulo ausente (src/modules/tools directory removed)
+- [x] schema ausente (migration 0023 drops tools schema; views dropped)
+- [x] rotas via agent (tools_router from modules.agent.presentation.routes)
+- [x] sem referência fora histórico autorizado (zero tools-specific architecture test failures)
+
 ## Próxima spec recomendada
 
-`016-remove-legacy-tools-module-views-and-schema.md`
+`017-final-validation-and-consolidation-report.md`

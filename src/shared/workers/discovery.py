@@ -18,7 +18,6 @@ MODULE_WORKER_REGISTRIES: list[str] = [
     "identity",
     "metering",
     "observability",
-    "tools",
 ]
 
 

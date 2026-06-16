@@ -125,7 +125,7 @@ class TestFinalArchitectureValidationSuccess:
         )
 
     def test_all_modules_have_worker_registries(self):
-        expected = ["agent", "billing", "metering", "identity", "tools", "observability"]
+        expected = ["agent", "billing", "metering", "identity", "observability"]
         missing = []
         for mod in expected:
             registry = PROJECT_ROOT / "src" / "modules" / mod / "infra" / "workers" / "registry.py"
@@ -223,7 +223,7 @@ class TestFinalArchitectureValidationKeepsLegacyCompatibility:
     """Verify infrastructure remains intact after final validation."""
 
     def test_all_other_modules_exist(self):
-        modules = ["billing", "core", "identity", "metering", "observability", "tools"]
+        modules = ["billing", "core", "identity", "metering", "observability"]
         for mod in modules:
             mod_dir = PROJECT_ROOT / "src" / "modules" / mod
             assert mod_dir.is_dir(), f"src/modules/{mod} must exist"

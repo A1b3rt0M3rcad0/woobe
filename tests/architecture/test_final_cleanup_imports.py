@@ -185,7 +185,7 @@ class TestFinalCleanupImportsKeepsLegacyCompatibility:
             )
 
     def test_other_modules_unaffected(self):
-        other_modules = ["billing", "core", "identity", "metering", "observability", "tools"]
+        other_modules = ["billing", "core", "identity", "metering", "observability"]
         for mod in other_modules:
             mod_dir = pathlib.Path(f"src/modules/{mod}")
             assert mod_dir.is_dir(), f"Non-legacy module src/modules/{mod} must still exist"
