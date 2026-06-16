@@ -33,7 +33,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 013 | completed |
 | 014 | completed |
 | 015 | completed |
-| 016 | pending |
+| 016 | completed |
 | 017 | pending |
 | 018 | pending |
 | 019 | pending |
@@ -668,6 +668,33 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - Replay script criado como ferramenta CLI independente (scripts/messaging/replay.py)
 - mark_failed existente mantido como override (não chama mark_dead/mark_retryable do base)
 
+### 016 — Identity, Core e Billing: remover integração de fachada
+
+**Status:** completed
+**Tipo:** cross-module-audit
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `src/modules/identity/infra/workers/registry.py` — removed inbox consumer + inbox processor registration; only outbox dispatcher remains
+- `src/modules/core/infra/workers/registry.py` — same
+- `src/modules/billing/infra/workers/registry.py` — same
+- `tests/integration/identity/test_spec016_identity_self_subscription.py` — 3 tests: registry count 1, early return without rabbitmq, worker registry
+- `tests/integration/core/test_spec016_core_self_subscription.py` — 2 tests: registry count 1, worker registry
+- `tests/integration/billing/test_spec016_billing_self_subscription.py` — 2 tests: registry count 1, worker registry
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/identity src/modules/core src/modules/billing` | 0 |
+| `pytest tests/integration/identity/ tests/integration/core/ tests/integration/billing/ -q` | 0 (7 passed) |
+
+**Decisões:**
+- Identity, Core, Billing mantêm outbox dispatchers como produtores (podem emitir eventos para outros módulos)
+- Inbox consumers e inbox processors removidos dos registries — zero self-subscription
+- Arquivos de inbox consumer/processor/handler preservados (sem código morto removido — extensão points documentados)
+- Arquitetura guard test_event_self_subscriptions ainda lista billing/core/identity como conhecidos (constantes de routing keys ainda existem nos consumer files)
+
 ## Próxima spec
 
-`016-fix-identity-core-billing-communication.md`
+`017-remove-cross-module-foreign-keys.md`
