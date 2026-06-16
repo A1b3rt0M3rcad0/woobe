@@ -50,7 +50,7 @@ git rev-parse HEAD
 | 009 | completed | 2026-06-16 | 0b738d8 | models.py updated, allowlist updated, test_spec_009_agent_models.py, detection-spec-009.md | 010 |
 | 010 | completed | 2026-06-16 | bb24f9d | migration-0018, models updated, allowlist updated, test_spec_010_cross_module_fk.py, detection-spec-010.md | 011 |
 | 011 | completed | 2026-06-16 | 333a0e1 | detection-spec-011.md, migration-0019, test_spec_011_legacy_messaging.py | 012 |
-| 012 | pending | - | - | - | 013 |
+| 012 | completed | 2026-06-16 | - | detection-spec-012.md, test_spec_012_clean_legacy_refs.py | 013 |
 | 013 | pending | - | - | - | 014 |
 | 014 | pending | - | - | - | 015 |
 | 015 | pending | - | - | - | 016 |
@@ -82,7 +82,7 @@ git rev-parse HEAD
 
 ## Próxima spec recomendada
 
-`012`
+`013`
 
 ## Histórico de execução
 
@@ -784,5 +784,63 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`012`
+`013`
+
+### Spec 012 — remove-runtime-code-references-to-legacy-schemas
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** (current HEAD after commit)
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-architecture-boundaries, projectrai-agent-migration, projectrai-discovery-inventory, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `alembic heads` | 0 | `0019 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+| `Select-String` schema refs in src/ | 0 | Zero matches ✅ |
+| `Select-String` module imports in src/ | 0 | Zero matches ✅ |
+| `Select-String` config refs | 0 | Zero matches ✅ |
+
+#### Files changed
+
+- `specs/agent-schema-consolidation/execution/detection-spec-012.md` — created
+- `tests/architecture/test_spec_012_clean_legacy_refs.py` — created
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | (pending) | - |
+| `pytest test_spec_012_clean_legacy_refs.py` | (pending) | - |
+| `pytest tests/architecture -q` | (pending) | - |
+
+#### Acceptance criteria
+
+1. Runtime não consulta schemas legados ✅ (zero schema="ai|knowledge|runtime" em src/)
+2. Nenhum import de módulos removidos permanece ✅ (zero modules.ai|knowledge|runtime em src/)
+3. Allowlist histórica é mínima e não cobre código executável ✅ (3 entries, all removal_spec:016, historical migrations only)
+
+#### Decisões tomadas durante a execução
+
+- Spec 012 é uma spec de verificação pura: as specs 009–011 já removeram todas as referências a schemas legados em código executável.
+- Os únicos `modules.ai|knowledge|runtime` remanescentes estão em testes de arquitetura que validam intencionalmente o boundary enforcement. Estes não são código executável de produção e são tratados por specs posteriores de final validation.
+- Nenhuma migration nova foi necessária.
+- `alembic current` indisponível sem PostgreSQL — registrado como pendência consistente com specs anteriores.
+
+#### Riscos ativos
+
+- Migration 0019 não executada (sem PostgreSQL).
+- Dados residuais em tabelas legadas não verificáveis sem PostgreSQL.
+- Testes de arquitetura com referências a módulos legados permanecem (serão removidos nas specs de final validation).
+
+#### Próxima spec recomendada
+
+`013`
 
