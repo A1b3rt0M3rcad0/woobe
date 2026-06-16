@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. All 5 inventory files populated with comprehensive mapping of tools module files, imports, API, events, and database. No code changes made.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Current-to-target map, target tree, and public API contract defined. No code changes made.
 
 ## Status
 
@@ -20,7 +20,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 |---|---|
 | 000 | completed |
 | 001 | completed |
-| 002 | pending |
+| 002 | completed |
 | 003 | pending |
 | 004 | pending |
 | 005 | pending |
@@ -147,10 +147,52 @@ All 5 files exist and are non-empty. Exit code: 0
 - [x] consumidores identificados
 - [x] riscos de segredo registrados
 
+### Spec 002 — Definir arquitetura-alvo e mapa current-to-target
+
+**Status:** completed
+**Tipo:** architecture
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `specs/tools-to-agent-consolidation/execution/inventory/current-to-target.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/target-tree.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/public-api-contract.md` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/agent -Recurse -File -Filter *.py` | 0 | 107 source files in agent module |
+| `Select-String "class AgentUnitOfWork|ToolExecution|ToolCall|tool_calls" src/modules/agent tests` | 0 | ToolCallResponse and tool_calls found in tests; AgentUnitOfWork exists without tool repos |
+
+**Key findings:**
+- Agent module has 107 source files — result of previous ai/knowledge/runtime consolidation
+- Agent already has `domain/ports/tool_executor.py` and `domain/ports/tool_repository.py` — ABCs for tool operations
+- Agent has `infra/adapters/tools_tool_executor.py` and `infra/adapters/tools_tool_repository.py` — adapters using `importlib` to delegate to `modules.tools`
+- `AgentUnitOfWork` exists but does NOT include tool or secret repositories
+- `ToolCallResponse` and `tool_calls` schemas already exist in agent test schemas
+
+**Validation:**
+
+```python
+python -c "from pathlib import Path; p=Path('specs/tools-to-agent-consolidation/execution/inventory/current-to-target.md'); assert p.exists() and p.stat().st_size>0; t=p.read_text(); assert 'ToolsUnitOfWork' in t and 'tool_secrets' in t; print('ok')"
+```
+
+Exit code: 0
+
+**Acceptance criteria:**
+- [x] destino explícito para todos os itens
+- [x] sem AgentToolsUnitOfWork (ToolsUnitOfWork not retained; merged into AgentUnitOfWork)
+- [x] tabelas finais definidas (schema agent)
+
 ## Decisões tomadas durante a execução
 
 - `frontend/` directory does not exist in this repository snapshot; detection was adapted to omit it. This is a pre-existing environment condition, not a regression.
 - `rg` (ripgrep) not available on Windows; `Select-String` (PowerShell) used as equivalent.
+- Agent module already has tool ports and `importlib`-based adapters; these will be replaced during consolidation.
 
 ## Riscos ativos
 
@@ -166,4 +208,4 @@ All 5 files exist and are non-empty. Exit code: 0
 
 ## Próxima spec recomendada
 
-`002-define-target-architecture-and-current-to-target-map.md`
+`003-define-incremental-compatibility-and-rollback-protocol.md`
