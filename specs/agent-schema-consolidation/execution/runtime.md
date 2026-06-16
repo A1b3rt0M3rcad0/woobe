@@ -40,7 +40,7 @@ git rev-parse HEAD
 |---|---|---|---|---|---|
 | 000 | completed | 2026-06-16 | cd4da37 | detection-spec-000.md, test_agent_schema_consolidation_adr.py | 001 |
 | 001 | completed | 2026-06-16 | 26b74b4 | detection-spec-001.md, inventory files, test_spec_001_inventories.py | 002 |
-| 002 | pending | - | - | - | 003 |
+| 002 | completed | 2026-06-16 | 18b503e | detection-spec-002.md, table-map.md, test_spec_002_table_map.py | 003 |
 | 003 | pending | - | - | - | 004 |
 | 004 | pending | - | - | - | 005 |
 | 005 | pending | - | - | - | 006 |
@@ -213,4 +213,54 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`002`
+`003`
+
+### Spec 002 — define-target-table-and-constraint-map
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** 18b503e68800a847591c0781f328551a9ee265f3
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-discovery-inventory, projectrai-architecture-boundaries, projectrai-database-migrations
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: all checks | 0 | Clean |
+| `alembic heads` | 0 | `0014 (head)` (reused) |
+
+#### Files changed
+
+- `execution/inventory/table-map.md` — populated
+- `execution/detection-spec-002.md` — created
+- `execution/runtime.md` — updated
+- `tests/architecture/test_spec_002_table_map.py` — created
+
+#### Validation
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new test` | 0 | Clean |
+| `pyright new test` | 0 | Clean |
+| `pytest test_spec_002_table_map.py` | 0 | 6 passed |
+
+#### Acceptance criteria
+
+1. Source→target map covers 100% of objects ✅ (15 business tables + 2 canonical messaging tables + 6 legacy messaging tables)
+2. No business table of agent remains without owner ✅ (all mapped)
+3. Index policy for external IDs defined ✅ (documented in table-map.md)
+
+#### Decisões tomadas durante a execução
+
+- Tabelas de mensageria legadas (outbox_events/inbox_events em ai, knowledge, runtime) têm nomes conflitantes. Requerem rename prévio ao SET SCHEMA.
+- Módulos externos (metering, observability, tools) com FKs para schemas legados precisam re-apontar FKs, não apenas remover.
+
+#### Riscos ativos
+
+- Colisões de sequences, views, funções, triggers não verificadas (sem PostgreSQL).
+- Raw SQL com three-part names para schemas legados não inventariado completamente.
+
+#### Próxima spec recomendada
+
+`003`
