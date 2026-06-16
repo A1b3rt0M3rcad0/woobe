@@ -42,10 +42,10 @@ class TestEventHandlerNoop:
             f"New no-op modules detected: {unknown_noop}"
         )
 
-    def test_agent_inbox_handler_is_real(self):
+    def test_agent_no_self_consumption_handlers(self):
         file_path = SRC_MODULES / "agent" / "infra" / "messaging" / "inbox_handlers.py"
         assert file_path.exists(), "Agent inbox handlers file not found"
         source = file_path.read_text(encoding="utf-8")
-        assert "AGENT_TOOL_EVENT_HANDLERS" in source, (
-            "Agent inbox handlers should register real handlers"
+        assert "AGENT_TOOL_EVENT_HANDLERS" not in source, (
+            "Agent must not register self-consumption handlers for its own events"
         )

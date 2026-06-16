@@ -27,7 +27,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 007 | completed |
 | 008 | completed |
 | 009 | completed |
-| 010 | pending |
+| 010 | completed |
 | 011 | pending |
 | 012 | pending |
 | 013 | pending |
@@ -459,6 +459,46 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - 32 pre-existing failures no pytest (pytest-asyncio plugin ausente) — idênticos à spec 008
 - Stream service ainda depende de self._session_factory (Callable) — mudança futura para async_sessionmaker direto pode ser necessária
 
+### 010 — Tool interna: composição, secrets e eventos
+
+**Status:** completed
+**Tipo:** agent
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `sed -n '120,190p' src/modules/agent/infra/adapters/tool_executor.py` | 0 |
+| `sed -n '130,250p' src/modules/agent/application/use_cases/tools_use_cases.py` | 0 |
+| `sed -n '1,130p' src/modules/agent/infra/messaging/inbox_handlers.py` | 0 |
+
+**Files changed:**
+- `src/modules/agent/infra/adapters/tool_executor.py` — AgentToolExecutor aceita e injeta secret_resolver no ExecuteToolUseCase
+- `src/modules/agent/infra/messaging/inbox_handlers.py` — removidos AGENT_TOOL_EVENT_HANDLERS, TOOLS_LEGACY_EVENT_MAP, register_tool_handlers(), e 4 handlers no-op
+- `src/modules/agent/infra/workers/registry.py` — removida chamada register_tool_handlers() do AgentInboxEventRouter
+- `tests/architecture/test_event_handler_noop.py` — assert invertido: test_agent_no_self_consumption_handlers verifica ausência de AGENT_TOOL_EVENT_HANDLERS
+- `tests/unit/agent/test_spec010_tool_executor_and_handlers.py` — 8 testes: tool_executor com secret_resolver, sem self-consumption, composer signatures, import ausente no inbox_handlers
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- Agent não consome mais seus próprios eventos tool.* e secret.*
+- ToolExecutor agora aceita secret_resolver opcional
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/agent tests/architecture tests/unit/agent` | 0 |
+| `pytest tests/unit/agent/test_spec010_tool_executor_and_handlers.py tests/architecture/test_event_handler_noop.py -q` | 0 (10 passed) |
+| `pytest tests/integration/agent/test_spec009_stream_job_orchestrator.py -q` | 0 (9 passed) |
+
+**Decisões:**
+- Secret resolver é opcional no AgentToolExecutor — compatibilidade retroativa com callers que não passam
+- Remoção total de self-consumption (handlers no-op) — zero risco funcional
+- tools_composers.py não alterado — secret resolver já estava no composer
+
 ## Próxima spec
 
-`010-stabilize-internal-tool-execution-and-events.md`
+`011-implement-metering-rabbit-consumer-and-inbox.md`
