@@ -22,8 +22,6 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import BaseModel
-from shared.infra.database.inbox import InboxEventModel as BaseInbox
-from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
 
 
 class ProviderCredentialModel(BaseModel):
@@ -66,16 +64,6 @@ class AgentModel(BaseModel):
     session_mode: Mapped[str] = mapped_column(String(32), default="stateful")
     status: Mapped[str] = mapped_column(String(32), default="active")
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-
-
-class OutboxEventModel(BaseOutbox):
-    __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "ai"}
-
-
-class InboxEventModel(BaseInbox):
-    __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "ai"}
 
 
 class AgentPromptModel(BaseModel):
@@ -276,16 +264,6 @@ class KnowledgeVersionModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="DRAFT")
 
 
-class KnowledgeOutboxEventModel(BaseOutbox):
-    __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "knowledge"}
-
-
-class KnowledgeInboxEventModel(BaseInbox):
-    __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "knowledge"}
-
-
 class SessionModel(BaseModel):
     __tablename__ = "sessions"
     __table_args__ = (
@@ -333,16 +311,6 @@ class AskJobModel(BaseModel):
     trace_id: Mapped[UUID | None] = mapped_column(PG_UUID)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class RuntimeOutboxEventModel(BaseOutbox):
-    __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "runtime"}
-
-
-class RuntimeInboxEventModel(BaseInbox):
-    __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "runtime"}
 
 
 class AgentOutboxEventModel(BaseModel):

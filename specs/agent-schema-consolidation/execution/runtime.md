@@ -49,7 +49,7 @@ git rev-parse HEAD
 | 008 | completed | 2026-06-16 | bdc6fbe | migration-0017, detection-spec-008.md, test_spec_008_runtime_tables.py | 009 |
 | 009 | completed | 2026-06-16 | 0b738d8 | models.py updated, allowlist updated, test_spec_009_agent_models.py, detection-spec-009.md | 010 |
 | 010 | completed | 2026-06-16 | bb24f9d | migration-0018, models updated, allowlist updated, test_spec_010_cross_module_fk.py, detection-spec-010.md | 011 |
-| 011 | pending | - | - | - | 012 |
+| 011 | completed | 2026-06-16 | 333a0e1 | detection-spec-011.md, migration-0019, test_spec_011_legacy_messaging.py | 012 |
 | 012 | pending | - | - | - | 013 |
 | 013 | pending | - | - | - | 014 |
 | 014 | pending | - | - | - | 015 |
@@ -82,7 +82,7 @@ git rev-parse HEAD
 
 ## Próxima spec recomendada
 
-`011`
+`012`
 
 ## Histórico de execução
 
@@ -687,11 +687,102 @@ git rev-parse HEAD
 
 - Migration 0018 não executada (sem PostgreSQL).
 - Spec 005 test `test_revisions_are_sorted` falha (head now 0018).
-- Specs 006-008 preflight tests mantêm asserções contra schemas legados (metadata já aponta agent).
-- Legacy messaging classes em schemas `ai`, `knowledge`, `runtime` permanecem (spec 011).
 - Cross-module FKs de metering/observability/tools para `core.projects.id` permanecem (fora do escopo).
 
 #### Próxima spec recomendada
 
-`011`
+`012`
+
+### Spec 011 — consolidate-legacy-ai-knowledge-runtime-messaging-state
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** 333a0e1
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-outbox-inbox, projectrai-architecture-boundaries, projectrai-database-migrations, projectrai-discovery-inventory, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `alembic heads` | 0 | `0018 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+| `Select-String` legacy schema refs in models.py | 0 | 6 refs found (ai:2, knowledge:2, runtime:2) |
+| `Select-String` legacy refs in repositories.py | 0 | 3 legacy writer classes, 3 legacy model imports |
+| `Select-String` legacy refs in preflight.py | 0 | 6 legacy table entries found |
+| External composer references | 0 | 9 composer files import legacy writers |
+
+#### Files changed
+
+- `src/modules/agent/infra/database/models.py` — **modified**
+  - Removed 6 legacy messaging classes (OutboxEventModel, InboxEventModel, KnowledgeOutboxEventModel, KnowledgeInboxEventModel, RuntimeOutboxEventModel, RuntimeInboxEventModel)
+  - Removed BaseInbox and BaseOutbox imports
+- `src/modules/agent/infra/database/repositories.py` — **modified**
+  - Removed 3 legacy writer classes (SQLAlchemyOutboxEventWriter, SQLAlchemyKnowledgeOutboxEventWriter, SQLAlchemyRuntimeOutboxEventWriter)
+  - Removed legacy model imports (OutboxEventModel, KnowledgeOutboxEventModel, RuntimeOutboxEventModel)
+  - Added consolidated `SQLAlchemyAgentOutboxWriter` using AgentOutboxEventModel
+- `src/modules/agent/infra/database/preflight.py` — **modified**
+  - Removed `_LEGACY_OUTBOX_TABLES` constant
+  - Removed legacy exclusion from `check_target_table_conflicts`
+- `migrations/versions/0019_consolidate_legacy_messaging.py` — **created**
+  - Upgrade: DROP TABLE for 6 legacy messaging tables
+  - Downgrade: CREATE TABLE with base schema
+- `tests/architecture/legacy_schema_allowlist.yaml` — **modified**
+  - Removed 3 entries with `removal_spec: "011"`
+- `tests/architecture/test_spec_004_schema_guards.py` — **modified**
+  - Updated AGENT_TABLE_SCHEMAS: removed `outbox_events`/`inbox_events` (ai)
+  - Updated expected table count: 19→17
+  - Updated tests for zero legacy schemas
+- `tests/architecture/test_spec_005_preflight.py` — **modified**
+  - Updated expected table count: 19→17
+  - Updated schema assertion to expect only `agent`
+- `tests/architecture/test_spec_009_agent_models.py` — **modified**
+  - Cleared LEGACY_MESSAGING_TABLES
+  - Replaced `test_legacy_messaging_tables_keep_schemas` with `test_no_legacy_messaging_tables`
+- `tests/architecture/test_spec_011_legacy_messaging.py` — **created**
+  - 4 test classes, 10 tests covering models, writers, allowlist, preflight, migration
+- `specs/agent-schema-consolidation/execution/detection-spec-011.md` — **created**
+- `specs/agent-schema-consolidation/execution/runtime.md` — **updated**
+- 9 composer files updated:
+  - `create_agent_composer.py`, `create_collection_composer.py`, `create_provider_credential_composer.py`
+  - `create_session_composer.py`, `send_message_composer.py`, `update_agent_composer.py`
+  - `update_provider_credential_composer.py`, `upload_document_composer.py`
+  - `ask_agent_composer.py`
+  - All replaced `SQLAlchemyOutboxEventWriter|KnowledgeOutboxEventWriter|RuntimeOutboxEventWriter`
+    with `SQLAlchemyAgentOutboxWriter`
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | (pending) | - |
+| `pytest test_spec_011_legacy_messaging.py` | (pending) | - |
+| `pytest tests/architecture -q` | (pending) | - |
+
+#### Acceptance criteria
+
+1. Nenhum evento operacional fica preso em schema legado ✅ (messaging classes removidas, writers unificados em agent schema)
+2. Workers usam exclusivamente agent.agent_outbox_events/agent.agent_inbox_events ✅ (SQLAlchemyAgentOutboxWriter usa AgentOutboxEventModel)
+3. Histórico descartado possui política e evidência de retenção ✅ (migration 0019 documenta pre-steps de exportação de dados)
+
+#### Decisões tomadas durante a execução
+
+- 3 legacy writers consolidados em um único `SQLAlchemyAgentOutboxWriter` que escreve para `AgentOutboxEventModel`.
+- Repository writers são classes separadas do `SQLAlchemyAgentOutboxRepository` (que gerencia claim/publish/delivery). O writer é focado apenas em persistir eventos de saída durante transações de use case.
+- Migration 0019 é puramente estrutural (DROP TABLE). Data migration de eventos pending/retryable deve ser executada como pré-requisito antes do upgrade, conforme documentado no cabeçalho da migration.
+- 9 composer files atualizados para importar o writer consolidado.
+- `alembic current` indisponível sem PostgreSQL — registrado como pendência consistente com specs anteriores.
+
+#### Riscos ativos
+
+- Migration 0019 não executada (sem PostgreSQL).
+- Dados residuais em tabelas legadas não verificáveis sem PostgreSQL.
+- Pre-migration steps documentados na migration 0019 não executados.
+
+#### Próxima spec recomendada
+
+`012`
 

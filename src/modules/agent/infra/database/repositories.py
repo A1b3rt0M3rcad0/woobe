@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,15 +96,11 @@ from modules.agent.infra.database.models import (
     DocumentChunkModel,
     DocumentCollectionModel,
     DocumentModel,
-    KnowledgeOutboxEventModel,
     KnowledgeVersionModel,
     MessageModel,
-    OutboxEventModel,
     ProviderCredentialModel,
-    RuntimeOutboxEventModel,
     SessionModel,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
@@ -247,38 +243,6 @@ class SQLAlchemyAgentRepository(
         model = await self._get_model_by_id(agent_id)
         if model:
             await self._delete_model(model)
-
-
-class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
-
-    async def write(
-        self,
-        aggregate_type: str,
-        aggregate_id: UUID,
-        event_type: str,
-        payload: dict[str, Any],
-        event_version: int = 1,
-        correlation_id: UUID | None = None,
-        causation_id: UUID | None = None,
-    ) -> None:
-        event = OutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            payload=payload,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
-        )
-        self._session.add(event)
 
 
 class SQLAlchemyAgentPromptRepository(
@@ -1000,38 +964,6 @@ class SQLAlchemyKnowledgeVersionRepository(KnowledgeVersionRepository):
         )
 
 
-class SQLAlchemyKnowledgeOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
-
-    async def write(
-        self,
-        aggregate_type: str,
-        aggregate_id: UUID,
-        event_type: str,
-        payload: dict[str, Any],
-        event_version: int = 1,
-        correlation_id: UUID | None = None,
-        causation_id: UUID | None = None,
-    ) -> None:
-        event = KnowledgeOutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            payload=payload,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
-        )
-        self._session.add(event)
-
-
 class SQLAlchemySessionRepository(SessionRepository):
 
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
@@ -1204,38 +1136,6 @@ class SQLAlchemyMessageRepository(MessageRepository):
             await self._base._delete_model(model)
 
 
-class SQLAlchemyRuntimeOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
-
-    async def write(
-        self,
-        aggregate_type: str,
-        aggregate_id: UUID,
-        event_type: str,
-        payload: dict[str, Any],
-        event_version: int = 1,
-        correlation_id: UUID | None = None,
-        causation_id: UUID | None = None,
-    ) -> None:
-        event = RuntimeOutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            payload=payload,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
-        )
-        self._session.add(event)
-
-
 class SQLAlchemyAskJobRepository(AskJobRepository):
 
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
@@ -1293,6 +1193,41 @@ class SQLAlchemyAskJobRepository(AskJobRepository):
             model.status = "failed"
             model.error = error
             model.completed_at = datetime.now(timezone.utc)
+
+
+class SQLAlchemyAgentOutboxEventWriter:
+
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def write(
+        self,
+        aggregate_type: str,
+        aggregate_id: UUID,
+        event_type: str,
+        payload: dict[str, Any],
+        event_version: int = 1,
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+    ) -> None:
+        event = AgentOutboxEventModel(
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            event_type=event_type,
+            event_version=event_version,
+            routing_key="agent.event",
+            payload=payload,
+            idempotency_key=f"{aggregate_type}:{aggregate_id}:{event_type}:{event_version}",
+            correlation_id=correlation_id or uuid4(),
+            causation_id=causation_id,
+        )
+        self._session.add(event)
 
 
 AGENT_OUTBOX_VALID_TRANSITIONS: dict[str, set[str]] = {

@@ -26,8 +26,6 @@ _FK_LEGACY_PATTERN = re.compile(r'ForeignKey\s*\(\s*["\'](ai|knowledge|runtime)\
 AGENT_TABLE_SCHEMAS: dict[str, str] = {
     "provider_credentials": "agent",
     "agents": "agent",
-    "outbox_events": "ai",
-    "inbox_events": "ai",
     "agent_prompts": "agent",
     "agent_contracts": "agent",
     "agent_model_configs": "agent",
@@ -133,10 +131,9 @@ class TestAgentTableSchemaClassification:
     def test_current_schema_classification_complete(self):
         known_tables = set(AGENT_TABLE_SCHEMAS.keys())
         current_schemas = set(AGENT_TABLE_SCHEMAS.values())
-        assert "ai" in current_schemas, "Must have tables in ai schema"
         assert "agent" in current_schemas, "Must have tables in agent schema"
-        assert len(known_tables) == 19, (
-            f"Expected 19 agent-domain tables, found {len(known_tables)}"
+        assert len(known_tables) == 17, (
+            f"Expected 17 agent-domain tables, found {len(known_tables)}"
         )
 
     def test_target_schema_is_agent_for_all_tables(self):
@@ -145,14 +142,13 @@ class TestAgentTableSchemaClassification:
                 f"Table {table} must target schema 'agent', got '{target}'"
             )
 
-    def test_legacy_schema_tables_listed(self):
+    def test_no_legacy_schema_tables(self):
         legacy_tables = [
             t for t, s in AGENT_TABLE_SCHEMAS.items()
             if s in LEGACY_SCHEMAS
         ]
-        assert len(legacy_tables) > 0, "Must have legacy schema tables"
-        assert "providers_credentials" not in str(legacy_tables), (
-            "Legacy table list must be accurate"
+        assert len(legacy_tables) == 0, (
+            f"Expected zero legacy schema tables, found {legacy_tables}"
         )
 
 

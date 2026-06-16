@@ -28,16 +28,6 @@ AGENT_SCHEMA_TABLES: dict[str, str] = {
     "agent_inbox_events": "agent",
 }
 
-_LEGACY_OUTBOX_TABLES: list[tuple[str, str]] = [
-    ("outbox_events", "ai"),
-    ("inbox_events", "ai"),
-    ("outbox_events", "knowledge"),
-    ("inbox_events", "knowledge"),
-    ("outbox_events", "runtime"),
-    ("inbox_events", "runtime"),
-]
-
-
 def collect_current_schema_assignments() -> dict[str, str]:
     """Read models.py and return {tablename: schema} from __table_args__."""
     if not AGENT_MODELS.exists():
@@ -134,10 +124,7 @@ def check_target_table_conflicts() -> list[str]:
     expected_agent_tables = {
         t for t, s in assignments.items() if s == "agent"
     }
-    canonical_agent = set(AGENT_SCHEMA_TABLES.keys()) - {
-        # Exclude legacy messaging tables that keep their original schemas
-        "outbox_events", "inbox_events",
-    }
+    canonical_agent = set(AGENT_SCHEMA_TABLES.keys())
     unexpected = expected_agent_tables - canonical_agent
     return list(unexpected)
 

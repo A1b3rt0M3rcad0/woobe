@@ -4,26 +4,6 @@
 # This file must have zero entries after spec 017.
 
 entries:
-  # --- models.py: legacy messaging classes (kept until spec 011) ---
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: '"schema": "ai"'
-    schema: ai
-    reason: "Legacy messaging OutboxEventModel/InboxEventModel (spec 011)"
-    removal_spec: "011"
-
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: '"schema": "knowledge"'
-    schema: knowledge
-    reason: "Legacy messaging KnowledgeOutboxEventModel/KnowledgeInboxEventModel (spec 011)"
-    removal_spec: "011"
-
-  - file_path: src/modules/agent/infra/database/models.py
-    line_pattern: '"schema": "runtime"'
-    schema: runtime
-    reason: "Legacy messaging RuntimeOutboxEventModel/RuntimeInboxEventModel (spec 011)"
-    removal_spec: "011"
-
-
   # --- historical migrations ---
   - file_path: migrations/versions/*
     line_pattern: 'schema="ai"'

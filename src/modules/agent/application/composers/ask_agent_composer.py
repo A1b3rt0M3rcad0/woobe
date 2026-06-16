@@ -7,7 +7,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentCollectionRepository,
 )
 from modules.agent.infra.database.repositories import (
-    SQLAlchemyRuntimeOutboxEventWriter,
+    SQLAlchemyAgentOutboxEventWriter,
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
@@ -36,7 +36,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> Tra
     chunk_repo = uow.document_chunks
     tool_repo = ToolsToolRepository(uow)
 
-    outbox = SQLAlchemyRuntimeOutboxEventWriter(uow)
+    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     trace_recorder = ObservabilityTraceRecorder(uow)
     usage_recorder = MeteringUsageRecorder(uow)
     tool_executor = ToolsToolExecutor(tool_repo)

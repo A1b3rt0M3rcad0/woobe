@@ -29,14 +29,7 @@ RUNTIME_BUSINESS_TABLES = [
     "ask_jobs",
 ]
 
-LEGACY_MESSAGING_TABLES = [
-    ("OutboxEventModel", "ai", "outbox_events"),
-    ("InboxEventModel", "ai", "inbox_events"),
-    ("KnowledgeOutboxEventModel", "knowledge", "outbox_events"),
-    ("KnowledgeInboxEventModel", "knowledge", "inbox_events"),
-    ("RuntimeOutboxEventModel", "runtime", "outbox_events"),
-    ("RuntimeInboxEventModel", "runtime", "inbox_events"),
-]
+LEGACY_MESSAGING_TABLES: list[tuple[str, str, str]] = []
 
 
 def _get_models_text() -> str:
@@ -63,13 +56,15 @@ class TestBusinessTablesUseAgentSchema:
             assert '\"schema\": \"agent\"' in text, \
                 f"Table {table} should have schema='agent'"
 
-    def test_legacy_messaging_tables_keep_schemas(self):
+    def test_no_legacy_messaging_tables(self):
         text = _get_models_text()
-        for class_name, schema, _ in LEGACY_MESSAGING_TABLES:
-            assert f"class {class_name}" in text, \
-                f"Class {class_name} should still exist"
-            assert schema in text, \
-                f"Class {class_name} should keep schema='{schema}'"
+        assert "KnowledgeOutboxEventModel" not in text, "KnowledgeOutboxEventModel should be removed"
+        assert "KnowledgeInboxEventModel" not in text, "KnowledgeInboxEventModel should be removed"
+        assert "RuntimeOutboxEventModel" not in text, "RuntimeOutboxEventModel should be removed"
+        assert "RuntimeInboxEventModel" not in text, "RuntimeInboxEventModel should be removed"
+        # Verify no bare OutboxEventModel class (not AgentOutboxEventModel)
+        assert " class OutboxEventModel" not in text, "OutboxEventModel class should be removed"
+        assert " class InboxEventModel" not in text, "InboxEventModel class should be removed"
 
 
 class TestIntraAgentForeignKeysUseAgentSchema:

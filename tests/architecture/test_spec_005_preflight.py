@@ -17,8 +17,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 class TestPreflightCollectCurrentSchemaAssignments:
     def test_returns_all_agent_tables(self):
         assignments = collect_current_schema_assignments()
-        assert len(assignments) == 19, (
-            f"Expected 19 agent-domain tables, got {len(assignments)}: {assignments}"
+        assert len(assignments) == 17, (
+            f"Expected 17 agent-domain tables, got {len(assignments)}: {assignments}"
         )
 
     def test_assignments_match_expected_schemas(self):
@@ -31,13 +31,12 @@ class TestPreflightCollectCurrentSchemaAssignments:
             f"Schema assignment mismatches: {mismatches}"
         )
 
-    def test_agent_and_legacy_schemas(self):
+    def test_agent_only_schema(self):
         assignments = collect_current_schema_assignments()
         schemas = set(assignments.values())
-        assert "agent" in schemas
-        # Legacy schemas still present for messaging tables (outbox_events/inbox_events)
-        # Note: duplicate tablenames overwrite in dict, so last-writer wins
-        assert len(schemas) >= 2
+        assert schemas == {"agent"}, (
+            f"Expected only 'agent' schema, got {schemas}"
+        )
 
 
 class TestPreflightCheckTargetTableConflicts:
