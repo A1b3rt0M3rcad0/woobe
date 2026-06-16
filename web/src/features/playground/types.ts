@@ -145,7 +145,7 @@ export interface TraceItem {
   id: string
   title: string
   timestamp: string
-  status: 'success' | 'error' | 'warning'
+  status: 'success' | 'error' | 'warning' | 'running' | 'pending' | 'cancelled'
   latency_ms: number | null
   model: string | null
   provider: string | null

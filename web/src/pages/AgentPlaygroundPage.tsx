@@ -264,11 +264,19 @@ function PlaygroundContent() {
   const traces = useMemo(() => {
     const mapped: TraceItem[] = backendTraces.map((t) => {
       const traceData = (t.data ?? {}) as Record<string, unknown>
+      const mapStatus = (s: string): TraceItem['status'] => {
+        if (s === 'completed' || s === 'success') return 'success'
+        if (s === 'failed' || s === 'error') return 'error'
+        if (s === 'running' || s === 'processing') return 'running'
+        if (s === 'pending' || s === 'queued') return 'pending'
+        if (s === 'cancelled' || s === 'canceled') return 'cancelled'
+        return 'warning'
+      }
       return {
         id: t.id,
         title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`,
         timestamp: t.created_at ?? new Date().toISOString(),
-        status: t.status === 'failed' ? 'error' as const : t.status === 'running' ? 'warning' as const : 'success' as const,
+        status: mapStatus(t.status),
         latency_ms: t.total_latency_ms ?? null,
         model: t.model ?? null,
         provider: t.provider ?? null,

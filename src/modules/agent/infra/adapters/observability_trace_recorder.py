@@ -131,6 +131,7 @@ class ObservabilityTraceRecorder(TraceRecorder):
                 if fallback_info:
                     data["fallback_info"] = fallback_info
                 trace.data = data
+                trace.total_cost_usd = cost_usd
                 await repo.save(trace)
 
             event = obs_entities.TraceEvent(

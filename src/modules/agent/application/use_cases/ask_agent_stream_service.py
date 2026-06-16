@@ -501,7 +501,8 @@ class AskAgentStreamService:
                     logger.warning("Failed to record usage: %s", e)
 
                 try:
-                    await trace_recorder.complete_trace(
+                    complete_recorder = _import_observability_recorder()(db_session)
+                    await complete_recorder.complete_trace(
                         trace_id=trace_id,
                         answer=full_answer or "",
                         input_tokens=usage_info.input_tokens or 0 if usage_info else 0,
