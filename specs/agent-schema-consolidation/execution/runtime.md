@@ -44,7 +44,7 @@ git rev-parse HEAD
 | 003 | completed | 2026-06-16 | 45d5eee | detection-spec-003.md, migration-runbook.md, test_spec_003_migration_runbook.py | 004 |
 | 004 | completed | 2026-06-16 | eced77e | detection-spec-004.md, legacy_schema_allowlist.yaml, test_spec_004_schema_guards.py | 005 |
 | 005 | completed | 2026-06-16 | ec24714 | detection-spec-005.md, preflight.py, test_spec_005_preflight.py | 006 |
-| 006 | pending | - | - | - | 007 |
+| 006 | completed | 2026-06-16 | c7f8c06 | migration-0015, detection-spec-006.md, test_spec_006_ai_tables.py | 007 |
 | 007 | pending | - | - | - | 008 |
 | 008 | pending | - | - | - | 009 |
 | 009 | pending | - | - | - | 010 |
@@ -366,6 +366,65 @@ git rev-parse HEAD
 #### Próxima spec recomendada
 
 `006`
+
+### Spec 006 — move-ai-business-tables-to-agent-schema
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** c7f8c0644fe9cc11d89eeac88bd5ee52e26709ed
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String schema="ai"` | 0 | 9 references (all allowlisted) |
+| `alembic heads` | 0 | `0014 (head)` (pre-migration) |
+
+#### Files changed
+
+- `migrations/versions/0015_move_ai_tables_to_agent.py` — created
+  - Upgrade: 7x `ALTER TABLE ai.<table> SET SCHEMA agent` + compat views
+  - Downgrade: reverse SET SCHEMA + DROP VIEW
+  - Excludes: `ai.outbox_events` and `ai.inbox_events` (messaging — deferred to spec 011)
+- `specs/agent-schema-consolidation/execution/detection-spec-006.md` — created
+- `tests/architecture/test_spec_006_ai_tables.py` — created (10 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | 0 | Clean |
+| `pytest test_spec_006_ai_tables.py` | 0 | 10 passed |
+| `pytest tests/architecture -q` | 1 | 43 failures (1 new: `test_revisions_are_sorted` — expected, migration chain advanced from 0014→0015). 679 passed (incl. all 10 new tests). |
+
+#### Acceptance criteria
+
+1. Todas as tabelas de negócio de `ai` estão mapeadas na migration 0015 ✅ (7 business tables with SET SCHEMA + compat views)
+2. Views temporárias criadas apontam para `agent.*` ✅ (each `CREATE OR REPLACE VIEW ai.<table> AS SELECT * FROM agent.<table>`)
+3. Nenhuma perda ou duplicação de linha — pendente (sem PostgreSQL para validar)
+
+#### Decisões tomadas durante a execução
+
+- Migration usa SQL explícito (não loop) para cada tabela — mais legível e testável.
+- Compat views criadas para garantir compatibilidade até spec 009 (atualização dos modelos SQLAlchemy).
+- Tabelas de mensageria (`outbox_events`, `inbox_events`) no schema `ai` não foram movidas conforme especificado.
+- A validação real de dados (row counts, checksums) depende de PostgreSQL — não disponível neste ambiente.
+
+#### Riscos ativos
+
+- Migration 0015 não executada (sem PostgreSQL).
+- Spec 005 test `test_revisions_are_sorted` agora falha — esperado: head avançou de 0014 para 0015.
+- Compat views introduzem latência adicional em queries que acessam `ai.*` indiretamente.
+
+#### Próxima spec recomendada
+
+`007`
 
 ### Spec 004 — add-temporary-schema-and-foreign-key-architecture-guards
 
