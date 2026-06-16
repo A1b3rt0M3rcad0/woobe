@@ -78,6 +78,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
             correlation_id=record.correlation_id,
             causation_id=record.causation_id,
             event_version=record.event_version,
+            session=self._session,
         )
 
     async def mark_processed(self, record: InboxProcessingRecord) -> None:

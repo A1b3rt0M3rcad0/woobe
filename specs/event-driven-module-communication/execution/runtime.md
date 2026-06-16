@@ -29,7 +29,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 009 | completed |
 | 010 | completed |
 | 011 | completed |
-| 012 | pending |
+| 012 | completed |
 | 013 | pending |
 | 014 | pending |
 | 015 | pending |
@@ -543,6 +543,45 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - HANDLED_EVENTS mapeia agent.execution.*.v1 → handlers nomeados (implementação real em spec 012)
 - Registry só registra workers quando engine e rabbitmq_manager são fornecidos (early return)
 
+### 012 — Dispatcher e casos de uso idempotentes do metering
+
+**Status:** completed
+**Tipo:** metering
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `sed -n '1,180p' src/modules/metering/application/use_cases/metering_use_cases.py` | 0 |
+| `sed -n '1,180p' src/modules/metering/infra/database/unit_of_work.py` | 0 |
+
+**Files changed:**
+- `src/modules/metering/infra/messaging/inbox_handlers.py` — real handler functions (handle_execution_requested, handle_llm_request, handle_tool_execution, handle_execution_completed, handle_execution_failed, handle_fallback) that create UsageEvent records and update UsageDailyProject/UsageDailyAgent aggregates via session; HANDLER_MAP replaces HANDLED_EVENTS; router defaults to HANDLER_MAP
+- `src/modules/metering/infra/workers/inbox_processor.py` — process() passes session to handler via **kwargs
+- `tests/integration/metering/test_spec012_metering_dispatcher.py` — 13 tests: atomic effect per handler, router dispatch, unknown ignored, processor session passthrough, default registration
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- Metering handlers agora processam eventos agent.execution.*.v1 em tempo real via InboxProcessor
+- Handlers criam UsageEvent e atualizam agregados diários na mesma sessão do processor
+- HANDLER_MAP registra handlers reais por event_type (router defaults)
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/metering tests/integration/metering` | 0 |
+| `pytest tests/integration/metering/ -q` | 0 (24 passed) |
+
+**Decisões:**
+- Handlers recebem session via **kwargs da router.handle() → process() passa self._session
+- handler_execution_requested também atende agent.execution.started.v1 (compartilham mesmo efeito)
+- handler_execution_completed e handler_execution_failed são logs apenas (sem efeito mensurável no metering)
+- handler_fallback registra como UsageEventType.llm_request com source=fallback_triggered
+- `started` mapeado para handle_execution_requested (compartilham efeito inicial)
+
 ## Próxima spec
 
-`012-implement-metering-dispatcher-and-idempotent-use-cases.md`
+`013-implement-observability-rabbit-consumer-and-inbox.md`
