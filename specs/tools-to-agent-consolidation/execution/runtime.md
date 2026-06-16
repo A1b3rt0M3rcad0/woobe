@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Current-to-target map, target tree, and public API contract defined. No code changes made.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Migration phases, rollback matrix, and cutover checklist defined. No code changes made.
 
 ## Status
 
@@ -21,7 +21,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 000 | completed |
 | 001 | completed |
 | 002 | completed |
-| 003 | pending |
+| 003 | completed |
 | 004 | pending |
 | 005 | pending |
 | 006 | pending |
@@ -194,6 +194,43 @@ Exit code: 0
 - `rg` (ripgrep) not available on Windows; `Select-String` (PowerShell) used as equivalent.
 - Agent module already has tool ports and `importlib`-based adapters; these will be replaced during consolidation.
 
+### Spec 003 — Definir protocolo incremental, compatibilidade e rollback
+
+**Status:** completed
+**Tipo:** migration-planning
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `specs/tools-to-agent-consolidation/execution/inventory/migration-protocol.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/rollback-matrix.md` (created)
+- `specs/tools-to-agent-consolidation/execution/inventory/cutover-checklist.md` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `alembic heads` | 0 | Head: `0020` |
+| `alembic history` | 0 | 20 migrations (0001-0020); previous schema consolidation (0015-0020) already migrated ai/knowledge/runtime → agent |
+| `rg "CREATE OR REPLACE VIEW|SET SCHEMA|DROP SCHEMA" migrations/versions` | 0 | No VIEW/SET SCHEMA/DROP SCHEMA in current migrations |
+
+**Validation:**
+
+```bash
+test -s specs/tools-to-agent-consolidation/execution/inventory/migration-protocol.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/rollback-matrix.md
+test -s specs/tools-to-agent-consolidation/execution/inventory/cutover-checklist.md
+```
+
+All 3 files exist and are non-empty. Exit code: 0
+
+**Acceptance criteria:**
+- [x] fases e gates definidos (expand, migrate, cutover, contract)
+- [x] compatibilidade com prazo (shims with removal specs)
+- [x] rollback preserva dados (pre-contract only; post-DROP requires backup)
+
 ## Riscos ativos
 
 - Consumidores externos de `tools.*` não comprovados.
@@ -208,4 +245,4 @@ Exit code: 0
 
 ## Próxima spec recomendada
 
-`003-define-incremental-compatibility-and-rollback-protocol.md`
+`004-add-baseline-characterization-and-architecture-guards.md`
