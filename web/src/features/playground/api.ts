@@ -46,6 +46,8 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
     latency_ms: (rest.latency_ms as number) ?? null,
     parsed_output: (rest.parsed_output as Record<string, unknown>) ?? null,
     output_parse_error: (rest.output_parse_error as string) ?? null,
+    history_message_count: (rest.history_message_count as number) ?? 0,
+    history_truncated: (rest.history_truncated as boolean) ?? false,
   }
 }
 

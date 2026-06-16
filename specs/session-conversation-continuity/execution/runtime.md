@@ -24,7 +24,7 @@
 | 009 | completed | (this commit) | Badge efectivo adicionado. Stateless limpa sessão. Build + tests VERDES. | - |
 | 010 | completed | (this commit) | Conversão observability: eventos session_resolved, history_loaded, session_ignored_stateless emitidos via TraceRecorder. Contadores no frontend. 7 testes unitários VERDES. | - |
 | 011 | completed | (this commit) | Matriz completa de 10 cenários multi-turn. 22 testes unitários comportamentais VERDES. Unit 58 passed, contract 18 passed, integration 7 skipped. | - |
-| 012 | pending | - | - | - |
+| 012 | completed | (this commit) | 12 testes de continuidade de sessão no frontend: SSE, session_id, normalizeResponse, error handling. Build + 44 testes VERDES. | - |
 | 013 | pending | - | - | - |
 
 ## Diagnóstico inicial
@@ -267,6 +267,20 @@ Evidências:
 - `npm run build` → **PASSED**
 - `npm run test:run` → 29 passed
 
+### Spec 012
+
+Doze testes de continuidade de sessão no frontend, cobrindo SSE event flow,
+session_id no request/response, normalizeResponse com history fields,
+e tratamento de erro em stream.
+
+Arquivos alterados:
+- `web/src/features/playground/__tests__/session-continuity.test.ts` (novo — 12 testes)
+- `web/src/features/playground/api.ts` (+ history fields no normalizeResponse)
+
+Evidências:
+- `cd web && npm run test:run` → **44 passed** (3 suites)
+- `cd web && npm run build` → **PASSED**
+
 ### Spec 011
 
 Matriz completa de 10 cenários de conversação multi-turn implementada.
@@ -340,4 +354,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**012** — add-playground-session-continuity-tests
+**013** — execute-final-validation-and-generate-report
