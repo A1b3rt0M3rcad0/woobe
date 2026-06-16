@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, and use cases integrated into agent application layer with infra concerns extracted behind ports.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, and infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter) integrated into agent module with SSRF protection and async secret resolution.
 
 ## Status
 
@@ -25,7 +25,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 004 | completed |
 | 005 | completed |
 | 006 | completed |
-| 007 | pending |
+| 007 | completed |
 | 008 | pending |
 | 009 | pending |
 | 010 | pending |
@@ -417,6 +417,57 @@ Exit code: 1 — 52 pre-existing failures (baseline: inventory paths from prior 
 - [x] eventos com tipo agent.* (using AgentToolCreatedV1, etc.)
 - [x] segredos nunca em eventos (AgentSecretCreatedV1 payload excludes encrypted_value)
 
+### Spec 007 — Consolidar execução de ferramentas e resolução segura de segredos
+
+**Status:** completed
+**Tipo:** implementation
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/infra/adapters/tool_executor.py` (created — HttpToolExecutor with SSRF protection)
+- `src/modules/agent/infra/adapters/secret_cipher.py` (created — SecretCipherAdapter wrapping shared.infra.crypto)
+- `src/modules/agent/infra/adapters/secret_resolver.py` (created — ToolSecretResolverAdapter with async get_by_name fix)
+- `tests/unit/agent/test_tools_adapters.py` (created — 16 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Select-String "get_by_name\(|decrypt_secret|\{\{secret:" src/modules/tools src/modules/agent tests` | 0 | Bug confirmed: `get_by_name()` called with no args in legacy tools code; no call sites use it correctly |
+
+**Key changes:**
+
+| Adapter | Implements | Purpose |
+|---|---|---|
+| `HttpToolExecutor` | `ToolExecutionPort` | HTTP execution with configurable timeout, SSRF protection (private IP blocking), error sanitization |
+| `SecretCipherAdapter` | `SecretCipherPort` | Encrypt/decrypt delegation to `shared.infra.crypto` with configurable encryption key |
+| `ToolSecretResolverAdapter` | `ToolSecretResolverPort` | Async secret resolution via `SecretRepository.get_by_name(project_id, name)`, fixes legacy bug where `get_by_name()` was called without arguments |
+
+**Bug fix:** Legacy `ExecuteToolUseCase._resolve_headers` in tools module called `self._secret_repo.get_by_name()` with no arguments. The adapter correctly calls `get_by_name(project_id, secret_name)` with both required arguments.
+
+**SSRF protection:** `_is_private_url()` checks DNS-resolved IPs against private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, ::1/128, fc00::/7, fe80::/10) and rejects private/localhost targets.
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/infra/adapters src/modules/agent/application/ports.py tests/unit/agent
+```
+Exit code: 0
+
+```bash
+pytest tests/unit/agent -q
+```
+Exit code: 0 — 59 passed
+
+**Acceptance criteria:**
+- [x] sem plaintext (secret values never in logs/errors via error sanitization)
+- [x] bug get_by_name corrigido (ToolSecretResolverAdapter passa project_id e name)
+- [x] executor fora de use case (HttpToolExecutor em infra/adapters, separado da lógica de aplicação)
+- [x] HTTP compatível (mesmo comportamento: method, url, headers, body, timeout)
+
 ## Próxima spec recomendada
 
-`007-consolidate-tool-execution-and-secure-secret-resolution.md`
+`008-integrate-models-repositories-and-agent-unit-of-work.md`
