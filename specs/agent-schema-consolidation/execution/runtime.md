@@ -39,7 +39,7 @@ git rev-parse HEAD
 | Spec | Status | Data | SHA | Evidências | Próxima |
 |---|---|---|---|---|---|
 | 000 | completed | 2026-06-16 | cd4da37 | detection-spec-000.md, test_agent_schema_consolidation_adr.py | 001 |
-| 001 | pending | - | - | - | 002 |
+| 001 | completed | 2026-06-16 | 26b74b4 | detection-spec-001.md, inventory files, test_spec_001_inventories.py | 002 |
 | 002 | pending | - | - | - | 003 |
 | 003 | pending | - | - | - | 004 |
 | 004 | pending | - | - | - | 005 |
@@ -149,4 +149,68 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`001`
+`002`
+
+### Spec 001 — inventory-current-database-and-migration-state
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** 26b74b4f2257dbd530bd2717965247fa0299b82e
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-discovery-inventory, projectrai-architecture-boundaries, projectrai-database-migrations
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String table/schema mapping` | 0 | Mapeamento completo de tabelas por schema |
+| `Select-String FK references` | 0 | Inventário completo de FKs |
+| `alembic heads` | 0 | `0014 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+
+#### Files changed
+
+- `execution/inventory/current-database.md` — populated
+- `execution/inventory/objects.md` — populated
+- `execution/inventory/foreign-keys.md` — populated
+- `execution/inventory/migration-history.md` — populated
+- `execution/inventory/messaging-state.md` — populated
+- `execution/detection-spec-001.md` — created
+- `execution/runtime.md` — updated
+- `tests/architecture/test_spec_001_inventories.py` — created
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check src tests` | 1 | 20 pre-existing errors (unrelated) |
+| `ruff check new inventory test` | 0 | Clean |
+| `pyright` | 1 | Pre-existing errors |
+| `pyright new test` | 0 | Clean |
+| `pytest test_spec_001_inventories.py` | pendente | - |
+| `pytest tests/architecture -q` | 1 | 42 pre-existing failures |
+
+#### Acceptance criteria
+
+1. Complete and reproducible inventory ✅ (5 inventory files populated from static analysis)
+2. Basic counts and checksums ✅ (table names, schemas, FK classifications documented)
+3. Any unknown object becomes blocker ✅ (PostgreSQL-dependent items recorded as pendencies)
+
+#### Decisiones tomadas durante a execução
+
+- Consultas PostgreSQL (`pg_namespace`, `pg_class`, etc.) não executadas por falta de banco. Registrado como pendência.
+- Inventários populados exclusivamente com dados de análise estática dos modelos SQLAlchemy e arquivos de migração.
+- Row counts, checksums e drift `Base.metadata` vs catálogo real documentados como pendências.
+
+#### Riscos ativos
+
+- `alembic current` indisponível sem PostgreSQL.
+- Drift entre metadata SQLAlchemy e catálogo real não verificado.
+- Eventos pendentes em tabelas legacy de mensageria não contabilizados.
+
+#### Próxima spec recomendada
+
+`002`
