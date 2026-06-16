@@ -474,7 +474,7 @@ class AskAgentStreamService:
             async with self._session_factory() as db_session:
                 message_repo = _import_agent_repo("SQLAlchemyMessageRepository")(db_session)
                 session_repo = _import_agent_repo("SQLAlchemySessionRepository")(db_session)
-                outbox: OutboxEventWriter = _import_agent_repo("SQLAlchemyRuntimeOutboxEventWriter")(db_session)
+                outbox: OutboxEventWriter = _import_agent_repo("SQLAlchemyAgentOutboxEventWriter")(db_session)
 
                 message_id = None
                 if session:
