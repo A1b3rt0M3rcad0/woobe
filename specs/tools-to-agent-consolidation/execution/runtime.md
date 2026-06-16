@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000-016 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Legacy tools module directory, dead shims, and obsolete tests removed. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
+Spec 000-017 completed and committed. All tools capabilities consolidated into agent module. Legacy module, schema, tools-specific tests, shims, and compatibility views removed. Final validation passes with zero tools-specific failures. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -35,7 +35,7 @@ Spec 000-016 completed and committed. All tools capabilities (domain, applicatio
 | 014 | completed |
 | 015 | completed |
 | 016 | completed |
-| 017 | pending |
+| 017 | completed |
 
 ## Specs executadas
 
@@ -1044,6 +1044,63 @@ Exit code: 0 — Module absent
 - [x] rotas via agent (tools_router from modules.agent.presentation.routes)
 - [x] sem referência fora histórico autorizado (zero tools-specific architecture test failures)
 
+### Spec 017 — Validação final e relatório de consolidação
+
+**Status:** completed
+**Tipo:** validation
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `specs/tools-to-agent-consolidation/execution/final-report.md` (created — comprehensive 18-spec report)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/agent -Recurse -File -Filter "*.py"` | 0 | Agent module structure intact |
+| `alembic heads` | 0 | Head: 0023 |
+
+**Validation:**
+
+```bash
+ruff check src tests
+```
+Exit code: 1 — 20 pre-existing errors
+
+```bash
+pytest tests/unit/agent tests/integration/agent tests/contract tests/e2e tests/migrations -q
+```
+Exit code: 0 — 183 passed
+
+```bash
+python -m compileall -q src
+```
+Exit code: 0
+
+```bash
+test ! -d src/modules/tools
+```
+Exit code: 0 — Module absent
+
+```bash
+test -s specs/tools-to-agent-consolidation/execution/final-report.md
+```
+Exit code: 0 — Report is 97 lines
+
+**Acceptance criteria:**
+- [x] 18 specs comprovadas (all 000-017 completed)
+- [x] zero módulo/schema tools (module removed; migration 0023 drops schema)
+- [x] zero FK cross-module (AgentToolModel/AgentToolSecretModel use opaque UUIDs)
+- [x] API/eventos compatíveis (tools_router preserves legacy paths; event map for legacy types)
+- [x] relatório completo (final-report.md documents all specs, commits, migrations, validations)
+
+## Conclusão
+
+All 18 specs (000–017) for `tools-to-agent-consolidation` completed. No further specs pending in this scope.
+
 ## Próxima spec recomendada
 
-`017-final-validation-and-consolidation-report.md`
+Nenhuma — escopo `tools-to-agent-consolidation` concluído.
