@@ -42,7 +42,7 @@ git rev-parse HEAD
 | 001 | completed | 2026-06-16 | 26b74b4 | detection-spec-001.md, inventory files, test_spec_001_inventories.py | 002 |
 | 002 | completed | 2026-06-16 | 18b503e | detection-spec-002.md, table-map.md, test_spec_002_table_map.py | 003 |
 | 003 | completed | 2026-06-16 | 45d5eee | detection-spec-003.md, migration-runbook.md, test_spec_003_migration_runbook.py | 004 |
-| 004 | pending | - | - | - | 005 |
+| 004 | completed | 2026-06-16 | eced77e | detection-spec-004.md, legacy_schema_allowlist.yaml, test_spec_004_schema_guards.py | 005 |
 | 005 | pending | - | - | - | 006 |
 | 006 | pending | - | - | - | 007 |
 | 007 | pending | - | - | - | 008 |
@@ -302,4 +302,37 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`004`
+`005`
+
+### Spec 004 — add-temporary-schema-and-foreign-key-architecture-guards
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** eced77e4c3e56479f7b7e14701edad6832f34848
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Files changed
+
+- `tests/architecture/legacy_schema_allowlist.yaml` — created
+- `tests/architecture/test_spec_004_schema_guards.py` — created
+- `execution/detection-spec-004.md` — created
+- `execution/runtime.md` — updated
+
+#### Validation
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new test` | 0 | Clean |
+| `pyright new test` | 0 | Clean |
+| `pytest test_spec_004_schema_guards.py` | 0 | 7 passed |
+
+#### Acceptance criteria
+
+1. CI falha ao introduzir novo legado ✅ (testes bloqueiam novas refs a schemas legados)
+2. Allowlist contém arquivo, linha/padrão, justificativa e spec de remoção ✅
+3. Testes não confundem FK interna de agent com FK cross-module ✅
+
+#### Próxima spec recomendada
+
+`005`
