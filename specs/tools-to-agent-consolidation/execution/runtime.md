@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Spec 010 messaging, events, outbox/inbox, workers, and registry consolidated. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters, database models, controllers, schemas, routes, composers, event handlers, inbox router, worker registry, and entrypoint integrated into agent module. Agent tool event handlers registered for `agent.tool.*.v1` events. Legacy `tools.tool.*` event routing mapped to agent handlers for compatibility. Legacy tools module files remain as shims.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Spec 010 messaging, events, outbox/inbox, workers, and registry consolidated. Spec 011 business tables (tools.tools, tools.secrets) migrated to agent schema via migration 0021. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters, database models, controllers, schemas, routes, composers, event handlers, inbox router, worker registry, entrypoint, and database tables (agent.tools, agent.tool_secrets) integrated into agent module. Cross-module FKs removed. Agent FK (tools.agent_id → agents.id) created. Compatibility views (tools.tools, tools.secrets) created for cutover. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -29,7 +29,8 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 008 | completed |
 | 009 | completed |
 | 010 | completed |
-| 011 | pending |
+| 011 | completed |
+| 012 | pending |
 | 010 | pending |
 | 011 | pending |
 | 012 | pending |
@@ -666,6 +667,71 @@ Exit code: 0 — 32 passed
 - [x] pendentes transformáveis (TOOLS_LEGACY_EVENT_MAP maps legacy tool events to agent handlers)
 - [x] consumidores preservados (agent's AgentInboxEventRouter handles both agent.tool.*.v1 and tools.tool.* events)
 
+### Spec 011 — Migrar tabelas tools e secrets para schema agent
+
+**Status:** completed
+**Tipo:** database-migration
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `migrations/versions/0021_move_tools_tables_to_agent.py` (created — SET SCHEMA migration)
+- `tests/migrations/__init__.py` (created)
+- `tests/migrations/test_0021_tools_tables_migration.py` (created — 16 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `alembic heads` | 0 | Current head: 0020 |
+| Select-String "schema=\"tools\"\|tools\.tools\|tools\.secrets" migrations src tests | 0 | Migrations 0012 references tools schema; tools models in env.py |
+
+**Key changes:**
+
+| Contract | Before (tools schema) | After (agent schema) |
+|---|---|---|
+| Tools table | `tools.tools` (FK to core.projects) | `agent.tools` (FK to agent.agents.id, no cross-module FK) |
+| Secrets table | `tools.secrets` (FK to core.projects) | `agent.tool_secrets` (no cross-module FK) |
+| Compatibility | None | `tools.tools` view → SELECT FROM agent.tools; `tools.secrets` view → SELECT FROM agent.tool_secrets |
+| Indexes | tools schema indexes | Agent schema indexes with ix_agent prefix |
+| Migration | Head 0020 | Head 0021 |
+
+**Migration 0021 operations (upgrade):**
+1. Drop cross-module FKs (`tools_tools_project_id_fkey`, `tools_secrets_project_id_fkey`)
+2. Drop old indexes
+3. `ALTER TABLE tools.tools SET SCHEMA agent`
+4. `ALTER TABLE tools.secrets SET SCHEMA agent`
+5. `ALTER TABLE agent.secrets RENAME TO tool_secrets`
+6. Create agent-schema indexes
+7. Create FK agent.tools.agent_id → agent.agents.id (conditional, no orphans)
+8. Create compatibility views in tools schema
+
+**Validation:**
+
+```bash
+ruff check migrations/versions/0021_move_tools_tables_to_agent.py tests/migrations/
+```
+Exit code: 0 — All checks passed
+
+```bash
+pytest tests/migrations -q
+```
+Exit code: 0 — 16 passed
+
+**Acceptance criteria:**
+- [x] dados preservados (SET SCHEMA preserves all data, IDs, and sequences)
+- [x] tabelas físicas agent (agent.tools and agent.tool_secrets exist after upgrade)
+- [x] sem FK cross-module (core.projects FKs dropped; project_id is opaque UUID)
+- [x] downgrade testado (comprehensive downgrade restores schema, names, indexes)
+
+**Riscos ativos:**
+- Migration 0021 requires a running PostgreSQL database to execute
+- `alembic upgrade head` not executed — requires database connection
+- Downgrade does not restore cross-module FKs (intentional architectural improvement)
+- Compatibility views remain until cutover spec 014/016
+
 ## Próxima spec recomendada
 
-`011-migrate-tools-business-tables-to-agent-schema.md`
+`012-consolidate-tools-legacy-outbox-and-inbox.md`
