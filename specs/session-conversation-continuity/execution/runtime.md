@@ -22,7 +22,7 @@
 | 007 | completed | (this commit) | ConversationContextBuilder unificado. Métodos duplicados removidos. 11 testes unitários + arquitetura VERDES. | - |
 | 008 | completed | (this commit) | sessionId sincronizado com query param ?session=uuid. URL preserva sessão no reload. 29 testes vitess existentes + build VERDES. | - |
 | 009 | completed | (this commit) | Badge efectivo adicionado. Stateless limpa sessão. Build + tests VERDES. | - |
-| 010 | pending | - | - | - |
+| 010 | completed | (this commit) | Conversão observability: eventos session_resolved, history_loaded, session_ignored_stateless emitidos via TraceRecorder. Contadores no frontend. 7 testes unitários VERDES. | - |
 | 011 | pending | - | - | - |
 | 012 | pending | - | - | - |
 | 013 | pending | - | - | - |
@@ -267,6 +267,32 @@ Evidências:
 - `npm run build` → **PASSED**
 - `npm run test:run` → 29 passed
 
+### Spec 010
+
+Conversation observability events emitted via existing TraceRecorder port.
+
+Eventos emitidos:
+- `conversation.session_resolved` — session_id, mode, project_id, agent_id, sem conteúdo
+- `conversation.history_loaded` — session_id, message_count, turn_count, truncated, window_limit, contains_tool_calls
+- `conversation.session_ignored_stateless` — indicador de ID ignorado em modo stateless
+
+Arquivos alterados:
+- `src/modules/agent/application/handlers/conversation_context_builder.py` (structured logging)
+- `src/modules/agent/application/use_cases/ask_use_case.py` (+ `_record_conversation_events`)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` (+ `_record_conversation_events`)
+- `src/modules/agent/application/dtos/runtime_dtos.py` (+ `history_message_count`, `history_truncated`)
+- `src/modules/agent/presentation/schemas.py` (+ `history_message_count`, `history_truncated`)
+- `src/modules/agent/presentation/controllers/ask_agent_controller.py` (passa campos de histórico)
+- `web/src/features/playground/types.ts` (+ `history_message_count`, `history_truncated`)
+- `web/src/features/playground/components/DebugView.tsx` (+ seção Conversation Context)
+- `web/src/features/playground/__tests__/history-observability.test.ts` (novo — 3 testes)
+- `tests/modules/agent/unit/application/test_conversation_observability.py` (novo — 7 testes)
+
+Evidências:
+- `pytest tests/modules/agent/unit/application/test_conversation_observability.py -q` → **7 passed**
+- `cd web && npm run test:run -- history-observability` → **3 passed**
+- `ruff check` → **All checks passed**
+
 ### Spec 009
 
 Modo efetivo exibido no playground. Stateless limpa sessão automaticamente.
@@ -289,4 +315,4 @@ Evidências:
 
 ## Próxima spec recomendada
 
-**010** — add-history-session-observability
+**011** — add-backend-unit-integration-and-contract-tests

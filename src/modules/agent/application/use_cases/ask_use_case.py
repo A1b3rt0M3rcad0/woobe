@@ -9,7 +9,7 @@ from uuid import UUID
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
-from modules.agent.application.handlers.conversation_context_builder import ConversationContextBuilder
+from modules.agent.application.handlers.conversation_context_builder import ConversationContext, ConversationContextBuilder
 
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderCredential
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
@@ -148,6 +148,7 @@ class AskAgentUseCase:
 
         messages = list(ctx.prompt_messages)
         trace_id = await self._create_trace(input_dto, agent, ctx.session)
+        await self._record_conversation_events(trace_id, input_dto, ctx, agent)
 
         fallback_used = False
         fallback_info_result: dict | None = None
@@ -382,6 +383,8 @@ class AskAgentUseCase:
             latency_ms=total_latency,
             parsed_output=parsed_output,
             output_parse_error=output_parse_error,
+            history_message_count=ctx.history_message_count,
+            history_truncated=ctx.history_truncated,
         )
 
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict:
@@ -624,6 +627,60 @@ class AskAgentUseCase:
             pass
 
         return trace_id
+
+    async def _record_conversation_events(
+        self,
+        trace_id: UUID | None,
+        input_dto: AskInput,
+        ctx: ConversationContext,
+        agent: Agent,
+    ) -> None:
+        if not trace_id:
+            return
+        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
+        try:
+            if ctx.session:
+                await self._trace_recorder.record_event(
+                    trace_id=trace_id,
+                    project_id=input_dto.project_id,
+                    event_type="info",
+                    payload={
+                        "event": "conversation.session_resolved",
+                        "session_id": str(ctx.session.id),
+                        "mode": mode,
+                        "project_id": str(input_dto.project_id),
+                        "agent_id": str(agent.id),
+                    },
+                )
+                contains_tool_calls = any(
+                    bool(getattr(m, "tool_calls", None)) for m in ctx.history
+                )
+                await self._trace_recorder.record_event(
+                    trace_id=trace_id,
+                    project_id=input_dto.project_id,
+                    event_type="info",
+                    payload={
+                        "event": "conversation.history_loaded",
+                        "session_id": str(ctx.session.id),
+                        "message_count": ctx.history_message_count,
+                        "turn_count": ctx.history_message_count // 2,
+                        "truncated": ctx.history_truncated,
+                        "window_limit": 0,
+                        "contains_tool_calls": contains_tool_calls,
+                    },
+                )
+            elif mode == "stateless" and input_dto.session_id is not None:
+                await self._trace_recorder.record_event(
+                    trace_id=trace_id,
+                    project_id=input_dto.project_id,
+                    event_type="info",
+                    payload={
+                        "event": "conversation.session_ignored_stateless",
+                        "session_id": str(input_dto.session_id),
+                    },
+                )
+        except Exception:
+            logger.warning("Failed to record conversation events", exc_info=True)
 
     async def _load_credential_by_id(self, credential_id: UUID) -> ProviderCredential:
         credential = await self._credential_repo.get_by_id(credential_id)

@@ -236,6 +236,20 @@ export function DebugView({ lastResponse, lastRequestPayload, rawEvents = [] }: 
       {/* ── Usage inline ── */}
       <UsageInline usage={lastResponse.usage} />
 
+      {/* ── History counters ── */}
+      {lastResponse.session_id && (
+        <div className="rounded-lg border border-border bg-background p-2.5 space-y-1">
+          <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Conversation Context</p>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="text-muted">Messages:</span>
+            <span className="text-white font-mono">{lastResponse.history_message_count}</span>
+            {lastResponse.history_truncated && (
+              <span className="text-yellow-400 text-[10px]">(truncated)</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Fallback details ── */}
       {lastResponse.fallback_used && lastResponse.fallback_info && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">

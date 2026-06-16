@@ -543,3 +543,5 @@ class AskResponse(BaseModel):
     latency_ms: int | None = None
     parsed_output: dict | None = None
     output_parse_error: str | None = None
+    history_message_count: int = 0
+    history_truncated: bool = False

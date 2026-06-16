@@ -14,6 +14,7 @@ from modules.agent.application.handlers.conversation_history_mapper import (
 from modules.agent.application.handlers.session_resolver import SessionResolver
 from modules.agent.domain.entities import Agent, Message, Session
 from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.errors import ConversationHistoryLoadError
 from modules.agent.domain.repositories import MessageRepository, SessionRepository
 from shared.infra.time import utc_now
 
@@ -57,12 +58,33 @@ class ConversationContextBuilder:
             session_mode=mode,
         )
 
+        logger.info(
+            "Session resolution: session_id=%s mode=%s project=%s agent=%s",
+            session.id if session else None, mode, input_dto.project_id, input_dto.agent_id,
+        )
+
         history_limit = _get_history_limit(agent)
         history: list = []
         if session:
-            history = await load_and_convert_history(
-                self._message_repo, session.id, session.id, limit=history_limit,
-            )
+            try:
+                history = await load_and_convert_history(
+                    self._message_repo, session.id, session.id, limit=history_limit,
+                )
+                contains_tool_calls = any(
+                    bool(getattr(m, "tool_calls", None)) for m in history
+                )
+                logger.info(
+                    "History loaded: session=%s count=%d truncated=%s limit=%d has_tools=%s",
+                    session.id, len(history),
+                    session is not None and len(history) < history_limit,
+                    history_limit, contains_tool_calls,
+                )
+            except ConversationHistoryLoadError:
+                logger.exception(
+                    "History load failed: session=%s stage=mapping",
+                    session.id,
+                )
+                raise
 
         user_message_id: UUID | None = None
         if session:

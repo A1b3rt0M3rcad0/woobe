@@ -39,6 +39,8 @@ class AskAgentController(Controller):
                 latency_ms=result.latency_ms,
                 parsed_output=result.parsed_output,
                 output_parse_error=result.output_parse_error,
+                history_message_count=result.history_message_count,
+                history_truncated=result.history_truncated,
             )
 
             return Response(

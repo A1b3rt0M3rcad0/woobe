@@ -106,6 +106,8 @@ export interface AskResponse {
   latency_ms: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
+  history_message_count: number
+  history_truncated: boolean
 }
 
 export interface Message {
