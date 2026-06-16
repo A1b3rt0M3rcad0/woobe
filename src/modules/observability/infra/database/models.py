@@ -17,10 +17,8 @@ class TraceModel(BaseModel):
     __table_args__ = {"schema": "observability"}
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
-    agent_id: Mapped[UUID | None] = mapped_column(ForeignKey("ai.agents.id"))
-    session_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("runtime.sessions.id")
-    )
+    agent_id: Mapped[UUID | None]
+    session_id: Mapped[UUID | None]
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(255))

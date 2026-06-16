@@ -10,7 +10,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentCollectionRepository,
     SQLAlchemyMessageRepository,
     SQLAlchemyProviderCredentialRepository,
-    SQLAlchemyRuntimeOutboxEventWriter,
+    SQLAlchemyAgentOutboxEventWriter,
     SQLAlchemySessionRepository,
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
@@ -62,7 +62,7 @@ class AskJobWorker:
         message_repo = SQLAlchemyMessageRepository(uow)
         agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
         chunk_repo = SQLAlchemyDocumentChunkRepository(uow)
-        outbox = SQLAlchemyRuntimeOutboxEventWriter(uow)
+        outbox = SQLAlchemyAgentOutboxEventWriter(uow)
         settings = Settings()
         trace_recorder = ObservabilityTraceRecorder(uow)
         usage_recorder = MeteringUsageRecorder(uow)

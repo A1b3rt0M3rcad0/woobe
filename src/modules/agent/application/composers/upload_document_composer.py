@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeOutboxEventWriter
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.presentation.controllers.upload_document_controller import UploadDocumentController
 from modules.agent.application.use_cases import UploadDocumentUseCase
 from shared.infra.transactional_handler import TransactionalHandler
@@ -11,7 +11,7 @@ def upload_document_composer(session_factory: async_sessionmaker[AsyncSession]) 
     uow = AgentUnitOfWork(session_factory)
     doc_repo = uow.documents
     collection_repo = uow.document_collections
-    outbox = SQLAlchemyKnowledgeOutboxEventWriter(uow)
+    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     use_case = UploadDocumentUseCase(doc_repo, collection_repo, outbox)
     controller = UploadDocumentController(use_case)
     return TransactionalHandler(uow, controller.handle)
