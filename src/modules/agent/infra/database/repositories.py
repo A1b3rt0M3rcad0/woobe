@@ -22,7 +22,9 @@ from modules.agent.domain.entities import (
     KnowledgeVersion,
     Message,
     ProviderCredential,
+    Secret,
     Session,
+    Tool,
 )
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import (
@@ -31,7 +33,9 @@ from modules.agent.domain.errors import (
     CollectionNotFoundError,
     DocumentNotFoundError,
     MessageNotFoundError,
+    SecretNotFoundError,
     SessionNotFoundError,
+    ToolNotFoundError,
 )
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
@@ -48,7 +52,9 @@ from modules.agent.domain.repositories import (
     KnowledgeVersionRepository,
     MessageRepository,
     ProviderCredentialRepository as ProviderCredentialRepositoryInterface,
+    SecretRepository,
     SessionRepository,
+    ToolRepository,
 )
 from modules.agent.infra.database.mappers import (
     agent_collection_model_to_entity,
@@ -77,10 +83,14 @@ from modules.agent.infra.database.mappers import (
     model_to_collection,
     model_to_document,
     model_to_message,
+    model_to_secret,
     model_to_session,
+    model_to_tool,
     provider_credential_entity_to_model,
     provider_credential_model_to_entity,
+    secret_to_model,
     session_to_model,
+    tool_to_model,
 )
 from modules.agent.infra.database.models import (
     AgentCollectionModel,
@@ -92,6 +102,8 @@ from modules.agent.infra.database.models import (
     AgentPromptModel,
     AgentReleaseModel,
     AgentReleaseTestModel,
+    AgentToolModel,
+    AgentToolSecretModel,
     AskJobModel,
     DocumentChunkModel,
     DocumentCollectionModel,
@@ -1445,3 +1457,182 @@ class SQLAlchemyAgentInboxRepository:
             raise ValueError(
                 f"Invalid inbox status transition: {current} -> {target}"
             )
+
+
+class SQLAlchemyAgentToolRepository(ToolRepository):
+
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._base = BaseSQLAlchemyRepository(session, AgentToolModel)
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def create(self, tool: Tool) -> Tool:
+        model = tool_to_model(tool)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
+        return model_to_tool(model)
+
+    async def get_by_id(self, tool_id: UUID) -> Tool:
+        model = await self._base._get_model_by_id(tool_id)
+        if model is None:
+            raise ToolNotFoundError(tool_id)
+        return model_to_tool(model)
+
+    async def list_by_project(
+        self, project_id: UUID, status: str | None = None
+    ) -> list[Tool]:
+        stmt = select(AgentToolModel).where(AgentToolModel.project_id == project_id)
+        if status:
+            stmt = stmt.where(AgentToolModel.status == status)
+        stmt = stmt.order_by(AgentToolModel.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [model_to_tool(m) for m in result.scalars().all()]
+
+    async def list_by_agent(
+        self, agent_id: UUID, status: str | None = None
+    ) -> list[Tool]:
+        stmt = select(AgentToolModel).where(AgentToolModel.agent_id == agent_id)
+        if status:
+            stmt = stmt.where(AgentToolModel.status == status)
+        stmt = stmt.order_by(AgentToolModel.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [model_to_tool(m) for m in result.scalars().all()]
+
+    async def paginate_by_project(
+        self, project_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]:
+        stmt = select(AgentToolModel).where(AgentToolModel.project_id == project_id)
+        if status:
+            stmt = stmt.where(AgentToolModel.status == status)
+        stmt = stmt.order_by(AgentToolModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_tool(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Tool]:
+        stmt = select(AgentToolModel).where(AgentToolModel.agent_id == agent_id)
+        if status:
+            stmt = stmt.where(AgentToolModel.status == status)
+        stmt = stmt.order_by(AgentToolModel.id.desc())
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_tool(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def update(self, tool: Tool) -> Tool:
+        model = await self._base._get_model_by_id(tool.id)
+        if model is None:
+            raise ToolNotFoundError(tool.id)
+        model.name = tool.name
+        model.description = tool.description
+        model.agent_id = tool.agent_id
+        model.type = tool.type.value if hasattr(tool.type, 'value') else tool.type
+        model.config = tool.config
+        model.input_schema = tool.input_schema
+        model.output_schema = tool.output_schema
+        model.risk_level = tool.risk_level.value if hasattr(tool.risk_level, 'value') else tool.risk_level
+        model.timeout_ms = tool.timeout_ms
+        model.status = tool.status.value if hasattr(tool.status, 'value') else tool.status
+        return model_to_tool(model)
+
+    async def delete(self, tool_id: UUID) -> None:
+        model = await self._base._get_model_by_id(tool_id)
+        if model is None:
+            raise ToolNotFoundError(tool_id)
+        await self._base._delete_model(model)
+
+
+class SQLAlchemyAgentToolSecretRepository(SecretRepository):
+
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._base = BaseSQLAlchemyRepository(session, AgentToolSecretModel)
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def create(self, secret: Secret) -> Secret:
+        model = secret_to_model(secret)
+        await self._base._add_model(model)
+        await self._base._flush()
+        await self._base._refresh_model(model)
+        return model_to_secret(model)
+
+    async def get_by_id(self, secret_id: UUID) -> Secret:
+        model = await self._base._get_model_by_id(secret_id)
+        if model is None:
+            raise SecretNotFoundError(secret_id)
+        return model_to_secret(model)
+
+    async def get_by_name(self, project_id: UUID, name: str) -> Secret:
+        stmt = select(AgentToolSecretModel).where(
+            AgentToolSecretModel.project_id == project_id,
+            AgentToolSecretModel.name == name,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if model is None:
+            raise SecretNotFoundError(secret_id=name)
+        return model_to_secret(model)
+
+    async def list_by_project(self, project_id: UUID) -> list[Secret]:
+        stmt = (
+            select(AgentToolSecretModel)
+            .where(AgentToolSecretModel.project_id == project_id)
+            .order_by(AgentToolSecretModel.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [model_to_secret(m) for m in result.scalars().all()]
+
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[Secret]:
+        stmt = (
+            select(AgentToolSecretModel)
+            .where(AgentToolSecretModel.project_id == project_id)
+            .order_by(AgentToolSecretModel.id.desc())
+        )
+        page = await self._base._paginate_models(stmt, limit=limit, cursor=cursor)
+        return CursorPage(
+            items=[model_to_secret(m) for m in page.items],
+            cursor=page.cursor,
+            next_cursor=page.next_cursor,
+            has_next=page.has_next,
+            total=page.total,
+        )
+
+    async def update(self, secret: Secret) -> Secret:
+        model = await self._base._get_model_by_id(secret.id)
+        if model is None:
+            raise SecretNotFoundError(secret.id)
+        model.name = secret.name
+        model.type = secret.type.value if hasattr(secret.type, 'value') else secret.type
+        model.encrypted_value = secret.encrypted_value
+        model.data = secret.data
+        return model_to_secret(model)
+
+    async def delete(self, secret_id: UUID) -> None:
+        model = await self._base._get_model_by_id(secret_id)
+        if model is None:
+            raise SecretNotFoundError(secret_id)
+        await self._base._delete_model(model)

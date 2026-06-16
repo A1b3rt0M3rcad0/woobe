@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, and infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter) integrated into agent module with SSRF protection and async secret resolution.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter), and database models (AgentToolModel, AgentToolSecretModel) integrated into agent module. SQLAlchemyAgentToolRepository, SQLAlchemyAgentToolSecretRepository implemented. Tools and tool_secrets repositories available through AgentUnitOfWork. Tool composers created in agent module. Legacy tools module database files remain as shims.
 
 ## Status
 
@@ -26,7 +26,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 005 | completed |
 | 006 | completed |
 | 007 | completed |
-| 008 | pending |
+| 008 | completed |
 | 009 | pending |
 | 010 | pending |
 | 011 | pending |
@@ -468,6 +468,85 @@ Exit code: 0 — 59 passed
 - [x] executor fora de use case (HttpToolExecutor em infra/adapters, separado da lógica de aplicação)
 - [x] HTTP compatível (mesmo comportamento: method, url, headers, body, timeout)
 
+### Spec 008 — Integrar models, mappers, repositories e AgentUnitOfWork
+
+**Status:** completed
+**Tipo:** refactor
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/infra/database/models.py` (added AgentToolModel, AgentToolSecretModel)
+- `src/modules/agent/infra/database/mappers.py` (added tool_to_model, model_to_tool, secret_to_model, model_to_secret)
+- `src/modules/agent/infra/database/repositories.py` (added SQLAlchemyAgentToolRepository, SQLAlchemyAgentToolSecretRepository)
+- `src/modules/agent/infra/database/unit_of_work.py` (added tools, tool_secrets properties)
+- `src/modules/agent/infra/database/preflight.py` (updated AGENT_SCHEMA_TABLES with tools, tool_secrets)
+- `src/modules/agent/application/composers/tools_composers.py` (created — 10 tool composer functions)
+- `tests/integration/agent/__init__.py` (created)
+- `tests/integration/agent/test_tool_repository_integration.py` (created — 24 tests)
+- `tests/integration/agent/test_agent_unit_of_work.py` (created — 8 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/tools/infra/database -Recurse -File` | 0 | 4 source files + pycache |
+| `Get-Content src/modules/tools/infra/database/models.py -Head 260` | 0 | ToolModel, SecretModel in schema=tools with FK to core.projects |
+| `Get-Content src/modules/tools/infra/database/unit_of_work.py -Head 260` | 0 | ToolsUnitOfWork with tools, secrets, outbox |
+
+**Key changes:**
+
+| Contract | Source (tools) | Target (agent) |
+|---|---|---|
+| ToolModel | `modules.tools.infra.database.models.ToolModel` (schema=tools, FK to core.projects) | `modules.agent.infra.database.models.AgentToolModel` (schema=agent, no cross-module FK, indexed project_id/agent_id) |
+| SecretModel | `modules.tools.infra.database.models.SecretModel` (schema=tools, FK to core.projects) | `modules.agent.infra.database.models.AgentToolSecretModel` (schema=agent, no cross-module FK, indexed project_id, unique project_id+name) |
+| Unit of Work | `ToolsUnitOfWork` (separate tools session) | `AgentUnitOfWork.tools` and `AgentUnitOfWork.tool_secrets` (same transaction as agent) |
+| Outbox | `tools.outbox_events` (separate) | Canonical `AgentOutboxEventModel` via `SQLAlchemyAgentOutboxEventWriter` (already exists in AgentUnitOfWork) |
+
+**Implementation details:**
+- AgentToolModel: table `agent.tools` with indexes on `project_id` and `agent_id`, no cross-module FK
+- AgentToolSecretModel: table `agent.tool_secrets` with unique constraint on (project_id, name), index on project_id
+- SQLAlchemyAgentToolRepository implements ToolRepository (create, get_by_id, list_by_project, list_by_agent, paginate_by_project, paginate_by_agent, update, delete)
+- SQLAlchemyAgentToolSecretRepository implements SecretRepository (create, get_by_id, get_by_name, list_by_project, paginate_by_project, update, delete)
+- AgentUnitOfWork now has `tools` and `tool_secrets` lazy-initialized properties
+- Tool composers created: create_tool, update_tool, delete_tool, list_tools, list_tools_by_agent, update_tool_status, test_tool, execute_tool, create_secret, list_secrets
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/infra/database tests/integration/agent src/modules/agent/application/composers/tools_composers.py
+```
+Exit code: 0 — All checks passed
+
+```bash
+pytest tests/integration/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 32 passed
+
+```bash
+pytest tests/unit/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 59 passed
+
+```bash
+pytest tests/architecture -q --asyncio-mode=auto
+```
+Exit code: 1 — 58 pre-existing failures (preflight table count updated from 17 to 19 due to new agent.tools and agent.tool_secrets; remaining failures are pre-existing migration head, inventory paths, allowlist — none caused by spec 008)
+
+**Acceptance criteria:**
+- [x] um UoW (AgentUnitOfWork owns tools and tool_secrets in same transaction)
+- [x] models agent.* (AgentToolModel in agent.tools, AgentToolSecretModel in agent.tool_secrets)
+- [x] sem FK cross-module (project_id is opaque UUID with index, no ForeignKey)
+- [x] rollback atômico (inherited from AgentUnitOfWork commit/rollback pattern)
+
+**Riscos ativos:**
+- Tool composers created without controllers; controllers and TransactionalHandler wiring pending for spec 009
+- ask_agent_composer.py still uses ToolsToolRepository shim; needs update in cutover spec
+- Database tables `agent.tools` and `agent.tool_secrets` not yet created; migration pending in spec 011
+- Legacy `tools.tools` and `tools.secrets` tables still active; dual state until spec 016
+
 ## Próxima spec recomendada
 
-`008-integrate-models-repositories-and-agent-unit-of-work.md`
+`009-move-presentation-and-preserve-http-api.md`
