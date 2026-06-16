@@ -46,7 +46,7 @@ git rev-parse HEAD
 | 005 | completed | 2026-06-16 | ec24714 | detection-spec-005.md, preflight.py, test_spec_005_preflight.py | 006 |
 | 006 | completed | 2026-06-16 | c7f8c06 | migration-0015, detection-spec-006.md, test_spec_006_ai_tables.py | 007 |
 | 007 | completed | 2026-06-16 | 2d0a056 | migration-0016, detection-spec-007.md, test_spec_007_knowledge_tables.py | 008 |
-| 008 | pending | - | - | - | 009 |
+| 008 | completed | 2026-06-16 | bdc6fbe | migration-0017, detection-spec-008.md, test_spec_008_runtime_tables.py | 009 |
 | 009 | pending | - | - | - | 010 |
 | 010 | pending | - | - | - | 011 |
 | 011 | pending | - | - | - | 012 |
@@ -482,4 +482,63 @@ git rev-parse HEAD
 #### Próxima spec recomendada
 
 `008`
+
+### Spec 008 — move-runtime-business-tables-to-agent-schema
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** bdc6fbe4a2e8930de856d27e23161795f1460846
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `Select-String schema="runtime"` | 0 | 5 references (all allowlisted) |
+| `alembic heads` | 0 | `0016 (head)` (pre-migration) |
+
+#### Files changed
+
+- `migrations/versions/0017_move_runtime_tables_to_agent.py` — created
+  - Upgrade: 3x `ALTER TABLE runtime.<table> SET SCHEMA agent` + compat views
+  - Downgrade: reverse SET SCHEMA + DROP VIEW
+  - Excludes: `runtime.outbox_events` and `runtime.inbox_events` (messaging — deferred to spec 011)
+- `specs/agent-schema-consolidation/execution/detection-spec-008.md` — created
+- `tests/architecture/test_spec_008_runtime_tables.py` — created (10 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new files` | 0 | Clean |
+| `pytest test_spec_008_runtime_tables.py` | 0 | 10 passed |
+| `pytest tests/architecture -q` | 1 | 43 failures (pre-existing). 699 passed (incl. all 10 new tests). |
+
+#### Acceptance criteria
+
+1. Todas as tabelas runtime do agent estão mapeadas na migration 0017 ✅ (sessions, messages, ask_jobs with SET SCHEMA + compat views)
+2. Nenhuma mensagem/job perde vínculo interno — compat views garantem continuidade
+3. Rotas de sessão e ask jobs continuam funcionais — compat views preservam schema original
+
+#### Decisões tomadas durante a execução
+
+- Migration 0017 revises 0016, mantendo cadeia Alembic linear após 3 moves consecutivos.
+- Compat views criadas para `runtime.*` → `agent.*` até spec 009.
+- Todas as 15 tabelas de negócio (7 ai + 5 knowledge + 3 runtime) agora possuem migration para `agent`.
+- Tabelas de mensageria nos 3 schemas legados não movidas (spec 011).
+
+#### Riscos ativos
+
+- Nenhuma migration executada (sem PostgreSQL) — 3 migrations pendentes (0015, 0016, 0017).
+- Spec 005 test `test_revisions_are_sorted` falha — esperado.
+- Drift entre metadata SQLAlchemy e catálogo real não verificado.
+
+#### Próxima spec recomendada
+
+`009`
 
