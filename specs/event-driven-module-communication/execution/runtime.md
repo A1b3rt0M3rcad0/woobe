@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Matriz alvo de eventos, ownership e subscriptions definida. Fluxos cross-module mapeados. Nenhuma alteração produtiva.
+Testes de caracterização e guards arquiteturais criados. Violações atuais congeladas. Nenhuma alteração produtiva.
 
 ## Status
 
@@ -20,7 +20,7 @@ Matriz alvo de eventos, ownership e subscriptions definida. Fluxos cross-module 
 | 000 | completed |
 | 001 | completed |
 | 002 | completed |
-| 003 | pending |
+| 003 | completed |
 | 004 | pending |
 | 005 | pending |
 | 006 | pending |
@@ -138,16 +138,47 @@ Matriz alvo de eventos, ownership e subscriptions definida. Fluxos cross-module 
 - Observability subscreverá `agent.execution.*` para tracing
 - Billing/core/identity: remover self-subscriptions ou justificar com caso de uso real
 
+### 003 — Testes de caracterização e guards arquiteturais
+
+**Status:** completed
+**Tipo:** testing
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `Get-ChildItem tests -Recurse | sort` | 0 |
+| `pytest --collect-only -q` | 0 |
+| `Select-String architecture/outbox/inbox/rabbit/metering/observability/ask_stream in tests` | 0 |
+
+**Files changed:**
+- `tests/architecture/test_event_dynamic_imports.py` — guard de imports dinâmicos cross-module
+- `tests/architecture/test_event_self_subscriptions.py` — guard de self-subscriptions
+- `tests/architecture/test_event_handler_noop.py` — guard de handlers no-op
+- `tests/architecture/test_event_versioning.py` — guard de versionamento de eventos
+- `execution/runtime.md` — runtime updated
+
+**Validation:** `pytest tests/architecture/test_event_dynamic_imports.py test_event_self_subscriptions.py test_event_handler_noop.py test_event_versioning.py -q` — 8 passed
+
+**Descobertas principais:**
+- 3 arquivos com imports dinâmicos cross-module (agent→metering, agent→observability) — congelados no allowlist
+- 3 módulos com self-subscriptions não justificadas (billing, core, identity) — congelados
+- 5 módulos com handlers no-op (billing, core, identity, metering, observability) — congelados
+- 7 arquivos com eventos não versionados nas use cases do agent — congelados
+- Domain events do agent (events.py) já estão versionados (.v1) corretamente
+
 ## Decisões tomadas durante a execução
 
 - Agent→Tool permanece síncrono interno (Tool já está em modules.agent)
 - Agent→Metering e Agent→Observability devem usar Outbox/Inbox
 - Consistência eventual para projeções e métricas
-- Nenhuma alteração produtiva nas specs 000-002
-- Inventário completo de todas as violações classificado por severidade e spec de correção
-- Matriz alvo define subscriptions concretas para metering e observability
-- Agent mantém self-subscription para tool events (justificada)
-- Identity/core/billing: self-subscriptions a serem removidas ou justificadas
+- Nenhuma alteração produtiva nas specs 000-003
+- Testes de guard congelam violações atuais e impedem novas
+- Allowlists nos testes serão removidas à medida que specs de correção resolverem as violações
 
 ## Riscos ativos
 
@@ -159,7 +190,8 @@ Matriz alvo de eventos, ownership e subscriptions definida. Fluxos cross-module 
 - FKs reais exigem inspeção em banco.
 - Imports dinâmicos cross-module criam acoplamento invisível (difícil de detectar staticamente)
 - Remoção de self-subscriptions billing/core/identity pode impactar consumidores não documentados
+- Testes de guard dependem de allowlists que precisam ser removidas nas specs corretas
 
 ## Próxima spec
 
-`003-add-characterization-and-architecture-guards.md`
+`004-standardize-integration-event-envelope.md`
