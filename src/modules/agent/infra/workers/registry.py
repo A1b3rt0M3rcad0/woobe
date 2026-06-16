@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.infra.messaging.inbox_handlers import AgentInboxEventRouter
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
+from modules.agent.infra.workers.ask_job_worker import AskJobWorker
 from modules.agent.infra.workers.inbox_consumer import AgentInboxConsumerWorker
 from modules.agent.infra.workers.inbox_processor import AgentInboxProcessorWorker
 from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxDispatcherWorker
@@ -54,6 +55,9 @@ def register_agent_workers(
         handler=inbox_handler_router,
     )
     registry.register(inbox_processor)
+
+    ask_job_worker = AskJobWorker(async_engine=engine)
+    registry.register(ask_job_worker)
 
 
 assert isinstance(AgentWorkerRegistry, type)

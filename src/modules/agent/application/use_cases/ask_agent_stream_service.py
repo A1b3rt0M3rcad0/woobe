@@ -5,16 +5,21 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
 
 from modules.agent.domain.entities import Agent, AgentRelease, Message, ProviderCredential, Session
-from modules.agent.domain.events import AgentMessageCreatedV1
+from modules.agent.domain.events import (
+    AgentExecutionCompletedV1,
+    AgentExecutionFailedV1,
+    AgentExecutionRequestedV1,
+    AgentFallbackTriggeredV1,
+    AgentMessageCreatedV1,
+)
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
@@ -26,9 +31,7 @@ from modules.agent.domain.repositories import (
     SessionRepository,
 )
 from modules.agent.domain.ports.llm_factory import LLMFactory
-from modules.agent.domain.ports.trace_recorder import TraceRecorder
 from modules.agent.domain.ports.tool_executor import ToolExecutor
-from modules.agent.domain.ports.tool_repository import ToolRepository as AgentToolRepository
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
     SourceInfo,
@@ -36,43 +39,18 @@ from modules.agent.application.dtos.runtime_dtos import (
     UsageInfo,
 )
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions, _safe_tool_name
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentOutboxEventWriter,
+    SQLAlchemyAgentReleaseRepository,
+)
+from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
-from shared.infra.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
-
-
-def _import_agent_repo(name: str):
-    import importlib
-    mod = importlib.import_module("modules.agent.infra.database.repositories")
-    return getattr(mod, name)
-
-
-def _import_metering_recorder():
-    import importlib
-    mod = importlib.import_module("modules.agent.infra.adapters.metering_usage_recorder")
-    return mod.MeteringUsageRecorder
-
-
-def _import_observability_recorder():
-    import importlib
-    mod = importlib.import_module("modules.agent.infra.adapters.observability_trace_recorder")
-    return mod.ObservabilityTraceRecorder
-
-
-def _import_tools_repo():
-    import importlib
-    mod = importlib.import_module("modules.agent.infra.database.repositories")
-    return mod.SQLAlchemyAgentToolRepository
-
-
-def _import_tools_executor():
-    import importlib
-    mod = importlib.import_module("modules.agent.infra.adapters.tool_executor")
-    return mod.AgentToolExecutor
 
 
 class AskAgentStreamService:
@@ -97,21 +75,9 @@ class AskAgentStreamService:
         full_answer: str | None = None
 
         try:
-            async with self._session_factory() as db_session:
-                agent_repo: AgentRepository = _import_agent_repo("SQLAlchemyAgentRepository")(db_session)
-                credential_repo: ProviderCredentialRepository = _import_agent_repo("SQLAlchemyProviderCredentialRepository")(db_session)
-                session_repo: SessionRepository = _import_agent_repo("SQLAlchemySessionRepository")(db_session)
-                message_repo: MessageRepository = _import_agent_repo("SQLAlchemyMessageRepository")(db_session)
-                agent_collection_repo: AgentCollectionRepository = _import_agent_repo("SQLAlchemyAgentCollectionRepository")(db_session)
-                chunk_repo: DocumentChunkRepository = _import_agent_repo("SQLAlchemyDocumentChunkRepository")(db_session)
-                trace_recorder = _import_observability_recorder()(db_session)
-                usage_recorder = _import_metering_recorder()(db_session)
-                tool_repo: AgentToolRepository = _import_tools_repo()(db_session)
-
-                release_repo: AgentReleaseRepository = _import_agent_repo("SQLAlchemyAgentReleaseRepository")(db_session)
-
-                agent = await self._load_agent(agent_repo, release_repo, input_dto)
-                credential = await self._load_credential(credential_repo, agent)
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                agent = await self._load_agent(uow.agents, SQLAlchemyAgentReleaseRepository(uow), input_dto)
+                credential = await self._load_credential(uow.provider_credentials, agent)
                 api_key = self._decrypt_api_key(credential)
                 base_url = self._resolve_base_url(agent, credential)
 
@@ -121,39 +87,38 @@ class AskAgentStreamService:
                     and response_format.get("type") == "json"
                 )
 
-                session = await self._resolve_session(session_repo, input_dto, agent)
+                session = await self._resolve_session(uow.sessions, input_dto, agent)
 
                 history: list = []
                 if session:
-                    history = await self._load_history(message_repo, session)
+                    history = await self._load_history(uow.messages, session)
 
                 if session:
-                    await self._save_user_message(message_repo, session_repo, session, input_dto.message, agent)
+                    await self._save_user_message(uow.sessions, uow.messages, session, input_dto.message, agent)
 
-                trace_id = await trace_recorder.create_trace(
-                    project_id=input_dto.project_id,
-                    agent_id=agent.id,
-                    session_id=session.id if session else None,
-                    tenant_id=input_dto.tenant_id,
-                    user_id=input_dto.user_id,
-                    provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
-                    model=agent.model,
+                trace_id = uuid4()
+                rag_context, sources = await self._load_rag_context(
+                    uow.document_collections, uow.document_chunks, agent, input_dto.message,
                 )
-                try:
-                    await trace_recorder.record_event(
-                        trace_id=trace_id,
-                        project_id=input_dto.project_id,
-                        event_type="info",
-                        payload={"event": "ask.started", "message": input_dto.message[:200]},
-                    )
-                except Exception:
-                    pass
-
-                rag_context, sources = await self._load_rag_context(agent_collection_repo, chunk_repo, agent, input_dto.message)
 
                 messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
 
-                await db_session.commit()
+                outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+                execution_payload: dict[str, Any] = {
+                    "trace_id": str(trace_id),
+                    "project_id": str(input_dto.project_id),
+                    "agent_id": str(agent.id),
+                    "session_id": str(session.id) if session else None,
+                    "model": agent.model,
+                    "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+                    "message_preview": input_dto.message[:200],
+                }
+                requested_event = AgentExecutionRequestedV1.create(
+                    agent_id=agent.id,
+                    session_id=session.id if session else None,
+                    payload=execution_payload,
+                )
+                outbox.write(requested_event)
 
                 if sources:
                     yield self._sse_event("sources", {"sources": [s.model_dump() for s in sources]})
@@ -167,17 +132,18 @@ class AskAgentStreamService:
             tool_executor: ToolExecutor | None = None
             tool_name_to_id: dict[str, str] = {}
             has_tools = False
-            if tool_repo:
-                try:
+            try:
+                async with AgentUnitOfWork(self._session_factory) as tool_uow:
+                    tool_repo = tool_uow.tools
                     tools = await tool_repo.list_by_agent(agent.id, status="active")
                     if tools:
                         agent_tools = agent_tools_to_openai_definitions(tools)
-                        tool_executor = _import_tools_executor()(tool_repo)
+                        tool_executor = AgentToolExecutor(tool_repo)
                         for t in tools:
                             tool_name_to_id[_safe_tool_name(t)] = str(t.id)
                         has_tools = True
-                except Exception as e:
-                    logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
+            except Exception as e:
+                logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
 
             chat_model = self._llm_factory.create_chat_model(
                 provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
@@ -203,7 +169,6 @@ class AskAgentStreamService:
 
             tool_calls_recorded: list[ToolCallInfo] = []
             tool_was_called = False
-            json_format_latency_ms: int | None = None
             aggregated_message = None
 
             async def _run_stream(chat_model_instance):
@@ -287,22 +252,6 @@ class AskAgentStreamService:
                             "success": tool_success,
                             "error": tool_error,
                         })
-                        try:
-                            await trace_recorder.record_event(
-                                trace_id=trace_id,
-                                project_id=input_dto.project_id,
-                                event_type="tool_call",
-                                latency_ms=tool_duration,
-                                payload={
-                                    "tool_name": tc["name"],
-                                    "input": tc.get("args"),
-                                    "output": tool_output,
-                                    "success": tool_success,
-                                    "error": tool_error,
-                                },
-                            )
-                        except Exception:
-                            pass
                         messages.append(ToolMessage(
                             content=json.dumps(tool_output) if isinstance(tool_output, dict) else str(tool_output),
                             tool_call_id=tc["id"],
@@ -336,7 +285,6 @@ class AskAgentStreamService:
                             max_tokens=agent.max_output_tokens or 1000,
                             response_format={"type": "json_object"},
                         )
-                        json_start = time.monotonic()
                         json_result = await json_model.ainvoke([
                             SystemMessage(
                                 content=(
@@ -347,28 +295,8 @@ class AskAgentStreamService:
                             ),
                             HumanMessage(content=f"Converta a resposta abaixo para JSON válido:\n\n{answer_text}"),
                         ])
-                        json_format_latency_ms = round((time.monotonic() - json_start) * 1000)
                         accumulated = [json_result.content]
 
-                        json_raw_usage = normalize_llm_usage(json_result)
-                        try:
-                            await trace_recorder.record_event(
-                                trace_id=trace_id,
-                                project_id=input_dto.project_id,
-                                event_type="llm_call",
-                                latency_ms=json_format_latency_ms,
-                                payload={
-                                    "phase": "json_format",
-                                    "input_tokens": json_raw_usage["input_tokens"],
-                                    "output_tokens": json_raw_usage["output_tokens"],
-                                    "total_tokens": json_raw_usage["total_tokens"],
-                                    "cost_usd": json_raw_usage["cost_usd"],
-                                    "model": agent.model,
-                                    "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
-                                },
-                            )
-                        except Exception:
-                            pass
                     except Exception as json_e:
                         logger.warning("JSON formatting phase (Fase 2) failed: %s", json_e)
 
@@ -385,15 +313,11 @@ class AskAgentStreamService:
                     })
 
                     try:
-                        async with self._session_factory() as fb_db_session:
-                            fb_credential_repo = _import_agent_repo("SQLAlchemyProviderCredentialRepository")(fb_db_session)
-
-                            fallback_credential = await self._load_credential_by_id(fb_credential_repo, agent.fallback_credential_id)
+                        async with AgentUnitOfWork(self._session_factory) as fb_uow:
+                            fallback_credential = await self._load_credential_by_id(fb_uow.provider_credentials, agent.fallback_credential_id)
                             fallback_api_key = self._decrypt_api_key(fallback_credential)
                             fb_provider_val = agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider
                             fallback_base_url = self._resolve_base_url_for_provider(fb_provider_val, fallback_credential, agent.settings)
-
-                            await self._emit_fallback_triggered_event(trace_recorder, trace_id, agent, primary_error)
 
                         fallback_chat_model = self._llm_factory.create_chat_model(
                             provider=fb_provider_val,
@@ -467,20 +391,33 @@ class AskAgentStreamService:
         except Exception as e:
             logger.exception("Stream error: %s", e)
             yield self._sse_event("error", {"message": str(e)})
-            if trace_id:
-                await self._fail_trace(trace_id, str(e))
+            try:
+                if agent:
+                    async with AgentUnitOfWork(self._session_factory) as fail_uow:
+                        fail_outbox = SQLAlchemyAgentOutboxEventWriter(fail_uow)
+                        failed_event = AgentExecutionFailedV1.create(
+                            agent_id=agent.id,
+                            session_id=session.id if session else None,
+                            payload={
+                                "trace_id": str(trace_id) if trace_id else None,
+                                "project_id": str(input_dto.project_id),
+                                "agent_id": str(agent.id),
+                                "error": str(e),
+                            },
+                        )
+                        fail_outbox.write(failed_event)
+            except Exception:
+                pass
             return
 
         try:
-            async with self._session_factory() as db_session:
-                message_repo = _import_agent_repo("SQLAlchemyMessageRepository")(db_session)
-                session_repo = _import_agent_repo("SQLAlchemySessionRepository")(db_session)
-                outbox: OutboxEventWriter = _import_agent_repo("SQLAlchemyAgentOutboxEventWriter")(db_session)
+            async with AgentUnitOfWork(self._session_factory) as finalize_uow:
+                outbox = SQLAlchemyAgentOutboxEventWriter(finalize_uow)
 
                 message_id = None
                 if session:
                     assistant_msg = await self._save_assistant_message(
-                        message_repo, session_repo, outbox, session, full_answer or "", usage_info, agent,
+                        finalize_uow.messages, finalize_uow.sessions, outbox, session, full_answer or "", usage_info, agent,
                         tool_calls=tool_calls_recorded,
                         sources=sources,
                         model=response_model or agent.model,
@@ -488,51 +425,42 @@ class AskAgentStreamService:
                     )
                     message_id = assistant_msg.id
 
-                try:
-                    await usage_recorder.record_llm_request(
-                        project_id=input_dto.project_id,
+                completion_payload: dict[str, Any] = {
+                    "trace_id": str(trace_id),
+                    "project_id": str(input_dto.project_id),
+                    "agent_id": str(agent.id),
+                    "session_id": str(session.id) if session else None,
+                    "message_id": str(message_id) if message_id else None,
+                    "answer_length": len(full_answer or ""),
+                    "input_tokens": usage_info.input_tokens or 0 if usage_info else 0,
+                    "output_tokens": usage_info.output_tokens or 0 if usage_info else 0,
+                    "total_tokens": usage_info.total_tokens or 0 if usage_info else 0,
+                    "cost_usd": usage_info.cost_usd or 0.0 if usage_info else 0.0,
+                    "model": response_model or agent.model,
+                    "provider": response_provider,
+                    "latency_ms": llm_latency_ms,
+                    "fallback_used": fallback_used,
+                    "sources": [s.model_dump() for s in sources] if sources else [],
+                    "tool_calls": [tc.model_dump() for tc in tool_calls_recorded] if tool_calls_recorded else [],
+                }
+                if fallback_info_result:
+                    completion_payload["fallback_info"] = fallback_info_result
+                    fallback_event = AgentFallbackTriggeredV1.create(
                         agent_id=agent.id,
-                        input_tokens=usage_info.input_tokens or 0 if usage_info else 0,
-                        output_tokens=usage_info.output_tokens or 0 if usage_info else 0,
-                        total_tokens=usage_info.total_tokens or 0 if usage_info else 0,
-                        cost_usd=usage_info.cost_usd or 0.0 if usage_info else 0.0,
-                        model=agent.model,
+                        session_id=session.id if session else None,
+                        payload=fallback_info_result,
                     )
-                except Exception as e:
-                    logger.warning("Failed to record usage: %s", e)
+                    outbox.write(fallback_event)
 
-                try:
-                    complete_recorder = _import_observability_recorder()(db_session)
-                    await complete_recorder.complete_trace(
-                        trace_id=trace_id,
-                        answer=full_answer or "",
-                        input_tokens=usage_info.input_tokens or 0 if usage_info else 0,
-                        output_tokens=usage_info.output_tokens or 0 if usage_info else 0,
-                        total_tokens=usage_info.total_tokens or 0 if usage_info else 0,
-                        cost_usd=usage_info.cost_usd or 0.0 if usage_info else 0.0,
-                        model=response_model or agent.model,
-                        provider=response_provider,
-                        latency_ms=llm_latency_ms,
-                        message_id=message_id,
-                        sources=sources,
-                        parsed_output=parsed_output,
-                        output_parse_error=output_parse_error,
-                        tool_calls=[tc.model_dump() for tc in tool_calls_recorded] if tool_calls_recorded else [],
-                        fallback_used=fallback_used,
-                        fallback_info=fallback_info_result,
-                        json_format_latency_ms=json_format_latency_ms,
-                    )
-                except Exception as e:
-                    logger.warning("Failed to complete trace: %s", e)
-
-                await db_session.commit()
+                completed_event = AgentExecutionCompletedV1.create(
+                    agent_id=agent.id,
+                    session_id=session.id if session else None,
+                    payload=completion_payload,
+                )
+                outbox.write(completed_event)
 
                 total_latency = round((time.monotonic() - started_at) * 1000)
 
-                logger.info("Stream done payload usage debug", extra={
-                    "trace_id": str(trace_id),
-                    "usage": usage_info.model_dump() if usage_info else None,
-                })
                 done_payload: dict[str, Any] = {
                     "answer": full_answer or "",
                     "session_id": str(session.id) if session else None,
@@ -552,9 +480,9 @@ class AskAgentStreamService:
 
                 yield self._sse_event("done", done_payload)
 
-        except Exception as e:
-            logger.exception("Teardown error: %s", e)
-            yield self._sse_event("error", {"message": f"Teardown error: {e}"})
+        except Exception as teardown_e:
+            logger.exception("Teardown error: %s", teardown_e)
+            yield self._sse_event("error", {"message": f"Teardown error: {teardown_e}"})
 
     def _sse_event(self, event_type: str, data: dict[str, Any]) -> str:
         payload = {"type": event_type, **data}
@@ -919,50 +847,5 @@ class AskAgentStreamService:
         messages.extend(history)
         messages.append(HumanMessage(content=user_message))
         return messages
-
-    async def _emit_fallback_triggered_event(
-        self,
-        trace_recorder: TraceRecorder,
-        trace_id: UUID | None,
-        agent: Agent,
-        error: str,
-    ) -> None:
-        if not trace_id:
-            return
-        try:
-            await trace_recorder.record_event(
-                trace_id=trace_id,
-                project_id=agent.project_id,
-                event_type="info",
-                payload={
-                    "event": "ask.fallback_triggered",
-                    "primary_model": agent.model,
-                    "primary_provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
-                    "primary_error": error,
-                    "fallback_model": agent.fallback_model,
-                    "fallback_provider": agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider,
-                },
-            )
-        except Exception as e:
-            logger.warning("Failed to emit fallback triggered event: %s", e)
-
-    async def _fail_trace(self, trace_id: UUID | None, error: str) -> None:
-        if not trace_id:
-            return
-        try:
-            import importlib
-            obs_repos = importlib.import_module("modules.observability.infra.database.repositories")
-            obs_enums = importlib.import_module("modules.observability.domain.enums")
-            async with self._session_factory() as db_session:
-                trace_repo = obs_repos.SQLAlchemyTraceRepository(db_session)
-                trace = await trace_repo.get_by_id(trace_id)
-                if trace:
-                    trace.status = obs_enums.TraceStatus.failed
-                    trace.ended_at = datetime.now(timezone.utc)
-                    trace.error = error
-                    await trace_repo.save(trace)
-                await db_session.commit()
-        except Exception as e:
-            logger.warning("Failed to fail trace %s: %s", trace_id, e)
 
 

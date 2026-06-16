@@ -26,7 +26,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 006 | completed |
 | 007 | completed |
 | 008 | completed |
-| 009 | pending |
+| 009 | completed |
 | 010 | pending |
 | 011 | pending |
 | 012 | pending |
@@ -415,6 +415,50 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - Ferramentas não são carregadas no ask endpoint (tool_executor=None) — limitação pré-existente, não introduzida por esta spec
 - 32 pre-existing failures no pytest (pytest-asyncio plugin ausente) — idênticos à spec 007
 
+### 009 — Streaming e AskJobs no mesmo orchestrator
+
+**Status:** completed
+**Tipo:** agent
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `Get-ChildItem ask_agent_stream_service.py, ask_job_worker.py, registry.py, runtime_use_cases.py` | 0 (all exist) |
+| `Select-String "Outbox\|Inbox\|Rabbit\|Dispatcher\|Worker" registry.py` | 0 (messaging patterns confirmed) |
+
+**Files changed:**
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` — refatorado: remove imports dinâmicos, usa AgentUnitOfWork nas fases prepare/finalize/fail, substitui trace_recorder/usage_recorder por eventos Outbox (AgentExecutionRequestedV1, AgentExecutionCompletedV1, AgentExecutionFailedV1, AgentFallbackTriggeredV1), remove _emit_fallback_triggered_event e _fail_trace (cross-module)
+- `src/modules/agent/application/use_cases/runtime_use_cases.py` — CreateAskJobUseCase aceita outbox opcional e escreve AgentExecutionRequestedV1 ao criar job
+- `src/modules/agent/application/composers/create_ask_job_composer.py` — injeta SQLAlchemyAgentOutboxEventWriter no CreateAskJobUseCase
+- `src/modules/agent/infra/workers/registry.py` — registra AskJobWorker como poller
+- `tests/integration/agent/test_spec009_stream_job_orchestrator.py` — 9 testes: fases do stream, outbox no job, worker registration, sem imports dinâmicos, sem sessão fechada
+- `specs/event-driven-module-communication/execution/runtime.md` — runtime updated
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- AskAgentStreamService agora emite AgentExecutionRequestedV1 (prepare), AgentExecutionCompletedV1 + AgentFallbackTriggeredV1 (finalize), AgentExecutionFailedV1 (fail)
+- CreateAskJobUseCase emite AgentExecutionRequestedV1 via Outbox
+- AskJobWorker registrado em AgentWorkerRegistry
+- Zero adapters cross-module restantes no stream (MeteringUsageRecorder, ObservabilityTraceRecorder removidos)
+- Zero imports dinâmicos no stream
+- _fail_trace() removido (cross-module direct write para observability)
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/agent` | 0 |
+| `pytest tests/integration/agent/test_spec009_stream_job_orchestrator.py -q` | 0 (9 passed) |
+| `pytest tests/unit/agent tests/integration/agent tests/contract -q` | 164 passed, 32 pre-existing failures |
+
+**Riscos:**
+- AskJobWorker não foi alterado funcionalmente — legacy mode preservado
+- 32 pre-existing failures no pytest (pytest-asyncio plugin ausente) — idênticos à spec 008
+- Stream service ainda depende de self._session_factory (Callable) — mudança futura para async_sessionmaker direto pode ser necessária
+
 ## Próxima spec
 
-`009-consolidate-billing-inbox-outbox.md`
+`010-stabilize-internal-tool-execution-and-events.md`

@@ -3,7 +3,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from modules.agent.domain.entities import AskJob, Message, Session
-from modules.agent.domain.events import AgentMessageCreatedV1, AgentSessionCreatedV1
+from modules.agent.domain.events import (
+    AgentExecutionRequestedV1,
+    AgentMessageCreatedV1,
+    AgentSessionCreatedV1,
+)
 from shared.messaging.outbox_writer import OutboxEventWriter
 from modules.agent.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.agent.application.dtos.runtime_dtos import (
@@ -179,8 +183,9 @@ class ListAgentSessionsUseCase:
 
 class CreateAskJobUseCase:
 
-    def __init__(self, repo: AskJobRepository) -> None:
+    def __init__(self, repo: AskJobRepository, outbox: OutboxEventWriter | None = None) -> None:
         self._repo = repo
+        self._outbox = outbox
 
     async def execute(self, input_dto: CreateAskJobInput) -> CreateAskJobOutput:
         job = AskJob(
@@ -191,6 +196,20 @@ class CreateAskJobUseCase:
             params=input_dto.model_dump(exclude={"tenant_id", "user_id", "metadata"}),
         )
         created = await self._repo.create(job)
+
+        if self._outbox:
+            event = AgentExecutionRequestedV1.create(
+                agent_id=input_dto.agent_id,
+                session_id=input_dto.session_id,
+                payload={
+                    "job_id": str(created.id),
+                    "project_id": str(input_dto.project_id),
+                    "agent_id": str(input_dto.agent_id),
+                    "session_id": str(input_dto.session_id) if input_dto.session_id else None,
+                },
+            )
+            self._outbox.write(event)
+
         return CreateAskJobOutput(job_id=created.id, status="pending")
 
 
