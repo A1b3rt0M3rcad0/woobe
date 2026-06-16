@@ -113,7 +113,6 @@ function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
     base_url: state.baseUrl,
     temperature: state.temperature,
     max_output_tokens: state.maxOutputTokens,
-    session_mode: state.sessionMode,
     agent_status: state.status,
     collection_ids: state.collectionIds,
     runtime_config: state.runtimeConfig,

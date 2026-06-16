@@ -59,7 +59,7 @@ class Agent:
     fallback_model: str | None = None
     temperature: float | None = None
     max_output_tokens: int | None = None
-    session_mode: SessionMode = SessionMode.stateless
+    session_mode: SessionMode = SessionMode.stateful
     status: AgentStatus = AgentStatus.active
     settings: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None

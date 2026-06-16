@@ -122,6 +122,10 @@ class AskAgentStreamService:
 
                 session = await self._resolve_session(session_repo, input_dto, agent)
 
+                history: list = []
+                if session:
+                    history = await self._load_history(message_repo, session)
+
                 if session:
                     await self._save_user_message(message_repo, session_repo, session, input_dto.message, agent)
 
@@ -143,10 +147,6 @@ class AskAgentStreamService:
                     )
                 except Exception:
                     pass
-
-                history: list = []
-                if session:
-                    history = await self._load_history(message_repo, session)
 
                 rag_context, sources = await self._load_rag_context(agent_collection_repo, chunk_repo, agent, input_dto.message)
 
@@ -212,6 +212,11 @@ class AskAgentStreamService:
                 local_output_tokens: int | None = None
                 local_total_tokens: int | None = None
                 local_aggregated = None
+                logger.info("SENDING TO LLM: %d messages", len(messages))
+                for i, msg in enumerate(messages):
+                    role = type(msg).__name__
+                    content_preview = (getattr(msg, "content", "") or "")[:100]
+                    logger.info("  MSG[%d] %s: %s", i, role, content_preview)
                 async for chunk in chat_model_instance.astream(messages):
                     content = chunk.content if hasattr(chunk, "content") and chunk.content else ""
                     if content:
@@ -679,15 +684,19 @@ class AskAgentStreamService:
     async def _resolve_session(
         self, repo: SessionRepository, input_dto: AskInput, agent: Agent
     ) -> Session | None:
-        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
-        if mode == "stateless":
-            return None
-
         if input_dto.session_id:
             try:
-                return await repo.get_by_id(input_dto.session_id)
-            except Exception:
-                pass
+                found = await repo.get_by_id(input_dto.session_id)
+                logger.info("RESOLVE SESSION: found existing session %s", found.id)
+                return found
+            except Exception as exc:
+                logger.warning("RESOLVE SESSION: get_by_id failed for %s: %s", input_dto.session_id, exc)
+
+        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
+        logger.info("RESOLVE SESSION: agent mode=%s, will create new", mode)
+        if mode == "stateless":
+            logger.info("RESOLVE SESSION: stateless mode, returning None")
+            return None
 
         session = Session(
             project_id=input_dto.project_id,
@@ -697,7 +706,9 @@ class AskAgentStreamService:
             user_id=input_dto.user_id,
             mode=SessionMode.CHAT,
         )
-        return await repo.create(session)
+        created = await repo.create(session)
+        logger.info("RESOLVE SESSION: created new session %s", created.id)
+        return created
 
     async def _save_user_message(
         self,
@@ -776,6 +787,7 @@ class AskAgentStreamService:
     async def _load_history(self, repo: MessageRepository, session: Session) -> list:
         try:
             messages = await repo.list_by_session(session.id)
+            logger.debug("Loaded %d raw messages from DB for session %s", len(messages), session.id)
             history = []
             for m in messages:
                 role = m.role.value if hasattr(m.role, "value") else m.role
@@ -789,7 +801,10 @@ class AskAgentStreamService:
                             {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
                             for tc in raw_tool_calls if tc.get("tool_call_id")
                         ]
-                    msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    if tool_calls:
+                        msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    else:
+                        msg = AIMessage(content=m.content)
                     history.append(msg)
                     if tool_calls:
                         for tc in raw_tool_calls:
@@ -798,8 +813,12 @@ class AskAgentStreamService:
                                     content=json.dumps(tc["output"]),
                                     tool_call_id=tc["tool_call_id"],
                                 ))
+            logger.info("BUILT HISTORY: %d messages from session %s", len(history), session.id)
+            if history:
+                logger.info("HISTORY ROLES: %s", [type(m).__name__ + ":" + (getattr(m, "content", "") or "")[:60] for m in history])
             return history
-        except Exception:
+        except Exception as exc:
+            logger.exception("FAILED to load history for session %s: %s", session.id, exc)
             return []
 
     async def _load_rag_context(

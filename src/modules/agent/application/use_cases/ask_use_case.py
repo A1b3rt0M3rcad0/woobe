@@ -136,12 +136,12 @@ class AskAgentUseCase:
 
         session = await self._resolve_session(input_dto, agent)
 
+        history = await self._load_history(session) if session else []
+
         if session:
             await self._save_user_message(session, input_dto.message, agent)
 
         trace_id = await self._create_trace(input_dto, agent, session)
-
-        history = await self._load_history(session) if session else []
 
         rag_context, sources = await self._load_rag_context(agent, input_dto.message)
 
@@ -155,6 +155,11 @@ class AskAgentUseCase:
         tool_was_called = False
         json_format_latency_ms: int | None = None
 
+        logger.info("SENDING TO LLM: %d messages", len(messages))
+        for i, msg in enumerate(messages):
+            role = type(msg).__name__
+            content_preview = (getattr(msg, "content", "") or "")[:100]
+            logger.info("  MSG[%d] %s: %s", i, role, content_preview)
         try:
             llm_latency_start = time.monotonic()
             result = await chat_model.ainvoke(messages)
@@ -508,15 +513,19 @@ class AskAgentUseCase:
     async def _resolve_session(
         self, input_dto: AskInput, agent: Agent
     ) -> Session | None:
-        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
-        if mode == "stateless":
-            return None
-
         if input_dto.session_id:
             try:
-                return await self._session_repo.get_by_id(input_dto.session_id)
-            except Exception:
-                pass
+                found = await self._session_repo.get_by_id(input_dto.session_id)
+                logger.info("RESOLVE SESSION: found existing session %s", found.id)
+                return found
+            except Exception as exc:
+                logger.warning("RESOLVE SESSION: get_by_id failed for %s: %s", input_dto.session_id, exc)
+
+        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
+        logger.info("RESOLVE SESSION: agent mode=%s, will create new", mode)
+        if mode == "stateless":
+            logger.info("RESOLVE SESSION: stateless mode, returning None")
+            return None
 
         session = Session(
             project_id=input_dto.project_id,
@@ -526,7 +535,9 @@ class AskAgentUseCase:
             user_id=input_dto.user_id,
             mode=SessionMode.CHAT,
         )
-        return await self._session_repo.create(session)
+        created = await self._session_repo.create(session)
+        logger.info("RESOLVE SESSION: created new session %s", created.id)
+        return created
 
     async def _save_user_message(
         self, session: Session, content: str, agent: Agent
@@ -587,6 +598,7 @@ class AskAgentUseCase:
     async def _load_history(self, session: Session) -> list:
         try:
             messages = await self._message_repo.list_by_session(session.id)
+            logger.debug("Loaded %d raw messages from DB for session %s", len(messages), session.id)
             history = []
             for m in messages:
                 role = m.role.value if hasattr(m.role, "value") else m.role
@@ -600,7 +612,10 @@ class AskAgentUseCase:
                             {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
                             for tc in raw_tool_calls if tc.get("tool_call_id")
                         ]
-                    msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    if tool_calls:
+                        msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    else:
+                        msg = AIMessage(content=m.content)
                     history.append(msg)
                     if tool_calls:
                         for tc in raw_tool_calls:
@@ -609,8 +624,12 @@ class AskAgentUseCase:
                                     content=json.dumps(tc["output"]),
                                     tool_call_id=tc["tool_call_id"],
                                 ))
+            logger.info("BUILT HISTORY: %d messages from session %s", len(history), session.id)
+            if history:
+                logger.info("HISTORY ROLES: %s", [type(m).__name__ + ":" + (getattr(m, "content", "") or "")[:60] for m in history])
             return history
-        except Exception:
+        except Exception as exc:
+            logger.exception("FAILED to load history for session %s: %s", session.id, exc)
             return []
 
     async def _load_rag_context(

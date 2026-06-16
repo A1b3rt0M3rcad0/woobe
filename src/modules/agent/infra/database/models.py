@@ -63,7 +63,7 @@ class AgentModel(BaseModel):
     fallback_model: Mapped[str | None] = mapped_column(String(255))
     temperature: Mapped[float | None] = mapped_column(Float)
     max_output_tokens: Mapped[int | None] = mapped_column(Integer)
-    session_mode: Mapped[str] = mapped_column(String(32), default="stateless")
+    session_mode: Mapped[str] = mapped_column(String(32), default="stateful")
     status: Mapped[str] = mapped_column(String(32), default="active")
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 

@@ -38,6 +38,13 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     settings = Settings()
 
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logger.info("Logging configured at level %s", settings.log_level)
+
     app = FastAPI(
         title="ProjectRAI",
         description="Runtime AI Platform \u2014 Production-ready AI agent runtime",
