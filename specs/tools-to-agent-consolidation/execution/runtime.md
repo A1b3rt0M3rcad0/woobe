@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter), and database models (AgentToolModel, AgentToolSecretModel) integrated into agent module. SQLAlchemyAgentToolRepository, SQLAlchemyAgentToolSecretRepository implemented. Tools and tool_secrets repositories available through AgentUnitOfWork. Tool composers created in agent module. Legacy tools module database files remain as shims.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. Spec 005 domain contracts moved into agent. Spec 006 DTOs, ports, and use cases moved into agent application. Spec 007 tool execution and secure secret resolution adapters implemented. Spec 008 models, mappers, repositories, and AgentUnitOfWork integration completed. Spec 009 presentation (controllers, schemas, routes, composers) moved into agent. Tool, Secret entities, enums, errors, events, repository interfaces, DTOs, application ports, use cases, infra adapters (HttpToolExecutor, SecretCipherAdapter, ToolSecretResolverAdapter), database models (AgentToolModel, AgentToolSecretModel), controllers (10), schemas (11), routes (10), and full composers (10 with TransactionalHandler) integrated into agent module. Agent tools_router ready for cutover with identical HTTP paths. Legacy tools module presentation files remain as shims.
 
 ## Status
 
@@ -27,7 +27,8 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 006 | completed |
 | 007 | completed |
 | 008 | completed |
-| 009 | pending |
+| 009 | completed |
+| 010 | pending |
 | 010 | pending |
 | 011 | pending |
 | 012 | pending |
@@ -542,11 +543,79 @@ Exit code: 1 — 58 pre-existing failures (preflight table count updated from 17
 - [x] rollback atômico (inherited from AgentUnitOfWork commit/rollback pattern)
 
 **Riscos ativos:**
-- Tool composers created without controllers; controllers and TransactionalHandler wiring pending for spec 009
 - ask_agent_composer.py still uses ToolsToolRepository shim; needs update in cutover spec
 - Database tables `agent.tools` and `agent.tool_secrets` not yet created; migration pending in spec 011
 - Legacy `tools.tools` and `tools.secrets` tables still active; dual state until spec 016
 
+### Spec 009 — Mover controllers, composers, schemas e rotas preservando API
+
+**Status:** completed
+**Tipo:** refactor
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/modules/agent/presentation/schemas.py` (added 11 tool/secret schemas)
+- `src/modules/agent/presentation/controllers/create_tool_controller.py` (created)
+- `src/modules/agent/presentation/controllers/update_tool_controller.py` (created)
+- `src/modules/agent/presentation/controllers/delete_tool_controller.py` (created)
+- `src/modules/agent/presentation/controllers/list_tools_controller.py` (created)
+- `src/modules/agent/presentation/controllers/list_tools_by_agent_controller.py` (created)
+- `src/modules/agent/presentation/controllers/test_tool_controller.py` (created)
+- `src/modules/agent/presentation/controllers/execute_tool_controller.py` (created)
+- `src/modules/agent/presentation/controllers/update_tool_status_controller.py` (created)
+- `src/modules/agent/presentation/controllers/create_secret_controller.py` (created)
+- `src/modules/agent/presentation/controllers/list_secrets_controller.py` (created)
+- `src/modules/agent/presentation/routes.py` (added tools_router with 10 endpoints)
+- `src/modules/agent/application/composers/tools_composers.py` (updated to use controllers + TransactionalHandler)
+- `tests/contract/test_agent_tools_routes_characterization.py` (created — 13 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Get-ChildItem src/modules/tools/presentation -Recurse -File -Filter *.py` | 0 | 14 source files in tools/presentation/ |
+| `Get-ChildItem src/modules/agent/presentation -Recurse -File -Filter *.py` | 0 | 57 source files in agent/presentation/ (before change) |
+| `Select-String "include_router|tools_router" src/main.py` | 0 | tools_router imported as tools_router in main.py |
+
+**Key changes:**
+
+| Component | Source (tools) | Target (agent) |
+|---|---|---|
+| Schemas | `modules.tools.presentation.schemas` (9 classes) | `modules.agent.presentation.schemas` (same 9 classes, using agent enums) |
+| Controllers | `modules.tools.presentation.controllers.*` (10 files) | `modules.agent.presentation.controllers.*` (10 files, using agent use cases + DTOS) |
+| Composers | `modules.tools.application.composers.*` (ToolsUnitOfWork) | `modules.agent.application.composers.tools_composers` (AgentUnitOfWork + controllers + TransactionalHandler) |
+| Routes | `modules.tools.presentation.routes` (prefix=/tools) | `modules.agent.presentation.routes.tools_router` (prefix=/tools, same paths) |
+
+**Validation:**
+
+```bash
+ruff check src/modules/agent/presentation/ tests/contract/ src/modules/agent/application/composers/tools_composers.py
+```
+Exit code: 0 — All checks passed
+
+```bash
+pytest tests/contract/test_agent_tools_routes_characterization.py -q
+```
+Exit code: 0 — 13 passed
+
+```bash
+pytest tests/integration/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 32 passed
+
+```bash
+python -m compileall -q src
+```
+Exit code: 0 — No errors
+
+**Acceptance criteria:**
+- [x] paths/métodos/payloads compatíveis (agent tools_router uses same HTTP methods and paths as legacy tools routes)
+- [x] bootstrap sem presentation tools após cutover (tools_router ready for cutover; legacy router still active in main.py)
+- [x] sem vazamento (no encrypted_value in routes, schemas exclude encrypted_value from SecretResponse)
+
 ## Próxima spec recomendada
 
-`009-move-presentation-and-preserve-http-api.md`
+`010-consolidate-events-outbox-inbox-workers-and-registry.md`
