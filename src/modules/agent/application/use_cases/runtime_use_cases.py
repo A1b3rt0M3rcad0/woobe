@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from modules.agent.domain.entities import AskJob, Message, Session
+from modules.agent.domain.events import AgentMessageCreatedV1, AgentSessionCreatedV1
+from shared.messaging.outbox_writer import OutboxEventWriter
 from modules.agent.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
@@ -16,7 +20,6 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageInput,
     SendMessageOutput,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.time import utc_now
 
 
@@ -25,7 +28,7 @@ class CreateSessionUseCase:
     def __init__(
         self,
         repo: SessionRepository,
-        outbox: OutboxEventWriter,
+        outbox: "OutboxEventWriter",
     ) -> None:
         self.repo = repo
         self._outbox = outbox
@@ -42,17 +45,13 @@ class CreateSessionUseCase:
         )
         created = await self.repo.create(session)
 
-        await self._outbox.write(
-            aggregate_type="session",
-            aggregate_id=created.id,
-            event_type="runtime.session.created",
-            payload={
-                "session_id": str(created.id),
-                "project_id": str(created.project_id),
-                "agent_id": str(created.agent_id),
-                "mode": created.mode,
-            },
+        event = AgentSessionCreatedV1.create(
+            session_id=created.id,
+            project_id=created.project_id,
+            agent_id=created.agent_id,
+            payload={"mode": created.mode},
         )
+        await self._outbox.write(event)
 
         return CreateSessionOutput(
             id=created.id,
@@ -98,18 +97,14 @@ class SendMessageUseCase:
         sess.last_message_at = utc_now()
         await self.session_repo.update(sess)
 
-        await self._outbox.write(
-            aggregate_type="message",
-            aggregate_id=created.id,
-            event_type="runtime.ask.completed",
-            payload={
-                "message_id": str(created.id),
-                "session_id": str(input_dto.session_id),
-                "project_id": str(sess.project_id),
-                "agent_id": str(sess.agent_id),
-                "role": created.role,
-            },
+        event = AgentMessageCreatedV1.create(
+            message_id=created.id,
+            session_id=sess.id,
+            project_id=sess.project_id,
+            agent_id=sess.agent_id,
+            role=created.role,
         )
+        await self._outbox.write(event)
 
         return SendMessageOutput(
             message=MessageResponse(

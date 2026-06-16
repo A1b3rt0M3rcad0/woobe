@@ -27,7 +27,9 @@ from modules.agent.domain.repositories import MessageRepository, SessionReposito
 from modules.agent.domain.ports.trace_recorder import TraceRecorder
 from modules.agent.domain.ports.tool_executor import ToolExecutor
 from modules.agent.domain.ports.tool_repository import ToolRepository as AgentToolRepository
+from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.domain.ports.usage_recorder import UsageRecorder
+from shared.messaging.outbox_writer import OutboxEventWriter
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
     AskOutput,
@@ -36,7 +38,6 @@ from modules.agent.application.dtos.runtime_dtos import (
     UsageInfo,
 )
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions, _safe_tool_name
-from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
@@ -581,18 +582,14 @@ class AskAgentUseCase:
         except Exception:
             pass
 
-        await self._outbox.write(
-            aggregate_type="message",
-            aggregate_id=created.id,
-            event_type="runtime.ask.completed",
-            payload={
-                "message_id": str(created.id),
-                "session_id": str(session.id),
-                "project_id": str(session.project_id),
-                "agent_id": str(session.agent_id),
-                "role": "assistant",
-            },
+        event = AgentMessageCreatedV1.create(
+            message_id=created.id,
+            session_id=session.id,
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            role="assistant",
         )
+        await self._outbox.write(event)
         return created
 
     async def _load_history(self, session: Session) -> list:

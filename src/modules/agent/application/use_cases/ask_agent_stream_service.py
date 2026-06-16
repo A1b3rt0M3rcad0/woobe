@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
 
 from modules.agent.domain.entities import Agent, AgentRelease, Message, ProviderCredential, Session
+from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
@@ -771,18 +772,15 @@ class AskAgentStreamService:
         except Exception:
             pass
 
-        await outbox.write(
-            aggregate_type="message",
-            aggregate_id=created.id,
-            event_type="runtime.ask.completed",
-            payload={
-                "message_id": str(created.id),
-                "session_id": str(session.id),
-                "project_id": str(session.project_id),
-                "agent_id": str(session.agent_id),
-                "role": "assistant",
-            },
+        event = AgentMessageCreatedV1.create(
+            message_id=created.id,
+            session_id=session.id,
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            role="assistant",
+            payload=msg.data,
         )
+        await outbox.write(event)
         return created
 
     async def _load_history(self, repo: MessageRepository, session: Session) -> list:

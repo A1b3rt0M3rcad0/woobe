@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes. WorkerRunner com lifecycle start/stop, classificação long-lived vs poller, health checks, DLX, e guarda de consumer duplicado.
+Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes. WorkerRunner com lifecycle start/stop, classificação long-lived vs poller, health checks, DLX, e guarda de consumer duplicado. Agent writer aceita AgentDomainEvent completo, preserva event_id/routing_key/idempotency_key/correlation/causation. Writer não hardcodeia mais `agent.event`. Event catalog definido com categorias execution, tool, secret, credential, agent, knowledge. Eventos legados `runtime.*` deprecados com compatibilidade via resolve_event_type(). Novos eventos de domínio: AgentSessionCreatedV1, AgentMessageCreatedV1, AgentCreatedV1, AgentUpdatedV1, AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1, AgentCollectionCreatedV1, AgentDocumentUploadedV1.
 
 ## Status
 
@@ -24,7 +24,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 004 | completed |
 | 005 | completed |
 | 006 | completed |
-| 007 | pending |
+| 007 | completed |
 | 008 | pending |
 | 009 | pending |
 | 010 | pending |
@@ -319,6 +319,53 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - DLX exchange declarado mas sem política de retry/DLQ completa — spec 015 cobre retries e DLQ
 - RabbitMQManager.consume() não é reentrante após close — necessário reconnect explícito em spec futura
 
+### 007 — Outbox e catálogo de eventos do agent
+
+**Status:** completed
+**Tipo:** agent-messaging
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `rg -n "SQLAlchemyAgentOutboxEventWriter\|routing_key=\"agent.event\"\|runtime\.ask\.\|Agent.*V1" src/modules/agent` | 0 |
+| `rg -n "_outbox\.write\(" src/modules/agent` | 0 |
+
+**Files changed:**
+- `src/modules/agent/domain/events.py` — novos eventos: AgentSessionCreatedV1, AgentMessageCreatedV1, AgentCreatedV1, AgentUpdatedV1, AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1, AgentCollectionCreatedV1, AgentDocumentUploadedV1. EVENT_CATALOG com categorias. LEGACY_EVENT_MAP + resolve_event_type() para compatibilidade.
+- `src/modules/agent/infra/messaging/event_mappers.py` — domain_event_to_outbox preserva event_id do domínio (model.id = event.event_id em vez de uuid6.uuid7())
+- `src/modules/agent/infra/database/repositories.py` — SQLAlchemyAgentOutboxEventWriter.write() aceita AgentDomainEvent completo; usa domain_event_to_outbox(); remove uuid4, Any
+- `src/modules/agent/application/use_cases/tools_use_cases.py` — 4 callers passam evento completo
+- `src/modules/agent/application/use_cases/runtime_use_cases.py` — CreateSessionUseCase e SendMessageUseCase usam AgentSessionCreatedV1/AgentMessageCreatedV1
+- `src/modules/agent/application/use_cases/ai_use_cases.py` — 4 callers usam eventos versionados
+- `src/modules/agent/application/use_cases/knowledge_use_cases.py` — CreateCollectionUseCase e UploadDocumentUseCase usam eventos versionados
+- `src/modules/agent/application/use_cases/ask_use_case.py` — runtime.ask.completed → AgentMessageCreatedV1
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` — runtime.ask.completed → AgentMessageCreatedV1
+- `tests/unit/agent/test_tools_application.py` — FakeOutbox.write() aceita AgentDomainEvent; assert atualizados
+- `tests/integration/agent/test_tools_transaction.py` — FakeOutbox.write() aceita AgentDomainEvent
+- `tests/unit/agent/test_agent_outbox_writer.py` — 20 testes: field preservation, rollback, distinct event_ids, legacy compat, event catalog, redaction
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- Agent writer não hardcodeia mais routing_key="agent.event"
+- Agent writer preserva event_id, routing_key, event_version, idempotency_key, correlation_id, causation_id, occurred_at, metadata_
+- Todos os eventos do agent são versionados (.v1)
+- `runtime.*` eventos deprecados, mapeados via LEGACY_EVENT_MAP
+- EVENT_CATALOG define categorias: execution, tool, secret, credential, agent, knowledge
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/agent tests/unit/agent` | 0 |
+| `pytest tests/unit/agent tests/contract/events -q` | 0 (112 passed, 3 pre-existing failures) |
+
+**Riscos:**
+- TestSecretCipher: 3 testes async sem plugin pytest-asyncio configurado (pre-existente)
+- Nenhum risco novo introduzido
+
 ## Próxima spec
 
-`007-fix-agent-outbox-and-event-catalog.md`
+`008-consolidate-billing-inbox-outbox.md`

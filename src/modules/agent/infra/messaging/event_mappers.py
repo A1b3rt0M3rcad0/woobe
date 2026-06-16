@@ -63,10 +63,18 @@ def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
         idempotency_key=event.idempotency_key,
         correlation_id=event.correlation_id,
     )
+    aggregate_type = event.payload.get("aggregate_type", "")
+    aggregate_id = event.payload.get("aggregate_id")
+    if not aggregate_type:
+        aggregate_type = "agent"
+    if aggregate_id is None:
+        aggregate_id = event.event_id
+    else:
+        aggregate_id = UUID(aggregate_id) if isinstance(aggregate_id, str) else aggregate_id
     model = AgentOutboxEventModel()
-    model.id = uuid6.uuid7()
-    model.aggregate_type = event.payload.get("aggregate_type", "agent")
-    model.aggregate_id = event.payload.get("aggregate_id", event.event_id)
+    model.id = event.event_id
+    model.aggregate_type = aggregate_type
+    model.aggregate_id = aggregate_id
     model.event_type = event.event_type
     model.event_version = event.event_version
     model.routing_key = event.routing_key

@@ -58,6 +58,12 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateProviderCredentialInput,
     UpdateProviderCredentialOutput,
 )
+from modules.agent.domain.events import (
+    AgentCreatedV1,
+    AgentProviderCredentialCreatedV1,
+    AgentProviderCredentialUpdatedV1,
+    AgentUpdatedV1,
+)
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
@@ -89,16 +95,13 @@ class CreateProviderCredentialUseCase:
         )
         saved = await self._credential_repo.save(credential)
 
-        await self._outbox.write(
-            aggregate_type="provider_credential",
-            aggregate_id=saved.id,
-            event_type="provider_credential.created",
-            payload={
-                "project_id": str(saved.project_id),
-                "provider": saved.provider.value,
-                "name": saved.name,
-            },
+        event = AgentProviderCredentialCreatedV1.create(
+            credential_id=saved.id,
+            project_id=saved.project_id,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else saved.provider,
+            name=saved.name,
         )
+        await self._outbox.write(event)
 
         return CreateProviderCredentialOutput(
             id=saved.id,
@@ -116,7 +119,7 @@ class UpdateProviderCredentialUseCase:
     def __init__(
         self,
         credential_repo: ProviderCredentialRepository,
-        outbox: OutboxEventWriter,
+        outbox: "OutboxEventWriter",
         encryption_key: str | None = None,
     ) -> None:
         self._credential_repo = credential_repo
@@ -140,16 +143,13 @@ class UpdateProviderCredentialUseCase:
 
         saved = await self._credential_repo.update(existing)
 
-        await self._outbox.write(
-            aggregate_type="provider_credential",
-            aggregate_id=saved.id,
-            event_type="provider_credential.updated",
-            payload={
-                "project_id": str(saved.project_id),
-                "provider": saved.provider.value if hasattr(saved.provider, 'value') else saved.provider,
-                "name": saved.name,
-            },
+        event = AgentProviderCredentialUpdatedV1.create(
+            credential_id=saved.id,
+            project_id=saved.project_id,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else saved.provider,
+            name=saved.name,
         )
+        await self._outbox.write(event)
 
         return UpdateProviderCredentialOutput(
             id=saved.id,
@@ -203,17 +203,14 @@ class CreateAgentUseCase:
         )
         saved = await self._agent_repo.save(agent)
 
-        await self._outbox.write(
-            aggregate_type="agent",
-            aggregate_id=saved.id,
-            event_type="agent.created",
-            payload={
-                "project_id": str(saved.project_id),
-                "name": saved.name,
-                "provider": saved.provider.value,
-                "model": saved.model,
-            },
+        event = AgentCreatedV1.create(
+            agent_id=saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else str(saved.provider),
+            model=saved.model,
         )
+        await self._outbox.write(event)
 
         return saved
 
@@ -224,7 +221,7 @@ class UpdateAgentUseCase:
         self,
         agent_repo: AgentRepository,
         credential_repo: ProviderCredentialRepository,
-        outbox: OutboxEventWriter,
+        outbox: "OutboxEventWriter",
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
@@ -248,17 +245,14 @@ class UpdateAgentUseCase:
 
         saved = await self._agent_repo.update(existing)
 
-        await self._outbox.write(
-            aggregate_type="agent",
-            aggregate_id=saved.id,
-            event_type="agent.updated",
-            payload={
-                "project_id": str(saved.project_id),
-                "name": saved.name,
-                "provider": saved.provider.value if hasattr(saved.provider, 'value') else saved.provider,
-                "model": saved.model,
-            },
+        event = AgentUpdatedV1.create(
+            agent_id=saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else str(saved.provider),
+            model=saved.model,
         )
+        await self._outbox.write(event)
 
         return UpdateAgentOutput(
             id=saved.id,

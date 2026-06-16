@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from typing import Any, cast
-from uuid import UUID, uuid4
+from typing import cast
+from uuid import UUID
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,7 @@ from modules.agent.domain.entities import (
     Tool,
 )
 from modules.agent.domain.enums import ReleaseStatus
+from modules.agent.domain.events import AgentDomainEvent
 from modules.agent.domain.errors import (
     AskJobNotFoundError,
     ChunkNotFoundError,
@@ -1220,26 +1221,11 @@ class SQLAlchemyAgentOutboxEventWriter:
 
     async def write(
         self,
-        aggregate_type: str,
-        aggregate_id: UUID,
-        event_type: str,
-        payload: dict[str, Any],
-        event_version: int = 1,
-        correlation_id: UUID | None = None,
-        causation_id: UUID | None = None,
+        event: AgentDomainEvent,
     ) -> None:
-        event = AgentOutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            event_version=event_version,
-            routing_key="agent.event",
-            payload=payload,
-            idempotency_key=f"{aggregate_type}:{aggregate_id}:{event_type}:{event_version}",
-            correlation_id=correlation_id or uuid4(),
-            causation_id=causation_id,
-        )
-        self._session.add(event)
+        from modules.agent.infra.messaging.event_mappers import domain_event_to_outbox
+        model = domain_event_to_outbox(event)
+        self._session.add(model)
 
 
 AGENT_OUTBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
