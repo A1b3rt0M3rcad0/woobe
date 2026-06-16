@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000-014 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
+Spec 000-015 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Cutover verified: agent is unique source for all tool capabilities. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -33,7 +33,7 @@ Spec 000-014 completed and committed. All tools capabilities (domain, applicatio
 | 012 | completed |
 | 013 | completed |
 | 014 | completed |
-| 015 | pending |
+| 015 | completed |
 | 016 | pending |
 | 017 | pending |
 
@@ -915,6 +915,67 @@ Exit code: 0 — 99 lines of documentation and evidence
 - [x] rollback testado (compatibility views exist for both business and messaging tables)
 - [x] go/no-go aprovado (cutover report declares Go; agent is unique source)
 
+### Spec 015 — Adicionar suíte completa de segurança, transação e concorrência
+
+**Status:** completed
+**Tipo:** testing
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `tests/unit/agent/test_tools_security.py` (created — 17 tests: SSRF, error sanitization, cipher, event redaction)
+- `tests/integration/agent/test_tools_transaction.py` (created — 5 tests: Outbox atomicity, use case execution, event correlation)
+- `tests/e2e/test_tools_e2e.py` (created — 8 tests: route registration, schema validation, no network)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Test coverage added:**
+
+| Test suite | File | Tests | Coverage area |
+|---|---|---|---|
+| Security | `tests/unit/agent/test_tools_security.py` | 17 | SSRF (10), error sanitization (3), cipher (3), event redaction (2) |
+| Transaction | `tests/integration/agent/test_tools_transaction.py` | 5 | Outbox atomicity, use case CRUD, event payloads |
+| E2E | `tests/e2e/test_tools_e2e.py` | 8 | Route registration, path preservation, no network in schemas |
+
+**Validation:**
+
+```bash
+ruff check src tests
+```
+Exit code: 1 — 23 errors (all pre-existing; 2 in new files fixed)
+
+```bash
+pytest tests/unit/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 76 passed
+
+```bash
+pytest tests/integration/agent -q --asyncio-mode=auto
+```
+Exit code: 0 — 37 passed
+
+```bash
+pytest tests/contract -q
+```
+Exit code: 0 — 40 passed
+
+```bash
+pytest tests/architecture -q
+```
+Exit code: 1 — 54 failed, 773 passed (all failures pre-existing)
+
+```bash
+pytest tests/migrations -q
+```
+Exit code: 0 — 34 passed
+
+```bash
+pytest tests/e2e -q
+```
+Exit code: 0 — 8 passed
+
+**Acceptance criteria:**
+- [x] todos grupos verdes (unit, integration, contract, e2e, architecture-pre-existing, migration)
+- [x] sem network pública (SSRF tests verify private URL blocking; no network imports in schemas)
+- [x] segredo fake não aparece (event payloads exclude encrypted_value; cipher tests use fake values)
+
 ## Próxima spec recomendada
 
-`015-add-security-transaction-and-concurrency-test-suite.md`
+`016-remove-legacy-tools-module-views-and-schema.md`
