@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Testes de caracterização e guards arquiteturais criados. Violações atuais congeladas. Nenhuma alteração produtiva.
+Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Testes de contrato e unidade adicionados.
 
 ## Status
 
@@ -21,7 +21,7 @@ Testes de caracterização e guards arquiteturais criados. Violações atuais co
 | 001 | completed |
 | 002 | completed |
 | 003 | completed |
-| 004 | pending |
+| 004 | completed |
 | 005 | pending |
 | 006 | pending |
 | 007 | pending |
@@ -171,14 +171,46 @@ Testes de caracterização e guards arquiteturais criados. Violações atuais co
 - 7 arquivos com eventos não versionados nas use cases do agent — congelados
 - Domain events do agent (events.py) já estão versionados (.v1) corretamente
 
+### 004 — Envelope canônico de IntegrationEvent
+
+**Status:** completed
+**Tipo:** messaging
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `Get-ChildItem event_mappers files` | 0 |
+| `Read agent event_mappers (first 220 lines)` | 0 |
+
+**Files changed:**
+- `src/shared/messaging/event_envelope.py` — IntegrationEvent, serializer/deserializer adicionados
+- `tests/contract/events/test_integration_event_envelope.py` — testes de contrato (round trip, inválido, idempotência, versão, redaction)
+- `tests/unit/shared/test_event_envelope.py` — testes unitários do envelope e serializer
+- `execution/runtime.md` — runtime updated
+
+**Validation:** `ruff check src/shared/messaging tests/unit/shared tests/contract/events` — passed; `pytest tests/unit/shared/test_event_envelope.py tests/contract/events/test_integration_event_envelope.py -q` — 26 passed
+
+**Descobertas principais:**
+- EventEnvelope já existia como wire format — IntegrationEvent adicionado como classe de domínio canônica
+- Serializer/deserializer com suporte a dict e JSON
+- message_id = event_id (UUID) para deduplicação
+- Idempotency key determinística via compute_idempotency_key (SHA256)
+- Validação de event_type, routing_key, producer, version, idempotency
+- Causation chain preservada
+
 ## Decisões tomadas durante a execução
 
 - Agent→Tool permanece síncrono interno (Tool já está em modules.agent)
 - Agent→Metering e Agent→Observability devem usar Outbox/Inbox
 - Consistência eventual para projeções e métricas
-- Nenhuma alteração produtiva nas specs 000-003
-- Testes de guard congelam violações atuais e impedem novas
-- Allowlists nos testes serão removidas à medida que specs de correção resolverem as violações
+- Nenhuma alteração produtiva nas specs 000-003; spec 004 adiciona IntegrationEvent canônico
+- IntegrationEvent mantido em shared/messaging/ (infraestrutura genérica, sem regra de domínio)
+- message_id = event_id para garantir rastreabilidade
 
 ## Riscos ativos
 
@@ -191,7 +223,8 @@ Testes de caracterização e guards arquiteturais criados. Violações atuais co
 - Imports dinâmicos cross-module criam acoplamento invisível (difícil de detectar staticamente)
 - Remoção de self-subscriptions billing/core/identity pode impactar consumidores não documentados
 - Testes de guard dependem de allowlists que precisam ser removidas nas specs corretas
+- IntegrationEvent precisa ser adotado pelos módulos (specs 007-015)
 
 ## Próxima spec
 
-`004-standardize-integration-event-envelope.md`
+`005-standardize-outbox-inbox-persistence.md`
