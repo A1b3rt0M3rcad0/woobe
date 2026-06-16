@@ -11,7 +11,7 @@
 
 ## Estado atual
 
-Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes. WorkerRunner com lifecycle start/stop, classificação long-lived vs poller, health checks, DLX, e guarda de consumer duplicado. Agent writer aceita AgentDomainEvent completo, preserva event_id/routing_key/idempotency_key/correlation/causation. Writer não hardcodeia mais `agent.event`. Event catalog definido com categorias execution, tool, secret, credential, agent, knowledge. Eventos legados `runtime.*` deprecados com compatibilidade via resolve_event_type(). Novos eventos de domínio: AgentSessionCreatedV1, AgentMessageCreatedV1, AgentCreatedV1, AgentUpdatedV1, AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1, AgentCollectionCreatedV1, AgentDocumentUploadedV1.
+Envelope canônico IntegrationEvent criado em shared/messaging com serializer/deserializer. Outbox/Inbox padronizados com campos canônicos (routing_key, idempotency_key, locks, metadata) e constraints por módulo. Migration 0024 adiciona colunas às tabelas existentes. WorkerRunner com lifecycle start/stop, classificação long-lived vs poller, health checks, DLX, e guarda de consumer duplicado. Agent writer aceita AgentDomainEvent completo, preserva event_id/routing_key/idempotency_key/correlation/causation. Writer não hardcodeia mais `agent.event`. Event catalog definido com categorias execution, tool, secret, credential, agent, knowledge. Eventos legados `runtime.*` deprecados com compatibilidade via resolve_event_type(). Novos eventos de domínio: AgentSessionCreatedV1, AgentMessageCreatedV1, AgentCreatedV1, AgentUpdatedV1, AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1, AgentCollectionCreatedV1, AgentDocumentUploadedV1. AskAgentUseCase refatorado para execução transacional em fases (prepare/execute/finalize/fail) com Outbox events (AgentExecutionRequestedV1, AgentExecutionCompletedV1, AgentExecutionFailedV1, AgentFallbackTriggeredV1), removendo escritas diretas cross-module (TraceRecorder, UsageRecorder). Compatibilidade retroativa preservada via legacy mode.
 
 ## Status
 
@@ -25,7 +25,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 005 | completed |
 | 006 | completed |
 | 007 | completed |
-| 008 | pending |
+| 008 | completed |
 | 009 | pending |
 | 010 | pending |
 | 011 | pending |
@@ -366,6 +366,55 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - TestSecretCipher: 3 testes async sem plugin pytest-asyncio configurado (pre-existente)
 - Nenhum risco novo introduzido
 
+### 008 — Execução transacional do agente síncrono (AskAgentUseCase)
+
+**Status:** completed
+**Tipo:** refactor
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git merge-base --is-ancestor cd8d586... HEAD` | 0 |
+| `git status --short` | 0 |
+| `rg -rn "TraceRecorder\|UsageRecorder\|MeteringUsageRecorder\|ObservabilityTraceRecorder" src/modules/agent/application/` | 0 |
+| `rg -rn "cross.*module\|from modules\.\(billing\|metering\|observability\|core\|identity\)" src/modules/agent/` | 0 |
+
+**Files changed:**
+- `src/modules/agent/application/use_cases/ask_use_case.py` — refatorado para execução em fases: _prepare() (UoW curta), _execute_llm() (sem UoW), _finalize() (UoW curta), _fail(). Removeu TraceRecorder/UsageRecorder do caminho phased. Usa AgentExecutionRequestedV1, AgentExecutionCompletedV1, AgentExecutionFailedV1, AgentFallbackTriggeredV1 via Outbox. trace_id = uuid4(). _legacy_mode preserva compatibilidade com ask_job_worker.
+- `src/modules/agent/application/composers/ask_agent_composer.py` — simplificado: remove MeteringUsageRecorder, ObservabilityTraceRecorder, TransactionalHandler. Retorna controller.handle.
+- `tests/integration/agent/test_ask_execution_phases.py` — 4 classes de teste: legado, controller error, reshape interno, phased semantics.
+- `specs/event-driven-module-communication/execution/inventory/spec-008-detection.md` — detecção evidenciada.
+
+**Event contracts, producers, consumers, handlers, workers, Outbox, Inbox, ownership mappings changed:**
+- AskAgentUseCase produz 4 novos eventos via Outbox: AgentExecutionRequestedV1, AgentExecutionCompletedV1, AgentExecutionFailedV1, AgentFallbackTriggeredV1
+- Nenhum consumer/handler registrado ainda — eventos serão consumidos por metering e observability em specs futuras
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/agent` | 0 |
+| `pytest tests/unit/agent tests/integration/agent tests/contract -q` | 155 passed, 32 pre-existing failures |
+| `pytest tests/integration/agent/test_ask_execution_phases.py -q` | 0 |
+
+**Decisões:**
+- AskAgentUseCase gerencia suas próprias UoW curtas via session_factory injetada (não compartilha UoW com caller)
+- _legacy_mode flag: quando agent_repo é passado, usa caminho sem recorders (compatível com ask_job_worker)
+- trace_id gerado como uuid4() dentro de _prepare() — sem dependência externa
+- _try_fallback() carrega fallback credential via leitura em UoW curta
+- Métodos _load_agent() e _load_rag_context() aceitam UoW; versões _legacy() sem UoW para legacy mode
+- Composer retorna controller.handle diretamente, sem TransactionalHandler wrapper
+- ToolExecutor não é injetado (tool_executor=None) — carregamento de tools não suportado no ask endpoint atualmente
+- Nenhuma alteração em portas de domínio (trace_recorder.py, usage_recorder.py) ou adapters de infraestrutura — fora do escopo
+
+**Riscos:**
+- ask_job_worker.py não está no escopo — legacy mode preserva compatibilidade mas worker não foi alterado
+- Novos eventos (AgentExecutionRequestedV1 etc.) não têm consumidores ainda — não há risco de perda pois Outbox garante persistência
+- Ferramentas não são carregadas no ask endpoint (tool_executor=None) — limitação pré-existente, não introduzida por esta spec
+- 32 pre-existing failures no pytest (pytest-asyncio plugin ausente) — idênticos à spec 007
+
 ## Próxima spec
 
-`008-consolidate-billing-inbox-outbox.md`
+`009-consolidate-billing-inbox-outbox.md`
