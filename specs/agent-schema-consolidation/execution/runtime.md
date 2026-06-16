@@ -51,8 +51,8 @@ git rev-parse HEAD
 | 010 | completed | 2026-06-16 | bb24f9d | migration-0018, models updated, allowlist updated, test_spec_010_cross_module_fk.py, detection-spec-010.md | 011 |
 | 011 | completed | 2026-06-16 | 333a0e1 | detection-spec-011.md, migration-0019, test_spec_011_legacy_messaging.py | 012 |
 | 012 | completed | 2026-06-16 | 6be2ad9 | detection-spec-012.md, test_spec_012_clean_legacy_refs.py | 013 |
-| 013 | completed | 2026-06-16 | - | detection-spec-013.md, test_spec_013_migration_contract.py | 014 |
-| 014 | pending | - | - | - | 015 |
+| 013 | completed | 2026-06-16 | 63e1c41 | detection-spec-013.md, test_spec_013_migration_contract.py | 014 |
+| 014 | blocked | - | - | - | - |
 | 015 | pending | - | - | - | 016 |
 | 016 | pending | - | - | - | 017 |
 | 017 | pending | - | - | - | - |
@@ -82,7 +82,7 @@ git rev-parse HEAD
 
 ## Próxima spec recomendada
 
-`014`
+`014` (blocked)
 
 ## Histórico de execução
 
@@ -848,7 +848,7 @@ git rev-parse HEAD
 
 - **Status:** completed
 - **Data:** 2026-06-16
-- **SHA:** (current HEAD after commit)
+- **SHA:** 63e1c41
 - **Scope:** agent-schema-consolidation
 - **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
 
@@ -900,5 +900,40 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`014`
+`014` (blocked)
+
+### Spec 014 — add-data-integrity-and-schema-migration-tests
+
+- **Status:** blocked
+- **Data:** 2026-06-16
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-test-validation, projectrai-architecture-boundaries
+
+#### Blocker
+
+**PostgreSQL indisponível.** A spec 014 exige:
+1. Criação de fixture com dados representativos em todas as tabelas (incluindo colunas JSONB, ARRAY, pgvector) e comparação de PK sets, row counts e checksums colunares antes/depois.
+2. Testes CRUD reais em repositories que dependem de PostgreSQL (databasesession, async queries, pgvector).
+3. Teste de busca de chunks/pgvector, sessões/mensagens, releases/snapshots e ask jobs com dados reais.
+4. A cláusula "não marcar conclusão sem validação de banco real ou fixture equivalente" impede conclusão sem PostgreSQL.
+
+Para desbloquear: provisionar PostgreSQL de teste e executar migrations 0015-0019, depois executar os testes de integração com dados representativos.
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `alembic heads` | 0 | `0019 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+
+#### Next steps
+
+1. Provisionar PostgreSQL.
+2. Executar `alembic upgrade head`.
+3. Criar fixtures com dados representativos.
+4. Executar testes de paridade e integridade.
+5. Desbloquear spec 014 e avançar para 015-017.
 
