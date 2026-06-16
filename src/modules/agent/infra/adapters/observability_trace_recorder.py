@@ -134,6 +134,41 @@ class ObservabilityTraceRecorder(TraceRecorder):
                 trace.total_cost_usd = cost_usd
                 await repo.save(trace)
 
+            event_repo = repos_mod.SQLAlchemyTraceEventRepository(self._uow)
+
+            if tool_calls:
+                for tc in tool_calls:
+                    tc_event = obs_entities.TraceEvent(
+                        trace_id=trace_id,
+                        project_id=trace.project_id if trace else uuid.uuid4(),
+                        event_type="tool_call",
+                        latency_ms=tc.get("duration_ms"),
+                        payload={
+                            "tool_name": tc.get("tool_name"),
+                            "input": tc.get("input"),
+                            "output": tc.get("output"),
+                            "success": tc.get("success"),
+                            "error": tc.get("error"),
+                        },
+                    )
+                    await event_repo.save(tc_event)
+
+            if fallback_info:
+                fb_event = obs_entities.TraceEvent(
+                    trace_id=trace_id,
+                    project_id=trace.project_id if trace else uuid.uuid4(),
+                    event_type="info",
+                    payload={
+                        "event": "ask.fallback_triggered",
+                        "primary_model": fallback_info.get("primary_model"),
+                        "primary_provider": fallback_info.get("primary_provider"),
+                        "primary_error": fallback_info.get("primary_error"),
+                        "fallback_model": fallback_info.get("fallback_model"),
+                        "fallback_provider": fallback_info.get("fallback_provider"),
+                    },
+                )
+                await event_repo.save(fb_event)
+
             event = obs_entities.TraceEvent(
                 trace_id=trace_id,
                 project_id=trace.project_id if trace else uuid.uuid4(),
@@ -147,6 +182,6 @@ class ObservabilityTraceRecorder(TraceRecorder):
             )
             if fallback_info:
                 event.payload["fallback_info"] = fallback_info
-            await repos_mod.SQLAlchemyTraceEventRepository(self._uow).save(event)
+            await event_repo.save(event)
         except Exception:
             logger.exception("Failed to complete trace")
