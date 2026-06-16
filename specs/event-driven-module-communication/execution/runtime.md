@@ -32,7 +32,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 012 | completed |
 | 013 | completed |
 | 014 | completed |
-| 015 | pending |
+| 015 | completed |
 | 016 | pending |
 | 017 | pending |
 | 018 | pending |
@@ -636,6 +636,38 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - handle_trace_completed/failed finalizam trace com ended_at e status, mesmo que started nunca chegue
 - Redaction/payload_ref não implementada nesta spec (será coberta em spec futura se necessário)
 
+### 015 — Registries, retries, DLQ, locks e replay
+
+**Status:** completed
+**Tipo:** resilience
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `src/modules/metering/infra/workers/outbox_dispatcher.py` — fixed 1-hour cutoff (available_at <= func.now()), added mark_dead/mark_retryable abstract implementations
+- `src/modules/observability/infra/workers/outbox_dispatcher.py` — same fixes
+- `src/modules/metering/infra/workers/registry.py` — registers MeteringOutboxDispatcherWorker (3 workers total)
+- `src/modules/observability/infra/workers/registry.py` — registers ObservabilityOutboxDispatcherWorker (3 workers total)
+- `scripts/messaging/replay.py` — replay script for inbox/outbox events by module, type, status, dead, or ids
+- `tests/integration/metering/test_spec015_metering_retry_dlq.py` — 6 tests: registry wiring, retry schedule, max attempts, mark_failed
+- `tests/integration/metering/test_spec011_metering_consumer_inbox.py` — updated call_count assert to 3
+- `tests/integration/observability/test_spec013_observability_consumer_inbox.py` — updated call_count assert to 3
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/metering src/modules/observability src/shared/workers` | 0 |
+| `pytest tests/integration/metering/ tests/integration/observability/ tests/integration/workers/ -q` | 0 (86 passed) |
+
+**Gate 011-015 (consumers metering/observability) completed.**
+
+**Decisões:**
+- Cutoff de 1 hora removido: available_at <= func.now() agora é usado, eliminando delay desnecessário
+- mark_dead/mark_retryable implementados nos dispatchers (eram abstract e não implementados)
+- Outbox dispatchers registrados nos registries de metering e observability
+- Replay script criado como ferramenta CLI independente (scripts/messaging/replay.py)
+- mark_failed existente mantido como override (não chama mark_dead/mark_retryable do base)
+
 ## Próxima spec
 
-`015-register-workers-retries-dlq-and-replay.md`
+`016-fix-identity-core-billing-communication.md`

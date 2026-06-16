@@ -204,7 +204,7 @@ class TestRegistry:
             engine=engine,
             rabbitmq_manager=rabbitmq,
         )
-        assert registry.register.call_count == 2
+        assert registry.register.call_count == 3
 
     def test_registry_returns_early_without_engine_or_rabbitmq(self):
         registry = MagicMock()
