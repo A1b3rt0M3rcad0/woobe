@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
+
+import uuid6
 
 from modules.observability.infra.database.models import InboxEventModel, OutboxEventModel
 
@@ -36,12 +40,35 @@ def outbox_to_rabbit_message(record: OutboxEventModel) -> RabbitMQMessageEnvelop
 
 def rabbit_message_to_inbox(message: Any) -> InboxEventModel:
     body = json.loads(message.body.decode())
+    event_type = body.get("event_type", "")
+    event_version = body.get("event_version", 1)
+    routing_key = body.get("routing_key", message.routing_key or "")
+    idempotency_key = body.get("idempotency_key", "")
+    correlation_id_str = body.get("correlation_id")
+    correlation_id = UUID(correlation_id_str) if correlation_id_str else uuid6.uuid7()
+    causation_id_str = body.get("causation_id")
+    causation_id = UUID(causation_id_str) if causation_id_str else None
+    message_id = message.message_id or str(uuid6.uuid7())
+    producer_module = body.get("producer_module", "agent")
+    now = datetime.now(timezone.utc)
+
     return InboxEventModel(
-        outbox_origin_id=body.get("aggregate_id"),
-        aggregate_type=body.get("aggregate_type", ""),
-        event_type=body.get("event_type", ""),
-        event_version=body.get("event_version", 1),
+        message_id=message_id,
+        producer_module=producer_module,
+        consumer_module="observability",
+        outbox_origin_id=body.get("event_id"),
+        aggregate_type="agent",
+        event_type=event_type,
+        event_version=event_version,
+        routing_key=routing_key,
         payload=body.get("payload", {}),
-        correlation_id=body.get("correlation_id"),
-        causation_id=body.get("causation_id"),
+        headers=dict(message.headers) if message.headers else None,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        causation_id=causation_id,
+        status="received",
+        attempts=0,
+        available_at=now,
+        created_at=now,
+        updated_at=now,
     )

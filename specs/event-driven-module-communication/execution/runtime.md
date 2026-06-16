@@ -30,7 +30,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 010 | completed |
 | 011 | completed |
 | 012 | completed |
-| 013 | pending |
+| 013 | completed |
 | 014 | pending |
 | 015 | pending |
 | 016 | pending |
@@ -582,6 +582,33 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - handler_fallback registra como UsageEventType.llm_request com source=fallback_triggered
 - `started` mapeado para handle_execution_requested (compartilham efeito inicial)
 
+### 013 — Consumer RabbitMQ e Inbox do observability
+
+**Status:** completed
+**Tipo:** observability
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `src/modules/observability/infra/messaging/event_mappers.py` — rewritten rabbit_message_to_inbox with full canonical envelope fields
+- `src/modules/observability/infra/database/repositories.py` — added SQLAlchemyObservabilityInboxRepository (save_received, claim_batch, mark_processed, mark_dead, mark_retryable)
+- `src/modules/observability/infra/workers/inbox_consumer.py` — rewritten as broker consumer extending BaseInboxConsumer (queue: observability.inbox, binds agent.execution.*.v1 routing keys except requested)
+- `src/modules/observability/infra/workers/inbox_processor.py` — rewritten to follow BaseInboxProcessor pattern
+- `src/modules/observability/infra/messaging/inbox_handlers.py` — HANDLER_MAP with 6 agent.execution.*.v1 handers (no requested), router defaults to HANDLER_MAP
+- `src/modules/observability/infra/workers/registry.py` — register_observability_workers wires consumer + processor
+- `tests/integration/observability/test_spec013_observability_consumer_inbox.py` — 11 tests
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/observability tests/integration/observability` | 0 |
+| `pytest tests/integration/observability/test_spec013_observability_consumer_inbox.py -q` | 0 (11 passed) |
+
+**Decisões:**
+- Observability NÃO subscreve agent.execution.requested.v1 (apenas metering o faz)
+- handle_trace_started cria Trace real no banco via SQLAlchemyTraceRepository
+- Demais handlers são logs (implementação real em spec 014)
+
 ## Próxima spec
 
-`013-implement-observability-rabbit-consumer-and-inbox.md`
+`014-implement-observability-idempotent-projection.md`
