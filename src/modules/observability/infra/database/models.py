@@ -18,7 +18,7 @@ class TraceModel(BaseModel):
     __tablename__ = "traces"
     __table_args__ = {"schema": "observability"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID | None]
     session_id: Mapped[UUID | None]
     external_session_id: Mapped[str | None] = mapped_column(String(255))
@@ -41,7 +41,7 @@ class TraceEventModel(BaseModel):
     __table_args__ = {"schema": "observability"}
 
     trace_id: Mapped[UUID] = mapped_column(ForeignKey("observability.traces.id"))
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     event_type: Mapped[str] = mapped_column(String(64))
     latency_ms: Mapped[float | None] = mapped_column(Float)
     cost_usd: Mapped[float | None] = mapped_column(Float)

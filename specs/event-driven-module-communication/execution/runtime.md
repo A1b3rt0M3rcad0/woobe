@@ -34,7 +34,7 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 014 | completed |
 | 015 | completed |
 | 016 | completed |
-| 017 | pending |
+| 017 | completed |
 | 018 | pending |
 | 019 | pending |
 
@@ -695,6 +695,45 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 - Arquivos de inbox consumer/processor/handler preservados (sem código morto removido — extensão points documentados)
 - Arquitetura guard test_event_self_subscriptions ainda lista billing/core/identity como conhecidos (constantes de routing keys ainda existem nos consumer files)
 
+### 017 — Remover Foreign Keys cross-module
+
+**Status:** completed
+**Tipo:** database-boundary
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `migrations/versions/0025_remove_remaining_cross_module_foreign_keys.py` — new migration: drops 9 cross-module FKs (core→identity x2, billing→identity x2, metering→core x3, observability→core x2)
+- `src/modules/core/infra/database/models.py` — removed ForeignKey from ProjectModel.organization_id (→identity) and ApiKeyModel.created_by_user_id (→identity)
+- `src/modules/billing/infra/database/models.py` — removed ForeignKey from CustomerModel.organization_id and SubscriptionModel.organization_id (→identity)
+- `src/modules/metering/infra/database/models.py` — removed ForeignKey from UsageEventModel.project_id, UsageDailyProjectModel.project_id, UsageDailyAgentModel.project_id (→core)
+- `src/modules/observability/infra/database/models.py` — removed ForeignKey from TraceModel.project_id and TraceEventModel.project_id (→core)
+- `tests/migrations/test_0025_remove_remaining_cross_module_foreign_keys.py` — 8 tests: migration structure, metadata scan for zero cross-module FK, internal FK preserved
+
+**Cross-module FKs removed (9 total):**
+| Schema | Table | Column | Referent |
+|---|---|---|---|
+| core | projects | organization_id | identity.organizations |
+| core | api_keys | created_by_user_id | identity.users |
+| billing | customers | organization_id | identity.organizations |
+| billing | subscriptions | organization_id | identity.organizations |
+| metering | usage_events | project_id | core.projects |
+| metering | usage_daily_project | project_id | core.projects |
+| metering | usage_daily_agent | project_id | core.projects |
+| observability | traces | project_id | core.projects |
+| observability | trace_events | project_id | core.projects |
+
+**Internal FKs preserved:**
+- core: ApiKeyModel.project_id → core.projects
+- billing: SubscriptionModel.customer_id → billing.customers, plan_id → billing.plans
+- observability: TraceEventModel.trace_id → observability.traces
+
+**Validation:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src/modules/core src/modules/billing src/modules/metering src/modules/observability` | 0 |
+| `pytest tests/migrations/test_0025_remove_remaining_cross_module_foreign_keys.py -q` | 0 (8 passed) |
+
 ## Próxima spec
 
-`017-remove-cross-module-foreign-keys.md`
+`018-run-end-to-end-failure-and-atomicity-tests.md`

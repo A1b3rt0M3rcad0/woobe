@@ -31,9 +31,7 @@ class CustomerModel(BaseModel):
         {"schema": "billing"},
     )
 
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
+    organization_id: Mapped[UUID]
     provider: Mapped[str] = mapped_column(String(64))
     provider_customer_id: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255))
@@ -44,9 +42,7 @@ class SubscriptionModel(BaseModel):
     __tablename__ = "subscriptions"
     __table_args__ = {"schema": "billing"}
 
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
+    organization_id: Mapped[UUID]
     customer_id: Mapped[UUID] = mapped_column(ForeignKey("billing.customers.id"))
     plan_id: Mapped[UUID] = mapped_column(ForeignKey("billing.plans.id"))
     provider: Mapped[str] = mapped_column(String(64))

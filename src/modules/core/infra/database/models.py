@@ -28,9 +28,7 @@ class ProjectModel(BaseModel):
         {"schema": "core"},
     )
 
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
+    organization_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -50,7 +48,7 @@ class ApiKeyModel(BaseModel):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
+    created_by_user_id: Mapped[UUID]
 
 
 class OutboxEventModel(BaseOutbox):
