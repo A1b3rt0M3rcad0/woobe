@@ -64,14 +64,14 @@ def _import_observability_recorder():
 
 def _import_tools_repo():
     import importlib
-    mod = importlib.import_module("modules.agent.infra.adapters.tools_tool_repository")
-    return mod.ToolsToolRepository
+    mod = importlib.import_module("modules.agent.infra.database.repositories")
+    return mod.SQLAlchemyAgentToolRepository
 
 
 def _import_tools_executor():
     import importlib
-    mod = importlib.import_module("modules.agent.infra.adapters.tools_tool_executor")
-    return mod.ToolsToolExecutor
+    mod = importlib.import_module("modules.agent.infra.adapters.tool_executor")
+    return mod.AgentToolExecutor
 
 
 class AskAgentStreamService:

@@ -41,7 +41,8 @@ def create_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> T
 
 def update_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = UpdateToolUseCase(uow.tools)
+    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+    use_case = UpdateToolUseCase(uow.tools, outbox)
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 

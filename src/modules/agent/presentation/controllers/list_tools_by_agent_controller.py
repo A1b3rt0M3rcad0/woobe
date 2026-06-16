@@ -16,5 +16,5 @@ class ListToolsByAgentController(Controller):
         result = await self._use_case.execute(input_dto)
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": [ToolResponse(**r.model_dump()).model_dump() for r in result]},
+            body={"success": True, "message": "ok", "data": [ToolResponse(**vars(r)).model_dump() for r in result]},
         )
