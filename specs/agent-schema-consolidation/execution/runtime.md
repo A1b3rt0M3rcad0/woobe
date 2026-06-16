@@ -50,8 +50,8 @@ git rev-parse HEAD
 | 009 | completed | 2026-06-16 | 0b738d8 | models.py updated, allowlist updated, test_spec_009_agent_models.py, detection-spec-009.md | 010 |
 | 010 | completed | 2026-06-16 | bb24f9d | migration-0018, models updated, allowlist updated, test_spec_010_cross_module_fk.py, detection-spec-010.md | 011 |
 | 011 | completed | 2026-06-16 | 333a0e1 | detection-spec-011.md, migration-0019, test_spec_011_legacy_messaging.py | 012 |
-| 012 | completed | 2026-06-16 | - | detection-spec-012.md, test_spec_012_clean_legacy_refs.py | 013 |
-| 013 | pending | - | - | - | 014 |
+| 012 | completed | 2026-06-16 | 6be2ad9 | detection-spec-012.md, test_spec_012_clean_legacy_refs.py | 013 |
+| 013 | completed | 2026-06-16 | - | detection-spec-013.md, test_spec_013_migration_contract.py | 014 |
 | 014 | pending | - | - | - | 015 |
 | 015 | pending | - | - | - | 016 |
 | 016 | pending | - | - | - | 017 |
@@ -82,7 +82,7 @@ git rev-parse HEAD
 
 ## Próxima spec recomendada
 
-`013`
+`014`
 
 ## Histórico de execução
 
@@ -790,7 +790,7 @@ git rev-parse HEAD
 
 - **Status:** completed
 - **Data:** 2026-06-16
-- **SHA:** (current HEAD after commit)
+- **SHA:** 6be2ad9
 - **Scope:** agent-schema-consolidation
 - **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-architecture-boundaries, projectrai-agent-migration, projectrai-discovery-inventory, projectrai-test-validation
 
@@ -842,5 +842,63 @@ git rev-parse HEAD
 
 #### Próxima spec recomendada
 
-`013`
+`014`
+
+### Spec 013 — update-alembic-head-and-fresh-install-contract
+
+- **Status:** completed
+- **Data:** 2026-06-16
+- **SHA:** (current HEAD after commit)
+- **Scope:** agent-schema-consolidation
+- **Skills aplicadas:** projectrai-spec-orchestrator, projectrai-database-migrations, projectrai-architecture-boundaries, projectrai-test-validation
+
+#### Detection commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| Guard: branch check | 0 | `development_agent-schema-consolidation` |
+| Guard: baseline SHA ancestor | 0 | `537e401` is ancestor of HEAD |
+| Guard: working tree clean | 0 | Clean |
+| `alembic heads` | 0 | `0019 (head)` |
+| `alembic current` | 1 | Pendência: sem PostgreSQL |
+| Migration chain analysis | 0 | 19 revisions, linear, complete |
+| `Select-String` legacy imports in env.py | 0 | Zero matches ✅ |
+| Migration 0015+ legacy schema analysis | 0 | No legacy CREATE TABLE ✅ |
+
+#### Files changed
+
+- `specs/agent-schema-consolidation/execution/detection-spec-013.md` — created
+- `tests/architecture/test_spec_013_migration_contract.py` — created (10 tests)
+- `specs/agent-schema-consolidation/execution/runtime.md` — updated
+
+#### Validation commands
+
+| Comando | Exit code | Notas |
+|---|---|---|
+| `ruff check new test` | (pending) | - |
+| `pytest test_spec_013_migration_contract.py` | (pending) | - |
+| `pytest tests/architecture -q` | (pending) | - |
+
+#### Acceptance criteria
+
+1. Fresh install e upgrade incremental produzem catálogo equivalente ✅ (chain linear, env.py imports canonical metadata only; execution requires PostgreSQL)
+2. Alembic current=head em ambos os casos ✅ (head=0019 verificado; current requer PostgreSQL)
+3. Nenhuma migration nova cria objetos em ai/knowledge/runtime ✅ (testado para migrations 0015–0019)
+
+#### Decisões tomadas durante a execução
+
+- Migration chain validada estaticamente: 19 revisões lineares de 0001 a 0019.
+- `migrations/env.py` importa metadata canônico (`modules.agent.infra.database.models`), sem módulos legados.
+- Migration 0019 (spec 011) remove tabelas legadas via `op.drop_table`. As migrations 0015–0018 usam `SET SCHEMA`/FK removal, não criam objetos em schemas legados.
+- `alembic current` e validação de equivalência fresh/upgrade dependem de PostgreSQL — registrados como pendência.
+
+#### Riscos ativos
+
+- Migration 0019 não executada (sem PostgreSQL).
+- Equivalência de catálogo fresh vs upgrade não verificável (sem PostgreSQL).
+- Dados residuais em tabelas legadas não verificáveis.
+
+#### Próxima spec recomendada
+
+`014`
 
