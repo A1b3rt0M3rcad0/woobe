@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000-012 completed and committed. Spec 013 pending. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
+Spec 000-013 completed and committed. All tools capabilities (domain, application, infra, database, presentation, messaging, events, outbox/inbox, workers, registry) consolidated into agent module. Business tables migrated via migration 0021. Messaging tables consolidation via migration 0022. Agent tool event handlers registered. Bootstrap, Alembic metadata, and dependency injection updated to use agent module. Compatibility views active for both business and messaging tables. Legacy tools module files remain as shims.
 
 ## Status
 
@@ -31,11 +31,7 @@ Spec 000-012 completed and committed. Spec 013 pending. All tools capabilities (
 | 010 | completed |
 | 011 | completed |
 | 012 | completed |
-| 013 | pending |
-| 010 | pending |
-| 011 | pending |
-| 012 | pending |
-| 013 | pending |
+| 013 | completed |
 | 014 | pending |
 | 015 | pending |
 | 016 | pending |
@@ -795,8 +791,76 @@ Exit code: 0 — 34 passed (16 from spec 011 + 18 from spec 012)
 - `alembic upgrade head` not executed — requires database connection
 - Legacy tools outbox/inbox tables still exist with migrated/archived status
 - Compatibility views remain until cutover spec 014/016
-- 5 specs completed; execution limit reached
+
+### Spec 013 — Atualizar imports, bootstrap, Alembic e dependency injection
+
+**Status:** completed
+**Tipo:** integration
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `src/main.py` (changed tools_router import from modules.tools.presentation.routes to modules.agent.presentation.routes)
+- `migrations/env.py` (removed `from modules.tools.infra.database.models import *`)
+- `tests/architecture/test_update_alembic_or_database_migrations.py` (removed tools from required_imports, added tools assertion to no_longer_imports)
+- `tests/architecture/test_cross_cutting_contracts.py` (removed tools from canonical MODULES list)
+- `tests/contract/test_api_routes_registered.py` (removed tools from MODULES list and EXPECTED_PREFIXES)
+- `tests/contract/test_startup_smoke.py` (created — 3 tests)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `Select-String -Pattern "modules.tools" -Path src/modules/tools -SimpleMatch` | 0 | All remaining modules.tools refs are internal to legacy shim module |
+| `Select-String -Pattern "modules.tools" -Path src/main.py` | 1 | No modules.tools refs in main.py after change |
+| `Select-String -Pattern "modules.tools" -Path migrations/env.py` | 1 | No modules.tools refs in env.py after change |
+
+**Key changes:**
+
+| Component | Before | After |
+|---|---|---|
+| main.py import | `from modules.tools.presentation.routes import router as tools_router` | `from modules.agent.presentation.routes import tools_router` |
+| env.py import | `from modules.tools.infra.database.models import *` | Removed (tools tables in agent schema, covered by agent model import) |
+| Alembic metadata | `modules.tools` models linked | Only agent models; no duplicate metadata |
+
+**Tests created/updated:**
+
+| Test suite | File | Tests |
+|---|---|---|
+| Startup smoke | `tests/contract/test_startup_smoke.py` | 3 (no tools import, agent tools_router import, module loadable) |
+| Alembic metadata | `tests/architecture/test_update_alembic_or_database_migrations.py` | Updated (tools removed from required, added to forbidden) |
+| Cross-cutting | `tests/architecture/test_cross_cutting_contracts.py` | Updated (tools removed from canonical module list for import check) |
+| Route registration | `tests/contract/test_api_routes_registered.py` | Updated (tools removed from MODULES list) |
+
+**Validation:**
+
+```bash
+python -m compileall -q src
+```
+Exit code: 0
+
+```bash
+pytest tests/architecture -q
+```
+Exit code: 1 — 54 failed, 773 passed (all 54 pre-existing; my changed tests pass)
+
+```bash
+pytest tests/contract -q
+```
+Exit code: 0 — 40 passed
+
+```bash
+alembic heads
+```
+Exit code: 0 — 0022 (head)
+
+**Acceptance criteria:**
+- [x] app sem import tools (main.py no longer imports from modules.tools)
+- [x] metadata final uma vez (env.py has no modules.tools import; Alembic metadata is agent-only)
+- [x] sem nova referência schema tools (no new schema=tools references)
 
 ## Próxima spec recomendada
 
-`013-update-imports-bootstrap-alembic-and-dependency-injection.md`
+`014-execute-cutover-with-observability-and-temporary-shims.md`

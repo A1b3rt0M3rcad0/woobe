@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODULES = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
+MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
 
 EXPECTED_PREFIXES = {
     "agent": "/agent",
@@ -11,7 +11,6 @@ EXPECTED_PREFIXES = {
     "identity": "/identity",
     "metering": "/metering",
     "observability": "/observability",
-    "tools": "/tools",
 }
 
 

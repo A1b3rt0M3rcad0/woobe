@@ -14,7 +14,7 @@ import yaml
 
 SHARED_MESSAGING_DIR = Path("src/shared/messaging")
 
-MODULES = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
+MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
 
 def test_event_envelope_module_exists():
     """Spec 090: shared.messaging.event_envelope must exist."""
