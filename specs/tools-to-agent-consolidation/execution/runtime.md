@@ -12,7 +12,7 @@
 
 ## Current state
 
-Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Migration phases, rollback matrix, and cutover checklist defined. No code changes made.
+Spec 000 ADR completed and committed. Spec 001 inventory completed and committed. Spec 002 target architecture completed and committed. Spec 003 migration protocol completed and committed. Spec 004 baseline characterization and architecture guards completed and committed. 36 characterization tests created. No production code changes made.
 
 ## Status
 
@@ -22,7 +22,7 @@ Spec 000 ADR completed and committed. Spec 001 inventory completed and committed
 | 001 | completed |
 | 002 | completed |
 | 003 | completed |
-| 004 | pending |
+| 004 | completed |
 | 005 | pending |
 | 006 | pending |
 | 007 | pending |
@@ -239,10 +239,61 @@ All 3 files exist and are non-empty. Exit code: 0
 - Paths efetivos devem ser confirmados pelo OpenAPI.
 - Se development avançar, refazer inventário.
 
+### Spec 004 — Adicionar guards e testes de caracterização antes da migração
+
+**Status:** completed
+**Tipo:** testing
+**Branch:** `development_tools-to-agent-consolidation`
+**Files changed:**
+- `tests/architecture/test_tools_migration_baseline.py` (created)
+- `tests/contract/test_tools_routes_characterization.py` (created)
+- `tests/integration/tools/__init__.py` (created)
+- `tests/integration/tools/test_tools_event_characterization.py` (created)
+- `tests/unit/tools/__init__.py` (created)
+- `tests/unit/tools/test_secret_characterization.py` (created)
+- `specs/tools-to-agent-consolidation/execution/runtime.md` (updated)
+
+**Detection commands and exit codes:**
+
+| Command | Exit code | Notes |
+|---|---|---|
+| `git branch --show-current` = `development_tools-to-agent-consolidation` | 0 | Branch verified |
+| `git merge-base --is-ancestor 209cf8147f87a2e9949fec33a34429ab70f166b5 HEAD` | 0 | Baseline SHA is ancestor |
+| `git status --short` | 0 | Clean tree |
+| `find tests -type f` | 0 | 200+ test files exist, including existing tools tests |
+| `rg "tools\|Tool\|Secret\|/tools\|tools\." tests` | 0 | Rich references across test files |
+| `pytest --collect-only -q` | 1 | 3140 collected, 19 pre-existing collection errors in observability/tools tests |
+
+**Tests created (36 total):**
+
+| Test suite | File | Tests |
+|---|---|---|
+| Architecture baseline | `tests/architecture/test_tools_migration_baseline.py` | 9 |
+| Routes characterization | `tests/contract/test_tools_routes_characterization.py` | 12 |
+| Events characterization | `tests/integration/tools/test_tools_event_characterization.py` | 9 |
+| Secret safety characterization | `tests/unit/tools/test_secret_characterization.py` | 6 |
+
+**Validation:**
+
+```bash
+pytest tests/architecture/test_tools_migration_baseline.py -q
+pytest tests/contract/test_tools_routes_characterization.py -q
+pytest tests/integration/tools/test_tools_event_characterization.py -q
+pytest tests/unit/tools/test_secret_characterization.py -q
+```
+
+All 36 tests pass. Exit code: 0
+
+**Acceptance criteria:**
+- [x] API/eventos caracterizados (routes, events, schemas)
+- [x] segredos protegidos (encryption checks, no plaintext in responses)
+- [x] allowlist explícita (baseline tests define current tools module state)
+
 ## Inconsistências encontradas
 
 - `frontend/` directory not present in repository, though spec references it. Not a blocker — environment variant.
+- 19 pre-existing test collection errors in `tests/unit/test_tools` and `tests/unit/test_observability` — pre-existing, not caused by this spec.
 
 ## Próxima spec recomendada
 
-`004-add-baseline-characterization-and-architecture-guards.md`
+`005-move-tools-domain-contracts-into-agent.md`
