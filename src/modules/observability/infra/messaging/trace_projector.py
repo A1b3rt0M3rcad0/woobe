@@ -93,8 +93,7 @@ async def project_agent_event(
 ) -> None:
     trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
     if trace_id is None:
-        logger.warning("Ignoring %s without trace_id", event_type)
-        return
+        raise ValueError(f"{event_type} requires trace_id")
 
     trace_repo = SQLAlchemyTraceRepository(session)
     event_repo = SQLAlchemyTraceEventRepository(session)
@@ -103,8 +102,9 @@ async def project_agent_event(
 
     if trace is None:
         if project_id is None:
-            logger.info("Deferring %s until complete trace payload arrives: %s", event_type, trace_id)
-            return
+            raise RuntimeError(
+                f"Trace context is not available yet for {event_type} trace_id={trace_id}"
+            )
         trace = Trace(
             id=trace_id,
             project_id=project_id,
@@ -121,6 +121,24 @@ async def project_agent_event(
     trace.provider = payload.get("provider") or trace.provider
     trace.model = payload.get("model") or trace.model
     _merge_data(trace, payload, event_type)
+
+    if event_type == "agent.execution.requested.v1":
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator="requested",
+            kind=TraceEventType.info,
+            payload={"event": event_type, **payload},
+        )
+        logger.info(
+            "Trace projection created trace_id=%s project_id=%s session_id=%s",
+            trace_id,
+            project_id,
+            trace.session_id,
+        )
+        return
 
     if event_type == "agent.execution.started.v1":
         trace.status = TraceStatus.running
@@ -201,15 +219,18 @@ async def project_agent_event(
         return
 
     if event_type != "agent.execution.completed.v1":
-        logger.warning("No trace projection for event_type=%s", event_type)
-        return
+        raise ValueError(f"No trace projection for event_type={event_type}")
 
     trace.status = TraceStatus.completed
     trace.started_at = trace.started_at or datetime.now(timezone.utc)
     trace.ended_at = datetime.now(timezone.utc)
     trace.fallback_used = bool(payload.get("fallback_used") or trace.fallback_used)
     trace.total_cost_usd = float(payload.get("cost_usd") or trace.total_cost_usd or 0)
-    trace.total_latency_ms = payload.get("total_latency_ms") or payload.get("latency_ms") or trace.total_latency_ms
+    trace.total_latency_ms = (
+        payload.get("total_latency_ms")
+        or payload.get("latency_ms")
+        or trace.total_latency_ms
+    )
     await trace_repo.save(trace)
 
     await _save_event(
@@ -223,8 +244,6 @@ async def project_agent_event(
         payload={"event": event_type, **payload},
     )
 
-    # Completion is an authoritative snapshot. Rebuild details when earlier
-    # events were intentionally deferred because their payload was incomplete.
     await _save_event(
         event_repo,
         trace_id=trace_id,
