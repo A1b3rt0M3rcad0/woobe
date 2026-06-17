@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 OBSERVABILITY_INBOX_QUEUE: str = "observability.inbox"
 OBSERVABILITY_INBOX_ROUTING_KEYS: list[str] = [
+    "agent.execution.requested.v1",
     "agent.execution.started.v1",
     "agent.execution.llm_completed.v1",
     "agent.execution.tool_completed.v1",
@@ -51,22 +52,38 @@ class ObservabilityInboxConsumerWorker(BaseInboxConsumer):
         try:
             inbox_model = rabbit_message_to_inbox(message)
             await self._persist_and_ack(message, inbox_model)
-        except (ValueError, KeyError) as exc:
-            logger.warning("Invalid message rejected: %s", str(exc))
+        except (ValueError, KeyError, TypeError) as exc:
+            logger.warning("Invalid observability message rejected: %s", str(exc))
             await self.reject(message, str(exc))
+        except Exception as exc:
+            logger.exception("Failed to persist observability Inbox message: %s", exc)
+            if hasattr(message, "nack"):
+                await message.nack(requeue=True)
+            else:
+                raise
 
     async def _persist_and_ack(self, message: Any, inbox_model: Any) -> None:
+        duplicate = False
         async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                repo = SQLAlchemyObservabilityInboxRepository(session)
-                try:
+            try:
+                async with session.begin():
+                    repo = SQLAlchemyObservabilityInboxRepository(session)
                     await repo.save_received(inbox_model)
-                except IntegrityError:
-                    await session.rollback()
-                    logger.debug(
-                        "Duplicate message acknowledged (idempotency_key=%s)",
-                        getattr(inbox_model, "idempotency_key", "unknown"),
-                    )
+            except IntegrityError:
+                duplicate = True
+                await session.rollback()
+
+        if duplicate:
+            logger.info(
+                "Duplicate observability message acknowledged idempotency_key=%s",
+                getattr(inbox_model, "idempotency_key", "unknown"),
+            )
+        else:
+            logger.info(
+                "Persisted Observability Inbox event_type=%s message_id=%s",
+                getattr(inbox_model, "event_type", "unknown"),
+                getattr(inbox_model, "message_id", "unknown"),
+            )
         await self.acknowledge(message)
 
     async def persist_inbox(self, record: InboxRecord) -> None:
@@ -92,7 +109,7 @@ class ObservabilityInboxConsumerWorker(BaseInboxConsumer):
             await message.ack()
 
     async def reject(self, message: Any, error: str) -> None:
-        logger.warning("Rejecting message: %s", error)
+        logger.warning("Rejecting observability message: %s", error)
         if hasattr(message, "nack"):
             await message.nack(requeue=False)
         elif hasattr(message, "reject"):
