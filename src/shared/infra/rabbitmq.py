@@ -70,7 +70,13 @@ class RabbitMQManager:
             queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
             await queue_obj.bind(exchange=self._exchange_name, routing_key=key)
 
-    async def publish(self, routing_key: str, payload: str, correlation_id: str | None = None, message_id: str | None = None) -> None:
+    async def publish(
+        self,
+        routing_key: str,
+        payload: str,
+        correlation_id: str | None = None,
+        message_id: str | None = None,
+    ) -> None:
         message = Message(
             body=payload.encode(),
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
@@ -79,8 +85,11 @@ class RabbitMQManager:
             message_id=message_id or "",
         )
         confirm = await self.exchange.publish(message=message, routing_key=routing_key)
-        if not confirm:
-            logger.error("Publisher confirm failed for routing_key=%s message_id=%s", routing_key, message_id)
+        if confirm is False:
+            raise RuntimeError(
+                "RabbitMQ did not confirm publication "
+                f"routing_key={routing_key} message_id={message_id or ''}"
+            )
 
     async def consume(
         self,
@@ -90,11 +99,16 @@ class RabbitMQManager:
     ) -> None:
         if queue_name in self._consuming_queues:
             return
-        self._consuming_queues.add(queue_name)
 
         await self.declare_topology(queue_name=queue_name, routing_keys=routing_keys)
         queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
         await queue_obj.consume(callback=callback)
+        self._consuming_queues.add(queue_name)
+        logger.info(
+            "RabbitMQ consumer registered queue=%s routing_keys=%s",
+            queue_name,
+            routing_keys,
+        )
 
     async def close(self) -> None:
         self._consuming_queues.clear()
