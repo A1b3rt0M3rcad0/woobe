@@ -60,7 +60,7 @@ async def project_agent_event(
         "total_tokens", "sources", "tool_calls", "llm_calls",
         "parsed_output", "output_parse_error", "fallback_used",
         "fallback_info", "model", "provider", "cost_status",
-        "usage_complete",
+        "usage_complete", "execution_events", "timeline_complete",
     ):
         data[field] = payload.get(field)
     data["cost_usd"] = payload.get("cost_usd")
