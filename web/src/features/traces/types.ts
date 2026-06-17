@@ -19,7 +19,7 @@ export interface Trace {
   model?: string
   fallback_used?: boolean
   total_latency_ms?: number
-  total_cost_usd?: number
+  total_cost_usd?: number | null
   error?: string
   data?: Record<string, unknown>
   created_at?: string
@@ -70,19 +70,27 @@ export interface TraceUsage {
 export interface TraceDiagnostics {
   schemaVersion: number
   agentRuntimeLatencyMs: number | null
-  toolRuntimeLatencyMs: number | null
+  llmRuntimeLatencyMs: number | null
+  toolWallLatencyMs: number | null
+  toolCallDurationSumMs: number | null
   toolHttpLatencyMs: number | null
   toolOverheadLatencyMs: number | null
-  nonToolRuntimeLatencyMs: number | null
+  prepareLatencyMs: number | null
+  persistenceLatencyMs: number | null
+  orchestrationLatencyMs: number | null
+  unaccountedLatencyMs: number | null
   toolSharePercent: number | null
   toolCallCount: number
+  llmCallCount: number
   successfulToolCalls: number
   failedToolCalls: number
+  usageComplete: boolean
+  costStatus: 'known' | 'unknown'
   sourceCount: number
   answerLength: number | null
   fallbackUsed: boolean
   structuredOutput: boolean
-  notes: string[]
+  notes?: string[]
 }
 
 export interface TraceSummary {
