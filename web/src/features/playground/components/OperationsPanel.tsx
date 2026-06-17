@@ -1,9 +1,11 @@
+import { X } from 'lucide-react'
 import type { LeftPanelTab } from './OperationsRail'
 import { DebugView } from './DebugView'
 import { TraceList } from './TraceList'
 import { TraceDetails } from './TraceDetails'
 import { TraceDiagnosticsPanel } from './TraceDiagnosticsPanel'
 import { SessionsPanel } from './SessionsPanel'
+import './trace-details-embedded.css'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { AskResponse, RawStreamEvent, SessionListItem, TraceItem } from '@/features/playground/types'
 
@@ -68,11 +70,24 @@ export function OperationsPanel(props: OperationsPanelProps) {
         <ScrollArea className="flex-1 min-h-0">
           {selectedTrace ? (
             <>
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 className="text-sm font-medium text-white">Trace Detail</h3>
+                <button
+                  type="button"
+                  onClick={() => onSelectTrace(null)}
+                  className="rounded-lg p-1 text-muted transition-colors hover:bg-accent hover:text-white"
+                  aria-label="Close trace details"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
               <TraceDiagnosticsPanel traceId={selectedTrace.id} />
-              <TraceDetails
-                trace={selectedTrace}
-                onBack={() => onSelectTrace(null)}
-              />
+              <div className="trace-details-embedded">
+                <TraceDetails
+                  trace={selectedTrace}
+                  onBack={() => onSelectTrace(null)}
+                />
+              </div>
             </>
           ) : (
             <div className="p-4 text-center">
