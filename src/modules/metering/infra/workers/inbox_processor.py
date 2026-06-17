@@ -38,12 +38,62 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         self._event_map: dict[UUID, InboxEventModel] = {}
 
     async def run(self) -> None:
+        records = await self._claim_records()
+        for record in records:
+            try:
+                await self._process_record(record)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to process metering inbox record %s: %s",
+                    record.id,
+                    exc,
+                )
+                try:
+                    await self._persist_failure(record, str(exc))
+                except Exception:
+                    logger.exception(
+                        "Failed to persist retry state for metering inbox record %s",
+                        record.id,
+                    )
+
+    async def _claim_records(self) -> list[InboxProcessingRecord]:
         async with AsyncSession(self._async_engine) as session:
             async with session.begin():
-                self._session = session
-                self._repo = SQLAlchemyMeteringInboxRepository(session)
-                self._event_map = {}
-                await super().run()
+                self._bind_session(session)
+                try:
+                    return await self.claim_pending(limit=self.BATCH_SIZE)
+                finally:
+                    self._clear_session()
+
+    async def _process_record(self, record: InboxProcessingRecord) -> None:
+        async with AsyncSession(self._async_engine) as session:
+            async with session.begin():
+                self._bind_session(session)
+                try:
+                    await self.process(record)
+                    await self.mark_processed(record)
+                finally:
+                    self._clear_session()
+
+    async def _persist_failure(
+        self,
+        record: InboxProcessingRecord,
+        error: str,
+    ) -> None:
+        async with AsyncSession(self._async_engine) as session:
+            async with session.begin():
+                self._bind_session(session)
+                try:
+                    await self.mark_failed(record, error)
+                finally:
+                    self._clear_session()
+
+    def _bind_session(self, session: AsyncSession) -> None:
+        self._session = session
+        self._repo = SQLAlchemyMeteringInboxRepository(session)
+        self._event_map = {}
+
+    def _clear_session(self) -> None:
         self._session = None
         self._repo = None
         self._event_map = {}
@@ -72,6 +122,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         return records
 
     async def process(self, record: InboxProcessingRecord) -> None:
+        assert self._session is not None
         await self._handler.handle(
             event_type=record.event_type,
             payload=record.payload,
