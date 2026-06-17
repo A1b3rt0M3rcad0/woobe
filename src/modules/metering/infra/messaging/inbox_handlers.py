@@ -38,66 +38,31 @@ def _get_agent_id(payload: dict) -> UUID | None:
     return None
 
 
-async def handle_execution_requested(
+async def handle_noop(
+    event_type: str,
+    payload: dict[str, Any],
+    session: AsyncSession | None = None,
+    **kwargs: Any,
+) -> None:
+    logger.debug("No-op handler for event_type=%s", event_type)
+
+
+async def handle_execution_started(
     event_type: str,
     payload: dict[str, Any],
     session: AsyncSession | None = None,
     **kwargs: Any,
 ) -> None:
     if session is None:
-        logger.warning("No session provided, skipping execution_requested handler")
+        logger.warning("No session provided, skipping execution_started handler")
         return
-    event_repo = SQLAlchemyUsageEventRepository(session)
-    project_repo = SQLAlchemyUsageDailyProjectRepository(session)
-    agent_repo = SQLAlchemyUsageDailyAgentRepository(session)
-
     project_id = _get_project_id(payload) or UUID(int=0)
     agent_id = _get_agent_id(payload)
-    today = _today()
 
-    await event_repo.save(
-        UsageEvent(
-            project_id=project_id,
-            agent_id=agent_id,
-            event_type=UsageEventType.llm_request,
-            quantity=1.0,
-            unit=UsageUnit.request,
-            cost_usd=0.0,
-            data={"event_type": event_type, "source": "execution_requested"},
-        )
+    logger.info(
+        "Recorded execution_started usage for project=%s, agent=%s, trace=%s",
+        project_id, agent_id, payload.get("trace_id"),
     )
-
-    existing_project = await project_repo.get_by_project_and_day(project_id, today.isoformat())
-    if existing_project:
-        existing_project.requests += 1
-        await project_repo.save(existing_project)
-    else:
-        await project_repo.save(
-            UsageDailyProject(
-                project_id=project_id,
-                day=today,
-                requests=1,
-                updated_at=datetime.now(timezone.utc),
-            )
-        )
-
-    if agent_id:
-        existing_agent = await agent_repo.get_by_agent_and_day(agent_id, today.isoformat())
-        if existing_agent:
-            existing_agent.requests += 1
-            await agent_repo.save(existing_agent)
-        else:
-            await agent_repo.save(
-                UsageDailyAgent(
-                    agent_id=agent_id,
-                    project_id=project_id,
-                    day=today,
-                    requests=1,
-                    updated_at=datetime.now(timezone.utc),
-                )
-            )
-
-    logger.info("Recorded execution_requested usage for project=%s", project_id)
 
 
 async def handle_llm_request(
@@ -292,8 +257,8 @@ async def handle_fallback(
 
 
 HANDLER_MAP: dict[str, EventHandler] = {
-    "agent.execution.requested.v1": handle_execution_requested,
-    "agent.execution.started.v1": handle_execution_requested,
+    "agent.execution.requested.v1": handle_noop,
+    "agent.execution.started.v1": handle_execution_started,
     "agent.execution.llm_completed.v1": handle_llm_request,
     "agent.execution.tool_completed.v1": handle_tool_execution,
     "agent.execution.fallback_triggered.v1": handle_fallback,

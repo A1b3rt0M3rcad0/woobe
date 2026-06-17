@@ -20,7 +20,7 @@
 | 001 | completed |
 | 002 | completed |
 | 003 | completed |
-| 004 | pending |
+| 004 | completed |
 | 005 | pending |
 | 006 | pending |
 | 007 | pending |
@@ -187,6 +187,37 @@
 **Riscos:**
 - Pre-existing async test failures (pytest-asyncio) unchanged.
 
+### 004 — Corrigir projeção idempotente do Metering
+
+**Status:** completed
+**Tipo:** metering
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Files changed:**
+- `src/modules/metering/infra/messaging/inbox_handlers.py` — added `handle_noop` handler, renamed `handle_execution_requested` to `handle_execution_started`, mapped `requested.v1` to no-op, `started.v1` to log-counting
+- `tests/integration/metering/test_spec012_metering_dispatcher.py` — updated import and tests to reflect handler rename and no-op semantics
+- `execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- Metering no longer double-counts executions: `requested.v1` is no-op, `started.v1` counts the execution
+- `handle_noop` used for events that should not trigger business effects (requested, completed, failed)
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/metering/infra/messaging/inbox_handlers.py tests/integration/metering/test_spec012_metering_dispatcher.py` | 0 |
+| `python -m pytest tests/integration/metering -q` | 0 (31 passed) |
+| `python -m pytest tests/contract/events -q` | 0 (19 passed) |
+
+**Decisões:**
+- `requested.v1` → no-op: execution is not counted until it actually starts
+- `started.v1` → log: execution start is noted but metering data comes from `llm_completed.v1`
+- Double-counting prevention: each event type maps to exactly one handler; no shared handlers
+
+**Riscos:**
+- Pre-existing async test failures (pytest-asyncio) unchanged.
+
 ### 000 — Reabrir o cutover e criar gates de regressão
 
 **Status:** completed
@@ -249,4 +280,4 @@
 
 ## Próxima spec
 
-`004-fix-metering-inbox-projection.md`
+`005-fix-observability-inbox-projection.md`

@@ -11,7 +11,8 @@ import pytest
 from modules.metering.infra.messaging.inbox_handlers import (
     HANDLER_MAP,
     MeteringInboxEventRouter,
-    handle_execution_requested,
+    handle_noop,
+    handle_execution_started,
     handle_llm_request,
     handle_tool_execution,
     handle_execution_completed,
@@ -64,13 +65,22 @@ class TestAtomicEffect:
     """Handlers must create usage records atomically with the session."""
 
     @pytest.mark.asyncio
-    async def test_execution_requested_creates_usage_event(self, mock_session, execution_payload):
-        await handle_execution_requested(
+    async def test_requested_handler_is_noop(self, mock_session, execution_payload):
+        await handle_noop(
             event_type="agent.execution.requested.v1",
             payload=execution_payload,
             session=mock_session,
         )
-        assert mock_session.add.called or mock_session.merge.called
+        assert not mock_session.add.called
+
+    @pytest.mark.asyncio
+    async def test_started_handler_logs_only(self, mock_session, execution_payload):
+        await handle_execution_started(
+            event_type="agent.execution.started.v1",
+            payload=execution_payload,
+            session=mock_session,
+        )
+        assert not mock_session.add.called
 
     @pytest.mark.asyncio
     async def test_llm_completed_records_tokens(self, mock_session, execution_payload):
