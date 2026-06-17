@@ -13,7 +13,7 @@ COPY alembic.ini .
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:$PYTHONPATH"
+ENV PYTHONPATH="/app/src"
 
 EXPOSE 8000
 
