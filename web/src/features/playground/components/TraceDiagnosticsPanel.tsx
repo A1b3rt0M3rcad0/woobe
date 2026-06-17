@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, Gauge, Network, Wrench, XCircle } from 'lucide-react'
+import { Activity, CheckCircle, Cpu, Database, Gauge, Network, Wrench, XCircle } from 'lucide-react'
 import { useTraceDetail } from '@/features/traces/hooks'
 import { formatLatency, formatTokens } from '@/lib/formatters/number'
 
@@ -22,11 +22,9 @@ function findDiagnostics(raw: unknown): Record<string, unknown> {
   const data = asRecord(trace.data)
   const persisted = asRecord(data.diagnostics)
   if (Object.keys(persisted).length > 0) return persisted
-
   const events = Array.isArray(trace.events) ? trace.events : []
   for (const item of events) {
-    const event = asRecord(item)
-    const payload = asRecord(event.payload)
+    const payload = asRecord(asRecord(item).payload)
     if (payload.event === 'observability.execution.summary.v1') return payload
   }
   return {}
@@ -50,56 +48,59 @@ function Metric({ label, value, icon: Icon }: {
 
 export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
   const { data } = useTraceDetail(traceId)
-  const diagnostics = findDiagnostics(data)
-  if (Object.keys(diagnostics).length === 0) return null
+  const d = findDiagnostics(data)
+  if (Object.keys(d).length === 0) return null
 
-  const runtime = numberOrNull(diagnostics.agent_runtime_latency_ms)
-  const nonTool = numberOrNull(diagnostics.non_tool_runtime_latency_ms)
-  const tools = numberOrNull(diagnostics.tool_runtime_latency_ms)
-  const http = numberOrNull(diagnostics.tool_http_latency_ms)
-  const overhead = numberOrNull(diagnostics.tool_overhead_latency_ms)
-  const toolShare = numberOrNull(diagnostics.tool_share_percent)
-  const toolCount = numberOrNull(diagnostics.tool_call_count) ?? 0
-  const successes = numberOrNull(diagnostics.successful_tool_calls) ?? 0
-  const failures = numberOrNull(diagnostics.failed_tool_calls) ?? 0
-  const inputTokens = numberOrNull(diagnostics.input_tokens)
-  const outputTokens = numberOrNull(diagnostics.output_tokens)
-  const sourceCount = numberOrNull(diagnostics.source_count) ?? 0
+  const runtime = numberOrNull(d.agent_runtime_latency_ms)
+  const llm = numberOrNull(d.llm_runtime_latency_ms)
+  const tools = numberOrNull(d.tool_wall_latency_ms ?? d.tool_runtime_latency_ms)
+  const http = numberOrNull(d.tool_http_latency_ms)
+  const prepare = numberOrNull(d.prepare_latency_ms)
+  const persistence = numberOrNull(d.persistence_latency_ms)
+  const orchestration = numberOrNull(d.orchestration_latency_ms)
+  const toolShare = numberOrNull(d.tool_share_percent)
+  const toolCount = numberOrNull(d.tool_call_count) ?? 0
+  const llmCount = numberOrNull(d.llm_call_count) ?? 0
+  const successes = numberOrNull(d.successful_tool_calls) ?? 0
+  const failures = numberOrNull(d.failed_tool_calls) ?? 0
+  const inputTokens = numberOrNull(d.input_tokens)
+  const outputTokens = numberOrNull(d.output_tokens)
+  const usageComplete = d.usage_complete === true
+  const costStatus = typeof d.cost_status === 'string' ? d.cost_status : 'unknown'
 
   return (
     <div className="border-b border-border px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium text-white">Execution diagnostics</p>
-          <p className="text-[10px] text-muted">Measured inside the Agent runtime</p>
+          <p className="text-[10px] text-muted">Measured by execution phase</p>
         </div>
         {toolShare != null && (
           <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-mono text-muted">
-            Tools {toolShare.toFixed(1)}%
+            Tool wall {toolShare.toFixed(1)}%
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-1.5">
-        <Metric label="Runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
-        <Metric label="Non-tool" value={nonTool == null ? '—' : formatLatency(nonTool)} icon={Gauge} />
-        <Metric label="Tools" value={tools == null ? '—' : formatLatency(tools)} icon={Wrench} />
+        <Metric label="Agent runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
+        <Metric label="LLM total" value={llm == null ? '—' : formatLatency(llm)} icon={Cpu} />
+        <Metric label="Tool wall" value={tools == null ? '—' : formatLatency(tools)} icon={Wrench} />
         <Metric label="Tool HTTP" value={http == null ? '—' : formatLatency(http)} icon={Network} />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
+        <span>{llmCount} LLM call{llmCount === 1 ? '' : 's'}</span>
         <span>{toolCount} tool call{toolCount === 1 ? '' : 's'}</span>
-        <span className="inline-flex items-center gap-1 text-emerald-400">
-          <CheckCircle className="h-3 w-3" /> {successes}
-        </span>
-        <span className="inline-flex items-center gap-1 text-red-400">
-          <XCircle className="h-3 w-3" /> {failures}
-        </span>
-        {overhead != null && <span>Tool overhead {formatLatency(overhead)}</span>}
-        {inputTokens != null && outputTokens != null && (
-          <span>Tokens {formatTokens(inputTokens)} → {formatTokens(outputTokens)}</span>
-        )}
-        <span>Sources {sourceCount}</span>
+        <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle className="h-3 w-3" /> {successes}</span>
+        <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" /> {failures}</span>
+        {prepare != null && <span>Setup {formatLatency(prepare)}</span>}
+        {persistence != null && <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" /> Persist {formatLatency(persistence)}</span>}
+        {orchestration != null && <span>Orchestration {formatLatency(orchestration)}</span>}
+        {inputTokens != null && outputTokens != null
+          ? <span>Tokens {formatTokens(inputTokens)} → {formatTokens(outputTokens)}{usageComplete ? '' : ' (partial)'}</span>
+          : <span>Token usage unavailable</span>}
+        <span>Cost {costStatus === 'known' ? 'reported' : 'unknown'}</span>
       </div>
     </div>
   )
