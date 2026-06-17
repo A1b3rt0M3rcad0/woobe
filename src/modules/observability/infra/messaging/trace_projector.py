@@ -85,6 +85,23 @@ async def _save_event(
     )
 
 
+def _tool_discriminator(tool: dict[str, Any], fallback: str) -> str:
+    return str(
+        tool.get("tool_call_id")
+        or tool.get("tool_id")
+        or tool.get("tool_name")
+        or fallback
+    )
+
+
+def _is_complete_tool_payload(payload: dict[str, Any]) -> bool:
+    return (
+        payload.get("tool_call_id") is not None
+        and "input" in payload
+        and "output" in payload
+    )
+
+
 async def project_agent_event(
     *,
     event_type: str,
@@ -170,13 +187,16 @@ async def project_agent_event(
         return
 
     if event_type == "agent.execution.tool_completed.v1":
-        discriminator = str(
-            payload.get("tool_call_id")
-            or payload.get("tool_id")
-            or payload.get("tool_name")
-            or "tool"
-        )
         await trace_repo.save(trace)
+        if not _is_complete_tool_payload(payload):
+            logger.debug(
+                "Deferring incomplete tool timeline event until completed snapshot: trace_id=%s tool=%s",
+                trace_id,
+                payload.get("tool_name"),
+            )
+            return
+
+        discriminator = _tool_discriminator(payload, "tool")
         await _save_event(
             event_repo,
             trace_id=trace_id,
@@ -244,34 +264,14 @@ async def project_agent_event(
         payload={"event": event_type, **payload},
     )
 
-    await _save_event(
-        event_repo,
-        trace_id=trace_id,
-        project_id=project_id,
-        discriminator="llm_completed",
-        kind=TraceEventType.llm_call,
-        latency_ms=payload.get("latency_ms"),
-        cost_usd=payload.get("cost_usd"),
-        payload={
-            "event": "agent.execution.llm_completed.v1",
-            "input_tokens": payload.get("input_tokens"),
-            "output_tokens": payload.get("output_tokens"),
-            "total_tokens": payload.get("total_tokens"),
-            "model": payload.get("model"),
-            "provider": payload.get("provider"),
-        },
-    )
+    # The real LLM event is authoritative. Do not overwrite it with the
+    # completion snapshot, which contains only a subset of its payload.
 
     tool_calls = payload.get("tool_calls")
     if isinstance(tool_calls, list):
         for index, raw in enumerate(tool_calls):
             tool = raw if isinstance(raw, dict) else {}
-            discriminator = str(
-                tool.get("tool_call_id")
-                or tool.get("tool_id")
-                or tool.get("tool_name")
-                or index
-            )
+            discriminator = _tool_discriminator(tool, str(index))
             await _save_event(
                 event_repo,
                 trace_id=trace_id,
