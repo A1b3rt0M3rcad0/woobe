@@ -1,11 +1,63 @@
+from __future__ import annotations
+
 import time
+from datetime import datetime, timezone
+from typing import Any
+from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_event_factory import (
-    completed_event, fallback_event, llm_event, tool_event,
+    completed_event,
+    fallback_event,
+    llm_event,
+    tool_event,
 )
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.application.use_cases.trace_event_builder import (
+    build_operation_events,
+    sequence_events,
+)
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentOutboxEventWriter,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _event(
+    trace_id: str,
+    event_type: str,
+    occurred_at: str,
+    *,
+    phase: str,
+    status: str,
+    started_at: str | None = None,
+    ended_at: str | None = None,
+    duration_ms: int | float | None = None,
+    attributes: dict[str, Any] | None = None,
+    span_id: str | None = None,
+    parent_span_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "event_id": str(uuid4()),
+        "trace_id": trace_id,
+        "root_span_id": trace_id,
+        "span_id": span_id or str(uuid4()),
+        "parent_span_id": parent_span_id or trace_id,
+        "sequence": 0,
+        "event_type": event_type,
+        "phase": phase,
+        "status": status,
+        "occurred_at": occurred_at,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "duration_ms": duration_ms,
+        "attributes": attributes or {},
+    }
 
 
 async def finalize_instrumented_execution(owner, **kw):
@@ -13,41 +65,206 @@ async def finalize_instrumented_execution(owner, **kw):
     agent = kw["agent"]
     execution = kw["execution"]
     trace_id = kw["trace_id"]
+    trace_id_text = str(trace_id)
     usage = kw["usage"]
-    started = time.monotonic()
+    context = current_execution.get()
+    parse_completed_at = _utc_now()
+    persistence_started_at = _utc_now()
+    persistence_started = time.monotonic()
     message_id = None
 
     async with AgentUnitOfWork(owner._session_factory) as uow:
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
         if session:
-            msg = await owner._do_save_assistant_message(
-                uow.messages, uow.sessions, outbox, session, kw["answer"],
-                usage, agent, tool_calls=execution.tool_calls,
+            message = await owner._do_save_assistant_message(
+                uow.messages,
+                uow.sessions,
+                outbox,
+                session,
+                kw["answer"],
+                usage,
+                agent,
+                tool_calls=execution.tool_calls,
             )
-            message_id = msg.id
-        for item in sorted(execution.timeline, key=lambda x: x.get("occurred_at", "")):
-            payload = {"trace_id": str(trace_id), **item["payload"]}
-            event = llm_event(agent.id, payload) if item["kind"] == "llm" else tool_event(agent.id, payload)
+            message_id = message.id
+        for item in sorted(
+            execution.timeline,
+            key=lambda value: value.get("occurred_at", ""),
+        ):
+            event_payload = {"trace_id": trace_id_text, **item["payload"]}
+            event = (
+                llm_event(agent.id, event_payload)
+                if item["kind"] == "llm"
+                else tool_event(agent.id, event_payload)
+            )
             await outbox.write(event)
         if kw["fallback_info"]:
-            payload = {"trace_id": str(trace_id), **kw["fallback_info"]}
-            await outbox.write(fallback_event(agent.id, payload))
+            await outbox.write(
+                fallback_event(
+                    agent.id,
+                    {"trace_id": trace_id_text, **kw["fallback_info"]},
+                )
+            )
 
-    persist_ms = round((time.monotonic() - started) * 1000)
+    persistence_ms = round((time.monotonic() - persistence_started) * 1000)
+    persistence_ended_at = _utc_now()
     total_ms = round((time.monotonic() - kw["started_at"]) * 1000)
-    llm_ms = sum(int(x.get("latency_ms") or 0) for x in execution.llm_calls)
+    execution_completed_at = _utc_now()
+    llm_ms = sum(
+        int(call.get("latency_ms") or 0)
+        for call in execution.llm_calls
+    )
     orchestration_ms = max(
-        total_ms - kw["prepare_latency_ms"] - persist_ms
-        - llm_ms - execution.tool_wall_latency_ms,
+        total_ms
+        - kw["prepare_latency_ms"]
+        - persistence_ms
+        - llm_ms
+        - execution.tool_wall_latency_ms,
         0,
     )
     http_ms = sum(
-        int(x["payload"].get("http_latency_ms") or 0)
-        for x in execution.timeline if x.get("kind") == "tool"
+        int(item["payload"].get("http_latency_ms") or 0)
+        for item in execution.timeline
+        if item.get("kind") == "tool"
     )
+    diagnostics = {
+        "schema_version": 3,
+        "total_latency_ms": total_ms,
+        "prepare_latency_ms": kw["prepare_latency_ms"],
+        "llm_runtime_latency_ms": llm_ms,
+        "tool_wall_latency_ms": execution.tool_wall_latency_ms,
+        "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
+        "tool_http_latency_ms": http_ms,
+        "persistence_latency_ms": persistence_ms,
+        "orchestration_latency_ms": orchestration_ms,
+        "llm_call_count": len(execution.llm_calls),
+        "tool_call_count": len(execution.tool_calls),
+        "usage_complete": kw["usage_complete"],
+        "cost_status": kw["cost_status"],
+    }
+
+    request_received_at = (
+        context.request_received_at if context else execution_completed_at
+    )
+    execution_started_at = (
+        context.execution_started_at if context else request_received_at
+    )
+    execution_events = [
+        _event(
+            trace_id_text,
+            "http.request.received",
+            request_received_at,
+            phase="request",
+            status="success",
+            started_at=request_received_at,
+            ended_at=request_received_at,
+            duration_ms=0,
+            attributes={
+                "client_sent_at": context.client_sent_at if context else None,
+            },
+            span_id=trace_id_text,
+            parent_span_id=None,
+        ),
+        _event(
+            trace_id_text,
+            "agent.execution.started",
+            execution_started_at,
+            phase="execution",
+            status="running",
+            started_at=execution_started_at,
+            span_id=trace_id_text,
+            parent_span_id=None,
+        ),
+    ]
+    if context and context.prepare_started_at:
+        prepare_span = str(uuid4())
+        execution_events.extend([
+            _event(
+                trace_id_text,
+                "agent.prepare.started",
+                context.prepare_started_at,
+                phase="prepare",
+                status="running",
+                started_at=context.prepare_started_at,
+                span_id=prepare_span,
+            ),
+            _event(
+                trace_id_text,
+                "agent.prepare.completed",
+                context.prepare_ended_at or context.prepare_started_at,
+                phase="prepare",
+                status="success",
+                started_at=context.prepare_started_at,
+                ended_at=context.prepare_ended_at,
+                duration_ms=context.prepare_latency_ms,
+                span_id=prepare_span,
+            ),
+        ])
+    execution_events.extend(build_operation_events(trace_id_text, execution.timeline))
+    execution_events.append(
+        _event(
+            trace_id_text,
+            "structured_output.parse.completed",
+            parse_completed_at,
+            phase="structured_output",
+            status="success" if kw["output_parse_error"] is None else "error",
+            ended_at=parse_completed_at,
+            attributes={
+                "parsed": kw["parsed_output"] is not None,
+                "error": kw["output_parse_error"],
+                "duration_measured": False,
+            },
+        )
+    )
+    persistence_span = str(uuid4())
+    execution_events.extend([
+        _event(
+            trace_id_text,
+            "message.persistence.started",
+            persistence_started_at,
+            phase="persistence",
+            status="running",
+            started_at=persistence_started_at,
+            span_id=persistence_span,
+        ),
+        _event(
+            trace_id_text,
+            "message.persistence.completed",
+            persistence_ended_at,
+            phase="persistence",
+            status="success",
+            started_at=persistence_started_at,
+            ended_at=persistence_ended_at,
+            duration_ms=persistence_ms,
+            span_id=persistence_span,
+        ),
+        _event(
+            trace_id_text,
+            "agent.execution.completed",
+            execution_completed_at,
+            phase="execution",
+            status="success",
+            started_at=execution_started_at,
+            ended_at=execution_completed_at,
+            duration_ms=total_ms,
+            attributes={"diagnostics": diagnostics},
+            span_id=trace_id_text,
+            parent_span_id=None,
+        ),
+        _event(
+            trace_id_text,
+            "http.response.prepared",
+            execution_completed_at,
+            phase="response",
+            status="success",
+            ended_at=execution_completed_at,
+        ),
+    ])
+    execution_events = sequence_events(execution_events)
+
     sources = kw["sources"] or []
     payload = {
-        "trace_id": str(trace_id),
+        "trace_id": trace_id_text,
         "project_id": str(kw["input_dto"].project_id),
         "agent_id": str(agent.id),
         "session_id": str(session.id) if session else None,
@@ -64,32 +281,38 @@ async def finalize_instrumented_execution(owner, **kw):
         "latency_ms": total_ms,
         "total_latency_ms": total_ms,
         "runtime_scope": "through_response_persistence",
-        "prepare_latency_ms": kw["prepare_latency_ms"],
-        "persistence_latency_ms": persist_ms,
-        "orchestration_latency_ms": orchestration_ms,
-        "llm_runtime_latency_ms": llm_ms,
-        "tool_wall_latency_ms": execution.tool_wall_latency_ms,
-        "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
-        "tool_http_latency_ms": http_ms,
+        **diagnostics,
         "fallback_used": kw["fallback_used"],
-        "sources": [x.model_dump() for x in sources],
+        "sources": [source.model_dump() for source in sources],
         "parsed_output": kw["parsed_output"],
         "output_parse_error": kw["output_parse_error"],
-        "tool_calls": [x.model_dump() for x in execution.tool_calls],
+        "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
         "llm_calls": execution.llm_calls,
+        "execution_events": execution_events,
         "timeline_complete": True,
     }
     if kw["fallback_info"]:
         payload["fallback_info"] = kw["fallback_info"]
     async with AgentUnitOfWork(owner._session_factory) as uow:
-        await SQLAlchemyAgentOutboxEventWriter(uow).write(completed_event(agent.id, payload))
+        writer = SQLAlchemyAgentOutboxEventWriter(uow)
+        await writer.write(completed_event(agent.id, payload))
 
-    return AskOutput(
-        answer=kw["answer"], session_id=session.id if session else None,
-        message_id=message_id, usage=usage, sources=sources,
-        tool_calls=execution.tool_calls, trace_id=trace_id,
-        model=kw["response_model"], provider=kw["response_provider"],
-        fallback_used=kw["fallback_used"], fallback_info=kw["fallback_info"],
-        latency_ms=total_ms, parsed_output=kw["parsed_output"],
+    output = AskOutput(
+        answer=kw["answer"],
+        session_id=session.id if session else None,
+        message_id=message_id,
+        usage=usage,
+        sources=sources,
+        tool_calls=execution.tool_calls,
+        trace_id=trace_id,
+        model=kw["response_model"],
+        provider=kw["response_provider"],
+        fallback_used=kw["fallback_used"],
+        fallback_info=kw["fallback_info"],
+        latency_ms=total_ms,
+        parsed_output=kw["parsed_output"],
         output_parse_error=kw["output_parse_error"],
     )
+    object.__setattr__(output, "execution_events", execution_events)
+    object.__setattr__(output, "diagnostics", diagnostics)
+    return output
