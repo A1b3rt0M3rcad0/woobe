@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncGenerator
+from datetime import datetime, timezone
 
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
@@ -23,14 +24,6 @@ async def _commit_safe_stream(
     service: AskAgentStreamService,
     input_dto: AskInput,
 ) -> AsyncGenerator[str, None]:
-    """Hold the terminal ``done`` event until the source generator completes.
-
-    ``AskAgentStreamService`` prepares the final response while its Unit of Work
-    is still open. Advancing the source generator after receiving ``done`` makes
-    it leave the transaction context and commit. Only then is ``done`` exposed
-    to the client. If commit/finalization yields an error, the pending success is
-    discarded.
-    """
     pending_done: str | None = None
 
     async for chunk in service.generate(input_dto):
@@ -50,7 +43,12 @@ async def handle_ask_stream(
     fastapi_request: FastAPIRequest,
     service: AskAgentStreamService,
 ) -> StreamingResponse:
+    received_at = datetime.now(timezone.utc).isoformat()
     body: dict = await fastapi_request.json()
+    metadata = body.get("metadata")
+    metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    metadata["server_received_at"] = received_at
+    body["metadata"] = metadata
     input_dto = AskInput(**body)
 
     return StreamingResponse(

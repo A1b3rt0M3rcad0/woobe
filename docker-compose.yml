@@ -1,22 +1,63 @@
-﻿services:
+x-projectrai-environment: &projectrai-environment
+  PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projectrai}
+  PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
+  PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
+  PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
+  PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
+  PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
+  PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
+
+services:
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      <<: *projectrai-environment
+      PROJECTRAI_RUN_MIGRATIONS: "false"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build: .
     ports:
       - "${PROJECTRAI_PORT:-8000}:8000"
     env_file: .env
     environment:
-      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projectrai}
-      PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
-      PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
-      PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
-      PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
-      PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
-      PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
+      <<: *projectrai-environment
+      PROJECTRAI_RUN_MIGRATIONS: "false"
     depends_on:
-      pgbouncer:
-        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  workers:
+    build: .
+    command: ["python", "-m", "src.worker_main"]
+    env_file: .env
+    environment:
+      <<: *projectrai-environment
+      PROJECTRAI_RUN_MIGRATIONS: "false"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+    stop_grace_period: 30s
     restart: unless-stopped
 
   web:
@@ -27,7 +68,8 @@
       VITE_API_URL: http://localhost:8000
       PROXY_API_URL: http://api:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     volumes:
       - ./web:/app
       - /app/node_modules

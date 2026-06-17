@@ -58,29 +58,41 @@ def _validate_event_fields(
         raise ValueError("correlation_id is required")
 
 
-def _effective_idempotency_key(event: AgentDomainEvent) -> str:
-    """Build an idempotency key for the concrete event occurrence.
-
-    The domain event factories historically used ``session_id`` as the
-    discriminator. That makes a second execution in the same session collide
-    with the Outbox unique constraint. The execution ``trace_id`` is the real
-    occurrence identifier. Tool events additionally need a per-call
-    discriminator because a single execution can invoke multiple tools.
-    """
-    if not event.event_type.startswith("agent.execution."):
-        return event.idempotency_key
-
+def _execution_occurrence(event: AgentDomainEvent) -> str:
     trace_id = event.payload.get("trace_id") or event.payload.get("execution_id")
-    occurrence = str(trace_id or event.event_id)
+    trace_occurrence = str(trace_id or event.event_id)
+
+    if event.event_type == "agent.execution.llm_completed.v1":
+        call_occurrence = (
+            event.payload.get("call_id")
+            or event.payload.get("call_index")
+            or event.event_id
+        )
+        return f"{trace_occurrence}:{call_occurrence}"
 
     if event.event_type == "agent.execution.tool_completed.v1":
         tool_occurrence = (
             event.payload.get("tool_call_id")
             or event.payload.get("tool_id")
-            or str(event.event_id)
+            or event.event_id
         )
-        occurrence = f"{occurrence}:{tool_occurrence}"
+        return f"{trace_occurrence}:{tool_occurrence}"
 
+    return trace_occurrence
+
+
+def _effective_idempotency_key(event: AgentDomainEvent) -> str:
+    """Build an idempotency key for one concrete event occurrence.
+
+    Execution events are scoped by trace. Event types that can occur more than
+    once in the same trace also include their call identifier. This prevents
+    distinct LLM or Tool calls from colliding with the outbox unique constraint
+    while keeping retries of the same call deterministic.
+    """
+    if not event.event_type.startswith("agent.execution."):
+        return event.idempotency_key
+
+    occurrence = _execution_occurrence(event)
     raw = f"agent:{event.event_type}:{occurrence}"
     return hashlib.sha256(raw.encode()).hexdigest()
 

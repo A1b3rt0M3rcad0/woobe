@@ -101,7 +101,6 @@ class AskInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
-    # Release/context fields
     execution_context: str = "playground"
     loaded_release_id: UUID | None = None
     snapshot_override: dict | None = None
@@ -138,8 +137,8 @@ class AskOutput(BaseModel):
     session_id: UUID | None = None
     message_id: UUID | None = None
     usage: UsageInfo | None = None
-    sources: list[SourceInfo] = []
-    tool_calls: list[ToolCallInfo] = []
+    sources: list[SourceInfo] = Field(default_factory=list)
+    tool_calls: list[ToolCallInfo] = Field(default_factory=list)
     trace_id: UUID | None = None
     model: str | None = None
     provider: str | None = None
@@ -148,6 +147,8 @@ class AskOutput(BaseModel):
     latency_ms: int | None = None
     parsed_output: dict | None = None
     output_parse_error: str | None = None
+    execution_events: list[dict] = Field(default_factory=list)
+    diagnostics: dict | None = None
 
 
 class CreateAskJobInput(BaseModel):

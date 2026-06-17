@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+import time
+from contextvars import ContextVar
+from dataclasses import dataclass
+from datetime import datetime, timezone
+
+from modules.agent.application.use_cases.execution_instrumentation import (
+    InstrumentedExecution,
+)
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class RequestExecutionContext:
+    started_at: float
+    request_received_at: str
+    execution_started_at: str
+    client_sent_at: str | None = None
+    prepare_started_at: str | None = None
+    prepare_ended_at: str | None = None
+    prepare_latency_ms: int = 0
+    strict_json: bool = False
+    execution: InstrumentedExecution | None = None
+
+
+current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(
+    "current_agent_execution",
+    default=None,
+)
+
+
+def new_execution_context(
+    request_received_at: str | None = None,
+    client_sent_at: str | None = None,
+) -> RequestExecutionContext:
+    now = utc_now()
+    return RequestExecutionContext(
+        started_at=time.monotonic(),
+        request_received_at=request_received_at or now,
+        execution_started_at=now,
+        client_sent_at=client_sent_at,
+    )

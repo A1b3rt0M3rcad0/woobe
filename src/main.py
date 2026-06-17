@@ -18,7 +18,6 @@ from modules.observability.presentation.routes import router as observability_ro
 from modules.agent.presentation.routes import tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
-from shared.infra.rabbitmq import RabbitMQManager
 from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
@@ -29,8 +28,6 @@ from shared.presentation.errors import (
     validation_handler,
 )
 from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
-from shared.workers.discovery import build_registries, discover_module_entries
-from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
 
@@ -107,64 +104,19 @@ def create_app() -> FastAPI:
         engine = app.state.async_engine
         async with engine.begin() as conn:
             await conn.run_sync(lambda _: None)
-
-        rabbitmq_manager = RabbitMQManager(
-            url=settings.rabbitmq_url,
-            exchange_name=settings.rabbitmq_exchange,
-        )
-        try:
-            await rabbitmq_manager.connect()
-        except Exception:
-            logger.exception("RabbitMQ connection failed during startup")
-            await rabbitmq_manager.close()
-            raise
-
-        app.state.rabbitmq_manager = rabbitmq_manager
-
-        entries = discover_module_entries()
-        registries = build_registries(
-            entries,
-            engine=engine,
-            settings=settings,
-            rabbitmq_manager=rabbitmq_manager,
-        )
-        runner = WorkerRunner.from_registries(registries)
-        app.state.worker_runner = runner
-        logger.info("Worker runner initialized with %d registries", len(registries))
-        await runner.start()
+        logger.info("API runtime started without background workers")
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
-        runner = getattr(app.state, "worker_runner", None)
-        if runner is not None:
-            await runner.stop()
-        rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
-        if rabbitmq_manager is not None:
-            await rabbitmq_manager.close()
         await app.state.async_engine.dispose()
+        logger.info("API runtime stopped")
 
     @app.get("/health")
     async def health():
-        runner = getattr(app.state, "worker_runner", None)
-        rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
-        connected = bool(
-            rabbitmq_manager is not None and rabbitmq_manager.is_connected
-        )
-        result = {
-            "status": "ok" if connected else "degraded",
-            "rabbitmq_connected": connected,
+        return {
+            "status": "ok",
+            "runtime": "api",
         }
-        if runner is not None:
-            result["workers"] = [
-                {
-                    "name": h.worker_name,
-                    "type": h.worker_type,
-                    "is_running": h.is_running,
-                    "error": h.error,
-                }
-                for h in runner.get_health()
-            ]
-        return result
 
     return app
 

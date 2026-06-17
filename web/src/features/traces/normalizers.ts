@@ -128,6 +128,11 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
     const event = asRecord(item)
     const payload = asRecord(event.payload)
     const payloadTraceId = payload.trace_id ?? payload.execution_id
+    const occurredAt = typeof payload.occurred_at === 'string'
+      ? payload.occurred_at
+      : typeof payload.ended_at === 'string'
+        ? payload.ended_at
+        : null
     return {
       id: typeof event.id === 'string' ? event.id : '',
       trace_id: typeof event.trace_id === 'string'
@@ -140,13 +145,10 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
       cost_usd: safeNumber(event.cost_usd),
       payload: Object.keys(payload).length > 0 ? payload : null,
       payload_ref: typeof event.payload_ref === 'string' ? event.payload_ref : null,
-      created_at: typeof event.created_at === 'string' ? event.created_at : null,
+      created_at: occurredAt ?? (typeof event.created_at === 'string' ? event.created_at : null),
     }
   })
 
-  // Traces created before the projector fix may contain an incomplete direct
-  // Tool event plus the authoritative complete event from the final snapshot.
-  // Keep all complete calls and suppress only the incomplete legacy duplicate.
   const completeToolNames = new Set(
     events
       .filter((event) => {
