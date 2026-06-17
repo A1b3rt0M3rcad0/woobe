@@ -13,6 +13,7 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 class RequestExecutionContext:
     started_at: float
     prepare_latency_ms: int = 0
+    strict_json: bool = False
     execution: InstrumentedExecution | None = None
 
 
