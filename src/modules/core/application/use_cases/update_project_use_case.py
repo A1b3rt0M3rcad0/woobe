@@ -28,8 +28,10 @@ class UpdateProjectUseCase:
         await self._outbox.write(
             aggregate_type="project",
             aggregate_id=saved.id,
-            event_type="project.updated",
+            event_type="project.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
+            routing_key="project.updated.v1",
+            idempotency_key=f"core:project.updated.v1:{saved.id}",
         )
 
         return UpdateProjectOutput(

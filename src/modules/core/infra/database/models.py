@@ -7,9 +7,11 @@ from uuid import UUID
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     LargeBinary,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,9 +28,7 @@ class ProjectModel(BaseModel):
         {"schema": "core"},
     )
 
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
+    organization_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -48,14 +48,38 @@ class ApiKeyModel(BaseModel):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
+    created_by_user_id: Mapped[UUID]
 
 
 class OutboxEventModel(BaseOutbox):
     __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "core"}
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_core_outbox_idempotency_key"),
+        Index(
+            "ix_core_outbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('pending', 'retryable')"),
+        ),
+        Index("ix_core_outbox_correlation_id", "correlation_id"),
+        Index("ix_core_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        {"schema": "core"},
+    )
 
 
 class InboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "core"}
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_core_inbox_message_id"),
+        UniqueConstraint("idempotency_key", name="uq_core_inbox_idempotency_key"),
+        Index(
+            "ix_core_inbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('received', 'retryable')"),
+        ),
+        Index("ix_core_inbox_correlation_id", "correlation_id"),
+        {"schema": "core"},
+    )

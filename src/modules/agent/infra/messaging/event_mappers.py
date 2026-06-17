@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ class RabbitMQMessageEnvelope:
     body: str
     correlation_id: str
     headers: dict[str, Any] = field(default_factory=dict)
+    message_id: str = ""
 
 
 class IncomingMessage(Protocol):
@@ -56,23 +58,59 @@ def _validate_event_fields(
         raise ValueError("correlation_id is required")
 
 
+def _effective_idempotency_key(event: AgentDomainEvent) -> str:
+    """Build an idempotency key for the concrete event occurrence.
+
+    The domain event factories historically used ``session_id`` as the
+    discriminator. That makes a second execution in the same session collide
+    with the Outbox unique constraint. The execution ``trace_id`` is the real
+    occurrence identifier. Tool events additionally need a per-call
+    discriminator because a single execution can invoke multiple tools.
+    """
+    if not event.event_type.startswith("agent.execution."):
+        return event.idempotency_key
+
+    trace_id = event.payload.get("trace_id") or event.payload.get("execution_id")
+    occurrence = str(trace_id or event.event_id)
+
+    if event.event_type == "agent.execution.tool_completed.v1":
+        tool_occurrence = (
+            event.payload.get("tool_call_id")
+            or event.payload.get("tool_id")
+            or str(event.event_id)
+        )
+        occurrence = f"{occurrence}:{tool_occurrence}"
+
+    raw = f"agent:{event.event_type}:{occurrence}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
+    idempotency_key = _effective_idempotency_key(event)
     _validate_event_fields(
         event_version=event.event_version,
         routing_key=event.routing_key,
-        idempotency_key=event.idempotency_key,
+        idempotency_key=idempotency_key,
         correlation_id=event.correlation_id,
     )
+    aggregate_type = event.payload.get("aggregate_type", "")
+    aggregate_id = event.payload.get("aggregate_id")
+    if not aggregate_type:
+        aggregate_type = "agent"
+    if aggregate_id is None:
+        aggregate_id = event.event_id
+    else:
+        aggregate_id = UUID(aggregate_id) if isinstance(aggregate_id, str) else aggregate_id
     model = AgentOutboxEventModel()
-    model.id = uuid6.uuid7()
-    model.aggregate_type = event.payload.get("aggregate_type", "agent")
-    model.aggregate_id = event.payload.get("aggregate_id", event.event_id)
+    model.id = event.event_id
+    model.aggregate_type = aggregate_type
+    model.aggregate_id = aggregate_id
     model.event_type = event.event_type
     model.event_version = event.event_version
     model.routing_key = event.routing_key
     model.payload = event.payload
     model.metadata_ = event.metadata
-    model.idempotency_key = event.idempotency_key
+    model.idempotency_key = idempotency_key
     model.correlation_id = event.correlation_id
     model.causation_id = event.causation_id
     model.status = "pending"
@@ -114,6 +152,7 @@ def outbox_to_rabbit_message(event: AgentOutboxEventModel) -> RabbitMQMessageEnv
         body=json.dumps(body_dict, default=str),
         correlation_id=str(event.correlation_id),
         headers=headers,
+        message_id=str(event.id),
     )
 
 

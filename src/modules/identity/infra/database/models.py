@@ -6,10 +6,12 @@ from uuid import UUID
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     LargeBinary,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -92,9 +94,33 @@ class UserSessionModel(BaseModel):
 
 class OutboxEventModel(BaseOutbox):
     __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_identity_outbox_idempotency_key"),
+        Index(
+            "ix_identity_outbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('pending', 'retryable')"),
+        ),
+        Index("ix_identity_outbox_correlation_id", "correlation_id"),
+        Index("ix_identity_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        {"schema": "identity"},
+    )
 
 
 class InboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_identity_inbox_message_id"),
+        UniqueConstraint("idempotency_key", name="uq_identity_inbox_idempotency_key"),
+        Index(
+            "ix_identity_inbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('received', 'retryable')"),
+        ),
+        Index("ix_identity_inbox_correlation_id", "correlation_id"),
+        {"schema": "identity"},
+    )

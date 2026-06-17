@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.application.tool_converter import agent_tool_to_openai_definition
 from modules.agent.domain.ports.tool_executor import ToolExecutor
 from modules.agent.domain.ports.tool_repository import ToolRepository
@@ -127,9 +127,11 @@ class AgentToolExecutor(ToolExecutor):
         self,
         tool_repo: ToolRepository,
         tool_executor: ToolExecutionPort | None = None,
+        secret_resolver: ToolSecretResolverPort | None = None,
     ) -> None:
         self._tool_repo = tool_repo
         self._tool_executor = tool_executor or HttpToolExecutor()
+        self._secret_resolver = secret_resolver
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         from modules.agent.application.use_cases.tools_use_cases import (
@@ -139,6 +141,7 @@ class AgentToolExecutor(ToolExecutor):
         use_case = ExecuteToolUseCase(
             tool_repo=self._tool_repo,
             tool_executor=self._tool_executor,
+            secret_resolver=self._secret_resolver,
         )
         result = await use_case.execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
         return result.model_dump()

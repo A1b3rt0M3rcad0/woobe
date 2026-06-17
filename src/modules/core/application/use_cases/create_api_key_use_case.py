@@ -42,11 +42,13 @@ class CreateApiKeyUseCase:
         await self._outbox.write(
             aggregate_type="api_key",
             aggregate_id=saved.id,
-            event_type="api_key.created",
+            event_type="api_key.created.v1",
             payload={
                 "project_id": str(saved.project_id),
                 "name": saved.name,
             },
+            routing_key="api_key.created.v1",
+            idempotency_key=f"core:api_key.created.v1:{saved.id}",
         )
 
         return CreateApiKeyOutput(

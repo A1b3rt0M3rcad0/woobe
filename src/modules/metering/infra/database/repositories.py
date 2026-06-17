@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -21,6 +22,7 @@ from modules.metering.infra.database.mappers import (
     usage_event_model_to_entity,
 )
 from modules.metering.infra.database.models import (
+    InboxEventModel,
     OutboxEventModel,
     UsageDailyAgentModel,
     UsageDailyProjectModel,
@@ -29,6 +31,9 @@ from modules.metering.infra.database.models import (
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
+
+METERING_DEFAULT_BATCH_SIZE: int = 50
+METERING_INBOX_LOCK_TIMEOUT_SECONDS: int = 60
 
 
 class SQLAlchemyUsageEventRepository(BaseSQLAlchemyRepository[UsageEventModel], UsageEventRepository):
@@ -254,6 +259,8 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
         aggregate_id: UUID,
         event_type: str,
         payload: dict[str, Any],
+        routing_key: str,
+        idempotency_key: str,
         event_version: int = 1,
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
@@ -262,8 +269,98 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
             event_type=event_type,
+            event_version=event_version,
+            routing_key=routing_key,
             payload=payload,
+            idempotency_key=idempotency_key,
             correlation_id=correlation_id,
             causation_id=causation_id,
         )
         self._session.add(event)
+
+
+class SQLAlchemyMeteringInboxRepository:
+    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+        self._session_or_uow: AsyncSession | UnitOfWork = session
+
+    @property
+    def _session(self) -> AsyncSession:
+        if isinstance(self._session_or_uow, UnitOfWork):
+            return self._session_or_uow.session
+        return self._session_or_uow
+
+    async def save_received(self, event: InboxEventModel) -> InboxEventModel:
+        self._session.add(event)
+        await self._session.flush()
+        return event
+
+    async def claim_batch(
+        self,
+        batch_size: int = METERING_DEFAULT_BATCH_SIZE,
+        locked_by: str = "",
+        lock_timeout_seconds: int = METERING_INBOX_LOCK_TIMEOUT_SECONDS,
+    ) -> list[InboxEventModel]:
+        now = datetime.now(timezone.utc)
+        stmt = (
+            select(InboxEventModel)
+            .where(InboxEventModel.status.in_(["received", "retryable"]))
+            .where(InboxEventModel.available_at <= func.now())
+            .where(
+                (InboxEventModel.locked_at.is_(None))
+                | (
+                    InboxEventModel.locked_at
+                    < func.now() - text(f"INTERVAL '{lock_timeout_seconds} seconds'")
+                )
+            )
+            .order_by(InboxEventModel.created_at.asc())
+            .limit(batch_size)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self._session.execute(stmt)
+        events = list(result.scalars().all())
+        for event in events:
+            event.locked_at = now
+            event.locked_by = locked_by
+        return events
+
+    async def mark_processed(self, event_id: UUID) -> None:
+        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
+        result = await self._session.execute(stmt)
+        event = result.scalar_one_or_none()
+        if event:
+            event.status = "processed"
+            event.processed_at = datetime.now(timezone.utc)
+            event.locked_at = None
+            event.locked_by = None
+
+    async def mark_failed(self, event_id: UUID, error: str) -> None:
+        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
+        result = await self._session.execute(stmt)
+        event = result.scalar_one_or_none()
+        if event:
+            event.status = "failed"
+            event.error = error
+            event.locked_at = None
+            event.locked_by = None
+
+    async def mark_dead(self, event_id: UUID, error: str) -> None:
+        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
+        result = await self._session.execute(stmt)
+        event = result.scalar_one_or_none()
+        if event:
+            event.status = "dead"
+            event.error = error
+            event.locked_at = None
+            event.locked_by = None
+
+    async def mark_retryable(self, event_id: UUID, error: str, available_at: datetime) -> None:
+        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
+        result = await self._session.execute(stmt)
+        event = result.scalar_one_or_none()
+        if event:
+            event.status = "retryable"
+            event.error = error
+            event.available_at = available_at
+            event.attempts = (event.attempts or 0) + 1
+            event.locked_at = None
+            event.locked_by = None

@@ -5,6 +5,8 @@ from uuid import UUID
 
 import pytest
 
+from modules.agent.domain.events import AgentDomainEvent
+
 from modules.agent.application.dtos.tools_dtos import (
     CreateSecretInput,
     CreateSecretOutput,
@@ -125,15 +127,10 @@ class FakeSecretRepository(SecretRepository):
 
 @dataclass
 class FakeOutbox:
-    events: list[dict] = field(default_factory=list)
+    events: list[AgentDomainEvent] = field(default_factory=list)
 
-    async def write(self, aggregate_type: str, aggregate_id: UUID, event_type: str, payload: dict) -> None:
-        self.events.append({
-            "aggregate_type": aggregate_type,
-            "aggregate_id": aggregate_id,
-            "event_type": event_type,
-            "payload": payload,
-        })
+    async def write(self, event: AgentDomainEvent) -> None:
+        self.events.append(event)
 
 
 class FakeCipher(SecretCipherPort):
@@ -258,8 +255,8 @@ class TestCreateToolUseCase:
         assert result.status == ToolStatus.ACTIVE
 
         assert len(outbox.events) == 1
-        assert outbox.events[0]["event_type"] == "agent.tool.created.v1"
-        assert outbox.events[0]["payload"]["tool_id"] == str(result.id)
+        assert outbox.events[0].event_type == "agent.tool.created.v1"
+        assert outbox.events[0].payload["tool_id"] == str(result.id)
 
     @pytest.mark.asyncio
     async def test_create_tool_with_agent(self):
@@ -303,8 +300,8 @@ class TestCreateSecretUseCase:
         assert saved.encrypted_value == "enc:sk-real-secret"
 
         assert len(outbox.events) == 1
-        assert outbox.events[0]["event_type"] == "agent.secret.created.v1"
-        assert "encrypted_value" not in outbox.events[0]["payload"]
+        assert outbox.events[0].event_type == "agent.secret.created.v1"
+        assert "encrypted_value" not in outbox.events[0].payload
 
 
 class TestUpdateToolUseCase:
@@ -324,7 +321,7 @@ class TestUpdateToolUseCase:
         assert result.name == "renamed"
 
         assert len(outbox.events) == 2
-        assert outbox.events[1]["event_type"] == "agent.tool.updated.v1"
+        assert outbox.events[1].event_type == "agent.tool.updated.v1"
 
 
 class TestUpdateToolStatusUseCase:
@@ -343,8 +340,8 @@ class TestUpdateToolStatusUseCase:
         result = await suc.execute(created.id, UpdateToolStatusInput(status=ToolStatus.INACTIVE))
         assert result.status == ToolStatus.INACTIVE
 
-        assert outbox.events[1]["event_type"] == "agent.tool.status_changed.v1"
-        assert outbox.events[1]["payload"]["status"] == "inactive"
+        assert outbox.events[1].event_type == "agent.tool.status_changed.v1"
+        assert outbox.events[1].payload["status"] == "inactive"
 
 
 class TestDeleteToolUseCase:

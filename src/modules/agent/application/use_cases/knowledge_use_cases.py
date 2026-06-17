@@ -35,6 +35,7 @@ from modules.agent.application.dtos.knowledge_dtos import (
     UploadDocumentOutput,
 )
 
+from modules.agent.domain.events import AgentCollectionCreatedV1, AgentDocumentUploadedV1
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
@@ -115,16 +116,12 @@ class CreateCollectionUseCase:
         )
         created = await self.repo.create(collection)
 
-        await self._outbox.write(
-            aggregate_type="document_collection",
-            aggregate_id=created.id,
-            event_type="knowledge.collection.created",
-            payload={
-                "collection_id": str(created.id),
-                "project_id": str(created.project_id),
-                "name": created.name,
-            },
+        event = AgentCollectionCreatedV1.create(
+            collection_id=created.id,
+            project_id=created.project_id,
+            name=created.name,
         )
+        await self._outbox.write(event)
 
         return CreateCollectionOutput(
             id=created.id,
@@ -143,7 +140,7 @@ class UploadDocumentUseCase:
         self,
         doc_repo: DocumentRepository,
         collection_repo: DocumentCollectionRepository,
-        outbox: OutboxEventWriter,
+        outbox: "OutboxEventWriter",
     ) -> None:
         self.doc_repo = doc_repo
         self.collection_repo = collection_repo
@@ -165,19 +162,15 @@ class UploadDocumentUseCase:
         )
         created = await self.doc_repo.create(document)
 
-        await self._outbox.write(
-            aggregate_type="document",
-            aggregate_id=created.id,
-            event_type="knowledge.document.uploaded",
-            payload={
-                "document_id": str(created.id),
-                "collection_id": str(created.collection_id),
-                "project_id": str(created.project_id),
-                "file_name": created.file_name,
-                "storage_key": created.storage_key,
-                "parser": created.parser,
-            },
+        event = AgentDocumentUploadedV1.create(
+            document_id=created.id,
+            collection_id=created.collection_id,
+            project_id=created.project_id,
+            file_name=created.file_name,
+            storage_key=created.storage_key,
+            parser=created.parser,
         )
+        await self._outbox.write(event)
 
         return UploadDocumentOutput(
             id=created.id,

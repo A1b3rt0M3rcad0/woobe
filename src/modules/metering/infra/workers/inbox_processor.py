@@ -1,22 +1,98 @@
 from __future__ import annotations
 
 import logging
+import os
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from modules.metering.infra.messaging.event_mappers import rabbit_message_to_inbox
-from shared.workers.inbox_processor_base import BaseInboxProcessor
+from modules.metering.infra.database.models import InboxEventModel
+from modules.metering.infra.database.repositories import (
+    METERING_DEFAULT_BATCH_SIZE,
+    SQLAlchemyMeteringInboxRepository,
+)
+from modules.metering.infra.messaging.inbox_handlers import MeteringInboxEventRouter
+from shared.workers.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
 
 logger = logging.getLogger(__name__)
 
+RETRY_BACKOFF_BASE_SECONDS: int = 30
+
 
 class MeteringInboxProcessorWorker(BaseInboxProcessor):
-    def __init__(self, async_engine: AsyncEngine) -> None:
-        super().__init__(async_engine)
+    BATCH_SIZE: int = METERING_DEFAULT_BATCH_SIZE
+    MAX_ATTEMPTS: int = 5
 
-    async def process_message(self, message_body: bytes) -> None:
-        inbox_event = rabbit_message_to_inbox(message_body)
+    def __init__(
+        self,
+        async_engine: AsyncEngine,
+        handler: MeteringInboxEventRouter,
+        worker_id: str | None = None,
+    ) -> None:
+        super().__init__(async_engine)
+        self._handler = handler
+        self._worker_id = worker_id or f"inbox-processor-{os.getpid()}"
+        self._session: AsyncSession | None = None
+        self._repo: SQLAlchemyMeteringInboxRepository | None = None
+        self._event_map: dict[UUID, InboxEventModel] = {}
+
+    async def run(self) -> None:
         async with AsyncSession(self._async_engine) as session:
-            session.add(inbox_event)
-            await session.commit()
-        logger.debug("Processed inbox event: %s", inbox_event.event_type)
+            async with session.begin():
+                self._session = session
+                self._repo = SQLAlchemyMeteringInboxRepository(session)
+                self._event_map = {}
+                await super().run()
+        self._session = None
+        self._repo = None
+        self._event_map = {}
+
+    async def claim_pending(self, limit: int) -> list[InboxProcessingRecord]:
+        assert self._repo is not None
+        events = await self._repo.claim_batch(
+            batch_size=limit, locked_by=self._worker_id
+        )
+        records: list[InboxProcessingRecord] = []
+        for event in events:
+            record = InboxProcessingRecord(
+                id=event.id,
+                outbox_origin_id=event.message_id,
+                aggregate_type=event.producer_module or "unknown",
+                event_type=event.event_type,
+                event_version=event.event_version,
+                payload=event.payload or {},
+                correlation_id=event.correlation_id,
+                causation_id=event.causation_id,
+                attempts=event.attempts,
+                error=event.error,
+            )
+            records.append(record)
+            self._event_map[event.id] = event
+        return records
+
+    async def process(self, record: InboxProcessingRecord) -> None:
+        await self._handler.handle(
+            event_type=record.event_type,
+            payload=record.payload,
+            correlation_id=record.correlation_id,
+            causation_id=record.causation_id,
+            event_version=record.event_version,
+            session=self._session,
+        )
+
+    async def mark_processed(self, record: InboxProcessingRecord) -> None:
+        assert self._repo is not None
+        await self._repo.mark_processed(record.id)
+
+    async def mark_dead(self, record: InboxProcessingRecord) -> None:
+        assert self._repo is not None
+        await self._repo.mark_dead(record.id, record.error or "max attempts exceeded")
+
+    async def mark_retryable(self, record: InboxProcessingRecord) -> None:
+        assert self._repo is not None
+        backoff = timedelta(seconds=RETRY_BACKOFF_BASE_SECONDS * (record.attempts + 1))
+        available_at = datetime.now(timezone.utc) + backoff
+        await self._repo.mark_retryable(
+            record.id, record.error or "transient failure", available_at
+        )

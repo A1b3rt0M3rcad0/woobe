@@ -7,6 +7,8 @@ from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from sqlalchemy import Index, UniqueConstraint, text
+
 from shared.infra.database.base import BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
 from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
@@ -16,7 +18,7 @@ class TraceModel(BaseModel):
     __tablename__ = "traces"
     __table_args__ = {"schema": "observability"}
 
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     agent_id: Mapped[UUID | None]
     session_id: Mapped[UUID | None]
     external_session_id: Mapped[str | None] = mapped_column(String(255))
@@ -39,7 +41,7 @@ class TraceEventModel(BaseModel):
     __table_args__ = {"schema": "observability"}
 
     trace_id: Mapped[UUID] = mapped_column(ForeignKey("observability.traces.id"))
-    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    project_id: Mapped[UUID]
     event_type: Mapped[str] = mapped_column(String(64))
     latency_ms: Mapped[float | None] = mapped_column(Float)
     cost_usd: Mapped[float | None] = mapped_column(Float)
@@ -49,9 +51,33 @@ class TraceEventModel(BaseModel):
 
 class OutboxEventModel(BaseOutbox):
     __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "observability"}
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_observability_outbox_idempotency_key"),
+        Index(
+            "ix_observability_outbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('pending', 'retryable')"),
+        ),
+        Index("ix_observability_outbox_correlation_id", "correlation_id"),
+        Index("ix_observability_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        {"schema": "observability"},
+    )
 
 
 class InboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
-    __table_args__ = {"schema": "observability"}
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_observability_inbox_message_id"),
+        UniqueConstraint("idempotency_key", name="uq_observability_inbox_idempotency_key"),
+        Index(
+            "ix_observability_inbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('received', 'retryable')"),
+        ),
+        Index("ix_observability_inbox_correlation_id", "correlation_id"),
+        {"schema": "observability"},
+    )

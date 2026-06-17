@@ -17,7 +17,12 @@ class OutboxEventModel(BaseModel):
     aggregate_id: Mapped[UUID]
     event_type: Mapped[str] = mapped_column(String(255))
     event_version: Mapped[int] = mapped_column(Integer, default=1)
+    routing_key: Mapped[str] = mapped_column(String(255))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    correlation_id: Mapped[UUID | None]
+    causation_id: Mapped[UUID | None]
     status: Mapped[str] = mapped_column(String(32), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     available_at: Mapped[datetime] = mapped_column(
@@ -25,7 +30,7 @@ class OutboxEventModel(BaseModel):
         default=utc_now,
         server_default=text("now()"),
     )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
-    correlation_id: Mapped[UUID | None]
-    causation_id: Mapped[UUID | None]

@@ -75,8 +75,10 @@ class CreateUserUseCase:
         await self._outbox.write(
             aggregate_type="user",
             aggregate_id=saved.id,
-            event_type="user.created",
+            event_type="user.created.v1",
             payload={"email": saved.email},
+            routing_key="user.created.v1",
+            idempotency_key=f"identity:user.created.v1:{saved.id}",
         )
 
         return CreateUserOutput(
@@ -110,8 +112,10 @@ class CreateOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved.id,
-            event_type="organization.created",
+            event_type="organization.created.v1",
             payload={"name": saved.name, "slug": saved.slug},
+            routing_key="organization.created.v1",
+            idempotency_key=f"identity:organization.created.v1:{saved.id}",
         )
 
         return CreateOrganizationOutput(
@@ -163,12 +167,14 @@ class AddMemberToOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization_member",
             aggregate_id=saved.id,
-            event_type="organization.member_added",
+            event_type="organization.member_added.v1",
             payload={
                 "user_id": str(saved.user_id),
                 "organization_id": str(saved.organization_id),
                 "role": saved.role.value,
             },
+            routing_key="organization.member_added.v1",
+            idempotency_key=f"identity:organization.member_added.v1:{saved.id}",
         )
 
         return AddMemberOutput(
@@ -213,8 +219,10 @@ class UpdateOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved.id,
-            event_type="organization.updated",
+            event_type="organization.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
+            routing_key="organization.updated.v1",
+            idempotency_key=f"identity:organization.updated.v1:{saved.id}",
         )
 
         return UpdateOrganizationOutput(
@@ -264,12 +272,14 @@ class InviteUserUseCase:
         await self._outbox.write(
             aggregate_type="organization_invite",
             aggregate_id=saved.id,
-            event_type="organization.invite_created",
+            event_type="organization.invite_created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "email": saved.email,
                 "role": saved.role.value,
             },
+            routing_key="organization.invite_created.v1",
+            idempotency_key=f"identity:organization.invite_created.v1:{saved.id}",
         )
 
         return InviteUserOutput(
@@ -339,8 +349,10 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="user",
             aggregate_id=saved_user.id,
-            event_type="user.created",
+            event_type="user.created.v1",
             payload={"email": saved_user.email},
+            routing_key="user.created.v1",
+            idempotency_key=f"identity:user.created.v1:{saved_user.id}",
         )
 
         org = Organization(
@@ -352,8 +364,10 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved_org.id,
-            event_type="organization.created",
+            event_type="organization.created.v1",
             payload={"name": saved_org.name, "slug": saved_org.slug},
+            routing_key="organization.created.v1",
+            idempotency_key=f"identity:organization.created.v1:{saved_org.id}",
         )
 
         member = OrganizationMember(
@@ -367,12 +381,14 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="organization_member",
             aggregate_id=member.id,
-            event_type="organization.member_added",
+            event_type="organization.member_added.v1",
             payload={
                 "user_id": str(member.user_id),
                 "organization_id": str(member.organization_id),
                 "role": member.role.value,
             },
+            routing_key="organization.member_added.v1",
+            idempotency_key=f"identity:organization.member_added.v1:{member.id}",
         )
 
         token = base64.b64encode(str(saved_user.id).encode()).decode()

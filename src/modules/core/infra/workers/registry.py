@@ -4,10 +4,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.core.infra.messaging.inbox_handlers import CoreInboxEventRouter
 from modules.core.infra.messaging.publishers import CoreRabbitMQPublisher
-from modules.core.infra.workers.inbox_consumer import CoreInboxConsumerWorker
-from modules.core.infra.workers.inbox_processor import CoreInboxProcessorWorker
 from modules.core.infra.workers.outbox_dispatcher import CoreOutboxDispatcherWorker
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
@@ -40,19 +37,6 @@ def register_core_workers(
         publisher=publisher,
     )
     registry.register(outbox_dispatcher)
-
-    inbox_consumer = CoreInboxConsumerWorker(
-        async_engine=engine,
-        rabbitmq_manager=rabbitmq_manager,
-    )
-    registry.register(inbox_consumer)
-
-    inbox_handler_router = CoreInboxEventRouter()
-    inbox_processor = CoreInboxProcessorWorker(
-        async_engine=engine,
-        handler=inbox_handler_router,
-    )
-    registry.register(inbox_processor)
 
 
 assert isinstance(CoreWorkerRegistry, type)

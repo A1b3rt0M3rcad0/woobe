@@ -1,47 +1,100 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from modules.metering.infra.database.models import InboxEventModel
-from modules.metering.infra.messaging.inbox_handlers import MeteringInboxEventRouter
+from modules.metering.infra.database.repositories import SQLAlchemyMeteringInboxRepository
+from modules.metering.infra.messaging.event_mappers import rabbit_message_to_inbox
+from shared.infra.rabbitmq import RabbitMQManager
+from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
 logger = logging.getLogger(__name__)
 
+METERING_INBOX_QUEUE: str = "metering.inbox"
+METERING_INBOX_ROUTING_KEYS: list[str] = [
+    "agent.execution.requested.v1",
+    "agent.execution.started.v1",
+    "agent.execution.llm_completed.v1",
+    "agent.execution.tool_completed.v1",
+    "agent.execution.fallback_triggered.v1",
+    "agent.execution.completed.v1",
+    "agent.execution.failed.v1",
+]
 
-class MeteringInboxConsumerWorker:
-    def __init__(self, async_engine: AsyncEngine, router: MeteringInboxEventRouter) -> None:
-        self._async_engine = async_engine
-        self._router = router
 
-    async def run(self) -> None:
+class MeteringInboxConsumerWorker(BaseInboxConsumer):
+    def __init__(
+        self,
+        async_engine: AsyncEngine,
+        rabbitmq_manager: RabbitMQManager,
+        queue_name: str = METERING_INBOX_QUEUE,
+        routing_keys: list[str] | None = None,
+        worker_id: str | None = None,
+    ) -> None:
+        super().__init__(async_engine)
+        self._rabbitmq_manager = rabbitmq_manager
+        self._queue_name = queue_name
+        self._routing_keys = routing_keys or list(METERING_INBOX_ROUTING_KEYS)
+        self._worker_id = worker_id or f"inbox-consumer-{os.getpid()}"
+
+    async def consume(self) -> None:
+        await self._rabbitmq_manager.consume(
+            queue_name=self._queue_name,
+            routing_keys=self._routing_keys,
+            callback=self._on_message,
+        )
+
+    async def _on_message(self, message: Any) -> None:
+        try:
+            inbox_model = rabbit_message_to_inbox(message)
+            await self._persist_and_ack(message, inbox_model)
+        except (ValueError, KeyError) as exc:
+            logger.warning("Invalid message rejected: %s", str(exc))
+            await self.reject(message, str(exc))
+
+    async def _persist_and_ack(self, message: Any, inbox_model: Any) -> None:
         async with AsyncSession(self._async_engine) as session:
-            stmt = (
-                select(InboxEventModel)
-                .where(InboxEventModel.status == "pending")
-                .order_by(InboxEventModel.created_at.asc())
-                .limit(50)
-                .with_for_update(skip_locked=True)
-            )
-            result = await self._execute(session, stmt)
-            events = list(result.scalars().all())
-
-            for event in events:
+            async with session.begin():
+                repo = SQLAlchemyMeteringInboxRepository(session)
                 try:
-                    await self._router.handle(
-                        event_type=event.event_type,
-                        payload=event.payload,
+                    await repo.save_received(inbox_model)
+                except IntegrityError:
+                    await session.rollback()
+                    logger.debug(
+                        "Duplicate message acknowledged (idempotency_key=%s)",
+                        getattr(inbox_model, "idempotency_key", "unknown"),
                     )
-                    event.status = "processed"
-                except Exception:
-                    logger.exception("Failed to process inbox event %s", event.id)
-                    event.status = "failed"
+        await self.acknowledge(message)
 
-            await session.commit()
+    async def persist_inbox(self, record: InboxRecord) -> None:
+        async with AsyncSession(self._async_engine) as session:
+            async with session.begin():
+                repo = SQLAlchemyMeteringInboxRepository(session)
+                from modules.metering.infra.database.models import InboxEventModel
 
-    @staticmethod
-    async def _execute(session: AsyncSession, stmt: Any) -> Any:
-        return await session.execute(stmt)
+                model = InboxEventModel()
+                model.event_type = record.event_type
+                model.event_version = record.event_version
+                model.payload = record.payload
+                model.correlation_id = record.correlation_id
+                model.causation_id = record.causation_id
+                model.outbox_origin_id = record.outbox_origin_id
+                model.aggregate_type = record.aggregate_type
+                model.status = "received"
+                model.attempts = 0
+                await repo.save_received(model)
+
+    async def acknowledge(self, message: Any) -> None:
+        if hasattr(message, "ack"):
+            await message.ack()
+
+    async def reject(self, message: Any, error: str) -> None:
+        logger.warning("Rejecting message: %s", error)
+        if hasattr(message, "nack"):
+            await message.nack(requeue=False)
+        elif hasattr(message, "reject"):
+            await message.reject(requeue=False)
