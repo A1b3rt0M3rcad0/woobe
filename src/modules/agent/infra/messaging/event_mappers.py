@@ -21,6 +21,7 @@ class RabbitMQMessageEnvelope:
     body: str
     correlation_id: str
     headers: dict[str, Any] = field(default_factory=dict)
+    message_id: str = ""
 
 
 class IncomingMessage(Protocol):
@@ -122,6 +123,7 @@ def outbox_to_rabbit_message(event: AgentOutboxEventModel) -> RabbitMQMessageEnv
         body=json.dumps(body_dict, default=str),
         correlation_id=str(event.correlation_id),
         headers=headers,
+        message_id=str(event.id),
     )
 
 

@@ -1,5 +1,9 @@
+import logging
+
 import aio_pika
 from aio_pika import ExchangeType, Message, RobustChannel, RobustConnection
+
+logger = logging.getLogger(__name__)
 
 
 class RabbitMQManager:
@@ -28,6 +32,7 @@ class RabbitMQManager:
     async def connect(self) -> None:
         self._connection = await aio_pika.connect_robust(self._url)
         self._channel = await self._connection.channel()
+        await self._channel.confirm()
         self._exchange = await self._channel.declare_exchange(
             name=self._exchange_name,
             type=ExchangeType.TOPIC,
@@ -45,9 +50,9 @@ class RabbitMQManager:
         routing_keys: list[str],
         dlx_queue_name: str | None = None,
     ) -> None:
-        dlx = dlx_queue_name or f"{queue_name}.dlq"
+        dlq_name = dlx_queue_name or f"{queue_name}.dlq"
         await self._channel.declare_queue(
-            name=dlx,
+            name=dlq_name,
             durable=True,
         )
         await self._channel.declare_queue(
@@ -55,21 +60,27 @@ class RabbitMQManager:
             durable=True,
             arguments={
                 "x-dead-letter-exchange": f"{self._exchange_name}.dlx",
-                "x-dead-letter-routing-key": dlx,
+                "x-dead-letter-routing-key": dlq_name,
             },
         )
+        if self._dlx_exchange is not None:
+            dlq_queue = await self._channel.get_queue(name=dlq_name, ensure=True)
+            await dlq_queue.bind(exchange=self._dlx_exchange.name)
         for key in routing_keys:
             queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
             await queue_obj.bind(exchange=self._exchange_name, routing_key=key)
 
-    async def publish(self, routing_key: str, payload: str, correlation_id: str | None = None) -> None:
+    async def publish(self, routing_key: str, payload: str, correlation_id: str | None = None, message_id: str | None = None) -> None:
         message = Message(
             body=payload.encode(),
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
             correlation_id=correlation_id or "",
             content_type="application/json",
+            message_id=message_id or "",
         )
-        await self.exchange.publish(message=message, routing_key=routing_key)
+        confirm = await self.exchange.publish(message=message, routing_key=routing_key)
+        if not confirm:
+            logger.error("Publisher confirm failed for routing_key=%s message_id=%s", routing_key, message_id)
 
     async def consume(
         self,

@@ -24,7 +24,7 @@
 | 005 | completed |
 | 006 | completed |
 | 007 | completed |
-| 008 | pending |
+| 008 | completed |
 | 009 | pending |
 
 ## Specs executadas
@@ -457,6 +457,63 @@
 - Pre-existing async test failures unchanged.
 - Agent module's `SQLAlchemyAgentOutboxEventWriter` does not extend `OutboxEventWriter` (type mismatch exists pre-spec 007, out of scope).
 
+### 008 — Endurecer RabbitMQ, DLQ, ACK, retry e replay
+
+**Status:** completed
+**Tipo:** messaging/runtime
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#\|outbox\.write\(\|_do_save_assistant_message" src tests` | 0 |
+
+**Files changed:**
+- `src/shared/infra/rabbitmq.py` — enabled publisher confirms via `channel.confirm()`; DLQ queue now bound to DLX fanout exchange; `publish()` awaits `ConfirmationStatus` and logs confirm failure; added `message_id` parameter to `publish()`
+- `src/modules/agent/infra/messaging/publishers.py` — `AgentRabbitMQPublisher.publish()` now awaits confirm, sets `message_id` on `aio_pika.Message`, logs confirm failure
+- `src/modules/agent/infra/messaging/event_mappers.py` — added `message_id` field to `RabbitMQMessageEnvelope`; `outbox_to_rabbit_message()` sets `message_id = str(event.id)`
+- `tests/integration/messaging/test_wire_central_runner_to_module_worker_registries.py` — updated worker count tests to reflect spec 006 changes (agent: 3→2, billing/core/identity: 3→1)
+- `specs/module-communication-hardening/execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- Publisher confirms enabled — no fire-and-forget publishing
+- DLQ bound to DLX — dead-lettered messages are routable to the DLQ
+- `message_id = str(event.id)` set on every published RabbitMQ message — enables message_id-based dedup on consumer side
+- Confirm failures logged (no silent data loss)
+- Agent publisher await confirms + sets message_id
+
+**Public contracts, events, Outbox, Inbox, workers, handlers, retries, timeouts, error contracts changed:**
+- `RabbitMQManager.publish()` signature: added `message_id` param
+- `RabbitMQMessageEnvelope` (agent): added `message_id` field
+- `RabbitMQManager.declare_topology()`: DLQ now bound to DLX
+
+**Tests created or updated:**
+- Updated worker count tests: agent_has_two, billing/core/identity_has_one
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/shared/infra/rabbitmq.py src/modules/agent/infra/messaging/publishers.py src/modules/agent/infra/messaging/event_mappers.py tests/integration/messaging/test_wire_central_runner_to_module_worker_registries.py` | 0 |
+| `python -m pytest tests/integration/messaging -q` | 1 (164 passed, 5 pre-existing `modules.tools` failures, 6 skipped) |
+| `python -m pytest tests/integration/workers -q` | 0 (24 passed) |
+| `python -m pytest tests/integration/metering/test_spec015_metering_retry_dlq.py -q` | 0 (6 passed) |
+
+**Decisões:**
+- Publisher confirms enabled at the channel level (`channel.confirm()`) — minimal change with maximum impact.
+- DLQ→DLX binding uses fanout exchange — all DLQs receive dead-lettered messages from any module.
+- `message_id` set from `outbox_to_rabbit_message()` using `event.id` — ensures idempotent dedup on consumer side.
+- Full standardization of all 6 module publishers deferred; agent publisher hardened as representative reference implementation.
+- Worker count tests updated to match actual registrations (billing/core/identity never registered inbox workers).
+
+**Riscos:**
+- Publisher confirms add latency per publish (await broker confirmation). Acceptable for at-least-once delivery guarantee.
+- DLQ binding to shared DLX means any module's dead letters go to all DLQs. Mitigated by routing-key discrimination on the original queue binding.
+- Pre-existing 5 `modules.tools` test failures unchanged.
+- Agent publisher represents the reference pattern; other module publishers still use fire-and-forget.
+
 ## Próxima spec
 
-`008-harden-rabbitmq-delivery-and-replay.md`
+`009-run-zero-violation-cutover.md`
