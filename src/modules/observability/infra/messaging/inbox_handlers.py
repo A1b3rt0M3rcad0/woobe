@@ -27,6 +27,7 @@ async def _project(
     )
 
 
+handle_trace_requested = _project
 handle_trace_started = _project
 handle_llm_call = _project
 handle_tool_call = _project
@@ -35,6 +36,7 @@ handle_trace_completed = _project
 handle_trace_failed = _project
 
 HANDLER_MAP: dict[str, EventHandler] = {
+    "agent.execution.requested.v1": handle_trace_requested,
     "agent.execution.started.v1": handle_trace_started,
     "agent.execution.llm_completed.v1": handle_llm_call,
     "agent.execution.tool_completed.v1": handle_tool_call,
