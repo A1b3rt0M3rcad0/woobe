@@ -60,6 +60,8 @@ class CreateTraceUseCase:
                 "status": saved.status,
                 "provider": saved.provider,
             },
+            routing_key="trace.created.v1",
+            idempotency_key=f"observability:trace.created.v1:{saved.id}",
         )
 
         return CreateTraceOutput(trace_id=saved.id)
@@ -97,6 +99,8 @@ class CreateTraceEventUseCase:
                 "trace_id": str(saved.trace_id),
                 "event_type": saved.event_type,
             },
+            routing_key="trace_event.created.v1",
+            idempotency_key=f"observability:trace_event.created.v1:{saved.id}",
         )
 
         return CreateTraceEventOutput(event_id=saved.id)

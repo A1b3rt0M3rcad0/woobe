@@ -12,6 +12,8 @@ class OutboxEventWriter(ABC):
         aggregate_id: UUID,
         event_type: str,
         payload: dict[str, Any],
+        routing_key: str,
+        idempotency_key: str,
         event_version: int = 1,
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,

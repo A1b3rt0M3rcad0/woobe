@@ -40,6 +40,8 @@ class CreateProjectUseCase:
                 "name": saved.name,
                 "slug": saved.slug,
             },
+            routing_key="project.created.v1",
+            idempotency_key=f"core:project.created.v1:{saved.id}",
         )
 
         return CreateProjectOutput(

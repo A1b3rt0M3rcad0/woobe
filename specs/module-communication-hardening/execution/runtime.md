@@ -23,7 +23,7 @@
 | 004 | completed |
 | 005 | completed |
 | 006 | completed |
-| 007 | pending |
+| 007 | completed |
 | 008 | pending |
 | 009 | pending |
 
@@ -398,6 +398,65 @@
 - Pre-existing async test failures (pytest-asyncio) unchanged.
 - Agent inbox consumer/processor files remain on disk but unregistered.
 
+### 007 — Padronizar produtores Outbox de todos os módulos
+
+**Status:** completed
+**Tipo:** messaging/modules
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#\|outbox\.write\(\|_do_save_assistant_message" src tests` | 0 (legacy patterns only in characterization tests) |
+
+**Files changed:**
+- `src/shared/messaging/outbox_writer.py` — added `routing_key` and `idempotency_key` required params to `OutboxEventWriter.write()` ABC
+- `src/modules/billing/infra/database/repositories.py` — `SQLAlchemyOutboxEventWriter.write()` now accepts `routing_key`+`idempotency_key`, passes `event_version` to model
+- `src/modules/core/infra/database/repositories.py` — same change
+- `src/modules/identity/infra/database/repositories.py` — same change
+- `src/modules/metering/infra/database/repositories.py` — same change
+- `src/modules/observability/infra/database/repositories.py` — same change
+- `src/modules/billing/application/use_cases/billing_use_cases.py` — 4 calls updated with `routing_key`+`idempotency_key`
+- `src/modules/core/application/use_cases/create_project_use_case.py` — 1 call updated
+- `src/modules/core/application/use_cases/create_api_key_use_case.py` — 1 call updated
+- `src/modules/core/application/use_cases/update_project_use_case.py` — 1 call updated
+- `src/modules/identity/application/use_cases/identity_use_cases.py` — 8 calls updated
+- `src/modules/metering/application/use_cases/metering_use_cases.py` — 1 call updated
+- `src/modules/observability/application/use_cases/observability_use_cases.py` — 2 calls updated
+
+**Communication paths hardened:**
+- All 18 standard-module `outbox.write()` call sites now pass `routing_key` (= event_type) and `idempotency_key` (= `{module}:{event_type}:{aggregate_id}`)
+- `event_version` parameter no longer silently dropped — now passed to `OutboxEventModel`
+
+**Public contracts, events, Outbox, Inbox, workers, handlers, retries, timeouts, error contracts changed:**
+- `OutboxEventWriter.write()` ABC signature: added `routing_key: str` and `idempotency_key: str` as required params
+- All 5 standard module writers updated to match new signature
+
+**Tests created or updated:**
+- Nenhum — existing architecture test `test_characterization_unversioned_events.py` already guards against unversioned events
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/shared/messaging/outbox_writer.py src/modules/billing/... src/modules/core/... src/modules/identity/... src/modules/metering/... src/modules/observability/...` | 0 |
+| `python -m pytest tests/architecture/test_event_versioning.py -q` | 0 (2 passed) |
+| `python -m pytest tests/contract/events -q` | 0 (19 passed) |
+| `python -m pytest tests/integration/billing tests/integration/core tests/integration/identity -q` | 0 (7 passed) |
+| `python -m pytest tests/architecture/test_characterization_unversioned_events.py -v` | 0 (2 passed) |
+
+**Decisões:**
+- `routing_key` defaults to matching `event_type` in all call sites (canonical pattern).
+- `idempotency_key` pattern: `{module}:{event_type}:{aggregate_id}` ensures uniqueness across modules.
+- Agent module writers NOT affected (use different signature `write(event: AgentDomainEvent)`).
+- `event_version` now correctly passed to model (was silently defaulting to 1).
+
+**Riscos:**
+- Pre-existing async test failures unchanged.
+- Agent module's `SQLAlchemyAgentOutboxEventWriter` does not extend `OutboxEventWriter` (type mismatch exists pre-spec 007, out of scope).
+
 ## Próxima spec
 
-`007-standardize-all-module-producers.md`
+`008-harden-rabbitmq-delivery-and-replay.md`

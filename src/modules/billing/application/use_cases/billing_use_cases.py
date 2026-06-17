@@ -60,6 +60,8 @@ class CreatePlanUseCase:
                 "name": saved.name,
                 "price_usd": saved.price_usd,
             },
+            routing_key="plan.created.v1",
+            idempotency_key=f"billing:plan.created.v1:{saved.id}",
         )
 
         return CreatePlanOutput(plan_id=saved.id)
@@ -93,6 +95,8 @@ class CreateCustomerUseCase:
                 "organization_id": str(saved.organization_id),
                 "provider": saved.provider,
             },
+            routing_key="customer.created.v1",
+            idempotency_key=f"billing:customer.created.v1:{saved.id}",
         )
 
         return CreateCustomerOutput(customer_id=saved.id)
@@ -133,6 +137,8 @@ class CreateSubscriptionUseCase:
                 "plan_id": str(saved.plan_id),
                 "status": saved.status,
             },
+            routing_key="subscription.created.v1",
+            idempotency_key=f"billing:subscription.created.v1:{saved.id}",
         )
 
         return CreateSubscriptionOutput(subscription_id=saved.id)
@@ -181,6 +187,8 @@ class HandlePaymentEventUseCase:
                 "provider_event_id": input_dto.provider_event_id,
                 "subscription_id": str(input_dto.subscription_id) if input_dto.subscription_id else None,
             },
+            routing_key=f"payment_event.{input_dto.event_type}",
+            idempotency_key=f"billing:payment_event.{input_dto.event_type}:{saved.id}",
         )
 
         return CreatePaymentEventOutput(event_id=saved.id)
