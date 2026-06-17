@@ -94,7 +94,7 @@ class AskAgentStreamService:
                     history = await self._load_history(uow.messages, session)
 
                 if session:
-                    await self._save_user_message(uow.sessions, uow.messages, session, input_dto.message, agent)
+                    await self._save_user_message(uow.messages, uow.sessions, session, input_dto.message, agent)
 
                 trace_id = uuid4()
                 rag_context, sources = await self._load_rag_context(

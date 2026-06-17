@@ -577,7 +577,7 @@ class AskAgentUseCase:
 
             message_id = None
             if session:
-                assistant_msg = self._do_save_assistant_message(
+                assistant_msg = await self._do_save_assistant_message(
                     message_repo, session_repo, outbox,
                     session, answer, usage, agent,
                     tool_calls=tool_calls_recorded,
