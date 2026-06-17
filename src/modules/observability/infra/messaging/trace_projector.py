@@ -253,20 +253,11 @@ async def project_agent_event(
     )
     await trace_repo.save(trace)
 
-    await _save_event(
-        event_repo,
-        trace_id=trace_id,
-        project_id=project_id,
-        discriminator="completed",
-        kind=TraceEventType.info,
-        latency_ms=trace.total_latency_ms,
-        cost_usd=trace.total_cost_usd,
-        payload={"event": event_type, **payload},
-    )
-
     # The real LLM event is authoritative. Do not overwrite it with the
     # completion snapshot, which contains only a subset of its payload.
 
+    # Persist Tool events before the terminal completion event so their
+    # physical created_at ordering matches the execution lifecycle.
     tool_calls = payload.get("tool_calls")
     if isinstance(tool_calls, list):
         for index, raw in enumerate(tool_calls):
@@ -285,5 +276,16 @@ async def project_agent_event(
                     **tool,
                 },
             )
+
+    await _save_event(
+        event_repo,
+        trace_id=trace_id,
+        project_id=project_id,
+        discriminator="completed",
+        kind=TraceEventType.info,
+        latency_ms=trace.total_latency_ms,
+        cost_usd=trace.total_cost_usd,
+        payload={"event": event_type, **payload},
+    )
 
     logger.info("Trace projection completed: trace_id=%s", trace_id)
