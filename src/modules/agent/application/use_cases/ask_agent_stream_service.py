@@ -1,16 +1,12 @@
-from __future__ import annotations
-
 import json
 import logging
-from collections.abc import Callable
-from typing import Any, AsyncGenerator
+from datetime import datetime, timezone
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
-from modules.agent.domain.ports.llm_factory import LLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -21,23 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class AskAgentStreamService:
-    """SSE adapter over the canonical Agent execution use case.
-
-    The canonical use case owns persistence and emits the Agent Outbox events in
-    the same transaction. Reusing it here prevents the streaming and non-streaming
-    paths from diverging on structured output, Tool calls, fallback and trace data.
-    """
-
-    def __init__(
-        self,
-        session_factory: Callable[..., Any],
-        llm_factory: LLMFactory,
-    ) -> None:
+    def __init__(self, session_factory, llm_factory):
         self._session_factory = session_factory
         settings = Settings()
         self._cipher = SecretCipherAdapter(settings.encryption_key)
         self._http_executor = HttpToolExecutor()
-        self._use_case = AskAgentUseCase(
+        self._use_case = StructuredOutputAskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
             encryption_key=settings.encryption_key,
@@ -47,17 +32,17 @@ class AskAgentStreamService:
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         async with AgentUnitOfWork(self._session_factory) as uow:
             resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
-            use_case = ExecuteToolUseCase(
+            result = await ExecuteToolUseCase(
                 tool_repo=uow.tools,
                 tool_executor=self._http_executor,
                 secret_resolver=resolver,
-            )
-            result = await use_case.execute(
-                ExecuteToolInput(tool_id=tool_id, input_data=input_data)
-            )
+            ).execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
             return result.model_dump()
 
-    async def generate(self, input_dto: AskInput) -> AsyncGenerator[str, None]:
+    async def generate(self, input_dto: AskInput):
+        metadata = dict(input_dto.metadata or {})
+        metadata.setdefault("server_received_at", datetime.now(timezone.utc).isoformat())
+        input_dto = input_dto.model_copy(update={"metadata": metadata})
         try:
             output = await self._use_case.execute(input_dto)
         except Exception as exc:
@@ -65,58 +50,43 @@ class AskAgentStreamService:
             yield self._sse_event("error", {"message": str(exc)})
             return
 
+        yield self._sse_event("meta", {
+            "session_id": str(output.session_id) if output.session_id else None,
+            "trace_id": str(output.trace_id) if output.trace_id else None,
+            "occurred_at": metadata["server_received_at"],
+        })
+        for event in getattr(output, "execution_events", []) or []:
+            yield self._sse_event("trace_event", {"event": event})
         if output.sources:
-            yield self._sse_event(
-                "sources",
-                {"sources": [source.model_dump() for source in output.sources]},
-            )
-
-        yield self._sse_event(
-            "meta",
-            {
-                "session_id": str(output.session_id) if output.session_id else None,
-                "trace_id": str(output.trace_id) if output.trace_id else None,
-            },
-        )
-
-        for tool_call in output.tool_calls or []:
-            yield self._sse_event(
-                "tool_call",
-                {
-                    "tool_call_id": tool_call.tool_call_id,
-                    "tool_name": tool_call.tool_name,
-                    "input": tool_call.input,
-                    "output": tool_call.output,
-                    "duration_ms": tool_call.duration_ms,
-                    "success": tool_call.success,
-                    "error": tool_call.error,
-                },
-            )
-
+            yield self._sse_event("sources", {
+                "sources": [source.model_dump() for source in output.sources]
+            })
         if output.answer:
-            yield self._sse_event("token", {"content": output.answer})
-
-        yield self._sse_event(
-            "done",
-            {
-                "answer": output.answer,
-                "session_id": str(output.session_id) if output.session_id else None,
-                "message_id": str(output.message_id) if output.message_id else None,
-                "usage": output.usage.model_dump() if output.usage else None,
-                "sources": [source.model_dump() for source in output.sources],
-                "model": output.model,
-                "provider": output.provider,
-                "latency_ms": output.latency_ms,
-                "trace_id": str(output.trace_id) if output.trace_id else None,
-                "parsed_output": output.parsed_output,
-                "output_parse_error": output.output_parse_error,
-                "fallback_used": output.fallback_used,
-                "fallback_info": output.fallback_info,
-                "tool_calls": [tool.model_dump() for tool in output.tool_calls],
-            },
-        )
+            yield self._sse_event("token", {
+                "content": output.answer,
+                "occurred_at": datetime.now(timezone.utc).isoformat(),
+                "synthetic_full_answer": True,
+            })
+        yield self._sse_event("done", {
+            "answer": output.answer,
+            "session_id": str(output.session_id) if output.session_id else None,
+            "message_id": str(output.message_id) if output.message_id else None,
+            "usage": output.usage.model_dump() if output.usage else None,
+            "sources": [source.model_dump() for source in output.sources],
+            "tool_calls": [tool.model_dump() for tool in output.tool_calls],
+            "trace_id": str(output.trace_id) if output.trace_id else None,
+            "model": output.model,
+            "provider": output.provider,
+            "latency_ms": output.latency_ms,
+            "fallback_used": output.fallback_used,
+            "fallback_info": output.fallback_info,
+            "parsed_output": output.parsed_output,
+            "output_parse_error": output.output_parse_error,
+            "execution_events": getattr(output, "execution_events", []),
+            "diagnostics": getattr(output, "diagnostics", None),
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+        })
 
     @staticmethod
-    def _sse_event(event_type: str, data: dict[str, Any]) -> str:
-        payload = {"type": event_type, **data}
-        return f"data: {json.dumps(payload, default=str)}\n\n"
+    def _sse_event(event_type, data):
+        return f"data: {json.dumps({'type': event_type, **data}, default=str)}\n\n"
