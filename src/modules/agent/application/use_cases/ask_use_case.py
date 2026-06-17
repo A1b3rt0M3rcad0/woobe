@@ -455,7 +455,7 @@ class AskAgentUseCase:
                 session_id=session.id if session else None,
                 payload=execution_payload,
             )
-            outbox.write(requested_event)
+            await outbox.write(requested_event)
 
         return agent, session, trace_id, api_key, base_url, response_format, json_enabled, \
             agent_tools, tool_name_to_id, has_tools, sources, messages, history
@@ -536,7 +536,7 @@ class AskAgentUseCase:
                     max_tokens=agent.max_output_tokens or 1000,
                     response_format={"type": "json_object"},
                 )
-                json_model.ainvoke([
+                await json_model.ainvoke([
                     SystemMessage(
                         content=(
                             "Responda APENAS com JSON válido seguindo este schema.\n"
@@ -611,14 +611,14 @@ class AskAgentUseCase:
                     session_id=session.id if session else None,
                     payload=fallback_info_result,
                 )
-                outbox.write(fallback_event)
+                await outbox.write(fallback_event)
 
             completed_event = AgentExecutionCompletedV1.create(
                 agent_id=agent.id,
                 session_id=session.id if session else None,
                 payload=completion_payload,
             )
-            outbox.write(completed_event)
+            await outbox.write(completed_event)
 
         return AskOutput(
             answer=answer,
@@ -658,7 +658,7 @@ class AskAgentUseCase:
                         "error": error,
                     },
                 )
-                outbox.write(failed_event)
+                await outbox.write(failed_event)
         except Exception as e:
             logger.warning("Failed to emit AgentExecutionFailedV1: %s", e)
 
@@ -827,8 +827,8 @@ class AskAgentUseCase:
         session.last_message_at = utc_now()
         try:
             await session_repo.update(session)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to update session after saving user message: %s", e)
         return created
 
     async def _do_save_assistant_message(
@@ -854,8 +854,8 @@ class AskAgentUseCase:
         session.last_message_at = utc_now()
         try:
             await session_repo.update(session)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to update session after saving assistant message: %s", e)
 
         event = AgentMessageCreatedV1.create(
             message_id=created.id,
@@ -864,7 +864,7 @@ class AskAgentUseCase:
             agent_id=session.agent_id,
             role="assistant",
         )
-        outbox.write(event)
+        await outbox.write(event)
         return created
 
     async def _load_history(

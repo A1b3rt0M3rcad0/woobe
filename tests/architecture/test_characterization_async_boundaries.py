@@ -8,16 +8,11 @@ Corrective spec: 001
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-KNOWN_VIOLATIONS: dict[str, list[int]] = {
-    "src/modules/agent/application/use_cases/ask_use_case.py": [458, 614, 621, 661, 867],
-    "src/modules/agent/application/use_cases/ask_agent_stream_service.py": [121, 408, 453, 460],
-    "src/modules/agent/application/use_cases/runtime_use_cases.py": [211],
-}
+KNOWN_VIOLATIONS: dict[str, list[int]] = {}
 
 
 def _relative_posix(path: Path) -> str:

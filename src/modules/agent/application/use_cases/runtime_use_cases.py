@@ -208,7 +208,7 @@ class CreateAskJobUseCase:
                     "session_id": str(input_dto.session_id) if input_dto.session_id else None,
                 },
             )
-            self._outbox.write(event)
+            await self._outbox.write(event)
 
         return CreateAskJobOutput(job_id=created.id, status="pending")
 

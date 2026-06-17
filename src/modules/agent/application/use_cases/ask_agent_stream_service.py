@@ -118,7 +118,7 @@ class AskAgentStreamService:
                     session_id=session.id if session else None,
                     payload=execution_payload,
                 )
-                outbox.write(requested_event)
+                await outbox.write(requested_event)
 
                 if sources:
                     yield self._sse_event("sources", {"sources": [s.model_dump() for s in sources]})
@@ -405,7 +405,7 @@ class AskAgentStreamService:
                                 "error": str(e),
                             },
                         )
-                        fail_outbox.write(failed_event)
+                        await fail_outbox.write(failed_event)
             except Exception:
                 pass
             return
@@ -450,14 +450,14 @@ class AskAgentStreamService:
                         session_id=session.id if session else None,
                         payload=fallback_info_result,
                     )
-                    outbox.write(fallback_event)
+                    await outbox.write(fallback_event)
 
                 completed_event = AgentExecutionCompletedV1.create(
                     agent_id=agent.id,
                     session_id=session.id if session else None,
                     payload=completion_payload,
                 )
-                outbox.write(completed_event)
+                await outbox.write(completed_event)
 
                 total_latency = round((time.monotonic() - started_at) * 1000)
 

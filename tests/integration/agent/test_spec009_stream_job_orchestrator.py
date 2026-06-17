@@ -85,7 +85,7 @@ class TestCreateAskJobWithOutbox:
         repo = MagicMock()
         job_id = uuid4()
         repo.create = AsyncMock(return_value=MagicMock(id=job_id))
-        outbox = MagicMock()
+        outbox = AsyncMock()
         use_case = CreateAskJobUseCase(repo=repo, outbox=outbox)
 
         input_dto = CreateAskJobInput(

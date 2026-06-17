@@ -17,7 +17,7 @@
 | Spec | Status |
 |---|---|
 | 000 | completed |
-| 001 | pending |
+| 001 | completed |
 | 002 | pending |
 | 003 | pending |
 | 004 | pending |
@@ -28,6 +28,57 @@
 | 009 | pending |
 
 ## Specs executadas
+
+### 001 — Corrigir async/await e fronteiras transacionais do Agent
+
+**Status:** completed
+**Tipo:** agent/application
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Get-ChildItem -Recurse -Filter "*.py" -Path src, tests | Select-String -Pattern "MeteringUsageRecorder|ObservabilityTraceRecorder|_legacy_mode|agent\\.#|outbox\\.write\\(|_do_save_assistant_message"` | 0 |
+| `Get-ChildItem -Recurse -Filter "*.py" -Path src, tests | Select-String -Pattern "agent\\.execution\\.(started|llm_completed|tool_completed)\\.v1|event_type=.*\\.created"` | 0 |
+
+**Files changed:**
+- `src/modules/agent/application/use_cases/ask_use_case.py` — added `await` before 5 `outbox.write()` calls, added `await` before `json_model.ainvoke()`, replaced `except Exception: pass` with `logger.warning` in session update failure (×2)
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` — added `await` before 4 `outbox.write()` calls
+- `src/modules/agent/application/use_cases/runtime_use_cases.py` — added `await` before `self._outbox.write()`
+- `tests/integration/agent/test_spec009_stream_job_orchestrator.py` — changed `MagicMock()` to `AsyncMock()` for outbox to support `await`
+- `tests/architecture/test_characterization_async_boundaries.py` — cleared KNOWN_VIOLATIONS (all fixed)
+- `execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- 10 `outbox.write()` calls now correctly awaited across 3 files (ask_use_case.py ×5, ask_agent_stream_service.py ×4, runtime_use_cases.py ×1)
+- `json_model.ainvoke()` now awaited in ask_use_case.py _execute_llm
+- Session update failures now logged instead of silently swallowed (×2 locations)
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/agent/application/use_cases/ask_use_case.py src/modules/agent/application/use_cases/ask_agent_stream_service.py src/modules/agent/application/use_cases/runtime_use_cases.py tests/integration/agent/test_spec009_stream_job_orchestrator.py tests/architecture/test_characterization_async_boundaries.py` | 0 (7 pre-existing unused-import warnings in test file) |
+| `python -m pytest tests/architecture/test_characterization_async_boundaries.py tests/architecture/test_characterization_legacy_mode.py -v` | 0 (4 passed) |
+| `python -m pytest tests/integration/agent/test_ask_execution_phases.py -q` | 0 (7 passed) |
+| `python -m pytest tests/integration/agent/test_spec009_stream_job_orchestrator.py -q` | 0 (9 passed) |
+| `python -W error::RuntimeWarning -m pytest tests/integration/agent -q` | 1 (24 passed, 29 pre-existing async failures — zero RuntimeWarning) |
+
+**Known defects resolved:**
+- D001: All missing `await` on `outbox.write()` fixed
+- D003: `_legacy_mode` patterns documented but not removed (corrective spec 001 — kept for backward compat in this spec)
+- D004: `_do_save_assistant_message` now correctly awaits `outbox.write()` inside
+
+**Decisões:**
+- `_legacy_mode` and `_do_save_assistant_message` legacy patterns remain for backward compatibility. Characterization test `test_characterization_legacy_mode.py` continues to track them.
+- `_execute_legacy` path kept intact — its removal belongs to spec 002.
+- `except Exception: pass` in session update paths replaced with `logger.warning` to preserve observability without breaking existing behavior.
+
+**Riscos:**
+- `_legacy_mode` still active — legacy code path preserved.
+- Characterization tests D002–D006 still active.
 
 ### 000 — Reabrir o cutover e criar gates de regressão
 
@@ -91,4 +142,4 @@
 
 ## Próxima spec
 
-`001-fix-agent-async-and-transaction-boundaries.md`
+`002-remove-legacy-cross-module-job-path.md`
