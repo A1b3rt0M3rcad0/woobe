@@ -9,10 +9,6 @@ from modules.agent.application.use_cases.ask_agent_stream_service import AskAgen
 from modules.agent.application.dtos import AskInput
 
 
-void_datetime = datetime
-void_timezone = timezone
-
-
 def _sse_type(chunk: str) -> str | None:
     if not chunk.startswith("data:"):
         return None
@@ -47,7 +43,12 @@ async def handle_ask_stream(
     fastapi_request: FastAPIRequest,
     service: AskAgentStreamService,
 ) -> StreamingResponse:
+    received_at = datetime.now(timezone.utc).isoformat()
     body: dict = await fastapi_request.json()
+    metadata = body.get("metadata")
+    metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    metadata["server_received_at"] = received_at
+    body["metadata"] = metadata
     input_dto = AskInput(**body)
 
     return StreamingResponse(
