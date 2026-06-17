@@ -5,6 +5,7 @@ import time
 from modules.agent.application.use_cases.execution_context import (
     current_execution,
     new_execution_context,
+    utc_now,
 )
 from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecution,
@@ -18,20 +19,27 @@ from modules.agent.application.use_cases.instrumented_execution_runner import (
 
 class InstrumentedPrimaryExecutionMixin:
     async def execute(self, input_dto):
-        token = current_execution.set(new_execution_context())
+        metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
+        token = current_execution.set(
+            new_execution_context(
+                metadata.get("server_received_at"),
+                metadata.get("client_sent_at"),
+            )
+        )
         try:
             return await super().execute(input_dto)
         finally:
             current_execution.reset(token)
 
     async def _prepare(self, input_dto):
-        started = time.monotonic()
-        prepared = await super()._prepare(input_dto)
         context = current_execution.get()
         if context:
-            context.prepare_latency_ms = round(
-                (time.monotonic() - started) * 1000
-            )
+            context.prepare_started_at = utc_now()
+        started = time.monotonic()
+        prepared = await super()._prepare(input_dto)
+        if context:
+            context.prepare_ended_at = utc_now()
+            context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
             response_format = prepared[5]
             context.strict_json = bool(response_format.get("strict", False))
         return prepared
