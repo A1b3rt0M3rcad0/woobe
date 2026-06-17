@@ -28,7 +28,7 @@ class UpdateProjectUseCase:
         await self._outbox.write(
             aggregate_type="project",
             aggregate_id=saved.id,
-            event_type="project.updated",
+            event_type="project.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
         )
 

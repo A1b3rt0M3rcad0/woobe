@@ -54,7 +54,7 @@ class CreatePlanUseCase:
         await self._outbox.write(
             aggregate_type="Plan",
             aggregate_id=saved.id,
-            event_type="plan.created",
+            event_type="plan.created.v1",
             payload={
                 "code": saved.code,
                 "name": saved.name,
@@ -88,7 +88,7 @@ class CreateCustomerUseCase:
         await self._outbox.write(
             aggregate_type="Customer",
             aggregate_id=saved.id,
-            event_type="customer.created",
+            event_type="customer.created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "provider": saved.provider,
@@ -127,7 +127,7 @@ class CreateSubscriptionUseCase:
         await self._outbox.write(
             aggregate_type="Subscription",
             aggregate_id=saved.id,
-            event_type="subscription.created",
+            event_type="subscription.created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "plan_id": str(saved.plan_id),

@@ -24,6 +24,9 @@ from modules.agent.domain.repositories import (
 from modules.agent.domain.events import (
     AgentMessageCreatedV1,
     AgentExecutionRequestedV1,
+    AgentExecutionStartedV1,
+    AgentExecutionLLMCompletedV1,
+    AgentExecutionToolCompletedV1,
     AgentExecutionCompletedV1,
     AgentExecutionFailedV1,
     AgentFallbackTriggeredV1,
@@ -274,6 +277,15 @@ class AskAgentUseCase:
             )
             await outbox.write(requested_event)
 
+            started_event = AgentExecutionStartedV1.create(
+                agent_id=agent.id,
+                session_id=session.id if session else None,
+                payload={"trace_id": str(trace_id), "model": agent.model},
+                correlation_id=requested_event.correlation_id,
+                causation_id=requested_event.event_id,
+            )
+            await outbox.write(started_event)
+
         return agent, session, trace_id, api_key, base_url, response_format, json_enabled, \
             agent_tools, tool_name_to_id, has_tools, sources, messages, history
 
@@ -400,6 +412,35 @@ class AskAgentUseCase:
                     tool_calls=tool_calls_recorded,
                 )
                 message_id = assistant_msg.id
+
+            llm_completed_event = AgentExecutionLLMCompletedV1.create(
+                agent_id=agent.id,
+                session_id=session.id if session else None,
+                payload={
+                    "trace_id": str(trace_id),
+                    "latency_ms": llm_latency_ms,
+                    "input_tokens": usage.input_tokens or 0,
+                    "output_tokens": usage.output_tokens or 0,
+                    "total_tokens": usage.total_tokens or 0,
+                    "cost_usd": usage.cost_usd or 0.0,
+                    "model": response_model or agent.model,
+                },
+            )
+            await outbox.write(llm_completed_event)
+
+            for tc in (tool_calls_recorded or []):
+                tool_event = AgentExecutionToolCompletedV1.create(
+                    agent_id=agent.id,
+                    session_id=session.id if session else None,
+                    payload={
+                        "trace_id": str(trace_id),
+                        "tool_name": tc.tool_name,
+                        "duration_ms": tc.duration_ms,
+                        "success": tc.success,
+                        "error": tc.error,
+                    },
+                )
+                await outbox.write(tool_event)
 
             completion_payload: dict[str, Any] = {
                 "trace_id": str(trace_id),

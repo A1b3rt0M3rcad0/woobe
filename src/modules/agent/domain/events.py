@@ -137,6 +137,99 @@ class AgentExecutionFailedV1(AgentDomainEvent):
 
 
 @dataclass(frozen=True)
+class AgentExecutionStartedV1(AgentDomainEvent):
+    event_type: str = "agent.execution.started.v1"
+    event_version: int = 1
+    routing_key: str = "agent.execution.started.v1"
+
+    @classmethod
+    def create(
+        cls,
+        agent_id: UUID,
+        session_id: UUID,
+        payload: dict[str, Any],
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> AgentExecutionStartedV1:
+        idempotency_key = cls.compute_idempotency_key(
+            aggregate_type="agent",
+            aggregate_id=agent_id,
+            event_type="agent.execution.started.v1",
+            discriminator=str(session_id),
+        )
+        return cls(
+            payload=payload,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id or uuid6.uuid7(),
+            causation_id=causation_id,
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True)
+class AgentExecutionLLMCompletedV1(AgentDomainEvent):
+    event_type: str = "agent.execution.llm_completed.v1"
+    event_version: int = 1
+    routing_key: str = "agent.execution.llm_completed.v1"
+
+    @classmethod
+    def create(
+        cls,
+        agent_id: UUID,
+        session_id: UUID,
+        payload: dict[str, Any],
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> AgentExecutionLLMCompletedV1:
+        idempotency_key = cls.compute_idempotency_key(
+            aggregate_type="agent",
+            aggregate_id=agent_id,
+            event_type="agent.execution.llm_completed.v1",
+            discriminator=str(session_id),
+        )
+        return cls(
+            payload=payload,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id or uuid6.uuid7(),
+            causation_id=causation_id,
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True)
+class AgentExecutionToolCompletedV1(AgentDomainEvent):
+    event_type: str = "agent.execution.tool_completed.v1"
+    event_version: int = 1
+    routing_key: str = "agent.execution.tool_completed.v1"
+
+    @classmethod
+    def create(
+        cls,
+        agent_id: UUID,
+        session_id: UUID,
+        payload: dict[str, Any],
+        correlation_id: UUID | None = None,
+        causation_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> AgentExecutionToolCompletedV1:
+        idempotency_key = cls.compute_idempotency_key(
+            aggregate_type="agent",
+            aggregate_id=agent_id,
+            event_type="agent.execution.tool_completed.v1",
+            discriminator=str(session_id),
+        )
+        return cls(
+            payload=payload,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id or uuid6.uuid7(),
+            causation_id=causation_id,
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True)
 class AgentToolCreatedV1(AgentDomainEvent):
     event_type: str = "agent.tool.created.v1"
     event_version: int = 1

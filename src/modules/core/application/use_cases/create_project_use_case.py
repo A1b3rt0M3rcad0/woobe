@@ -34,7 +34,7 @@ class CreateProjectUseCase:
         await self._outbox.write(
             aggregate_type="project",
             aggregate_id=saved.id,
-            event_type="project.created",
+            event_type="project.created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "name": saved.name,

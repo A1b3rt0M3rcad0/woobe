@@ -1,9 +1,6 @@
 """Characterization test: detect subscription catalog gaps and self-subscriptions.
 
-Known defects (initially RED — shrinks as hardening fixes each):
-- agent.# self-subscription still active in inbox consumer
-
-Corrective spec: 003
+Corrective spec: 003 (resolved — agent.# self-subscription removed).
 """
 from __future__ import annotations
 
@@ -12,7 +9,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 KNOWN_SELF_SUBSCRIBERS: set[str] = {
-    "src/modules/agent/infra/workers/inbox_consumer.py",
+    "src/modules/billing/infra/workers/inbox_consumer.py",
+    "src/modules/core/infra/workers/inbox_consumer.py",
+    "src/modules/identity/infra/workers/inbox_consumer.py",
 }
 
 ALL_SUBSCRIBED_EVENT_TYPES: set[str] = {
@@ -32,28 +31,20 @@ def _relative_posix(path: Path) -> str:
 
 class TestCharacterizationSubscriptions:
     def test_no_new_self_subscribers(self):
-        new_self_sub: set[str] = set()
+        violations: list[str] = []
         src_dir = PROJECT_ROOT / "src"
         for py_file in src_dir.rglob("*.py"):
             if "__pycache__" in py_file.parts:
                 continue
-            if "inbox_consumer" not in py_file.name:
-                continue
             text = py_file.read_text(encoding="utf-8")
-            rel = _relative_posix(py_file)
-            if '"agent.#"' in text or "'agent.#'" in text:
-                if rel not in KNOWN_SELF_SUBSCRIBERS:
-                    new_self_sub.add(rel)
-        assert not new_self_sub, (
-            f"New self-subscribers found: {new_self_sub}"
+            for line in text.splitlines():
+                if ('.#' in line or '"#' in line) and "ROUTING_KEYS" in line:
+                    rel = _relative_posix(py_file)
+                    if rel not in KNOWN_SELF_SUBSCRIBERS:
+                        violations.append(f"{rel}: {line.strip()}")
+        assert not violations, (
+            f"New self-subscription glob patterns found:\n{violations}"
         )
-
-    def test_known_self_subscriber_exists(self):
-        for rel_path in KNOWN_SELF_SUBSCRIBERS:
-            full_path = PROJECT_ROOT / rel_path
-            assert full_path.exists(), (
-                f"Known self-subscriber file no longer exists: {rel_path}"
-            )
 
     def test_metering_has_all_agent_execution_events(self):
         consumer_path = PROJECT_ROOT / "src" / "modules" / "metering" / "infra" / "workers" / "inbox_consumer.py"

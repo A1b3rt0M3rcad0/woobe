@@ -15,36 +15,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-KNOWN_UNVERSIONED: dict[str, list[str]] = {
-    "src/modules/billing/application/use_cases/billing_use_cases.py": [
-        "plan.created",
-        "customer.created",
-        "subscription.created",
-    ],
-    "src/modules/core/application/use_cases/create_project_use_case.py": [
-        "project.created",
-    ],
-    "src/modules/core/application/use_cases/create_api_key_use_case.py": [
-        "api_key.created",
-    ],
-    "src/modules/core/application/use_cases/update_project_use_case.py": [
-        "project.updated",
-    ],
-    "src/modules/identity/application/use_cases/identity_use_cases.py": [
-        "user.created",
-        "organization.created",
-        "organization.member_added",
-        "organization.updated",
-        "organization.invite_created",
-    ],
-    "src/modules/observability/application/use_cases/observability_use_cases.py": [
-        "trace.created",
-        "trace_event.created",
-    ],
-    "src/modules/metering/application/use_cases/metering_use_cases.py": [
-        "usage_event.recorded",
-    ],
-}
+KNOWN_UNVERSIONED: dict[str, list[str]] = {}
 
 
 def _relative_posix(path: Path) -> str:

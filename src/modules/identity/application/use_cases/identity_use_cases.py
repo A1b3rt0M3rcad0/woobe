@@ -75,7 +75,7 @@ class CreateUserUseCase:
         await self._outbox.write(
             aggregate_type="user",
             aggregate_id=saved.id,
-            event_type="user.created",
+            event_type="user.created.v1",
             payload={"email": saved.email},
         )
 
@@ -110,7 +110,7 @@ class CreateOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved.id,
-            event_type="organization.created",
+            event_type="organization.created.v1",
             payload={"name": saved.name, "slug": saved.slug},
         )
 
@@ -163,7 +163,7 @@ class AddMemberToOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization_member",
             aggregate_id=saved.id,
-            event_type="organization.member_added",
+            event_type="organization.member_added.v1",
             payload={
                 "user_id": str(saved.user_id),
                 "organization_id": str(saved.organization_id),
@@ -213,7 +213,7 @@ class UpdateOrganizationUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved.id,
-            event_type="organization.updated",
+            event_type="organization.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
         )
 
@@ -264,7 +264,7 @@ class InviteUserUseCase:
         await self._outbox.write(
             aggregate_type="organization_invite",
             aggregate_id=saved.id,
-            event_type="organization.invite_created",
+            event_type="organization.invite_created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "email": saved.email,
@@ -339,7 +339,7 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="user",
             aggregate_id=saved_user.id,
-            event_type="user.created",
+            event_type="user.created.v1",
             payload={"email": saved_user.email},
         )
 
@@ -352,7 +352,7 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="organization",
             aggregate_id=saved_org.id,
-            event_type="organization.created",
+            event_type="organization.created.v1",
             payload={"name": saved_org.name, "slug": saved_org.slug},
         )
 
@@ -367,7 +367,7 @@ class RegisterUseCase:
         await self._outbox.write(
             aggregate_type="organization_member",
             aggregate_id=member.id,
-            event_type="organization.member_added",
+            event_type="organization.member_added.v1",
             payload={
                 "user_id": str(member.user_id),
                 "organization_id": str(member.organization_id),

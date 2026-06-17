@@ -54,7 +54,7 @@ class CreateTraceUseCase:
         await self._outbox.write(
             aggregate_type="Trace",
             aggregate_id=saved.id,
-            event_type="trace.created",
+            event_type="trace.created.v1",
             payload={
                 "project_id": str(saved.project_id),
                 "status": saved.status,
@@ -92,7 +92,7 @@ class CreateTraceEventUseCase:
         await self._outbox.write(
             aggregate_type="TraceEvent",
             aggregate_id=saved.id,
-            event_type="trace_event.created",
+            event_type="trace_event.created.v1",
             payload={
                 "trace_id": str(saved.trace_id),
                 "event_type": saved.event_type,

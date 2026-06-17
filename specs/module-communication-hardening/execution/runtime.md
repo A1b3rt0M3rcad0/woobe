@@ -19,7 +19,7 @@
 | 000 | completed |
 | 001 | completed |
 | 002 | completed |
-| 003 | pending |
+| 003 | completed |
 | 004 | pending |
 | 005 | pending |
 | 006 | pending |
@@ -135,6 +135,58 @@
 - D005, D006 still active (unversioned events, agent.# self-subscription).
 - Pre-existing async test failures (pytest-asyncio) unchanged.
 
+### 003 — Completar eventos do Agent e corrigir idempotência
+
+**Status:** completed
+**Tipo:** messaging/domain
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Files changed:**
+- `src/modules/agent/domain/events.py` — added AgentExecutionStartedV1, AgentExecutionLLMCompletedV1, AgentExecutionToolCompletedV1 event classes
+- `src/modules/agent/application/use_cases/ask_use_case.py` — emit started.v1 in _prepare, llm_completed.v1 + tool_completed.v1 in _finalize
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` — emit started.v1 in prepare UoW, llm_completed.v1 + tool_completed.v1 in finalize UoW
+- `src/modules/agent/infra/workers/inbox_consumer.py` — removed `agent.#` self-subscription (replaced with empty routing keys)
+- `src/modules/billing/application/use_cases/billing_use_cases.py` — versioned events: plan.created.v1, customer.created.v1, subscription.created.v1
+- `src/modules/core/application/use_cases/create_project_use_case.py` — versioned: project.created.v1
+- `src/modules/core/application/use_cases/create_api_key_use_case.py` — versioned: api_key.created.v1
+- `src/modules/core/application/use_cases/update_project_use_case.py` — versioned: project.updated.v1
+- `src/modules/identity/application/use_cases/identity_use_cases.py` — versioned: user.created.v1, organization.created.v1, organization.member_added.v1, organization.updated.v1, organization.invite_created.v1
+- `src/modules/observability/application/use_cases/observability_use_cases.py` — versioned: trace.created.v1, trace_event.created.v1
+- `src/modules/metering/application/use_cases/metering_use_cases.py` — versioned: usage_event.recorded.v1
+- `tests/architecture/test_characterization_unversioned_events.py` — cleared KNOWN_UNVERSIONED (all resolved)
+- `tests/architecture/test_characterization_subscriptions.py` — removed agent.# from KNOWN_SELF_SUBSCRIBERS; verifies zero new self-subscribers
+- `execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- 3 new event types added to agent domain events (started, llm_completed, tool_completed)
+- Agent now emits all 7 agent.execution.*.v1 events across its lifecycle
+- 14 unversioned event_type strings across 5 modules versioned with .v1 suffix
+- agent.# self-subscription removed — agent no longer consumes its own events via glob pattern
+
+**Public contracts, events, Outbox, Inbox, workers, handlers, retries, timeouts, error contracts changed:**
+- New event classes: AgentExecutionStartedV1, AgentExecutionLLMCompletedV1, AgentExecutionToolCompletedV1
+- Agent inbox consumer routing keys changed: ["agent.#"] → []
+
+**Known defects resolved:**
+- D005: All billing/core/identity/observability/metering events now versioned (.v1)
+- D006: agent.# self-subscription removed
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/agent/domain/events.py src/modules/agent/application/use_cases/ask_use_case.py src/modules/agent/application/use_cases/ask_agent_stream_service.py src/modules/agent/infra/workers/inbox_consumer.py` | 0 |
+| `python -m pytest tests/unit/agent/test_agent_outbox_writer.py -q` | 0 (20 passed) |
+| `python -m pytest tests/contract/events -q` | 0 (19 passed) |
+| `python -m pytest tests/architecture/test_characterization_unversioned_events.py tests/architecture/test_characterization_subscriptions.py -v` | 0 (5 passed) |
+
+**Decisões:**
+- Intermediate events (started, llm_completed, tool_completed) emitted in existing UoWs (started in _prepare, llm_completed/tool_completed in _finalize) to avoid creating extra short UoWs.
+- billing/core/identity inbox consumer files with `.#` patterns preserved (deactivated in registry since spec 016). Kept as known in characterization test.
+
+**Riscos:**
+- Pre-existing async test failures (pytest-asyncio) unchanged.
+
 ### 000 — Reabrir o cutover e criar gates de regressão
 
 **Status:** completed
@@ -173,8 +225,8 @@
 | D002 | MeteringUsageRecorder/ObservabilityTraceRecorder adapters still used by ask_job_worker.py | 002 | resolved |
 | D003 | `_legacy_mode` flag still active | 001 | resolved |
 | D004 | `_do_save_assistant_message` legacy direct-write | 001 | resolved |
-| D005 | Unversioned events in billing/core/identity | 003 | active |
-| D006 | `agent.#` self-subscription routing key | 003 | active |
+| D005 | Unversioned events in billing/core/identity | 003 | resolved |
+| D006 | `agent.#` self-subscription routing key | 003 | resolved |
 | D007 | Metering/observability consumers missing 4 event types | 004, 005 | invalid (routing keys already present) |
 
 **Validation commands:**
@@ -192,9 +244,9 @@
 - `_do_save_assistant_message` exists natively in `ask_use_case.py` — not a dynamic import pattern; detected as a legacy direct-write pattern.
 
 **Riscos:**
-- 7 known defects documented; 4 resolved (D001-D004), 2 active (D005-D006), 1 invalid (D007).
+- 7 known defects documented; 6 resolved (D001-D006), 1 invalid (D007).
 - Characterization tests depend on KNOWN_VIOLATIONS sets remaining accurate as code changes.
 
 ## Próxima spec
 
-`003-complete-agent-event-contracts-and-idempotency.md`
+`004-fix-metering-inbox-projection.md`
