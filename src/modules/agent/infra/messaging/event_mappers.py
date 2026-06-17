@@ -42,6 +42,16 @@ class IncomingMessage(Protocol):
     def message_id(self) -> str | None: ...
 
 
+_REPEATABLE_MUTATION_EVENT_TYPES = frozenset(
+    {
+        "agent.agent.updated.v1",
+        "agent.tool.updated.v1",
+        "agent.tool.status_changed.v1",
+        "agent.credential.updated.v1",
+    }
+)
+
+
 def _validate_event_fields(
     event_version: int,
     routing_key: str,
@@ -81,20 +91,45 @@ def _execution_occurrence(event: AgentDomainEvent) -> str:
     return trace_occurrence
 
 
+def _mutation_occurrence(event: AgentDomainEvent) -> str:
+    """Return the identifier for one concrete mutation occurrence.
+
+    Update-style events are repeatable for the same aggregate. Their domain-level
+    idempotency key is intentionally stable, but the outbox unique constraint
+    must distinguish separate successful mutations. A caller-provided operation
+    or request identifier takes precedence; otherwise the immutable event id is
+    used. Mapping the same event object twice still produces the same key.
+    """
+    metadata = event.metadata or {}
+    occurrence = (
+        event.payload.get("operation_id")
+        or event.payload.get("request_id")
+        or metadata.get("operation_id")
+        or metadata.get("request_id")
+        or event.event_id
+    )
+    return str(occurrence)
+
+
 def _effective_idempotency_key(event: AgentDomainEvent) -> str:
     """Build an idempotency key for one concrete event occurrence.
 
     Execution events are scoped by trace. Event types that can occur more than
-    once in the same trace also include their call identifier. This prevents
-    distinct LLM or Tool calls from colliding with the outbox unique constraint
-    while keeping retries of the same call deterministic.
+    once in the same trace also include their call identifier. Repeatable
+    mutation events are scoped by operation occurrence so distinct updates of
+    the same aggregate do not collide with the outbox unique constraint.
     """
-    if not event.event_type.startswith("agent.execution."):
-        return event.idempotency_key
+    if event.event_type.startswith("agent.execution."):
+        occurrence = _execution_occurrence(event)
+        raw = f"agent:{event.event_type}:{occurrence}"
+        return hashlib.sha256(raw.encode()).hexdigest()
 
-    occurrence = _execution_occurrence(event)
-    raw = f"agent:{event.event_type}:{occurrence}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    if event.event_type in _REPEATABLE_MUTATION_EVENT_TYPES:
+        occurrence = _mutation_occurrence(event)
+        raw = f"agent:{event.event_type}:{event.idempotency_key}:{occurrence}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    return event.idempotency_key
 
 
 def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
