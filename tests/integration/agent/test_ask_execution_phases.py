@@ -33,27 +33,17 @@ def project_id() -> UUID:
 
 
 class TestConstructorModes:
-    """AskAgentUseCase supports two construction modes (legacy and phased)."""
+    """AskAgentUseCase uses phased execution exclusively (legacy mode removed)."""
 
-    def test_phased_mode_when_session_factory_provided(self):
+    def test_construct_with_minimal_params(self):
         session_factory = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
         )
-        assert not use_case._legacy_mode
-
-    def test_legacy_mode_when_repos_provided(self):
-        session_factory = MagicMock()
-        llm_factory = MagicMock(spec=LLMFactory)
-        agent_repo = MagicMock()
-        use_case = AskAgentUseCase(
-            session_factory=session_factory,
-            llm_factory=llm_factory,
-            agent_repo=agent_repo,
-        )
-        assert use_case._legacy_mode
+        assert use_case._session_factory is not None
+        assert use_case._llm_factory is not None
 
 
 class TestHttpCompatibility:
@@ -153,15 +143,14 @@ class TestPrepareFinalizeSeparation:
         use_case._execute_phased.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_legacy_execution_calls_legacy(self):
+    async def test_execute_always_calls_phased(self):
         session_factory = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
-            agent_repo=MagicMock(),
         )
-        use_case._execute_legacy = AsyncMock(return_value=MagicMock(spec=AskOutput))
+        use_case._execute_phased = AsyncMock(return_value=MagicMock(spec=AskOutput))
 
         input_dto = AskInput(
             project_id=uuid4(), agent_id=uuid4(),
@@ -169,7 +158,7 @@ class TestPrepareFinalizeSeparation:
         )
         result = await use_case.execute(input_dto)
         assert result is not None
-        use_case._execute_legacy.assert_awaited_once()
+        use_case._execute_phased.assert_awaited_once()
 
 
 class TestExecuteLlmReturnsToolData:

@@ -20,12 +20,7 @@ from modules.agent.domain.repositories import (
     ProviderCredentialRepository,
     MessageRepository,
     SessionRepository,
-    AgentRepository,
-    AgentReleaseRepository,
-    AgentCollectionRepository,
-    DocumentChunkRepository,
 )
-from modules.agent.domain.ports.tool_repository import ToolRepository as AgentToolRepository
 from modules.agent.domain.events import (
     AgentMessageCreatedV1,
     AgentExecutionRequestedV1,
@@ -75,41 +70,14 @@ class AskAgentUseCase:
         llm_factory: LLMFactory | None = None,
         tool_executor: ToolExecutor | None = None,
         encryption_key: str | None = None,
-        agent_repo: AgentRepository | None = None,
-        credential_repo: ProviderCredentialRepository | None = None,
-        session_repo: SessionRepository | None = None,
-        message_repo: MessageRepository | None = None,
-        agent_collection_repo: AgentCollectionRepository | None = None,
-        chunk_repo: DocumentChunkRepository | None = None,
-        trace_recorder=None,
-        usage_recorder=None,
-        outbox=None,
-        tool_repo: AgentToolRepository | None = None,
-        release_repo: AgentReleaseRepository | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._llm_factory = llm_factory
         self._tool_executor = tool_executor
         self._encryption_key = encryption_key or Settings().encryption_key
 
-        self._agent_repo = agent_repo
-        self._credential_repo = credential_repo
-        self._session_repo = session_repo
-        self._message_repo = message_repo
-        self._agent_collection_repo = agent_collection_repo
-        self._chunk_repo = chunk_repo
-        self._trace_recorder = trace_recorder
-        self._usage_recorder = usage_recorder
-        self._outbox = outbox
-        self._tool_repo = tool_repo
-        self._release_repo = release_repo
-        self._legacy_mode = agent_repo is not None
-
     async def execute(self, input_dto: AskInput) -> AskOutput:
         started_at = time.monotonic()
-
-        if self._legacy_mode:
-            return await self._execute_legacy(input_dto, started_at)
 
         return await self._execute_phased(input_dto, started_at)
 
@@ -241,157 +209,6 @@ class AskAgentUseCase:
             else:
                 await self._fail(trace_id, agent, session, llm_error, input_dto)
                 raise ValueError(f"AI provider error: {llm_error}")
-
-    async def _execute_legacy(self, input_dto: AskInput, started_at: float) -> AskOutput:
-        agent = await self._load_agent_legacy(input_dto)
-
-        credential = await self._load_credential(self._credential_repo, agent)
-        api_key = self._decrypt_api_key(credential)
-        base_url = self._resolve_base_url(agent, credential)
-
-        response_format = self._get_response_format(agent)
-        json_enabled = (
-            response_format.get("enabled", False)
-            and response_format.get("type") == "json"
-        )
-
-        agent_tools: list[dict] = []
-        tool_name_to_id: dict[str, str] = {}
-        has_tools = False
-        if self._tool_repo:
-            try:
-                tools = await self._tool_repo.list_by_agent(agent.id, status="active")
-                if tools:
-                    agent_tools = agent_tools_to_openai_definitions(tools)
-                    for t in tools:
-                        tool_name_to_id[_safe_tool_name(t)] = str(t.id)
-                    has_tools = True
-            except Exception as e:
-                logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
-
-        session = await self._resolve_session(self._session_repo, input_dto, agent)
-
-        history = await self._load_history(self._message_repo, session) if session else []
-
-        if session:
-            await self._save_user_message(self._session_repo, self._message_repo, session, input_dto.message, agent)
-
-        trace_id = uuid4()
-
-        rag_context, sources = await self._load_rag_context_legacy(agent, input_dto.message)
-
-        messages = self._build_messages(agent, rag_context, history, input_dto.message, response_format if json_enabled else None)
-
-        result, tool_calls_recorded, _, _ = await self._execute_llm(
-            agent, api_key, base_url, response_format, json_enabled, has_tools,
-            agent_tools, tool_name_to_id, messages,
-        )
-
-        answer = result.content if hasattr(result, "content") else str(result)
-
-        parsed_output = None
-        output_parse_error = None
-        if json_enabled:
-            try:
-                cleaned = self._clean_json_answer(answer)
-                parsed_output = json.loads(cleaned)
-            except (json.JSONDecodeError, Exception) as e:
-                output_parse_error = str(e)
-
-        raw_usage = normalize_llm_usage(result)
-        usage = UsageInfo(
-            input_tokens=raw_usage["input_tokens"],
-            output_tokens=raw_usage["output_tokens"],
-            total_tokens=raw_usage["total_tokens"],
-            cost_usd=raw_usage["cost_usd"],
-        )
-
-        response_meta = getattr(result, "response_metadata", None) or {}
-        response_model = response_meta.get("model", agent.model)
-        response_provider = response_meta.get("provider", agent.provider.value if hasattr(agent.provider, "value") else agent.provider)
-
-        message_id = None
-        if session:
-            assistant_msg = await self._do_save_assistant_message(
-                self._message_repo, self._session_repo, self._outbox,
-                session, answer, usage, agent,
-                tool_calls=tool_calls_recorded,
-            )
-            message_id = assistant_msg.id
-
-        total_latency = round((time.monotonic() - started_at) * 1000)
-        return AskOutput(
-            answer=answer,
-            session_id=session.id if session else None,
-            message_id=message_id,
-            usage=usage,
-            sources=sources,
-            tool_calls=tool_calls_recorded,
-            trace_id=trace_id,
-            model=response_model,
-            provider=response_provider,
-            fallback_used=False,
-            fallback_info=None,
-            latency_ms=total_latency,
-            parsed_output=parsed_output,
-            output_parse_error=output_parse_error,
-        )
-
-    async def _load_agent_legacy(self, input_dto: AskInput) -> Agent:
-        agent = await self._agent_repo.get_by_id(input_dto.agent_id)
-        if not agent:
-            raise AgentNotFoundError(input_dto.agent_id)
-        if agent.project_id != input_dto.project_id:
-            raise AgentNotFoundError(input_dto.agent_id)
-        if hasattr(agent, "status") and agent.status and hasattr(agent.status, "value") and agent.status.value != "active":
-            from shared.infra.errors import ValidationError
-            raise ValidationError(f"Agent {input_dto.agent_id} is not active")
-
-        if input_dto.execution_context == "production":
-            release = await self._release_repo.get_active_production(agent.id) if self._release_repo else None
-            if release is None:
-                raise ValueError(f"No production release deployed for agent {input_dto.agent_id}")
-            agent = self._apply_release_to_agent(agent, release)
-        elif input_dto.loaded_release_id and self._release_repo:
-            release = await self._release_repo.get_by_id(input_dto.loaded_release_id)
-            if release:
-                agent = self._apply_release_to_agent(agent, release)
-        elif input_dto.snapshot_override:
-            agent = self._apply_snapshot_override(agent, input_dto.snapshot_override)
-        return agent
-
-    async def _load_rag_context_legacy(self, agent: Agent, query: str) -> tuple[str | None, list[SourceInfo]]:
-        try:
-            collections = await self._agent_collection_repo.list_by_agent(agent.id)
-            if not collections:
-                return None, []
-            all_sources: list[SourceInfo] = []
-            all_chunks: list[str] = []
-            for link in collections:
-                try:
-                    results = await self._chunk_repo.search_similar(
-                        embedding=[0.0] * 1536,
-                        collection_id=link.collection_id,
-                        limit=3,
-                        threshold=0.0,
-                    )
-                except Exception:
-                    continue
-                for chunk, score in results:
-                    all_chunks.append(f"[{len(all_sources) + 1}] {chunk.content[:500]}")
-                    all_sources.append(SourceInfo(
-                        document_id=str(chunk.document_id) if chunk.document_id else None,
-                        chunk_id=str(chunk.id),
-                        page_number=chunk.page_number,
-                        score=round(score, 4),
-                        content_preview=chunk.content[:200],
-                    ))
-            if not all_chunks:
-                return None, []
-            context = "\n\n".join(all_chunks)
-            return context, all_sources
-        except Exception:
-            return None, []
 
     async def _prepare(
         self, input_dto: AskInput,

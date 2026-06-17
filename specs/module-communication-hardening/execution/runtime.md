@@ -18,7 +18,7 @@
 |---|---|
 | 000 | completed |
 | 001 | completed |
-| 002 | pending |
+| 002 | completed |
 | 003 | pending |
 | 004 | pending |
 | 005 | pending |
@@ -80,6 +80,61 @@
 - `_legacy_mode` still active — legacy code path preserved.
 - Characterization tests D002–D006 still active.
 
+### 002 — Remover o caminho legado cross-module do AskJob
+
+**Status:** completed
+**Tipo:** agent/workers
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String -Path "src/**/*.py", "tests/**/*.py" -Pattern "MeteringUsageRecorder|ObservabilityTraceRecorder|_execute_legacy|_legacy_mode"` | 0 |
+
+**Files changed:**
+- `src/modules/agent/infra/adapters/metering_usage_recorder.py` — DELETED
+- `src/modules/agent/infra/adapters/observability_trace_recorder.py` — DELETED
+- `src/modules/agent/domain/ports/trace_recorder.py` — DELETED
+- `src/modules/agent/domain/ports/usage_recorder.py` — DELETED
+- `src/modules/agent/application/use_cases/ask_use_case.py` — removed `_legacy_mode` flag, `_execute_legacy`, `_load_agent_legacy`, `_load_rag_context_legacy`, 10 legacy constructor params
+- `src/modules/agent/infra/workers/ask_job_worker.py` — migrated to phased path (uses `AskAgentUseCase` with `session_factory`, `llm_factory`, `encryption_key`)
+- `tests/integration/agent/test_ask_execution_phases.py` — removed legacy mode tests, updated to reflect phased-only execution
+- `tests/architecture/test_characterization_legacy_mode.py` — cleared KNOWN_LEGACY_PATTERNS; now scans for zero legacy adapter patterns
+- `tests/architecture/test_characterization_tool_wiring.py` — cleared KNOWN_ADAPTER_IMPORTS/KNOWN_ADAPTER_CLASSES (all resolved)
+- `execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- Removed cross-module direct writes: Agent → Metering (MeteringUsageRecorder), Agent → Observability (ObservabilityTraceRecorder)
+- Removed 4 dynamic cross-module imports (importlib.import_module to metering/observability)
+- Removed legacy mode feature flag (`_legacy_mode`)
+- Removed legacy code paths (`_execute_legacy`, `_load_agent_legacy`, `_load_rag_context_legacy`)
+- AskJobWorker now uses same phased execution path as HTTP/stream endpoints
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/agent/application/use_cases/ask_use_case.py src/modules/agent/infra/workers/ask_job_worker.py tests/integration/agent/test_ask_execution_phases.py tests/architecture/test_characterization_legacy_mode.py tests/architecture/test_characterization_tool_wiring.py` | 0 |
+| `Select-String "MeteringUsageRecorder|ObservabilityTraceRecorder|_execute_legacy|_legacy_mode" src tests` | 0 (zero matches) |
+| `python -m pytest tests/integration/agent/test_ask_execution_phases.py tests/integration/agent/test_spec009_stream_job_orchestrator.py -q` | 0 (15 passed) |
+| `python -m pytest tests/architecture/test_event_dynamic_imports.py -q` | 0 (2 passed) |
+| `python -m pytest tests/architecture/test_characterization_legacy_mode.py tests/architecture/test_characterization_tool_wiring.py tests/architecture/test_characterization_async_boundaries.py -v` | 0 (6 passed) |
+
+**Known defects resolved:**
+- D002: MeteringUsageRecorder/ObservabilityTraceRecorder adapters removed; ask_job_worker.py no longer uses them.
+- D003: `_legacy_mode` flag removed entirely from ask_use_case.py.
+
+**Decisões:**
+- AskJobWorker now initialized with minimal params (session_factory, llm_factory, encryption_key) — same pattern as HTTP composer.
+- Deleted adapters and ports are never coming back — Outbox/Inbox the only cross-module path.
+- `_do_save_assistant_message` retained as a valid helper method (its internal `outbox.write()` was already awaited in spec 001).
+
+**Riscos:**
+- D005, D006 still active (unversioned events, agent.# self-subscription).
+- Pre-existing async test failures (pytest-asyncio) unchanged.
+
 ### 000 — Reabrir o cutover e criar gates de regressão
 
 **Status:** completed
@@ -112,15 +167,15 @@
 - Nenhum — no production code changed.
 
 **Known defects documented:**
-| ID | Defect | Corrective spec |
-|---|---|---|
-| D001 | Missing `await` on `outbox.write()` (ask_use_case.py ×5, ask_agent_stream_service.py ×4) | 001 |
-| D002 | MeteringUsageRecorder/ObservabilityTraceRecorder adapters still used by ask_job_worker.py | 002 |
-| D003 | `_legacy_mode` flag still active | 001 |
-| D004 | `_do_save_assistant_message` legacy direct-write | 001 |
-| D005 | Unversioned events in billing/core/identity | 003 |
-| D006 | `agent.#` self-subscription routing key | 003 |
-| D007 | Metering/observability consumers missing 4 event types | 004, 005 |
+| ID | Defect | Corrective spec | Status |
+|---|---|---|---|
+| D001 | Missing `await` on `outbox.write()` (ask_use_case.py ×5, ask_agent_stream_service.py ×4) | 001 | resolved |
+| D002 | MeteringUsageRecorder/ObservabilityTraceRecorder adapters still used by ask_job_worker.py | 002 | resolved |
+| D003 | `_legacy_mode` flag still active | 001 | resolved |
+| D004 | `_do_save_assistant_message` legacy direct-write | 001 | resolved |
+| D005 | Unversioned events in billing/core/identity | 003 | active |
+| D006 | `agent.#` self-subscription routing key | 003 | active |
+| D007 | Metering/observability consumers missing 4 event types | 004, 005 | invalid (routing keys already present) |
 
 **Validation commands:**
 | Comando | Exit code |
@@ -137,9 +192,9 @@
 - `_do_save_assistant_message` exists natively in `ask_use_case.py` — not a dynamic import pattern; detected as a legacy direct-write pattern.
 
 **Riscos:**
-- 7 known defects remain active; zero have been fixed in this spec.
+- 7 known defects documented; 4 resolved (D001-D004), 2 active (D005-D006), 1 invalid (D007).
 - Characterization tests depend on KNOWN_VIOLATIONS sets remaining accurate as code changes.
 
 ## Próxima spec
 
-`002-remove-legacy-cross-module-job-path.md`
+`003-complete-agent-event-contracts-and-idempotency.md`

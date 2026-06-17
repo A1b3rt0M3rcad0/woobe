@@ -4,24 +4,12 @@ import time
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentRepository,
     SQLAlchemyAskJobRepository,
-    SQLAlchemyDocumentChunkRepository,
-    SQLAlchemyAgentCollectionRepository,
-    SQLAlchemyMessageRepository,
-    SQLAlchemyProviderCredentialRepository,
-    SQLAlchemyAgentOutboxEventWriter,
-    SQLAlchemySessionRepository,
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
-from modules.agent.infra.adapters.observability_trace_recorder import ObservabilityTraceRecorder
-from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
-from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from shared.infra.config import Settings
-from shared.infra.database.postgres_unit_of_work import PostgresUnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -55,34 +43,12 @@ class AskJobWorker:
 
         await job_repo.mark_started(job.id)
 
-        uow = PostgresUnitOfWork(session_factory)
-        agent_repo = SQLAlchemyAgentRepository(uow)
-        credential_repo = SQLAlchemyProviderCredentialRepository(uow)
-        session_repo = SQLAlchemySessionRepository(uow)
-        message_repo = SQLAlchemyMessageRepository(uow)
-        agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
-        chunk_repo = SQLAlchemyDocumentChunkRepository(uow)
-        outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-        settings = Settings()
-        trace_recorder = ObservabilityTraceRecorder(uow)
-        usage_recorder = MeteringUsageRecorder(uow)
-        tool_repo = SQLAlchemyAgentToolRepository(uow)
-        tool_executor = AgentToolExecutor(tool_repo)
         llm_factory = LangchainLLMFactory()
+        settings = Settings()
 
         use_case = AskAgentUseCase(
-            agent_repo=agent_repo,
-            credential_repo=credential_repo,
-            session_repo=session_repo,
-            message_repo=message_repo,
-            agent_collection_repo=agent_collection_repo,
-            chunk_repo=chunk_repo,
-            trace_recorder=trace_recorder,
-            usage_recorder=usage_recorder,
-            outbox=outbox,
+            session_factory=session_factory,
             llm_factory=llm_factory,
-            tool_executor=tool_executor,
-            tool_repo=tool_repo,
             encryption_key=settings.encryption_key,
         )
 
@@ -94,9 +60,7 @@ class AskJobWorker:
                 message=(job.params or {}).get("message", ""),
                 session_id=(job.params or {}).get("session_id"),
             )
-            async with uow:
-                result = await use_case.execute(input_dto)
-                await uow.commit()
+            result = await use_case.execute(input_dto)
 
             result_dict = result.model_dump()
             trace_id = result.trace_id

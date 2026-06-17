@@ -12,21 +12,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-KNOWN_ADAPTER_IMPORTS: set[tuple[str, str]] = {
-    (
-        "src/modules/agent/infra/workers/ask_job_worker.py",
-        "modules.agent.infra.adapters.metering_usage_recorder",
-    ),
-    (
-        "src/modules/agent/infra/workers/ask_job_worker.py",
-        "modules.agent.infra.adapters.observability_trace_recorder",
-    ),
-}
+KNOWN_ADAPTER_IMPORTS: set[tuple[str, str]] = set()
 
-KNOWN_ADAPTER_CLASSES: set[str] = {
-    "src/modules/agent/infra/adapters/metering_usage_recorder.py",
-    "src/modules/agent/infra/adapters/observability_trace_recorder.py",
-}
+KNOWN_ADAPTER_CLASSES: set[str] = set()
 
 
 def _relative_posix(path: Path) -> str:
