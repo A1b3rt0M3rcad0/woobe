@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from collections.abc import Callable
 
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
@@ -34,10 +33,11 @@ def _install_shutdown_handlers(
 
     for received_signal in (signal.SIGINT, signal.SIGTERM):
         try:
-            callback: Callable[[], None] = (
-                lambda received_signal=received_signal: request_shutdown(received_signal)
+            loop.add_signal_handler(
+                received_signal,
+                request_shutdown,
+                received_signal,
             )
-            loop.add_signal_handler(received_signal, callback)
             installed.append(received_signal)
         except NotImplementedError:
             logger.warning(
