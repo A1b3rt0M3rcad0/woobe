@@ -12,7 +12,9 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.ask_agent_controller import (
     AskAgentController,
 )
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
 from shared.infra.config import Settings
 
 
@@ -35,7 +37,7 @@ def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]):
             )
             return result.model_dump()
 
-    use_case = AskAgentUseCase(
+    use_case = StructuredOutputAskAgentUseCase(
         session_factory=session_factory,
         llm_factory=llm_factory,
         encryption_key=settings.encryption_key,
