@@ -34,6 +34,7 @@ _DATA_FIELDS = {
     "fallback_info",
     "model",
     "provider",
+    "diagnostics",
 }
 
 
@@ -46,6 +47,26 @@ def _uuid(value: Any) -> UUID | None:
         return UUID(str(value))
     except (TypeError, ValueError):
         return None
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _rounded(value: float | None) -> int | float | None:
+    if value is None:
+        return None
+    rounded = round(value, 3)
+    return int(rounded) if rounded.is_integer() else rounded
 
 
 def _event_id(trace_id: UUID, discriminator: str) -> UUID:
@@ -100,6 +121,75 @@ def _is_complete_tool_payload(payload: dict[str, Any]) -> bool:
         and "input" in payload
         and "output" in payload
     )
+
+
+def _tool_http_latency_ms(tool: dict[str, Any]) -> float | None:
+    output = tool.get("output")
+    if not isinstance(output, dict):
+        return None
+
+    direct = _number(output.get("duration_ms"))
+    if direct is not None:
+        return direct
+
+    nested = output.get("output")
+    if isinstance(nested, dict):
+        return _number(nested.get("duration_ms"))
+    return None
+
+
+def _build_execution_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_tools = payload.get("tool_calls")
+    tools = [item for item in raw_tools if isinstance(item, dict)] if isinstance(raw_tools, list) else []
+
+    tool_runtime_ms = sum(
+        duration
+        for tool in tools
+        if (duration := _number(tool.get("duration_ms") or tool.get("latency_ms"))) is not None
+    )
+    tool_http_ms = sum(
+        duration
+        for tool in tools
+        if (duration := _tool_http_latency_ms(tool)) is not None
+    )
+
+    runtime_ms = _number(payload.get("total_latency_ms") or payload.get("latency_ms"))
+    non_tool_ms = max(runtime_ms - tool_runtime_ms, 0.0) if runtime_ms is not None else None
+    tool_overhead_ms = max(tool_runtime_ms - tool_http_ms, 0.0)
+
+    successful_tools = sum(1 for tool in tools if tool.get("success") is True)
+    failed_tools = sum(1 for tool in tools if tool.get("success") is False)
+    source_count = len(payload.get("sources")) if isinstance(payload.get("sources"), list) else 0
+
+    tool_share = None
+    if runtime_ms and runtime_ms > 0:
+        tool_share = round((tool_runtime_ms / runtime_ms) * 100, 2)
+
+    return {
+        "schema_version": 1,
+        "agent_runtime_latency_ms": _rounded(runtime_ms),
+        "tool_runtime_latency_ms": _rounded(tool_runtime_ms),
+        "tool_http_latency_ms": _rounded(tool_http_ms),
+        "tool_overhead_latency_ms": _rounded(tool_overhead_ms),
+        "non_tool_runtime_latency_ms": _rounded(non_tool_ms),
+        "tool_share_percent": tool_share,
+        "tool_call_count": len(tools),
+        "successful_tool_calls": successful_tools,
+        "failed_tool_calls": failed_tools,
+        "input_tokens": payload.get("input_tokens"),
+        "output_tokens": payload.get("output_tokens"),
+        "total_tokens": payload.get("total_tokens"),
+        "source_count": source_count,
+        "answer_length": payload.get("answer_length"),
+        "fallback_used": bool(payload.get("fallback_used")),
+        "structured_output": payload.get("parsed_output") is not None,
+        "provider": payload.get("provider"),
+        "model": payload.get("model"),
+        "notes": [
+            "non_tool_runtime_latency_ms includes all model calls and orchestration outside Tool execution",
+            "token counters reflect the usage reported by the Agent runtime",
+        ],
+    }
 
 
 async def project_agent_event(
@@ -241,6 +331,9 @@ async def project_agent_event(
     if event_type != "agent.execution.completed.v1":
         raise ValueError(f"No trace projection for event_type={event_type}")
 
+    diagnostics = _build_execution_diagnostics(payload)
+    payload_with_diagnostics = {**payload, "diagnostics": diagnostics}
+
     trace.status = TraceStatus.completed
     trace.started_at = trace.started_at or datetime.now(timezone.utc)
     trace.ended_at = datetime.now(timezone.utc)
@@ -251,13 +344,9 @@ async def project_agent_event(
         or payload.get("latency_ms")
         or trace.total_latency_ms
     )
+    _merge_data(trace, payload_with_diagnostics, event_type)
     await trace_repo.save(trace)
 
-    # The real LLM event is authoritative. Do not overwrite it with the
-    # completion snapshot, which contains only a subset of its payload.
-
-    # Persist Tool events before the terminal completion event so their
-    # physical created_at ordering matches the execution lifecycle.
     tool_calls = payload.get("tool_calls")
     if isinstance(tool_calls, list):
         for index, raw in enumerate(tool_calls):
@@ -281,11 +370,32 @@ async def project_agent_event(
         event_repo,
         trace_id=trace_id,
         project_id=project_id,
+        discriminator="execution_summary",
+        kind=TraceEventType.info,
+        latency_ms=trace.total_latency_ms,
+        cost_usd=trace.total_cost_usd,
+        payload={
+            "event": "observability.execution.summary.v1",
+            "trace_id": str(trace_id),
+            **diagnostics,
+        },
+    )
+
+    await _save_event(
+        event_repo,
+        trace_id=trace_id,
+        project_id=project_id,
         discriminator="completed",
         kind=TraceEventType.info,
         latency_ms=trace.total_latency_ms,
         cost_usd=trace.total_cost_usd,
-        payload={"event": event_type, **payload},
+        payload={"event": event_type, **payload_with_diagnostics},
     )
 
-    logger.info("Trace projection completed: trace_id=%s", trace_id)
+    logger.info(
+        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s",
+        trace_id,
+        diagnostics["agent_runtime_latency_ms"],
+        diagnostics["tool_runtime_latency_ms"],
+        diagnostics["tool_call_count"],
+    )
