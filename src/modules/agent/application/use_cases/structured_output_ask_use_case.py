@@ -28,6 +28,10 @@ class StructuredOutputAskAgentUseCase(
         fallback_used, fallback_info_result, json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context and context.strict_json and output_parse_error:
+            raise ValueError(
+                f"Strict JSON output failed: {output_parse_error}"
+            )
         if not context or not context.execution:
             return await super()._finalize(
                 session, agent, input_dto, trace_id, answer, usage,
