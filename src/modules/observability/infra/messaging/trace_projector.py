@@ -1,0 +1,266 @@
+from __future__ import annotations
+
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from modules.observability.domain.entities import Trace, TraceEvent
+from modules.observability.domain.enums import TraceEventType, TraceStatus
+from modules.observability.infra.database.repositories import (
+    SQLAlchemyTraceEventRepository,
+    SQLAlchemyTraceRepository,
+)
+
+logger = logging.getLogger(__name__)
+
+_DATA_FIELDS = {
+    "message_id",
+    "message_preview",
+    "answer_length",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cost_usd",
+    "latency_ms",
+    "sources",
+    "tool_calls",
+    "parsed_output",
+    "output_parse_error",
+    "fallback_used",
+    "fallback_info",
+    "model",
+    "provider",
+}
+
+
+def _uuid(value: Any) -> UUID | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _event_id(trace_id: UUID, discriminator: str) -> UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"projectrai:{trace_id}:{discriminator}")
+
+
+def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
+    data = dict(trace.data or {})
+    for field in _DATA_FIELDS:
+        if payload.get(field) is not None:
+            data[field] = payload[field]
+    data["last_event_type"] = event_type
+    trace.data = data
+
+
+async def _save_event(
+    repo: SQLAlchemyTraceEventRepository,
+    *,
+    trace_id: UUID,
+    project_id: UUID,
+    discriminator: str,
+    kind: TraceEventType,
+    payload: dict[str, Any],
+    latency_ms: float | int | None = None,
+    cost_usd: float | None = None,
+) -> None:
+    await repo.save(
+        TraceEvent(
+            id=_event_id(trace_id, discriminator),
+            trace_id=trace_id,
+            project_id=project_id,
+            event_type=kind,
+            latency_ms=latency_ms,
+            cost_usd=cost_usd,
+            payload=payload,
+        )
+    )
+
+
+async def project_agent_event(
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+    session: AsyncSession,
+) -> None:
+    trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
+    if trace_id is None:
+        logger.warning("Ignoring %s without trace_id", event_type)
+        return
+
+    trace_repo = SQLAlchemyTraceRepository(session)
+    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace = await trace_repo.get_by_id(trace_id)
+    project_id = _uuid(payload.get("project_id"))
+
+    if trace is None:
+        if project_id is None:
+            logger.info("Deferring %s until complete trace payload arrives: %s", event_type, trace_id)
+            return
+        trace = Trace(
+            id=trace_id,
+            project_id=project_id,
+            agent_id=_uuid(payload.get("agent_id")),
+            session_id=_uuid(payload.get("session_id")),
+            status=TraceStatus.pending,
+            data={},
+        )
+    else:
+        project_id = trace.project_id
+
+    trace.agent_id = trace.agent_id or _uuid(payload.get("agent_id"))
+    trace.session_id = trace.session_id or _uuid(payload.get("session_id"))
+    trace.provider = payload.get("provider") or trace.provider
+    trace.model = payload.get("model") or trace.model
+    _merge_data(trace, payload, event_type)
+
+    if event_type == "agent.execution.started.v1":
+        trace.status = TraceStatus.running
+        trace.started_at = trace.started_at or datetime.now(timezone.utc)
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator="started",
+            kind=TraceEventType.info,
+            payload={"event": event_type, **payload},
+        )
+        return
+
+    if event_type == "agent.execution.llm_completed.v1":
+        trace.total_cost_usd = float(payload.get("cost_usd") or trace.total_cost_usd or 0)
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator="llm_completed",
+            kind=TraceEventType.llm_call,
+            latency_ms=payload.get("latency_ms"),
+            cost_usd=payload.get("cost_usd"),
+            payload={"event": event_type, **payload},
+        )
+        return
+
+    if event_type == "agent.execution.tool_completed.v1":
+        discriminator = str(
+            payload.get("tool_call_id")
+            or payload.get("tool_id")
+            or payload.get("tool_name")
+            or "tool"
+        )
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator=f"tool_completed:{discriminator}",
+            kind=TraceEventType.tool_call,
+            latency_ms=payload.get("duration_ms") or payload.get("latency_ms"),
+            payload={"event": event_type, **payload},
+        )
+        return
+
+    if event_type == "agent.execution.fallback_triggered.v1":
+        trace.fallback_used = True
+        _merge_data(trace, {**payload, "fallback_used": True}, event_type)
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator="fallback",
+            kind=TraceEventType.warning,
+            payload={"event": event_type, **payload},
+        )
+        return
+
+    if event_type == "agent.execution.failed.v1":
+        trace.status = TraceStatus.failed
+        trace.started_at = trace.started_at or datetime.now(timezone.utc)
+        trace.ended_at = datetime.now(timezone.utc)
+        trace.error = str(payload.get("error") or "unknown error")
+        await trace_repo.save(trace)
+        await _save_event(
+            event_repo,
+            trace_id=trace_id,
+            project_id=project_id,
+            discriminator="failed",
+            kind=TraceEventType.error,
+            payload={"event": event_type, **payload},
+        )
+        return
+
+    if event_type != "agent.execution.completed.v1":
+        logger.warning("No trace projection for event_type=%s", event_type)
+        return
+
+    trace.status = TraceStatus.completed
+    trace.started_at = trace.started_at or datetime.now(timezone.utc)
+    trace.ended_at = datetime.now(timezone.utc)
+    trace.fallback_used = bool(payload.get("fallback_used") or trace.fallback_used)
+    trace.total_cost_usd = float(payload.get("cost_usd") or trace.total_cost_usd or 0)
+    trace.total_latency_ms = payload.get("total_latency_ms") or payload.get("latency_ms") or trace.total_latency_ms
+    await trace_repo.save(trace)
+
+    await _save_event(
+        event_repo,
+        trace_id=trace_id,
+        project_id=project_id,
+        discriminator="completed",
+        kind=TraceEventType.info,
+        latency_ms=trace.total_latency_ms,
+        cost_usd=trace.total_cost_usd,
+        payload={"event": event_type, **payload},
+    )
+
+    # Completion is an authoritative snapshot. Rebuild details when earlier
+    # events were intentionally deferred because their payload was incomplete.
+    await _save_event(
+        event_repo,
+        trace_id=trace_id,
+        project_id=project_id,
+        discriminator="llm_completed",
+        kind=TraceEventType.llm_call,
+        latency_ms=payload.get("latency_ms"),
+        cost_usd=payload.get("cost_usd"),
+        payload={
+            "event": "agent.execution.llm_completed.v1",
+            "input_tokens": payload.get("input_tokens"),
+            "output_tokens": payload.get("output_tokens"),
+            "total_tokens": payload.get("total_tokens"),
+            "model": payload.get("model"),
+            "provider": payload.get("provider"),
+        },
+    )
+
+    tool_calls = payload.get("tool_calls")
+    if isinstance(tool_calls, list):
+        for index, raw in enumerate(tool_calls):
+            tool = raw if isinstance(raw, dict) else {}
+            discriminator = str(
+                tool.get("tool_call_id")
+                or tool.get("tool_id")
+                or tool.get("tool_name")
+                or index
+            )
+            await _save_event(
+                event_repo,
+                trace_id=trace_id,
+                project_id=project_id,
+                discriminator=f"tool_completed:{discriminator}",
+                kind=TraceEventType.tool_call,
+                latency_ms=tool.get("duration_ms") or tool.get("latency_ms"),
+                payload={"event": "agent.execution.tool_completed.v1", **tool},
+            )
+
+    logger.info("Trace projection completed: trace_id=%s", trace_id)
