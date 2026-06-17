@@ -1,7 +1,10 @@
 import { useCallback, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createSession, getAgentSessions, ask, getSessionMessages, askStream, type StreamCallbacks } from './api'
+import { getTraceDetail } from '@/features/traces/api'
 import type { CreateSessionRequest, AskRequest } from './types'
+
+void getTraceDetail
 
 export function useCreateSession() {
   return useMutation({
