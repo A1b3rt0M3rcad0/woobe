@@ -125,6 +125,7 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionId,
         execution_context: 'playground',
+        metadata: { client_sent_at: new Date().toISOString() },
       }
 
       requestPayload.snapshot_override = toSnapshot()
@@ -174,6 +175,13 @@ function PlaygroundContent() {
             })
           },
           onDone: (response) => {
+            for (const event of response.execution_events ?? []) {
+              rawEventsRef.current.push({
+                type: event.event_type,
+                timestamp: event.occurred_at,
+                payload: event,
+              })
+            }
             rawEventsRef.current.push({ type: 'done', timestamp: new Date().toISOString(), payload: response })
             setRawEvents([...rawEventsRef.current])
             const meta = response
