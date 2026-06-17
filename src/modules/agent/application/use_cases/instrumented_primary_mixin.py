@@ -32,6 +32,8 @@ class InstrumentedPrimaryExecutionMixin:
             context.prepare_latency_ms = round(
                 (time.monotonic() - started) * 1000
             )
+            response_format = prepared[5]
+            context.strict_json = bool(response_format.get("strict", False))
         return prepared
 
     async def _execute_llm(
