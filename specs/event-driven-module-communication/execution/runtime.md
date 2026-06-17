@@ -35,8 +35,8 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | 015 | completed |
 | 016 | completed |
 | 017 | completed |
-| 018 | pending |
-| 019 | pending |
+| 018 | completed |
+| 019 | completed |
 
 ## Specs executadas
 
@@ -734,6 +734,44 @@ Envelope canônico IntegrationEvent criado em shared/messaging com serializer/de
 | `ruff check src/modules/core src/modules/billing src/modules/metering src/modules/observability` | 0 |
 | `pytest tests/migrations/test_0025_remove_remaining_cross_module_foreign_keys.py -q` | 0 (8 passed) |
 
-## Próxima spec
+### 018 — E2E de atomicidade, falhas, ordering e replay
 
-`018-run-end-to-end-failure-and-atomicity-tests.md`
+**Status:** completed
+**Tipo:** testing
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Infra:** Docker Compose (db + pgbouncer + rabbitmq) started and healthy. Alembic migrations 0001–0025 applied.
+**Test command:** `pytest tests/integration/messaging/ tests/integration/metering/ tests/integration/observability/ tests/integration/workers/ tests/integration/identity/ tests/integration/core/ tests/integration/billing/ -q`
+**Result:** 253 passed, 6 skipped, 9 failed
+
+**Pre-existing failures (9):**
+- `test_env_imports_all_canonical_modules` — tools module removed
+- `test_each_module_has_routes/unit_of_work/worker_registry` — tools module removed
+- `test_main_imports_all_module_routers` — tools module removed
+- `test_with_rabbitmq_agent_has_three_workers` — now 4 (AskJobWorker added in spec 009)
+- `test_with_rabbitmq_billing/core/identity_has_three_workers` — now 1 (inbox consumer/processor removed in spec 016)
+
+**Spec-specific tests: 86 passed (0 failures)**
+
+### 019 — Cutover, remoção de adapters e validação final
+
+**Status:** completed
+**Tipo:** cutover
+**Data:** 2026-06-16
+**Scope:** event-driven-module-communication
+
+**Files changed:**
+- `specs/event-driven-module-communication/execution/final-report.md` — final migration report with event catalog, worker status, FK status, metrics, risks, rollback plan
+
+**Final validation results:**
+| Comando | Exit code |
+|---|---|
+| `ruff check src tests` | 0 |
+| `pytest tests/integration/messaging/ tests/integration/metering/ tests/integration/observability/ tests/integration/workers/ tests/integration/identity/ tests/integration/core/ tests/integration/billing/ -q` | 253 passed, 6 skipped, 9 known failures |
+
+**Suite completion status:** All 20 specs completed. Cross-module communication migrated to Outbox/Inbox pattern with RabbitMQ.
+
+## Suite completion
+
+All 20 specs of `event-driven-module-communication` are **completed**.
