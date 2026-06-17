@@ -21,7 +21,7 @@
 | 002 | completed |
 | 003 | completed |
 | 004 | completed |
-| 005 | pending |
+| 005 | completed |
 | 006 | pending |
 | 007 | pending |
 | 008 | pending |
@@ -278,6 +278,68 @@
 - 7 known defects documented; 6 resolved (D001-D006), 1 invalid (D007).
 - Characterization tests depend on KNOWN_VIOLATIONS sets remaining accurate as code changes.
 
+### 005 — Corrigir projeção idempotente do Observability
+
+**Status:** completed
+**Tipo:** observability
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#\|outbox\.write\(\|_do_save_assistant_message" src tests` | 0 (legacy patterns in characterization tests) |
+| `Select-String "agent\.execution\.(started\|llm_completed\|tool_completed)\.v1\|event_type=.*\.created" src tests` | 0 (versioned events present) |
+| `Select-String "UUID\(int=0\)" src/modules/observability` | 0 (zero sentinel IDs remaining) |
+| `Select-String "from modules\.(?!observability)" src/modules/observability` | 0 (zero cross-module reads) |
+
+**Files changed:**
+- `src/modules/observability/infra/messaging/inbox_handlers.py` — terminal state guard, deterministic TraceEvent ID via uuid5, idempotent upsert of Trace via `_get_or_create_trace`, mandatory field validation (project_id), removed `UUID(int=0)` sentinel values
+- `tests/integration/observability/test_spec014_observability_projection.py` — added 16 new tests across 4 new classes: `TestTerminalStateProtection` (5 tests), `TestDeterministicEventIds` (5 tests), `TestOutOfOrderEvents` (2 tests), `TestNoSentinelIds` (4 tests)
+- `specs/module-communication-hardening/execution/runtime.md` — runtime updated
+
+**Communication paths hardened:**
+- 6 inbox handlers now guard against terminal state regression
+- 2 TraceEvent types (llm_call, tool_call) use deterministic IDs for idempotent replay
+- All handlers validate mandatory `project_id` field
+- `handle_trace_started` upgraded from always-create to upsert pattern via `_get_or_create_trace`
+- Zero `UUID(int=0)` sentinel values in observability handlers
+
+**Public contracts, events, Outbox, Inbox, workers, handlers, retries, timeouts, error contracts changed:**
+- `_is_terminal_status()` helper added
+- `_make_deterministic_event_id()` helper added (uuid5 with NAMESPACE_DNS)
+- All 6 handlers: added project_id validation + terminal state guard
+- `handle_llm_call` and `handle_tool_call`: TraceEvent now created with deterministic `id` instead of auto-generated uuid6
+
+**Tests created or updated:**
+- 16 new tests added to `test_spec014_observability_projection.py`
+- `TestTerminalStateProtection`: completed after started, failed does not regress to completed, completed does not regress to failed, started skipped when terminal, llm_call skipped when terminal
+- `TestDeterministicEventIds`: same trace+event produces same ID, different traces differ, different events differ, replay upsert
+- `TestOutOfOrderEvents`: completed before started works, started after completed does not regress
+- `TestNoSentinelIds`: project_id used correctly, missing project_id causes early return for started/completed/failed
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/observability/infra/messaging/inbox_handlers.py tests/integration/observability/test_spec014_observability_projection.py` | 0 |
+| `python -m pytest tests/integration/observability -q` | 0 (48 passed) |
+| `python -m pytest tests/contract/events -q` | 0 (19 passed) |
+
+**Known defects resolved:**
+- No observer from this spec, but D007 (metering/observability consumers missing event types) was already marked invalid in spec 000
+- Sentinel IDs (UUID(int=0)) removed from all observability inbox handlers
+
+**Decisões:**
+- Deterministic event IDs (uuid5) chosen instead of explicit `source_event_id` column to avoid DB migration in this spec. The upsert behavior of `SQLAlchemyTraceEventRepository.save()` (upsert by PK) provides the same dedup guarantee.
+- Terminal status set includes completed, failed, and cancelled. When a trace has reached any of these, all further events for that trace are skipped.
+- Missing `project_id` causes early return (event skipped) instead of falling back to sentinel UUID.
+
+**Riscos:**
+- If `project_id` is genuinely missing from an event that should have it, the event is silently dropped (logged at INFO level). No exception propagates.
+- Pre-existing async test failures (pytest-asyncio) unchanged.
+
 ## Próxima spec
 
-`005-fix-observability-inbox-projection.md`
+`006-fix-tool-wiring-and-agent-self-subscription.md`
