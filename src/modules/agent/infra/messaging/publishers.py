@@ -29,12 +29,14 @@ class AgentRabbitMQPublisher:
             message=message,
             routing_key=envelope.routing_key,
         )
-        if not confirm:
-            logger.error(
-                "Publisher confirm failed for %s message_id=%s",
-                envelope.routing_key, envelope.message_id,
+        if confirm is False:
+            raise RuntimeError(
+                "RabbitMQ did not confirm publication "
+                f"routing_key={envelope.routing_key} message_id={envelope.message_id}"
             )
-        logger.debug(
-            "Published event to %s with correlation_id=%s message_id=%s",
-            envelope.routing_key, envelope.correlation_id, envelope.message_id,
+        logger.info(
+            "Published Agent event routing_key=%s message_id=%s correlation_id=%s",
+            envelope.routing_key,
+            envelope.message_id,
+            envelope.correlation_id,
         )
