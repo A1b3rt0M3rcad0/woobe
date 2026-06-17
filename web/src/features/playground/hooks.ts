@@ -2,9 +2,29 @@ import { useCallback, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createSession, getAgentSessions, ask, getSessionMessages, askStream, type StreamCallbacks } from './api'
 import { getTraceDetail } from '@/features/traces/api'
-import type { CreateSessionRequest, AskRequest } from './types'
+import type { CreateSessionRequest, AskRequest, ExecutionEvent } from './types'
 
-void getTraceDetail
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+async function enrichDoneResponse(response: Parameters<StreamCallbacks['onDone']>[0]) {
+  if (!response.trace_id) return response
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  try {
+    const detail = await getTraceDetail(response.trace_id)
+    const data = asRecord(detail.data)
+    response.execution_events = Array.isArray(data.execution_events)
+      ? data.execution_events as ExecutionEvent[]
+      : []
+    response.diagnostics = (data.diagnostics ?? null) as typeof response.diagnostics
+  } catch {
+    // The trace remains available through the trace panel if projection is delayed.
+  }
+  return response
+}
 
 export function useCreateSession() {
   return useMutation({
@@ -41,7 +61,14 @@ export function useAskStream() {
     async (data: AskRequest, callbacks: StreamCallbacks) => {
       abortRef.current?.abort()
       abortRef.current = new AbortController()
-      await askStream(data, callbacks, abortRef.current.signal)
+      let completion: Promise<void> = Promise.resolve()
+      await askStream(data, {
+        ...callbacks,
+        onDone: (response) => {
+          completion = enrichDoneResponse(response).then(callbacks.onDone)
+        },
+      }, abortRef.current.signal)
+      await completion
     },
     [],
   )
