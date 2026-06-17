@@ -67,6 +67,24 @@ export interface TraceUsage {
   costUsd: number | null
 }
 
+export interface TraceDiagnostics {
+  schemaVersion: number
+  agentRuntimeLatencyMs: number | null
+  toolRuntimeLatencyMs: number | null
+  toolHttpLatencyMs: number | null
+  toolOverheadLatencyMs: number | null
+  nonToolRuntimeLatencyMs: number | null
+  toolSharePercent: number | null
+  toolCallCount: number
+  successfulToolCalls: number
+  failedToolCalls: number
+  sourceCount: number
+  answerLength: number | null
+  fallbackUsed: boolean
+  structuredOutput: boolean
+  notes: string[]
+}
+
 export interface TraceSummary {
   id: string
   projectId: string
@@ -89,6 +107,7 @@ export interface TraceSummary {
 
 export interface TraceDetailNormalized extends TraceSummary {
   usage: TraceUsage
+  diagnostics: TraceDiagnostics | null
   parsedOutput: unknown | null
   outputParseError?: string | null
   sources: TraceSource[]
