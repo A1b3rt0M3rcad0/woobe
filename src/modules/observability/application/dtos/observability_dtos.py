@@ -16,12 +16,12 @@ _TRACE_EVENT_ORDER = {
 }
 
 
-def _trace_event_sort_key(event: "TraceEventResponse") -> tuple[int, datetime]:
+def _trace_event_sort_key(event: "TraceEventResponse") -> tuple[int, float, str]:
     payload = event.payload if isinstance(event.payload, dict) else {}
     integration_event = payload.get("event")
     lifecycle_order = _TRACE_EVENT_ORDER.get(str(integration_event), 60)
-    created_at = event.created_at or datetime.min
-    return lifecycle_order, created_at
+    created_at = event.created_at.timestamp() if event.created_at is not None else float("-inf")
+    return lifecycle_order, created_at, str(event.id)
 
 
 class CreateTraceInput(BaseModel):
