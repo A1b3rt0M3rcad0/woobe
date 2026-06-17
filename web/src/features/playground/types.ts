@@ -57,6 +57,7 @@ export interface SourceInfo {
 }
 
 export interface ToolCallInfo {
+  tool_call_id?: string | null
   tool_name: string
   input?: unknown
   output?: unknown
@@ -91,6 +92,40 @@ export interface FallbackEventInfo {
   error: string
 }
 
+export interface ExecutionEvent {
+  schema_version: number
+  event_id: string
+  trace_id: string
+  root_span_id: string
+  span_id: string
+  parent_span_id: string | null
+  sequence: number
+  event_type: string
+  phase?: string | null
+  status?: string | null
+  occurred_at: string
+  started_at?: string | null
+  ended_at?: string | null
+  duration_ms?: number | null
+  attributes: Record<string, unknown>
+}
+
+export interface ExecutionDiagnostics {
+  schema_version: number
+  total_latency_ms: number
+  prepare_latency_ms: number
+  llm_runtime_latency_ms: number
+  tool_wall_latency_ms: number
+  tool_call_duration_sum_ms: number
+  tool_http_latency_ms: number
+  persistence_latency_ms: number
+  orchestration_latency_ms: number
+  llm_call_count: number
+  tool_call_count: number
+  usage_complete: boolean
+  cost_status: 'known' | 'unknown'
+}
+
 export interface AskResponse {
   answer: string
   session_id: string | null
@@ -106,6 +141,8 @@ export interface AskResponse {
   latency_ms: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
+  execution_events?: ExecutionEvent[]
+  diagnostics?: ExecutionDiagnostics | null
 }
 
 export interface Message {
