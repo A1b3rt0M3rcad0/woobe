@@ -73,6 +73,9 @@ async def finalize_instrumented_execution(owner, **kw):
     persistence_started = time.monotonic()
     message_id = None
 
+    project_id_text = str(kw["input_dto"].project_id)
+    agent_id_text = str(agent.id)
+
     async with AgentUnitOfWork(owner._session_factory) as uow:
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
         if session:
@@ -91,7 +94,12 @@ async def finalize_instrumented_execution(owner, **kw):
             execution.timeline,
             key=lambda value: value.get("occurred_at", ""),
         ):
-            event_payload = {"trace_id": trace_id_text, **item["payload"]}
+            event_payload = {
+                "trace_id": trace_id_text,
+                "project_id": project_id_text,
+                "agent_id": agent_id_text,
+                **item["payload"],
+            }
             event = (
                 llm_event(agent.id, event_payload)
                 if item["kind"] == "llm"
@@ -102,7 +110,12 @@ async def finalize_instrumented_execution(owner, **kw):
             await outbox.write(
                 fallback_event(
                     agent.id,
-                    {"trace_id": trace_id_text, **kw["fallback_info"]},
+                    {
+                        "trace_id": trace_id_text,
+                        "project_id": project_id_text,
+                        "agent_id": agent_id_text,
+                        **kw["fallback_info"],
+                    },
                 )
             )
 
@@ -265,8 +278,8 @@ async def finalize_instrumented_execution(owner, **kw):
     sources = kw["sources"] or []
     payload = {
         "trace_id": trace_id_text,
-        "project_id": str(kw["input_dto"].project_id),
-        "agent_id": str(agent.id),
+        "project_id": project_id_text,
+        "agent_id": agent_id_text,
         "session_id": str(session.id) if session else None,
         "message_id": str(message_id) if message_id else None,
         "answer_length": len(kw["answer"]),
