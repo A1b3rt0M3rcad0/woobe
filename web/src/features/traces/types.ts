@@ -107,7 +107,7 @@ export interface TraceSummary {
 
 export interface TraceDetailNormalized extends TraceSummary {
   usage: TraceUsage
-  diagnostics: TraceDiagnostics | null
+  diagnostics?: TraceDiagnostics | null
   parsedOutput: unknown | null
   outputParseError?: string | null
   sources: TraceSource[]
