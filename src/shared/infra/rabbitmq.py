@@ -18,30 +18,54 @@ class RabbitMQManager:
         self._consuming_queues: set[str] = set()
 
     @property
+    def is_connected(self) -> bool:
+        return (
+            self._connection is not None
+            and self._channel is not None
+            and self._exchange is not None
+            and not self._connection.is_closed
+            and not self._channel.is_closed
+        )
+
+    @property
     def channel(self) -> RobustChannel:
-        if self._channel is not None:
+        if self._channel is not None and not self._channel.is_closed:
             return self._channel
         raise RuntimeError("RabbitMQManager not connected")
 
     @property
     def exchange(self) -> aio_pika.Exchange:
-        if self._exchange is not None:
+        if self.is_connected and self._exchange is not None:
             return self._exchange
         raise RuntimeError("RabbitMQManager not connected")
 
     async def connect(self) -> None:
-        self._connection = await aio_pika.connect_robust(self._url)
-        self._channel = await self._connection.channel()
-        await self._channel.confirm()
-        self._exchange = await self._channel.declare_exchange(
-            name=self._exchange_name,
-            type=ExchangeType.TOPIC,
-            durable=True,
-        )
-        self._dlx_exchange = await self._channel.declare_exchange(
-            name=f"{self._exchange_name}.dlx",
-            type=ExchangeType.FANOUT,
-            durable=True,
+        if self.is_connected:
+            return
+
+        try:
+            self._connection = await aio_pika.connect_robust(self._url)
+            self._channel = await self._connection.channel(
+                publisher_confirms=True,
+                on_return_raises=True,
+            )
+            self._exchange = await self._channel.declare_exchange(
+                name=self._exchange_name,
+                type=ExchangeType.TOPIC,
+                durable=True,
+            )
+            self._dlx_exchange = await self._channel.declare_exchange(
+                name=f"{self._exchange_name}.dlx",
+                type=ExchangeType.FANOUT,
+                durable=True,
+            )
+        except Exception:
+            await self.close()
+            raise
+
+        logger.info(
+            "RabbitMQ connected exchange=%s publisher_confirms=true",
+            self._exchange_name,
         )
 
     async def declare_topology(
@@ -50,12 +74,13 @@ class RabbitMQManager:
         routing_keys: list[str],
         dlx_queue_name: str | None = None,
     ) -> None:
+        channel = self.channel
         dlq_name = dlx_queue_name or f"{queue_name}.dlq"
-        await self._channel.declare_queue(
+        dlq_queue = await channel.declare_queue(
             name=dlq_name,
             durable=True,
         )
-        await self._channel.declare_queue(
+        queue = await channel.declare_queue(
             name=queue_name,
             durable=True,
             arguments={
@@ -64,11 +89,9 @@ class RabbitMQManager:
             },
         )
         if self._dlx_exchange is not None:
-            dlq_queue = await self._channel.get_queue(name=dlq_name, ensure=True)
             await dlq_queue.bind(exchange=self._dlx_exchange.name)
         for key in routing_keys:
-            queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
-            await queue_obj.bind(exchange=self._exchange_name, routing_key=key)
+            await queue.bind(exchange=self._exchange_name, routing_key=key)
 
     async def publish(
         self,
@@ -101,8 +124,8 @@ class RabbitMQManager:
             return
 
         await self.declare_topology(queue_name=queue_name, routing_keys=routing_keys)
-        queue_obj = await self._channel.get_queue(name=queue_name, ensure=True)
-        await queue_obj.consume(callback=callback)
+        queue = await self.channel.get_queue(name=queue_name, ensure=True)
+        await queue.consume(callback=callback)
         self._consuming_queues.add(queue_name)
         logger.info(
             "RabbitMQ consumer registered queue=%s routing_keys=%s",
@@ -112,12 +135,13 @@ class RabbitMQManager:
 
     async def close(self) -> None:
         self._consuming_queues.clear()
-        if self._connection is not None:
-            await self._connection.close()
-            self._connection = None
-            self._channel = None
-            self._exchange = None
-            self._dlx_exchange = None
+        connection = self._connection
+        self._connection = None
+        self._channel = None
+        self._exchange = None
+        self._dlx_exchange = None
+        if connection is not None and not connection.is_closed:
+            await connection.close()
 
     async def __aenter__(self) -> "RabbitMQManager":
         await self.connect()
