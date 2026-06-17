@@ -279,7 +279,11 @@ async def project_agent_event(
                 discriminator=f"tool_completed:{discriminator}",
                 kind=TraceEventType.tool_call,
                 latency_ms=tool.get("duration_ms") or tool.get("latency_ms"),
-                payload={"event": "agent.execution.tool_completed.v1", **tool},
+                payload={
+                    "event": "agent.execution.tool_completed.v1",
+                    "trace_id": str(trace_id),
+                    **tool,
+                },
             )
 
     logger.info("Trace projection completed: trace_id=%s", trace_id)
