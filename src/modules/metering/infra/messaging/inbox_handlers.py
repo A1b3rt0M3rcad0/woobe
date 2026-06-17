@@ -97,7 +97,7 @@ async def handle_llm_request(
         )
     )
 
-    existing_project = await project_repo.get_by_project_and_day(project_id, today.isoformat())
+    existing_project = await project_repo.get_by_project_and_day(project_id, today)
     if existing_project:
         existing_project.input_tokens += input_tokens
         existing_project.output_tokens += output_tokens
@@ -116,7 +116,7 @@ async def handle_llm_request(
         )
 
     if agent_id:
-        existing_agent = await agent_repo.get_by_agent_and_day(agent_id, today.isoformat())
+        existing_agent = await agent_repo.get_by_agent_and_day(agent_id, today)
         if existing_agent:
             existing_agent.input_tokens += input_tokens
             existing_agent.output_tokens += output_tokens
@@ -169,7 +169,7 @@ async def handle_tool_execution(
         )
     )
 
-    existing_project = await project_repo.get_by_project_and_day(project_id, today.isoformat())
+    existing_project = await project_repo.get_by_project_and_day(project_id, today)
     if existing_project:
         existing_project.tool_calls += 1
         await project_repo.save(existing_project)
@@ -184,7 +184,7 @@ async def handle_tool_execution(
         )
 
     if agent_id:
-        existing_agent = await agent_repo.get_by_agent_and_day(agent_id, today.isoformat())
+        existing_agent = await agent_repo.get_by_agent_and_day(agent_id, today)
         if existing_agent:
             existing_agent.tool_calls += 1
             await agent_repo.save(existing_agent)
