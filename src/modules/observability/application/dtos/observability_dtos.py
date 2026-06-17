@@ -5,6 +5,25 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 
+_TRACE_EVENT_ORDER = {
+    "agent.execution.requested.v1": 10,
+    "agent.execution.started.v1": 20,
+    "agent.execution.llm_completed.v1": 30,
+    "agent.execution.tool_completed.v1": 40,
+    "agent.execution.fallback_triggered.v1": 50,
+    "agent.execution.completed.v1": 90,
+    "agent.execution.failed.v1": 90,
+}
+
+
+def _trace_event_sort_key(event: "TraceEventResponse") -> tuple[int, datetime]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    integration_event = payload.get("event")
+    lifecycle_order = _TRACE_EVENT_ORDER.get(str(integration_event), 60)
+    created_at = event.created_at or datetime.min
+    return lifecycle_order, created_at
+
+
 class CreateTraceInput(BaseModel):
     project_id: UUID
     agent_id: UUID | None = None
@@ -55,13 +74,6 @@ class TraceEventResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def derive_trace_id_from_payload(cls, value: Any) -> Any:
-        """Keep the API compatible while exposing the event's owning trace.
-
-        Existing use cases already provide the event payload. Older callers do
-        not pass ``trace_id`` explicitly, so derive it from the canonical Agent
-        integration-event payload rather than returning an empty value to the
-        frontend.
-        """
         if not isinstance(value, dict) or value.get("trace_id"):
             return value
         payload = value.get("payload")
@@ -91,6 +103,11 @@ class TraceSummaryResponse(BaseModel):
     data: dict | None = None
     created_at: datetime | None = None
     events: list[TraceEventResponse] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def order_events_by_execution_lifecycle(self) -> "TraceSummaryResponse":
+        self.events = sorted(self.events, key=_trace_event_sort_key)
+        return self
 
 
 class TraceListItemResponse(BaseModel):
