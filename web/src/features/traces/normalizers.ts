@@ -123,18 +123,51 @@ function normalizeToolCalls(raw: unknown): TraceToolCall[] {
 
 function normalizeEvents(raw: unknown): TraceEvent[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((item) => {
+
+  const events = raw.map((item) => {
     const event = asRecord(item)
+    const payload = asRecord(event.payload)
+    const payloadTraceId = payload.trace_id ?? payload.execution_id
     return {
       id: typeof event.id === 'string' ? event.id : '',
-      trace_id: typeof event.trace_id === 'string' ? event.trace_id : '',
+      trace_id: typeof event.trace_id === 'string'
+        ? event.trace_id
+        : typeof payloadTraceId === 'string'
+          ? payloadTraceId
+          : '',
       event_type: typeof event.event_type === 'string' ? event.event_type : 'info',
       latency_ms: safeNumber(event.latency_ms),
       cost_usd: safeNumber(event.cost_usd),
-      payload: Object.keys(asRecord(event.payload)).length > 0 ? asRecord(event.payload) : null,
+      payload: Object.keys(payload).length > 0 ? payload : null,
       payload_ref: typeof event.payload_ref === 'string' ? event.payload_ref : null,
       created_at: typeof event.created_at === 'string' ? event.created_at : null,
     }
+  })
+
+  // Traces created before the projector fix may contain an incomplete direct
+  // Tool event plus the authoritative complete event from the final snapshot.
+  // Keep all complete calls and suppress only the incomplete legacy duplicate.
+  const completeToolNames = new Set(
+    events
+      .filter((event) => {
+        if (event.event_type !== 'tool_call') return false
+        const payload = asRecord(event.payload)
+        return typeof payload.tool_call_id === 'string'
+          && Object.prototype.hasOwnProperty.call(payload, 'input')
+          && Object.prototype.hasOwnProperty.call(payload, 'output')
+      })
+      .map((event) => asRecord(event.payload).tool_name)
+      .filter((name): name is string => typeof name === 'string'),
+  )
+
+  return events.filter((event) => {
+    if (event.event_type !== 'tool_call') return true
+    const payload = asRecord(event.payload)
+    const toolName = payload.tool_name
+    const isIncomplete = typeof payload.tool_call_id !== 'string'
+      || !Object.prototype.hasOwnProperty.call(payload, 'input')
+      || !Object.prototype.hasOwnProperty.call(payload, 'output')
+    return !(isIncomplete && typeof toolName === 'string' && completeToolNames.has(toolName))
   })
 }
 
