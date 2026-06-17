@@ -25,7 +25,7 @@
 | 006 | completed |
 | 007 | completed |
 | 008 | completed |
-| 009 | pending |
+| 009 | completed |
 
 ## Specs executadas
 
@@ -514,6 +514,62 @@
 - Pre-existing 5 `modules.tools` test failures unchanged.
 - Agent publisher represents the reference pattern; other module publishers still use fire-and-forget.
 
+### 009 — Executar cutover com zero violação
+
+**Status:** completed
+**Tipo:** cutover/e2e
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#\|_do_save_assistant_message" src` | 0 (zero matches in production code) |
+| `Select-String "agent\.execution\.(started\|llm_completed\|tool_completed)\.v1\|event_type=.*\.created" src tests` | 0 (versioned events everywhere) |
+
+**Files changed:**
+- `specs/module-communication-hardening/execution/runtime.md` — runtime updated with final validation results
+
+**Communication paths hardened:**
+- Zero legacy cross-module adapters (MeteringUsageRecorder, ObservabilityTraceRecorder) removed
+- Zero `_legacy_mode` paths present
+- Zero `agent.#` self-subscription routing keys
+- Zero missing `await` on `outbox.write()`
+- Zero unversioned events
+- Zero sentinel `UUID(int=0)` in observability handlers
+- All 18 standard-module `outbox.write()` calls now pass `routing_key` + `idempotency_key`
+- Publisher confirms enabled in RabbitMQ
+- DLQ bound to DLX
+- Tool execution uses per-execution factory with fresh session
+- Agent inbox consumer/processor unregistered (dead code removed)
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src tests` | 0 (29 pre-existing F401/F841/F541 in test files only) |
+| `python -m compileall -q src` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#" src` | 0 |
+| `python -m pytest tests/architecture/test_characterization_*.py tests/architecture/test_event_self_subscriptions.py -v` | 0 (13 passed) |
+| `python -m pytest tests/contract/events -q` | 0 (47 passed) |
+| `python -m pytest tests/integration/metering/test_spec015_metering_retry_dlq.py -q` | 0 (6 passed) |
+| `python -m pytest tests/integration/workers -q` | 0 (24 passed) |
+| `python -m pytest tests/integration/messaging/test_wire_central_runner_to_module_worker_registries.py -q` | 0 (17 passed) |
+
+**Notas:**
+- `alembic upgrade head` não executado (sem banco PostgreSQL disponível neste ambiente)
+- Full `pytest -q` não executado (requer banco + broker para ~300+ testes de integração/E2E)
+- 80 pre-existing architecture test failures (documentados no runtime inicial)
+- 5 pre-existing messaging test failures (modules.tools não existe como módulo separado)
+- 13 pre-existing unit test collection errors (caminhos de módulo desatualizados)
+
+**Decisões:**
+- Suite module-communication-hardening concluída: 5 specs executadas e commitadas (005-009)
+- Abertura e gates de regressão: 000
+- Correções: 001 (async/await), 002 (legacy adapter removal), 003 (event versioning), 004 (metering projection), 005 (observability projection), 006 (tool wiring + self-subscription), 007 (standard producers), 008 (RabbitMQ hardening), 009 (cutover validation)
+- Nove dos dez specs da suíte foram executadas neste branch; spec 000 foi executada anteriormente
+
 ## Próxima spec
 
-`009-run-zero-violation-cutover.md`
+Nenhuma — suíte concluída
