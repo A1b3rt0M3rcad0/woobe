@@ -1,12 +1,19 @@
 import logging
 import time
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAskJobRepository,
 )
-from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from shared.infra.config import Settings
@@ -45,11 +52,27 @@ class AskJobWorker:
 
         llm_factory = LangchainLLMFactory()
         settings = Settings()
+        cipher = SecretCipherAdapter(settings.encryption_key)
+        http_exec = HttpToolExecutor()
+
+        async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+            async with AgentUnitOfWork(session_factory) as uow:
+                resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+                uc = ExecuteToolUseCase(
+                    tool_repo=uow.tools,
+                    tool_executor=http_exec,
+                    secret_resolver=resolver,
+                )
+                result = await uc.execute(
+                    ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+                )
+                return result.model_dump()
 
         use_case = AskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
             encryption_key=settings.encryption_key,
+            tool_executor_factory=execute_tool,
         )
 
         started_at = time.monotonic()

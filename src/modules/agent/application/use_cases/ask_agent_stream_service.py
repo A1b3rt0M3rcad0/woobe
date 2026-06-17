@@ -47,7 +47,11 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
     SQLAlchemyAgentReleaseRepository,
 )
-from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.infra.time import utc_now
 from shared.infra.config import Settings
@@ -150,12 +154,30 @@ class AskAgentStreamService:
                     tools = await tool_repo.list_by_agent(agent.id, status="active")
                     if tools:
                         agent_tools = agent_tools_to_openai_definitions(tools)
-                        tool_executor = AgentToolExecutor(tool_repo)
                         for t in tools:
                             tool_name_to_id[_safe_tool_name(t)] = str(t.id)
                         has_tools = True
             except Exception as e:
                 logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
+
+            if has_tools:
+                _cipher = SecretCipherAdapter(Settings().encryption_key)
+                _http_exec = HttpToolExecutor()
+
+                async def _execute_tool(tool_id: UUID, input_data: dict) -> dict:
+                    async with AgentUnitOfWork(self._session_factory) as exec_uow:
+                        resolver = ToolSecretResolverAdapter(exec_uow.tool_secrets, _cipher)
+                        uc = ExecuteToolUseCase(
+                            tool_repo=exec_uow.tools,
+                            tool_executor=_http_exec,
+                            secret_resolver=resolver,
+                        )
+                        result = await uc.execute(
+                            ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+                        )
+                        return result.model_dump()
+
+                tool_executor = _execute_tool
 
             chat_model = self._llm_factory.create_chat_model(
                 provider=agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
@@ -238,7 +260,7 @@ class AskAgentStreamService:
                         if tool_executor:
                             try:
                                 tool_args = tc.get("args", {}) or {}
-                                tool_output = await tool_executor.execute_tool(
+                                tool_output = await tool_executor(
                                     UUID(resolved_tool_id), tool_args,
                                 )
                             except Exception as tool_e:

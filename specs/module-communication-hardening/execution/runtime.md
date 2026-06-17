@@ -22,7 +22,7 @@
 | 003 | completed |
 | 004 | completed |
 | 005 | completed |
-| 006 | pending |
+| 006 | completed |
 | 007 | pending |
 | 008 | pending |
 | 009 | pending |
@@ -340,6 +340,64 @@
 - If `project_id` is genuinely missing from an event that should have it, the event is silently dropped (logged at INFO level). No exception propagates.
 - Pre-existing async test failures (pytest-asyncio) unchanged.
 
+### 006 — Corrigir Tool e remover self-subscription do Agent
+
+**Status:** completed
+**Tipo:** agent/tools/workers
+**Data:** 2026-06-16
+**Scope:** module-communication-hardening
+
+**Detection commands:**
+| Comando | Exit code |
+|---|---|
+| `git branch --show-current` (verify branch) | 0 |
+| `git status --short` | 0 |
+| `Select-String "MeteringUsageRecorder\|ObservabilityTraceRecorder\|_legacy_mode\|agent\.#\|outbox\.write\(\|_do_save_assistant_message" src tests` | 0 (legacy patterns only in characterization tests) |
+| `Select-String "agent\.execution\.(started\|llm_completed\|tool_completed)\.v1\|event_type=.*\.created" src tests` | 0 (versioned events present) |
+
+**Files changed:**
+- `src/modules/agent/application/use_cases/ask_use_case.py` — added `tool_executor_factory: Callable[[UUID, dict], Awaitable[dict]]` param; `_execute_single_tool` uses factory when executor is unavailable
+- `src/modules/agent/application/composers/ask_agent_composer.py` — creates per-execution tool factory opening its own AgentUnitOfWork, with SecretCipherAdapter + ToolSecretResolverAdapter + HttpToolExecutor; passes factory to AskAgentUseCase
+- `src/modules/agent/application/use_cases/ask_agent_stream_service.py` — replaced stale `AgentToolExecutor(tool_repo)` with per-execution `_execute_tool` async closure that opens own UoW, includes secret resolution via ToolSecretResolverAdapter; removed `AgentToolExecutor` import
+- `src/modules/agent/infra/workers/ask_job_worker.py` — added per-execution tool factory with SecretCipherAdapter + ToolSecretResolverAdapter + HttpToolExecutor; passes factory as `tool_executor_factory` to AskAgentUseCase
+- `src/modules/agent/infra/workers/registry.py` — removed `AgentInboxConsumerWorker` and `AgentInboxProcessorWorker` registrations (dead code: empty routing keys, no handlers); removed unused imports
+- `tests/architecture/test_event_self_subscriptions.py` — updated `test_agent_self_subscription_is_justified` to `test_agent_no_self_subscription`, verifying zero agent self-subscriptions remaining
+
+**Communication paths hardened:**
+- Tool execution in ask, stream, and job paths now uses per-execution sessions (no stale UoW reuse)
+- Tool execution in stream includes secret resolution (was missing previously)
+- Agent inbox consumer/processor removed (dead workers with empty routing keys and no handlers)
+- Agent self-subscription (`agent.#`) verified zero occurrences
+
+**Public contracts, events, Outbox, Inbox, workers, handlers, retries, timeouts, error contracts changed:**
+- `AskAgentUseCase` accepts `tool_executor_factory` optional param (backward-compatible with existing `tool_executor`)
+- `ask_agent_composer`, `ask_agent_stream_service`, `ask_job_worker` all create per-execution tool factory
+- Agent worker registry reduced: outbox_dispatcher + ask_job_worker only (removed inbox_consumer, inbox_processor)
+
+**Tests created or updated:**
+- `test_event_self_subscriptions.py`: `test_agent_self_subscription_is_justified` → `test_agent_no_self_subscription`
+
+**Validation commands:**
+| Comando | Exit code |
+|---|---|
+| `python -m ruff check src/modules/agent/application/use_cases/ask_use_case.py src/modules/agent/application/composers/ask_agent_composer.py src/modules/agent/application/use_cases/ask_agent_stream_service.py src/modules/agent/infra/workers/ask_job_worker.py src/modules/agent/infra/workers/registry.py tests/architecture/test_event_self_subscriptions.py` | 0 |
+| `python -m pytest tests/unit/agent/test_tools_application.py -q` | 0 (21 passed) |
+| `python -m pytest tests/unit/agent/test_spec010_tool_executor_and_handlers.py -q` | 0 (8 passed) |
+| `python -m pytest tests/integration/agent/test_tools_transaction.py -q` | 1 (5 pre-existing async failures, zero new failures) |
+| `python -m pytest tests/architecture/test_event_self_subscriptions.py -v` | 0 (2 passed) |
+| `python -m pytest tests/architecture/test_characterization_subscriptions.py tests/architecture/test_event_self_subscriptions.py -v` | 0 (5 passed) |
+
+**Decisões:**
+- Per-execution tool factory with `AgentUnitOfWork` opener chosen over stale `AgentToolExecutor(tool_repo)` to avoid closed-session access.
+- `AgentToolExecutor` class kept for other consumers (e.g., direct tool API endpoints via `execute_tool_composer`).
+- Agent inbox consumer/processor files kept on disk (not deleted) to minimize diff; only registry registrations removed. The files are now dead code.
+- `tool_executor_factory` accepts `Callable[[UUID, dict], Awaitable[dict]]` for maximum flexibility — any async callable with `(tool_id, input_data) -> dict` works.
+
+**Riscos:**
+- Tool execution in ask/stream/job now opens an additional DB session per tool call (was previously shared). Acceptable — tool calls are relatively rare.
+- Pre-existing async test failures (pytest-asyncio) unchanged.
+- Agent inbox consumer/processor files remain on disk but unregistered.
+
 ## Próxima spec
 
-`006-fix-tool-wiring-and-agent-self-subscription.md`
+`007-standardize-all-module-producers.md`

@@ -1,8 +1,8 @@
 """Guards for event-driven-module-communication: detect self-subscriptions.
 
 Ensures that modules do not use generic self-subscriptions like "agent.#" or
-"billing.#" without explicit justification. Only agent may self-subscribe
-for tool events.
+"billing.#" without explicit justification. Agent self-subscription was
+removed in spec 006 (tool events use Outbox to publish, never self-consume).
 """
 from __future__ import annotations
 
@@ -53,15 +53,13 @@ class TestEventSelfSubscriptions:
             f"Unexpected self-subscriptions detected: {violations}"
         )
 
-    def test_agent_self_subscription_is_justified(self):
+    def test_agent_no_self_subscription(self):
         agent_dir = SRC_MODULES / "agent"
-        found_self_subscribe = False
         for py_file in agent_dir.rglob("*.py"):
             if not py_file.is_file():
                 continue
             for _, prefix, _ in _find_routing_key_definitions(py_file):
-                if prefix == "agent":
-                    found_self_subscribe = True
-        assert found_self_subscribe, (
-            "Agent self-subscription (agent.#) expected for tool events"
-        )
+                assert prefix != "agent", (
+                    f"Agent self-subscription (agent.#) found in {_relative_posix(py_file)}:{_}. "
+                    "Agent self-subscription was removed in spec 006."
+                )

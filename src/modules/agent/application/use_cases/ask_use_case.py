@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -72,11 +73,13 @@ class AskAgentUseCase:
         session_factory: async_sessionmaker[AsyncSession] | None = None,
         llm_factory: LLMFactory | None = None,
         tool_executor: ToolExecutor | None = None,
+        tool_executor_factory: Callable[[UUID, dict], Awaitable[dict]] | None = None,
         encryption_key: str | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._llm_factory = llm_factory
         self._tool_executor = tool_executor
+        self._tool_executor_factory = tool_executor_factory
         self._encryption_key = encryption_key or Settings().encryption_key
 
     async def execute(self, input_dto: AskInput) -> AskOutput:
@@ -521,10 +524,12 @@ class AskAgentUseCase:
             logger.warning("Failed to emit AgentExecutionFailedV1: %s", e)
 
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict:
-        if not self._tool_executor:
+        if not self._tool_executor and not self._tool_executor_factory:
             return {"success": False, "error": "Tool execution not available"}
         try:
             args = tool_call.get("args", {}) or {}
+            if self._tool_executor_factory:
+                return await self._tool_executor_factory(UUID(tool_id), args)
             return await self._tool_executor.execute_tool(UUID(tool_id), args)
         except Exception as e:
             logger.warning("Tool execution failed: %s", e)
