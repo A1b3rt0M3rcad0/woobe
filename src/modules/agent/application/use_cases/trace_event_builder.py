@@ -31,6 +31,8 @@ def _event(trace_id: str, event_type: str, occurred_at: str, **fields: Any) -> d
 
 def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
+    previous_llm: dict[str, Any] | None = None
+    pending_tools: list[str] = []
     for item in timeline:
         payload = item.get("payload")
         if not isinstance(payload, dict):
@@ -39,47 +41,53 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
         ended_at = payload.get("ended_at") or payload.get("occurred_at")
         if item.get("kind") == "llm":
             span_id = str(payload.get("call_id") or uuid4())
-            attributes = {
+            common = {
                 "call_id": payload.get("call_id"),
                 "call_index": payload.get("call_index"),
                 "provider": payload.get("provider"),
                 "model": payload.get("model"),
+                "received_tool_call_ids": list(pending_tools),
             }
+            pending_tools.clear()
             if started_at:
                 events.append(_event(
                     trace_id, "llm.call.started", str(started_at),
                     span_id=span_id, phase=payload.get("phase"), status="running",
                     started_at=started_at, ended_at=None, duration_ms=None,
-                    attributes=attributes,
+                    attributes=dict(common),
                 ))
+            previous_llm = {
+                **common,
+                "input_tokens": payload.get("input_tokens"),
+                "output_tokens": payload.get("output_tokens"),
+                "total_tokens": payload.get("total_tokens"),
+                "cost_usd": payload.get("cost_usd"),
+                "cost_status": payload.get("cost_status"),
+                "usage_complete": payload.get("usage_complete"),
+                "error": payload.get("error"),
+                "requested_tool_call_ids": [],
+            }
             events.append(_event(
                 trace_id, "llm.call.completed", str(ended_at),
                 span_id=span_id, phase=payload.get("phase"),
                 status=payload.get("status") or "success",
                 started_at=started_at, ended_at=ended_at,
-                duration_ms=payload.get("latency_ms"),
-                attributes={
-                    **attributes,
-                    "input_tokens": payload.get("input_tokens"),
-                    "output_tokens": payload.get("output_tokens"),
-                    "total_tokens": payload.get("total_tokens"),
-                    "cost_usd": payload.get("cost_usd"),
-                    "cost_status": payload.get("cost_status"),
-                    "usage_complete": payload.get("usage_complete"),
-                    "error": payload.get("error"),
-                },
+                duration_ms=payload.get("latency_ms"), attributes=previous_llm,
             ))
         elif item.get("kind") == "tool":
-            span_id = str(payload.get("tool_call_id") or uuid4())
+            tool_id = str(payload.get("tool_call_id") or uuid4())
+            pending_tools.append(tool_id)
+            if previous_llm is not None:
+                previous_llm["requested_tool_call_ids"].append(tool_id)
             common = {
-                "tool_call_id": payload.get("tool_call_id"),
+                "tool_call_id": tool_id,
                 "tool_name": payload.get("tool_name"),
                 "input": payload.get("input"),
             }
             if started_at:
                 events.append(_event(
                     trace_id, "tool.call.started", str(started_at),
-                    span_id=span_id, phase="tool_execution", status="running",
+                    span_id=tool_id, phase="tool_execution", status="running",
                     started_at=started_at, ended_at=None, duration_ms=None,
                     attributes=common,
                 ))
@@ -87,7 +95,7 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
             http = float(payload.get("http_latency_ms") or 0)
             events.append(_event(
                 trace_id, "tool.call.completed", str(ended_at),
-                span_id=span_id, phase="tool_execution",
+                span_id=tool_id, phase="tool_execution",
                 status=payload.get("status") or "success",
                 started_at=started_at, ended_at=ended_at,
                 duration_ms=payload.get("duration_ms"),
