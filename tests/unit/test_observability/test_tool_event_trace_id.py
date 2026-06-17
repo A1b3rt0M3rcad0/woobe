@@ -3,12 +3,12 @@ from uuid import uuid4
 import pytest
 
 from modules.observability.domain.entities import Trace
-from modules.observability.domain.enums import TraceStatus
+from modules.observability.domain.enums import TraceEventType, TraceStatus
 from modules.observability.infra.messaging import trace_projector
 
 
 @pytest.mark.asyncio
-async def test_completed_snapshot_tool_event_contains_trace_id(monkeypatch) -> None:
+async def test_completed_snapshot_persists_tool_before_completed(monkeypatch) -> None:
     trace_id = uuid4()
     project_id = uuid4()
     trace = Trace(
@@ -53,5 +53,11 @@ async def test_completed_snapshot_tool_event_contains_trace_id(monkeypatch) -> N
         session=object(),
     )
 
-    tool_event = saved_events[1]
+    assert [event.event_type for event in saved_events] == [
+        TraceEventType.tool_call,
+        TraceEventType.info,
+    ]
+    tool_event, completed_event = saved_events
     assert tool_event.payload["trace_id"] == str(trace_id)
+    assert tool_event.payload["event"] == "agent.execution.tool_completed.v1"
+    assert completed_event.payload["event"] == "agent.execution.completed.v1"
