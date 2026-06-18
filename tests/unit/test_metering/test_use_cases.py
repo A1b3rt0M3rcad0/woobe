@@ -2,7 +2,7 @@ import pytest
 from uuid import UUID
 from datetime import date
 
-from modules.metering.domain.entities import UsageEvent, UsageDailyProject, UsageDailyAgent
+from modules.metering.domain.entities import UsageDailyProject, UsageDailyAgent
 from modules.metering.service.dtos import (
     RecordUsageInput,
     RecordUsageOutput,

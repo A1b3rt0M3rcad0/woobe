@@ -81,7 +81,7 @@ class TestAddLegacyModuleAllowlist:
                 f"Allowlist entry {i} missing required fields: {missing}"
             )
 
-        scopes_present = {e["scope"] for e in entries}
+        {e["scope"] for e in entries}
 
         for entry in entries:
             assert entry["scope"] in VALID_SCOPES, (

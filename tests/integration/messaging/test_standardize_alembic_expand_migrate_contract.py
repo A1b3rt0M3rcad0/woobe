@@ -6,7 +6,6 @@ have upgrade/downgrade, and no destructive operations exist.
 from __future__ import annotations
 
 import pathlib
-import re
 
 MIGRATIONS_DIR = pathlib.Path("migrations/versions")
 ENV_PATH = pathlib.Path("migrations/env.py")

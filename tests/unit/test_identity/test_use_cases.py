@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from modules.identity.domain.entities import Organization, OrganizationInvite, User
+from modules.identity.domain.entities import OrganizationInvite
 from modules.identity.domain.enums import InviteStatus, MemberRole
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
