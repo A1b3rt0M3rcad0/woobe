@@ -1,5 +1,5 @@
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date
 
 from modules.metering.domain.entities import UsageEvent, UsageDailyProject, UsageDailyAgent
 from modules.metering.domain.enums import UsageEventType, UsageUnit

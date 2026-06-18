@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from modules.core.domain.enums import ApiKeyStatus, ProjectStatus
-from modules.core.service.dtos import (
+from modules.core.application.dtos import (
     CreateApiKeyInput,
     CreateApiKeyOutput,
     CreateProjectInput,

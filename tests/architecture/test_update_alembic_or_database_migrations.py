@@ -4,7 +4,6 @@ Validates that the Alembic migration environment imports models from the agent
 module (not legacy ai/knowledge/runtime paths), follows expand-migrate-contract
 strategy, and does not create destructive renames or new cross-module FKs.
 """
-import importlib
 import pathlib
 import re
 

@@ -1,5 +1,4 @@
 from uuid import UUID
-from datetime import datetime
 
 from modules.observability.domain.entities import Trace, TraceEvent
 from modules.observability.domain.enums import TraceStatus, TraceEventType

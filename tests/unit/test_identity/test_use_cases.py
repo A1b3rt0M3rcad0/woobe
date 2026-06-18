@@ -3,20 +3,20 @@ from datetime import UTC, datetime
 
 import pytest
 
-from modules.identity.domain.entities import Organization, OrganizationInvite, User
+from modules.identity.domain.entities import OrganizationInvite
 from modules.identity.domain.enums import InviteStatus, MemberRole
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
     OrganizationNotFoundError,
     UserNotFoundError,
 )
-from modules.identity.service.dtos import (
+from modules.identity.application.dtos import (
     AddMemberInput,
     CreateOrganizationInput,
     CreateUserInput,
     InviteUserInput,
 )
-from modules.identity.service.use_cases import (
+from modules.identity.application.use_cases import (
     AddMemberToOrganizationUseCase,
     CreateOrganizationUseCase,
     CreateUserUseCase,

@@ -734,6 +734,6 @@ def test_all_layers_follow_dependency_direction():
                             violations.append(f"{rel}: use_case imports from infra ({node.module})")
 
     assert not violations, (
-        f"Layer direction violations found:\n"
+        "Layer direction violations found:\n"
         + "\n".join(f"  - {v}" for v in violations[:30])
     )

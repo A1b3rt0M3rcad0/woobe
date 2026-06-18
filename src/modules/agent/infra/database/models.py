@@ -68,7 +68,10 @@ class AgentModel(BaseModel):
 
 class AgentPromptModel(BaseModel):
     __tablename__ = "agent_prompts"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_agent_prompts_agent_version", "agent_id", "version", unique=True),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -82,7 +85,10 @@ class AgentPromptModel(BaseModel):
 
 class AgentContractModel(BaseModel):
     __tablename__ = "agent_contracts"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_agent_contracts_agent_version", "agent_id", "version", unique=True),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -99,7 +105,10 @@ class AgentContractModel(BaseModel):
 
 class AgentModelConfigModel(BaseModel):
     __tablename__ = "agent_model_configs"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_agent_model_configs_agent_version", "agent_id", "version", unique=True),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -119,7 +128,17 @@ class AgentModelConfigModel(BaseModel):
 
 class AgentReleaseModel(BaseModel):
     __tablename__ = "agent_releases"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
+        Index("ix_agent_releases_agent_status", "agent_id", "status"),
+        Index(
+            "uq_agent_releases_production",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'production'"),
+        ),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -253,7 +272,10 @@ class DocumentChunkModel(BaseModel):
 
 class KnowledgeVersionModel(BaseModel):
     __tablename__ = "knowledge_versions"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_knowledge_versions_agent_version", "agent_id", "version", unique=True),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -299,7 +321,10 @@ class MessageModel(BaseModel):
 
 class AskJobModel(BaseModel):
     __tablename__ = "ask_jobs"
-    __table_args__ = {"schema": "agent"}
+    __table_args__ = (
+        Index("ix_ask_jobs_status_created", "status", "created_at"),
+        {"schema": "agent"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
@@ -322,7 +347,9 @@ class AgentToolModel(BaseModel):
     )
 
     project_id: Mapped[UUID]
-    agent_id: Mapped[UUID | None]
+    agent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agent.agents.id"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     type: Mapped[str] = mapped_column(String(64))
@@ -362,7 +389,10 @@ class AgentOutboxEventModel(BaseModel):
         ),
         Index("ix_agent_outbox_correlation_id", "correlation_id"),
         Index("ix_agent_outbox_aggregate", "aggregate_type", "aggregate_id"),
-        {"schema": "agent"},
+        {
+            "schema": "agent",
+            "comment": "Outbox events for the agent bounded context. Owned by module agent.",
+        },
     )
 
     aggregate_type: Mapped[str] = mapped_column(String(128))
@@ -401,7 +431,10 @@ class AgentInboxEventModel(BaseModel):
             postgresql_where=text("status IN ('received', 'retryable')"),
         ),
         Index("ix_agent_inbox_correlation_id", "correlation_id"),
-        {"schema": "agent"},
+        {
+            "schema": "agent",
+            "comment": "Inbox events for the agent bounded context. Owned by module agent.",
+        },
     )
 
     message_id: Mapped[str] = mapped_column(String(255))

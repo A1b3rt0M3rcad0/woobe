@@ -5,9 +5,7 @@ directly, with legacy ai/knowledge/runtime routers retained only as deprecation
 shims. Also verifies the bootstrap sets up engine, session_factory, settings,
 CORS, exception handlers, and the startup/shutdown lifecycle.
 """
-import importlib
 import inspect
-import warnings
 
 from fastapi import FastAPI
 

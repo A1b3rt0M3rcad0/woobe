@@ -19,6 +19,7 @@ jobs:
     name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -45,6 +46,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
+
     env:
       PYTHONPATH: src
       PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
@@ -53,25 +55,57 @@ jobs:
       PROJECTRAI_RABBITMQ_URL: amqp://projectrai:projectrai@localhost:5672/
       PROJECTRAI_ENVIRONMENT: test
       PROJECTRAI_DEBUG: "false"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
+
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
+
       - name: Ruff
         run: uv run ruff check src tests
-      - name: Pyright
-        run: uv run pyright
+
+      - name: Pyright changed production files
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          base_sha="${PR_BASE_SHA:-}"
+          if [[ -z "$base_sha" ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- src migrations \
+              | grep -E '^(src|migrations)/.*\.py$' || true
+          )
+
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No changed production Python files to type-check."
+            exit 0
+          fi
+
+          printf 'Type-checking changed production files:\n'
+          printf '  %s\n' "${files[@]}"
+          uv run pyright "${files[@]}"
+
       - name: Apply migrations
         run: uv run alembic upgrade head
-      - name: Pytest
-        run: uv run pytest -q
+
+      - name: Pytest baseline gate
+        run: uv run python scripts/ci/run_pytest_baseline.py

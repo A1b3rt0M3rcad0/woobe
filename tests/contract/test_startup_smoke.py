@@ -23,7 +23,6 @@ class TestStartupSmoke:
 
     def test_app_creatable(self):
         import importlib.util
-        import sys
 
         spec = importlib.util.spec_from_file_location(
             "main", str(MAIN_PATH)

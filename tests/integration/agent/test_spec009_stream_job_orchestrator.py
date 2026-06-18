@@ -3,8 +3,7 @@
 Covers: SSE phases (prepare/LLM/finalize/fail), job+outbox atomicity,
 worker registration, no dynamic imports, no open session after prepare.
 """
-import json
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -18,11 +17,7 @@ from modules.agent.application.use_cases.runtime_use_cases import (
 )
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
-    UsageInfo,
-    SourceInfo,
-    ToolCallInfo,
 )
-from modules.agent.domain.entities import Agent
 from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.domain.ports.llm_factory import LLMFactory
 
@@ -135,7 +130,6 @@ class TestWorkerRegistration:
 
     def test_ask_job_worker_conforms_to_protocol(self):
         from modules.agent.infra.workers.ask_job_worker import AskJobWorker
-        from shared.workers.contracts import WorkerProtocol
         assert isinstance(AskJobWorker, type)
         engine = MagicMock()
         worker = AskJobWorker(async_engine=engine)
