@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: backend-${{ github.workflow }}-${{ github.ref }}
@@ -175,17 +175,32 @@ jobs:
           PY
           uv run ruff check src tests --fix --unsafe-fixes
           uv run ruff check src tests
-          git diff --name-only -- src tests > generated-files.txt
-          test -s generated-files.txt
-          tar -czf generated-files.tar.gz -T generated-files.txt
-      - name: Upload generated files
+      - name: Commit generated corrections
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src tests; then
+            echo "No generated corrections to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          git commit -m "ci: apply generated quality corrections [skip ci]"
+          git push origin HEAD:chore/mvp-01-green-gates
+      - name: Pyright
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pyright 2>&1 | tee pyright-report.txt
+      - name: Upload Pyright report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mvp01-generated-files
-          path: generated-files.tar.gz
+          name: pyright-report
+          path: pyright-report.txt
           if-no-files-found: error
-      - name: Pyright
-        run: uv run pyright
       - name: Apply migrations
         run: uv run alembic upgrade head
       - name: Pytest
