@@ -1,63 +1,58 @@
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentReleaseRepository,
-)
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentCollectionRepository,
-)
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentOutboxEventWriter,
-)
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.infra.adapters.metering_usage_recorder import MeteringUsageRecorder
-from modules.agent.infra.adapters.observability_trace_recorder import ObservabilityTraceRecorder
-from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
-from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
-from modules.agent.presentation.controllers.ask_agent_controller import (
-    AskAgentController,
-)
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from shared.infra.transactional_handler import TransactionalHandler
-from shared.infra.config import Settings
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
+from shared.infra.config import Settings
 
 
-def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+_http_executor = None
+
+
+def _get_http_executor():
+    global _http_executor
+    if _http_executor is None:
+        _http_executor = HttpToolExecutor()
+    return _http_executor
+
+
+async def close_ask_agent_resources():
+    global _http_executor
+    if _http_executor is not None:
+        await _http_executor.aclose()
+        _http_executor = None
+
+
+def ask_agent_composer(session_factory: async_sessionmaker[AsyncSession]):
     settings = Settings()
-    uow = AgentUnitOfWork(session_factory)
-
-    agent_repo = uow.agents
-    credential_repo = uow.provider_credentials
-    release_repo = SQLAlchemyAgentReleaseRepository(uow)
-    session_repo = uow.sessions
-    message_repo = uow.messages
-    agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
-    chunk_repo = uow.document_chunks
-    tool_repo = SQLAlchemyAgentToolRepository(uow)
-
-    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    trace_recorder = ObservabilityTraceRecorder(uow)
-    usage_recorder = MeteringUsageRecorder(uow)
-    tool_executor = AgentToolExecutor(tool_repo)
     llm_factory = LangchainLLMFactory()
+    cipher = SecretCipherAdapter(settings.encryption_key)
 
-    use_case = AskAgentUseCase(
-        agent_repo=agent_repo,
-        credential_repo=credential_repo,
-        session_repo=session_repo,
-        message_repo=message_repo,
-        agent_collection_repo=agent_collection_repo,
-        chunk_repo=chunk_repo,
-        trace_recorder=trace_recorder,
-        usage_recorder=usage_recorder,
-        outbox=outbox,
+    async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+        async with AgentUnitOfWork(session_factory) as uow:
+            resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+            use_case = ExecuteToolUseCase(
+                tool_repo=uow.tools,
+                tool_executor=_get_http_executor(),
+                secret_resolver=resolver,
+            )
+            result = await use_case.execute(
+                ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+            )
+            return result.model_dump()
+
+    use_case = StructuredOutputAskAgentUseCase(
+        session_factory=session_factory,
         llm_factory=llm_factory,
-        tool_executor=tool_executor,
-        tool_repo=tool_repo,
-        release_repo=release_repo,
         encryption_key=settings.encryption_key,
+        tool_executor_factory=execute_tool,
     )
-
-    controller = AskAgentController(use_case)
-    return TransactionalHandler(uow, controller.handle)
+    return AskAgentController(use_case).handle

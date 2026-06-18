@@ -40,7 +40,7 @@ class RecordUsageUseCase:
         await self._outbox.write(
             aggregate_type="UsageEvent",
             aggregate_id=saved.id,
-            event_type="usage_event.recorded",
+            event_type="usage_event.recorded.v1",
             payload={
                 "project_id": str(saved.project_id),
                 "agent_id": str(saved.agent_id) if saved.agent_id else None,
@@ -48,6 +48,8 @@ class RecordUsageUseCase:
                 "quantity": saved.quantity,
                 "unit": saved.unit,
             },
+            routing_key="usage_event.recorded.v1",
+            idempotency_key=f"metering:usage_event.recorded.v1:{saved.id}",
         )
 
         return RecordUsageOutput(event_id=saved.id)

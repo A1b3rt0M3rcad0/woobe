@@ -54,13 +54,13 @@ class MeteringOutboxDispatcherWorker(BaseOutboxDispatcher):
 
     async def claim_pending(self, limit: int) -> list[OutboxRecord]:
         assert self._session is not None
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+        from sqlalchemy import func
         stmt = (
             select(OutboxEventModel)
             .where(
                 OutboxEventModel.status == "pending",
                 OutboxEventModel.attempts < self.MAX_ATTEMPTS,
-                OutboxEventModel.available_at <= cutoff,
+                OutboxEventModel.available_at <= func.now(),
             )
             .order_by(OutboxEventModel.available_at.asc())
             .limit(limit)
@@ -116,6 +116,34 @@ class MeteringOutboxDispatcherWorker(BaseOutboxDispatcher):
             .values(
                 status="failed" if record.attempts + 1 >= self.MAX_ATTEMPTS else "pending",
                 error=error,
+                attempts=OutboxEventModel.attempts + 1,
+                available_at=datetime.now(timezone.utc) + timedelta(seconds=backoff),
+            )
+        )
+        await self._session.execute(stmt)
+
+    async def mark_dead(self, record: OutboxRecord) -> None:
+        assert self._session is not None
+        stmt = (
+            update(OutboxEventModel)
+            .where(OutboxEventModel.id == record.id)
+            .values(
+                status="dead",
+                error=record.error or "max attempts exceeded",
+                attempts=OutboxEventModel.attempts + 1,
+            )
+        )
+        await self._session.execute(stmt)
+
+    async def mark_retryable(self, record: OutboxRecord) -> None:
+        assert self._session is not None
+        backoff = RETRY_BACKOFF_BASE_SECONDS * (2 ** record.attempts)
+        stmt = (
+            update(OutboxEventModel)
+            .where(OutboxEventModel.id == record.id)
+            .values(
+                status="pending",
+                error=record.error,
                 attempts=OutboxEventModel.attempts + 1,
                 available_at=datetime.now(timezone.utc) + timedelta(seconds=backoff),
             )

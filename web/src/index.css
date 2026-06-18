@@ -46,3 +46,115 @@
     background: transparent;
   }
 }
+
+/*
+ * Project overview is a dense operational dashboard. Keep it fluid instead of
+ * centering it inside a fixed desktop width, otherwise browser zoom and ultra
+ * wide screens create large empty gutters and make every card look undersized.
+ */
+.project-overview-main > div,
+.project-overview-main > div > div {
+  min-width: 0;
+  width: 100%;
+}
+
+.project-overview-main > div > div {
+  max-width: none !important;
+  margin-inline: 0 !important;
+  padding-right: 0 !important;
+}
+
+.project-overview-main section {
+  min-width: 0;
+}
+
+.project-overview-main [class~='text-[8px]'] {
+  font-size: 0.625rem !important;
+}
+
+.project-overview-main [class~='text-[9px]'] {
+  font-size: 0.6875rem !important;
+}
+
+.project-overview-main [class~='text-[10px]'] {
+  font-size: 0.75rem !important;
+}
+
+.project-overview-main [class~='text-[11px]'] {
+  font-size: 0.8125rem !important;
+}
+
+.project-overview-main [class~='text-[13px]'] {
+  font-size: 0.9375rem !important;
+}
+
+.project-overview-main [class~='space-y-2.5'] > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.875rem !important;
+}
+
+@media (min-width: 1536px) {
+  .project-overview-main [class~='text-[8px]'] {
+    font-size: 0.6875rem !important;
+  }
+
+  .project-overview-main [class~='text-[9px]'] {
+    font-size: 0.75rem !important;
+  }
+
+  .project-overview-main [class~='text-[10px]'] {
+    font-size: 0.8125rem !important;
+  }
+
+  .project-overview-main [class~='text-[11px]'] {
+    font-size: 0.875rem !important;
+  }
+
+  .project-overview-main [class~='text-[13px]'] {
+    font-size: 1rem !important;
+  }
+
+  .project-overview-main [class~='min-h-[98px]'] {
+    min-height: 7.75rem !important;
+  }
+
+  .project-overview-main [class~='h-[140px]'] {
+    height: 11.5rem !important;
+  }
+
+  .project-overview-main [class~='h-[126px]'] {
+    height: 10.75rem !important;
+  }
+
+  .project-overview-main [class~='h-[118px]'] {
+    height: 9.5rem !important;
+  }
+
+  .project-overview-main [class~='h-[104px]'] {
+    height: 8.75rem !important;
+  }
+
+  .project-overview-main [class~='space-y-2.5'] > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .project-overview-main {
+    overflow-y: auto;
+  }
+
+  .project-overview-main > div {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 639px) {
+  .project-overview-main [class~='text-[22px]'] {
+    font-size: 1.25rem !important;
+  }
+
+  .project-overview-main [class~='grid-cols-4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

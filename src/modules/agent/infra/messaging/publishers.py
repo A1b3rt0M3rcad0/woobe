@@ -16,19 +16,27 @@ class AgentRabbitMQPublisher:
         self._manager = rabbitmq_manager
 
     async def publish(self, envelope: RabbitMQMessageEnvelope) -> None:
+        body = envelope.body.encode()
         message = Message(
-            body=envelope.body.encode(),
+            body=body,
             delivery_mode=DeliveryMode.PERSISTENT,
             correlation_id=envelope.correlation_id,
             content_type="application/json",
             headers=envelope.headers or {},
+            message_id=envelope.message_id,
         )
-        await self._manager.exchange.publish(
+        confirm = await self._manager.exchange.publish(
             message=message,
             routing_key=envelope.routing_key,
         )
-        logger.debug(
-            "Published event to %s with correlation_id=%s",
+        if confirm is False:
+            raise RuntimeError(
+                "RabbitMQ did not confirm publication "
+                f"routing_key={envelope.routing_key} message_id={envelope.message_id}"
+            )
+        logger.info(
+            "Published Agent event routing_key=%s message_id=%s correlation_id=%s",
             envelope.routing_key,
+            envelope.message_id,
             envelope.correlation_id,
         )

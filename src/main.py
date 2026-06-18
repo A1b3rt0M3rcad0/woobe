@@ -18,7 +18,6 @@ from modules.observability.presentation.routes import router as observability_ro
 from modules.agent.presentation.routes import tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
-from shared.infra.rabbitmq import RabbitMQManager
 from shared.presentation.errors import (
     conflict_handler,
     domain_error_handler,
@@ -29,8 +28,6 @@ from shared.presentation.errors import (
     validation_handler,
 )
 from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
-from shared.workers.discovery import build_registries, discover_module_entries
-from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +44,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="ProjectRAI",
-        description="Runtime AI Platform \u2014 Production-ready AI agent runtime",
+        description="Runtime AI Platform - Production-ready AI agent runtime",
         version="0.1.0",
     )
 
@@ -105,45 +102,21 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def startup() -> None:
         engine = app.state.async_engine
-        try:
-            async with engine.begin() as conn:
-                await conn.run_sync(lambda _: None)
-        except Exception:
-            pass
-
-        rabbitmq_manager: RabbitMQManager | None = None
-        try:
-            rabbitmq_manager = RabbitMQManager(
-                url=settings.rabbitmq_url,
-                exchange_name=settings.rabbitmq_exchange,
-            )
-            await rabbitmq_manager.connect()
-            app.state.rabbitmq_manager = rabbitmq_manager
-        except Exception:
-            logger.warning("RabbitMQ unavailable - workers will not start")
-
-        entries = discover_module_entries()
-        if entries:
-            registries = build_registries(
-                entries,
-                engine=engine,
-                settings=settings,
-                rabbitmq_manager=rabbitmq_manager,
-            )
-            runner = WorkerRunner.from_registries(registries)
-            app.state.worker_runner = runner
-            logger.info("Worker runner initialized with %d registries", len(registries))
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda _: None)
+        logger.info("API runtime started without background workers")
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await app.state.async_engine.dispose()
-        rabbitmq_manager = getattr(app.state, "rabbitmq_manager", None)
-        if rabbitmq_manager is not None:
-            await rabbitmq_manager.close()
+        logger.info("API runtime stopped")
 
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "runtime": "api",
+        }
 
     return app
 

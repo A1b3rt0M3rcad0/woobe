@@ -72,12 +72,7 @@ class CreateToolUseCase:
                 "risk_level": created.risk_level.value if hasattr(created.risk_level, "value") else created.risk_level,
             },
         )
-        await self._outbox.write(
-            aggregate_type="tool",
-            aggregate_id=created.id,
-            event_type=event.event_type,
-            payload=event.payload,
-        )
+        await self._outbox.write(event)
 
         return CreateToolOutput(
             id=created.id,
@@ -127,12 +122,7 @@ class CreateSecretUseCase:
             name=created.name,
             secret_type=created.type.value if hasattr(created.type, "value") else created.type,
         )
-        await self._outbox.write(
-            aggregate_type="secret",
-            aggregate_id=created.id,
-            event_type=event.event_type,
-            payload=event.payload,
-        )
+        await self._outbox.write(event)
 
         return CreateSecretOutput(
             id=created.id,
@@ -181,12 +171,7 @@ class UpdateToolUseCase:
             tool_id=updated.id,
             payload={"name": updated.name},
         )
-        await self._outbox.write(
-            aggregate_type="tool",
-            aggregate_id=updated.id,
-            event_type=event.event_type,
-            payload=event.payload,
-        )
+        await self._outbox.write(event)
 
         return CreateToolOutput(
             id=updated.id,
@@ -222,12 +207,7 @@ class UpdateToolStatusUseCase:
             tool_id=updated.id,
             status=status_value,
         )
-        await self._outbox.write(
-            aggregate_type="tool",
-            aggregate_id=updated.id,
-            event_type=event.event_type,
-            payload=event.payload,
-        )
+        await self._outbox.write(event)
 
         return CreateToolOutput(
             id=updated.id,

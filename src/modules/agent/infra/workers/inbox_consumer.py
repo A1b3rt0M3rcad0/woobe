@@ -16,7 +16,7 @@ from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 logger = logging.getLogger(__name__)
 
 AGENT_INBOX_QUEUE: str = "agent.inbox"
-AGENT_INBOX_ROUTING_KEYS: list[str] = ["agent.#"]
+AGENT_INBOX_ROUTING_KEYS: list[str] = []
 
 
 class AgentInboxConsumerWorker(BaseInboxConsumer):

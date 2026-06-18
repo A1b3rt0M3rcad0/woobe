@@ -57,7 +57,7 @@ class TestBuildRegistries:
         for registry in registries:
             assert isinstance(registry, WorkerRegistryProtocol)
 
-    def test_with_rabbitmq_agent_has_three_workers(self):
+    def test_with_rabbitmq_agent_has_two_workers(self):
         entries = discover_module_entries()
         mock_engine = MagicMock()
         mock_rmq = MagicMock(spec=RabbitMQManager)
@@ -69,9 +69,9 @@ class TestBuildRegistries:
         )
         assert len(registries) == 1
         agent_workers = registries[0].iter_workers()
-        assert len(agent_workers) == 3
+        assert len(agent_workers) == 2
 
-    def test_with_rabbitmq_billing_has_three_workers(self):
+    def test_with_rabbitmq_billing_has_one_worker(self):
         entries = discover_module_entries()
         mock_engine = MagicMock()
         mock_rmq = MagicMock(spec=RabbitMQManager)
@@ -83,9 +83,9 @@ class TestBuildRegistries:
         )
         assert len(registries) == 1
         billing_workers = registries[0].iter_workers()
-        assert len(billing_workers) == 3
+        assert len(billing_workers) == 1
 
-    def test_with_rabbitmq_core_has_three_workers(self):
+    def test_with_rabbitmq_core_has_one_worker(self):
         entries = discover_module_entries()
         mock_engine = MagicMock()
         mock_rmq = MagicMock(spec=RabbitMQManager)
@@ -97,9 +97,9 @@ class TestBuildRegistries:
         )
         assert len(registries) == 1
         core_workers = registries[0].iter_workers()
-        assert len(core_workers) == 3
+        assert len(core_workers) == 1
 
-    def test_with_rabbitmq_identity_has_three_workers(self):
+    def test_with_rabbitmq_identity_has_one_worker(self):
         entries = discover_module_entries()
         mock_engine = MagicMock()
         mock_rmq = MagicMock(spec=RabbitMQManager)
@@ -111,7 +111,7 @@ class TestBuildRegistries:
         )
         assert len(registries) == 1
         identity_workers = registries[0].iter_workers()
-        assert len(identity_workers) == 3
+        assert len(identity_workers) == 1
 
     def test_stub_modules_have_zero_workers(self):
         entries = discover_module_entries()

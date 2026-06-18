@@ -1,0 +1,3 @@
+.trace-details-embedded > div > div:first-child {
+  display: none;
+}

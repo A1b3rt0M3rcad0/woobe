@@ -34,12 +34,14 @@ class CreateProjectUseCase:
         await self._outbox.write(
             aggregate_type="project",
             aggregate_id=saved.id,
-            event_type="project.created",
+            event_type="project.created.v1",
             payload={
                 "organization_id": str(saved.organization_id),
                 "name": saved.name,
                 "slug": saved.slug,
             },
+            routing_key="project.created.v1",
+            idempotency_key=f"core:project.created.v1:{saved.id}",
         )
 
         return CreateProjectOutput(
