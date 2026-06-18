@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from collections.abc import Mapping
 from logging.config import fileConfig
 
 from alembic import context
@@ -23,8 +24,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override alembic.ini URL with PROJECTRAI_DATABASE_URL
-settings = Settings()
+# BaseSettings reads required secrets and the database URL from PROJECTRAI_*.
+# model_validate avoids a false-positive constructor diagnostic in Pyright.
+settings = Settings.model_validate({})
 sync_url = settings.database_url.replace("+asyncpg", "+psycopg2")
 config.set_main_option("sqlalchemy.url", sync_url)
 
@@ -39,7 +41,11 @@ MANAGED_SCHEMAS = {
 }
 
 
-def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+def include_name(
+    name: str | None,
+    type_: str,
+    _parent_names: Mapping[str, str | None],
+) -> bool:
     if type_ == "schema":
         return name is None or name in MANAGED_SCHEMAS
     return True
