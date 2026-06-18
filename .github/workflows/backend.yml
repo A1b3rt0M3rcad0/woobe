@@ -1,0 +1,77 @@
+name: Backend
+
+on:
+  pull_request:
+    branches:
+      - development-mvp
+      - development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: projectrai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d projectrai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: projectrai
+          RABBITMQ_DEFAULT_PASS: projectrai
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: src
+      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
+      PROJECTRAI_SECRET_KEY: ci-secret-key-at-least-32-characters
+      PROJECTRAI_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
+      PROJECTRAI_RABBITMQ_URL: amqp://projectrai:projectrai@localhost:5672/
+      PROJECTRAI_ENVIRONMENT: test
+      PROJECTRAI_DEBUG: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked dependencies
+        run: uv sync --frozen --all-groups --extra test
+      - name: Ruff
+        run: uv run ruff check src tests
+      - name: Pyright
+        run: uv run pyright
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+      - name: Pytest
+        run: uv run pytest -q
