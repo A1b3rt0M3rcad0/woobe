@@ -70,17 +70,20 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
-      - name: Ruff
+      - name: Generate Ruff fixes
         shell: bash
         run: |
-          set -o pipefail
-          uv run ruff check src tests 2>&1 | tee ruff-report.txt
-      - name: Upload Ruff report
-        if: always()
+          set -euo pipefail
+          uv run ruff check src tests --fix
+          uv run ruff check src tests
+          git diff --name-only -- src tests > ruff-fixed-files.txt
+          test -s ruff-fixed-files.txt
+          tar -czf ruff-fixed-files.tar.gz -T ruff-fixed-files.txt
+      - name: Upload Ruff fixed files
         uses: actions/upload-artifact@v4
         with:
-          name: ruff-report
-          path: ruff-report.txt
+          name: ruff-fixed-files
+          path: ruff-fixed-files.tar.gz
           if-no-files-found: error
       - name: Pyright
         run: uv run pyright
