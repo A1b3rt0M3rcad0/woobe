@@ -1,6 +1,9 @@
 name: Backend
 
 on:
+  push:
+    branches:
+      - chore/mvp-01-green-gates
   pull_request:
     branches:
       - development-mvp
@@ -8,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: backend-${{ github.workflow }}-${{ github.ref }}
@@ -75,6 +78,47 @@ jobs:
 
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
+
+      - name: Migrate legacy core and identity test imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "modules.core.service.dtos": "modules.core.application.dtos",
+              "modules.core.service.use_cases": "modules.core.application.use_cases",
+              "modules.identity.service.dtos": "modules.identity.application.dtos",
+              "modules.identity.service.use_cases": "modules.identity.application.use_cases",
+          }
+          paths = [
+              Path("tests/unit/test_core/test_dtos.py"),
+              Path("tests/unit/test_core/test_use_cases.py"),
+              Path("tests/unit/test_identity/test_dtos.py"),
+              Path("tests/unit/test_identity/test_use_cases.py"),
+          ]
+          for path in paths:
+              content = path.read_text(encoding="utf-8")
+              for old, new in replacements.items():
+                  content = content.replace(old, new)
+              path.write_text(content, encoding="utf-8")
+          PY
+
+      - name: Commit migrated test imports
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- tests/unit/test_core tests/unit/test_identity; then
+            echo "No import migration required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/unit/test_core tests/unit/test_identity
+          git commit -m "test: migrate core and identity imports [skip ci]"
+          git push origin HEAD:chore/mvp-01-green-gates
 
       - name: Ruff
         run: uv run ruff check src tests
