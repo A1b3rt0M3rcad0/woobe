@@ -7,7 +7,7 @@ from modules.identity.domain.enums import (
     OrganizationStatus,
     UserStatus,
 )
-from modules.identity.service.dtos import (
+from modules.identity.application.dtos import (
     AddMemberInput,
     AddMemberOutput,
     CreateOrganizationInput,

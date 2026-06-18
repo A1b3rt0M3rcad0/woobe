@@ -10,13 +10,13 @@ from modules.identity.domain.errors import (
     OrganizationNotFoundError,
     UserNotFoundError,
 )
-from modules.identity.service.dtos import (
+from modules.identity.application.dtos import (
     AddMemberInput,
     CreateOrganizationInput,
     CreateUserInput,
     InviteUserInput,
 )
-from modules.identity.service.use_cases import (
+from modules.identity.application.use_cases import (
     AddMemberToOrganizationUseCase,
     CreateOrganizationUseCase,
     CreateUserUseCase,
