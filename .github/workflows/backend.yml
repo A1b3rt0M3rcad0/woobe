@@ -70,20 +70,119 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
-      - name: Generate Ruff fixes
+      - name: Generate metadata and Ruff fixes
         shell: bash
         run: |
           set -euo pipefail
-          uv run ruff check src tests --fix
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/modules/agent/infra/database/models.py")
+          content = path.read_text(encoding="utf-8")
+
+          def replace_in_class(class_name: str, old: str, new: str) -> None:
+              global content
+              marker = f"class {class_name}(BaseModel):"
+              start = content.index(marker)
+              next_class = content.find("\nclass ", start + len(marker))
+              end = len(content) if next_class == -1 else next_class
+              block = content[start:end]
+              if old not in block:
+                  raise RuntimeError(f"Expected pattern not found in {class_name}: {old!r}")
+              block = block.replace(old, new, 1)
+              content = content[:start] + block + content[end:]
+
+          replace_in_class(
+              "AgentPromptModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_agent_prompts_agent_version", "agent_id", "version", unique=True),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "AgentContractModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_agent_contracts_agent_version", "agent_id", "version", unique=True),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "AgentModelConfigModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_agent_model_configs_agent_version", "agent_id", "version", unique=True),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "AgentReleaseModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),\n'
+              '        Index("ix_agent_releases_agent_status", "agent_id", "status"),\n'
+              '        Index(\n'
+              '            "uq_agent_releases_production",\n'
+              '            "agent_id",\n'
+              '            unique=True,\n'
+              '            postgresql_where=text("status = \'production\'"),\n'
+              '        ),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "KnowledgeVersionModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_knowledge_versions_agent_version", "agent_id", "version", unique=True),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "AskJobModel",
+              '__table_args__ = {"schema": "agent"}',
+              '__table_args__ = (\n'
+              '        Index("ix_ask_jobs_status_created", "status", "created_at"),\n'
+              '        {"schema": "agent"},\n'
+              '    )',
+          )
+          replace_in_class(
+              "AgentToolModel",
+              'agent_id: Mapped[UUID | None]',
+              'agent_id: Mapped[UUID | None] = mapped_column(\n'
+              '        ForeignKey("agent.agents.id"), nullable=True\n'
+              '    )',
+          )
+          replace_in_class(
+              "AgentOutboxEventModel",
+              '{"schema": "agent"}',
+              '{\n'
+              '            "schema": "agent",\n'
+              '            "comment": "Outbox events for the agent bounded context. Owned by module agent.",\n'
+              '        }',
+          )
+          replace_in_class(
+              "AgentInboxEventModel",
+              '{"schema": "agent"}',
+              '{\n'
+              '            "schema": "agent",\n'
+              '            "comment": "Inbox events for the agent bounded context. Owned by module agent.",\n'
+              '        }',
+          )
+
+          path.write_text(content, encoding="utf-8")
+          PY
+          uv run ruff check src tests --fix --unsafe-fixes
           uv run ruff check src tests
-          git diff --name-only -- src tests > ruff-fixed-files.txt
-          test -s ruff-fixed-files.txt
-          tar -czf ruff-fixed-files.tar.gz -T ruff-fixed-files.txt
-      - name: Upload Ruff fixed files
+          git diff --name-only -- src tests > generated-files.txt
+          test -s generated-files.txt
+          tar -czf generated-files.tar.gz -T generated-files.txt
+      - name: Upload generated files
         uses: actions/upload-artifact@v4
         with:
-          name: ruff-fixed-files
-          path: ruff-fixed-files.tar.gz
+          name: mvp01-generated-files
+          path: generated-files.tar.gz
           if-no-files-found: error
       - name: Pyright
         run: uv run pyright
