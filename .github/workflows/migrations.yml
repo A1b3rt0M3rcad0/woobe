@@ -1,6 +1,9 @@
 name: Migrations
 
 on:
+  push:
+    branches:
+      - chore/mvp-01-green-gates
   pull_request:
     branches:
       - development-mvp
@@ -70,4 +73,14 @@ jobs:
       - name: Report current revision
         run: uv run alembic current
       - name: Detect schema drift
-        run: uv run alembic check
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run alembic check 2>&1 | tee alembic-check.txt
+      - name: Upload Alembic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alembic-check-report
+          path: alembic-check.txt
+          if-no-files-found: error

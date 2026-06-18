@@ -1,6 +1,9 @@
 name: Backend
 
 on:
+  push:
+    branches:
+      - chore/mvp-01-green-gates
   pull_request:
     branches:
       - development-mvp
@@ -68,7 +71,17 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
       - name: Ruff
-        run: uv run ruff check src tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run ruff check src tests 2>&1 | tee ruff-report.txt
+      - name: Upload Ruff report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-report
+          path: ruff-report.txt
+          if-no-files-found: error
       - name: Pyright
         run: uv run pyright
       - name: Apply migrations
