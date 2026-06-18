@@ -97,21 +97,12 @@ jobs:
 
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "No changed production Python files to type-check."
-            : > pyright-incremental.txt
             exit 0
           fi
 
           printf 'Type-checking changed production files:\n'
           printf '  %s\n' "${files[@]}"
-          uv run pyright "${files[@]}" 2>&1 | tee pyright-incremental.txt
-
-      - name: Upload incremental Pyright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyright-incremental
-          path: pyright-incremental.txt
-          if-no-files-found: error
+          uv run pyright "${files[@]}"
 
       - name: Apply migrations
         run: uv run alembic upgrade head
