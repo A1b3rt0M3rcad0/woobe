@@ -1,9 +1,6 @@
 name: Backend
 
 on:
-  push:
-    branches:
-      - chore/mvp-01-green-gates
   pull_request:
     branches:
       - development-mvp
@@ -11,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: backend-${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +19,7 @@ jobs:
     name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -48,6 +46,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
+
     env:
       PYTHONPATH: src
       PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
@@ -56,152 +55,57 @@ jobs:
       PROJECTRAI_RABBITMQ_URL: amqp://projectrai:projectrai@localhost:5672/
       PROJECTRAI_ENVIRONMENT: test
       PROJECTRAI_DEBUG: "false"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
+
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
-      - name: Generate metadata and Ruff fixes
+
+      - name: Ruff
+        run: uv run ruff check src tests
+
+      - name: Pyright changed production files
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
+          base_sha="${PR_BASE_SHA:-}"
+          if [[ -z "$base_sha" ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
 
-          path = Path("src/modules/agent/infra/database/models.py")
-          content = path.read_text(encoding="utf-8")
-
-          def replace_in_class(class_name: str, old: str, new: str) -> None:
-              global content
-              marker = f"class {class_name}(BaseModel):"
-              start = content.index(marker)
-              next_class = content.find("\nclass ", start + len(marker))
-              end = len(content) if next_class == -1 else next_class
-              block = content[start:end]
-              if old not in block:
-                  raise RuntimeError(f"Expected pattern not found in {class_name}: {old!r}")
-              block = block.replace(old, new, 1)
-              content = content[:start] + block + content[end:]
-
-          replace_in_class(
-              "AgentPromptModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_agent_prompts_agent_version", "agent_id", "version", unique=True),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "AgentContractModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_agent_contracts_agent_version", "agent_id", "version", unique=True),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "AgentModelConfigModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_agent_model_configs_agent_version", "agent_id", "version", unique=True),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "AgentReleaseModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),\n'
-              '        Index("ix_agent_releases_agent_status", "agent_id", "status"),\n'
-              '        Index(\n'
-              '            "uq_agent_releases_production",\n'
-              '            "agent_id",\n'
-              '            unique=True,\n'
-              '            postgresql_where=text("status = \'production\'"),\n'
-              '        ),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "KnowledgeVersionModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_knowledge_versions_agent_version", "agent_id", "version", unique=True),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "AskJobModel",
-              '__table_args__ = {"schema": "agent"}',
-              '__table_args__ = (\n'
-              '        Index("ix_ask_jobs_status_created", "status", "created_at"),\n'
-              '        {"schema": "agent"},\n'
-              '    )',
-          )
-          replace_in_class(
-              "AgentToolModel",
-              'agent_id: Mapped[UUID | None]',
-              'agent_id: Mapped[UUID | None] = mapped_column(\n'
-              '        ForeignKey("agent.agents.id"), nullable=True\n'
-              '    )',
-          )
-          replace_in_class(
-              "AgentOutboxEventModel",
-              '{"schema": "agent"}',
-              '{\n'
-              '            "schema": "agent",\n'
-              '            "comment": "Outbox events for the agent bounded context. Owned by module agent.",\n'
-              '        }',
-          )
-          replace_in_class(
-              "AgentInboxEventModel",
-              '{"schema": "agent"}',
-              '{\n'
-              '            "schema": "agent",\n'
-              '            "comment": "Inbox events for the agent bounded context. Owned by module agent.",\n'
-              '        }',
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- src migrations \
+              | grep -E '^(src|migrations)/.*\.py$' || true
           )
 
-          path.write_text(content, encoding="utf-8")
-          PY
-          uv run ruff check src tests --fix --unsafe-fixes
-          uv run ruff check src tests
-      - name: Commit generated corrections
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- src tests; then
-            echo "No generated corrections to commit."
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No changed production Python files to type-check."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src tests
-          git commit -m "ci: apply generated quality corrections [skip ci]"
-          git push origin HEAD:chore/mvp-01-green-gates
-      - name: Pyright
-        shell: bash
-        run: |
-          set -o pipefail
-          uv run pyright 2>&1 | tee pyright-report.txt
-      - name: Upload Pyright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyright-report
-          path: pyright-report.txt
-          if-no-files-found: error
+
+          printf 'Type-checking changed production files:\n'
+          printf '  %s\n' "${files[@]}"
+          uv run pyright "${files[@]}"
+
       - name: Apply migrations
         run: uv run alembic upgrade head
+
       - name: Pytest
         run: uv run pytest -q
