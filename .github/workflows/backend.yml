@@ -108,4 +108,12 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Pytest
-        run: uv run pytest -q
+        run: uv run pytest -q --junitxml=pytest-report.xml
+
+      - name: Upload Pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: pytest-report.xml
+          if-no-files-found: error
