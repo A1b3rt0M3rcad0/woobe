@@ -1,9 +1,6 @@
 name: Migrations
 
 on:
-  push:
-    branches:
-      - chore/mvp-01-green-gates
   pull_request:
     branches:
       - development-mvp
@@ -22,6 +19,7 @@ jobs:
     name: schema
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -36,6 +34,7 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+
     env:
       PYTHONPATH: src
       PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
@@ -43,20 +42,25 @@ jobs:
       PROJECTRAI_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
       PROJECTRAI_ENVIRONMENT: test
       PROJECTRAI_DEBUG: "false"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
+
       - name: Install locked dependencies
         run: uv sync --frozen --all-groups --extra test
+
       - name: Require exactly one Alembic head
         shell: bash
         run: |
@@ -68,19 +72,12 @@ jobs:
             echo "Expected exactly one Alembic head, found $head_count" >&2
             exit 1
           fi
+
       - name: Upgrade empty database to head
         run: uv run alembic upgrade head
+
       - name: Report current revision
         run: uv run alembic current
+
       - name: Detect schema drift
-        shell: bash
-        run: |
-          set -o pipefail
-          uv run alembic check 2>&1 | tee alembic-check.txt
-      - name: Upload Alembic report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: alembic-check-report
-          path: alembic-check.txt
-          if-no-files-found: error
+        run: uv run alembic check
