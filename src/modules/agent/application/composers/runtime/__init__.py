@@ -1,15 +1,4 @@
-"""Concrete runtime orchestration assembled at the application boundary."""
+"""Concrete runtime orchestration package.
 
-from modules.agent.application.composers.runtime.ask_agent_stream_service import (
-    AskAgentStreamService,
-)
-from modules.agent.application.composers.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.application.composers.runtime.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
-)
-
-__all__ = [
-    "AskAgentStreamService",
-    "AskAgentUseCase",
-    "StructuredOutputAskAgentUseCase",
-]
+Runtime classes are imported from their concrete modules to avoid eager import cycles.
+"""
