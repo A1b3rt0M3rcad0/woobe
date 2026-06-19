@@ -84,25 +84,28 @@ jobs:
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           base_sha="${PR_BASE_SHA:-}"
           if [[ -z "$base_sha" ]]; then
             base_sha="$(git rev-parse HEAD^)"
           fi
-
           mapfile -t files < <(
             git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- src migrations \
               | grep -E '^(src|migrations)/.*\.py$' || true
           )
-
           if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No changed production Python files to type-check."
+            : > pyright-stage-04.txt
             exit 0
           fi
+          uv run pyright "${files[@]}" 2>&1 | tee pyright-stage-04.txt
 
-          printf 'Type-checking changed production files:\n'
-          printf '  %s\n' "${files[@]}"
-          uv run pyright "${files[@]}"
+      - name: Upload Pyright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyright-stage-04
+          path: pyright-stage-04.txt
+          if-no-files-found: error
 
       - name: Apply migrations
         run: uv run alembic upgrade head
