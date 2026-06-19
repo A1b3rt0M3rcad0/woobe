@@ -11,7 +11,9 @@ from shared.infra.errors import (
     ConflictError,
     DomainError,
     NotFoundError,
+    PayloadTooLargeError,
     RateLimitError,
+    RuntimeTimeoutError,
     ValidationError,
 )
 from shared.security.redaction import redact_text
@@ -36,6 +38,26 @@ async def authorization_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=403,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def payload_too_large_handler(
+    request: Request,
+    exc: PayloadTooLargeError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def runtime_timeout_handler(
+    request: Request,
+    exc: RuntimeTimeoutError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=504,
         content={"success": False, "message": str(exc), "data": None},
     )
 
