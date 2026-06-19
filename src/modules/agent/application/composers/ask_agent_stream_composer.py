@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
@@ -14,7 +14,7 @@ from modules.agent.presentation.controllers.ask_agent_stream_controller import h
 def ask_agent_stream_composer(
     session_factory: async_sessionmaker[AsyncSession],
     executor: HttpToolExecutor | None = None,
-) -> Callable[[FastAPIRequest], StreamingResponse]:
+) -> Callable[[FastAPIRequest], Awaitable[StreamingResponse]]:
     service = AskAgentStreamService(
         session_factory,
         LangchainLLMFactory(),
