@@ -194,6 +194,7 @@ class AuthenticationService:
                 session_id=session_id,
             ),
             refresh_token=refresh_secret,
+            session_id=session_id,
             token_type="Bearer",
             expires_in=self._token_codec.ttl_seconds,
             user=AuthenticatedUser(
