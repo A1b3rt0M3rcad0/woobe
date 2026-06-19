@@ -61,8 +61,11 @@ async def test_project_overview_query_budget_index_and_p95() -> None:
                             WHEN series % 10 = 0 THEN 'failed'
                             ELSE 'completed'
                         END,
-                        :start + series * interval '14 minutes',
-                        :start + series * interval '14 minutes' + interval '1 second',
+                        CAST(:start AS timestamptz)
+                            + series * interval '14 minutes',
+                        CAST(:start AS timestamptz)
+                            + series * interval '14 minutes'
+                            + interval '1 second',
                         50 + (series % 450),
                         CASE WHEN series % 7 = 0 THEN NULL ELSE 0.001 END,
                         false,
