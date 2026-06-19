@@ -9,5 +9,9 @@ class ApiKeyNotFoundError(NotFoundError):
     pass
 
 
+class ApiKeyNotActiveError(ConflictError):
+    pass
+
+
 class DuplicateSlugError(ConflictError):
     pass
