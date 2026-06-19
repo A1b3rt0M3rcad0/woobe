@@ -14,12 +14,6 @@ Delivered:
 - partial indexes for terminal traces and tool-call events;
 - deterministic PostgreSQL integration fixtures covering aggregation, isolation, environment filtering, null costs, terminal states, query count, timezone handling, index eligibility, and the 30-day p95 target.
 
-Final gates on the documentation closeout head:
-
-- Backend run 122: passed;
-- Frontend run 110: passed;
-- Migrations run 118: passed;
-- Containers run 110: passed;
-- pytest baseline: no unexpected regressions.
+All mandatory workflows passed on the branch closeout sequence, and the latest code-validation baseline reported no unexpected regressions.
 
 The branch is ready for review and merge into `development-mvp`.
