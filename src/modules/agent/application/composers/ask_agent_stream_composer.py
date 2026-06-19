@@ -4,18 +4,21 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.presentation.controllers.ask_agent_stream_controller import (
-    handle_ask_stream,
-)
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.presentation.controllers.ask_agent_stream_controller import handle_ask_stream
 
 
 def ask_agent_stream_composer(
     session_factory: async_sessionmaker[AsyncSession],
+    executor: HttpToolExecutor,
 ) -> Callable[[FastAPIRequest], StreamingResponse]:
-    llm_factory = LangchainLLMFactory()
-    service = AskAgentStreamService(session_factory, llm_factory)
+    service = AskAgentStreamService(
+        session_factory,
+        LangchainLLMFactory(),
+        executor,
+    )
 
     async def handler(fastapi_request: FastAPIRequest) -> StreamingResponse:
         return await handle_ask_stream(fastapi_request, service)
