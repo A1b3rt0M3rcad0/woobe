@@ -126,11 +126,11 @@ jobs:
           path: backend-alembic-upgrade.log
           if-no-files-found: warn
 
-      - name: Pytest baseline gate
+      - name: Pytest
         shell: bash
         run: |
           set -o pipefail
-          uv run python scripts/ci/run_pytest_baseline.py 2>&1 | tee pytest-baseline.log
+          uv run pytest -q --junitxml=pytest-report.xml 2>&1 | tee pytest.log
 
       - name: Upload pytest report
         if: always()
@@ -139,5 +139,5 @@ jobs:
           name: pytest-stage-05
           path: |
             pytest-report.xml
-            pytest-baseline.log
+            pytest.log
           if-no-files-found: warn
