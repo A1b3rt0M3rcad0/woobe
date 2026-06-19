@@ -33,6 +33,7 @@ HANDLER_MAP: dict[str, EventHandler] = {
     "agent.execution.fallback_triggered.v1": _project,
     "agent.execution.completed.v1": _project,
     "agent.execution.failed.v1": _project,
+    "agent.execution.cancelled.v1": _project,
 }
 
 
