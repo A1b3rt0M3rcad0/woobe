@@ -1,23 +1,59 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from modules.core.domain.enums import ApiKeyStatus
+from modules.core.domain.enums import (
+    PROJECT_API_KEY_SCOPES,
+    ApiKeyScope,
+    ApiKeyStatus,
+)
 
 
 class CreateApiKeyInput(BaseModel):
     project_id: UUID
-    name: str
-    scopes: list[str] = []
+    name: str = Field(min_length=1, max_length=255)
+    scopes: list[str] = Field(default_factory=list, max_length=16)
     created_by_user_id: UUID
+    expires_at: datetime | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("API key name cannot be blank")
+        return normalized
+
+    @field_validator("scopes")
+    @classmethod
+    def validate_scopes(cls, value: list[str]) -> list[str]:
+        normalized = list(dict.fromkeys(value or [ApiKeyScope.runtime_execute.value]))
+        unknown = set(normalized) - PROJECT_API_KEY_SCOPES
+        if unknown:
+            raise ValueError(f"Unsupported API key scopes: {', '.join(sorted(unknown))}")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_expiration(self) -> "CreateApiKeyInput":
+        if self.expires_at is None:
+            return self
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            raise ValueError("API key expiration must be in the future")
+        self.expires_at = expires_at
+        return self
 
 
 class CreateApiKeyOutput(BaseModel):
     id: UUID
     project_id: UUID
     name: str
+    key: str
     key_prefix: str
-    key_hash: bytes
+    scopes: list[str]
     status: ApiKeyStatus
-    created_at: datetime
+    expires_at: datetime | None = None
+    created_at: datetime | None = None
