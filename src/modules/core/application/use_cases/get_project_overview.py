@@ -26,12 +26,14 @@ class GetProjectOverviewUseCase:
             environment=query.environment,
             recent_limit=query.recent_limit,
         )
-        return ProjectOverviewOutput(
-            project_id=query.project_id,
-            generated_at=datetime.now(UTC),
-            from_=query.from_,
-            to=query.to,
-            bucket=query.bucket,
-            environment=query.environment,
-            **sections,
+        return ProjectOverviewOutput.model_validate(
+            {
+                "project_id": query.project_id,
+                "generated_at": datetime.now(UTC),
+                "from": query.from_,
+                "to": query.to,
+                "bucket": query.bucket,
+                "environment": query.environment,
+                **sections,
+            }
         )
