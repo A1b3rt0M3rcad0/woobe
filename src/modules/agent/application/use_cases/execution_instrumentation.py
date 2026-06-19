@@ -10,6 +10,10 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
+from modules.agent.application.use_cases.runtime_streaming import (
+    emit_runtime_event,
+    invoke_model_with_optional_streaming,
+)
 from shared.infra.llm_usage import normalize_llm_usage
 
 
@@ -73,7 +77,13 @@ async def invoke_llm(
     started_at = utc_iso()
     started = time.monotonic()
     try:
-        result = await model.ainvoke(messages)
+        result = await invoke_model_with_optional_streaming(
+            model=model,
+            messages=messages,
+            phase=phase,
+            provider=provider,
+            model_name=model_name,
+        )
     except Exception as exc:
         ended_at = utc_iso()
         call = {
@@ -136,6 +146,14 @@ async def execute_tool_call(
     resolved_tool_id: str,
 ) -> tuple[ToolCallInfo, ToolMessage, dict[str, Any]]:
     started_at = utc_iso()
+    await emit_runtime_event(
+        "tool_call_started",
+        tool_call_id=tool_call["id"],
+        tool_name=tool_call["name"],
+        input=tool_call.get("args"),
+        status="running",
+        started_at=started_at,
+    )
     started = time.monotonic()
     output = await execute(tool_call, resolved_tool_id)
     ended_at = utc_iso()
@@ -169,6 +187,7 @@ async def execute_tool_call(
         "ended_at": ended_at,
         "occurred_at": ended_at,
     }
+    await emit_runtime_event("tool_call_completed", **payload)
     return info, message, payload
 
 
