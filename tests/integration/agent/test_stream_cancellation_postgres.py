@@ -90,18 +90,20 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
     assert meta["type"] == "meta"
     assert meta["trace_id"] == str(trace_id)
 
+    cancellation_filter = (
+        AgentOutboxEventModel.event_type == "agent.execution.cancelled.v1",
+        AgentOutboxEventModel.payload["trace_id"].astext == str(trace_id),
+    )
+
     try:
         async with session_factory() as session:
             outbox = (
                 await session.execute(
-                    select(AgentOutboxEventModel).where(
-                        AgentOutboxEventModel.event_type
-                        == "agent.execution.cancelled.v1",
-                        AgentOutboxEventModel.aggregate_id == agent_id,
-                    )
+                    select(AgentOutboxEventModel).where(*cancellation_filter)
                 )
             ).scalar_one()
             assert outbox.payload["trace_id"] == str(trace_id)
+            assert outbox.payload["agent_id"] == str(agent_id)
             assert outbox.payload["request_id"]
             assert outbox.payload["reason"] == "client_disconnected"
 
@@ -137,11 +139,7 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
             )
             await session.execute(delete(TraceModel).where(TraceModel.id == trace_id))
             await session.execute(
-                delete(AgentOutboxEventModel).where(
-                    AgentOutboxEventModel.aggregate_id == agent_id,
-                    AgentOutboxEventModel.event_type
-                    == "agent.execution.cancelled.v1",
-                )
+                delete(AgentOutboxEventModel).where(*cancellation_filter)
             )
             await session.commit()
         await engine.dispose()
