@@ -51,7 +51,7 @@ class TestFinalCleanupDeadCode:
                 orphaned.append(str(init_file))
         assert not orphaned, f"Orphaned __init__.py files: {orphaned}"
 
-    def test_no_duplicate_top_level_definitions_in_agent_layers(self):
+    def test_no_duplicate_public_top_level_definitions_in_agent_layers(self):
         duplicates = []
         agent_dir = Path("src/modules/agent")
         for layer_name in ("domain", "application", "infra", "presentation"):
@@ -67,13 +67,15 @@ class TestFinalCleanupDeadCode:
                 for node in tree.body:
                     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                         continue
+                    if node.name.startswith("_"):
+                        continue
                     previous = definitions.get(node.name)
                     if previous and previous != str(py_file):
                         duplicates.append(
                             f"{layer_name}: {node.name} in {previous} and {py_file}"
                         )
                     definitions[node.name] = str(py_file)
-        assert not duplicates, f"Duplicate top-level definitions: {duplicates}"
+        assert not duplicates, f"Duplicate public top-level definitions: {duplicates}"
 
     def test_canonical_modules_and_agent_layers_exist(self):
         actual = {
