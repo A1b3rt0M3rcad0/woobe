@@ -12,3 +12,13 @@ class ConflictError(DomainError):
 
 class ValidationError(DomainError):
     pass
+
+
+class AuthenticationError(DomainError):
+    pass
+
+
+class RateLimitError(DomainError):
+    def __init__(self, message: str, *, retry_after: int) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
