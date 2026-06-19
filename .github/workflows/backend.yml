@@ -130,7 +130,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          uv run pytest -q --junitxml=pytest-report.xml 2>&1 | tee pytest.log
+          uv run python -m pytest -q --junitxml=pytest-report.xml 2>&1 | tee pytest.log
 
       - name: Upload pytest report
         if: always()
