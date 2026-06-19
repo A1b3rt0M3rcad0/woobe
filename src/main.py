@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,16 +18,29 @@ from modules.observability.presentation.routes import router as observability_ro
 from modules.agent.presentation.routes import tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.errors import (
+    AuthenticationError,
+    ConflictError,
+    DomainError,
+    NotFoundError,
+    RateLimitError,
+    ValidationError,
+)
 from shared.presentation.errors import (
+    authentication_handler,
     conflict_handler,
     domain_error_handler,
     not_found_handler,
     pydantic_validation_handler,
+    rate_limit_handler,
     request_validation_handler,
     unhandled_exception_handler,
     validation_handler,
 )
-from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.security.access_tokens import AccessTokenCodec
+from shared.security.dependency import enforce_request_security
+from shared.security.http_guard import HttpSecurityGuard
+from shared.security.rate_limit import LoginRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +64,21 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.async_engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.async_engine)
+    app.state.access_token_codec = AccessTokenCodec(
+        signing_key=settings.secret_key,
+        issuer=settings.auth_issuer,
+        audience=settings.auth_audience,
+        ttl_seconds=settings.access_token_ttl_seconds,
+        leeway_seconds=settings.auth_clock_skew_seconds,
+    )
+    app.state.security_guard = HttpSecurityGuard(
+        session_factory=app.state.session_factory,
+        token_codec=app.state.access_token_codec,
+        login_rate_limiter=LoginRateLimiter(
+            max_attempts=settings.login_rate_limit_attempts,
+            window_seconds=settings.login_rate_limit_window_seconds,
+        ),
+    )
 
     cors_origins = settings.cors_origins.split(",")
     logger.info("CORS allowed origins: %s", cors_origins)
@@ -59,13 +87,27 @@ def create_app() -> FastAPI:
     async def cors_safe_guard(request: Request, call_next):
         try:
             return await call_next(request)
-        except Exception as exc:
-            logger.exception("Unhandled error processing %s %s", request.method, request.url.path)
+        except Exception:
+            logger.exception(
+                "Unhandled error processing %s %s",
+                request.method,
+                request.url.path,
+            )
             origin = request.headers.get("origin", "")
-            cors_origin = origin if origin in cors_origins else cors_origins[0] if cors_origins else "*"
+            cors_origin = (
+                origin
+                if origin in cors_origins
+                else cors_origins[0]
+                if cors_origins
+                else "*"
+            )
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "message": f"Internal server error: {exc}", "data": None},
+                content={
+                    "success": False,
+                    "message": "Internal server error",
+                    "data": None,
+                },
                 headers={
                     "Access-Control-Allow-Origin": cors_origin,
                     "Access-Control-Allow-Credentials": "true",
@@ -80,6 +122,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.add_exception_handler(AuthenticationError, authentication_handler)
+    app.add_exception_handler(RateLimitError, rate_limit_handler)
     app.add_exception_handler(DomainError, domain_error_handler)
     app.add_exception_handler(NotFoundError, not_found_handler)
     app.add_exception_handler(ConflictError, conflict_handler)
@@ -88,16 +132,17 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
-    app.include_router(identity_router)
-    app.include_router(core_router)
-    app.include_router(agent_router)
-    app.include_router(agent_ai_router)
-    app.include_router(agent_knowledge_router)
-    app.include_router(agent_runtime_router)
-    app.include_router(tools_router)
-    app.include_router(metering_router)
-    app.include_router(billing_router)
-    app.include_router(observability_router)
+    protected_dependencies = [Depends(enforce_request_security)]
+    app.include_router(identity_router, dependencies=protected_dependencies)
+    app.include_router(core_router, dependencies=protected_dependencies)
+    app.include_router(agent_router, dependencies=protected_dependencies)
+    app.include_router(agent_ai_router, dependencies=protected_dependencies)
+    app.include_router(agent_knowledge_router, dependencies=protected_dependencies)
+    app.include_router(agent_runtime_router, dependencies=protected_dependencies)
+    app.include_router(tools_router, dependencies=protected_dependencies)
+    app.include_router(metering_router, dependencies=protected_dependencies)
+    app.include_router(billing_router, dependencies=protected_dependencies)
+    app.include_router(observability_router, dependencies=protected_dependencies)
 
     @app.on_event("startup")
     async def startup() -> None:
