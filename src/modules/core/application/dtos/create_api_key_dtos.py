@@ -4,8 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from modules.core.domain.enums import (
-    PROJECT_API_KEY_SCOPES,
-    ApiKeyScope,
+    PROJECT_API_KEY_ACCEPTED_SCOPES,
     ApiKeyStatus,
 )
 
@@ -13,10 +12,7 @@ from modules.core.domain.enums import (
 class CreateApiKeyInput(BaseModel):
     project_id: UUID
     name: str = Field(min_length=1, max_length=255)
-    scopes: list[str] = Field(
-        default_factory=lambda: [ApiKeyScope.runtime_execute.value],
-        max_length=16,
-    )
+    scopes: list[str] = Field(default_factory=list, max_length=16)
     created_by_user_id: UUID
     expires_at: datetime | None = None
 
@@ -31,8 +27,8 @@ class CreateApiKeyInput(BaseModel):
     @field_validator("scopes")
     @classmethod
     def validate_scopes(cls, value: list[str]) -> list[str]:
-        normalized = list(dict.fromkeys(value or [ApiKeyScope.runtime_execute.value]))
-        unknown = set(normalized) - PROJECT_API_KEY_SCOPES
+        normalized = list(dict.fromkeys(value))
+        unknown = set(normalized) - PROJECT_API_KEY_ACCEPTED_SCOPES
         if unknown:
             raise ValueError(f"Unsupported API key scopes: {', '.join(sorted(unknown))}")
         return normalized
@@ -54,9 +50,10 @@ class CreateApiKeyOutput(BaseModel):
     id: UUID
     project_id: UUID
     name: str
-    key: str
     key_prefix: str
-    scopes: list[str]
+    key_hash: bytes | None = None
+    key: str = ""
+    scopes: list[str] = Field(default_factory=list)
     status: ApiKeyStatus
     expires_at: datetime | None = None
     created_at: datetime | None = None
