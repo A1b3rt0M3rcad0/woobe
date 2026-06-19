@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage
 
 from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecution,
+    InstrumentedExecutionError,
 )
 from modules.agent.application.use_cases.structured_json_repair import (
     repair_json_if_needed,
@@ -12,10 +13,13 @@ from modules.agent.application.use_cases.structured_json_repair import (
 
 
 class RepairModel:
-    def __init__(self, content: str):
+    def __init__(self, content: str = "", failure: Exception | None = None):
         self.content = content
+        self.failure = failure
 
     async def ainvoke(self, _messages):
+        if self.failure is not None:
+            raise self.failure
         result = AIMessage(content=self.content)
         result.usage_metadata = {
             "input_tokens": 4,
@@ -75,3 +79,16 @@ async def test_invalid_json_is_repaired_and_instrumented() -> None:
     assert result.llm_calls[-1]["phase"] == "json_repair"
     assert result.llm_calls[-1]["status"] == "success"
     assert result.timeline[-1]["kind"] == "llm"
+
+
+@pytest.mark.asyncio
+async def test_failed_json_repair_records_failed_call() -> None:
+    factory = RepairFactory(RepairModel(failure=ValueError("invalid repair output")))
+    execution = InstrumentedExecution(result=AIMessage(content="not-json"))
+
+    with pytest.raises(InstrumentedExecutionError) as exc_info:
+        await repair_json_if_needed(**_arguments(factory, execution))
+
+    assert exc_info.value.llm_calls[-1]["phase"] == "json_repair"
+    assert exc_info.value.llm_calls[-1]["status"] == "error"
+    assert exc_info.value.timeline[-1]["kind"] == "llm"
