@@ -74,7 +74,18 @@ jobs:
           fi
 
       - name: Upgrade empty database to head
-        run: uv run alembic upgrade head
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run alembic upgrade head 2>&1 | tee alembic-upgrade.log
+
+      - name: Upload Alembic upgrade log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alembic-upgrade
+          path: alembic-upgrade.log
+          if-no-files-found: warn
 
       - name: Report current revision
         run: uv run alembic current
