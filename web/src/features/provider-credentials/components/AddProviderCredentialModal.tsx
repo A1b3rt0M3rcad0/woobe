@@ -9,15 +9,11 @@ import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'custom', label: 'Custom (OpenAI-compatible)' },
 ]
 
 const defaultNames: Record<string, string> = {
   openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google AI',
   custom: 'Custom Provider',
 }
 
@@ -74,6 +70,10 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     }
     if (!isEditing && !secret.trim()) {
       toast.error('API key is required')
+      return
+    }
+    if (provider !== 'openai' && provider !== 'custom') {
+      toast.error('This provider is not supported in the MVP')
       return
     }
     if (provider === 'custom' && !baseUrl.trim()) {
@@ -133,6 +133,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
             onChange={(e) => setProvider(e.target.value)}
             options={providers}
           />
+          <p className="mt-1 text-xs text-muted">The MVP supports OpenAI and OpenAI-compatible providers only.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-muted mb-1">Name</label>
