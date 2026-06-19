@@ -14,12 +14,6 @@ class ApiKeyStatus(StrEnum):
 
 
 class ApiKeyScope(StrEnum):
-    runtime_execute = "runtime:execute"
-    traces_read = "traces:read"
-    usage_read = "usage:read"
-
-    # Legacy values remain parseable for existing rows but are not accepted
-    # for newly issued project API keys.
     reading = auto()
     writing = auto()
     admin = auto()
@@ -28,8 +22,11 @@ class ApiKeyScope(StrEnum):
 
 PROJECT_API_KEY_SCOPES = frozenset(
     {
-        ApiKeyScope.runtime_execute.value,
-        ApiKeyScope.traces_read.value,
-        ApiKeyScope.usage_read.value,
+        "runtime:execute",
+        "traces:read",
+        "usage:read",
     }
+)
+PROJECT_API_KEY_ACCEPTED_SCOPES = PROJECT_API_KEY_SCOPES | frozenset(
+    scope.value for scope in ApiKeyScope
 )
