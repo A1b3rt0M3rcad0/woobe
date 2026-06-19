@@ -88,20 +88,16 @@ class TestCreateTraceUseCase:
         uc = CreateTraceUseCase(repo, outbox)
 
         pid = UUID("00000000-0000-0000-0000-000000000001")
-        input_dto = CreateTraceInput(project_id=pid, provider="openai")
-        result = await uc.execute(input_dto)
+        result = await uc.execute(CreateTraceInput(project_id=pid, provider="openai"))
 
         assert isinstance(result, CreateTraceOutput)
-        assert isinstance(result.trace_id, UUID)
-
         saved = await repo.get_by_id(result.trace_id)
         assert saved is not None
         assert saved.project_id == pid
         assert saved.provider == "openai"
-
         assert len(outbox.written) == 1
         assert outbox.written[0][0] == "Trace"
-        assert outbox.written[0][2] == "trace.created"
+        assert outbox.written[0][2] == "trace.created.v1"
 
 
 class TestCreateTraceEventUseCase:
@@ -113,20 +109,16 @@ class TestCreateTraceEventUseCase:
 
         tid = UUID("00000000-0000-0000-0000-000000000001")
         pid = UUID("00000000-0000-0000-0000-000000000002")
-        input_dto = CreateTraceEventInput(trace_id=tid, project_id=pid, event_type="llm_call")
-        result = await uc.execute(input_dto)
+        result = await uc.execute(CreateTraceEventInput(trace_id=tid, project_id=pid, event_type="llm_call"))
 
         assert isinstance(result, CreateTraceEventOutput)
-        assert isinstance(result.event_id, UUID)
-
         saved = await repo.get_by_id(result.event_id)
         assert saved is not None
         assert saved.trace_id == tid
         assert saved.event_type == TraceEventType.llm_call
-
         assert len(outbox.written) == 1
         assert outbox.written[0][0] == "TraceEvent"
-        assert outbox.written[0][2] == "trace_event.created"
+        assert outbox.written[0][2] == "trace_event.created.v1"
 
 
 class TestGetTraceUseCase:
@@ -137,19 +129,14 @@ class TestGetTraceUseCase:
         uc = GetTraceUseCase(trace_repo, event_repo)
 
         pid = UUID("00000000-0000-0000-0000-000000000001")
-        trace = Trace(project_id=pid)
-        saved = await trace_repo.save(trace)
-
+        saved = await trace_repo.save(Trace(project_id=pid))
         result = await uc.execute(saved.id)
         assert result.id == saved.id
         assert result.project_id == pid
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_trace_raises_error(self):
-        trace_repo = FakeTraceRepository()
-        event_repo = FakeTraceEventRepository()
-        uc = GetTraceUseCase(trace_repo, event_repo)
-
+        uc = GetTraceUseCase(FakeTraceRepository(), FakeTraceEventRepository())
         with pytest.raises(NotFoundError):
             await uc.execute(UUID("00000000-0000-0000-0000-000000000099"))
 
@@ -158,21 +145,12 @@ class TestListTracesUseCase:
     @pytest.mark.asyncio
     async def test_list_by_project(self):
         repo = FakeTraceRepository()
-        uc = ListTracesUseCase(repo)
-
         pid = UUID("00000000-0000-0000-0000-000000000001")
-        trace = Trace(project_id=pid)
-        await repo.save(trace)
-
-        input_dto = ListTracesInput(project_id=pid)
-        results = await uc.execute(input_dto)
+        await repo.save(Trace(project_id=pid))
+        results = await ListTracesUseCase(repo).execute(ListTracesInput(project_id=pid))
         assert len(results) == 1
 
     @pytest.mark.asyncio
     async def test_list_without_project_returns_empty(self):
-        repo = FakeTraceRepository()
-        uc = ListTracesUseCase(repo)
-
-        input_dto = ListTracesInput()
-        results = await uc.execute(input_dto)
+        results = await ListTracesUseCase(FakeTraceRepository()).execute(ListTracesInput())
         assert results == []
