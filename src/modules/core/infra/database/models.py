@@ -44,7 +44,7 @@ class ApiKeyModel(BaseModel):
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     name: Mapped[str] = mapped_column(String(255))
-    key_prefix: Mapped[str] = mapped_column(String(32), unique=True)
+    key_prefix: Mapped[str] = mapped_column(String(32))
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
