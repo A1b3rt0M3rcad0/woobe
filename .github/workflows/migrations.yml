@@ -65,9 +65,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          heads="$(uv run alembic heads)"
-          printf '%s\n' "$heads" | tee alembic-heads.txt
-          head_count="$(printf '%s\n' "$heads" | awk '/\(head\)/ {count++} END {print count+0}')"
+          {
+            echo "Revision declarations:"
+            grep -R -n '^revision = "0026"' migrations/versions || true
+            echo "Alembic heads:"
+            uv run alembic heads
+          } | tee alembic-heads.txt
+          head_count="$(uv run alembic heads | awk '/\(head\)/ {count++} END {print count+0}')"
           if [[ "$head_count" -ne 1 ]]; then
             echo "Expected exactly one Alembic head, found $head_count" >&2
             exit 1
