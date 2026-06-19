@@ -36,7 +36,9 @@ class ProjectOverviewQuery(BaseModel):
         if duration > timedelta(days=30):
             raise ValueError("overview range cannot exceed 30 days")
 
-        bucket = self.bucket or ("hour" if duration <= timedelta(hours=48) else "day")
+        bucket: OverviewBucket = self.bucket or (
+            "hour" if duration <= timedelta(hours=48) else "day"
+        )
         if bucket == "hour" and duration > timedelta(days=7):
             raise ValueError("hour buckets cannot exceed seven days")
 
