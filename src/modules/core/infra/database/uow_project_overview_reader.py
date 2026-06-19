@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -46,7 +46,7 @@ class UnitOfWorkProjectOverviewReader(SQLAlchemyProjectOverviewReader):
             "environment": environment,
             "recent_limit": recent_limit,
             "bucket": bucket,
-            "step": "1 hour" if bucket == "hour" else "1 day",
+            "step": timedelta(hours=1) if bucket == "hour" else timedelta(days=1),
         }
         session = self._uow.session
         summary = await self._summary(session, params)
