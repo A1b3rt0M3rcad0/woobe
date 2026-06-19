@@ -6,6 +6,9 @@ from typing import Any, Callable, Coroutine
 from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecution,
 )
+from modules.agent.application.use_cases.runtime_streaming import (
+    runtime_streaming_enabled,
+)
 from modules.agent.application.use_cases.structured_json_repair import (
     repair_json_if_needed,
 )
@@ -40,6 +43,7 @@ async def run_instrumented_execution(
         base_url=base_url,
         temperature=agent.temperature or 0.2,
         max_tokens=agent.max_output_tokens or 1000,
+        streaming=runtime_streaming_enabled(),
         response_format=(
             {"type": "json_object"}
             if json_enabled and not has_tools

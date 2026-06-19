@@ -1,12 +1,13 @@
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.application.dtos import AskInput
+from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 
 
 def _sse_type(chunk: str) -> str | None:
@@ -21,22 +22,26 @@ def _sse_type(chunk: str) -> str | None:
 
 
 async def _commit_safe_stream(
-    service: AskAgentStreamService,
-    input_dto: AskInput,
+    service: Any,
+    input_dto: Any,
+    fastapi_request: FastAPIRequest | None = None,
 ) -> AsyncGenerator[str, None]:
-    pending_done: str | None = None
+    pending_terminal: str | None = None
+    source = (
+        service.generate(input_dto, fastapi_request.is_disconnected)
+        if fastapi_request is not None
+        else service.generate(input_dto)
+    )
 
-    async for chunk in service.generate(input_dto):
+    async for chunk in source:
         event_type = _sse_type(chunk)
-        if event_type == "done":
-            pending_done = chunk
+        if event_type in {"done", "error", "cancelled"}:
+            pending_terminal = chunk
             continue
-        if event_type == "error":
-            pending_done = None
         yield chunk
 
-    if pending_done is not None:
-        yield pending_done
+    if pending_terminal is not None:
+        yield pending_terminal
 
 
 async def handle_ask_stream(
@@ -52,7 +57,7 @@ async def handle_ask_stream(
     input_dto = AskInput(**body)
 
     return StreamingResponse(
-        _commit_safe_stream(service, input_dto),
+        _commit_safe_stream(service, input_dto, fastapi_request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

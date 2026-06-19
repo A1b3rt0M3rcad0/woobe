@@ -139,6 +139,7 @@ export interface AskResponse {
   fallback_used: boolean
   fallback_info?: FallbackInfo | null
   latency_ms: number | null
+  ttft_ms?: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
   execution_events?: ExecutionEvent[]
