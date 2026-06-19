@@ -14,14 +14,15 @@ class GetProjectOverviewController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        query = ProjectOverviewQuery(
-            project_id=request.path_params["project_id"],
+        raw_query = {
+            "project_id": request.path_params["project_id"],
             **{
                 key: value
                 for key, value in request.query_params.items()
                 if key in {"from", "to", "bucket", "environment", "recent_limit"}
             },
-        )
+        }
+        query = ProjectOverviewQuery.model_validate(raw_query)
         result = await self._use_case.execute(query)
         return Response(
             status_code=200,
