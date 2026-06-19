@@ -29,6 +29,7 @@ class ApiKey:
     name: str = ""
     key_prefix: str = ""
     key_hash: bytes = b""
+    key_version: int = 1
     scopes: list[str] = field(default_factory=list)
     status: ApiKeyStatus = ApiKeyStatus.active
     last_used_at: datetime | None = None
