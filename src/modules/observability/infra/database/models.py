@@ -3,11 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-
-from sqlalchemy import Index, UniqueConstraint, text
 
 from shared.infra.database.base import BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
@@ -16,7 +14,15 @@ from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
 
 class TraceModel(BaseModel):
     __tablename__ = "traces"
-    __table_args__ = {"schema": "observability"}
+    __table_args__ = (
+        Index(
+            "ix_observability_traces_project_started_terminal",
+            "project_id",
+            "started_at",
+            postgresql_where=text("status IN ('completed', 'failed', 'cancelled')"),
+        ),
+        {"schema": "observability"},
+    )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID | None]
@@ -38,7 +44,15 @@ class TraceModel(BaseModel):
 
 class TraceEventModel(BaseModel):
     __tablename__ = "trace_events"
-    __table_args__ = {"schema": "observability"}
+    __table_args__ = (
+        Index(
+            "ix_observability_trace_events_project_created_tool",
+            "project_id",
+            "created_at",
+            postgresql_where=text("event_type = 'tool_call'"),
+        ),
+        {"schema": "observability"},
+    )
 
     trace_id: Mapped[UUID] = mapped_column(ForeignKey("observability.traces.id"))
     project_id: Mapped[UUID]

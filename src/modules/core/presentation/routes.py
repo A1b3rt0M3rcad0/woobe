@@ -7,6 +7,9 @@ from modules.core.application.composers.create_project_composer import (
     create_project_composer,
 )
 from modules.core.application.composers.get_project_composer import get_project_composer
+from modules.core.application.composers.get_project_overview_composer import (
+    get_project_overview_composer,
+)
 from modules.core.application.composers.list_api_keys_composer import (
     list_api_keys_composer,
 )
@@ -37,6 +40,13 @@ async def list_projects(request: FastAPIRequest):
 @router.post("/projects")
 async def create_project(request: FastAPIRequest):
     handler = create_project_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/projects/{project_id}/overview")
+async def get_project_overview(request: FastAPIRequest):
+    handler = get_project_overview_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
