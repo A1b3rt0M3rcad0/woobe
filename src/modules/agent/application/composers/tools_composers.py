@@ -41,7 +41,7 @@ def create_tool_composer(
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = CreateToolUseCase(uow.tools, outbox)
+    use_case = CreateToolUseCase(uow.tools, outbox)  # type: ignore[arg-type]
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -51,7 +51,7 @@ def update_tool_composer(
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = UpdateToolUseCase(uow.tools, outbox)
+    use_case = UpdateToolUseCase(uow.tools, outbox)  # type: ignore[arg-type]
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -87,7 +87,8 @@ def update_tool_status_composer(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = UpdateToolStatusUseCase(uow.tools)
+    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+    use_case = UpdateToolStatusUseCase(uow.tools, outbox)  # type: ignore[arg-type]
     controller = UpdateToolStatusController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -97,7 +98,7 @@ def test_tool_composer(
     executor: HttpToolExecutor | None = None,
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = TestToolUseCase(uow.tools, executor or get_http_tool_executor())
+    use_case = TestToolUseCase(executor or get_http_tool_executor())
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -126,7 +127,11 @@ def create_secret_composer(
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = CreateSecretUseCase(uow.tool_secrets, cipher, outbox)
+    use_case = CreateSecretUseCase(  # type: ignore[arg-type]
+        uow.tool_secrets,
+        outbox,
+        cipher,
+    )
     controller = CreateSecretController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
