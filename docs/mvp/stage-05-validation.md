@@ -8,6 +8,18 @@ The stage is covered by the following suites:
 - `tests/integration/core/test_project_overview_reader.py`: real PostgreSQL aggregation, project isolation, production filtering, current environment distribution, terminal-state handling, partial/unknown costs, UTC buckets under a non-UTC database session, recent traces, and the fixed seven-query budget;
 - `tests/integration/core/test_project_overview_performance.py`: deterministic 30-day fixture with 3,000 terminal traces, five warmups, 100 measured executions, p95 below 500 ms, and `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` evidence that the terminal-trace partial index is eligible.
 
+## Final validation evidence
+
+The implementation head passed all mandatory workflows before this documentation-only closeout commit:
+
+- Backend run 121: passed;
+- Frontend run 109: passed;
+- Migrations run 117: passed;
+- Containers run 109: passed;
+- pytest baseline: 3,342 passed, 152 known failures, 8 skipped, 0 unexpected regressions, and 26 previously known failures resolved.
+
+The documentation-only closeout commit must also retain all four workflows green before merge.
+
 ## Required commands
 
 ```bash
