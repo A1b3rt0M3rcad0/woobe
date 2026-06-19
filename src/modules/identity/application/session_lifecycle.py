@@ -80,6 +80,7 @@ class SessionLifecycle:
             ip_address=ip_address,
         )
         model.revoked_at = now
+        model.replaced_by_session_id = replacement.id
         model.last_used_at = now
         model.updated_at = now
         return replacement
