@@ -11,7 +11,6 @@ from fastapi import Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.core.domain.enums import ApiKeyScope
 from shared.infra.config import Settings
 from shared.infra.errors import (
     AuthenticationError,
@@ -20,6 +19,9 @@ from shared.infra.errors import (
 )
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.api_keys import (
+    API_KEY_SCOPE_RUNTIME_EXECUTE,
+    API_KEY_SCOPE_TRACES_READ,
+    API_KEY_SCOPE_USAGE_READ,
     API_KEY_VERSION,
     hash_api_key,
     parse_project_api_key,
@@ -55,11 +57,11 @@ def _is_runtime_path(path: str) -> bool:
 
 def _required_api_key_scope(method: str, path: str) -> str | None:
     if _is_runtime_path(path):
-        return ApiKeyScope.runtime_execute.value
+        return API_KEY_SCOPE_RUNTIME_EXECUTE
     if method == "GET" and path.startswith("/observability/traces"):
-        return ApiKeyScope.traces_read.value
+        return API_KEY_SCOPE_TRACES_READ
     if method == "GET" and path.startswith("/metering/"):
-        return ApiKeyScope.usage_read.value
+        return API_KEY_SCOPE_USAGE_READ
     return None
 
 
