@@ -12,7 +12,7 @@ RUNTIME_STREAM_PROTOCOL_VERSION = 1
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
 
 
-def utc_iso() -> str:
+def _stream_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
@@ -58,7 +58,7 @@ class RuntimeStreamChannel:
                 payload={
                     "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
                     "request_id": str(self.request_id),
-                    "occurred_at": utc_iso(),
+                    "occurred_at": _stream_utc_iso(),
                     **payload,
                 },
             )

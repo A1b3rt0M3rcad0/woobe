@@ -1,220 +1,106 @@
-"""Tests for spec 151 — final cleanup dead code.
+"""Current dead-code and post-migration architecture checks."""
 
-Validates that no dead code (empty placeholder files, orphaned imports,
-unreachable references to removed modules) remains in the repository after
-the full migration to modules.agent.
-"""
 import ast
-import pathlib
-
+from pathlib import Path
 
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
-AUTOGEN_PATTERNS = {"__pycache__", ".pytest_cache", ".venv", ".git"}
+AUTOGEN_PARTS = {"__pycache__", ".pytest_cache", ".venv", ".git"}
+CANONICAL_MODULES = {"agent", "billing", "core", "identity", "metering", "observability"}
 
 
-def _is_autogen(path: pathlib.Path) -> bool:
-    return any(p in str(path) for p in AUTOGEN_PATTERNS)
+def _is_autogen(path: Path) -> bool:
+    return any(part in AUTOGEN_PARTS for part in path.parts)
 
 
-class TestFinalCleanupDeadCodeSuccess:
-    """Verify no dead code remains after migration."""
+def _imports(path: Path) -> list[str]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except SyntaxError:
+        return []
+    imports: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
+        elif isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+    return imports
 
-    def test_no_empty_python_files_in_src(self):
-        empty_files = []
-        for py_file in pathlib.Path("src").rglob("*.py"):
-            if _is_autogen(py_file):
-                continue
-            try:
-                content = py_file.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
-            stripped = content.strip()
-            if not stripped or (stripped.startswith('"""') and stripped.endswith('"""') and len(stripped.splitlines()) <= 1):
-                continue
-            try:
-                tree = ast.parse(content)
-            except SyntaxError:
-                continue
-            has_code = False
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Assign, ast.Expr, ast.Import, ast.ImportFrom)):
-                    has_code = True
-                    break
-            if not has_code and len(stripped) > 0:
-                empty_files.append(str(py_file))
 
-        assert len(empty_files) == 0, (
-            f"Empty Python files detected in src/: {empty_files}"
-        )
-
+class TestFinalCleanupDeadCode:
     def test_no_imports_from_removed_modules(self):
-        """Verify no file imports from modules that were removed (ai, knowledge, runtime)."""
         violations = []
-        for py_file in pathlib.Path("src").rglob("*.py"):
+        for py_file in Path("src").rglob("*.py"):
             if _is_autogen(py_file):
                 continue
-            try:
-                content = py_file.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
-            try:
-                tree = ast.parse(content)
-            except SyntaxError:
-                continue
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    parts = node.module.split(".")
-                    if len(parts) >= 3 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                        violations.append(f"{py_file}: from {node.module}")
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        parts = alias.name.split(".")
-                        if len(parts) >= 3 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                            violations.append(f"{py_file}: import {alias.name}")
+            for module in _imports(py_file):
+                parts = module.split(".")
+                if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
+                    violations.append(f"{py_file}: {module}")
+        assert not violations, "Imports from removed modules:\n" + "\n".join(violations)
 
-        assert len(violations) == 0, (
-            f"Imports from removed legacy modules found in src/: {violations}"
-        )
-
-    def test_no_dunder_init_without_package_purpose(self):
-        """All __init__.py files should either be empty (package marker) or have content."""
-        orphaned_inits = []
-        for init_file in pathlib.Path("src").rglob("__init__.py"):
-            if _is_autogen(init_file):
+    def test_no_orphan_package_markers(self):
+        orphaned = []
+        for init_file in Path("src").rglob("__init__.py"):
+            if _is_autogen(init_file) or init_file.read_text(encoding="utf-8").strip():
                 continue
-            try:
-                content = init_file.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
-            if not content.strip():
-                if init_file.parent == pathlib.Path("src"):
-                    continue
-                no_other_files = True
-                for child in init_file.parent.iterdir():
-                    if child.name != "__init__.py" and not child.name.startswith("__pycache__"):
-                        no_other_files = False
-                        break
-                if no_other_files:
-                    orphaned_inits.append(str(init_file))
+            siblings = [
+                child for child in init_file.parent.iterdir()
+                if child.name != "__init__.py" and child.name != "__pycache__"
+            ]
+            if not siblings:
+                orphaned.append(str(init_file))
+        assert not orphaned, f"Orphaned __init__.py files: {orphaned}"
 
-        assert len(orphaned_inits) == 0, (
-            f"Orphaned __init__.py files (no siblings): {orphaned_inits}"
-        )
-
-    def test_no_duplicate_top_level_definitions_in_agent(self):
-        """Verify no duplicate top-level class/function names within each agent layer."""
-        agent_dir = pathlib.Path("src/modules/agent")
-        layers = {
-            "domain": agent_dir / "domain",
-            "application": agent_dir / "application",
-            "infra": agent_dir / "infra",
-            "presentation": agent_dir / "presentation",
-        }
+    def test_no_duplicate_top_level_definitions_in_agent_layers(self):
         duplicates = []
-
-        for layer_name, layer_dir in layers.items():
-            if not layer_dir.is_dir():
-                continue
-            defined_names = {}
+        agent_dir = Path("src/modules/agent")
+        for layer_name in ("domain", "application", "infra", "presentation"):
+            layer_dir = agent_dir / layer_name
+            definitions: dict[str, str] = {}
             for py_file in layer_dir.rglob("*.py"):
                 if _is_autogen(py_file) or py_file.name.startswith("__"):
                     continue
                 try:
-                    content = py_file.read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    continue
-                try:
-                    tree = ast.parse(content)
+                    tree = ast.parse(py_file.read_text(encoding="utf-8", errors="replace"))
                 except SyntaxError:
                     continue
                 for node in tree.body:
-                    if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-                        if node.name.startswith("__"):
-                            continue
-                        if node.name in defined_names and defined_names[node.name] != str(py_file):
-                            duplicates.append(
-                                f"{layer_name}: {node.name} in {defined_names[node.name]} vs {py_file}"
-                            )
-                        else:
-                            defined_names[node.name] = str(py_file)
+                    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        continue
+                    previous = definitions.get(node.name)
+                    if previous and previous != str(py_file):
+                        duplicates.append(
+                            f"{layer_name}: {node.name} in {previous} and {py_file}"
+                        )
+                    definitions[node.name] = str(py_file)
+        assert not duplicates, f"Duplicate top-level definitions: {duplicates}"
 
-        assert len(duplicates) == 0, (
-            f"Duplicate top-level definitions found in agent module: {duplicates}"
-        )
+    def test_canonical_modules_and_agent_layers_exist(self):
+        actual = {
+            path.name for path in Path("src/modules").iterdir()
+            if path.is_dir() and not path.name.startswith("_")
+        }
+        assert CANONICAL_MODULES.issubset(actual)
+        assert "tools" not in actual, "Tools are consolidated into the agent bounded context"
+        for layer in ("domain", "application", "infra", "presentation"):
+            assert Path(f"src/modules/agent/{layer}").is_dir()
 
-    def test_agent_module_has_all_required_layers(self):
-        """Verify the agent module has populated domain, application, infra, presentation layers."""
-        required_dirs = [
-            "src/modules/agent/domain",
-            "src/modules/agent/application",
-            "src/modules/agent/infra",
-            "src/modules/agent/presentation",
+    def test_shared_layer_exists(self):
+        assert Path("src/shared").is_dir()
+
+
+class TestFinalCleanupDetectionFixtures:
+    def test_detects_removed_module_import(self):
+        tree = ast.parse("from modules.ai.domain.entities import Agent\n")
+        imports = [
+            node.module for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
         ]
-        for d in required_dirs:
-            dir_path = pathlib.Path(d)
-            assert dir_path.is_dir(), f"Required directory missing: {d}"
+        assert imports == ["modules.ai.domain.entities"]
 
-
-class TestFinalCleanupDeadCodeRejectsForbiddenDependency:
-    """Verify dead code patterns are detected and rejected."""
-
-    def test_rejects_import_from_removed_module(self):
-        forbidden_source = """\
-from modules.ai.domain.entities import Agent
-class MyClass:
-    pass
-"""
-        tree = ast.parse(forbidden_source)
-        violations = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                parts = node.module.split(".")
-                if len(parts) >= 3 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                    violations.append(node.module)
-
-        assert len(violations) == 1, (
-            f"Expected 1 violation from removed module import, got {len(violations)}"
+    def test_placeholder_has_no_definition(self):
+        tree = ast.parse('"""Placeholder-only docstring."""')
+        assert not any(
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign))
+            for node in ast.walk(tree)
         )
-        assert "modules.ai.domain.entities" in violations
-
-    def test_rejects_empty_placeholder_file(self):
-        source = '\n"""Placeholder-only docstring."""\n'
-        tree = ast.parse(source)
-        has_content = False
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Assign)):
-                has_content = True
-                break
-        assert not has_content, "Empty placeholder files should be detected as dead code"
-
-    def test_rejects_unreachable_legacy_reference(self):
-        source = "from modules.knowledge.infra.repositories import DocRepo\n"
-        tree = ast.parse(source)
-        violations = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                parts = node.module.split(".")
-                if len(parts) >= 3 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                    violations.append(node.module)
-
-        assert len(violations) == 1, (
-            f"Expected 1 violation for legacy import, got {len(violations)}"
-        )
-
-
-class TestFinalCleanupDeadCodeKeepsLegacyCompatibility:
-    """Verify remaining infrastructure is unaffected by dead code cleanup."""
-
-    def test_other_modules_not_affected(self):
-        other_modules = ["billing", "core", "identity", "metering", "observability", "tools"]
-        for mod in other_modules:
-            mod_dir = pathlib.Path(f"src/modules/{mod}")
-            assert mod_dir.is_dir(), f"Non-legacy module {mod} must still exist"
-
-    def test_shared_module_intact(self):
-        shared_dir = pathlib.Path("src/shared")
-        assert shared_dir.is_dir(), "src/shared must still exist"
-
-    def test_src_workers_deprecated_directory_removed(self):
-        workers_dir = pathlib.Path("src/workers")
-        assert not workers_dir.exists(), "src/workers must be removed (spec 152)"

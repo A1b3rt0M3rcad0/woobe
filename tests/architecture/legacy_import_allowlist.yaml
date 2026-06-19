@@ -1,1 +1,4 @@
-entries: []
+entries:
+  - scope: shared_boundaries
+    file: src/shared/workers/discovery.py
+    reason: Generic worker plugin discovery intentionally resolves module registries by name without static module imports.
