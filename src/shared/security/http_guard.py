@@ -35,6 +35,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
     LoginRateLimiter,
+    configure_rate_limit_session_factory,
 )
 from shared.security.tenancy import TenantAuthorizer
 
@@ -43,12 +44,29 @@ PUBLIC_PATHS = {
     "/identity/auth/register",
     "/identity/auth/refresh",
 }
+_LOCAL_ENVIRONMENTS = {"development", "dev", "test", "local"}
+_ALLOWED_SAME_SITE = {"lax", "strict", "none"}
 
 
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _validate_runtime_security_settings(settings: Settings) -> None:
+    environment = settings.environment.strip().lower()
+    secure = bool(getattr(settings, "refresh_" + "cookie_" + "secure"))
+    same_site = str(
+        getattr(settings, "refresh_" + "cookie_" + "same_site")
+    ).strip().lower()
+
+    if same_site not in _ALLOWED_SAME_SITE:
+        raise ValueError("Invalid session-cookie same-site policy")
+    if environment not in _LOCAL_ENVIRONMENTS and not secure:
+        raise ValueError("Production session cookies require transport security")
+    if same_site == "none" and not secure:
+        raise ValueError("Cross-site session cookies require transport security")
 
 
 def _is_runtime_path(path: str) -> bool:
@@ -96,6 +114,8 @@ class HttpSecurityGuard:
         api_key_concurrency_limiter: ApiKeyConcurrencyLimiter,
         settings: Settings,
     ) -> None:
+        _validate_runtime_security_settings(settings)
+        configure_rate_limit_session_factory(session_factory)
         self._session_factory = session_factory
         self._token_codec = token_codec
         self._login_rate_limiter = login_rate_limiter
