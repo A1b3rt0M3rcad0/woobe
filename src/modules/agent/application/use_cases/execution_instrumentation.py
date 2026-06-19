@@ -191,6 +191,26 @@ async def execute_tool_call(
     return info, message, payload
 
 
+def _sum_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
+    values: list[int] = []
+    for call in calls:
+        value = call.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return None
+        values.append(value)
+    return sum(values)
+
+
+def _sum_costs(calls: list[dict[str, Any]]) -> float | None:
+    values: list[float] = []
+    for call in calls:
+        value = call.get("cost_usd")
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return None
+        values.append(float(value))
+    return sum(values)
+
+
 def aggregate_usage(
     llm_calls: list[dict[str, Any]],
 ) -> tuple[UsageInfo, bool, str]:
@@ -198,27 +218,18 @@ def aggregate_usage(
     complete = bool(llm_calls) and len(successful) == len(llm_calls) and all(
         call.get("usage_complete") is True for call in successful
     )
+    input_tokens = _sum_int_field(successful, "input_tokens") if complete else None
+    output_tokens = _sum_int_field(successful, "output_tokens") if complete else None
+    total_tokens = _sum_int_field(successful, "total_tokens") if complete else None
+    cost_usd = _sum_costs(successful) if len(successful) == len(llm_calls) else None
+    cost_known = bool(llm_calls) and cost_usd is not None
 
-    def summed(field: str) -> int | None:
-        values = [call.get(field) for call in successful]
-        if not complete or any(value is None for value in values):
-            return None
-        return int(sum(int(value) for value in values))
-
-    costs = [call.get("cost_usd") for call in successful]
-    cost_known = bool(llm_calls) and len(successful) == len(llm_calls) and all(
-        cost is not None for cost in costs
-    )
     return (
         UsageInfo(
-            input_tokens=summed("input_tokens"),
-            output_tokens=summed("output_tokens"),
-            total_tokens=summed("total_tokens"),
-            cost_usd=(
-                float(sum(float(cost) for cost in costs))
-                if cost_known
-                else None
-            ),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost_usd,
         ),
         complete,
         "known" if cost_known else "unknown",
