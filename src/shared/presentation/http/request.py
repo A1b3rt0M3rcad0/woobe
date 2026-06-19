@@ -2,13 +2,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from shared.security.principal import AuthenticatedPrincipal
+from shared.security.principal import SecurityPrincipal
 
 
 class Request(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    principal: AuthenticatedPrincipal | None = None
+    principal: SecurityPrincipal | None = None
     user: str | None = None
     url: str | None = None
     method: str | None = None
