@@ -23,20 +23,22 @@ def _sse_type(chunk: str) -> str | None:
 async def _commit_safe_stream(
     service: AskAgentStreamService,
     input_dto: AskInput,
+    fastapi_request: FastAPIRequest,
 ) -> AsyncGenerator[str, None]:
-    pending_done: str | None = None
+    pending_terminal: str | None = None
 
-    async for chunk in service.generate(input_dto):
+    async for chunk in service.generate(
+        input_dto,
+        fastapi_request.is_disconnected,
+    ):
         event_type = _sse_type(chunk)
-        if event_type == "done":
-            pending_done = chunk
+        if event_type in {"done", "error", "cancelled"}:
+            pending_terminal = chunk
             continue
-        if event_type == "error":
-            pending_done = None
         yield chunk
 
-    if pending_done is not None:
-        yield pending_done
+    if pending_terminal is not None:
+        yield pending_terminal
 
 
 async def handle_ask_stream(
@@ -52,7 +54,7 @@ async def handle_ask_stream(
     input_dto = AskInput(**body)
 
     return StreamingResponse(
-        _commit_safe_stream(service, input_dto),
+        _commit_safe_stream(service, input_dto, fastapi_request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
