@@ -116,11 +116,13 @@ class HttpSecurityGuard:
             request.url.path
         )
 
-    async def acquire_runtime_permit(self, principal: ProjectApiPrincipal) -> None:
-        await self._api_key_concurrency_limiter.acquire(str(principal.api_key_id))
+    async def acquire_runtime_permit(self, principal: ProjectApiPrincipal) -> UUID:
+        return await self._api_key_concurrency_limiter.acquire(
+            str(principal.api_key_id)
+        )
 
-    async def release_runtime_permit(self, principal: ProjectApiPrincipal) -> None:
-        await self._api_key_concurrency_limiter.release(str(principal.api_key_id))
+    async def release_runtime_permit(self, lease_id: UUID) -> None:
+        await self._api_key_concurrency_limiter.release(lease_id)
 
     async def authenticate_and_authorize(
         self,
@@ -136,7 +138,7 @@ class HttpSecurityGuard:
         path = request.url.path
         if path == "/identity/auth/login":
             client = request.client.host if request.client else "unknown"
-            self._login_rate_limiter.consume(client)
+            await self._login_rate_limiter.consume(client)
 
         if path in PUBLIC_PATHS:
             return None
@@ -238,7 +240,7 @@ class HttpSecurityGuard:
                 query_params=query_params,
                 body=body,
             )
-            self._api_key_rate_limiter.consume(str(principal.api_key_id))
+            await self._api_key_rate_limiter.consume(str(principal.api_key_id))
             await session.execute(
                 text(
                     """
@@ -269,7 +271,10 @@ class HttpSecurityGuard:
 
         for key in ("message", "prompt"):
             for value in _values_for_key(body, key):
-                if isinstance(value, str) and len(value) > self._settings.runtime_max_prompt_chars:
+                if (
+                    isinstance(value, str)
+                    and len(value) > self._settings.runtime_max_prompt_chars
+                ):
                     raise PayloadTooLargeError("Runtime prompt is too large")
 
         for value in _values_for_key(body, "metadata"):
