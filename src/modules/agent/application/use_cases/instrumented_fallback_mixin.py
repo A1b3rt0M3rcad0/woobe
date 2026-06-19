@@ -36,7 +36,8 @@ class InstrumentedFallbackMixin:
 
         started_at = utc_iso()
         started = time.monotonic()
-        response = await super()._try_fallback(
+        parent_try_fallback = getattr(super(), "_try_fallback")
+        response = await parent_try_fallback(
             agent, messages, json_enabled, primary_error
         )
         result, provider, _latency, _info = response
