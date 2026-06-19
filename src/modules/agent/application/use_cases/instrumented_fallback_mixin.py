@@ -9,14 +9,35 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     aggregate_usage,
     utc_iso,
 )
+from modules.agent.application.use_cases.runtime_streaming import emit_runtime_event
 from shared.infra.llm_usage import normalize_llm_usage
 
 
 class InstrumentedFallbackMixin:
     async def _try_fallback(self, agent, messages, json_enabled, primary_error):
+        primary_provider = (
+            agent.provider.value
+            if hasattr(agent.provider, "value")
+            else str(agent.provider)
+        )
+        fallback_provider = (
+            agent.fallback_provider.value
+            if hasattr(agent.fallback_provider, "value")
+            else str(agent.fallback_provider)
+        )
+        await emit_runtime_event(
+            "fallback",
+            primary_provider=primary_provider,
+            primary_model=agent.model,
+            fallback_provider=fallback_provider,
+            fallback_model=agent.fallback_model,
+            error=str(primary_error),
+        )
+
         started_at = utc_iso()
         started = time.monotonic()
-        response = await super()._try_fallback(
+        parent_try_fallback = getattr(super(), "_try_fallback")
+        response = await parent_try_fallback(
             agent, messages, json_enabled, primary_error
         )
         result, provider, _latency, _info = response

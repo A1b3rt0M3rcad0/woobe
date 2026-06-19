@@ -71,6 +71,38 @@ def _validated_public_addresses(url: str) -> frozenset[str] | None:
     return addresses
 
 
+def _connected_peer_address(response: httpx.Response) -> str | None:
+    network_stream = response.extensions.get("network_stream")
+    get_extra_info = getattr(network_stream, "get_extra_info", None)
+    if not callable(get_extra_info):
+        return None
+    try:
+        server_address = get_extra_info("server_addr")
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if isinstance(server_address, (tuple, list)) and server_address:
+        return str(server_address[0])
+    if isinstance(server_address, str):
+        return server_address
+    return None
+
+
+def _peer_matches_validation(
+    response: httpx.Response,
+    validated_addresses: frozenset[str],
+) -> bool:
+    peer = _connected_peer_address(response)
+    if peer is None:
+        # Mock transports and some custom clients do not expose the network peer.
+        # DNS validation and redirect denial remain mandatory in those cases.
+        return True
+    try:
+        normalized_peer = str(ipaddress.ip_address(peer))
+    except ValueError:
+        return False
+    return normalized_peer in validated_addresses
+
+
 def _is_private_url(url: str) -> bool:
     return _validated_public_addresses(url) is None
 
@@ -152,6 +184,14 @@ class HttpToolExecutor(ToolExecutionPort):
                 follow_redirects=False,
             )
             duration_ms = round((time.monotonic() - started_at) * 1000)
+
+            if not _peer_matches_validation(response, first_resolution):
+                return ExecutionResult(
+                    success=False,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                    error="SSRF blocked: connected peer did not match validated DNS addresses",
+                )
 
             if 300 <= response.status_code < 400:
                 return ExecutionResult(

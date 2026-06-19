@@ -24,10 +24,27 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "job_id": "agent.ask_jobs",
     "ask_job_id": "agent.ask_jobs",
     "release_id": "agent.agent_releases",
+    "release_test_id": "agent.agent_release_tests",
     "contract_id": "agent.agent_contracts",
     "config_id": "agent.agent_model_configs",
+    "prompt_id": "agent.agent_prompts",
+    # The current prompt-version route names this identifier `version_id`.
+    "version_id": "agent.agent_prompts",
+    "knowledge_version_id": "agent.knowledge_versions",
     "trace_id": "observability.traces",
 }
+
+INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
+    # agent_collections does not duplicate project_id; ownership is derived from
+    # its agent. This is used by DELETE /knowledge/agent-collections/{link_id}.
+    "link_id": """
+        SELECT agents.project_id
+        FROM agent.agent_collections AS links
+        JOIN agent.agents AS agents ON agents.id = links.agent_id
+        WHERE links.id = :resource_id
+    """,
+}
+
 ORGANIZATION_KEYS = {"organization_id", "org_id"}
 
 
@@ -39,6 +56,7 @@ def _identifier_values(value: Any) -> list[tuple[str, Any]]:
                 key in ORGANIZATION_KEYS
                 or key == "project_id"
                 or key in DIRECT_PROJECT_RESOURCES
+                or key in INDIRECT_PROJECT_RESOURCE_QUERIES
             ):
                 found.append((key, item))
             elif isinstance(item, (Mapping, list, tuple)):
@@ -146,6 +164,14 @@ class TenantAuthorizer:
         key: str,
         resource_id: UUID,
     ) -> UUID | None:
+        indirect_query = INDIRECT_PROJECT_RESOURCE_QUERIES.get(key)
+        if indirect_query is not None:
+            result = await self._session.execute(
+                text(indirect_query),
+                {"resource_id": resource_id},
+            )
+            return result.scalar_one_or_none()
+
         table = DIRECT_PROJECT_RESOURCES.get(key)
         if table is None:
             return None
