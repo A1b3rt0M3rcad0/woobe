@@ -97,6 +97,12 @@ async def api_key_graph():
                     status="active",
                     data={},
                 ),
+            ]
+        )
+        await session.flush()
+
+        session.add_all(
+            [
                 AgentModel(
                     id=agent_id,
                     project_id=project_id,
@@ -135,22 +141,26 @@ async def api_key_graph():
                     status="active",
                     settings={},
                 ),
-                ApiKeyModel(
-                    id=api_key_id,
-                    project_id=project_id,
-                    name="Runtime key",
-                    key_prefix=issued.public_prefix,
-                    key_hash=issued.digest,
-                    key_version=1,
-                    scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
-                    status="active",
-                    last_used_at=None,
-                    expires_at=datetime.now(UTC) + timedelta(days=1),
-                    revoked_at=None,
-                    created_by_user_id=creator_id,
-                    rotated_from_id=None,
-                ),
             ]
+        )
+        await session.flush()
+
+        session.add(
+            ApiKeyModel(
+                id=api_key_id,
+                project_id=project_id,
+                name="Runtime key",
+                key_prefix=issued.public_prefix,
+                key_hash=issued.digest,
+                key_version=1,
+                scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
+                status="active",
+                last_used_at=None,
+                expires_at=datetime.now(UTC) + timedelta(days=1),
+                revoked_at=None,
+                created_by_user_id=creator_id,
+                rotated_from_id=None,
+            )
         )
         await session.commit()
 
@@ -195,7 +205,9 @@ async def _update_key(graph, **values) -> None:
 @pytest.mark.asyncio
 async def test_runtime_api_key_accepts_its_project_and_owned_agent(api_key_graph) -> None:
     graph = api_key_graph
-    principal = await _guard(graph["session_factory"], graph["settings"]).authenticate_and_authorize(
+    principal = await _guard(
+        graph["session_factory"], graph["settings"]
+    ).authenticate_and_authorize(
         _runtime_request(graph["api_key"]),
         body={
             "project_id": str(graph["project_id"]),
@@ -216,7 +228,9 @@ async def test_runtime_api_key_hides_foreign_project_and_agent(api_key_graph) ->
     graph = api_key_graph
 
     with pytest.raises(NotFoundError, match="Resource not found"):
-        await _guard(graph["session_factory"], graph["settings"]).authenticate_and_authorize(
+        await _guard(
+            graph["session_factory"], graph["settings"]
+        ).authenticate_and_authorize(
             _runtime_request(graph["api_key"]),
             body={
                 "project_id": str(graph["foreign_project_id"]),
@@ -234,7 +248,9 @@ async def test_runtime_api_key_rejects_missing_execute_scope(api_key_graph) -> N
     await _update_key(graph, scopes=[API_KEY_SCOPE_TRACES_READ])
 
     with pytest.raises(AuthorizationError, match="scope is not sufficient"):
-        await _guard(graph["session_factory"], graph["settings"]).authenticate_and_authorize(
+        await _guard(
+            graph["session_factory"], graph["settings"]
+        ).authenticate_and_authorize(
             _runtime_request(graph["api_key"]),
             body={
                 "project_id": str(graph["project_id"]),
@@ -256,7 +272,9 @@ async def test_runtime_api_key_rejects_revoked_key(api_key_graph) -> None:
     )
 
     with pytest.raises(AuthenticationError, match="API key is inactive"):
-        await _guard(graph["session_factory"], graph["settings"]).authenticate_and_authorize(
+        await _guard(
+            graph["session_factory"], graph["settings"]
+        ).authenticate_and_authorize(
             _runtime_request(graph["api_key"]),
             body={"project_id": str(graph["project_id"]), "message": "hello"},
             query_params={},
@@ -270,7 +288,9 @@ async def test_runtime_api_key_rejects_expired_key(api_key_graph) -> None:
     await _update_key(graph, expires_at=datetime.now(UTC) - timedelta(seconds=1))
 
     with pytest.raises(AuthenticationError, match="API key is inactive"):
-        await _guard(graph["session_factory"], graph["settings"]).authenticate_and_authorize(
+        await _guard(
+            graph["session_factory"], graph["settings"]
+        ).authenticate_and_authorize(
             _runtime_request(graph["api_key"]),
             body={"project_id": str(graph["project_id"]), "message": "hello"},
             query_params={},
