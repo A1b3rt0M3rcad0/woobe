@@ -13,6 +13,7 @@ class AuthenticatedUser:
 class IssuedAuthentication:
     access_token: str
     refresh_token: str
+    session_id: UUID
     token_type: str
     expires_in: int
     user: AuthenticatedUser
