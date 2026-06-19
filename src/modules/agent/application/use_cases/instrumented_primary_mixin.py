@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any, Protocol, cast
 
 from modules.agent.application.use_cases.execution_context import (
     current_execution,
@@ -20,8 +21,22 @@ from modules.agent.application.use_cases.runtime_streaming import (
 )
 
 
+class _PrimaryExecutionSuper(Protocol):
+    async def execute(self, input_dto: Any) -> Any: ...
+
+    async def _prepare(self, input_dto: Any) -> Any: ...
+
+
+class _PrimaryExecutionHost(Protocol):
+    _llm_factory: Any
+
+    async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
+
+    def _clean_json_answer(self, answer: str) -> str: ...
+
+
 class InstrumentedPrimaryExecutionMixin:
-    async def execute(self, input_dto):
+    async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
         token = current_execution.set(
             new_execution_context(
@@ -29,17 +44,19 @@ class InstrumentedPrimaryExecutionMixin:
                 metadata.get("client_sent_at"),
             )
         )
+        parent = cast(_PrimaryExecutionSuper, super())
         try:
-            return await super().execute(input_dto)
+            return await parent.execute(input_dto)
         finally:
             current_execution.reset(token)
 
-    async def _prepare(self, input_dto):
+    async def _prepare(self, input_dto: Any) -> Any:
         context = current_execution.get()
         if context:
             context.prepare_started_at = utc_now()
         started = time.monotonic()
-        prepared = await super()._prepare(input_dto)
+        parent = cast(_PrimaryExecutionSuper, super())
+        prepared = await parent._prepare(input_dto)
         if context:
             context.prepare_ended_at = utc_now()
             context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
@@ -72,21 +89,22 @@ class InstrumentedPrimaryExecutionMixin:
 
     async def _execute_llm(
         self,
-        agent,
-        api_key,
-        base_url,
-        response_format,
-        json_enabled,
-        has_tools,
-        agent_tools,
-        tool_name_to_id,
-        messages,
-    ):
+        agent: Any,
+        api_key: str,
+        base_url: str | None,
+        response_format: dict,
+        json_enabled: bool,
+        has_tools: bool,
+        agent_tools: list[dict],
+        tool_name_to_id: dict[str, str],
+        messages: list,
+    ) -> tuple[Any, list, bool, Any]:
+        host = cast(_PrimaryExecutionHost, self)
         try:
             execution = await run_instrumented_execution(
-                llm_factory=self._llm_factory,
-                execute_single_tool=self._execute_single_tool,
-                clean_json_answer=self._clean_json_answer,
+                llm_factory=host._llm_factory,
+                execute_single_tool=host._execute_single_tool,
+                clean_json_answer=host._clean_json_answer,
                 agent=agent,
                 api_key=api_key,
                 base_url=base_url,
