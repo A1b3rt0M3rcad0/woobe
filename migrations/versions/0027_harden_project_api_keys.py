@@ -37,16 +37,6 @@ def upgrade() -> None:
         sa.Column("rotated_from_id", sa.Uuid(), nullable=True),
         schema="core",
     )
-    op.create_foreign_key(
-        "fk_core_api_keys_rotated_from_id",
-        source_table="api_keys",
-        referent_table="api_keys",
-        local_cols=["rotated_from_id"],
-        remote_cols=["id"],
-        source_schema="core",
-        referent_schema="core",
-        ondelete="SET NULL",
-    )
     op.create_index(
         "ix_core_api_keys_prefix_status",
         "api_keys",
@@ -61,12 +51,6 @@ def downgrade() -> None:
         "ix_core_api_keys_prefix_status",
         table_name="api_keys",
         schema="core",
-    )
-    op.drop_constraint(
-        "fk_core_api_keys_rotated_from_id",
-        "api_keys",
-        schema="core",
-        type_="foreignkey",
     )
     op.drop_column("api_keys", "rotated_from_id", schema="core")
     op.drop_column("api_keys", "key_version", schema="core")
