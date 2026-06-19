@@ -12,25 +12,18 @@ from modules.observability.infra.messaging import trace_projector
 
 def test_trace_event_response_derives_trace_id_from_payload() -> None:
     trace_id = uuid4()
-
     response = TraceEventResponse(
         id=uuid4(),
         event_type="tool_call",
         payload={"trace_id": str(trace_id)},
     )
-
     assert response.trace_id == trace_id
 
 
 @pytest.mark.asyncio
 async def test_incomplete_direct_tool_event_is_deferred(monkeypatch) -> None:
     trace_id = uuid4()
-    trace = Trace(
-        id=trace_id,
-        project_id=uuid4(),
-        status=TraceStatus.running,
-        data={},
-    )
+    trace = Trace(id=trace_id, project_id=uuid4(), status=TraceStatus.running, data={})
     saved_events = []
 
     class TraceRepo:
@@ -58,22 +51,14 @@ async def test_incomplete_direct_tool_event_is_deferred(monkeypatch) -> None:
         },
         session=object(),
     )
-
     assert saved_events == []
 
 
 @pytest.mark.asyncio
-async def test_completed_snapshot_does_not_overwrite_llm_event_and_creates_one_complete_tool_event(
-    monkeypatch,
-) -> None:
+async def test_completed_snapshot_preserves_tool_summary_and_terminal_events(monkeypatch) -> None:
     trace_id = uuid4()
     project_id = uuid4()
-    trace = Trace(
-        id=trace_id,
-        project_id=project_id,
-        status=TraceStatus.running,
-        data={},
-    )
+    trace = Trace(id=trace_id, project_id=project_id, status=TraceStatus.running, data={})
     saved_events = []
 
     class TraceRepo:
@@ -116,10 +101,13 @@ async def test_completed_snapshot_does_not_overwrite_llm_event_and_creates_one_c
     )
 
     assert [event.event_type for event in saved_events] == [
-        TraceEventType.info,
         TraceEventType.tool_call,
+        TraceEventType.info,
+        TraceEventType.info,
     ]
-    tool_event = saved_events[1]
+    tool_event, summary_event, completed_event = saved_events
     assert tool_event.payload["tool_call_id"] == "call-1"
     assert tool_event.payload["input"] == {"a": "1", "b": "2"}
     assert tool_event.payload["output"] == {"result": "3"}
+    assert summary_event.payload["event"] == "observability.execution.summary.v1"
+    assert completed_event.payload["event"] == "agent.execution.completed.v1"

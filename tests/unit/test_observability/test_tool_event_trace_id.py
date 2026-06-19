@@ -8,15 +8,10 @@ from modules.observability.infra.messaging import trace_projector
 
 
 @pytest.mark.asyncio
-async def test_completed_snapshot_persists_tool_before_completed(monkeypatch) -> None:
+async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatch) -> None:
     trace_id = uuid4()
     project_id = uuid4()
-    trace = Trace(
-        id=trace_id,
-        project_id=project_id,
-        status=TraceStatus.running,
-        data={},
-    )
+    trace = Trace(id=trace_id, project_id=project_id, status=TraceStatus.running, data={})
     saved_events = []
 
     class TraceRepo:
@@ -56,8 +51,10 @@ async def test_completed_snapshot_persists_tool_before_completed(monkeypatch) ->
     assert [event.event_type for event in saved_events] == [
         TraceEventType.tool_call,
         TraceEventType.info,
+        TraceEventType.info,
     ]
-    tool_event, completed_event = saved_events
+    tool_event, summary_event, completed_event = saved_events
     assert tool_event.payload["trace_id"] == str(trace_id)
     assert tool_event.payload["event"] == "agent.execution.tool_completed.v1"
+    assert summary_event.payload["event"] == "observability.execution.summary.v1"
     assert completed_event.payload["event"] == "agent.execution.completed.v1"

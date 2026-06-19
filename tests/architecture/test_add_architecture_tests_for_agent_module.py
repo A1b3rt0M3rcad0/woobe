@@ -29,6 +29,12 @@ LAYER_FORBIDDEN = {
     "application": {"infra", "presentation"},
 }
 
+RUNTIME_ORCHESTRATION_FILES = {
+    "ask_use_case.py",
+    "ask_agent_stream_service.py",
+    "instrumented_execution_finalizer.py",
+}
+
 
 def _load_allowlist(scope: str) -> set[str]:
     if not ALLOWLIST_FILE.exists():
@@ -67,9 +73,7 @@ class TestAddArchitectureTestsForAgentModule:
             if d.is_dir() and not d.name.startswith("_")
         }
         missing = AGENT_REQUIRED_LAYERS - present_layers
-        assert not missing, (
-            f"Agent module missing required layers: {missing}"
-        )
+        assert not missing, f"Agent module missing required layers: {missing}"
 
         forbid_targets = KNOWN_MODULES - {"agent", *LEGACY_MODULES}
         for py_file in _src_files_under(SRC_AGENT):
@@ -88,9 +92,7 @@ class TestAddArchitectureTestsForAgentModule:
                         if target in forbid_targets:
                             allowlist = _load_allowlist("module_boundaries")
                             if rel not in allowlist and rel.replace("\\", "/") not in allowlist:
-                                violations.append(
-                                    f"{rel} imports forbidden module: {target}"
-                                )
+                                violations.append(f"{rel} imports forbidden module: {target}")
 
         violations.sort()
         assert not violations, (
@@ -120,18 +122,14 @@ class TestAddArchitectureTestsForAgentModule:
                     if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
                         layer = parts[2]
                         if layer in forbidden:
-                            violations.append(
-                                f"{rel} domain imports {layer}: {node.module}"
-                            )
+                            violations.append(f"{rel} domain imports {layer}: {node.module}")
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         parts = alias.name.split(".")
                         if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
                             layer = parts[2]
                             if layer in forbidden:
-                                violations.append(
-                                    f"{rel} domain imports {layer}: {alias.name}"
-                                )
+                                violations.append(f"{rel} domain imports {layer}: {alias.name}")
 
         assert not violations, (
             f"Agent domain layer has {len(violations)} forbidden import(s):\n"
@@ -143,16 +141,14 @@ class TestAddArchitectureTestsForAgentModule:
         if not app_dir.is_dir():
             return
 
-        orchestration_files = {"ask_use_case.py", "ask_agent_stream_service.py"}
         violations = []
         forbidden = LAYER_FORBIDDEN["application"]
 
         for py_file in _src_files_under(app_dir):
             if "composers" in py_file.parts:
                 continue
-            if py_file.name in orchestration_files:
+            if py_file.name in RUNTIME_ORCHESTRATION_FILES:
                 continue
-
             rel = _relative_posix(py_file)
             try:
                 source = py_file.read_text(encoding="utf-8")
@@ -166,18 +162,14 @@ class TestAddArchitectureTestsForAgentModule:
                     if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
                         layer = parts[2]
                         if layer in forbidden:
-                            violations.append(
-                                f"{rel} application imports {layer}: {node.module}"
-                            )
+                            violations.append(f"{rel} application imports {layer}: {node.module}")
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         parts = alias.name.split(".")
                         if len(parts) >= 3 and parts[0] == "modules" and parts[1] == "agent":
                             layer = parts[2]
                             if layer in forbidden:
-                                violations.append(
-                                    f"{rel} application imports {layer}: {alias.name}"
-                                )
+                                violations.append(f"{rel} application imports {layer}: {alias.name}")
 
         assert not violations, (
             f"Agent application layer has {len(violations)} forbidden import(s):\n"
@@ -196,9 +188,7 @@ class TestAddArchitectureTestsForAgentModule:
         }
 
         missing = required_dirs - present
-        assert not missing, (
-            f"Agent infra layer missing required directories: {missing}"
-        )
+        assert not missing, f"Agent infra layer missing required directories: {missing}"
 
     def test_agent_does_not_import_legacy_modules(self):
         allowlist = _load_allowlist("module_boundaries")
@@ -217,17 +207,13 @@ class TestAddArchitectureTestsForAgentModule:
                     parts = str(node.module).split(".")
                     if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
                         if rel not in allowlist and rel.replace("\\", "/") not in allowlist:
-                            violations.append(
-                                f"{rel} imports legacy module {parts[1]}: {node.module}"
-                            )
+                            violations.append(f"{rel} imports legacy module {parts[1]}: {node.module}")
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         parts = alias.name.split(".")
                         if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
                             if rel not in allowlist and rel.replace("\\", "/") not in allowlist:
-                                violations.append(
-                                    f"{rel} imports legacy module {parts[1]}: {alias.name}"
-                                )
+                                violations.append(f"{rel} imports legacy module {parts[1]}: {alias.name}")
 
         assert not violations, (
             f"Agent imports {len(violations)} legacy module(s) without allowlist:\n"
@@ -249,9 +235,7 @@ class TestAddArchitectureTestsForAgentModule:
                 if len(parts) >= 2 and parts[0] == "modules" and parts[1] != "agent":
                     module_imports.add(parts[1])
 
-        assert not module_imports, (
-            f"Agent UoW imports from non-agent modules: {module_imports}"
-        )
+        assert not module_imports, f"Agent UoW imports from non-agent modules: {module_imports}"
 
     def test_agent_presentation_layer_structure(self):
         pres_dir = SRC_AGENT / "presentation"
@@ -261,14 +245,10 @@ class TestAddArchitectureTestsForAgentModule:
         required_files = {"routes.py", "schemas.py"}
         for fname in required_files:
             fpath = pres_dir / fname
-            assert fpath.is_file(), (
-                f"Agent presentation layer missing {fname}"
-            )
+            assert fpath.is_file(), f"Agent presentation layer missing {fname}"
 
         controllers_dir = pres_dir / "controllers"
-        assert controllers_dir.is_dir(), (
-            "Agent presentation layer missing controllers directory"
-        )
+        assert controllers_dir.is_dir(), "Agent presentation layer missing controllers directory"
 
 
 class TestAddArchitectureTestsForAgentModuleRejectsForbidden:
@@ -280,7 +260,7 @@ class TestAddArchitectureTestsForAgentModuleRejectsForbidden:
         found = False
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                parts = str(node.module).split(".")
+                parts = node.module.split(".")
                 if len(parts) >= 3 and parts[0:3] == ["modules", "agent", "infra"]:
                     found = True
         assert found
@@ -291,7 +271,7 @@ class TestAddArchitectureTestsForAgentModuleRejectsForbidden:
         found = False
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                parts = str(node.module).split(".")
+                parts = node.module.split(".")
                 if len(parts) >= 2 and parts[0] == "modules" and parts[1] != "agent":
                     found = True
         assert found

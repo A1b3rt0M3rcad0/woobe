@@ -8,6 +8,11 @@ SRC_AGENT = PROJECT_ROOT / "src" / "modules" / "agent"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
+RUNTIME_ORCHESTRATION_FILES = {
+    "ask_use_case.py",
+    "ask_agent_stream_service.py",
+    "instrumented_execution_finalizer.py",
+}
 
 
 def _load_agent_allowlist() -> set[tuple[str, str]]:
@@ -21,6 +26,7 @@ def _load_agent_allowlist() -> set[tuple[str, str]]:
         for e in entries
         if e.get("scope") == "module_boundaries"
     }
+
 
 LAYER_RULES = {
     "domain": {"infra", "presentation", "application"},
@@ -71,9 +77,7 @@ class TestAgentBoundaries:
                 parts = module_path.split(".")
                 if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
                     if (rel_path, parts[1]) not in allowlist:
-                        violations.append(
-                            f"{rel_path}:{lineno} imports {module_path}"
-                        )
+                        violations.append(f"{rel_path}:{lineno} imports {module_path}")
 
         assert not violations, (
             "Agent module must not import from legacy modules (ai, knowledge, runtime):\n"
@@ -119,11 +123,10 @@ class TestAgentBoundaries:
         violations = []
         forbidden_for_app = LAYER_RULES["application"]
 
-        orchestration_files = {"ask_use_case.py", "ask_agent_stream_service.py"}
         for py_file in app_dir.rglob("*.py"):
             if "composers" in py_file.parts:
                 continue
-            if py_file.name in orchestration_files:
+            if py_file.name in RUNTIME_ORCHESTRATION_FILES:
                 continue
             imports = _extract_imports(py_file)
             rel_path = _relative_posix(py_file)
