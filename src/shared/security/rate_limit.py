@@ -9,6 +9,24 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.errors import RateLimitError
 
+_default_session_factory: async_sessionmaker[AsyncSession] | None = None
+
+
+def configure_rate_limit_session_factory(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    global _default_session_factory
+    _default_session_factory = session_factory
+
+
+def _session_factory(
+    explicit: async_sessionmaker[AsyncSession] | None,
+) -> async_sessionmaker[AsyncSession]:
+    factory = explicit or _default_session_factory
+    if factory is None:
+        raise RuntimeError("Shared rate-limit session factory is not configured")
+    return factory
+
 
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
@@ -36,17 +54,17 @@ class SlidingWindowRateLimiter:
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
         namespace: str,
         limit: int,
         window_seconds: int,
         message: str,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         if limit <= 0 or window_seconds <= 0:
             raise ValueError("Rate-limit values must be positive")
         if not namespace.strip():
             raise ValueError("Rate-limit namespace is required")
-        self._session_factory = session_factory
+        self._session_factory = _session_factory(session_factory)
         self._namespace = namespace
         self._limit = limit
         self._window_seconds = window_seconds
@@ -142,9 +160,9 @@ class LoginRateLimiter(SlidingWindowRateLimiter):
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
         max_attempts: int,
         window_seconds: int,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         super().__init__(
             session_factory=session_factory,
@@ -159,9 +177,9 @@ class ApiKeyRequestLimiter(SlidingWindowRateLimiter):
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
         max_requests: int,
         window_seconds: int,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         super().__init__(
             session_factory=session_factory,
@@ -176,15 +194,15 @@ class ApiKeyConcurrencyLimiter:
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
         max_concurrency: int,
-        lease_ttl_seconds: int,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
+        lease_ttl_seconds: int = 180,
     ) -> None:
         if max_concurrency <= 0:
             raise ValueError("Concurrency limit must be positive")
         if lease_ttl_seconds <= 0:
             raise ValueError("Concurrency lease TTL must be positive")
-        self._session_factory = session_factory
+        self._session_factory = _session_factory(session_factory)
         self._max_concurrency = max_concurrency
         self._lease_ttl_seconds = lease_ttl_seconds
         self._namespace = "api_key_runtime"
