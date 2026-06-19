@@ -9,6 +9,7 @@ from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
+from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -20,7 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 class AskAgentStreamService:
-    def __init__(self, session_factory, llm_factory, http_executor: HttpToolExecutor):
+    def __init__(
+        self,
+        session_factory,
+        llm_factory,
+        http_executor: HttpToolExecutor | None = None,
+    ):
         self._session_factory = session_factory
         settings = Settings.model_validate({})
         self._cipher = SecretCipherAdapter(settings.encryption_key)
@@ -35,9 +41,10 @@ class AskAgentStreamService:
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         async with AgentUnitOfWork(self._session_factory) as uow:
             resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
+            executor = self._http_executor or get_http_tool_executor()
             result = await ExecuteToolUseCase(
                 tool_repo=uow.tools,
-                tool_executor=self._http_executor,
+                tool_executor=executor,
                 secret_resolver=resolver,
             ).execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
             return result.model_dump()
