@@ -1,12 +1,13 @@
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.application.dtos import AskInput
+from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 
 
 def _sse_type(chunk: str) -> str | None:
@@ -21,16 +22,18 @@ def _sse_type(chunk: str) -> str | None:
 
 
 async def _commit_safe_stream(
-    service: AskAgentStreamService,
-    input_dto: AskInput,
-    fastapi_request: FastAPIRequest,
+    service: Any,
+    input_dto: Any,
+    fastapi_request: FastAPIRequest | None = None,
 ) -> AsyncGenerator[str, None]:
     pending_terminal: str | None = None
+    source = (
+        service.generate(input_dto, fastapi_request.is_disconnected)
+        if fastapi_request is not None
+        else service.generate(input_dto)
+    )
 
-    async for chunk in service.generate(
-        input_dto,
-        fastapi_request.is_disconnected,
-    ):
+    async for chunk in source:
         event_type = _sse_type(chunk)
         if event_type in {"done", "error", "cancelled"}:
             pending_terminal = chunk
