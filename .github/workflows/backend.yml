@@ -109,3 +109,11 @@ jobs:
 
       - name: Pytest baseline gate
         run: uv run python scripts/ci/run_pytest_baseline.py
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-stage-05
+          path: pytest-report.xml
+          if-no-files-found: warn
