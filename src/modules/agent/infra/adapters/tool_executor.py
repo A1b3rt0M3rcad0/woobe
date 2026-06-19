@@ -15,11 +15,9 @@ from modules.agent.application.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,
 )
-from modules.agent.application.tool_converter import (
-    agent_tool_to_openai_definition,
-)
+from modules.agent.application.tool_converter import agent_tool_to_openai_definition
 from modules.agent.domain.ports.tool_executor import ToolExecutor
-from modules.agent.domain.ports.tool_repository import ToolRepository
+from modules.agent.domain.repositories import ToolRepository
 from shared.security.redaction import redact_sensitive_data, redact_text, redact_url
 
 logger = logging.getLogger(__name__)
@@ -45,7 +43,7 @@ def _resolved_addresses(hostname: str) -> frozenset[str]:
         addrinfo = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
     except OSError:
         return frozenset()
-    return frozenset(sockaddr[0] for *_prefix, sockaddr in addrinfo)
+    return frozenset(str(sockaddr[0]) for *_prefix, sockaddr in addrinfo)
 
 
 def _validated_public_addresses(url: str) -> frozenset[str] | None:
@@ -146,6 +144,7 @@ class HttpToolExecutor(ToolExecutionPort):
                 url=url,
                 headers=headers,
                 content=body.encode("utf-8") if body else None,
+                timeout=httpx.Timeout(effective_timeout / 1000),
             )
             response = await self._client.send(
                 request,
