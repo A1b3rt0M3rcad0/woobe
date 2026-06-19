@@ -25,4 +25,6 @@ The closeout audit executed the backend gate against commit `6effb6293ebe2c63b1e
 - a resolved failure also fails CI until its stale hash is removed in the same pull request;
 - duplicate or empty baselines fail as configuration errors.
 
+The audit-head validation at `4fb18cb2c7c5c27e625bf4370b1dccf479a932f6` produced 3,345 passing tests, 152 reviewed failures and 8 skipped tests, with `unexpected=0` and `stale=0`.
+
 A successful baseline gate therefore means "no change in reviewed debt", not "the complete backend suite is green". Release hardening must remove the remaining allowlist and run plain `pytest -q` successfully before the MVP can be represented as fully tested.
