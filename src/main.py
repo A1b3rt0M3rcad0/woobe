@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from starlette.types import ExceptionHandler
 
+from modules.agent.infra.adapters.http_tool_runtime import (
+    close_http_tool_executor,
+    configure_http_tool_executor,
+)
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -86,6 +91,12 @@ def create_app() -> FastAPI:
         ttl_seconds=settings.access_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
+    app.state.http_tool_executor = HttpToolExecutor(
+        default_timeout_ms=settings.http_tool_timeout_max_ms,
+        max_timeout_ms=settings.http_tool_timeout_max_ms,
+        max_response_bytes=settings.http_tool_response_max_bytes,
+    )
+    configure_http_tool_executor(app.state.http_tool_executor)
     app.state.security_guard = HttpSecurityGuard(
         session_factory=app.state.session_factory,
         token_codec=app.state.access_token_codec,
@@ -204,6 +215,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
+        await close_http_tool_executor()
         await app.state.async_engine.dispose()
         logger.info("API runtime stopped")
 
