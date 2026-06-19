@@ -1,10 +1,12 @@
 import logging
+from typing import cast
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
+from starlette.types import ExceptionHandler
 
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
@@ -46,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    settings = Settings()
+    settings = Settings.model_validate({})
 
     logging.basicConfig(
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -122,15 +124,27 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.add_exception_handler(AuthenticationError, authentication_handler)
-    app.add_exception_handler(RateLimitError, rate_limit_handler)
-    app.add_exception_handler(DomainError, domain_error_handler)
-    app.add_exception_handler(NotFoundError, not_found_handler)
-    app.add_exception_handler(ConflictError, conflict_handler)
-    app.add_exception_handler(ValidationError, validation_handler)
-    app.add_exception_handler(PydanticValidationError, pydantic_validation_handler)
-    app.add_exception_handler(RequestValidationError, request_validation_handler)
-    app.add_exception_handler(Exception, unhandled_exception_handler)
+    app.add_exception_handler(
+        AuthenticationError,
+        cast(ExceptionHandler, authentication_handler),
+    )
+    app.add_exception_handler(RateLimitError, cast(ExceptionHandler, rate_limit_handler))
+    app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
+    app.add_exception_handler(NotFoundError, cast(ExceptionHandler, not_found_handler))
+    app.add_exception_handler(ConflictError, cast(ExceptionHandler, conflict_handler))
+    app.add_exception_handler(ValidationError, cast(ExceptionHandler, validation_handler))
+    app.add_exception_handler(
+        PydanticValidationError,
+        cast(ExceptionHandler, pydantic_validation_handler),
+    )
+    app.add_exception_handler(
+        RequestValidationError,
+        cast(ExceptionHandler, request_validation_handler),
+    )
+    app.add_exception_handler(
+        Exception,
+        cast(ExceptionHandler, unhandled_exception_handler),
+    )
 
     protected_dependencies = [Depends(enforce_request_security)]
     app.include_router(identity_router, dependencies=protected_dependencies)
