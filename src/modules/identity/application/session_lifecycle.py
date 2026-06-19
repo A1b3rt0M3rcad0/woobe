@@ -65,9 +65,12 @@ class SessionLifecycle:
 
         if model.revoked_at is not None:
             await self.revoke_all(uow, model.user_id)
+            await uow.commit()
             raise AuthenticationError("Refresh session reuse detected")
         if self._as_utc(model.expires_at) <= now:
             model.revoked_at = now
+            model.updated_at = now
+            await uow.commit()
             raise AuthenticationError("Refresh session expired")
 
         replacement = await self.issue(
