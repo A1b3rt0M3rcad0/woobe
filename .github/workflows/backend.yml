@@ -96,16 +96,35 @@ jobs:
           )
 
           if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No changed production Python files to type-check."
+            echo "No changed production Python files to type-check." | tee pyright.log
             exit 0
           fi
 
-          printf 'Type-checking changed production files:\n'
-          printf '  %s\n' "${files[@]}"
-          uv run pyright "${files[@]}"
+          printf 'Type-checking changed production files:\n' | tee pyright.log
+          printf '  %s\n' "${files[@]}" | tee -a pyright.log
+          uv run pyright "${files[@]}" 2>&1 | tee -a pyright.log
+
+      - name: Upload Pyright log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyright-changed-production
+          path: pyright.log
+          if-no-files-found: warn
 
       - name: Apply migrations
-        run: uv run alembic upgrade head
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run alembic upgrade head 2>&1 | tee backend-alembic-upgrade.log
+
+      - name: Upload backend migration log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-alembic-upgrade
+          path: backend-alembic-upgrade.log
+          if-no-files-found: warn
 
       - name: Pytest baseline gate
         shell: bash
