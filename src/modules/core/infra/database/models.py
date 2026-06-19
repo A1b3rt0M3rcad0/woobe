@@ -54,10 +54,7 @@ class ApiKeyModel(BaseModel):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_user_id: Mapped[UUID]
-    rotated_from_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("core.api_keys.id"),
-        nullable=True,
-    )
+    rotated_from_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class OutboxEventModel(BaseOutbox):
