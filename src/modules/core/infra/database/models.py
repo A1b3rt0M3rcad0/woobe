@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     LargeBinary,
+    SmallInteger,
     String,
     UniqueConstraint,
     text,
@@ -37,18 +38,23 @@ class ProjectModel(BaseModel):
 
 class ApiKeyModel(BaseModel):
     __tablename__ = "api_keys"
-    __table_args__ = {"schema": "core"}
+    __table_args__ = (
+        Index("ix_core_api_keys_prefix_status", "key_prefix", "status"),
+        {"schema": "core"},
+    )
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     name: Mapped[str] = mapped_column(String(255))
     key_prefix: Mapped[str] = mapped_column(String(16))
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
+    key_version: Mapped[int] = mapped_column(SmallInteger, default=1)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_user_id: Mapped[UUID]
+    rotated_from_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class OutboxEventModel(BaseOutbox):

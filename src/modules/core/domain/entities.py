@@ -29,11 +29,13 @@ class ApiKey:
     name: str = ""
     key_prefix: str = ""
     key_hash: bytes = b""
+    key_version: int = 1
     scopes: list[str] = field(default_factory=list)
     status: ApiKeyStatus = ApiKeyStatus.active
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
     created_by_user_id: UUID = field(default_factory=uuid6.uuid7)
+    rotated_from_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

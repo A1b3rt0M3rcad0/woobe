@@ -1,9 +1,11 @@
-from modules.core.application.use_cases import CreateApiKeyUseCase
 from modules.core.application.dtos import CreateApiKeyInput
-from modules.core.presentation.schemas import ApiKeyResponse
-from shared.presentation.interface.controller import Controller
+from modules.core.application.use_cases import CreateApiKeyUseCase
+from modules.core.presentation.schemas import CreatedApiKeyResponse
+from shared.infra.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
+from shared.security.principal import AuthenticatedPrincipal
 
 
 class CreateApiKeyController(Controller):
@@ -11,21 +13,30 @@ class CreateApiKeyController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        body = dict(request.body)
+        principal = request.principal
+        if not isinstance(principal, AuthenticatedPrincipal):
+            raise AuthenticationError("User authentication required")
+        body = dict(request.body or {})
         body["project_id"] = request.path_params["project_id"]
-        body["created_by_user_id"] = request.user or "00000000-0000-0000-0000-000000000001"
+        body["created_by_user_id"] = principal.user_id
         input_dto = CreateApiKeyInput(**body)
         result = await self._use_case.execute(input_dto)
+        response_data = CreatedApiKeyResponse(
+            id=result.id,
+            project_id=result.project_id,
+            name=result.name,
+            key=result.key,
+            key_prefix=result.key_prefix,
+            scopes=result.scopes,
+            status=result.status.value,
+            expires_at=result.expires_at,
+            created_at=result.created_at,
+        )
         return Response(
             status_code=201,
             body={
                 "success": True,
                 "message": "created",
-                "data": ApiKeyResponse(
-                    id=result.id,
-                    name=result.name,
-                    key_prefix=result.key_prefix,
-                    status=result.status.value if hasattr(result.status, "value") else result.status,
-                ).model_dump(),
+                "data": response_data.model_dump(),
             },
         )

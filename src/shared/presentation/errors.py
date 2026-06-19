@@ -7,12 +7,16 @@ from pydantic import ValidationError as PydanticValidationError
 
 from shared.infra.errors import (
     AuthenticationError,
+    AuthorizationError,
     ConflictError,
     DomainError,
     NotFoundError,
+    PayloadTooLargeError,
     RateLimitError,
+    RuntimeTimeoutError,
     ValidationError,
 )
+from shared.security.redaction import redact_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,36 @@ async def authentication_handler(
         status_code=401,
         content={"success": False, "message": str(exc), "data": None},
         headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def authorization_handler(
+    request: Request,
+    exc: AuthorizationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=403,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def payload_too_large_handler(
+    request: Request,
+    exc: PayloadTooLargeError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def runtime_timeout_handler(
+    request: Request,
+    exc: RuntimeTimeoutError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=504,
+        content={"success": False, "message": str(exc), "data": None},
     )
 
 
@@ -93,7 +127,7 @@ async def request_validation_handler(
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled exception: %s", exc)
+    logger.exception("Unhandled exception: %s", redact_text(str(exc)))
     cors_origin = "*"
     try:
         settings = request.app.state.settings

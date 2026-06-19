@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from starlette.types import ExceptionHandler
 
+from modules.agent.infra.adapters.http_tool_runtime import (
+    close_http_tool_executor,
+    configure_http_tool_executor,
+)
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -22,27 +27,38 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
+    AuthorizationError,
     ConflictError,
     DomainError,
     NotFoundError,
+    PayloadTooLargeError,
     RateLimitError,
+    RuntimeTimeoutError,
     ValidationError,
 )
 from shared.presentation.errors import (
     authentication_handler,
+    authorization_handler,
     conflict_handler,
     domain_error_handler,
     not_found_handler,
+    payload_too_large_handler,
     pydantic_validation_handler,
     rate_limit_handler,
     request_validation_handler,
+    runtime_timeout_handler,
     unhandled_exception_handler,
     validation_handler,
 )
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
-from shared.security.rate_limit import LoginRateLimiter
+from shared.security.rate_limit import (
+    ApiKeyConcurrencyLimiter,
+    ApiKeyRequestLimiter,
+    LoginRateLimiter,
+)
+from shared.security.redaction import SensitiveDataLoggingFilter
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +71,8 @@ def create_app() -> FastAPI:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         force=True,
     )
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(SensitiveDataLoggingFilter())
     logger.info("Logging configured at level %s", settings.log_level)
 
     app = FastAPI(
@@ -73,6 +91,12 @@ def create_app() -> FastAPI:
         ttl_seconds=settings.access_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
+    app.state.http_tool_executor = HttpToolExecutor(
+        default_timeout_ms=settings.http_tool_timeout_max_ms,
+        max_timeout_ms=settings.http_tool_timeout_max_ms,
+        max_response_bytes=settings.http_tool_response_max_bytes,
+    )
+    configure_http_tool_executor(app.state.http_tool_executor)
     app.state.security_guard = HttpSecurityGuard(
         session_factory=app.state.session_factory,
         token_codec=app.state.access_token_codec,
@@ -80,6 +104,14 @@ def create_app() -> FastAPI:
             max_attempts=settings.login_rate_limit_attempts,
             window_seconds=settings.login_rate_limit_window_seconds,
         ),
+        api_key_rate_limiter=ApiKeyRequestLimiter(
+            max_requests=settings.api_key_rate_limit_requests,
+            window_seconds=settings.api_key_rate_limit_window_seconds,
+        ),
+        api_key_concurrency_limiter=ApiKeyConcurrencyLimiter(
+            max_concurrency=settings.runtime_max_concurrency_per_key,
+        ),
+        settings=settings,
     )
 
     cors_origins = settings.cors_origins.split(",")
@@ -128,6 +160,18 @@ def create_app() -> FastAPI:
         AuthenticationError,
         cast(ExceptionHandler, authentication_handler),
     )
+    app.add_exception_handler(
+        AuthorizationError,
+        cast(ExceptionHandler, authorization_handler),
+    )
+    app.add_exception_handler(
+        PayloadTooLargeError,
+        cast(ExceptionHandler, payload_too_large_handler),
+    )
+    app.add_exception_handler(
+        RuntimeTimeoutError,
+        cast(ExceptionHandler, runtime_timeout_handler),
+    )
     app.add_exception_handler(RateLimitError, cast(ExceptionHandler, rate_limit_handler))
     app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
     app.add_exception_handler(NotFoundError, cast(ExceptionHandler, not_found_handler))
@@ -171,6 +215,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
+        await close_http_tool_executor()
         await app.state.async_engine.dispose()
         logger.info("API runtime stopped")
 

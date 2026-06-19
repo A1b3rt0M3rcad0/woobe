@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import socket
 import time
@@ -14,58 +15,85 @@ from modules.agent.application.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,
 )
-from modules.agent.application.tool_converter import (
-    agent_tool_to_openai_definition,
-)
+from modules.agent.application.tool_converter import agent_tool_to_openai_definition
 from modules.agent.domain.ports.tool_executor import ToolExecutor
-from modules.agent.domain.ports.tool_repository import ToolRepository
+from modules.agent.domain.repositories import ToolRepository
+from shared.security.redaction import redact_sensitive_data, redact_text, redact_url
 
 logger = logging.getLogger(__name__)
 
-PRIVATE_NETWORKS = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("169.254.0.0/16"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("fe80::/10"),
-]
+ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
+ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+
+def _blocked_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return (
+        not address.is_global
+        or address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _resolved_addresses(hostname: str) -> frozenset[str]:
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return frozenset()
+    return frozenset(str(sockaddr[0]) for *_prefix, sockaddr in addrinfo)
+
+
+def _validated_public_addresses(url: str) -> frozenset[str] | None:
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in ALLOWED_SCHEMES:
+        return None
+    if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        return None
+    if parsed.fragment:
+        return None
+
+    addresses = _resolved_addresses(parsed.hostname)
+    if not addresses:
+        return None
+    for raw_address in addresses:
+        try:
+            address = ipaddress.ip_address(raw_address)
+        except ValueError:
+            return None
+        if _blocked_address(address):
+            return None
+    return addresses
 
 
 def _is_private_url(url: str) -> bool:
-    parsed = urlparse(url)
-    hostname = parsed.hostname
-    if not hostname:
-        return True
-    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
-        return True
-    try:
-        addrinfo = socket.getaddrinfo(hostname, None)
-        for _family, _type, _proto, _canonname, sockaddr in addrinfo:
-            address = ipaddress.ip_address(sockaddr[0])
-            if any(address in network for network in PRIVATE_NETWORKS):
-                return True
-    except OSError:
-        return True
-    return False
+    return _validated_public_addresses(url) is None
 
 
 def _sanitize_error(error: str) -> str:
-    sanitized = error.replace("\n", " ").replace("\r", " ")
+    sanitized = redact_text(error).replace("\n", " ").replace("\r", " ")
     return sanitized[:500] + "..." if len(sanitized) > 500 else sanitized
 
 
 class HttpToolExecutor(ToolExecutionPort):
-    """HTTP Tool executor backed by a reusable connection pool."""
+    """HTTP tool executor with bounded I/O and SSRF controls."""
 
     def __init__(
         self,
         default_timeout_ms: int = 30000,
         client: httpx.AsyncClient | None = None,
+        *,
+        max_timeout_ms: int = 30000,
+        max_response_bytes: int = 1048576,
     ) -> None:
-        self._default_timeout_ms = default_timeout_ms
+        self._default_timeout_ms = min(default_timeout_ms, max_timeout_ms)
+        self._max_timeout_ms = max_timeout_ms
+        self._max_response_bytes = max_response_bytes
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             limits=httpx.Limits(
@@ -88,61 +116,108 @@ class HttpToolExecutor(ToolExecutionPort):
         body: str | None = None,
         timeout_ms: int = 30000,
     ) -> ExecutionResult:
-        if _is_private_url(url):
+        normalized_method = method.upper().strip()
+        if normalized_method not in ALLOWED_HTTP_METHODS:
+            return ExecutionResult(success=False, error="HTTP method is not allowed")
+
+        first_resolution = _validated_public_addresses(url)
+        if first_resolution is None:
             return ExecutionResult(
                 success=False,
-                error=(
-                    "SSRF blocked: target URL resolves to a private network: "
-                    f"{url}"
-                ),
+                error=f"SSRF blocked: target URL is not public: {redact_url(url)}",
+            )
+        second_resolution = _validated_public_addresses(url)
+        if second_resolution != first_resolution:
+            return ExecutionResult(
+                success=False,
+                error="SSRF blocked: target DNS resolution changed during validation",
             )
 
-        effective_timeout = timeout_ms or self._default_timeout_ms
+        requested_timeout = timeout_ms or self._default_timeout_ms
+        effective_timeout = max(1, min(requested_timeout, self._max_timeout_ms))
         started_at = time.monotonic()
+        response: httpx.Response | None = None
 
         try:
-            response = await self._client.request(
-                method=method,
+            request = self._client.build_request(
+                method=normalized_method,
                 url=url,
                 headers=headers,
-                content=body.encode() if body else None,
+                content=body.encode("utf-8") if body else None,
                 timeout=httpx.Timeout(effective_timeout / 1000),
+            )
+            response = await self._client.send(
+                request,
+                stream=True,
+                follow_redirects=False,
             )
             duration_ms = round((time.monotonic() - started_at) * 1000)
 
-            try:
-                output = response.json()
-            except (ValueError, TypeError):
-                output = {"raw": response.text}
+            if 300 <= response.status_code < 400:
+                return ExecutionResult(
+                    success=False,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                    error="HTTP redirects are not allowed for tools",
+                )
 
+            content_length = response.headers.get("content-length")
+            if content_length:
+                try:
+                    if int(content_length) > self._max_response_bytes:
+                        return ExecutionResult(
+                            success=False,
+                            status_code=response.status_code,
+                            duration_ms=duration_ms,
+                            error="HTTP tool response exceeded the configured size limit",
+                        )
+                except ValueError:
+                    pass
+
+            payload = bytearray()
+            async for chunk in response.aiter_bytes():
+                payload.extend(chunk)
+                if len(payload) > self._max_response_bytes:
+                    return ExecutionResult(
+                        success=False,
+                        status_code=response.status_code,
+                        duration_ms=round((time.monotonic() - started_at) * 1000),
+                        error="HTTP tool response exceeded the configured size limit",
+                    )
+
+            try:
+                output_body = json.loads(payload) if payload else None
+            except (ValueError, TypeError, UnicodeDecodeError):
+                output_body = {"raw": payload.decode("utf-8", errors="replace")}
+
+            output = redact_sensitive_data(
+                {
+                    "status_code": response.status_code,
+                    "body": output_body,
+                }
+            )
             return ExecutionResult(
                 success=response.is_success,
                 status_code=response.status_code,
-                output={
-                    "status_code": response.status_code,
-                    "body": output,
-                },
-                duration_ms=duration_ms,
-                error=(
-                    None
-                    if response.is_success
-                    else f"HTTP {response.status_code}"
-                ),
+                output=output,
+                duration_ms=round((time.monotonic() - started_at) * 1000),
+                error=None if response.is_success else f"HTTP {response.status_code}",
             )
         except httpx.TimeoutException:
-            duration_ms = round((time.monotonic() - started_at) * 1000)
             return ExecutionResult(
                 success=False,
-                duration_ms=duration_ms,
+                duration_ms=round((time.monotonic() - started_at) * 1000),
                 error=f"Request timed out after {effective_timeout}ms",
             )
         except httpx.RequestError as exc:
-            duration_ms = round((time.monotonic() - started_at) * 1000)
             return ExecutionResult(
                 success=False,
-                duration_ms=duration_ms,
+                duration_ms=round((time.monotonic() - started_at) * 1000),
                 error=f"Request failed: {_sanitize_error(str(exc))}",
             )
+        finally:
+            if response is not None:
+                await response.aclose()
 
 
 class AgentToolExecutor(ToolExecutor):

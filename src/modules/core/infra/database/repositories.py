@@ -16,10 +16,10 @@ from modules.core.infra.database.mappers import (
     project_model_to_entity,
 )
 from modules.core.infra.database.models import ApiKeyModel, OutboxEventModel, ProjectModel
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.objects import CursorPage
 from shared.infra.config.interface.unit_of_work import UnitOfWork
+from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
+from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class SQLAlchemyProjectRepository(
@@ -99,6 +99,21 @@ class SQLAlchemyApiKeyRepository(
         await self._refresh_model(model)
         return api_key_model_to_entity(model)
 
+    async def update(self, api_key: ApiKey) -> ApiKey:
+        model = await self._get_model_by_id(api_key.id)
+        if model is None:
+            raise LookupError(f"API key {api_key.id} does not exist")
+        model.name = api_key.name
+        model.scopes = list(api_key.scopes)
+        model.status = api_key.status.value
+        model.last_used_at = api_key.last_used_at
+        model.expires_at = api_key.expires_at
+        model.revoked_at = api_key.revoked_at
+        model.updated_at = api_key.updated_at or model.updated_at
+        await self._flush()
+        await self._refresh_model(model)
+        return api_key_model_to_entity(model)
+
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None:
         model = await self._get_model_by_id(api_key_id)
         return api_key_model_to_entity(model) if model else None
@@ -110,9 +125,18 @@ class SQLAlchemyApiKeyRepository(
         model = result.scalar_one_or_none()
         return api_key_model_to_entity(model) if model else None
 
+    async def get_by_prefix(self, key_prefix: str) -> ApiKey | None:
+        result = await self._session.execute(
+            select(ApiKeyModel).where(ApiKeyModel.key_prefix == key_prefix)
+        )
+        model = result.scalar_one_or_none()
+        return api_key_model_to_entity(model) if model else None
+
     async def list_by_project(self, project_id: UUID) -> list[ApiKey]:
         result = await self._session.execute(
-            select(ApiKeyModel).where(ApiKeyModel.project_id == project_id)
+            select(ApiKeyModel)
+            .where(ApiKeyModel.project_id == project_id)
+            .order_by(ApiKeyModel.created_at.desc())
         )
         return [api_key_model_to_entity(k) for k in result.scalars().all()]
 

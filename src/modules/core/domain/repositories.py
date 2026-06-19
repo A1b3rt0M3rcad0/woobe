@@ -38,10 +38,16 @@ class ApiKeyRepository(ABC):
     async def save(self, api_key: ApiKey) -> ApiKey: ...
 
     @abstractmethod
+    async def update(self, api_key: ApiKey) -> ApiKey: ...
+
+    @abstractmethod
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None: ...
 
     @abstractmethod
     async def get_by_key_hash(self, key_hash: bytes) -> ApiKey | None: ...
+
+    @abstractmethod
+    async def get_by_prefix(self, key_prefix: str) -> ApiKey | None: ...
 
     @abstractmethod
     async def list_by_project(self, project_id: UUID) -> list[ApiKey]: ...  # TODO: Remove after pagination migration
