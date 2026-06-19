@@ -108,17 +108,4 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Pytest baseline gate
-        shell: bash
-        run: |
-          set -o pipefail
-          uv run python scripts/ci/run_pytest_baseline.py 2>&1 | tee pytest-baseline-delta.txt
-
-      - name: Upload Pytest diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-auth-tenancy
-          path: |
-            pytest-report.xml
-            pytest-baseline-delta.txt
-          if-no-files-found: error
+        run: uv run python scripts/ci/run_pytest_baseline.py
