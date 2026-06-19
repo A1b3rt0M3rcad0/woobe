@@ -64,7 +64,7 @@ class SlidingWindowRateLimiter:
             raise ValueError("Rate-limit values must be positive")
         if not namespace.strip():
             raise ValueError("Rate-limit namespace is required")
-        self._session_factory = _session_factory(session_factory)
+        self._explicit_session_factory = session_factory
         self._namespace = namespace
         self._limit = limit
         self._window_seconds = window_seconds
@@ -73,8 +73,9 @@ class SlidingWindowRateLimiter:
     async def consume(self, key: str) -> None:
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=self._window_seconds)
+        session_factory = _session_factory(self._explicit_session_factory)
 
-        async with self._session_factory() as session:
+        async with session_factory() as session:
             async with session.begin():
                 await _lock_subject(
                     session,
@@ -202,7 +203,7 @@ class ApiKeyConcurrencyLimiter:
             raise ValueError("Concurrency limit must be positive")
         if lease_ttl_seconds <= 0:
             raise ValueError("Concurrency lease TTL must be positive")
-        self._session_factory = _session_factory(session_factory)
+        self._explicit_session_factory = session_factory
         self._max_concurrency = max_concurrency
         self._lease_ttl_seconds = lease_ttl_seconds
         self._namespace = "api_key_runtime"
@@ -211,8 +212,9 @@ class ApiKeyConcurrencyLimiter:
         now = datetime.now(UTC)
         lease_id = uuid4()
         expires_at = now + timedelta(seconds=self._lease_ttl_seconds)
+        session_factory = _session_factory(self._explicit_session_factory)
 
-        async with self._session_factory() as session:
+        async with session_factory() as session:
             async with session.begin():
                 await _lock_subject(
                     session,
@@ -285,7 +287,8 @@ class ApiKeyConcurrencyLimiter:
         return lease_id
 
     async def release(self, lease_id: UUID) -> None:
-        async with self._session_factory() as session:
+        session_factory = _session_factory(self._explicit_session_factory)
+        async with session_factory() as session:
             async with session.begin():
                 await session.execute(
                     text(
