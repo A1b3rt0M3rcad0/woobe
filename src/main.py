@@ -22,27 +22,38 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
+    AuthorizationError,
     ConflictError,
     DomainError,
     NotFoundError,
+    PayloadTooLargeError,
     RateLimitError,
+    RuntimeTimeoutError,
     ValidationError,
 )
 from shared.presentation.errors import (
     authentication_handler,
+    authorization_handler,
     conflict_handler,
     domain_error_handler,
     not_found_handler,
+    payload_too_large_handler,
     pydantic_validation_handler,
     rate_limit_handler,
     request_validation_handler,
+    runtime_timeout_handler,
     unhandled_exception_handler,
     validation_handler,
 )
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
-from shared.security.rate_limit import LoginRateLimiter
+from shared.security.rate_limit import (
+    ApiKeyConcurrencyLimiter,
+    ApiKeyRequestLimiter,
+    LoginRateLimiter,
+)
+from shared.security.redaction import SensitiveDataLoggingFilter
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +66,8 @@ def create_app() -> FastAPI:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         force=True,
     )
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(SensitiveDataLoggingFilter())
     logger.info("Logging configured at level %s", settings.log_level)
 
     app = FastAPI(
@@ -80,6 +93,14 @@ def create_app() -> FastAPI:
             max_attempts=settings.login_rate_limit_attempts,
             window_seconds=settings.login_rate_limit_window_seconds,
         ),
+        api_key_rate_limiter=ApiKeyRequestLimiter(
+            max_requests=settings.api_key_rate_limit_requests,
+            window_seconds=settings.api_key_rate_limit_window_seconds,
+        ),
+        api_key_concurrency_limiter=ApiKeyConcurrencyLimiter(
+            max_concurrency=settings.runtime_max_concurrency_per_key,
+        ),
+        settings=settings,
     )
 
     cors_origins = settings.cors_origins.split(",")
@@ -127,6 +148,18 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         AuthenticationError,
         cast(ExceptionHandler, authentication_handler),
+    )
+    app.add_exception_handler(
+        AuthorizationError,
+        cast(ExceptionHandler, authorization_handler),
+    )
+    app.add_exception_handler(
+        PayloadTooLargeError,
+        cast(ExceptionHandler, payload_too_large_handler),
+    )
+    app.add_exception_handler(
+        RuntimeTimeoutError,
+        cast(ExceptionHandler, runtime_timeout_handler),
     )
     app.add_exception_handler(RateLimitError, cast(ExceptionHandler, rate_limit_handler))
     app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
