@@ -52,6 +52,7 @@ async def tenant_graph():
 
     async with session_factory() as session:
         transaction = await session.begin()
+
         session.add_all(
             [
                 UserModel(
@@ -78,6 +79,12 @@ async def tenant_graph():
                     slug=f"tenant-b-{org_b_id}",
                     status="active",
                 ),
+            ]
+        )
+        await session.flush()
+
+        session.add_all(
+            [
                 OrganizationMemberModel(
                     id=uuid4(),
                     user_id=user_a_id,
@@ -110,6 +117,12 @@ async def tenant_graph():
                     status="active",
                     data={},
                 ),
+            ]
+        )
+        await session.flush()
+
+        session.add_all(
+            [
                 ApiKeyModel(
                     id=api_key_id,
                     project_id=project_b_id,
@@ -130,25 +143,42 @@ async def tenant_graph():
                     status="active",
                     meta={},
                 ),
-                AgentModel(
-                    id=agent_id,
+                DocumentCollectionModel(
+                    id=collection_id,
                     project_id=project_b_id,
-                    provider_credential_id=credential_id,
-                    fallback_credential_id=None,
-                    name="Tenant B agent",
-                    description="",
-                    type="assistant",
-                    system_prompt="",
-                    provider="openai",
-                    model="gpt-test",
-                    fallback_provider=None,
-                    fallback_model=None,
-                    temperature=0.2,
-                    max_output_tokens=128,
-                    session_mode="stateful",
+                    name="Tenant B knowledge",
+                    description=None,
                     status="active",
-                    settings={},
                 ),
+            ]
+        )
+        await session.flush()
+
+        session.add(
+            AgentModel(
+                id=agent_id,
+                project_id=project_b_id,
+                provider_credential_id=credential_id,
+                fallback_credential_id=None,
+                name="Tenant B agent",
+                description="",
+                type="assistant",
+                system_prompt="",
+                provider="openai",
+                model="gpt-test",
+                fallback_provider=None,
+                fallback_model=None,
+                temperature=0.2,
+                max_output_tokens=128,
+                session_mode="stateful",
+                status="active",
+                settings={},
+            )
+        )
+        await session.flush()
+
+        session.add_all(
+            [
                 AgentPromptModel(
                     id=prompt_id,
                     project_id=project_b_id,
@@ -159,13 +189,6 @@ async def tenant_graph():
                     content_hash=None,
                     status="draft",
                     created_by=user_b_id,
-                ),
-                DocumentCollectionModel(
-                    id=collection_id,
-                    project_id=project_b_id,
-                    name="Tenant B knowledge",
-                    description=None,
-                    status="active",
                 ),
                 AgentCollectionModel(
                     id=collection_link_id,
@@ -215,6 +238,12 @@ async def tenant_graph():
                     data={},
                     last_message_at=now,
                 ),
+            ]
+        )
+        await session.flush()
+
+        session.add_all(
+            [
                 MessageModel(
                     id=message_id,
                     project_id=project_b_id,
