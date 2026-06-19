@@ -7,8 +7,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.errors import NotFoundError
-
+from shared.infra.errors import AuthorizationError, NotFoundError
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
@@ -36,7 +35,11 @@ def _identifier_values(value: Any) -> list[tuple[str, Any]]:
     found: list[tuple[str, Any]] = []
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if key in ORGANIZATION_KEYS or key == "project_id" or key in DIRECT_PROJECT_RESOURCES:
+            if (
+                key in ORGANIZATION_KEYS
+                or key == "project_id"
+                or key in DIRECT_PROJECT_RESOURCES
+            ):
                 found.append((key, item))
             elif isinstance(item, (Mapping, list, tuple)):
                 found.extend(_identifier_values(item))
@@ -67,11 +70,7 @@ class TenantAuthorizer:
         query_params: Mapping[str, Any],
         body: Any,
     ) -> None:
-        identifiers = (
-            _identifier_values(path_params)
-            + _identifier_values(query_params)
-            + _identifier_values(body)
-        )
+        identifiers = self._identifiers(path_params, query_params, body)
         checked_organizations: set[UUID] = set()
         checked_projects: set[UUID] = set()
 
@@ -85,7 +84,11 @@ class TenantAuthorizer:
                     checked_organizations.add(resource_id)
                 continue
 
-            project_id = resource_id if key == "project_id" else await self._project_id_for_resource(key, resource_id)
+            project_id = (
+                resource_id
+                if key == "project_id"
+                else await self._project_id_for_resource(key, resource_id)
+            )
             if project_id is None:
                 raise NotFoundError("Resource not found")
             if project_id in checked_projects:
@@ -98,7 +101,51 @@ class TenantAuthorizer:
             checked_projects.add(project_id)
             checked_organizations.add(organization_id)
 
-    async def _project_id_for_resource(self, key: str, resource_id: UUID) -> UUID | None:
+    async def authorize_api_key(
+        self,
+        *,
+        project_id: UUID,
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> None:
+        identifiers = self._identifiers(path_params, query_params, body)
+        checked_context = False
+        for key, raw_value in identifiers:
+            resource_id = _uuid(raw_value)
+            if resource_id is None:
+                continue
+            if key in ORGANIZATION_KEYS:
+                raise NotFoundError("Resource not found")
+            resolved_project_id = (
+                resource_id
+                if key == "project_id"
+                else await self._project_id_for_resource(key, resource_id)
+            )
+            if resolved_project_id is None or resolved_project_id != project_id:
+                raise NotFoundError("Resource not found")
+            checked_context = True
+
+        if not checked_context:
+            raise AuthorizationError("Project context is required for API key access")
+
+    @staticmethod
+    def _identifiers(
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> list[tuple[str, Any]]:
+        return (
+            _identifier_values(path_params)
+            + _identifier_values(query_params)
+            + _identifier_values(body)
+        )
+
+    async def _project_id_for_resource(
+        self,
+        key: str,
+        resource_id: UUID,
+    ) -> UUID | None:
         table = DIRECT_PROJECT_RESOURCES.get(key)
         if table is None:
             return None
