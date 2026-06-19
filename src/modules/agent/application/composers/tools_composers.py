@@ -1,3 +1,5 @@
+from typing import cast
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.use_cases.tools_use_cases import (
@@ -34,14 +36,18 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
 )
 from shared.infra.config import Settings
 from shared.infra.transactional_handler import TransactionalHandler
+from shared.messaging.outbox_writer import OutboxEventWriter
+
+
+def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:
+    return cast(OutboxEventWriter, SQLAlchemyAgentOutboxEventWriter(uow))
 
 
 def create_tool_composer(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = CreateToolUseCase(uow.tools, outbox)  # type: ignore[arg-type]
+    use_case = CreateToolUseCase(uow.tools, _agent_outbox(uow))
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -50,8 +56,7 @@ def update_tool_composer(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = UpdateToolUseCase(uow.tools, outbox)  # type: ignore[arg-type]
+    use_case = UpdateToolUseCase(uow.tools, _agent_outbox(uow))
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -87,8 +92,7 @@ def update_tool_status_composer(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = UpdateToolStatusUseCase(uow.tools, outbox)  # type: ignore[arg-type]
+    use_case = UpdateToolStatusUseCase(uow.tools, _agent_outbox(uow))
     controller = UpdateToolStatusController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -126,10 +130,9 @@ def create_secret_composer(
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
-    outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = CreateSecretUseCase(  # type: ignore[arg-type]
+    use_case = CreateSecretUseCase(
         uow.tool_secrets,
-        outbox,
+        _agent_outbox(uow),
         cipher,
     )
     controller = CreateSecretController(use_case)
