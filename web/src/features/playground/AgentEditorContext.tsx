@@ -83,7 +83,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
   }
 }
 
-function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
+export function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
   let schema = state.responseFormat.schema
   if (typeof schema === 'string') {
     try {
@@ -122,50 +122,47 @@ function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
 const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; children: ReactNode }) {
-  const [state, setState] = useState<AgentEditorState>(() => agentToEditorState(agent, propCollectionIds))
-  const [baselineState, setBaselineState] = useState<AgentEditorState>(() => agentToEditorState(agent, propCollectionIds))
+  const initial = () => agentToEditorState(agent, propCollectionIds)
+  const [state, setState] = useState<AgentEditorState>(initial)
+  const [baselineState, setBaselineState] = useState<AgentEditorState>(initial)
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
   const { data: credentials } = useCredentials(projectId || '')
 
   useEffect(() => {
-    const s = agentToEditorState(agent, propCollectionIds)
-    setState(s)
-    setBaselineState(s)
+    const next = agentToEditorState(agent, propCollectionIds)
+    setState(next)
+    setBaselineState(next)
   }, [agent, propCollectionIds])
 
   useEffect(() => {
-    if (!state.providerCredentialId || !credentials || credentials.length === 0) return
-    const cred = credentials.find((c: { id: string }) => c.id === state.providerCredentialId)
-    if (!cred) return
-    setState(prev => {
-      const updated = {
-        ...prev,
-        provider: cred.provider,
-        model: cred.metadata?.model || cred.metadata?.model_name || prev.model,
-        baseUrl: cred.metadata?.base_url || prev.baseUrl,
+    if (!state.providerCredentialId || !credentials?.length) return
+    const credential = credentials.find((item: { id: string }) => item.id === state.providerCredentialId)
+    if (!credential) return
+    setState((previous) => {
+      const provider = credential.provider
+      const model = credential.metadata?.model || credential.metadata?.model_name || previous.model
+      const baseUrl = credential.metadata?.base_url || previous.baseUrl
+      if (previous.provider === provider && previous.model === model && previous.baseUrl === baseUrl) {
+        return previous
       }
-      setBaselineState(updated)
-      return updated
+      return { ...previous, provider, model, baseUrl }
     })
   }, [state.providerCredentialId, credentials])
 
   useEffect(() => {
-    if (!state.fallbackProviderCredentialId || !credentials || credentials.length === 0) return
-    const cred = credentials.find((c: { id: string }) => c.id === state.fallbackProviderCredentialId)
-    if (!cred) return
-    setState(prev => {
-      const updated = {
-        ...prev,
-        fallbackProvider: cred.provider,
-        fallbackModel: cred.metadata?.model || cred.metadata?.model_name || prev.fallbackModel,
-      }
-      return updated
-    })
+    if (!state.fallbackProviderCredentialId || !credentials?.length) return
+    const credential = credentials.find((item: { id: string }) => item.id === state.fallbackProviderCredentialId)
+    if (!credential) return
+    setState((previous) => ({
+      ...previous,
+      fallbackProvider: credential.provider,
+      fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel,
+    }))
   }, [state.fallbackProviderCredentialId, credentials])
 
   const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
-    setState(prev => ({ ...prev, [key]: value }))
+    setState((previous) => ({ ...previous, [key]: value }))
   }, [])
 
   const setLoadedRelease = useCallback((id: string | null, version: string | null) => {
@@ -173,24 +170,18 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     setLoadedReleaseVersion(version)
   }, [])
 
-  const toSnapshot = useCallback((): Record<string, unknown> => {
-    return canonicalSnapshot(state)
-  }, [state])
-
-  const snapshotStr = useMemo(() => JSON.stringify(canonicalSnapshot(state)), [state])
-  const baselineSnapshotStr = useMemo(() => JSON.stringify(canonicalSnapshot(baselineState)), [baselineState])
-
-  const isDirty = snapshotStr !== baselineSnapshotStr
+  const toSnapshot = useCallback((): Record<string, unknown> => canonicalSnapshot(state), [state])
+  const snapshot = useMemo(() => JSON.stringify(canonicalSnapshot(state)), [state])
+  const baselineSnapshot = useMemo(() => JSON.stringify(canonicalSnapshot(baselineState)), [baselineState])
+  const isDirty = snapshot !== baselineSnapshot
   const activeSource: 'current_draft' | 'draft_unsaved' = isDirty ? 'draft_unsaved' : 'current_draft'
 
   const resetToBaseline = useCallback(() => {
     setState(baselineState)
     setLoadedRelease(null, null)
-  }, [baselineState])
+  }, [baselineState, setLoadedRelease])
 
-  const updateBaseline = useCallback(() => {
-    setBaselineState(state)
-  }, [state])
+  const updateBaseline = useCallback(() => setBaselineState(state), [state])
 
   const contextValue: EditorContextValue = {
     state,
@@ -206,17 +197,11 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     updateBaseline,
   }
 
-  return (
-    <EditorContext.Provider value={contextValue}>
-      {children}
-    </EditorContext.Provider>
-  )
+  return <EditorContext.Provider value={contextValue}>{children}</EditorContext.Provider>
 }
 
 export function useAgentEditor(): EditorContextValue {
-  const ctx = useContext(EditorContext)
-  if (!ctx) {
-    throw new Error('useAgentEditor must be used within AgentEditorProvider')
-  }
-  return ctx
+  const context = useContext(EditorContext)
+  if (!context) throw new Error('useAgentEditor must be used within AgentEditorProvider')
+  return context
 }
