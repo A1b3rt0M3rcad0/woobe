@@ -108,4 +108,15 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Pytest baseline gate
-        run: uv run python scripts/ci/run_pytest_baseline.py
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run python scripts/ci/run_pytest_baseline.py 2>&1 | tee pytest-stage-03.txt
+
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-stage-03
+          path: pytest-stage-03.txt
+          if-no-files-found: error
