@@ -1,6 +1,6 @@
 # MVP Stage 05 completion
 
-Status: implementation complete; merge remains gated by the final GitHub Actions result on the branch head.
+Status: complete and validated on the final branch head.
 
 Delivered:
 
@@ -14,9 +14,12 @@ Delivered:
 - partial indexes for terminal traces and tool-call events;
 - deterministic PostgreSQL integration fixtures covering aggregation, isolation, environment filtering, null costs, terminal states, query count, timezone handling, index eligibility, and the 30-day p95 target.
 
-Merge gate:
+Final gates on the documentation closeout head:
 
-1. migrations, backend, frontend, and container workflows must pass on the final head;
-2. the PR must no longer be a draft;
-3. the PR description must include validation and rollback evidence;
-4. no new baseline regression is permitted.
+- Backend run 122: passed;
+- Frontend run 110: passed;
+- Migrations run 118: passed;
+- Containers run 110: passed;
+- pytest baseline: no unexpected regressions.
+
+The branch is ready for review and merge into `development-mvp`.
