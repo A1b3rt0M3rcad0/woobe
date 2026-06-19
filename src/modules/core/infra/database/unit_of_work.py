@@ -12,6 +12,9 @@ from modules.core.infra.database.repositories import (
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyProjectRepository,
 )
+from modules.core.infra.database.uow_project_overview_reader import (
+    UnitOfWorkProjectOverviewReader,
+)
 
 
 class CoreUnitOfWork(UnitOfWork):
@@ -21,6 +24,7 @@ class CoreUnitOfWork(UnitOfWork):
         self._projects: SQLAlchemyProjectRepository | None = None
         self._api_keys: SQLAlchemyApiKeyRepository | None = None
         self._outbox: SQLAlchemyOutboxEventWriter | None = None
+        self._project_overview: UnitOfWorkProjectOverviewReader | None = None
 
     @property
     def session(self) -> AsyncSession:
@@ -45,6 +49,12 @@ class CoreUnitOfWork(UnitOfWork):
         if self._outbox is None:
             self._outbox = SQLAlchemyOutboxEventWriter(self)
         return self._outbox
+
+    @property
+    def project_overview(self) -> UnitOfWorkProjectOverviewReader:
+        if self._project_overview is None:
+            self._project_overview = UnitOfWorkProjectOverviewReader(self)
+        return self._project_overview
 
     async def commit(self) -> None:
         if self._session is not None:
@@ -73,3 +83,4 @@ class CoreUnitOfWork(UnitOfWork):
         self._projects = None
         self._api_keys = None
         self._outbox = None
+        self._project_overview = None
