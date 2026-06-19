@@ -15,6 +15,9 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 from modules.agent.application.use_cases.instrumented_execution_runner import (
     run_instrumented_execution,
 )
+from modules.agent.application.use_cases.runtime_streaming import (
+    current_runtime_stream,
+)
 
 
 class InstrumentedPrimaryExecutionMixin:
@@ -42,6 +45,29 @@ class InstrumentedPrimaryExecutionMixin:
             context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
             response_format = prepared[5]
             context.strict_json = bool(response_format.get("strict", False))
+
+        stream = current_runtime_stream.get()
+        if stream is not None:
+            agent, session, trace_id = prepared[0], prepared[1], prepared[2]
+            sources = prepared[10]
+            stream.bind_execution(
+                trace_id=trace_id,
+                session_id=session.id if session else None,
+                project_id=input_dto.project_id,
+                agent_id=agent.id,
+            )
+            await stream.emit(
+                "meta",
+                trace_id=str(trace_id),
+                session_id=str(session.id) if session else None,
+                project_id=str(input_dto.project_id),
+                agent_id=str(agent.id),
+            )
+            if sources:
+                await stream.emit(
+                    "sources",
+                    sources=[source.model_dump() for source in sources],
+                )
         return prepared
 
     async def _execute_llm(
