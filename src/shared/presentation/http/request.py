@@ -1,13 +1,20 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from shared.security.principal import AuthenticatedPrincipal
 
 
 class Request(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    principal: AuthenticatedPrincipal | None = None
     user: str | None = None
     url: str | None = None
     method: str | None = None
     headers: dict[str, Any] = Field(default_factory=dict)
+    cookies: dict[str, str] = Field(default_factory=dict)
+    client_ip: str | None = None
     body: Any = None
     query_params: dict[str, Any] = Field(default_factory=dict)
     path_params: dict[str, Any] = Field(default_factory=dict)

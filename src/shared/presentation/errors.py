@@ -5,9 +5,35 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.infra.errors import (
+    AuthenticationError,
+    ConflictError,
+    DomainError,
+    NotFoundError,
+    RateLimitError,
+    ValidationError,
+)
 
 logger = logging.getLogger(__name__)
+
+
+async def authentication_handler(
+    request: Request,
+    exc: AuthenticationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"success": False, "message": str(exc), "data": None},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"success": False, "message": str(exc), "data": None},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
@@ -38,7 +64,10 @@ async def validation_handler(request: Request, exc: ValidationError) -> JSONResp
     )
 
 
-async def pydantic_validation_handler(request: Request, exc: PydanticValidationError) -> JSONResponse:
+async def pydantic_validation_handler(
+    request: Request,
+    exc: PydanticValidationError,
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={
@@ -49,7 +78,10 @@ async def pydantic_validation_handler(request: Request, exc: PydanticValidationE
     )
 
 
-async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def request_validation_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={
