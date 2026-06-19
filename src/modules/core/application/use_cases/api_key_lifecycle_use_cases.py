@@ -10,8 +10,13 @@ from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyStatus
 from modules.core.domain.errors import ApiKeyNotActiveError, ApiKeyNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository
+from shared.infra.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.security.api_keys import API_KEY_VERSION, issue_project_api_key
+from shared.security.api_keys import (
+    API_KEY_VERSION,
+    issue_project_api_key,
+    normalize_project_api_key_scopes,
+)
 
 
 class RevokeApiKeyUseCase:
@@ -71,6 +76,14 @@ class RotateApiKeyUseCase:
         if current.status != ApiKeyStatus.active or current.revoked_at is not None:
             raise ApiKeyNotActiveError("Only active API keys can be rotated")
 
+        requested_scopes = (
+            input_dto.scopes if input_dto.scopes is not None else current.scopes
+        )
+        try:
+            scopes = normalize_project_api_key_scopes(requested_scopes)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
         now = datetime.now(UTC)
         current.status = ApiKeyStatus.revoked
         current.revoked_at = now
@@ -84,7 +97,7 @@ class RotateApiKeyUseCase:
             key_prefix=issued.public_prefix,
             key_hash=issued.digest,
             key_version=API_KEY_VERSION,
-            scopes=input_dto.scopes if input_dto.scopes is not None else list(current.scopes),
+            scopes=scopes,
             expires_at=(
                 input_dto.expires_at
                 if input_dto.expires_at is not None
