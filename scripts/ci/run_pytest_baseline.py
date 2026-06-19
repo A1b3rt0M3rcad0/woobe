@@ -15,13 +15,17 @@ def test_hash(test_id: str) -> str:
 
 
 def main() -> int:
-    expected = {
+    baseline_lines = [
         line.strip()
         for line in BASELINE.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.startswith("#")
-    }
-    if len(expected) != 178:
-        print(f"Expected 178 reviewed failures, found {len(expected)}.", file=sys.stderr)
+    ]
+    expected = set(baseline_lines)
+    if not expected:
+        print("The reviewed pytest failure baseline is empty.", file=sys.stderr)
+        return 2
+    if len(expected) != len(baseline_lines):
+        print("The reviewed pytest failure baseline contains duplicates.", file=sys.stderr)
         return 2
 
     result = subprocess.run(
@@ -43,17 +47,23 @@ def main() -> int:
     resolved = expected - set(actual)
     print(
         "Pytest baseline: "
-        f"known={len(expected)} actual={len(actual)} "
-        f"unexpected={len(unexpected)} resolved={len(resolved)}"
+        f"reviewed={len(expected)} actual={len(actual)} "
+        f"unexpected={len(unexpected)} stale={len(resolved)}"
     )
 
     for failure_hash in sorted(resolved):
-        print(f"RESOLVED {failure_hash}")
+        print(f"STALE {failure_hash}", file=sys.stderr)
 
     for failure_hash in sorted(unexpected):
         print(f"NEW {actual[failure_hash]} [{failure_hash}]", file=sys.stderr)
 
-    return 1 if unexpected else 0
+    if resolved:
+        print(
+            "Remove resolved failures from the reviewed baseline in the same PR; "
+            "the allowlist may only shrink.",
+            file=sys.stderr,
+        )
+    return 1 if unexpected or resolved else 0
 
 
 if __name__ == "__main__":
