@@ -66,12 +66,20 @@ jobs:
         run: |
           set -euo pipefail
           heads="$(uv run alembic heads)"
-          printf '%s\n' "$heads"
+          printf '%s\n' "$heads" | tee alembic-heads.txt
           head_count="$(printf '%s\n' "$heads" | awk '/\(head\)/ {count++} END {print count+0}')"
           if [[ "$head_count" -ne 1 ]]; then
             echo "Expected exactly one Alembic head, found $head_count" >&2
             exit 1
           fi
+
+      - name: Upload Alembic heads
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alembic-heads-stage-03
+          path: alembic-heads.txt
+          if-no-files-found: error
 
       - name: Upgrade empty database to head
         run: uv run alembic upgrade head
