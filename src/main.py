@@ -12,12 +12,12 @@ from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
 from modules.agent.presentation.routes import runtime_router as agent_runtime_router
+from modules.agent.presentation.routes import tools_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.observability.presentation.routes import router as observability_router
-from modules.agent.presentation.routes import tools_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.errors import (
@@ -146,17 +146,21 @@ def create_app() -> FastAPI:
         cast(ExceptionHandler, unhandled_exception_handler),
     )
 
-    protected_dependencies = [Depends(enforce_request_security)]
-    app.include_router(identity_router, dependencies=protected_dependencies)
-    app.include_router(core_router, dependencies=protected_dependencies)
-    app.include_router(agent_router, dependencies=protected_dependencies)
-    app.include_router(agent_ai_router, dependencies=protected_dependencies)
-    app.include_router(agent_knowledge_router, dependencies=protected_dependencies)
-    app.include_router(agent_runtime_router, dependencies=protected_dependencies)
-    app.include_router(tools_router, dependencies=protected_dependencies)
-    app.include_router(metering_router, dependencies=protected_dependencies)
-    app.include_router(billing_router, dependencies=protected_dependencies)
-    app.include_router(observability_router, dependencies=protected_dependencies)
+    security_dependency = Depends(enforce_request_security)
+    app.router.dependencies.append(security_dependency)
+    try:
+        app.include_router(identity_router)
+        app.include_router(core_router)
+        app.include_router(agent_router)
+        app.include_router(agent_ai_router)
+        app.include_router(agent_knowledge_router)
+        app.include_router(agent_runtime_router)
+        app.include_router(tools_router)
+        app.include_router(metering_router)
+        app.include_router(billing_router)
+        app.include_router(observability_router)
+    finally:
+        app.router.dependencies.remove(security_dependency)
 
     @app.on_event("startup")
     async def startup() -> None:
