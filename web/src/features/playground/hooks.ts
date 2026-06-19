@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   createSession,
@@ -8,6 +8,12 @@ import {
 } from './api'
 import { askStreamV1, type StreamCallbacks } from './stream-client'
 import type { CreateSessionRequest, AskRequest } from './types'
+
+let activeStreamController: AbortController | null = null
+
+export function cancelActiveAskStream() {
+  activeStreamController?.abort()
+}
 
 export function useCreateSession() {
   return useMutation({ mutationFn: (data: CreateSessionRequest) => createSession(data) })
@@ -34,15 +40,19 @@ export function useSessionMessages(sessionId: string | undefined) {
 }
 
 export function useAskStream() {
-  const abortRef = useRef<AbortController | null>(null)
   const stream = useCallback(async (
     data: AskRequest,
     callbacks: StreamCallbacks,
   ) => {
-    abortRef.current?.abort()
-    abortRef.current = new AbortController()
-    await askStreamV1(data, callbacks, abortRef.current.signal)
+    activeStreamController?.abort()
+    const controller = new AbortController()
+    activeStreamController = controller
+    try {
+      await askStreamV1(data, callbacks, controller.signal)
+    } finally {
+      if (activeStreamController === controller) activeStreamController = null
+    }
   }, [])
-  const cancel = useCallback(() => abortRef.current?.abort(), [])
+  const cancel = useCallback(() => cancelActiveAskStream(), [])
   return { stream, cancel }
 }

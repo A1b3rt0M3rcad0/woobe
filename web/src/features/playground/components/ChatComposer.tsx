@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
-import { Send, Paperclip, Wrench } from 'lucide-react'
+import { Send, Paperclip, Square, Wrench } from 'lucide-react'
+import { cancelActiveAskStream } from '@/features/playground/hooks'
 
 interface ChatComposerProps {
   isSending: boolean
@@ -49,6 +50,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
         <div className="flex items-center justify-between px-3 pb-2">
           <div className="flex items-center gap-1">
             <button
+              type="button"
               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-white hover:bg-accent transition-colors"
               disabled={isSending}
             >
@@ -56,6 +58,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
               Attach
             </button>
             <button
+              type="button"
               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-white hover:bg-accent transition-colors"
               disabled={isSending}
             >
@@ -65,15 +68,27 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted hidden sm:inline">
-              Enter to send · Shift+Enter for new line
+              {isSending ? 'Stop to cancel generation' : 'Enter to send · Shift+Enter for new line'}
             </span>
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isSending}
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+            {isSending ? (
+              <button
+                type="button"
+                onClick={cancelActiveAskStream}
+                aria-label="Stop generation"
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500 text-white hover:bg-red-500/90 transition-colors"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
