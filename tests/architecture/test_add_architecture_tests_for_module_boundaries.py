@@ -73,6 +73,10 @@ def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
 
+def _repository_path(path_value: str) -> Path:
+    return PROJECT_ROOT.joinpath(*path_value.replace("\\", "/").split("/"))
+
+
 def _src_files_under(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
@@ -239,7 +243,7 @@ class TestAddArchitectureTestsForModuleBoundaries:
 
         entries = data.get("entries") or []
         for entry in entries:
-            file_path = PROJECT_ROOT / entry["file"].replace("/", "\\")
+            file_path = _repository_path(entry["file"])
             assert file_path.exists(), (
                 f"Allowlist references non-existent file: {entry['file']}"
             )
