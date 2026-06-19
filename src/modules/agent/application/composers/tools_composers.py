@@ -12,6 +12,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
     UpdateToolStatusUseCase,
     UpdateToolUseCase,
 )
+from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -93,17 +94,17 @@ def update_tool_status_composer(
 
 def test_tool_composer(
     session_factory: async_sessionmaker[AsyncSession],
-    executor: HttpToolExecutor,
+    executor: HttpToolExecutor | None = None,
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = TestToolUseCase(uow.tools, executor)
+    use_case = TestToolUseCase(uow.tools, executor or get_http_tool_executor())
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
 def execute_tool_composer(
     session_factory: async_sessionmaker[AsyncSession],
-    executor: HttpToolExecutor,
+    executor: HttpToolExecutor | None = None,
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
@@ -111,7 +112,7 @@ def execute_tool_composer(
     resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
     use_case = ExecuteToolUseCase(
         tool_repo=uow.tools,
-        tool_executor=executor,
+        tool_executor=executor or get_http_tool_executor(),
         secret_resolver=resolver,
     )
     controller = ExecuteToolController(use_case)
