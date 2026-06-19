@@ -1,11 +1,83 @@
-import { getToken, clearToken } from '@/lib/auth/token'
+import { getToken, setToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const REFRESH_PATH = '/identity/auth/refresh'
+const NON_REFRESHABLE_PATHS = new Set([
+  '/identity/auth/login',
+  '/identity/auth/register',
+  REFRESH_PATH,
+])
 
 interface RequestOptions {
   headers?: Record<string, string>
   params?: Record<string, string | number | undefined>
+  skipAuthRefresh?: boolean
+}
+
+interface ApiEnvelope<T> {
+  success: boolean
+  message?: string
+  data?: T
+}
+
+interface RefreshData {
+  token?: string
+  access_token?: string
+}
+
+let refreshPromise: Promise<string> | null = null
+
+function buildUrl(path: string, params?: RequestOptions['params']): string {
+  let url = `${BASE_URL}${path}`
+  if (!params) return url
+
+  const searchParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') searchParams.set(key, String(value))
+  }
+  const query = searchParams.toString()
+  if (query) url += `?${query}`
+  return url
+}
+
+async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T> | null> {
+  try {
+    return await response.json() as ApiEnvelope<T>
+  } catch {
+    return null
+  }
+}
+
+async function rotateAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    let response: Response
+    try {
+      response = await fetch(`${BASE_URL}${REFRESH_PATH}`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {
+      clearToken()
+      throw new UnauthorizedError('Authentication refresh is unavailable')
+    }
+
+    const envelope = await readEnvelope<RefreshData>(response)
+    const token = envelope?.data?.token || envelope?.data?.access_token
+    if (!response.ok || !token) {
+      clearToken()
+      throw new UnauthorizedError(envelope?.message || 'Authentication session expired')
+    }
+
+    setToken(token)
+    return token
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
 }
 
 async function request<T>(
@@ -13,99 +85,72 @@ async function request<T>(
   path: string,
   body?: unknown,
   options?: RequestOptions,
+  retried = false,
 ): Promise<T> {
   const token = getToken()
-  const headers: Record<string, string> = {
-    ...(options?.headers || {}),
-  }
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-
-  let url = `${BASE_URL}${path}`
-
-  if (options?.params) {
-    const searchParams = new URLSearchParams()
-    for (const [key, value] of Object.entries(options.params)) {
-      if (value !== undefined && value !== '') {
-        searchParams.set(key, String(value))
-      }
-    }
-    const qs = searchParams.toString()
-    if (qs) url += `?${qs}`
-  }
-
+  const headers: Record<string, string> = { ...(options?.headers || {}) }
+  if (token) headers.Authorization = `Bearer ${token}`
   if (body !== undefined && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
 
-  let res: Response
+  let response: Response
   try {
-    res = await fetch(url, {
+    response = await fetch(buildUrl(path, options?.params), {
       method,
       headers,
-      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+      body: body instanceof FormData
+        ? body
+        : body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
     })
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw new ApiError(
-        'Network error. API unavailable or CORS blocked the request.',
-        0,
-        null,
-      )
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new ApiError('Network error. API unavailable or CORS blocked the request.', 0, null)
     }
-    throw new ApiError(
-      err instanceof Error ? err.message : 'Unknown network error',
-      0,
-      null,
-    )
+    throw new ApiError(error instanceof Error ? error.message : 'Unknown network error', 0, null)
   }
 
   if (import.meta.env.DEV) {
-    const maybeBody = body ? JSON.stringify(body).slice(0, 200) : ''
-    console.log(`[API] ${method} ${path} → ${res.status}${maybeBody ? ` ${maybeBody}` : ''}`)
+    console.log(`[API] ${method} ${path} -> ${response.status}`)
   }
 
-  if (res.status === 401) {
-    if (import.meta.env.DEV) console.warn(`[API] 401 Unauthorized — clearing token and redirecting to login`)
+  const mayRefresh = !retried
+    && !options?.skipAuthRefresh
+    && !NON_REFRESHABLE_PATHS.has(path)
+
+  if (response.status === 401 && mayRefresh) {
+    try {
+      await rotateAccessToken()
+      return request<T>(method, path, body, options, true)
+    } catch (error) {
+      clearToken()
+      if (error instanceof UnauthorizedError) throw error
+      throw new UnauthorizedError()
+    }
+  }
+
+  const envelope = await readEnvelope<T>(response)
+
+  if (response.status === 401) {
     clearToken()
-    window.location.href = '/login'
-    throw new UnauthorizedError()
+    throw new UnauthorizedError(envelope?.message)
   }
 
-  let data: { success: boolean; message?: string; data?: T } | null = null
-  try {
-    data = await res.json()
-    if (import.meta.env.DEV && res.ok) {
-      const bodyPreview = JSON.stringify(data?.data).slice(0, 100)
-      console.log(`[API] ${method} ${path} → OK${bodyPreview ? ` ${bodyPreview}` : ''}`)
-    }
-  } catch {
-    if (!res.ok) {
-      throw new ApiError(
-        data?.message || `Server error: ${method} ${path} (status ${res.status})`,
-        res.status,
-        null,
-      )
-    }
+  if (!response.ok) {
+    const errorMessage = envelope?.message
+      || (response.status === 400 ? 'Validation error'
+        : response.status === 404 ? `Resource not found: ${method} ${path}`
+        : response.status === 405 ? `Method not allowed: ${method} ${path}`
+        : response.status === 403 ? 'Permission denied'
+        : response.status >= 500 ? `Server error: ${method} ${path}`
+        : `Request failed with status ${response.status}`)
+    throw new ApiError(errorMessage, response.status, envelope?.data)
   }
 
-  if (!res.ok) {
-    const errorMsg = data?.message
-      || (res.status === 400 ? 'Validation error'
-        : res.status === 404 ? `Resource not found: ${method} ${path}`
-        : res.status === 405 ? `Method not allowed: ${method} ${path}. Check frontend API client.`
-        : res.status === 403 ? 'Permission denied'
-        : res.status >= 500 ? `Server error: ${method} ${path}`
-        : `Request failed with status ${res.status}`)
-    if (import.meta.env.DEV) {
-      console.error(`[API] ERROR ${method} ${path} → ${res.status}: ${errorMsg}`, data)
-    }
-    throw new ApiError(errorMsg, res.status, data?.data)
-  }
-
-  return data?.data as T
+  return envelope?.data as T
 }
 
 export function get<T>(path: string, options?: RequestOptions): Promise<T> {
