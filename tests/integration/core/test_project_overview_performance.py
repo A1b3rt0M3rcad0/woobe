@@ -52,7 +52,7 @@ async def test_project_overview_query_budget_index_and_p95() -> None:
                     )
                     SELECT
                         CAST(
-                            md5(CAST(:project_id AS text) || ':' || series::text)
+                            md5(:project_id_text || ':' || series::text)
                             AS uuid
                         ),
                         :project_id,
@@ -74,7 +74,11 @@ async def test_project_overview_query_budget_index_and_p95() -> None:
                     FROM generate_series(0, 2999) AS series
                     """
                 ),
-                {"project_id": project_id, "start": start},
+                {
+                    "project_id": project_id,
+                    "project_id_text": str(project_id),
+                    "start": start,
+                },
             )
             await session.execute(text("ANALYZE observability.traces"))
             await session.commit()
