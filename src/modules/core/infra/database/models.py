@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     LargeBinary,
+    SmallInteger,
     String,
     UniqueConstraint,
     text,
@@ -44,8 +45,9 @@ class ApiKeyModel(BaseModel):
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     name: Mapped[str] = mapped_column(String(255))
-    key_prefix: Mapped[str] = mapped_column(String(32))
+    key_prefix: Mapped[str] = mapped_column(String(16))
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
+    key_version: Mapped[int] = mapped_column(SmallInteger, default=1)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
