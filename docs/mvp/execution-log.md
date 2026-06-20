@@ -28,7 +28,7 @@ Target: `development-mvp`
 
 Implemented the tenant-scoped dashboard read model, indexes, contracts, integration fixtures, performance acceptance, UTC bucketing, and CoreUnitOfWork integration. The first backend run exposed one new architecture-baseline failure because the new composer bypassed `CoreUnitOfWork`; the implementation was corrected to execute all seven overview queries inside the request unit of work.
 
-Final merge is authorized only after all four principal workflows pass on the final head and the PR is marked ready for review.
+The stage was merged only after the four principal workflows passed on the final head.
 
 ## Stage 06 — dashboard live UI
 
@@ -36,14 +36,24 @@ Merged into `development-mvp` through PR #27. The merge commit and stage-07 base
 
 ## Stage 07 — production deployment
 
-Branch: `chore/mvp-07-production-deployment`  
-Base SHA: `df948536418e610b0baceb4eac5ad674270a93e0`  
-Target: `development-mvp`  
-PR: pending human creation
+Original branch: `chore/mvp-07-production-deployment`  
+Original base SHA: `df948536418e610b0baceb4eac5ad674270a93e0`  
+Original PR: #28  
+Original head SHA: `f573e5756ac6d93d75032bd26f9f15cbc1c262ed`  
+Merge commit: `6df1bfd9f94ae7565fc92c2c77304af5154916f2`  
+Target: `development-mvp`
 
-Implemented production image hardening, a production Compose topology with a single migration job, fail-fast production configuration, liveness/readiness, worker process health, request/correlation IDs, structured and redacted logs, runtime metrics, backup/restore scripts, operational runbooks, container policy checks, SBOM generation and non-blocking vulnerability reports.
+PR #28 implemented production image hardening, a production Compose topology with a single migration job, fail-fast production configuration, liveness/readiness, worker process health, request/correlation IDs, structured and redacted logs, runtime metrics, backup/restore scripts, operational runbooks, container policy checks, SBOM generation and non-blocking vulnerability reports.
 
-Local evidence before publishing the branch is limited to syntax and static checks available in the execution environment. Docker builds, Compose runtime smoke, image size comparison, migration idempotency, graceful shutdown and staging restore evidence remain PR/staging gates and must not be marked complete until their workflows or runbooks produce verifiable output.
+The Backend, Frontend, Migrations, Containers, and Production containers workflows completed successfully on the original head. The PR was nevertheless merged without a requested reviewer or recorded review discussion. Therefore, review approval was not a verified gate for the original merge.
+
+Follow-up branch: `chore/mvp-07-production-deployment-review`  
+Follow-up base SHA: `6df1bfd9f94ae7565fc92c2c77304af5154916f2`  
+Follow-up target: `development-mvp`
+
+The follow-up strengthens production-image evidence by requiring a cached rebuild with build-network access disabled, executing both images as non-root users, rejecting Vite/npm development commands in the frontend runtime image, and publishing deterministic image metadata including size and configured runtime identity. This follow-up must remain unmerged until code review and all applicable checks complete.
+
+The following acceptance evidence remains environment-dependent and must not be marked complete solely from repository state: production smoke through the reverse proxy, graceful shutdown under active SSE/worker load, and a PostgreSQL backup/restore exercise in staging with measured RPO/RTO.
 
 ## Closeout audit — stages 00 through 04
 
