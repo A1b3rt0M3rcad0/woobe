@@ -49,11 +49,22 @@ The Backend, Frontend, Migrations, Containers, and Production containers workflo
 
 Follow-up branch: `chore/mvp-07-production-deployment-review`  
 Follow-up base SHA: `6df1bfd9f94ae7565fc92c2c77304af5154916f2`  
+Follow-up PR: #29  
+Follow-up merge commit: `5261bfef2615289fec8676e5ed7e139adb024929`  
 Follow-up target: `development-mvp`
 
-The follow-up strengthens production-image evidence by requiring a cached rebuild with build-network access disabled, executing both images as non-root users, rejecting Vite/npm development commands in the frontend runtime image, and publishing deterministic image metadata including size and configured runtime identity. This follow-up must remain unmerged until code review and all applicable checks complete.
+The follow-up strengthened production-image evidence by requiring a cached rebuild with build-network access disabled, executing both images as non-root users, rejecting Vite/npm development commands in the frontend runtime image, and publishing deterministic image metadata including size and configured runtime identity.
 
-The following acceptance evidence remains environment-dependent and must not be marked complete solely from repository state: production smoke through the reverse proxy, graceful shutdown under active SSE/worker load, and a PostgreSQL backup/restore exercise in staging with measured RPO/RTO.
+## Stage 08 — E2E and release hardening
+
+Branch: `test/mvp-08-e2e-release-hardening`  
+Base SHA: `5261bfef2615289fec8676e5ed7e139adb024929`  
+Target: `development-mvp`  
+PR: pending creation
+
+Feature development is frozen. The stage adds a deterministic two-tenant fixture, local OpenAI-compatible provider, Chromium core-flow coverage, PostgreSQL tenant and API-key acceptance matrices, migration rollback/re-upgrade, backup/restore verification, production Compose smoke, controlled sync/stream load metrics, OWASP configuration contracts, changelog and a formal go/no-go report.
+
+The branch must not be merged until every workflow passes on the final head and the release owner reviews the evidence. The readiness report remains NO-GO while the PR is open or any gate is incomplete.
 
 ## Closeout audit — stages 00 through 04
 
