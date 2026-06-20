@@ -60,7 +60,7 @@ The follow-up strengthened production-image evidence by requiring a cached rebui
 Branch: `test/mvp-08-e2e-release-hardening`  
 Base SHA: `5261bfef2615289fec8676e5ed7e139adb024929`  
 Target: `development-mvp`  
-PR: pending creation
+PR: #30
 
 Feature development is frozen. The stage adds a deterministic two-tenant fixture, local OpenAI-compatible provider, Chromium core-flow coverage, PostgreSQL tenant and API-key acceptance matrices, migration rollback/re-upgrade, backup/restore verification, production Compose smoke, controlled sync/stream load metrics, OWASP configuration contracts, changelog and a formal go/no-go report.
 
