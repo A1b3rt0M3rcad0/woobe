@@ -1,0 +1,83 @@
+name: Release production smoke
+
+on:
+  pull_request:
+    branches: [development-mvp]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate ephemeral production configuration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          value = "ci-" + "x" * 48
+          content = Path(".env.production.example").read_text()
+          content = content.replace("change-me", value)
+          content = content.replace("replace-with-at-least-32-random-characters", value)
+          content = content.replace("https://app.example.com", "http://127.0.0.1:8080")
+          content = content.replace("app.example.com", "127.0.0.1,localhost")
+          Path(".env.production").write_text(content)
+          PY
+      - name: Build production images
+        run: |
+          docker build --tag projectrai-api:0.1.0 .
+          docker build --tag projectrai-web:0.1.0 web
+      - name: Start production topology and run smoke
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.prod.yml up -d db pgbouncer rabbitmq
+          docker compose -f docker-compose.prod.yml run --rm migrate
+          docker compose -f docker-compose.prod.yml up -d api workers web
+          for attempt in $(seq 1 60); do
+            if PROJECTRAI_BASE_URL=http://127.0.0.1:8080 sh scripts/smoke_production.sh; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.prod.yml ps
+          docker compose -f docker-compose.prod.yml logs --no-color
+          exit 1
+      - name: Exercise graceful application rollback
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.prod.yml stop --timeout 45 api workers
+          test -z "$(docker compose -f docker-compose.prod.yml ps --status running -q api workers)"
+          docker compose -f docker-compose.prod.yml up -d api workers
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Capture production evidence
+        if: always()
+        run: |
+          docker compose -f docker-compose.prod.yml ps --all > production-compose-ps.txt || true
+          docker compose -f docker-compose.prod.yml logs --no-color > production-compose.log 2>&1 || true
+      - name: Tear down production topology
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v --remove-orphans
+      - name: Upload production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-production-smoke-evidence
+          path: |
+            production-compose-ps.txt
+            production-compose.log
+          if-no-files-found: warn
