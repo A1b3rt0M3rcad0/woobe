@@ -35,7 +35,12 @@ COPY --chown=projectrai:projectrai migrations/ migrations/
 COPY --chown=projectrai:projectrai alembic.ini ./
 COPY --chown=projectrai:projectrai scripts/docker-entrypoint.sh /usr/local/bin/projectrai-entrypoint
 
-RUN chmod 0555 /usr/local/bin/projectrai-entrypoint \
+# Windows checkouts may convert shell scripts to CRLF. Normalize the entrypoint
+# inside the image so the kernel resolves /bin/sh instead of /bin/sh\r.
+RUN sed -i 's/\r$//' /usr/local/bin/projectrai-entrypoint \
+    && test -x /bin/sh \
+    && head -n 1 /usr/local/bin/projectrai-entrypoint | grep -qx '#!/bin/sh' \
+    && chmod 0555 /usr/local/bin/projectrai-entrypoint \
     && mkdir -p /tmp/projectrai \
     && chown projectrai:projectrai /tmp/projectrai
 
