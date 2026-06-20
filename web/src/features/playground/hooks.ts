@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
   getAgentSessions,
@@ -20,7 +20,11 @@ export function useCreateSession() {
 }
 
 export function useAsk() {
-  return useMutation({ mutationFn: (data: AskRequest) => ask(data) })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: AskRequest) => ask(data),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['project-overview'] }),
+  })
 }
 
 export function useAgentSessions(agentId: string | undefined, projectId: string | undefined) {
@@ -40,6 +44,7 @@ export function useSessionMessages(sessionId: string | undefined) {
 }
 
 export function useAskStream() {
+  const queryClient = useQueryClient()
   const stream = useCallback(async (
     data: AskRequest,
     callbacks: StreamCallbacks,
@@ -51,8 +56,9 @@ export function useAskStream() {
       await askStreamV1(data, callbacks, controller.signal)
     } finally {
       if (activeStreamController === controller) activeStreamController = null
+      await queryClient.invalidateQueries({ queryKey: ['project-overview'] })
     }
-  }, [])
+  }, [queryClient])
   const cancel = useCallback(() => cancelActiveAskStream(), [])
   return { stream, cancel }
 }
