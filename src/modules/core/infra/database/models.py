@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from shared.infra.database import coordination_models as _coordination_models
 from shared.infra.database.base import BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
 from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
