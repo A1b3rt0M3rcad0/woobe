@@ -10,6 +10,14 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def service_block(compose: str, service: str, next_service: str) -> str:
+    start = f"\n  {service}:\n"
+    end = f"\n  {next_service}:\n"
+    assert start in compose, f"service {service!r} not found"
+    assert end in compose, f"service boundary {next_service!r} not found"
+    return compose.split(start, maxsplit=1)[1].split(end, maxsplit=1)[0]
+
+
 def test_production_proxy_has_required_browser_security_headers() -> None:
     nginx = read("web/nginx.conf")
     required = (
@@ -29,13 +37,16 @@ def test_production_proxy_has_required_browser_security_headers() -> None:
 
 def test_production_topology_does_not_publish_data_services_or_bind_mount_source() -> None:
     compose = read("docker-compose.prod.yml")
-    db_block = compose.split("  db:\n", maxsplit=1)[1].split("  pgbouncer:\n", maxsplit=1)[0]
-    pgbouncer_block = compose.split("  pgbouncer:\n", maxsplit=1)[1].split("  rabbitmq:\n", maxsplit=1)[0]
-    rabbit_block = compose.split("  rabbitmq:\n", maxsplit=1)[1].split("\nnetworks:\n", maxsplit=1)[0]
+    db_block = service_block(compose, "db", "pgbouncer")
+    pgbouncer_block = service_block(compose, "pgbouncer", "rabbitmq")
+    rabbit_block = compose.split("\n  rabbitmq:\n", maxsplit=1)[1].split("\nnetworks:\n", maxsplit=1)[0]
+    web_block = service_block(compose, "web", "db")
 
     assert "ports:" not in db_block
     assert "ports:" not in pgbouncer_block
     assert "ports:" not in rabbit_block
+    assert 'ports:\n      - "8080:8080"' in web_block
+    assert compose.count("    ports:\n") == 1
     assert "../" not in compose
     assert "./src:" not in compose
     assert "read_only: true" in compose
