@@ -61,18 +61,15 @@ services:
     restart: unless-stopped
 
   web:
-    build: web
+    build:
+      context: web
+      args:
+        VITE_API_URL: ""
     ports:
-      - "${PROJECTRAI_WEB_PORT:-5173}:5173"
-    environment:
-      VITE_API_URL: http://localhost:8000
-      PROXY_API_URL: http://api:8000
+      - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
       api:
         condition: service_healthy
-    volumes:
-      - ./web:/app
-      - /app/node_modules
     restart: unless-stopped
 
   db:
