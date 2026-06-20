@@ -284,7 +284,7 @@ test('onboards a tenant and renders the live project dashboard', async ({ page }
 
   await expect(page).toHaveURL(/\/organizations$/)
   await expect(page.getByText('Tenant A')).toBeVisible()
-  await page.getByRole('button', { name: /^Select/ }).click()
+  await page.getByRole('button', { name: 'Select', exact: true }).click()
   await expect(page).toHaveURL(/\/organizations\/org-a\/projects$/)
   await page.getByRole('button', { name: /^Open/ }).click()
   await expect(page).toHaveURL(/\/organizations\/org-a\/projects\/project-a$/)
@@ -298,6 +298,9 @@ test('creates an agent, streams a session, reloads history and creates an API ke
   await page.goto('/organizations/org-a/projects/project-a/agents/new')
   await page.getByPlaceholder('My Agent').fill(agent.name)
   await page.locator('select').first().selectOption(credential.id)
+  await expect(page.getByText('Deterministic OpenAI')).toBeVisible()
+  await page.locator('select').first().selectOption(agent.model)
+  await expect(page.getByRole('button', { name: 'Create Agent' })).toBeEnabled()
   await page.getByRole('button', { name: 'Create Agent' }).click()
 
   await expect(page).toHaveURL(/\/agents\/agent-a\/playground$/)
