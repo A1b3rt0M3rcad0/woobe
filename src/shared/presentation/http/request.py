@@ -18,3 +18,11 @@ class Request(BaseModel):
     body: Any = None
     query_params: dict[str, Any] = Field(default_factory=dict)
     path_params: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def query(self) -> dict[str, Any]:
+        return self.query_params
+
+    @property
+    def params(self) -> dict[str, Any]:
+        return self.path_params

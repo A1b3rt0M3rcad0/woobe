@@ -1,10 +1,13 @@
-from modules.agent.presentation.mappers import collection_to_response
+from typing import cast
+from uuid import UUID
+
 from modules.agent.application.dtos import GetCollectionInput
 from modules.agent.application.use_cases.knowledge_use_cases import GetCollectionUseCase
+from modules.agent.presentation.mappers import collection_to_response
 from shared.infra.errors import NotFoundError
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class GetCollectionController(Controller):
@@ -13,7 +16,9 @@ class GetCollectionController(Controller):
 
     async def handle(self, request: Request) -> Response:
         try:
-            input_dto = GetCollectionInput(collection_id=request.params.get("collection_id"))
+            input_dto = GetCollectionInput(
+                collection_id=cast(UUID, request.params.get("collection_id"))
+            )
             result = await self._use_case.execute(input_dto)
             return Response(
                 status_code=200,

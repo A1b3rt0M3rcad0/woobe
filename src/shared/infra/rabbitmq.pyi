@@ -1,0 +1,36 @@
+from typing import Any
+
+from aio_pika.abc import AbstractChannel, AbstractExchange
+
+
+class RabbitMQManager:
+    def __init__(self, url: str, exchange_name: str) -> None: ...
+    @property
+    def is_connected(self) -> bool: ...
+    @property
+    def channel(self) -> AbstractChannel: ...
+    @property
+    def exchange(self) -> AbstractExchange: ...
+    async def connect(self) -> None: ...
+    async def declare_topology(
+        self,
+        queue_name: str,
+        routing_keys: list[str],
+        dlx_queue_name: str | None = None,
+    ) -> None: ...
+    async def publish(
+        self,
+        routing_key: str,
+        payload: str,
+        correlation_id: str | None = None,
+        message_id: str | None = None,
+    ) -> None: ...
+    async def consume(
+        self,
+        queue_name: str,
+        routing_keys: list[str],
+        callback: Any,
+    ) -> None: ...
+    async def close(self) -> None: ...
+    async def __aenter__(self) -> "RabbitMQManager": ...
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None: ...

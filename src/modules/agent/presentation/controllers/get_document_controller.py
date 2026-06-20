@@ -1,3 +1,6 @@
+from typing import cast
+from uuid import UUID
+
 from modules.agent.presentation.mappers import document_to_response
 from modules.agent.application.dtos import GetDocumentInput
 from modules.agent.application.use_cases.knowledge_use_cases import GetDocumentUseCase
@@ -13,7 +16,7 @@ class GetDocumentController(Controller):
 
     async def handle(self, request: Request) -> Response:
         try:
-            input_dto = GetDocumentInput(document_id=request.params.get("document_id"))
+            input_dto = GetDocumentInput(document_id=cast(UUID, request.params.get("document_id")))
             result = await self._use_case.execute(input_dto)
             return Response(
                 status_code=200,

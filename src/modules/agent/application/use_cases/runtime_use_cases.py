@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from modules.agent.domain.entities import AskJob, Message, Session
@@ -24,6 +25,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageInput,
     SendMessageOutput,
 )
+from modules.agent.domain.enums import RuntimeSessionMode, SessionStatus
 from shared.infra.time import utc_now
 
 
@@ -48,19 +50,21 @@ class CreateSessionUseCase:
             data=input_dto.data,
         )
         created = await self.repo.create(session)
+        project_id = cast(UUID, created.project_id)
+        agent_id = cast(UUID, created.agent_id)
 
         event = AgentSessionCreatedV1.create(
             session_id=created.id,
-            project_id=created.project_id,
-            agent_id=created.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             payload={"mode": created.mode},
         )
         await self._outbox.write(event)
 
         return CreateSessionOutput(
             id=created.id,
-            project_id=created.project_id,
-            agent_id=created.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             external_session_id=created.external_session_id,
             tenant_id=created.tenant_id,
             user_id=created.user_id,
@@ -87,16 +91,19 @@ class SendMessageUseCase:
 
     async def execute(self, input_dto: SendMessageInput) -> SendMessageOutput:
         sess = await self.session_repo.get_by_id(input_dto.session_id)
+        project_id = cast(UUID, sess.project_id)
+        agent_id = cast(UUID, sess.agent_id)
 
         message = Message(
-            project_id=sess.project_id,
-            agent_id=sess.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             session_id=input_dto.session_id,
             role=input_dto.role,
             content=input_dto.content,
             data=input_dto.data,
         )
         created = await self.message_repo.create(message)
+        session_id = cast(UUID, created.session_id)
 
         sess.last_message_at = utc_now()
         await self.session_repo.update(sess)
@@ -104,8 +111,8 @@ class SendMessageUseCase:
         event = AgentMessageCreatedV1.create(
             message_id=created.id,
             session_id=sess.id,
-            project_id=sess.project_id,
-            agent_id=sess.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             role=created.role,
         )
         await self._outbox.write(event)
@@ -113,7 +120,7 @@ class SendMessageUseCase:
         return SendMessageOutput(
             message=MessageResponse(
                 id=created.id,
-                session_id=created.session_id,
+                session_id=session_id,
                 role=created.role,
                 content=created.content,
                 input_tokens=created.input_tokens,
@@ -123,7 +130,7 @@ class SendMessageUseCase:
                 created_at=created.created_at,
                 updated_at=created.updated_at,
             ),
-            session_id=created.session_id,
+            session_id=session_id,
         )
 
 
@@ -136,7 +143,7 @@ class ListMessagesUseCase:
         messages = await self._repo.list_by_session(input_dto.session_id, input_dto.offset, input_dto.limit)
         return [ListMessagesOutput(
             id=m.id,
-            session_id=m.session_id,
+            session_id=cast(UUID, m.session_id),
             role=m.role.value if hasattr(m.role, "value") else m.role,
             content=m.content,
             input_tokens=m.input_tokens,
@@ -170,10 +177,10 @@ class ListAgentSessionsUseCase:
                 count = 0
             result.append(ListAgentSessionsOutput(
                 id=s.id,
-                project_id=s.project_id,
-                agent_id=s.agent_id,
-                status=s.status.value if hasattr(s.status, "value") else s.status,
-                mode=s.mode.value if hasattr(s.mode, "value") else s.mode,
+                project_id=cast(UUID, s.project_id),
+                agent_id=cast(UUID, s.agent_id),
+                status=SessionStatus(s.status),
+                mode=RuntimeSessionMode(s.mode),
                 last_message_at=s.last_message_at,
                 created_at=s.created_at,
                 message_count=count,
@@ -200,7 +207,7 @@ class CreateAskJobUseCase:
         if self._outbox:
             event = AgentExecutionRequestedV1.create(
                 agent_id=input_dto.agent_id,
-                session_id=input_dto.session_id,
+                session_id=cast(UUID, input_dto.session_id),
                 payload={
                     "job_id": str(created.id),
                     "project_id": str(input_dto.project_id),
@@ -230,4 +237,3 @@ class GetAskJobUseCase:
             started_at=job.started_at,
             completed_at=job.completed_at,
         )
-

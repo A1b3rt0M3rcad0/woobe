@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
+from uuid import UUID
 
 from fastapi import Request
 
@@ -28,12 +29,11 @@ async def enforce_request_security(request: Request) -> AsyncIterator[None]:
     )
     request.state.principal = principal
 
-    acquired = False
+    lease_id: UUID | None = None
     if guard.requires_runtime_permit(request, principal):
         if not isinstance(principal, ProjectApiPrincipal):
             raise RuntimeError("Runtime permit requires a project API principal")
-        await guard.acquire_runtime_permit(principal)
-        acquired = True
+        lease_id = await guard.acquire_runtime_permit(principal)
 
     try:
         if _is_runtime_path(request.url.path):
@@ -45,5 +45,5 @@ async def enforce_request_security(request: Request) -> AsyncIterator[None]:
         else:
             yield
     finally:
-        if acquired and isinstance(principal, ProjectApiPrincipal):
-            await guard.release_runtime_permit(principal)
+        if lease_id is not None:
+            await guard.release_runtime_permit(lease_id)
