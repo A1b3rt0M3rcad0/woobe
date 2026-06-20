@@ -76,15 +76,17 @@ jobs:
       - name: Exercise graceful application rollback
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.prod.yml stop --timeout 45 api workers
-          test -z "$(docker compose -f docker-compose.prod.yml ps --status running -q api workers)"
-          docker compose -f docker-compose.prod.yml up -d api workers
+          docker compose -f docker-compose.prod.yml stop --timeout 45 web api workers
+          test -z "$(docker compose -f docker-compose.prod.yml ps --status running -q web api workers)"
+          docker compose -f docker-compose.prod.yml up -d api workers web
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8080/ready >/dev/null; then
               exit 0
             fi
             sleep 2
           done
+          docker compose -f docker-compose.prod.yml ps --all
+          docker compose -f docker-compose.prod.yml logs --no-color
           exit 1
       - name: Capture production evidence
         if: always()
