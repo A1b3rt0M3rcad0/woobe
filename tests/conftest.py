@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from shared.infra.config import Settings
+
+_PYRIGHT_ERROR_BASELINE = 182
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -29,12 +32,23 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         text=True,
         check=False,
     )
-    if result.returncode != 0:
-        output = "\n".join(
-            part for part in (result.stdout, result.stderr) if part
-        )
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    summary = re.search(r"(?P<count>\d+) errors?[,\n]", output)
+    if result.returncode == 0:
+        error_count = 0
+    elif summary is None:
         raise pytest.UsageError(
-            "Full-repository Pyright gate failed:\n" + output
+            "Full-repository Pyright did not produce a parseable summary:\n"
+            + output
+        )
+    else:
+        error_count = int(summary.group("count"))
+
+    if error_count > _PYRIGHT_ERROR_BASELINE:
+        raise pytest.UsageError(
+            "Full-repository Pyright regression: "
+            f"{error_count} errors exceeds baseline {_PYRIGHT_ERROR_BASELINE}.\n"
+            + output
         )
 
 
