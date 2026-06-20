@@ -20,7 +20,7 @@ export interface AskJobResult {
   completed_at?: string | null
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 function normalizeResponse(response: Record<string, unknown>): AskResponse {
   const { type: _type, ...rest } = response
@@ -115,7 +115,10 @@ export async function askStream(
     throw new Error(errorMsg)
   }
 
-  const reader = response.body!.getReader()
+  if (!response.body) {
+    throw new Error('Streaming response body is unavailable')
+  }
+  const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
 
