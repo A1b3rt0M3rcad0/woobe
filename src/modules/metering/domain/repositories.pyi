@@ -1,26 +1,43 @@
-from datetime import date
 from typing import Any
 from uuid import UUID
 
 from modules.metering.domain.entities import UsageDailyAgent, UsageDailyProject, UsageEvent
-
-
-def __getattr__(name: str) -> Any: ...
+from shared.infra.objects import CursorPage
 
 
 class UsageEventRepository:
     async def save(self, event: UsageEvent) -> UsageEvent: ...
+    async def get_by_id(self, event_id: UUID) -> UsageEvent | None: ...
+    async def list_by_project(
+        self, project_id: UUID, limit: int = 100, offset: int = 0
+    ) -> list[UsageEvent]: ...
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageEvent]: ...
+    async def delete(self, event_id: UUID) -> None: ...
 
 
 class UsageDailyProjectRepository:
     async def save(self, daily: UsageDailyProject) -> UsageDailyProject: ...
     async def get_by_project_and_day(
-        self, project_id: UUID, day: date
+        self, project_id: UUID, day: str
     ) -> UsageDailyProject | None: ...
+    async def list_by_project(
+        self, project_id: UUID, limit: int = 100, offset: int = 0
+    ) -> list[UsageDailyProject]: ...
+    async def paginate_by_project(
+        self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageDailyProject]: ...
 
 
 class UsageDailyAgentRepository:
     async def save(self, daily: UsageDailyAgent) -> UsageDailyAgent: ...
     async def get_by_agent_and_day(
-        self, agent_id: UUID, day: date
+        self, agent_id: UUID, day: str
     ) -> UsageDailyAgent | None: ...
+    async def list_by_agent(
+        self, agent_id: UUID, limit: int = 100, offset: int = 0
+    ) -> list[UsageDailyAgent]: ...
+    async def paginate_by_agent(
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[UsageDailyAgent]: ...
