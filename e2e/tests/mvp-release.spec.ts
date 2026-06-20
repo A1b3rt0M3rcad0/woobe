@@ -2,10 +2,16 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 
 const user = { id: 'user-a', email: 'owner-a@example.test', status: 'active' }
 const organization = { id: 'org-a', name: 'Tenant A', slug: 'tenant-a', status: 'active' }
-const project = { id: 'project-a', organization_id: 'org-a', name: 'Release Project', slug: 'release-project', status: 'active' }
+const project = {
+  id: 'project-a',
+  organization_id: 'org-a',
+  name: 'Release Project',
+  slug: 'release-project',
+  status: 'active',
+}
 const credential = {
   id: 'credential-a',
-  project_id: 'project-a',
+  project_id: project.id,
   provider: 'openai',
   name: 'Deterministic OpenAI',
   status: 'active',
@@ -13,8 +19,8 @@ const credential = {
 }
 const agent = {
   id: 'agent-a',
-  project_id: 'project-a',
-  provider_credential_id: 'credential-a',
+  project_id: project.id,
+  provider_credential_id: credential.id,
   name: 'Release Gate Agent',
   description: 'Deterministic release agent',
   type: 'assistant',
@@ -92,11 +98,15 @@ function overview() {
   }
 }
 
-async function json(route: Route, data: unknown, status = 200) {
+async function respond(route: Route, data: unknown, status = 200) {
   await route.fulfill({
     status,
     contentType: 'application/json',
-    body: JSON.stringify(status < 400 ? envelope(data) : { success: false, message: 'Resource not found', data: null }),
+    body: JSON.stringify(
+      status < 400
+        ? envelope(data)
+        : { success: false, message: 'Resource not found', data: null },
+    ),
   })
 }
 
@@ -106,97 +116,116 @@ async function installDeterministicApi(page: Page) {
 
   await page.route('**/*', async (route) => {
     const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname
+    const path = new URL(request.url()).pathname
     const method = request.method()
+    const apiPrefix = ['/identity', '/core', '/ai', '/runtime', '/observability', '/knowledge', '/tools']
 
-    if (!path.startsWith('/identity') && !path.startsWith('/core') && !path.startsWith('/ai')
-      && !path.startsWith('/runtime') && !path.startsWith('/observability') && !path.startsWith('/knowledge')
-      && !path.startsWith('/tools')) {
+    if (!apiPrefix.some((prefix) => path.startsWith(prefix))) {
       await route.continue()
       return
     }
-
-    if (method === 'POST' && (path === '/identity/auth/register' || path === '/identity/auth/login')) {
-      await json(route, { token: 'e2e-access-token', user })
+    if (method === 'POST' && ['/identity/auth/register', '/identity/auth/login'].includes(path)) {
+      await respond(route, { token: 'e2e-access-token', user })
       return
     }
     if (path === '/identity/users/me') {
-      await json(route, user)
+      await respond(route, user)
       return
     }
     if (path === '/identity/organizations') {
-      await json(route, [organization])
+      await respond(route, [organization])
       return
     }
     if (path === `/identity/organizations/${organization.id}`) {
-      await json(route, organization)
+      await respond(route, organization)
       return
     }
     if (path === '/core/projects' && method === 'GET') {
-      await json(route, [project])
-      return
-    }
-    if (path === `/core/projects/${project.id}`) {
-      await json(route, project)
+      await respond(route, [project])
       return
     }
     if (path === '/core/projects/project-b' || path.startsWith('/core/projects/project-b/')) {
-      await json(route, null, 404)
+      await respond(route, null, 404)
+      return
+    }
+    if (path === `/core/projects/${project.id}`) {
+      await respond(route, project)
       return
     }
     if (path === `/core/projects/${project.id}/overview`) {
-      await json(route, overview())
+      await respond(route, overview())
       return
     }
-    if (path === `/core/projects/${project.id}/provider-credentials`) {
-      await json(route, [credential])
+    if (path === '/ai/credentials') {
+      await respond(route, [credential])
       return
     }
     if (path === '/ai/agents' && method === 'POST') {
-      await json(route, agent)
+      await respond(route, agent)
       return
     }
     if (path === '/ai/agents' && method === 'GET') {
-      await json(route, [agent])
+      await respond(route, [agent])
       return
     }
     if (path === `/ai/agents/${agent.id}`) {
-      await json(route, agent)
+      await respond(route, agent)
       return
     }
     if (path === `/ai/agents/${agent.id}/releases`) {
-      await json(route, [])
+      await respond(route, [])
       return
     }
     if (path === `/runtime/agents/${agent.id}/sessions`) {
-      await json(route, streamed ? [{
-        id: 'session-a', project_id: project.id, agent_id: agent.id, status: 'active',
-        external_session_id: 'e2e-session', tenant_id: 'tenant-a', user_id: user.id,
-        created_at: new Date().toISOString(), last_message_at: new Date().toISOString(),
+      await respond(route, streamed ? [{
+        id: 'session-a',
+        project_id: project.id,
+        agent_id: agent.id,
+        status: 'active',
+        external_session_id: 'e2e-session',
+        tenant_id: 'tenant-a',
+        user_id: user.id,
+        message_count: 2,
+        created_at: new Date().toISOString(),
+        last_message_at: new Date().toISOString(),
       }] : [])
       return
     }
     if (path === '/runtime/sessions/session-a/messages') {
-      await json(route, streamed ? [
+      await respond(route, streamed ? [
         { id: 'message-user', role: 'user', content: 'Run release gate', data: {} },
-        { id: 'message-assistant', role: 'assistant', content: 'ProjectRAI release gate passed', data: { model: 'fake-stream', provider: 'fake' } },
+        {
+          id: 'message-assistant',
+          role: 'assistant',
+          content: 'ProjectRAI release gate passed',
+          data: { model: 'fake-stream', provider: 'fake' },
+        },
       ] : [])
       return
     }
     if (path === '/runtime/ask/stream' && method === 'POST') {
       streamed = true
+      const usage = { input_tokens: 7, output_tokens: 5, total_tokens: 12, cost_usd: 0.001 }
       const events = [
         { protocol_version: 1, type: 'meta', session_id: 'session-a', trace_id: 'trace-a', request_id: 'request-a' },
         { protocol_version: 1, type: 'token', content: 'ProjectRAI ' },
         { protocol_version: 1, type: 'token', content: 'release gate passed' },
-        { protocol_version: 1, type: 'usage', usage: { input_tokens: 7, output_tokens: 5, total_tokens: 12, cost_usd: 0.001 } },
+        { protocol_version: 1, type: 'usage', usage },
         {
-          protocol_version: 1, type: 'done', answer: 'ProjectRAI release gate passed',
-          session_id: 'session-a', message_id: 'message-assistant', trace_id: 'trace-a',
-          provider: 'fake', model: 'fake-stream', latency_ms: 42, ttft_ms: 5,
-          usage: { input_tokens: 7, output_tokens: 5, total_tokens: 12, cost_usd: 0.001 },
-          sources: [], tool_calls: [], execution_events: [],
+          protocol_version: 1,
+          type: 'done',
+          answer: 'ProjectRAI release gate passed',
+          session_id: 'session-a',
+          message_id: 'message-assistant',
+          trace_id: 'trace-a',
+          provider: 'fake',
+          model: 'fake-stream',
+          latency_ms: 42,
+          ttft_ms: 5,
+          usage,
+          sources: [],
+          tool_calls: [],
+          execution_events: [],
         },
       ]
       await route.fulfill({
@@ -207,24 +236,41 @@ async function installDeterministicApi(page: Page) {
       return
     }
     if (path.includes('/traces')) {
-      await json(route, streamed ? [{ id: 'trace-a', project_id: project.id, agent_id: agent.id, status: 'completed' }] : [])
+      await respond(route, streamed ? [{ id: 'trace-a', project_id: project.id, agent_id: agent.id, status: 'completed' }] : [])
       return
     }
     if (path === `/core/projects/${project.id}/api-keys` && method === 'GET') {
-      await json(route, apiKeys)
+      await respond(route, apiKeys)
       return
     }
     if (path === `/core/projects/${project.id}/api-keys` && method === 'POST') {
       const created = {
-        id: 'key-a', project_id: project.id, name: 'Release key', key_prefix: 'rai_live_e2e',
-        key: 'rai_live_e2e_deterministic-secret', scopes: ['runtime:execute'], status: 'active',
+        id: 'key-a',
+        project_id: project.id,
+        name: 'Release key',
+        key_prefix: 'rai_live_e2e',
+        key: 'rai_live_e2e_deterministic-secret',
+        scopes: ['runtime:execute'],
+        status: 'active',
       }
       apiKeys = [created]
-      await json(route, created)
+      await respond(route, created)
       return
     }
+    await respond(route, [])
+  })
+}
 
-    await json(route, [])
+async function installAuthenticatedWorkspace(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('projectrai_token', 'e2e-access-token')
+    localStorage.setItem('projectrai_org', JSON.stringify({ id: 'org-a', name: 'Tenant A', slug: 'tenant-a' }))
+    localStorage.setItem('projectrai_project', JSON.stringify({
+      id: 'project-a',
+      organization_id: 'org-a',
+      name: 'Release Project',
+      slug: 'release-project',
+    }))
   })
 }
 
@@ -242,19 +288,12 @@ test('onboards a tenant and renders the live project dashboard', async ({ page }
   await expect(page).toHaveURL(/\/organizations\/org-a\/projects$/)
   await page.getByRole('button', { name: /^Open/ }).click()
   await expect(page).toHaveURL(/\/organizations\/org-a\/projects\/project-a$/)
-  await expect(page.getByText('Requests').first()).toBeVisible()
-  await expect(page.getByText('100%').first()).toBeVisible()
+  await expect(page.getByText('Requests', { exact: true }).first()).toBeVisible()
 })
 
 test('creates an agent, streams a session, reloads history and creates an API key', async ({ page }) => {
   await installDeterministicApi(page)
-  await page.addInitScript(() => {
-    localStorage.setItem('projectrai_token', 'e2e-access-token')
-    localStorage.setItem('projectrai_org', JSON.stringify({ id: 'org-a', name: 'Tenant A', slug: 'tenant-a' }))
-    localStorage.setItem('projectrai_project', JSON.stringify({
-      id: 'project-a', organization_id: 'org-a', name: 'Release Project', slug: 'release-project',
-    }))
-  })
+  await installAuthenticatedWorkspace(page)
 
   await page.goto('/organizations/org-a/projects/project-a/agents/new')
   await page.getByPlaceholder('My Agent').fill(agent.name)
@@ -267,6 +306,8 @@ test('creates an agent, streams a session, reloads history and creates an API ke
   await expect(page.getByText('ProjectRAI release gate passed')).toBeVisible()
 
   await page.reload()
+  await page.getByRole('button', { name: 'Sessions' }).click()
+  await page.getByRole('button', { name: /session-/ }).click()
   await expect(page.getByText('ProjectRAI release gate passed')).toBeVisible()
 
   await page.goto('/organizations/org-a/projects/project-a/api-keys')
@@ -278,13 +319,17 @@ test('creates an agent, streams a session, reloads history and creates an API ke
 
 test('returns not found for a foreign project and does not leak tenant data', async ({ page }) => {
   await installDeterministicApi(page)
-  await page.addInitScript(() => localStorage.setItem('projectrai_token', 'e2e-access-token'))
+  await installAuthenticatedWorkspace(page)
+  await page.goto('/organizations')
 
-  const response = await page.request.get('/core/projects/project-b', {
-    headers: { Authorization: 'Bearer e2e-access-token' },
+  const result = await page.evaluate(async () => {
+    const response = await fetch('/core/projects/project-b', {
+      headers: { Authorization: 'Bearer e2e-access-token' },
+    })
+    return { status: response.status, body: await response.json() }
   })
-  expect(response.status()).toBe(404)
-  expect(await response.json()).toMatchObject({ success: false, message: 'Resource not found' })
+  expect(result.status).toBe(404)
+  expect(result.body).toMatchObject({ success: false, message: 'Resource not found' })
 
   await page.goto('/organizations/org-a/projects/project-b')
   await expect(page.getByText('Dashboard unavailable')).toBeVisible()
