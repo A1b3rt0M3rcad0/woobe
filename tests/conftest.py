@@ -1,10 +1,10 @@
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
