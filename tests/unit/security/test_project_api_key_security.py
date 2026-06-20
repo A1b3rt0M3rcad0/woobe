@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 
 from modules.core.presentation.schemas import CreatedApiKeyResponse
@@ -102,24 +104,27 @@ def test_redaction_removes_sensitive_nested_values_and_url_query() -> None:
     assert "fragment" not in redacted_url
 
 
-def test_api_key_request_rate_limiter_rejects_excess_request() -> None:
+@pytest.mark.asyncio
+async def test_api_key_request_rate_limiter_rejects_excess_request() -> None:
     limiter = ApiKeyRequestLimiter(max_requests=1, window_seconds=60)
+    subject = f"request-{uuid4()}"
 
-    limiter.consume("key-id")
+    await limiter.consume(subject)
 
     with pytest.raises(RateLimitError) as exc_info:
-        limiter.consume("key-id")
+        await limiter.consume(subject)
     assert exc_info.value.retry_after >= 1
 
 
 @pytest.mark.asyncio
 async def test_api_key_concurrency_limiter_releases_permit() -> None:
     limiter = ApiKeyConcurrencyLimiter(max_concurrency=1)
+    subject = f"concurrency-{uuid4()}"
 
-    await limiter.acquire("key-id")
+    lease_id = await limiter.acquire(subject)
     with pytest.raises(RateLimitError):
-        await limiter.acquire("key-id")
+        await limiter.acquire(subject)
 
-    await limiter.release("key-id")
-    await limiter.acquire("key-id")
-    await limiter.release("key-id")
+    await limiter.release(lease_id)
+    lease_id = await limiter.acquire(subject)
+    await limiter.release(lease_id)
