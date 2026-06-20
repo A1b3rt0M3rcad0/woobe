@@ -40,7 +40,10 @@ jobs:
           set -euo pipefail
           docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.prod.yml up -d db pgbouncer rabbitmq
-          docker compose -f docker-compose.prod.yml run --rm migrate
+          if ! docker compose -f docker-compose.prod.yml run --name projectrai-release-migrate migrate > production-migrate.log 2>&1; then
+            cat production-migrate.log
+            exit 1
+          fi
           docker compose -f docker-compose.prod.yml up -d api workers web
           for attempt in $(seq 1 60); do
             if PROJECTRAI_BASE_URL=http://127.0.0.1:8080 sh scripts/smoke_production.sh; then
@@ -69,6 +72,7 @@ jobs:
         run: |
           docker compose -f docker-compose.prod.yml ps --all > production-compose-ps.txt || true
           docker compose -f docker-compose.prod.yml logs --no-color > production-compose.log 2>&1 || true
+          docker logs projectrai-release-migrate >> production-migrate.log 2>&1 || true
       - name: Tear down production topology
         if: always()
         run: docker compose -f docker-compose.prod.yml down -v --remove-orphans
@@ -78,6 +82,7 @@ jobs:
         with:
           name: release-production-smoke-evidence
           path: |
+            production-migrate.log
             production-compose-ps.txt
             production-compose.log
           if-no-files-found: warn
