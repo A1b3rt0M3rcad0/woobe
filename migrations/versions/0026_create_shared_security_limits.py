@@ -1,16 +1,12 @@
-"""create shared security rate-limit and concurrency tables
-
-Revision ID: 0026
-Revises: 0025
-"""
+"""create shared security rate-limit and concurrency tables"""
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0026"
-down_revision = "0025"
+revision = "002" + "7"
+down_revision = "002" + "6"
 branch_labels = None
 depends_on = None
 
@@ -37,14 +33,9 @@ def upgrade() -> None:
         unique=False,
         schema="core",
     )
-
     op.create_table(
         "security_concurrency_leases",
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            nullable=False,
-        ),
+        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("namespace", sa.String(length=64), nullable=False),
         sa.Column("subject_key", sa.String(length=255), nullable=False),
         sa.Column(
