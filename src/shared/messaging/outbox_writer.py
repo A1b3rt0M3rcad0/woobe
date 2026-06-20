@@ -1,6 +1,3 @@
-from typing import Any, Protocol
+from typing import Any, TypeAlias
 
-
-class OutboxEventWriter(Protocol):
-    async def write(self, event: Any) -> None:
-        ...
+OutboxEventWriter: TypeAlias = Any
