@@ -30,6 +30,21 @@ Implemented the tenant-scoped dashboard read model, indexes, contracts, integrat
 
 Final merge is authorized only after all four principal workflows pass on the final head and the PR is marked ready for review.
 
+## Stage 06 — dashboard live UI
+
+Merged into `development-mvp` through PR #27. The merge commit and stage-07 base are `df948536418e610b0baceb4eac5ad674270a93e0`.
+
+## Stage 07 — production deployment
+
+Branch: `chore/mvp-07-production-deployment`  
+Base SHA: `df948536418e610b0baceb4eac5ad674270a93e0`  
+Target: `development-mvp`  
+PR: pending human creation
+
+Implemented production image hardening, a production Compose topology with a single migration job, fail-fast production configuration, liveness/readiness, worker process health, request/correlation IDs, structured and redacted logs, runtime metrics, backup/restore scripts, operational runbooks, container policy checks, SBOM generation and non-blocking vulnerability reports.
+
+Local evidence before publishing the branch is limited to syntax and static checks available in the execution environment. Docker builds, Compose runtime smoke, image size comparison, migration idempotency, graceful shutdown and staging restore evidence remain PR/staging gates and must not be marked complete until their workflows or runbooks produce verifiable output.
+
 ## Closeout audit — stages 00 through 04
 
 Branch: `mvp-closeout-audit`  

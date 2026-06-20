@@ -28,6 +28,7 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
+from shared.observability.metrics import runtime_metrics
 from shared.security.redaction import redact_text
 
 logger = logging.getLogger(__name__)
@@ -53,15 +54,23 @@ class AskAgentStreamService:
         )
 
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
-        async with AgentUnitOfWork(self._session_factory) as uow:
-            resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
-            executor = self._http_executor or get_http_tool_executor()
-            result = await ExecuteToolUseCase(
-                tool_repo=uow.tools,
-                tool_executor=executor,
-                secret_resolver=resolver,
-            ).execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
-            return result.model_dump()
+        try:
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
+                executor = self._http_executor or get_http_tool_executor()
+                result = await ExecuteToolUseCase(
+                    tool_repo=uow.tools,
+                    tool_executor=executor,
+                    secret_resolver=resolver,
+                ).execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
+                if not result.success:
+                    runtime_metrics.increment_tool_failure(tool=str(tool_id))
+                return result.model_dump()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            runtime_metrics.increment_tool_failure(tool=str(tool_id))
+            raise
 
     async def _run_execution(
         self,
@@ -157,8 +166,7 @@ class AskAgentStreamService:
                         return
 
                 heartbeat_due_in = max(
-                    RUNTIME_STREAM_HEARTBEAT_SECONDS
-                    - (time.monotonic() - last_output),
+                    RUNTIME_STREAM_HEARTBEAT_SECONDS - (time.monotonic() - last_output),
                     0.1,
                 )
                 try:
@@ -174,9 +182,7 @@ class AskAgentStreamService:
                     ):
                         await channel.emit(
                             "heartbeat",
-                            trace_id=(
-                                str(channel.trace_id) if channel.trace_id else None
-                            ),
+                            trace_id=str(channel.trace_id) if channel.trace_id else None,
                         )
                     continue
 
@@ -213,12 +219,7 @@ class AskAgentStreamService:
             while not channel.queue.empty():
                 yield self._sse_event(channel.queue.get_nowait())
         except asyncio.CancelledError:
-            await self._cancel_task(
-                task,
-                channel,
-                input_dto,
-                "stream_cancelled",
-            )
+            await self._cancel_task(task, channel, input_dto, "stream_cancelled")
             raise
         except Exception as exc:
             logger.exception(
@@ -238,12 +239,7 @@ class AskAgentStreamService:
                 yield self._sse_event(channel.queue.get_nowait())
         finally:
             if not task.done() and not disconnected:
-                await self._cancel_task(
-                    task,
-                    channel,
-                    input_dto,
-                    "stream_closed",
-                )
+                await self._cancel_task(task, channel, input_dto, "stream_closed")
 
     @staticmethod
     def _sse_event(event: RuntimeStreamEvent) -> str:

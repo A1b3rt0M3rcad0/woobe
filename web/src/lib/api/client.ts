@@ -1,7 +1,7 @@
 import { getToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 interface RequestOptions {
   headers?: Record<string, string>
@@ -68,7 +68,7 @@ async function request<T>(
   }
 
   if (res.status === 401) {
-    if (import.meta.env.DEV) console.warn(`[API] 401 Unauthorized — clearing token and redirecting to login`)
+    if (import.meta.env.DEV) console.warn('[API] 401 Unauthorized — clearing token and redirecting to login')
     clearToken()
     window.location.href = '/login'
     throw new UnauthorizedError()

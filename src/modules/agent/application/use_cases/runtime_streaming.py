@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from shared.observability.metrics import runtime_metrics
+
 RUNTIME_STREAM_PROTOCOL_VERSION = 1
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
 
@@ -64,9 +66,15 @@ class RuntimeStreamChannel:
             )
         )
 
-    def mark_first_token(self) -> None:
-        if self.ttft_ms is None:
-            self.ttft_ms = round((time.monotonic() - self.started_monotonic) * 1000)
+    def mark_first_token(self, *, provider: str, model: str) -> None:
+        if self.ttft_ms is not None:
+            return
+        self.ttft_ms = round((time.monotonic() - self.started_monotonic) * 1000)
+        runtime_metrics.observe_ttft(
+            provider=provider,
+            model=model,
+            milliseconds=self.ttft_ms,
+        )
 
 
 current_runtime_stream: ContextVar[RuntimeStreamChannel | None] = ContextVar(
@@ -122,22 +130,44 @@ async def invoke_model_with_optional_streaming(
 ) -> Any:
     channel = current_runtime_stream.get()
     if channel is None:
-        return await model.ainvoke(messages)
-
-    accumulated = None
-    async for chunk in model.astream(messages):
-        accumulated = _combine_chunks(accumulated, chunk)
-        text = extract_chunk_text(chunk)
-        if text:
-            channel.mark_first_token()
-            await channel.emit(
-                "token",
-                content=text,
-                phase=phase,
+        try:
+            return await model.ainvoke(messages)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            runtime_metrics.increment_provider_failure(
                 provider=provider,
                 model=model_name,
             )
+            raise
+
+    accumulated = None
+    try:
+        async for chunk in model.astream(messages):
+            accumulated = _combine_chunks(accumulated, chunk)
+            text = extract_chunk_text(chunk)
+            if text:
+                channel.mark_first_token(provider=provider, model=model_name)
+                await channel.emit(
+                    "token",
+                    content=text,
+                    phase=phase,
+                    provider=provider,
+                    model=model_name,
+                )
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        runtime_metrics.increment_provider_failure(
+            provider=provider,
+            model=model_name,
+        )
+        raise
 
     if accumulated is None:
+        runtime_metrics.increment_provider_failure(
+            provider=provider,
+            model=model_name,
+        )
         raise RuntimeError("Provider stream completed without a response")
     return accumulated

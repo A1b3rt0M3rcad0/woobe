@@ -1,11 +1,14 @@
+import asyncio
 import logging
 from typing import cast
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy import text
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
 from modules.agent.infra.adapters.http_tool_runtime import (
@@ -36,6 +39,9 @@ from shared.infra.errors import (
     RuntimeTimeoutError,
     ValidationError,
 )
+from shared.observability.http import RequestObservabilityMiddleware
+from shared.observability.logging_config import configure_logging
+from shared.observability.metrics import runtime_metrics
 from shared.presentation.errors import (
     authentication_handler,
     authorization_handler,
@@ -58,22 +64,21 @@ from shared.security.rate_limit import (
     ApiKeyRequestLimiter,
     LoginRateLimiter,
 )
-from shared.security.redaction import SensitiveDataLoggingFilter
 
 logger = logging.getLogger(__name__)
 
 
+def _csv_values(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def create_app() -> FastAPI:
     settings = Settings.model_validate({})
-
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        force=True,
+    configure_logging(level=settings.log_level, json_logs=settings.json_logs)
+    logger.info(
+        "Application configuration loaded",
+        extra={"environment": settings.environment},
     )
-    for handler in logging.getLogger().handlers:
-        handler.addFilter(SensitiveDataLoggingFilter())
-    logger.info("Logging configured at level %s", settings.log_level)
 
     app = FastAPI(
         title="ProjectRAI",
@@ -114,8 +119,26 @@ def create_app() -> FastAPI:
         settings=settings,
     )
 
-    cors_origins = settings.cors_origins.split(",")
-    logger.info("CORS allowed origins: %s", cors_origins)
+    cors_origins = _csv_values(settings.cors_origins)
+    trusted_hosts = list(
+        dict.fromkeys(
+            [*_csv_values(settings.trusted_hosts), "127.0.0.1", "localhost", "api"]
+        )
+    )
+    logger.info(
+        "HTTP boundary configured",
+        extra={
+            "cors_origin_count": len(cors_origins),
+            "trusted_host_count": len(trusted_hosts),
+            "request_max_bytes": settings.request_max_bytes,
+        },
+    )
+
+    app.add_middleware(
+        RequestObservabilityMiddleware,
+        max_request_bytes=settings.request_max_bytes,
+    )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
     @app.middleware("http")
     async def cors_safe_guard(request: Request, call_next):
@@ -123,18 +146,20 @@ def create_app() -> FastAPI:
             return await call_next(request)
         except Exception:
             logger.exception(
-                "Unhandled error processing %s %s",
-                request.method,
-                request.url.path,
+                "Unhandled error processing request",
+                extra={
+                    "http_method": request.method,
+                    "http_path": request.url.path,
+                },
             )
             origin = request.headers.get("origin", "")
-            cors_origin = (
-                origin
-                if origin in cors_origins
-                else cors_origins[0]
-                if cors_origins
-                else "*"
-            )
+            cors_origin = origin if origin in cors_origins else ""
+            headers = {}
+            if cors_origin:
+                headers = {
+                    "Access-Control-Allow-Origin": cors_origin,
+                    "Access-Control-Allow-Credentials": "true",
+                }
             return JSONResponse(
                 status_code=500,
                 content={
@@ -142,18 +167,22 @@ def create_app() -> FastAPI:
                     "message": "Internal server error",
                     "data": None,
                 },
-                headers={
-                    "Access-Control-Allow-Origin": cors_origin,
-                    "Access-Control-Allow-Credentials": "true",
-                },
+                headers=headers,
             )
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-API-Key",
+            "X-Request-ID",
+            "X-Correlation-ID",
+        ],
+        expose_headers=["X-Request-ID", "X-Correlation-ID"],
     )
 
     app.add_exception_handler(
@@ -172,11 +201,15 @@ def create_app() -> FastAPI:
         RuntimeTimeoutError,
         cast(ExceptionHandler, runtime_timeout_handler),
     )
-    app.add_exception_handler(RateLimitError, cast(ExceptionHandler, rate_limit_handler))
+    app.add_exception_handler(
+        RateLimitError, cast(ExceptionHandler, rate_limit_handler)
+    )
     app.add_exception_handler(DomainError, cast(ExceptionHandler, domain_error_handler))
     app.add_exception_handler(NotFoundError, cast(ExceptionHandler, not_found_handler))
     app.add_exception_handler(ConflictError, cast(ExceptionHandler, conflict_handler))
-    app.add_exception_handler(ValidationError, cast(ExceptionHandler, validation_handler))
+    app.add_exception_handler(
+        ValidationError, cast(ExceptionHandler, validation_handler)
+    )
     app.add_exception_handler(
         PydanticValidationError,
         cast(ExceptionHandler, pydantic_validation_handler),
@@ -210,7 +243,7 @@ def create_app() -> FastAPI:
     async def startup() -> None:
         engine = app.state.async_engine
         async with engine.begin() as conn:
-            await conn.run_sync(lambda _: None)
+            await conn.execute(text("SELECT 1"))
         logger.info("API runtime started without background workers")
 
     @app.on_event("shutdown")
@@ -219,12 +252,44 @@ def create_app() -> FastAPI:
         await app.state.async_engine.dispose()
         logger.info("API runtime stopped")
 
-    @app.get("/health")
+    @app.get("/live", include_in_schema=False)
+    async def live():
+        return {"status": "ok", "runtime": "api"}
+
+    @app.get("/health", include_in_schema=False)
     async def health():
+        return {"status": "ok", "runtime": "api"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def ready():
+        try:
+            async with asyncio.timeout(settings.readiness_timeout_seconds):
+                async with app.state.async_engine.connect() as connection:
+                    await connection.execute(text("SELECT 1"))
+        except Exception:
+            logger.warning("Readiness dependency check failed", exc_info=True)
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unavailable",
+                    "runtime": "api",
+                    "dependencies": {"database": "unavailable"},
+                },
+            )
         return {
-            "status": "ok",
+            "status": "ready",
             "runtime": "api",
+            "dependencies": {"database": "ok"},
         }
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics():
+        if not settings.metrics_enabled:
+            return PlainTextResponse("metrics disabled\n", status_code=404)
+        return PlainTextResponse(
+            runtime_metrics.render_prometheus(engine=app.state.async_engine),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     return app
 
