@@ -1,4 +1,7 @@
 import os
+from pathlib import Path
+import shutil
+import subprocess
 import sys
 from collections.abc import AsyncIterator
 
@@ -10,6 +13,31 @@ from httpx import ASGITransport, AsyncClient
 from shared.infra.config import Settings
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    if os.environ.get("CI", "").lower() != "true":
+        return
+
+    executable = shutil.which("pyright")
+    if executable is None:
+        raise pytest.UsageError("pyright executable is required by CI")
+
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [executable, "src", "migrations"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        output = "\n".join(
+            part for part in (result.stdout, result.stderr) if part
+        )
+        raise pytest.UsageError(
+            "Full-repository Pyright gate failed:\n" + output
+        )
+
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -18,6 +46,7 @@ def anyio_backend():
 @pytest.fixture
 def app():
     from main import create_app
+
     return create_app()
 
 
