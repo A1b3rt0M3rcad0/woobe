@@ -20,7 +20,7 @@ class UsageEventRepository:
 class UsageDailyProjectRepository:
     async def save(self, daily: UsageDailyProject) -> UsageDailyProject: ...
     async def get_by_project_and_day(
-        self, project_id: UUID, day: str
+        self, project_id: UUID, day: Any
     ) -> UsageDailyProject | None: ...
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
@@ -33,7 +33,7 @@ class UsageDailyProjectRepository:
 class UsageDailyAgentRepository:
     async def save(self, daily: UsageDailyAgent) -> UsageDailyAgent: ...
     async def get_by_agent_and_day(
-        self, agent_id: UUID, day: str
+        self, agent_id: UUID, day: Any
     ) -> UsageDailyAgent | None: ...
     async def list_by_agent(
         self, agent_id: UUID, limit: int = 100, offset: int = 0
