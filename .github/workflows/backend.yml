@@ -79,6 +79,21 @@ jobs:
       - name: Ruff
         run: uv run ruff check src tests
 
+      - name: Full Pyright diagnostics
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pyright src migrations 2>&1 | tee pyright-full.log
+
+      - name: Upload full Pyright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyright-full-repository
+          path: pyright-full.log
+          if-no-files-found: error
+
       - name: Pyright changed production files
         shell: bash
         env:
