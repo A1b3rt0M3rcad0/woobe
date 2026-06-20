@@ -306,12 +306,12 @@ test('creates an agent, streams a session, reloads history and creates an API ke
   await expect(page).toHaveURL(/\/agents\/agent-a\/playground$/)
   await page.getByPlaceholder('Type your message...').fill('Run release gate')
   await page.getByPlaceholder('Type your message...').press('Enter')
-  await expect(page.getByText('ProjectRAI release gate passed')).toBeVisible()
+  await expect(page.getByText('ProjectRAI release gate passed').last()).toBeVisible()
 
   await page.reload()
   await page.getByRole('button', { name: 'Sessions' }).click()
   await page.getByRole('button', { name: /session-/ }).click()
-  await expect(page.getByText('ProjectRAI release gate passed')).toBeVisible()
+  await expect(page.getByText('ProjectRAI release gate passed').last()).toBeVisible()
 
   await page.goto('/organizations/org-a/projects/project-a/api-keys')
   await page.getByRole('button', { name: 'Create Key' }).first().click()
