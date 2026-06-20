@@ -22,6 +22,11 @@ from shared.infra.database.base import BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
 from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
 
+_COORDINATION_MODELS = (
+    _coordination_models.RequestWindowEventModel,
+    _coordination_models.ExecutionLeaseModel,
+)
+
 
 class ProjectModel(BaseModel):
     __tablename__ = "projects"
