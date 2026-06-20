@@ -2,34 +2,42 @@
 
 ## Decision
 
-**Status while the pull request is open: NO-GO.**
+**Status while the pull request is open: NO-GO pending human review.**
 
-This status is procedural, not a known product failure. Promotion is blocked until every mandatory workflow passes on the final commit and the pull request is reviewed. A green pull request may change the recommendation to **GO WITH RESTRICTIONS**; staging evidence and the final human approval remain required before the release-candidate tag.
+All mandatory automated workflows passed on head `24929af98f521b16c7241efd53682485ed2f6b70`. The remaining blocker is the release owner's review of the pull request and generated artifacts. After approval, the recommendation is **GO WITH RESTRICTIONS** because production traffic shape, external-provider variance and long-running staging behavior remain outside deterministic CI.
 
 ## Scope
 
 Branch: `test/mvp-08-e2e-release-hardening`  
 Base: `development-mvp`  
 Base commit: `5261bfef2615289fec8676e5ed7e139adb024929`  
+Validated head: `24929af98f521b16c7241efd53682485ed2f6b70`  
 Target: `development-mvp`
 
 Feature development is frozen in this stage. The diff is restricted to tests, release gates, deterministic fixtures and release documentation.
 
 ## Mandatory evidence matrix
 
-| Gate | Automated evidence | Initial state |
+| Gate | Automated evidence | Result |
 |---|---|---|
-| onboarding and workspace | Chromium registration, tenant selection and project dashboard | pending CI |
-| agent and playground | agent creation, SSE response, persisted session reload | pending CI |
-| API-key lifecycle | one-time secret presentation plus existing revoke/rotate backend matrix | pending CI |
-| cross-tenant negative matrix | PostgreSQL resource-family authorization tests and browser 404 | pending CI |
-| provider behavior | success, streaming, fallback, tool call, failure, latency and cancellation | pending CI |
-| migrations | empty upgrade, downgrade one revision, re-upgrade and drift check | pending CI |
-| backup/restore | custom-format backup, checksum and isolated-database restore probe | pending CI |
-| controlled load | sync and streaming p50/p95/p99, TTFT, throughput and error rate | pending CI |
-| production images | immutable builds, production Compose smoke, graceful stop and restart | pending CI |
-| OWASP baseline | headers, topology, secrets template, CORS and IDOR contracts | pending CI |
-| flakiness | Playwright retries fixed at zero; failures are not masked | pending CI |
+| onboarding and workspace | Chromium registration, tenant selection and project dashboard | passed |
+| agent and playground | agent creation, SSE response, persisted session reload | passed |
+| API-key lifecycle | one-time secret presentation plus existing revoke/rotate backend matrix | passed |
+| cross-tenant negative matrix | PostgreSQL resource-family authorization tests and browser 404 | passed |
+| provider behavior | success, streaming, fallback, tool call, failure, latency and cancellation | passed |
+| migrations | empty upgrade, downgrade one revision, re-upgrade and drift check | passed |
+| backup/restore | custom-format backup, checksum and isolated-database restore probe | passed |
+| controlled load | sync and streaming p50/p95/p99, TTFT, throughput and error rate | passed |
+| production images | immutable builds, production Compose smoke, graceful stop and restart | passed |
+| OWASP baseline | headers, topology, secrets template, CORS and IDOR contracts | passed |
+| flakiness | Playwright retries fixed at zero; failures are not masked | passed |
+
+## Observed deterministic-load evidence
+
+- synchronous: 120 requests, concurrency 12, error rate 0%, p95 31.16 ms, p99 139.96 ms, throughput 606.89 requests/s;
+- streaming: 80 requests, concurrency 8, error rate 0%, latency p95 17.97 ms, TTFT p95 11.46 ms, throughput 516.11 requests/s;
+- release acceptance matrix: 30 tests, zero failures, zero errors and zero skipped tests;
+- backup checksum: verified after restore into an isolated PostgreSQL database.
 
 ## Thresholds
 
