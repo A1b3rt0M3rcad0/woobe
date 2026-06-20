@@ -36,14 +36,59 @@ jobs:
         run: |
           docker build --tag projectrai-api:ci .
           docker build --tag projectrai-web:ci web
-      - name: Require non-root image users
+      - name: Verify cached builds without build-network access
+        run: |
+          docker build --network=none --tag projectrai-api:ci-offline .
+          docker build --network=none --tag projectrai-web:ci-offline web
+      - name: Require non-root runtime users
         run: |
           for image in projectrai-api:ci projectrai-web:ci; do
-            user="$(docker image inspect "$image" --format '{{.Config.User}}')"
-            test -n "$user"
-            test "$user" != "0"
-            test "$user" != "root"
+            configured_user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+            test -n "$configured_user"
+            test "$configured_user" != "0"
+            test "$configured_user" != "root"
+            docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
           done
+      - name: Reject development server in frontend image
+        run: |
+          docker image inspect projectrai-web:ci --format '{{json .Config}}' > web-image-config.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path('web-image-config.json').read_text())
+          command = ' '.join(config.get('Entrypoint') or []) + ' ' + ' '.join(config.get('Cmd') or [])
+          normalized = command.lower()
+          assert 'vite' not in normalized, command
+          assert 'npm run dev' not in normalized, command
+          PY
+      - name: Record reproducibility and image-size evidence
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          images = ('projectrai-api:ci', 'projectrai-web:ci')
+          evidence = {}
+          for image in images:
+              raw = subprocess.check_output(
+                  ['docker', 'image', 'inspect', image, '--format', '{{json .}}'],
+                  text=True,
+              )
+              metadata = json.loads(raw)
+              evidence[image] = {
+                  'id': metadata['Id'],
+                  'repo_digests': metadata.get('RepoDigests') or [],
+                  'size_bytes': metadata['Size'],
+                  'configured_user': metadata['Config'].get('User'),
+                  'entrypoint': metadata['Config'].get('Entrypoint'),
+                  'cmd': metadata['Config'].get('Cmd'),
+              }
+          Path('production-image-evidence.json').write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + '\n'
+          )
+          PY
       - name: Generate backend SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
@@ -81,6 +126,8 @@ jobs:
           name: production-container-evidence
           path: |
             compose-prod.json
+            web-image-config.json
+            production-image-evidence.json
             trivy-api.json
             trivy-web.json
           if-no-files-found: warn
