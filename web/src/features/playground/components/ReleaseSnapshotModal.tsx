@@ -23,8 +23,15 @@ function formatJson(value: unknown) {
   }
 }
 
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return formatJson(value)
+}
+
 function row(label: string, value: unknown) {
-  return <div className="grid grid-cols-[96px_1fr] gap-3 text-xs"><span className="text-muted">{label}</span><span className="min-w-0 break-words text-slate-200">{value || '—'}</span></div>
+  return <div className="grid grid-cols-[96px_1fr] gap-3 text-xs"><span className="text-muted">{label}</span><span className="min-w-0 break-words text-slate-200">{formatValue(value)}</span></div>
 }
 
 export function ReleaseSnapshotModal({ open, title, description, release, confirmLabel, isConfirming, onConfirm, onClose }: ReleaseSnapshotModalProps) {
