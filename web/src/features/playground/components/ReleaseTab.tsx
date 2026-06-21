@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { getRelease } from '@/features/agents/api'
 import { useCreateRelease, useDeleteRelease, usePromoteRelease, useReleases, useRollbackRelease } from '@/features/agents/hooks'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -63,6 +64,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const [deleteTarget, setDeleteTarget] = useState<AgentRelease | null>(null)
   const [viewStagingOpen, setViewStagingOpen] = useState(false)
   const [createReleaseOpen, setCreateReleaseOpen] = useState(false)
+  const [stagingSnapshot, setStagingSnapshot] = useState<AgentRelease | null>(null)
+  const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
 
   const draft = useMemo(() => releases?.find((item) => item.status === 'draft'), [releases])
   const staging = useMemo(() => releases?.find((item) => item.status === 'staging'), [releases])
@@ -84,19 +87,37 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   async function promoteDraftToStaging() {
     try {
       const source = draft ?? await saveDraftFromEditor()
-      await promoteRelease.mutateAsync({ releaseId: source.id, targetStatus: 'staging', copySnapshot: true, changeKind: 'change' })
+      const saved = await promoteRelease.mutateAsync({ releaseId: source.id, targetStatus: 'staging', copySnapshot: true, changeKind: 'change' })
+      setStagingSnapshot(saved)
       toast.success('Draft promoted to staging')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to promote draft to staging')
     }
   }
 
-  function openCreateRelease() {
-    if (!staging) {
-      toast.error('No staging version available')
-      return
+  async function fetchStagingSnapshot() {
+    if (!staging) return null
+    setIsLoadingSnapshot(true)
+    try {
+      const details = await getRelease(agentId, staging.id)
+      setStagingSnapshot(details)
+      return details
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load staging snapshot')
+      return null
+    } finally {
+      setIsLoadingSnapshot(false)
     }
-    setCreateReleaseOpen(true)
+  }
+
+  async function openViewStaging() {
+    const details = await fetchStagingSnapshot()
+    if (details) setViewStagingOpen(true)
+  }
+
+  async function openCreateRelease() {
+    const details = await fetchStagingSnapshot()
+    if (details) setCreateReleaseOpen(true)
   }
 
   async function createReleaseFromStaging() {
@@ -159,15 +180,15 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     <section className="space-y-2">
       <h3 className="text-sm font-semibold text-white">Current staging</h3>
       <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.04] p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{staging ? `Staging ready: ${staging.version}` : 'No staging available'}</p>{staging && <Badge variant="warning">Staging</Badge>}</div>
-        <Button size="sm" variant="outline" className="w-full" onClick={() => setViewStagingOpen(true)} disabled={!staging}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
+        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{staging ? 'Staging ready' : 'No staging available'}</p>{staging && <Badge variant="warning">Staging</Badge>}</div>
+        <Button size="sm" variant="outline" className="w-full" onClick={openViewStaging} disabled={!staging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
       </div>
     </section>
 
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div><h3 className="text-sm font-semibold text-white">Releases</h3><p className="text-xs text-muted">Only published releases are listed here. New Release opens a staging review first.</p></div>
-        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!staging} loading={promoteRelease.isPending}>
+        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!staging} loading={promoteRelease.isPending || isLoadingSnapshot}>
           <Rocket className="mr-1.5 h-4 w-4" />New Release
         </Button>
       </div>
@@ -196,8 +217,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <p className="text-[11px] text-muted">Releases are created from the current staging version.</p>
     </section>
 
-    <ReleaseSnapshotModal open={viewStagingOpen} title="Current Staging" description="This is the single staging snapshot used by API/runtime when execution_context=staging." release={staging ?? null} onClose={() => setViewStagingOpen(false)} />
-    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} />
+    <ReleaseSnapshotModal open={viewStagingOpen} title="Current Staging" description="This is the single staging snapshot used by API/runtime when execution_context=staging." release={stagingSnapshot ?? staging ?? null} onClose={() => setViewStagingOpen(false)} />
+    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={stagingSnapshot ?? staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} />
     <ConfirmDeleteModal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} versionName={deleteTarget?.version ?? ''} isPending={deleteRelease.isPending} />
   </div>
 }
