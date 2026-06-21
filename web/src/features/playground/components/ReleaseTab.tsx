@@ -67,7 +67,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const [stagingSnapshot, setStagingSnapshot] = useState<AgentRelease | null>(null)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
 
-  const draft = useMemo(() => releases?.find((item) => item.status === 'draft'), [releases])
   const staging = useMemo(() => releases?.find((item) => item.status === 'staging'), [releases])
   const releaseHistory = useMemo(() => {
     return [...(releases ?? [])]
@@ -86,20 +85,21 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   async function promoteDraftToStaging() {
     try {
-      const source = draft ?? await saveDraftFromEditor()
-      const saved = await promoteRelease.mutateAsync({ releaseId: source.id, targetStatus: 'staging', copySnapshot: true, changeKind: 'change' })
+      const currentDraft = await saveDraftFromEditor()
+      const saved = await promoteRelease.mutateAsync({ releaseId: currentDraft.id, targetStatus: 'staging', copySnapshot: true, changeKind: 'change' })
       setStagingSnapshot(saved)
-      toast.success('Draft promoted to staging')
+      toast.success('Current draft promoted to staging')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to promote draft to staging')
     }
   }
 
   async function fetchStagingSnapshot() {
-    if (!staging) return null
+    const currentStaging = stagingSnapshot ?? staging
+    if (!currentStaging) return null
     setIsLoadingSnapshot(true)
     try {
-      const details = await getRelease(agentId, staging.id)
+      const details = await getRelease(agentId, currentStaging.id)
       setStagingSnapshot(details)
       return details
     } catch (error) {
@@ -121,9 +121,10 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   }
 
   async function createReleaseFromStaging() {
-    if (!staging) return
+    const currentStaging = stagingSnapshot ?? staging
+    if (!currentStaging) return
     try {
-      await promoteRelease.mutateAsync({ releaseId: staging.id, targetStatus: 'production', copySnapshot: true, changeKind: 'change' })
+      await promoteRelease.mutateAsync({ releaseId: currentStaging.id, targetStatus: 'production', copySnapshot: true, changeKind: 'change' })
       setCreateReleaseOpen(false)
       toast.success('Release created from current staging')
     } catch (error) {
@@ -166,10 +167,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     return <div className="p-4 space-y-4"><Skeleton className="h-5 w-48" /><Skeleton className="h-32 w-full" /></div>
   }
 
+  const hasStaging = Boolean(stagingSnapshot ?? staging)
+
   return <div className="p-4 space-y-5">
     <section className="space-y-2">
       <h3 className="text-sm font-semibold text-white">Quick actions</h3>
-      <p className="text-xs text-muted">Draft stays in the Editor. Promote the current draft to the single staging slot.</p>
+      <p className="text-xs text-muted">Draft stays in the Editor. Promote the current editor snapshot to the single staging slot.</p>
       <div className="rounded-xl border border-border bg-surface p-3">
         <Button size="sm" className="w-full" onClick={promoteDraftToStaging} loading={createRelease.isPending || promoteRelease.isPending}>
           <Upload className="mr-1.5 h-4 w-4" />Promote current Draft to Staging
@@ -180,15 +183,15 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     <section className="space-y-2">
       <h3 className="text-sm font-semibold text-white">Current staging</h3>
       <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.04] p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{staging ? 'Staging ready' : 'No staging available'}</p>{staging && <Badge variant="warning">Staging</Badge>}</div>
-        <Button size="sm" variant="outline" className="w-full" onClick={openViewStaging} disabled={!staging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
+        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{hasStaging ? 'Staging ready' : 'No staging available'}</p>{hasStaging && <Badge variant="warning">Staging</Badge>}</div>
+        <Button size="sm" variant="outline" className="w-full" onClick={openViewStaging} disabled={!hasStaging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
       </div>
     </section>
 
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div><h3 className="text-sm font-semibold text-white">Releases</h3><p className="text-xs text-muted">Only published releases are listed here. New Release opens a staging review first.</p></div>
-        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!staging} loading={promoteRelease.isPending || isLoadingSnapshot}>
+        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!hasStaging} loading={promoteRelease.isPending || isLoadingSnapshot}>
           <Rocket className="mr-1.5 h-4 w-4" />New Release
         </Button>
       </div>
