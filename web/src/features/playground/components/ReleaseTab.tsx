@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from 'sonner'
-import { Archive, CheckCircle2, Circle, FileText, Rocket, Save, Undo2, Upload } from 'lucide-react'
+import { Archive, CheckCircle2, Circle, Eye, FileText, Rocket, Save, Undo2, Upload } from 'lucide-react'
 import { useAgentEditor } from '../AgentEditorContext'
 import { ConfirmDeleteModal } from './ConfirmDeleteModal'
+import { ReleaseSnapshotModal } from './ReleaseSnapshotModal'
 import type { AgentRelease, ReleaseStatus } from '@/features/agents/types'
 
 const statusVariant: Record<ReleaseStatus, 'success' | 'warning' | 'secondary' | 'default' | 'destructive'> = {
@@ -60,6 +61,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const deleteRelease = useDeleteRelease(agentId)
   const { state, setState, toSnapshot, setLoadedRelease } = useAgentEditor()
   const [deleteTarget, setDeleteTarget] = useState<AgentRelease | null>(null)
+  const [viewStagingOpen, setViewStagingOpen] = useState(false)
+  const [createReleaseOpen, setCreateReleaseOpen] = useState(false)
 
   const draft = useMemo(() => releases?.find((item) => item.status === 'draft'), [releases])
   const staging = useMemo(() => releases?.find((item) => item.status === 'staging'), [releases])
@@ -88,13 +91,19 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     }
   }
 
-  async function createReleaseFromStaging() {
+  function openCreateRelease() {
     if (!staging) {
       toast.error('No staging version available')
       return
     }
+    setCreateReleaseOpen(true)
+  }
+
+  async function createReleaseFromStaging() {
+    if (!staging) return
     try {
       await promoteRelease.mutateAsync({ releaseId: staging.id, targetStatus: 'production', copySnapshot: true, changeKind: 'change' })
+      setCreateReleaseOpen(false)
       toast.success('Release created from current staging')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create release')
@@ -147,10 +156,18 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       </div>
     </section>
 
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold text-white">Current staging</h3>
+      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.04] p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{staging ? `Staging ready: ${staging.version}` : 'No staging available'}</p>{staging && <Badge variant="warning">Staging</Badge>}</div>
+        <Button size="sm" variant="outline" className="w-full" onClick={() => setViewStagingOpen(true)} disabled={!staging}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
+      </div>
+    </section>
+
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div><h3 className="text-sm font-semibold text-white">Releases</h3><p className="text-xs text-muted">Only published releases are listed here. New Release uses current staging.</p></div>
-        <Button size="sm" variant="outline" onClick={createReleaseFromStaging} disabled={!staging} loading={promoteRelease.isPending}>
+        <div><h3 className="text-sm font-semibold text-white">Releases</h3><p className="text-xs text-muted">Only published releases are listed here. New Release opens a staging review first.</p></div>
+        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!staging} loading={promoteRelease.isPending}>
           <Rocket className="mr-1.5 h-4 w-4" />New Release
         </Button>
       </div>
@@ -179,6 +196,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <p className="text-[11px] text-muted">Releases are created from the current staging version.</p>
     </section>
 
+    <ReleaseSnapshotModal open={viewStagingOpen} title="Current Staging" description="This is the single staging snapshot used by API/runtime when execution_context=staging." release={staging ?? null} onClose={() => setViewStagingOpen(false)} />
+    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} />
     <ConfirmDeleteModal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} versionName={deleteTarget?.version ?? ''} isPending={deleteRelease.isPending} />
   </div>
 }
