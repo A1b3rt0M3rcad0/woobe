@@ -53,7 +53,6 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
           {row('Name', release.name)}
           {row('Model', `${release.provider ?? '—'}/${release.model ?? '—'}`)}
           {row('Status', release.agent_status)}
-          {row('Session', release.session_mode)}
           {row('Temp', release.temperature)}
           {row('Max tokens', release.max_output_tokens)}
         </section>
