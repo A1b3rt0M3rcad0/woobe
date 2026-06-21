@@ -63,10 +63,7 @@ class AutoCreateReleaseUseCase:
 
     async def _next_version(self, agent_id: UUID, change_kind: str) -> str:
         releases = await self._release_repo.list_by_agent(agent_id)
-        return calculate_next_release_version(
-            [release.version for release in releases],
-            change_kind,
-        )
+        return calculate_next_release_version([item.version for item in releases], change_kind)
 
     async def _archive_current(self, agent_id: UUID, status: ReleaseStatus) -> None:
         for release in await self._release_repo.list_by_status(agent_id, status):
@@ -82,38 +79,28 @@ class ReleaseLifecycleUseCase:
         self,
         agent_id: UUID,
         release_id: UUID,
+        input_dto=None,
         *,
         target_status: str = "production",
         user_id: UUID | None = None,
         copy_snapshot: bool = False,
         change_kind: str = "change",
     ):
+        if input_dto is not None and user_id is None:
+            user_id = getattr(input_dto, "user_id", None)
         release = await self._release_repo.get_by_id(release_id)
         if not release or release.agent_id != agent_id:
             raise ReleaseNotFoundError
-
         target = ReleaseStatus(target_status)
         if target not in _SINGLETON_STATUSES:
-            raise ValueError("target_status must be draft, staging or production")
-
+            raise ValueError("invalid release lifecycle target")
         if copy_snapshot:
-            saved = await self._copy_to_status(
-                release,
-                target,
-                user_id=user_id,
-                change_kind=change_kind,
-            )
+            saved = await self._copy_to_status(release, target, user_id=user_id, change_kind=change_kind)
         else:
             saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
-    async def _move_to_status(
-        self,
-        release: AgentRelease,
-        target: ReleaseStatus,
-        *,
-        user_id: UUID | None,
-    ) -> AgentRelease:
+    async def _move_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
         await self._archive_current(release.agent_id, target, exclude_id=release.id)
         release.status = target
         if target in (ReleaseStatus.staging, ReleaseStatus.production):
@@ -121,14 +108,7 @@ class ReleaseLifecycleUseCase:
             release.promoted_at = datetime.now(timezone.utc)
         return await self._release_repo.save(release)
 
-    async def _copy_to_status(
-        self,
-        release: AgentRelease,
-        target: ReleaseStatus,
-        *,
-        user_id: UUID | None,
-        change_kind: str,
-    ) -> AgentRelease:
+    async def _copy_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None, change_kind: str) -> AgentRelease:
         await self._archive_current(release.agent_id, target)
         version = await self._next_version(release.agent_id, change_kind)
         cloned = replace(
@@ -137,23 +117,13 @@ class ReleaseLifecycleUseCase:
             version=version,
             status=target,
             promoted_by=user_id if target in (ReleaseStatus.staging, ReleaseStatus.production) else None,
-            promoted_at=(
-                datetime.now(timezone.utc)
-                if target in (ReleaseStatus.staging, ReleaseStatus.production)
-                else None
-            ),
+            promoted_at=datetime.now(timezone.utc) if target in (ReleaseStatus.staging, ReleaseStatus.production) else None,
             created_at=None,
             updated_at=None,
         )
         return await self._release_repo.save(cloned)
 
-    async def _archive_current(
-        self,
-        agent_id: UUID,
-        status: ReleaseStatus,
-        *,
-        exclude_id: UUID | None = None,
-    ) -> None:
+    async def _archive_current(self, agent_id: UUID, status: ReleaseStatus, *, exclude_id: UUID | None = None) -> None:
         for release in await self._release_repo.list_by_status(agent_id, status):
             if exclude_id is not None and release.id == exclude_id:
                 continue
@@ -162,7 +132,4 @@ class ReleaseLifecycleUseCase:
 
     async def _next_version(self, agent_id: UUID, change_kind: str) -> str:
         releases = await self._release_repo.list_by_agent(agent_id)
-        return calculate_next_release_version(
-            [release.version for release in releases],
-            change_kind,
-        )
+        return calculate_next_release_version([item.version for item in releases], change_kind)
