@@ -5,7 +5,6 @@ from modules.agent.application.use_cases.ai_use_cases import (
     CreatePromptUseCase,
     CreateProviderCredentialUseCase,
     CreateReleaseTestUseCase,
-    CreateReleaseUseCase,
     DeleteReleaseUseCase,
     GetAgentByIdUseCase,
     GetContractUseCase,
@@ -20,11 +19,14 @@ from modules.agent.application.use_cases.ai_use_cases import (
     ListProviderCredentialsUseCase,
     ListReleaseTestsUseCase,
     ListReleasesUseCase,
-    PromoteReleaseUseCase,
     RollbackReleaseUseCase,
     UpdateAgentUseCase,
     UpdateContractUseCase,
     UpdateProviderCredentialUseCase,
+)
+from modules.agent.application.use_cases.release_lifecycle_use_cases import (
+    AutoCreateReleaseUseCase as CreateReleaseUseCase,
+    ReleaseLifecycleUseCase as PromoteReleaseUseCase,
 )
 from modules.agent.application.use_cases.ask_agent_stream_service import (
     AskAgentStreamService,
