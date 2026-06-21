@@ -11,9 +11,9 @@ class CreateReleaseController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        input_dto = CreateReleaseInput(**request.body)
+        body = dict(request.body or {})
+        if not body.get("version"):
+            body["version"] = "auto"
+        input_dto = CreateReleaseInput(**body)
         result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=201,
-            body={"success": True, "data": release_to_response(result).model_dump()},
-        )
+        return Response(status_code=201, body={"success": True, "data": release_to_response(result).model_dump()})
