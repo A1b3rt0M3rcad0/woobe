@@ -19,56 +19,71 @@ _SINGLETON_STATUSES = {
     ReleaseStatus.production,
 }
 
+_SNAPSHOT_FIELDS = (
+    "project_id",
+    "agent_id",
+    "prompt_version_id",
+    "contract_version_id",
+    "knowledge_version_id",
+    "model_config_version_id",
+    "name",
+    "description",
+    "system_prompt",
+    "response_format",
+    "output_schema",
+    "provider",
+    "model",
+    "provider_credential_id",
+    "fallback_provider",
+    "fallback_model",
+    "fallback_credential_id",
+    "base_url",
+    "temperature",
+    "max_output_tokens",
+    "session_mode",
+    "agent_status",
+    "collection_ids",
+    "runtime_config",
+    "release_notes",
+    "risk_score",
+    "created_by",
+)
+
 
 class AutoCreateReleaseUseCase:
     def __init__(self, release_repo: AgentReleaseRepository) -> None:
         self._release_repo = release_repo
 
     async def execute(self, input_dto: CreateReleaseInput, change_kind: str = "change"):
-        version = await self._next_version(input_dto.agent_id, change_kind)
-        await self._archive_current(input_dto.agent_id, ReleaseStatus.draft)
-        release = AgentRelease(
-            project_id=input_dto.project_id,
-            agent_id=input_dto.agent_id,
-            version=version,
-            status=ReleaseStatus.draft,
-            prompt_version_id=input_dto.prompt_version_id,
-            contract_version_id=input_dto.contract_version_id,
-            knowledge_version_id=input_dto.knowledge_version_id,
-            model_config_version_id=input_dto.model_config_version_id,
-            name=input_dto.name,
-            description=input_dto.description,
-            system_prompt=input_dto.system_prompt,
-            response_format=input_dto.response_format,
-            output_schema=input_dto.output_schema,
-            provider=input_dto.provider,
-            model=input_dto.model,
-            provider_credential_id=input_dto.provider_credential_id,
-            fallback_provider=input_dto.fallback_provider,
-            fallback_model=input_dto.fallback_model,
-            fallback_credential_id=input_dto.fallback_credential_id,
-            base_url=input_dto.base_url,
-            temperature=input_dto.temperature,
-            max_output_tokens=input_dto.max_output_tokens,
-            session_mode=input_dto.session_mode,
-            agent_status=input_dto.agent_status,
-            collection_ids=input_dto.collection_ids,
-            runtime_config=input_dto.runtime_config,
-            release_notes=input_dto.release_notes,
-            risk_score=input_dto.risk_score,
-            created_by=input_dto.created_by,
-        )
-        saved = await self._release_repo.save(release)
+        draft = await self._get_singleton(input_dto.agent_id, ReleaseStatus.draft)
+        if draft is None:
+            draft = AgentRelease(
+                project_id=input_dto.project_id,
+                agent_id=input_dto.agent_id,
+                version="draft",
+                status=ReleaseStatus.draft,
+            )
+        self._copy_input_to_release(input_dto, draft)
+        draft.version = "draft"
+        draft.status = ReleaseStatus.draft
+        saved = await self._release_repo.save(draft)
         return _release_to_output(saved)
 
-    async def _next_version(self, agent_id: UUID, change_kind: str) -> str:
-        releases = await self._release_repo.list_by_agent(agent_id)
-        return calculate_next_release_version([item.version for item in releases], change_kind)
+    async def _get_singleton(self, agent_id: UUID, status: ReleaseStatus) -> AgentRelease | None:
+        items = await self._release_repo.list_by_status(agent_id, status)
+        if not items:
+            return None
+        primary = sorted(items, key=lambda item: item.updated_at or item.created_at or datetime.min, reverse=True)[0]
+        for stale in items:
+            if stale.id != primary.id:
+                stale.status = ReleaseStatus.archived
+                stale.release_notes = (stale.release_notes or "") + "\nArchived duplicate singleton draft."
+                await self._release_repo.save(stale)
+        return primary
 
-    async def _archive_current(self, agent_id: UUID, status: ReleaseStatus) -> None:
-        for release in await self._release_repo.list_by_status(agent_id, status):
-            release.status = ReleaseStatus.archived
-            await self._release_repo.save(release)
+    def _copy_input_to_release(self, input_dto: CreateReleaseInput, release: AgentRelease) -> None:
+        for field_name in _SNAPSHOT_FIELDS:
+            setattr(release, field_name, getattr(input_dto, field_name))
 
 
 class ReleaseLifecycleUseCase:
@@ -94,30 +109,56 @@ class ReleaseLifecycleUseCase:
         target = ReleaseStatus(target_status)
         if target not in _SINGLETON_STATUSES:
             raise ValueError("invalid release lifecycle target")
-        if copy_snapshot:
-            saved = await self._copy_to_status(release, target, user_id=user_id, change_kind=change_kind)
+
+        if target in (ReleaseStatus.draft, ReleaseStatus.staging):
+            saved = await self._upsert_singleton_snapshot(release, target, user_id=user_id)
+        elif copy_snapshot:
+            saved = await self._copy_to_production_release(release, user_id=user_id, change_kind=change_kind)
         else:
             saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
+    async def _upsert_singleton_snapshot(
+        self,
+        source: AgentRelease,
+        target: ReleaseStatus,
+        *,
+        user_id: UUID | None,
+    ) -> AgentRelease:
+        current = await self._get_singleton(source.agent_id, target)
+        if current is None:
+            current = AgentRelease(
+                project_id=source.project_id,
+                agent_id=source.agent_id,
+                version=target.value,
+                status=target,
+            )
+        self._copy_snapshot(source, current)
+        current.version = target.value
+        current.status = target
+        if target == ReleaseStatus.staging:
+            current.promoted_by = user_id
+            current.promoted_at = datetime.now(timezone.utc)
+        return await self._release_repo.save(current)
+
     async def _move_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
         await self._archive_current(release.agent_id, target, exclude_id=release.id)
         release.status = target
-        if target in (ReleaseStatus.staging, ReleaseStatus.production):
+        if target == ReleaseStatus.production:
             release.promoted_by = user_id
             release.promoted_at = datetime.now(timezone.utc)
         return await self._release_repo.save(release)
 
-    async def _copy_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None, change_kind: str) -> AgentRelease:
-        await self._archive_current(release.agent_id, target)
+    async def _copy_to_production_release(self, release: AgentRelease, *, user_id: UUID | None, change_kind: str) -> AgentRelease:
+        await self._archive_current(release.agent_id, ReleaseStatus.production)
         version = await self._next_version(release.agent_id, change_kind)
         cloned = replace(
             release,
             id=AgentRelease().id,
             version=version,
-            status=target,
-            promoted_by=user_id if target in (ReleaseStatus.staging, ReleaseStatus.production) else None,
-            promoted_at=datetime.now(timezone.utc) if target in (ReleaseStatus.staging, ReleaseStatus.production) else None,
+            status=ReleaseStatus.production,
+            promoted_by=user_id,
+            promoted_at=datetime.now(timezone.utc),
             created_at=None,
             updated_at=None,
         )
@@ -130,6 +171,23 @@ class ReleaseLifecycleUseCase:
             release.status = ReleaseStatus.archived
             await self._release_repo.save(release)
 
+    async def _get_singleton(self, agent_id: UUID, status: ReleaseStatus) -> AgentRelease | None:
+        items = await self._release_repo.list_by_status(agent_id, status)
+        if not items:
+            return None
+        primary = sorted(items, key=lambda item: item.updated_at or item.created_at or datetime.min, reverse=True)[0]
+        for stale in items:
+            if stale.id != primary.id:
+                stale.status = ReleaseStatus.archived
+                stale.release_notes = (stale.release_notes or "") + f"\nArchived duplicate singleton {status.value}."
+                await self._release_repo.save(stale)
+        return primary
+
     async def _next_version(self, agent_id: UUID, change_kind: str) -> str:
         releases = await self._release_repo.list_by_agent(agent_id)
-        return calculate_next_release_version([item.version for item in releases], change_kind)
+        historical_versions = [item.version for item in releases if item.status not in (ReleaseStatus.draft, ReleaseStatus.staging)]
+        return calculate_next_release_version(historical_versions, change_kind)
+
+    def _copy_snapshot(self, source: AgentRelease, target: AgentRelease) -> None:
+        for field_name in _SNAPSHOT_FIELDS:
+            setattr(target, field_name, getattr(source, field_name))
