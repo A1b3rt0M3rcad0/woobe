@@ -1,5 +1,5 @@
-from modules.agent.application.use_cases.ai_use_cases import CreateReleaseUseCase
 from modules.agent.application.dtos import CreateReleaseInput
+from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -7,7 +7,7 @@ from shared.presentation.http.response import Response
 
 
 class CreateReleaseController(Controller):
-    def __init__(self, use_case: CreateReleaseUseCase) -> None:
+    def __init__(self, use_case: AutoCreateReleaseUseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
