@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase as CreateReleaseUseCase
-from modules.agent.application.use_cases.release_lifecycle_use_cases import ReleaseLifecycleUseCase as PromoteReleaseUseCase
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase as PromoteReleaseUseCase
 from modules.agent.application.use_cases.release_lifecycle_use_cases import _release_to_output
 from modules.agent.application.dtos.ai_dtos import CreateReleaseTestOutput, ListReleaseTestsOutput, ListReleasesOutput
 from modules.agent.domain.entities import AgentReleaseTest
