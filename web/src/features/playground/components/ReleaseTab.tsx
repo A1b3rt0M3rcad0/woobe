@@ -66,7 +66,11 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const releaseHistory = useMemo(() => {
     return [...(releases ?? [])]
       .filter((item) => item.status !== 'draft' && item.status !== 'staging')
-      .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+      .sort((a, b) => {
+        if (a.status === 'production' && b.status !== 'production') return -1
+        if (b.status === 'production' && a.status !== 'production') return 1
+        return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+      })
   }, [releases])
 
   async function saveDraftFromEditor() {
@@ -153,7 +157,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
       {releaseHistory.length === 0 ? <div className="rounded-xl border border-border bg-surface p-6 text-center text-sm text-muted">No releases yet.</div> : releaseHistory.map((release) => {
         const isProduction = release.status === 'production'
-        return <article key={release.id} className="rounded-xl border border-border bg-surface p-4 space-y-3">
+        return <article key={release.id} className={`rounded-xl border p-4 space-y-3 ${isProduction ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-border bg-surface'}`}>
+          {isProduction && <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">In use today</p>}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2"><h4 className="truncate font-semibold text-white">{release.version}</h4><Badge variant={statusVariant[release.status]} className="capitalize">{release.status.replace('_', ' ')}</Badge></div>
