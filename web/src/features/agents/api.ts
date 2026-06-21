@@ -21,8 +21,13 @@ export async function getReleases(agentId: string): Promise<AgentRelease[]> { re
 export async function getRelease(agentId: string, releaseId: string): Promise<AgentRelease> { return get<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}`) }
 export async function createRelease(agentId: string, data: CreateReleaseRequest & { change_kind?: string }): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases`, data) }
 export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'production'; copySnapshot?: boolean; changeKind?: 'compatibility' | 'feature' | 'change' }
-export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions = {}): Promise<AgentRelease> {
-  return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, { user_id: options.userId, target_status: options.targetStatus ?? 'production', copy_snapshot: options.copySnapshot ?? false, change_kind: options.changeKind ?? 'change' })
+export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
+  const isLegacy = typeof options === 'string'
+  const userId = isLegacy ? options : options.userId
+  const targetStatus = isLegacy ? 'production' : options.targetStatus ?? 'production'
+  const copySnapshot = isLegacy ? false : options.copySnapshot ?? false
+  const changeKind = isLegacy ? 'change' : options.changeKind ?? 'change'
+  return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, { user_id: userId, target_status: targetStatus, copy_snapshot: copySnapshot, change_kind: changeKind })
 }
 export async function rollbackRelease(agentId: string, releaseId: string, userId?: string): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/rollback`, { user_id: userId }) }
 export async function getReleaseTests(agentId: string, releaseId: string): Promise<AgentReleaseTest[]> { return get<AgentReleaseTest[]>(`/ai/agents/${agentId}/releases/${releaseId}/tests`) }
