@@ -89,7 +89,7 @@ export function useReleases(agentId: string | undefined) {
 }
 export function useCreateRelease(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: (data: CreateReleaseRequest & { change_kind?: string }) => createRelease(agentId!, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }) } })
+  return useMutation({ mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }) } })
 }
 export function usePromoteRelease(agentId?: string) {
   const queryClient = useQueryClient()
