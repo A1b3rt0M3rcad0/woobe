@@ -125,7 +125,7 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
             </div>
             <Button className="mt-3 w-full" size="sm" disabled={!currentOrganization || !currentProject} onClick={() => currentOrganization && currentProject && navigate(`/organizations/${currentOrganization.id}/projects/${currentProject.id}`)}>
               <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
-              Open workspace
+              {currentProject ? 'Open workspace' : 'Select a project'}
             </Button>
           </section>
 
