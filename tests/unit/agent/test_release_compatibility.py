@@ -47,6 +47,12 @@ def test_output_field_type_change_is_compatibility_break():
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
 
 
+def test_response_format_schema_type_change_is_compatibility_break():
+    previous = release(response_format={"type": "json", "schema": object_schema({"score": {"type": "number"}})})
+    candidate = release(response_format={"type": "json", "schema": object_schema({"score": {"type": "string"}})})
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
 def test_added_optional_output_field_is_feature():
     previous = release(output_schema=object_schema({"name": {"type": "string"}}))
     candidate = release(output_schema=object_schema({
