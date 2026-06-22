@@ -1,11 +1,13 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { WorkspaceSelectionSidebar } from '@/components/layout/WorkspaceSelectionSidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
 export function DashboardLayout() {
   const { pathname } = useLocation()
-  const hideSidebar = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname) || pathname.includes('/playground')
+  const isWorkspaceSelection = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname)
+  const hideSidebar = pathname.includes('/playground')
   const isProjectOverview = /^\/organizations\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
   const mainClassName = isProjectOverview
     ? 'project-overview-main min-w-0 flex-1 overflow-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
@@ -15,11 +17,12 @@ export function DashboardLayout() {
     <div className="flex h-screen min-w-0 bg-background">
       {!hideSidebar && (
         <div className="hidden shrink-0 lg:flex">
-          <Sidebar />
+          {isWorkspaceSelection ? <WorkspaceSelectionSidebar /> : <Sidebar />}
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!isProjectOverview && <Topbar />}
+        {isWorkspaceSelection && <WorkspaceSelectionSidebar compact />}
         <main className={mainClassName}>
           <ErrorBoundary>
             <Outlet />
