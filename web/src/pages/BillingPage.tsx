@@ -1,13 +1,15 @@
 import { usePlans, useOrganizationSubscription } from '@/features/billing/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { PageHeader } from '@/components/common/PageHeader'
+import { GuidedEmptyState } from '@/components/common/GuidedEmptyState'
+import { ResourceSummaryCard } from '@/components/common/ResourceSummaryCard'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate } from '@/lib/formatters/date'
-import { Check, CreditCard } from 'lucide-react'
+import { Check, CreditCard, ShieldCheck, WalletCards } from 'lucide-react'
 import type { Plan } from '@/features/billing/types'
 
 export default function BillingPage() {
@@ -18,12 +20,21 @@ export default function BillingPage() {
   if (plansLoading || subLoading) return <LoadingState />
   if (plansError) return <ErrorState onRetry={refetchPlans} />
 
-  return (
-    <div>
-      <PageHeader title="Billing" description="Manage your subscription and plan" />
+  const planItems = plans ?? []
+  const currentPlan = planItems.find((plan) => plan.id === subscription?.plan_id)
 
-      {subscription && (
-        <Card className="mb-8">
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Billing" description="Manage subscription status, available plans and organization billing limits." />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <ResourceSummaryCard label="Organization" value={currentOrganization?.name || 'None'} detail="Billing context" icon={<WalletCards className="h-5 w-5" />} />
+        <ResourceSummaryCard label="Current plan" value={currentPlan?.name || 'Pending'} detail={subscription?.status || 'Billing not connected'} icon={<CreditCard className="h-5 w-5" />} />
+        <ResourceSummaryCard label="Status" value={subscription?.status || 'Pending'} detail="Subscription state" icon={<ShieldCheck className="h-5 w-5" />} />
+      </div>
+
+      {subscription ? (
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Current Plan
@@ -38,25 +49,18 @@ export default function BillingPage() {
             </CardDescription>
           </CardHeader>
         </Card>
+      ) : (
+        <GuidedEmptyState
+          icon={<CreditCard className="h-6 w-6" />}
+          title="Billing integration pending"
+          description="Subscription management will appear here once billing is connected for this organization."
+          next={["Review available plans", "Connect billing", "Monitor limits"]}
+        />
       )}
 
-      {!subscription && (
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <CreditCard className="h-6 w-6 text-muted" />
-              <div>
-                <p className="font-medium text-white">Billing integration pending</p>
-                <p className="text-sm text-muted">Subscription management will be available once billing is fully connected.</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {plans && plans.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
-          {plans.map((plan: Plan) => (
+      {planItems.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          {planItems.map((plan: Plan) => (
             <Card key={plan.id} className={plan.code === 'starter' ? 'border-primary' : ''}>
               <CardHeader>
                 <CardTitle>{plan.name}</CardTitle>
@@ -83,14 +87,12 @@ export default function BillingPage() {
             </Card>
           ))}
         </div>
-      )}
-
-      {(!plans || plans.length === 0) && (
-        <Card>
-          <CardContent className="p-6 text-center text-muted">
-            No plans available. Contact support for pricing.
-          </CardContent>
-        </Card>
+      ) : (
+        <GuidedEmptyState
+          icon={<CreditCard className="h-6 w-6" />}
+          title="No plans available"
+          description="Plans are not configured yet. Contact support for pricing and account setup."
+        />
       )}
     </div>
   )
