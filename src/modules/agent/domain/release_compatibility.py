@@ -8,6 +8,51 @@ from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
+_SCHEMA_KEYS = {
+    "additionalProperties",
+    "allOf",
+    "anyOf",
+    "const",
+    "definitions",
+    "description",
+    "enum",
+    "format",
+    "items",
+    "maxItems",
+    "maxLength",
+    "maximum",
+    "minItems",
+    "minLength",
+    "minimum",
+    "oneOf",
+    "pattern",
+    "properties",
+    "required",
+    "schema",
+    "title",
+    "type",
+}
+
+_SIMPLE_TYPES = {
+    "str": "string",
+    "string": "string",
+    "text": "string",
+    "number": "number",
+    "float": "number",
+    "double": "number",
+    "int": "integer",
+    "integer": "integer",
+    "bool": "boolean",
+    "boolean": "boolean",
+    "object": "object",
+    "dict": "object",
+    "array": "array",
+    "list": "array",
+    "null": "null",
+    "none": "null",
+}
+
+
 def classify_release_change(previous: AgentRelease | None, candidate: AgentRelease) -> ReleaseChangeKind:
     if previous is None:
         return ReleaseChangeKind.CHANGE
@@ -75,11 +120,71 @@ def _normalize_schema(value: Any) -> dict[str, Any] | None:
     value = _parse_json_if_needed(value)
     if not isinstance(value, dict):
         return None
-    if isinstance(value.get("schema"), dict) and "properties" not in value:
+    if isinstance(value.get("schema"), dict) and "properties" not in value and _looks_like_schema_wrapper(value):
         value = value["schema"]
     if isinstance(value.get("json_schema"), dict) and isinstance(value["json_schema"].get("schema"), dict):
         value = value["json_schema"]["schema"]
-    return deepcopy(value)
+    if _looks_like_json_schema(value):
+        return _normalize_json_schema(value)
+    return _simple_contract_to_object_schema(value)
+
+
+def _looks_like_schema_wrapper(value: dict[str, Any]) -> bool:
+    return set(value.keys()).issubset({"schema", "json_schema", "name", "strict", "type", "description"})
+
+
+def _looks_like_json_schema(value: dict[str, Any]) -> bool:
+    keys = set(value.keys())
+    if not keys:
+        return False
+    if keys & {"properties", "definitions", "oneOf", "anyOf", "allOf", "enum", "const", "items", "required", "additionalProperties"}:
+        return True
+    return keys.issubset(_SCHEMA_KEYS) and "type" in keys
+
+
+def _normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    normalized = deepcopy(schema)
+    properties = normalized.get("properties")
+    if isinstance(properties, dict):
+        normalized["properties"] = {str(name): _contract_value_to_schema(child) for name, child in properties.items()}
+    if "items" in normalized:
+        normalized["items"] = _contract_value_to_schema(normalized["items"])
+    for keyword in ("oneOf", "anyOf", "allOf"):
+        options = normalized.get(keyword)
+        if isinstance(options, list):
+            normalized[keyword] = [_contract_value_to_schema(option) for option in options]
+    return normalized
+
+
+def _simple_contract_to_object_schema(contract: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {str(name): _contract_value_to_schema(child) for name, child in contract.items()},
+        "required": [str(name) for name in contract.keys()],
+    }
+
+
+def _contract_value_to_schema(value: Any) -> dict[str, Any]:
+    value = _parse_json_if_needed(value)
+    if isinstance(value, str):
+        return {"type": _SIMPLE_TYPES.get(value.strip().lower(), "string")}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, list):
+        if len(value) == 1:
+            return {"type": "array", "items": _contract_value_to_schema(value[0])}
+        return {"type": "array"}
+    if isinstance(value, dict):
+        if _looks_like_json_schema(value):
+            return _normalize_json_schema(value)
+        return _simple_contract_to_object_schema(value)
+    return {}
 
 
 def _schema_breaks_compatibility(previous: dict[str, Any] | None, candidate: dict[str, Any] | None) -> bool:
