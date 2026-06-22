@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { getRelease } from '@/features/agents/api'
 import { useCreateRelease, useDeleteRelease, usePromoteRelease, useReleases, useRollbackRelease } from '@/features/agents/hooks'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Archive, CheckCircle2, Circle, Eye, FileText, Rocket, Save, Undo2, Upload } from 'lucide-react'
-import { useAgentEditor } from '../AgentEditorContext'
+import { CalendarDays, ChevronRight, Eye, FileText, Info, MoreHorizontal, Package, Rocket, Save, Trash2, Undo2, Upload } from 'lucide-react'
+import { useAgentEditor, type AgentEditorState } from '../AgentEditorContext'
 import { ConfirmDeleteModal } from './ConfirmDeleteModal'
 import { ReleaseSnapshotModal } from './ReleaseSnapshotModal'
 import type { AgentRelease, ReleaseStatus } from '@/features/agents/types'
@@ -19,12 +20,49 @@ const statusVariant: Record<ReleaseStatus, 'success' | 'warning' | 'secondary' |
   rolled_back: 'destructive',
 }
 
-function formatDate(value?: string) {
-  return value ? new Date(value).toLocaleString() : '—'
+const statusLabel: Record<ReleaseStatus, string> = {
+  production: 'Production',
+  staging: 'Staging',
+  draft: 'Draft',
+  archived: 'Archived',
+  rolled_back: 'Rolled back',
 }
 
-function releaseToEditorState(release: AgentRelease, current: any) {
-  const rf = release.response_format as any
+type SnapshotModalState = {
+  open: boolean
+  title: string
+  description?: string
+  release: AgentRelease | null
+}
+
+type MenuAction = {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+  destructive?: boolean
+  disabled?: boolean
+}
+
+function formatDate(value?: string) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date).replace(',', '')
+}
+
+function modelLabel(release: AgentRelease) {
+  return `${release.provider ?? '—'}/${release.model ?? '—'}`
+}
+
+function releaseToEditorState(release: AgentRelease, current: AgentEditorState): AgentEditorState {
+  const rf = release.response_format as Record<string, unknown> | undefined
   return {
     ...current,
     name: release.name ?? current.name,
@@ -48,10 +86,97 @@ function releaseToEditorState(release: AgentRelease, current: any) {
       type: rf?.type === 'json' ? 'json' : 'text',
       strict: Boolean(rf?.strict),
       schema: rf?.schema ?? release.output_schema ?? null,
-      repair_attempts: rf?.repair_attempts,
+      repair_attempts: rf?.repair_attempts as number | undefined,
     },
     outputSchema: release.output_schema ?? current.outputSchema,
   }
+}
+
+function ReleaseMetadata({ release, compact = false }: { release: AgentRelease; compact?: boolean }) {
+  return (
+    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-muted', compact ? 'text-[11px]' : 'text-xs')}>
+      <span className="inline-flex items-center gap-1.5">
+        <CalendarDays className="h-3.5 w-3.5" />
+        {formatDate(release.created_at)}
+      </span>
+      <span className="text-border">|</span>
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <Package className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{modelLabel(release)}</span>
+      </span>
+    </div>
+  )
+}
+
+function PipelineHint() {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-lg border border-border/80 bg-surface/40 px-3 py-2 text-xs font-medium shadow-sm">
+      <span className="text-muted">Draft</span>
+      <span className="text-muted">→</span>
+      <span className="text-yellow-400">Staging</span>
+      <span className="text-muted">→</span>
+      <span className="text-emerald-400">Production</span>
+    </div>
+  )
+}
+
+function ReleaseActionsMenu({ actions, label = 'Release actions' }: { actions: MenuAction[]; label?: string }) {
+  const [open, setOpen] = useState(false)
+  const enabledActions = actions.filter(Boolean)
+
+  if (enabledActions.length === 0) return null
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-border bg-surface p-1 shadow-2xl">
+          {enabledActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={action.disabled}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-50',
+                action.destructive ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' : 'text-slate-200 hover:bg-accent hover:text-white',
+              )}
+              onClick={() => {
+                setOpen(false)
+                action.onClick()
+              }}
+            >
+              {action.icon}
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EmptyStageCard({ message, tone = 'neutral' }: { message: string; tone?: 'neutral' | 'staging' | 'production' }) {
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border bg-surface/40 p-4 text-sm text-muted',
+        tone === 'staging' && 'border-yellow-500/25 bg-yellow-500/[0.03]',
+        tone === 'production' && 'border-emerald-500/25 bg-emerald-500/[0.03]',
+        tone === 'neutral' && 'border-border',
+      )}
+    >
+      {message}
+    </div>
+  )
 }
 
 export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
@@ -62,22 +187,21 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const deleteRelease = useDeleteRelease(agentId)
   const { state, setState, toSnapshot, setLoadedRelease } = useAgentEditor()
   const [deleteTarget, setDeleteTarget] = useState<AgentRelease | null>(null)
-  const [viewStagingOpen, setViewStagingOpen] = useState(false)
   const [createReleaseOpen, setCreateReleaseOpen] = useState(false)
   const [stagingSnapshot, setStagingSnapshot] = useState<AgentRelease | null>(null)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
+  const [loadingReleaseId, setLoadingReleaseId] = useState<string | null>(null)
   const [releaseDescription, setReleaseDescription] = useState('')
+  const [snapshotModal, setSnapshotModal] = useState<SnapshotModalState>({ open: false, title: 'Release snapshot', release: null })
 
   const staging = useMemo(() => releases?.find((item) => item.status === 'staging'), [releases])
-  const releaseHistory = useMemo(() => {
+  const production = useMemo(() => releases?.find((item) => item.status === 'production'), [releases])
+  const history = useMemo(() => {
     return [...(releases ?? [])]
-      .filter((item) => item.status !== 'draft' && item.status !== 'staging')
-      .sort((a, b) => {
-        if (a.status === 'production' && b.status !== 'production') return -1
-        if (b.status === 'production' && a.status !== 'production') return 1
-        return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-      })
+      .filter((item) => item.status !== 'draft' && item.status !== 'staging' && item.status !== 'production')
+      .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
   }, [releases])
+  const rollbackTarget = useMemo(() => history.find((item) => item.status === 'archived' || item.status === 'rolled_back'), [history])
 
   async function saveDraftFromEditor() {
     const snapshot = toSnapshot()
@@ -113,7 +237,25 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   async function openViewStaging() {
     const details = await fetchStagingSnapshot()
-    if (details) setViewStagingOpen(true)
+    if (!details) return
+    setSnapshotModal({
+      open: true,
+      title: 'Current staging',
+      description: 'This is the single staging snapshot used by API/runtime when execution_context=staging.',
+      release: details,
+    })
+  }
+
+  async function openReleaseSnapshot(release: AgentRelease, title = 'Release snapshot') {
+    setLoadingReleaseId(release.id)
+    try {
+      const details = await getRelease(agentId, release.id)
+      setSnapshotModal({ open: true, title, description: 'Review the immutable snapshot stored for this version.', release: details })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load release snapshot')
+    } finally {
+      setLoadingReleaseId(null)
+    }
   }
 
   async function openCreateRelease() {
@@ -137,6 +279,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       })
       setCreateReleaseOpen(false)
       setReleaseDescription('')
+      setStagingSnapshot(null)
       toast.success('Release created from current staging')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create release')
@@ -169,79 +312,229 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     }
   }
 
-  function loadForEditing(release: AgentRelease) {
-    setState(releaseToEditorState(release, state))
-    setLoadedRelease(release.id, release.version)
-    toast.success(`${release.version} loaded for editing`)
+  async function loadForEditing(release: AgentRelease) {
+    setLoadingReleaseId(release.id)
+    try {
+      const details = await getRelease(agentId, release.id)
+      setState(releaseToEditorState(details, state))
+      setLoadedRelease(details.id, details.version)
+      toast.success(`${details.version} loaded for editing`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load release for editing')
+    } finally {
+      setLoadingReleaseId(null)
+    }
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    await deleteRelease.mutateAsync({ releaseId: deleteTarget.id })
-    toast.success(`${deleteTarget.version} deleted`)
-    setDeleteTarget(null)
+    try {
+      await deleteRelease.mutateAsync({ releaseId: deleteTarget.id })
+      toast.success(`${deleteTarget.version} deleted`)
+      setDeleteTarget(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete release')
+    }
+  }
+
+  function productionActions(release: AgentRelease): MenuAction[] {
+    return [
+      { label: 'View snapshot', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => openReleaseSnapshot(release, 'Production release') },
+      { label: 'Load for editing', icon: <Save className="h-3.5 w-3.5" />, onClick: () => loadForEditing(release), disabled: loadingReleaseId === release.id },
+      { label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, onClick: () => setDeleteTarget(release), destructive: true },
+    ]
+  }
+
+  function historyActions(release: AgentRelease): MenuAction[] {
+    return [
+      { label: 'View snapshot', icon: <Eye className="h-3.5 w-3.5" />, onClick: () => openReleaseSnapshot(release, `Release ${release.version}`) },
+      { label: 'Promote to production', icon: <Rocket className="h-3.5 w-3.5" />, onClick: () => deployRelease(release), disabled: promoteRelease.isPending },
+      { label: 'Rollback to this version', icon: <Undo2 className="h-3.5 w-3.5" />, onClick: () => rollbackToRelease(release), disabled: rollbackRelease.isPending },
+      { label: 'Load for editing', icon: <Save className="h-3.5 w-3.5" />, onClick: () => loadForEditing(release), disabled: loadingReleaseId === release.id },
+      { label: 'Delete', icon: <Trash2 className="h-3.5 w-3.5" />, onClick: () => setDeleteTarget(release), destructive: true },
+    ]
   }
 
   if (isLoading) {
-    return <div className="p-4 space-y-4"><Skeleton className="h-5 w-48" /><Skeleton className="h-32 w-full" /></div>
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
+      </div>
+    )
   }
 
-  const hasStaging = Boolean(stagingSnapshot ?? staging)
+  const currentStaging = stagingSnapshot ?? staging ?? null
+  const hasStaging = Boolean(currentStaging)
 
-  return <div className="p-4 space-y-5">
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-white">Quick actions</h3>
-      <p className="text-xs text-muted">Draft stays in the Editor. Promote the current editor snapshot to the single staging slot.</p>
-      <div className="rounded-xl border border-border bg-surface p-3">
-        <Button size="sm" className="w-full" onClick={promoteDraftToStaging} loading={createRelease.isPending || promoteRelease.isPending}>
-          <Upload className="mr-1.5 h-4 w-4" />Promote current Draft to Staging
-        </Button>
-      </div>
-    </section>
+  return (
+    <div className="space-y-7 p-4">
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
+          <div className="space-y-2">
+            <h2 className="text-[22px] font-semibold tracking-tight text-white">Versions</h2>
+            <p className="max-w-[28rem] text-sm leading-6 text-muted">
+              Promote snapshots from draft to staging, then publish one production release.
+            </p>
+          </div>
+          <PipelineHint />
+        </div>
 
-    <section className="space-y-2">
-      <h3 className="text-sm font-semibold text-white">Current staging</h3>
-      <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/[0.04] p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted">{hasStaging ? 'Staging ready' : 'No staging available'}</p>{hasStaging && <Badge variant="warning">Staging</Badge>}</div>
-        <Button size="sm" variant="outline" className="w-full" onClick={openViewStaging} disabled={!hasStaging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View Staging</Button>
-      </div>
-    </section>
+        <div className="flex flex-col gap-2 min-[420px]:flex-row">
+          <Button className="h-10 min-w-32" onClick={promoteDraftToStaging} loading={createRelease.isPending || promoteRelease.isPending}>
+            <Upload className="mr-2 h-4 w-4" />
+            Stage draft
+          </Button>
+          <Button className="h-10 min-w-36" variant="outline" onClick={openViewStaging} disabled={!hasStaging} loading={isLoadingSnapshot}>
+            <Eye className="mr-2 h-4 w-4" />
+            View staging
+          </Button>
+        </div>
+      </section>
 
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div><h3 className="text-sm font-semibold text-white">Releases</h3><p className="text-xs text-muted">Only published releases are listed here. New Release opens a staging review first.</p></div>
-        <Button size="sm" variant="outline" onClick={openCreateRelease} disabled={!hasStaging} loading={promoteRelease.isPending || isLoadingSnapshot}>
-          <Rocket className="mr-1.5 h-4 w-4" />New Release
-        </Button>
-      </div>
+      <div className="h-px bg-border/70" />
 
-      {releaseHistory.length === 0 ? <div className="rounded-xl border border-border bg-surface p-6 text-center text-sm text-muted">No releases yet.</div> : releaseHistory.map((release) => {
-        const isProduction = release.status === 'production'
-        return <article key={release.id} className={`rounded-xl border p-4 space-y-3 ${isProduction ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-border bg-surface'}`}>
-          {isProduction && <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">In use today</p>}
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2"><h4 className="truncate font-semibold text-white">{release.version}</h4><Badge variant={statusVariant[release.status]} className="capitalize">{release.status.replace('_', ' ')}</Badge></div>
-              <p className="text-[10px] text-muted">{formatDate(release.created_at)}</p>
-              <p className="text-[11px] text-muted"><FileText className="inline h-3 w-3 mr-1" />{release.name ?? 'Unnamed'}</p>
-              {release.release_notes && <p className="line-clamp-2 text-[11px] text-slate-300">{release.release_notes}</p>}
-              <p className="text-[11px] text-muted">Model: {release.provider}/{release.model ?? '—'}</p>
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted">A) Current draft</h3>
+        <div className="flex min-h-24 items-center justify-between gap-4 rounded-2xl border border-border bg-surface/45 p-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-background/30 text-primary">
+              <FileText className="h-7 w-7" />
             </div>
-            {isProduction ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <Circle className="h-4 w-4 text-muted shrink-0" />}
+            <div className="min-w-0 space-y-1">
+              <p className="text-base font-semibold text-white">Editor snapshot</p>
+              <p className="text-sm text-muted">Unstaged changes from the editor</p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" onClick={() => deployRelease(release)} disabled={isProduction} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />{isProduction ? 'In use' : 'Deploy'}</Button>
-            <Button size="sm" variant="outline" onClick={() => rollbackToRelease(release)} disabled={isProduction} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback</Button>
-            <Button size="sm" variant="outline" onClick={() => loadForEditing(release)}><Save className="mr-1 h-3 w-3" />Load for editing</Button>
-            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(release)}><Archive className="mr-1 h-3 w-3" />Delete</Button>
-          </div>
-        </article>
-      })}
-      <p className="text-[11px] text-muted">Releases are created from the current staging version.</p>
-    </section>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+        </div>
+      </section>
 
-    <ReleaseSnapshotModal open={viewStagingOpen} title="Current Staging" description="This is the single staging snapshot used by API/runtime when execution_context=staging." release={stagingSnapshot ?? staging ?? null} onClose={() => setViewStagingOpen(false)} />
-    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={stagingSnapshot ?? staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} releaseDescription={releaseDescription} onReleaseDescriptionChange={setReleaseDescription} />
-    <ConfirmDeleteModal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} versionName={deleteTarget?.version ?? ''} isPending={deleteRelease.isPending} />
-  </div>
+      <div className="h-px bg-border/70" />
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted">B) Staging</h3>
+        {currentStaging ? (
+          <article className="rounded-2xl border border-yellow-500/45 bg-yellow-500/[0.035] p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-3">
+                <h4 className="truncate font-mono text-xl font-semibold tracking-tight text-white">{currentStaging.version}</h4>
+                <ReleaseMetadata release={currentStaging} />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="min-w-24" onClick={openViewStaging} loading={isLoadingSnapshot}>
+                    <Eye className="mr-2 h-3.5 w-3.5" />
+                    View
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-w-28 border-yellow-500/60 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
+                    onClick={openCreateRelease}
+                    loading={promoteRelease.isPending || isLoadingSnapshot}
+                  >
+                    <Upload className="mr-2 h-3.5 w-3.5" />
+                    Publish
+                  </Button>
+                </div>
+              </div>
+              <Badge variant="warning" className="shrink-0 px-3 py-1 text-sm">Staging</Badge>
+            </div>
+          </article>
+        ) : (
+          <EmptyStageCard tone="staging" message="No staging snapshot yet. Stage the current draft before publishing." />
+        )}
+      </section>
+
+      <div className="h-px bg-border/70" />
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted">C) Production</h3>
+        {production ? (
+          <article className="rounded-2xl border border-emerald-500/45 bg-emerald-500/[0.035] p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-3">
+                <h4 className="truncate font-mono text-xl font-semibold tracking-tight text-white">{production.version}</h4>
+                <ReleaseMetadata release={production} />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="min-w-24" onClick={() => openReleaseSnapshot(production, 'Production release')} loading={loadingReleaseId === production.id}>
+                    <Eye className="mr-2 h-3.5 w-3.5" />
+                    View
+                  </Button>
+                  {rollbackTarget && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-w-28 border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                      onClick={() => rollbackToRelease(rollbackTarget)}
+                      loading={rollbackRelease.isPending}
+                    >
+                      <Undo2 className="mr-2 h-3.5 w-3.5" />
+                      Rollback
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-start gap-2">
+                <Badge variant="success" className="px-3 py-1 text-sm">Production</Badge>
+                <ReleaseActionsMenu actions={productionActions(production)} />
+              </div>
+            </div>
+          </article>
+        ) : (
+          <EmptyStageCard tone="production" message="No production release is active yet. Publish staging to create the first production version." />
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted">D) History</h3>
+        {history.length === 0 ? (
+          <EmptyStageCard message="No archived releases yet." />
+        ) : (
+          <div className="rounded-2xl border border-border bg-surface/35">
+            {history.map((release, index) => (
+              <div key={release.id} className={cn('relative flex min-h-[82px] items-center justify-between gap-3 px-4 py-3', index !== history.length - 1 && 'border-b border-border/70')}>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="truncate font-mono text-base font-semibold text-white">{release.version}</p>
+                    <Badge variant={statusVariant[release.status]}>{statusLabel[release.status]}</Badge>
+                  </div>
+                  <ReleaseMetadata release={release} compact />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <ReleaseActionsMenu actions={historyActions(release)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <p className="flex items-center gap-2 text-[11px] text-muted">
+        <Info className="h-3.5 w-3.5" />
+        All times shown in your local timezone.
+      </p>
+
+      <ReleaseSnapshotModal
+        open={snapshotModal.open}
+        title={snapshotModal.title}
+        description={snapshotModal.description}
+        release={snapshotModal.release}
+        onClose={() => setSnapshotModal((current) => ({ ...current, open: false }))}
+      />
+      <ReleaseSnapshotModal
+        open={createReleaseOpen}
+        title="Create release from staging"
+        description="Review the current staging snapshot before creating a production release."
+        release={currentStaging}
+        confirmLabel="Create Release"
+        isConfirming={promoteRelease.isPending}
+        onConfirm={createReleaseFromStaging}
+        onClose={() => setCreateReleaseOpen(false)}
+        releaseDescription={releaseDescription}
+        onReleaseDescriptionChange={setReleaseDescription}
+      />
+      <ConfirmDeleteModal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} versionName={deleteTarget?.version ?? ''} isPending={deleteRelease.isPending} />
+    </div>
+  )
 }
