@@ -56,6 +56,20 @@ class UpdateProviderCredentialOutput(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class ListProviderCredentialsInput(BaseModel):
+    project_id: UUID | None = None
+
+
+class ListProviderCredentialsOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    provider: Provider
+    name: str
+    status: CredentialStatus
+    created_at: datetime | None = None
+    metadata: dict[str, Any] = {}
+
+
 class CreateAgentInput(BaseModel):
     project_id: UUID
     provider_credential_id: UUID | None = None
@@ -124,20 +138,6 @@ class UpdateAgentOutput(BaseModel):
     updated_at: datetime | None = None
 
 
-class ListProviderCredentialsInput(BaseModel):
-    project_id: UUID | None = None
-
-
-class ListProviderCredentialsOutput(BaseModel):
-    id: UUID
-    project_id: UUID
-    provider: Provider
-    name: str
-    status: CredentialStatus
-    created_at: datetime | None = None
-    metadata: dict[str, Any] = {}
-
-
 class ListAgentsInput(BaseModel):
     project_id: UUID | None = None
 
@@ -155,8 +155,6 @@ class ListAgentsOutput(BaseModel):
 class GetAgentInput(BaseModel):
     agent_id: UUID
 
-
-# ── Agent Prompt ────────────────────────────────────────────────
 
 class CreatePromptInput(BaseModel):
     project_id: UUID
@@ -191,8 +189,6 @@ class ListPromptsOutput(BaseModel):
     created_by: UUID | None = None
     created_at: datetime | None = None
 
-
-# ── Agent Contract ──────────────────────────────────────────────
 
 class CreateContractInput(BaseModel):
     project_id: UUID
@@ -261,8 +257,6 @@ class ListContractsOutput(BaseModel):
     created_at: datetime | None = None
 
 
-# ── Agent Model Config ──────────────────────────────────────────
-
 class CreateModelConfigInput(BaseModel):
     project_id: UUID
     agent_id: UUID
@@ -304,8 +298,6 @@ class ListModelConfigsOutput(BaseModel):
     created_at: datetime | None = None
 
 
-# ── Agent Release ───────────────────────────────────────────────
-
 class CreateReleaseInput(BaseModel):
     project_id: UUID
     agent_id: UUID
@@ -314,7 +306,6 @@ class CreateReleaseInput(BaseModel):
     contract_version_id: UUID | None = None
     knowledge_version_id: UUID | None = None
     model_config_version_id: UUID | None = None
-    # Snapshot fields — complete agent config
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
@@ -333,7 +324,6 @@ class CreateReleaseInput(BaseModel):
     agent_status: str | None = None
     collection_ids: list[UUID] | None = None
     runtime_config: dict[str, Any] | None = None
-    # Meta
     release_notes: str | None = None
     risk_score: int | None = None
     created_by: UUID | None = None
@@ -376,20 +366,8 @@ class CreateReleaseOutput(BaseModel):
     updated_at: datetime | None = None
 
 
-class ListReleasesOutput(BaseModel):
-    id: UUID
-    version: str
-    status: ReleaseStatus
-    name: str | None = None
-    provider: str | None = None
-    model: str | None = None
-    system_prompt: str | None = None
-    output_schema: dict[str, Any] | None = None
-    risk_score: int | None = None
-    release_notes: str | None = None
-    created_by: UUID | None = None
-    created_at: datetime | None = None
-    promoted_at: datetime | None = None
+class ListReleasesOutput(CreateReleaseOutput):
+    pass
 
 
 class PromoteReleaseInput(BaseModel):
@@ -399,8 +377,6 @@ class PromoteReleaseInput(BaseModel):
 class RollbackReleaseInput(BaseModel):
     user_id: UUID | None = None
 
-
-# ── Agent Release Test ──────────────────────────────────────────
 
 class CreateReleaseTestInput(BaseModel):
     project_id: UUID

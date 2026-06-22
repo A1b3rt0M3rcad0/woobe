@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
+import inspect
 
 import pytest
 from pydantic import ValidationError
@@ -10,6 +11,13 @@ from pydantic import ValidationError
 from modules.core.application.dtos.project_overview import ProjectOverviewQuery
 from modules.core.application.use_cases.get_project_overview import (
     GetProjectOverviewUseCase,
+)
+from modules.core.infra.database.project_overview_reader import (
+    SQLAlchemyProjectOverviewReader,
+    _AGENT_ENVIRONMENT_CTE,
+)
+from modules.core.infra.database.uow_project_overview_reader import (
+    UnitOfWorkProjectOverviewReader,
 )
 from modules.core.presentation.controllers.get_project_overview_controller import (
     GetProjectOverviewController,
@@ -111,6 +119,33 @@ def test_query_uses_day_bucket_for_seven_day_window() -> None:
 def test_query_rejects_invalid_windows(payload: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         ProjectOverviewQuery(project_id=uuid4(), **payload)
+
+
+def test_overview_environment_cte_ignores_archived_releases() -> None:
+    assert "release.status IN ('production', 'staging', 'draft')" in _AGENT_ENVIRONMENT_CTE
+    assert "WHEN 'production' THEN 3" in _AGENT_ENVIRONMENT_CTE
+    assert "WHEN 'staging' THEN 2" in _AGENT_ENVIRONMENT_CTE
+    assert "current_release.environment" in _AGENT_ENVIRONMENT_CTE
+    assert "release.status = 'production'" not in _AGENT_ENVIRONMENT_CTE
+
+
+def test_uow_environment_cte_matches_live_release_resolution() -> None:
+    cte = UnitOfWorkProjectOverviewReader._agent_environment_cte()
+
+    assert "release.status IN ('production', 'staging', 'draft')" in cte
+    assert "WHEN 'production' THEN 3" in cte
+    assert "WHEN 'staging' THEN 2" in cte
+    assert "current_release.environment" in cte
+
+
+def test_recent_releases_filter_tab_and_dedupe_current_slots() -> None:
+    source = inspect.getsource(SQLAlchemyProjectOverviewReader._recent_releases)
+
+    assert "release.status IN ('draft', 'staging', 'production')" in source
+    assert "release.status = :environment" in source
+    assert "PARTITION BY release.agent_id, release.status" in source
+    assert "WHERE status_rank = 1" in source
+    assert "ELSE 'draft'" not in source
 
 
 @pytest.mark.asyncio

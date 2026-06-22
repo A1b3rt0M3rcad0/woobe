@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
 from modules.agent.application.use_cases.instrumented_execution_finalizer import (
@@ -17,7 +17,7 @@ from modules.agent.application.use_cases.instrumented_primary_mixin import (
 class StructuredOutputAskAgentUseCase(
     InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
-    AskAgentUseCase,
+    ReleaseRuntimeResolver,
 ):
     """Agent execution with complete LLM and Tool telemetry."""
 

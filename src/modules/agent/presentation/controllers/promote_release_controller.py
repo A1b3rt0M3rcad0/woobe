@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from modules.agent.application.dtos import PromoteReleaseInput
-from modules.agent.application.use_cases.ai_use_cases import PromoteReleaseUseCase
+from modules.agent.application.use_cases import PromoteReleaseUseCase
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -15,9 +15,15 @@ class PromoteReleaseController(Controller):
     async def handle(self, request: Request) -> Response:
         agent_id = UUID(request.path_params["agent_id"])
         release_id = UUID(request.path_params["release_id"])
-        input_dto = PromoteReleaseInput(**request.body)
-        result = await self._use_case.execute(agent_id, release_id, input_dto)
-        return Response(
-            status_code=200,
-            body={"success": True, "data": release_to_response(result).model_dump()},
+        body = request.body or {}
+        input_dto = PromoteReleaseInput(**body)
+        object.__setattr__(input_dto, "release_notes", body.get("release_notes"))
+        result = await self._use_case.execute(
+            agent_id,
+            release_id,
+            input_dto,
+            target_status=body.get("target_status", "production"),
+            copy_snapshot=bool(body.get("copy_snapshot", False)),
+            change_kind=body.get("change_kind", "change"),
         )
+        return Response(status_code=200, body={"success": True, "data": release_to_response(result).model_dump()})
