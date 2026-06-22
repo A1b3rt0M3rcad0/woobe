@@ -1,3 +1,5 @@
+import json
+
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.release_compatibility import classify_release_change
 from modules.agent.domain.release_versioning import ReleaseChangeKind
@@ -41,6 +43,12 @@ def test_removed_output_field_is_compatibility_break():
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
 
 
+def test_output_parser_key_rename_confidence_to_message_is_compatibility_break():
+    previous = release(output_schema=object_schema({"confidence": {"type": "number"}}))
+    candidate = release(output_schema=object_schema({"message": {"type": "string"}}))
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
 def test_output_field_type_change_is_compatibility_break():
     previous = release(output_schema=object_schema({"score": {"type": "number"}}))
     candidate = release(output_schema=object_schema({"score": {"type": "string"}}))
@@ -50,6 +58,20 @@ def test_output_field_type_change_is_compatibility_break():
 def test_response_format_schema_type_change_is_compatibility_break():
     previous = release(response_format={"type": "json", "schema": object_schema({"score": {"type": "number"}})})
     candidate = release(response_format={"type": "json", "schema": object_schema({"score": {"type": "string"}})})
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_response_format_schema_string_key_rename_is_compatibility_break():
+    previous_schema = object_schema({"confidence": {"type": "number"}})
+    candidate_schema = object_schema({"message": {"type": "string"}})
+    previous = release(response_format={"type": "json", "schema": json.dumps(previous_schema)})
+    candidate = release(response_format={"type": "json", "schema": json.dumps(candidate_schema)})
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_json_schema_wrapper_key_rename_is_compatibility_break():
+    previous = release(response_format={"type": "json_schema", "json_schema": {"schema": object_schema({"confidence": {"type": "number"}})}})
+    candidate = release(response_format={"type": "json_schema", "json_schema": {"schema": object_schema({"message": {"type": "string"}})}})
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
 
 
