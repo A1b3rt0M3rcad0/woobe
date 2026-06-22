@@ -26,7 +26,9 @@ from modules.agent.application.use_cases.ai_use_cases import (
 )
 from modules.agent.application.use_cases.release_lifecycle_use_cases import (
     AutoCreateReleaseUseCase as CreateReleaseUseCase,
-    ReleaseLifecycleUseCase as PromoteReleaseUseCase,
+)
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
+    AutoCompatibleReleaseLifecycleUseCase as PromoteReleaseUseCase,
 )
 from modules.agent.application.use_cases.ask_agent_stream_service import (
     AskAgentStreamService,
