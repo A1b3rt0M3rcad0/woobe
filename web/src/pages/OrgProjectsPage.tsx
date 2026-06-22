@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { NameSlugFields } from '@/components/forms/NameSlugFields'
+import { slugify } from '@/lib/slug'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createProjectSchema, type CreateProjectFormData } from '@/features/projects/schemas'
@@ -95,8 +97,8 @@ export default function OrgProjectsPage() {
     try {
       const project = await createProject.mutateAsync({
         organization_id: organizationId,
-        name: data.name,
-        slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-'),
+        name: data.name.trim(),
+        slug: slugify(data.slug || data.name, 'project'),
       })
       toast.success('Project created')
       setShowCreate(false)
@@ -278,8 +280,14 @@ export default function OrgProjectsPage() {
 
       <Dialog open={showCreate} onClose={() => setShowCreate(false)} title="Create Project">
         <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
-          <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="Project name" />
-          <Input {...form.register('slug')} error={form.formState.errors.slug?.message} placeholder="slug (optional)" />
+          <NameSlugFields
+            form={form}
+            namePath="name"
+            slugPath="slug"
+            namePlaceholder="Project name"
+            fallback="project"
+            uniqueScope="inside this organization"
+          />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button type="submit" loading={createProject.isPending}>Create</Button>
