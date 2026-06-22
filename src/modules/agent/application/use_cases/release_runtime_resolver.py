@@ -16,19 +16,19 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
 
         if context == "production":
             if release_repo is None:
-                raise ValueError("No production release repository configured")
+                return agent
             release = await release_repo.get_active_production(agent.id)
-            if release is None:
-                raise ValueError("No production release deployed")
-            return self._apply_release_to_agent(agent, release)
+            if release is not None:
+                return self._apply_release_to_agent(agent, release)
+            return agent
 
         if context == "staging":
             if release_repo is None:
-                raise ValueError("No staging release repository configured")
+                return agent
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
-            if not releases:
-                raise ValueError("No staging release configured")
-            return self._apply_release_to_agent(agent, releases[0])
+            if releases:
+                return self._apply_release_to_agent(agent, releases[0])
+            return agent
 
         if context != "playground":
             raise ValueError("Unsupported execution context")
