@@ -4,20 +4,8 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
 
 const DEFAULT_SCHEMA = `{
-  "type": "object",
-  "properties": {
-    "category": {
-      "type": "string",
-      "enum": ["support", "sales", "bug", "other"]
-    },
-    "summary": {
-      "type": "string"
-    },
-    "confidence": {
-      "type": "number"
-    }
-  },
-  "required": ["category", "summary"]
+  "message": "string",
+  "confidence": "number"
 }`
 
 function schemaToString(schema: unknown): string {
@@ -135,7 +123,7 @@ export function OutputSettingsTab() {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">JSON Schema</label>
+            <label className="block text-xs font-medium text-muted mb-1">Output contract</label>
             <JsonEditor
               value={schemaToString(responseFormat.schema)}
               onChange={handleSchemaChange}
@@ -143,7 +131,7 @@ export function OutputSettingsTab() {
               disabled={!responseFormat.enabled}
               actions={['format', 'validate', 'clear']}
               minHeight={180}
-              placeholder='{ "type": "object", ... }'
+              placeholder='{ "message": "string" }'
             />
           </div>
           <div className="flex items-center gap-2">
