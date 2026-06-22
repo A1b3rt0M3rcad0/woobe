@@ -3,7 +3,7 @@ from modules.agent.application.use_cases.auto_compatible_release_lifecycle impor
 from modules.agent.application.use_cases.release_lifecycle_use_cases import _release_to_output
 from modules.agent.application.dtos.ai_dtos import CreateReleaseTestOutput, ListReleaseTestsOutput, ListReleasesOutput
 from modules.agent.domain.entities import AgentReleaseTest
-from modules.agent.domain.enums import ReleaseStatus, ReleaseTestStatus
+from modules.agent.domain.enums import ReleaseTestStatus
 
 
 class RollbackReleaseUseCase(PromoteReleaseUseCase):
@@ -39,9 +39,6 @@ class DeleteReleaseUseCase:
         if item is None:
             from modules.agent.domain.errors import ReleaseNotFoundError
             raise ReleaseNotFoundError
-        if item.status == ReleaseStatus.production:
-            from shared.infra.errors import ValidationError
-            raise ValidationError("Cannot delete a production release. Rollback first.")
         await self._release_repo.delete(release_id)
 
 
