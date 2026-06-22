@@ -41,8 +41,9 @@ router = APIRouter(prefix="/identity", tags=["identity"])
 
 
 def _slugify(value: str, fallback: str = "organization") -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")[:128]
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")[:128]
     return slug or fallback
 
 
@@ -91,7 +92,9 @@ async def create_organization(request: FastAPIRequest):
 
     payload = dict(await request.json())
     payload["name"] = str(payload.get("name", "")).strip()
-    payload["slug"] = _slugify(str(payload.get("slug") or payload.get("name") or "organization"))
+    payload["slug"] = _slugify(
+        str(payload.get("slug") or payload.get("name") or "organization")
+    )
     request.state.body_override = payload
 
     handler = create_organization_composer(request.app.state.session_factory)
@@ -122,7 +125,10 @@ async def create_organization(request: FastAPIRequest):
                             "role": saved_member.role.value,
                         },
                         routing_key="organization.member_added.v1",
-                        idempotency_key=f"identity:organization.member_added.v1:{saved_member.id}",
+                        idempotency_key=(
+                            "identity:organization.member_added.v1:"
+                            f"{saved_member.id}"
+                        ),
                     )
 
     return response_adapter(response)
@@ -146,7 +152,9 @@ async def get_organization(request: FastAPIRequest):
 async def update_organization(request: FastAPIRequest):
     payload = dict(await request.json())
     if payload.get("slug") is not None:
-        payload["slug"] = _slugify(str(payload.get("slug") or payload.get("name") or "organization"))
+        payload["slug"] = _slugify(
+            str(payload.get("slug") or payload.get("name") or "organization")
+        )
     request.state.body_override = payload
 
     handler = update_organization_composer(request.app.state.session_factory)
