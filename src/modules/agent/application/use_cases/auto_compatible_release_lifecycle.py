@@ -9,6 +9,32 @@ from modules.agent.domain.release_compatibility import classify_release_change
 
 
 _VERSIONED_PRODUCTION_SOURCES = {ReleaseStatus.draft, ReleaseStatus.staging}
+_EXECUTION_FIELDS = (
+    "prompt_version_id",
+    "contract_version_id",
+    "knowledge_version_id",
+    "model_config_version_id",
+    "name",
+    "description",
+    "system_prompt",
+    "response_format",
+    "output_schema",
+    "provider",
+    "model",
+    "provider_credential_id",
+    "fallback_provider",
+    "fallback_model",
+    "fallback_credential_id",
+    "base_url",
+    "temperature",
+    "max_output_tokens",
+    "session_mode",
+    "agent_status",
+    "collection_ids",
+    "runtime_config",
+    "release_notes",
+    "risk_score",
+)
 
 
 class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
@@ -28,7 +54,7 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
 
     async def _copy_to_production_release(self, release: AgentRelease, *, user_id, change_kind=None) -> AgentRelease:
         current = await self._get_singleton(release.agent_id, ReleaseStatus.production)
-        if current is not None and current.output_schema == release.output_schema and current.response_format == release.response_format and current.system_prompt == release.system_prompt and current.model == release.model and current.provider == release.provider:
+        if current is not None and _execution_snapshot_equal(current, release):
             return current
         detected_kind = classify_release_change(current, release)
         await self._archive_current(release.agent_id, ReleaseStatus.production)
@@ -67,3 +93,7 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
             promoted_at=datetime.now(timezone.utc),
         )
         return await self._release_repo.save(clone)
+
+
+def _execution_snapshot_equal(left: AgentRelease, right: AgentRelease) -> bool:
+    return all(getattr(left, field_name) == getattr(right, field_name) for field_name in _EXECUTION_FIELDS)
