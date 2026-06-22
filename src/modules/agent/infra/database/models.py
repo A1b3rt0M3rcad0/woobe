@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
@@ -130,6 +131,12 @@ class AgentReleaseModel(BaseModel):
     __table_args__ = (
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
+        Index(
+            "uq_agent_releases_production",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'production'"),
+        ),
         {"schema": "agent"},
     )
 
@@ -149,6 +156,7 @@ class AgentReleaseModel(BaseModel):
     model_config_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_model_configs.id")
     )
+    # Snapshot fields — complete agent config inline
     name: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     system_prompt: Mapped[str | None] = mapped_column(Text)
@@ -171,6 +179,7 @@ class AgentReleaseModel(BaseModel):
     agent_status: Mapped[str | None] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
     runtime_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Meta
     release_notes: Mapped[str | None] = mapped_column(Text)
     risk_score: Mapped[int | None] = mapped_column(Integer)
     created_by: Mapped[UUID | None]
@@ -253,45 +262,198 @@ class DocumentChunkModel(BaseModel):
     )
     document_id: Mapped[UUID] = mapped_column(ForeignKey("agent.documents.id"))
     content: Mapped[str] = mapped_column(Text)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
-    position: Mapped[int] = mapped_column(Integer)
+    chunk_index: Mapped[int]
+    token_count: Mapped[int | None]
     page_number: Mapped[int | None]
-    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    section_title: Mapped[str | None] = mapped_column(String(255))
+    data: Mapped[dict | None] = mapped_column(JSONB)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
 
 
-class AgentOutboxEventModel(BaseModel):
-    __tablename__ = "outbox_events"
-    __table_args__ = {"schema": "agent"}
-
-    event_type: Mapped[str] = mapped_column(String(255), nullable=False)
-    event_version: Mapped[int] = mapped_column(Integer, default=1)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    routing_key: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(32), default="pending")
-    attempts: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str | None] = mapped_column(Text)
-    available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    idempotency_key: Mapped[str | None] = mapped_column(String(255))
-    correlation_id: Mapped[UUID | None]
-    causation_id: Mapped[UUID | None]
-    aggregate_type: Mapped[str] = mapped_column(String(128), nullable=False)
-    aggregate_id: Mapped[UUID]
-
-
-class AgentInboxEventModel(BaseModel):
-    __tablename__ = "inbox_events"
+class KnowledgeVersionModel(BaseModel):
+    __tablename__ = "knowledge_versions"
     __table_args__ = (
-        UniqueConstraint("message_id"),
+        Index("ix_knowledge_versions_agent_version", "agent_id", "version", unique=True),
         {"schema": "agent"},
     )
 
-    message_id: Mapped[UUID]
-    producer_module: Mapped[str] = mapped_column(String(64))
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    version: Mapped[str] = mapped_column(String(32))
+    collection_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PG_UUID), default=list)
+    document_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
+    snapshot_metadata: Mapped[dict | None] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(32), default="DRAFT")
+
+
+class SessionModel(BaseModel):
+    __tablename__ = "sessions"
+    __table_args__ = (
+        UniqueConstraint("project_id", "agent_id", "external_session_id"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    external_session_id: Mapped[str | None] = mapped_column(String(255))
+    tenant_id: Mapped[str | None] = mapped_column(String(128))
+    user_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    mode: Mapped[str] = mapped_column(String(32), default="chat")
+    data: Mapped[dict | None] = mapped_column(JSONB)
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MessageModel(BaseModel):
+    __tablename__ = "messages"
+    __table_args__ = {"schema": "agent"}
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("agent.sessions.id"))
+    role: Mapped[str] = mapped_column(String(32))
+    content: Mapped[str] = mapped_column(Text)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Numeric(12, 8))
+    data: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class AskJobModel(BaseModel):
+    __tablename__ = "ask_jobs"
+    __table_args__ = (
+        Index("ix_ask_jobs_status_created", "status", "created_at"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    session_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent.sessions.id"))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    params: Mapped[dict] = mapped_column(JSONB)
+    result: Mapped[dict | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    trace_id: Mapped[UUID | None] = mapped_column(PG_UUID)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentToolModel(BaseModel):
+    __tablename__ = "tools"
+    __table_args__ = (
+        Index("ix_agent_tools_project_id", "project_id"),
+        Index("ix_agent_tools_agent_id", "agent_id"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agent.agents.id"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(64))
+    config: Mapped[dict | None] = mapped_column(JSONB)
+    input_schema: Mapped[dict | None] = mapped_column(JSONB)
+    output_schema: Mapped[dict | None] = mapped_column(JSONB)
+    risk_level: Mapped[str] = mapped_column(String(32), default="low")
+    timeout_ms: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), default="active")
+
+
+class AgentToolSecretModel(BaseModel):
+    __tablename__ = "tool_secrets"
+    __table_args__ = (
+        UniqueConstraint("project_id", "name"),
+        Index("ix_agent_tool_secrets_project_id", "project_id"),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(String(255))
+    type: Mapped[str] = mapped_column(String(64))
+    encrypted_value: Mapped[str] = mapped_column(Text)
+    data: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class AgentOutboxEventModel(BaseModel):
+    __tablename__ = "agent_outbox_events"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_agent_outbox_idempotency_key"),
+        Index(
+            "ix_agent_outbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('pending', 'retryable')"),
+        ),
+        Index("ix_agent_outbox_correlation_id", "correlation_id"),
+        Index("ix_agent_outbox_aggregate", "aggregate_type", "aggregate_id"),
+        {
+            "schema": "agent",
+            "comment": "Outbox events for the agent bounded context. Owned by module agent.",
+        },
+    )
+
+    aggregate_type: Mapped[str] = mapped_column(String(128))
+    aggregate_id: Mapped[UUID]
     event_type: Mapped[str] = mapped_column(String(255))
     event_version: Mapped[int] = mapped_column(Integer, default=1)
     routing_key: Mapped[str] = mapped_column(String(255))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    correlation_id: Mapped[UUID]
+    causation_id: Mapped[UUID | None]
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class AgentInboxEventModel(BaseModel):
+    __tablename__ = "agent_inbox_events"
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_agent_inbox_message_id"),
+        UniqueConstraint("idempotency_key", name="uq_agent_inbox_idempotency_key"),
+        Index(
+            "ix_agent_inbox_pending",
+            "status",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status IN ('received', 'retryable')"),
+        ),
+        Index("ix_agent_inbox_correlation_id", "correlation_id"),
+        {
+            "schema": "agent",
+            "comment": "Inbox events for the agent bounded context. Owned by module agent.",
+        },
+    )
+
+    message_id: Mapped[str] = mapped_column(String(255))
+    producer_module: Mapped[str] = mapped_column(String(64))
+    consumer_module: Mapped[str] = mapped_column(String(64), default="agent")
+    event_type: Mapped[str] = mapped_column(String(255))
+    event_version: Mapped[int] = mapped_column(Integer)
+    routing_key: Mapped[str] = mapped_column(String(255))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    headers: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    correlation_id: Mapped[UUID]
+    causation_id: Mapped[UUID | None]
+    status: Mapped[str] = mapped_column(String(32), default="received")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
