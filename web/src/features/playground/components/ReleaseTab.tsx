@@ -80,13 +80,13 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   async function saveDraftFromEditor() {
     const snapshot = toSnapshot()
-    return createRelease.mutateAsync({ project_id: projectId, agent_id: agentId, version: 'auto', change_kind: 'change', ...snapshot } as any)
+    return createRelease.mutateAsync({ project_id: projectId, agent_id: agentId, version: 'draft', ...snapshot } as any)
   }
 
   async function promoteDraftToStaging() {
     try {
       const currentDraft = await saveDraftFromEditor()
-      const saved = await promoteRelease.mutateAsync({ releaseId: currentDraft.id, targetStatus: 'staging', copySnapshot: true, changeKind: 'change' })
+      const saved = await promoteRelease.mutateAsync({ releaseId: currentDraft.id, targetStatus: 'staging', copySnapshot: true })
       setStagingSnapshot(saved)
       toast.success('Current draft promoted to staging')
     } catch (error) {
@@ -134,7 +134,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   async function deployRelease(release: AgentRelease) {
     try {
-      await promoteRelease.mutateAsync({ releaseId: release.id, targetStatus: 'production', copySnapshot: false, changeKind: 'change' })
+      await promoteRelease.mutateAsync({ releaseId: release.id, targetStatus: 'production', copySnapshot: false })
       toast.success(`${release.version} deployed`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to deploy release')
