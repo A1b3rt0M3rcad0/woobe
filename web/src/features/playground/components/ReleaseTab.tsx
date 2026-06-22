@@ -66,6 +66,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const [createReleaseOpen, setCreateReleaseOpen] = useState(false)
   const [stagingSnapshot, setStagingSnapshot] = useState<AgentRelease | null>(null)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
+  const [releaseDescription, setReleaseDescription] = useState('')
 
   const staging = useMemo(() => releases?.find((item) => item.status === 'staging'), [releases])
   const releaseHistory = useMemo(() => {
@@ -117,15 +118,25 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   async function openCreateRelease() {
     const details = await fetchStagingSnapshot()
-    if (details) setCreateReleaseOpen(true)
+    if (details) {
+      setReleaseDescription('')
+      setCreateReleaseOpen(true)
+    }
   }
 
   async function createReleaseFromStaging() {
     const currentStaging = stagingSnapshot ?? staging
     if (!currentStaging) return
     try {
-      await promoteRelease.mutateAsync({ releaseId: currentStaging.id, targetStatus: 'production', copySnapshot: true })
+      const notes = releaseDescription.trim()
+      await promoteRelease.mutateAsync({
+        releaseId: currentStaging.id,
+        targetStatus: 'production',
+        copySnapshot: true,
+        releaseNotes: notes || undefined,
+      })
       setCreateReleaseOpen(false)
+      setReleaseDescription('')
       toast.success('Release created from current staging')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create release')
@@ -213,6 +224,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <div className="flex items-center gap-2"><h4 className="truncate font-semibold text-white">{release.version}</h4><Badge variant={statusVariant[release.status]} className="capitalize">{release.status.replace('_', ' ')}</Badge></div>
               <p className="text-[10px] text-muted">{formatDate(release.created_at)}</p>
               <p className="text-[11px] text-muted"><FileText className="inline h-3 w-3 mr-1" />{release.name ?? 'Unnamed'}</p>
+              {release.release_notes && <p className="line-clamp-2 text-[11px] text-slate-300">{release.release_notes}</p>}
               <p className="text-[11px] text-muted">Model: {release.provider}/{release.model ?? '—'}</p>
             </div>
             {isProduction ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <Circle className="h-4 w-4 text-muted shrink-0" />}
@@ -229,7 +241,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     </section>
 
     <ReleaseSnapshotModal open={viewStagingOpen} title="Current Staging" description="This is the single staging snapshot used by API/runtime when execution_context=staging." release={stagingSnapshot ?? staging ?? null} onClose={() => setViewStagingOpen(false)} />
-    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={stagingSnapshot ?? staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} />
+    <ReleaseSnapshotModal open={createReleaseOpen} title="Create Release from Staging" description="Review the current staging snapshot before creating a production release." release={stagingSnapshot ?? staging ?? null} confirmLabel="Create Release" isConfirming={promoteRelease.isPending} onConfirm={createReleaseFromStaging} onClose={() => setCreateReleaseOpen(false)} releaseDescription={releaseDescription} onReleaseDescriptionChange={setReleaseDescription} />
     <ConfirmDeleteModal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} versionName={deleteTarget?.version ?? ''} isPending={deleteRelease.isPending} />
   </div>
 }
