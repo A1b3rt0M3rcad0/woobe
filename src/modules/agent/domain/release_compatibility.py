@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from typing import Any
 
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
-def classify_release_change(
-    previous: AgentRelease | None,
-    candidate: AgentRelease,
-) -> ReleaseChangeKind:
+def classify_release_change(previous: AgentRelease | None, candidate: AgentRelease) -> ReleaseChangeKind:
     if previous is None:
         return ReleaseChangeKind.CHANGE
 
@@ -35,12 +33,24 @@ def classify_release_change(
 
 def _normalize_response_format(release: AgentRelease) -> dict[str, Any]:
     value = release.response_format or {}
+    value = _parse_json_if_needed(value)
     return deepcopy(value) if isinstance(value, dict) else {}
+
+
+def _parse_json_if_needed(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    return value
 
 
 def _response_type(response_format: dict[str, Any]) -> str:
     raw_type = response_format.get("type")
     if raw_type in ("json", "json_object", "json_schema"):
+        return "json"
+    if response_format.get("enabled") and (response_format.get("schema") or response_format.get("json_schema")):
         return "json"
     return "text"
 
@@ -49,20 +59,30 @@ def _strict_mode(response_format: dict[str, Any]) -> bool:
     return bool(response_format.get("strict", False))
 
 
-def _effective_output_schema(
-    release: AgentRelease,
-    response_format: dict[str, Any],
-) -> dict[str, Any] | None:
-    schema = release.output_schema or response_format.get("schema")
-    if isinstance(schema, dict):
-        return deepcopy(schema)
+def _effective_output_schema(release: AgentRelease, response_format: dict[str, Any]) -> dict[str, Any] | None:
+    for candidate in (
+        release.output_schema,
+        response_format.get("schema"),
+        (response_format.get("json_schema") or {}).get("schema") if isinstance(response_format.get("json_schema"), dict) else None,
+    ):
+        normalized = _normalize_schema(candidate)
+        if normalized is not None:
+            return normalized
     return None
 
 
-def _schema_breaks_compatibility(
-    previous: dict[str, Any] | None,
-    candidate: dict[str, Any] | None,
-) -> bool:
+def _normalize_schema(value: Any) -> dict[str, Any] | None:
+    value = _parse_json_if_needed(value)
+    if not isinstance(value, dict):
+        return None
+    if isinstance(value.get("schema"), dict) and "properties" not in value:
+        value = value["schema"]
+    if isinstance(value.get("json_schema"), dict) and isinstance(value["json_schema"].get("schema"), dict):
+        value = value["json_schema"]["schema"]
+    return deepcopy(value)
+
+
+def _schema_breaks_compatibility(previous: dict[str, Any] | None, candidate: dict[str, Any] | None) -> bool:
     if previous is None and candidate is None:
         return False
     if previous is None:
@@ -130,10 +150,7 @@ def _enum_breaks(previous: dict[str, Any], candidate: dict[str, Any]) -> bool:
     return False
 
 
-def _schema_adds_non_breaking_feature(
-    previous: dict[str, Any] | None,
-    candidate: dict[str, Any] | None,
-) -> bool:
+def _schema_adds_non_breaking_feature(previous: dict[str, Any] | None, candidate: dict[str, Any] | None) -> bool:
     if previous is None and candidate is not None:
         return True
     if previous is None or candidate is None:
