@@ -20,7 +20,7 @@ _SNAPSHOT_FIELDS = (
     "provider_credential_id", "fallback_provider", "fallback_model",
     "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
     "session_mode", "agent_status", "collection_ids", "runtime_config",
-    "release_notes", "risk_score", "created_by",
+    "risk_score", "created_by",
 )
 
 
@@ -75,6 +75,7 @@ class AutoCreateReleaseUseCase:
     def _copy_input_to_release(self, input_dto: CreateReleaseInput, release: AgentRelease) -> None:
         for field_name in _SNAPSHOT_FIELDS:
             setattr(release, field_name, getattr(input_dto, field_name))
+        release.release_notes = getattr(input_dto, "release_notes", None)
 
 
 class ReleaseLifecycleUseCase:
@@ -82,6 +83,7 @@ class ReleaseLifecycleUseCase:
         self._release_repo = release_repo
 
     async def execute(self, agent_id: UUID, release_id: UUID, input_dto=None, *, target_status: str = "production", user_id: UUID | None = None, copy_snapshot: bool = False, change_kind: str = "change"):
+        release_notes = getattr(input_dto, "release_notes", None) if input_dto is not None else None
         if input_dto is not None and user_id is None:
             user_id = getattr(input_dto, "user_id", None)
         release = await self._release_repo.get_by_id(release_id)
@@ -93,7 +95,7 @@ class ReleaseLifecycleUseCase:
         if target in (ReleaseStatus.draft, ReleaseStatus.staging):
             saved = await self._upsert_singleton_snapshot(release, target, user_id=user_id)
         elif copy_snapshot:
-            saved = await self._copy_to_production_release(release, user_id=user_id, change_kind=change_kind)
+            saved = await self._copy_to_production_release(release, user_id=user_id, change_kind=change_kind, release_notes=release_notes)
         else:
             saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
@@ -118,10 +120,10 @@ class ReleaseLifecycleUseCase:
             release.promoted_at = datetime.now(timezone.utc)
         return await self._release_repo.save(release)
 
-    async def _copy_to_production_release(self, release: AgentRelease, *, user_id: UUID | None, change_kind: str) -> AgentRelease:
+    async def _copy_to_production_release(self, release: AgentRelease, *, user_id: UUID | None, change_kind: str, release_notes: str | None = None) -> AgentRelease:
         await self._archive_current(release.agent_id, ReleaseStatus.production)
         version = await self._next_version(release.agent_id, change_kind)
-        cloned = replace(release, id=AgentRelease().id, version=version, status=ReleaseStatus.production, promoted_by=user_id, promoted_at=datetime.now(timezone.utc), created_at=None, updated_at=None)
+        cloned = replace(release, id=AgentRelease().id, version=version, status=ReleaseStatus.production, release_notes=release_notes, promoted_by=user_id, promoted_at=datetime.now(timezone.utc), created_at=None, updated_at=None)
         return await self._release_repo.save(cloned)
 
     async def _archive_current(self, agent_id: UUID, status: ReleaseStatus, *, exclude_id: UUID | None = None) -> None:
