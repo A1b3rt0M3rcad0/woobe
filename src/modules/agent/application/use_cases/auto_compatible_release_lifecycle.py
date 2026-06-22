@@ -28,6 +28,8 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
 
     async def _copy_to_production_release(self, release: AgentRelease, *, user_id, change_kind=None) -> AgentRelease:
         current = await self._get_singleton(release.agent_id, ReleaseStatus.production)
+        if current is not None and current.output_schema == release.output_schema and current.response_format == release.response_format and current.system_prompt == release.system_prompt and current.model == release.model and current.provider == release.provider:
+            return current
         detected_kind = classify_release_change(current, release)
         await self._archive_current(release.agent_id, ReleaseStatus.production)
         version = await self._next_version(release.agent_id, detected_kind)
