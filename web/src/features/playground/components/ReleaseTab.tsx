@@ -124,7 +124,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     const currentStaging = stagingSnapshot ?? staging
     if (!currentStaging) return
     try {
-      await promoteRelease.mutateAsync({ releaseId: currentStaging.id, targetStatus: 'production', copySnapshot: true, changeKind: 'change' })
+      await promoteRelease.mutateAsync({ releaseId: currentStaging.id, targetStatus: 'production', copySnapshot: true })
       setCreateReleaseOpen(false)
       toast.success('Release created from current staging')
     } catch (error) {
