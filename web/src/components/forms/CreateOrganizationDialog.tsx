@@ -1,9 +1,14 @@
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 
-export function CreateOrganizationDialog() {
+interface CreateOrganizationDialogProps {
+  open: boolean
+  onClose: () => void
+}
+
+export function CreateOrganizationDialog({ open, onClose }: CreateOrganizationDialogProps) {
   return (
-    <Dialog open={false} onClose={() => undefined} title="Create Organization">
+    <Dialog open={open} onClose={onClose} title="Create Organization">
       <Button>Create</Button>
     </Dialog>
   )
