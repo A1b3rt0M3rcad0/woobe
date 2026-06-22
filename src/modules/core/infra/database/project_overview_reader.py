@@ -14,19 +14,21 @@ from modules.core.application.dtos.project_overview import (
 from shared.infra.errors import NotFoundError
 
 _AGENT_ENVIRONMENT_CTE = """
-latest_release AS (
+current_release AS (
     SELECT DISTINCT ON (release.agent_id)
         release.agent_id,
-        CASE
-            WHEN release.status = 'production' THEN 'production'
-            WHEN release.status = 'staging' THEN 'staging'
-            ELSE 'draft'
-        END AS environment
+        release.status AS environment
     FROM agent.agent_releases AS release
     WHERE release.project_id = :project_id
+      AND release.status IN ('production', 'staging', 'draft')
     ORDER BY
         release.agent_id,
-        COALESCE(release.promoted_at, release.created_at) DESC,
+        CASE release.status
+            WHEN 'production' THEN 3
+            WHEN 'staging' THEN 2
+            ELSE 1
+        END DESC,
+        COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
         release.created_at DESC,
         release.id DESC
 ),
@@ -35,9 +37,9 @@ agent_environment AS (
         agent.id AS agent_id,
         agent.name AS agent_name,
         agent.status AS agent_status,
-        COALESCE(latest_release.environment, 'draft') AS environment
+        COALESCE(current_release.environment, 'draft') AS environment
     FROM agent.agents AS agent
-    LEFT JOIN latest_release ON latest_release.agent_id = agent.id
+    LEFT JOIN current_release ON current_release.agent_id = agent.id
     WHERE agent.project_id = :project_id
 )
 """
@@ -364,27 +366,47 @@ class SQLAlchemyProjectOverviewReader:
     ) -> list[dict[str, Any]]:
         statement = text(
             """
+            WITH ranked_releases AS (
+                SELECT
+                    release.id,
+                    release.agent_id,
+                    agent.name AS agent_name,
+                    release.version,
+                    release.status AS environment,
+                    release.created_at,
+                    release.promoted_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY release.agent_id, release.status
+                        ORDER BY
+                            COALESCE(release.promoted_at, release.updated_at, release.created_at) DESC,
+                            release.created_at DESC,
+                            release.id DESC
+                    ) AS status_rank
+                FROM agent.agent_releases AS release
+                JOIN agent.agents AS agent
+                    ON agent.id = release.agent_id
+                   AND agent.project_id = :project_id
+                WHERE release.project_id = :project_id
+                  AND release.status IN ('draft', 'staging', 'production')
+                  AND (
+                    :environment = 'all'
+                    OR release.status = :environment
+                  )
+            )
             SELECT
-                release.id,
-                release.agent_id,
-                agent.name AS agent_name,
-                release.version,
-                CASE
-                    WHEN release.status = 'production' THEN 'production'
-                    WHEN release.status = 'staging' THEN 'staging'
-                    ELSE 'draft'
-                END AS environment,
-                release.created_at,
-                release.promoted_at
-            FROM agent.agent_releases AS release
-            JOIN agent.agents AS agent
-                ON agent.id = release.agent_id
-               AND agent.project_id = :project_id
-            WHERE release.project_id = :project_id
+                id,
+                agent_id,
+                agent_name,
+                version,
+                environment,
+                created_at,
+                promoted_at
+            FROM ranked_releases
+            WHERE status_rank = 1
             ORDER BY
-                COALESCE(release.promoted_at, release.created_at) DESC,
-                release.created_at DESC,
-                release.id DESC
+                COALESCE(promoted_at, created_at) DESC,
+                created_at DESC,
+                id DESC
             LIMIT :recent_limit
             """
         )
