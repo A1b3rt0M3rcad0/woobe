@@ -8,13 +8,8 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { NameSlugFields } from '@/components/forms/NameSlugFields'
-import { slugify } from '@/lib/slug'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { createOrganizationSchema, type CreateOrganizationFormData } from '@/features/organizations/schemas'
+import { CreateOrganizationDialog } from '@/components/forms/CreateOrganizationDialog'
 import { ArrowRight, Building2, CheckCircle2, Plus, Search, Settings, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -34,10 +29,6 @@ export default function OrganizationsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
 
-  const form = useForm<CreateOrganizationFormData>({
-    resolver: zodResolver(createOrganizationSchema),
-  })
-
   const visibleOrganizations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return organizations
@@ -48,15 +39,11 @@ export default function OrganizationsPage() {
     ))
   }, [organizations, query])
 
-  const handleCreate = async (data: CreateOrganizationFormData) => {
+  const handleCreate = async (data: { name: string; slug: string }) => {
     try {
-      const org = await createOrg.mutateAsync({
-        name: data.name.trim(),
-        slug: slugify(data.slug || data.name, 'organization'),
-      })
+      const org = await createOrg.mutateAsync(data)
       toast.success('Organization created')
       setShowCreate(false)
-      form.reset()
       selectOrganization({ id: org.id, name: org.name, slug: org.slug })
       navigate(`/organizations/${org.id}/projects`)
     } catch (err) {
@@ -209,22 +196,12 @@ export default function OrganizationsPage() {
         </>
       )}
 
-      <Dialog open={showCreate} onClose={() => setShowCreate(false)} title="Create Organization">
-        <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
-          <NameSlugFields
-            form={form}
-            namePath="name"
-            slugPath="slug"
-            namePlaceholder="Organization name"
-            fallback="organization"
-            uniqueScope="globally"
-          />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button type="submit" loading={createOrg.isPending}>Create</Button>
-          </div>
-        </form>
-      </Dialog>
+      <CreateOrganizationDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSubmit={handleCreate}
+        loading={createOrg.isPending}
+      />
     </div>
   )
 }
