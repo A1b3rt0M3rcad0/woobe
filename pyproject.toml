@@ -37,3 +37,6 @@ dev = [
     "pyright>=1.1.410",
     "ruff>=0.15.15",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"src/modules/agent/infra/database/models.py" = ["F401"]
