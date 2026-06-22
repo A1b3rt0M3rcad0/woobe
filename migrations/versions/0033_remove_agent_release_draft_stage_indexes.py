@@ -1,15 +1,15 @@
 """remove obsolete agent release draft stage indexes
 
-Revision ID: 0033_remove_agent_release_draft_stage_indexes
-Revises: 0032_add_agent_release_unique_index
+Revision ID: 0033_release_draft_stage_idx
+Revises: 0032_release_prod_index_noop
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0033_remove_agent_release_draft_stage_indexes"
-down_revision = "0032_add_agent_release_unique_index"
+revision = "0033_release_draft_stage_idx"
+down_revision = "0032_release_prod_index_noop"
 branch_labels = None
 depends_on = None
 
