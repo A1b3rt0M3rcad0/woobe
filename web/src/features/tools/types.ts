@@ -72,6 +72,7 @@ export interface Secret {
   project_id: string
   name: string
   type: string
+  status?: string
   data?: Record<string, unknown>
   created_at?: string
   updated_at?: string
