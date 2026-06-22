@@ -17,16 +17,12 @@ class PromoteReleaseController(Controller):
         release_id = UUID(request.path_params["release_id"])
         body = request.body or {}
         input_dto = PromoteReleaseInput(**body)
-        target_status = body.get("target_status", "production")
-        copy_snapshot = bool(body.get("copy_snapshot", False))
-        if target_status == "production" and not body.get("restore_existing_version", False):
-            copy_snapshot = True
         result = await self._use_case.execute(
             agent_id,
             release_id,
             input_dto,
-            target_status=target_status,
-            copy_snapshot=copy_snapshot,
+            target_status=body.get("target_status", "production"),
+            copy_snapshot=bool(body.get("copy_snapshot", False)),
             change_kind=body.get("change_kind", "change"),
         )
         return Response(status_code=200, body={"success": True, "data": release_to_response(result).model_dump()})
