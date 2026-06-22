@@ -1,26 +1,30 @@
 from __future__ import annotations
 
+from typing import Any
+
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import ReleaseStatus
-from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseRepository
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 class ReleaseRuntimeResolver(AskAgentUseCase):
-    async def _load_agent(self, uow: AgentUnitOfWork, input_dto: AskInput) -> Agent:
+    async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         agent = await self._load_base_agent(uow, input_dto)
-        release_repo = SQLAlchemyAgentReleaseRepository(uow)
+        release_repo = getattr(uow, "releases", None)
         context = (input_dto.execution_context or "playground").lower()
 
         if context == "production":
+            if release_repo is None:
+                raise ValueError("No production release repository configured")
             release = await release_repo.get_active_production(agent.id)
             if release is None:
                 raise ValueError("No production release deployed")
             return self._apply_release_to_agent(agent, release)
 
         if context == "staging":
+            if release_repo is None:
+                raise ValueError("No staging release repository configured")
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
             if not releases:
                 raise ValueError("No staging release configured")
@@ -32,18 +36,19 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
         if input_dto.snapshot_override:
             return self._apply_snapshot_override(agent, input_dto.snapshot_override)
 
-        if input_dto.loaded_release_id:
+        if input_dto.loaded_release_id and release_repo is not None:
             release = await release_repo.get_by_id(input_dto.loaded_release_id)
             if release is not None:
                 return self._apply_release_to_agent(agent, release)
 
-        drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)
-        if drafts:
-            return self._apply_release_to_agent(agent, drafts[0])
+        if release_repo is not None:
+            drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)
+            if drafts:
+                return self._apply_release_to_agent(agent, drafts[0])
 
         return agent
 
-    async def _load_base_agent(self, uow: AgentUnitOfWork, input_dto: AskInput) -> Agent:
+    async def _load_base_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         from modules.agent.domain.errors import AgentNotFoundError
         from shared.infra.errors import ValidationError
 
