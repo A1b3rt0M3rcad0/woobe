@@ -52,18 +52,32 @@ class FakeReleaseRepository:
         self.releases.pop(release_id, None)
 
 
+def make_release(*, project_id, agent_id, version, status, output_schema=None, system_prompt="prompt"):
+    return AgentRelease(
+        project_id=project_id,
+        agent_id=agent_id,
+        version=version,
+        status=status,
+        output_schema=output_schema,
+        response_format={"type": "json", "schema": output_schema} if output_schema else None,
+        system_prompt=system_prompt,
+        provider="openai",
+        model="gpt-4o-mini",
+    )
+
+
 @pytest.mark.asyncio
 async def test_production_from_staging_renamed_abbreviated_output_key_bumps_compatibility() -> None:
     project_id = uuid4()
     agent_id = uuid4()
-    production = AgentRelease(
+    production = make_release(
         project_id=project_id,
         agent_id=agent_id,
         version="v0.0.20260620.00",
         status=ReleaseStatus.production,
         output_schema={"message": "string"},
     )
-    staging = AgentRelease(
+    staging = make_release(
         project_id=project_id,
         agent_id=agent_id,
         version="staging",
@@ -77,9 +91,71 @@ async def test_production_from_staging_renamed_abbreviated_output_key_bumps_comp
         agent_id,
         staging.id,
         target_status="production",
-        copy_snapshot=True,
+        copy_snapshot=False,
     )
 
     assert result.version.startswith("v1.0.")
     assert result.status == ReleaseStatus.production
     assert production.status == ReleaseStatus.archived
+
+
+@pytest.mark.asyncio
+async def test_deploy_archived_release_restores_existing_version_without_new_version() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    production = make_release(project_id=project_id, agent_id=agent_id, version="v1.0.20260620.00", status=ReleaseStatus.production)
+    archived = make_release(project_id=project_id, agent_id=agent_id, version="v0.0.20260619.00", status=ReleaseStatus.archived)
+    repo = FakeReleaseRepository([production, archived])
+    use_case = AutoCompatibleReleaseLifecycleUseCase(repo)
+
+    result = await use_case.execute(agent_id, archived.id, target_status="production", copy_snapshot=False)
+
+    assert result.id == archived.id
+    assert result.version == "v0.0.20260619.00"
+    assert archived.status == ReleaseStatus.production
+    assert production.status == ReleaseStatus.archived
+    assert len(await repo.list_by_agent(agent_id)) == 2
+
+
+@pytest.mark.asyncio
+async def test_deploy_active_production_is_not_a_new_release() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    production = make_release(project_id=project_id, agent_id=agent_id, version="v1.0.20260620.00", status=ReleaseStatus.production)
+    repo = FakeReleaseRepository([production])
+    use_case = AutoCompatibleReleaseLifecycleUseCase(repo)
+
+    result = await use_case.execute(agent_id, production.id, target_status="production", copy_snapshot=False)
+
+    assert result.id == production.id
+    assert result.version == "v1.0.20260620.00"
+    assert len(await repo.list_by_agent(agent_id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_releasing_unchanged_staging_is_idempotent() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    production = make_release(
+        project_id=project_id,
+        agent_id=agent_id,
+        version="v1.0.20260620.00",
+        status=ReleaseStatus.production,
+        output_schema={"message": "string"},
+    )
+    staging = make_release(
+        project_id=project_id,
+        agent_id=agent_id,
+        version="staging",
+        status=ReleaseStatus.staging,
+        output_schema={"message": "string"},
+    )
+    repo = FakeReleaseRepository([production, staging])
+    use_case = AutoCompatibleReleaseLifecycleUseCase(repo)
+
+    result = await use_case.execute(agent_id, staging.id, target_status="production", copy_snapshot=True)
+
+    assert result.id == production.id
+    assert result.version == "v1.0.20260620.00"
+    assert production.status == ReleaseStatus.production
+    assert len(await repo.list_by_agent(agent_id)) == 2
