@@ -8,7 +8,24 @@ from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.release_compatibility import classify_release_change
 
 
+_VERSIONED_PRODUCTION_SOURCES = {ReleaseStatus.draft, ReleaseStatus.staging}
+
+
 class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
+    async def execute(self, agent_id, release_id, input_dto=None, *, target_status: str = "production", user_id=None, copy_snapshot: bool = False, change_kind: str = "change"):
+        release = await self._release_repo.get_by_id(release_id)
+        if target_status == ReleaseStatus.production.value and release is not None:
+            copy_snapshot = release.status in _VERSIONED_PRODUCTION_SOURCES
+        return await super().execute(
+            agent_id,
+            release_id,
+            input_dto,
+            target_status=target_status,
+            user_id=user_id,
+            copy_snapshot=copy_snapshot,
+            change_kind=change_kind,
+        )
+
     async def _copy_to_production_release(self, release: AgentRelease, *, user_id, change_kind=None) -> AgentRelease:
         current = await self._get_singleton(release.agent_id, ReleaseStatus.production)
         detected_kind = classify_release_change(current, release)
