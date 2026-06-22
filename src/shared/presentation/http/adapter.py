@@ -10,19 +10,14 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 async def request_adapter(fastapi_request: FastAPIRequest, handler: Any) -> Response:
-    body: Any = getattr(fastapi_request.state, "body_override", None)
-    if body is None:
-        try:
-            body = await fastapi_request.json()
-        except Exception:
-            body = None
+    body: Any = None
+    try:
+        body = await fastapi_request.json()
+    except Exception:
+        body = None
 
     principal = getattr(fastapi_request.state, "principal", None)
-    user = (
-        str(principal.user_id)
-        if isinstance(principal, AuthenticatedPrincipal)
-        else None
-    )
+    user = str(principal.user_id) if isinstance(principal, AuthenticatedPrincipal) else None
     http_request = Request(
         principal=principal,
         user=user,
