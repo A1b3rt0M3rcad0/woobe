@@ -18,7 +18,11 @@ async def request_adapter(fastapi_request: FastAPIRequest, handler: Any) -> Resp
             body = None
 
     principal = getattr(fastapi_request.state, "principal", None)
-    user = str(principal.user_id) if isinstance(principal, AuthenticatedPrincipal) else None
+    user = (
+        str(principal.user_id)
+        if isinstance(principal, AuthenticatedPrincipal)
+        else None
+    )
     http_request = Request(
         principal=principal,
         user=user,
