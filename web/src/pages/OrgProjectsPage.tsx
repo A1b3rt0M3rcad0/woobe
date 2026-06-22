@@ -252,7 +252,7 @@ export default function OrgProjectsPage() {
 
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button className="flex-1" size="sm" variant={isSelected ? 'default' : 'outline'} onClick={() => handleSelect(p)}>
-                      {isSelected ? 'Open' : 'Select'}
+                      Open project
                       <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/projects/${p.id}/settings`)}>
