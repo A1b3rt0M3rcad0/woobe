@@ -4,17 +4,10 @@ from uuid import uuid4
 
 import pytest
 from langchain_core.messages import AIMessage
-from sqlalchemy import delete
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from modules.agent.infra.database.models import (
-    AgentModel,
-    AgentOutboxEventModel,
-    MessageModel,
-    ProviderCredentialModel,
-    SessionModel,
-)
+from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
     SQLAlchemySessionRepository,
@@ -124,6 +117,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
             project_id=project_id,
             agent_id=agent_id,
             message="first user message",
+            execution_context="playground",
         )
     )
     assert first_result.session_id is not None
@@ -139,6 +133,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
             agent_id=agent_id,
             session_id=first_result.session_id,
             message="second user message",
+            execution_context="playground",
         )
     )
     assert second_result.session_id == first_result.session_id
@@ -153,59 +148,28 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
         ("HumanMessage", "second user message"),
     ]
 
-    try:
-        async with session_factory() as reloaded_db:
-            sessions = await SQLAlchemySessionRepository(reloaded_db).list_by_agent(
-                project_id,
-                agent_id,
-            )
-            messages = await SQLAlchemyMessageRepository(reloaded_db).list_by_session(
-                first_result.session_id,
-            )
+    async with session_factory() as reloaded_db:
+        sessions = await SQLAlchemySessionRepository(reloaded_db).list_by_agent(
+            project_id,
+            agent_id,
+        )
+        messages = await SQLAlchemyMessageRepository(reloaded_db).list_by_session(
+            first_result.session_id,
+        )
 
-        assert [session.id for session in sessions] == [first_result.session_id]
-        assert [
-            (
-                message.role.value
-                if hasattr(message.role, "value")
-                else str(message.role),
-                message.content,
-            )
-            for message in messages
-        ] == [
-            ("user", "first user message"),
-            ("assistant", "first assistant reply"),
-            ("user", "second user message"),
-            ("assistant", "second assistant reply"),
-        ]
-    finally:
-        trace_ids = [str(first_result.trace_id), str(second_result.trace_id)]
-        async with session_factory() as db:
-            await db.execute(
-                delete(AgentOutboxEventModel).where(
-                    AgentOutboxEventModel.payload["trace_id"].astext.in_(trace_ids)
-                )
-            )
-            await db.execute(
-                delete(AgentOutboxEventModel).where(
-                    AgentOutboxEventModel.payload["session_id"].astext
-                    == str(first_result.session_id)
-                )
-            )
-            await db.execute(
-                delete(MessageModel).where(
-                    MessageModel.session_id == first_result.session_id
-                )
-            )
-            await db.execute(
-                delete(SessionModel).where(SessionModel.id == first_result.session_id)
-            )
-            await db.execute(delete(AgentModel).where(AgentModel.id == agent_id))
-            await db.execute(
-                delete(ProviderCredentialModel).where(
-                    ProviderCredentialModel.id == credential_id
-                )
-            )
-            await db.execute(delete(ProjectModel).where(ProjectModel.id == project_id))
-            await db.commit()
-        await engine.dispose()
+    assert [session.id for session in sessions] == [first_result.session_id]
+    assert [
+        (
+            message.role.value
+            if hasattr(message.role, "value")
+            else str(message.role),
+            message.content,
+        )
+        for message in messages
+    ] == [
+        ("user", "first user message"),
+        ("assistant", "first assistant reply"),
+        ("user", "second user message"),
+        ("assistant", "second assistant reply"),
+    ]
+    await engine.dispose()
