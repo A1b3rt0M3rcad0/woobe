@@ -1,4 +1,3 @@
-import json
 import re
 import unicodedata
 from datetime import UTC, datetime
@@ -93,7 +92,7 @@ async def create_organization(request: FastAPIRequest):
     payload = dict(await request.json())
     payload["name"] = str(payload.get("name", "")).strip()
     payload["slug"] = _slugify(str(payload.get("slug") or payload.get("name") or "organization"))
-    request._body = json.dumps(payload).encode("utf-8")
+    request.state.body_override = payload
 
     handler = create_organization_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
@@ -148,7 +147,7 @@ async def update_organization(request: FastAPIRequest):
     payload = dict(await request.json())
     if payload.get("slug") is not None:
         payload["slug"] = _slugify(str(payload.get("slug") or payload.get("name") or "organization"))
-    request._body = json.dumps(payload).encode("utf-8")
+    request.state.body_override = payload
 
     handler = update_organization_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
@@ -169,7 +168,7 @@ async def create_invite(request: FastAPIRequest):
         raise AuthenticationError("Authentication required")
     payload = dict(await request.json())
     payload["invited_by_user_id"] = str(principal.user_id)
-    request._body = json.dumps(payload).encode("utf-8")
+    request.state.body_override = payload
     handler = create_invite_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
