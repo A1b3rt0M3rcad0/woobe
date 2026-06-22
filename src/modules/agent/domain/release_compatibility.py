@@ -160,7 +160,6 @@ def _simple_contract_to_object_schema(contract: dict[str, Any]) -> dict[str, Any
     return {
         "type": "object",
         "properties": {str(name): _contract_value_to_schema(child) for name, child in contract.items()},
-        "required": [str(name) for name in contract.keys()],
     }
 
 
