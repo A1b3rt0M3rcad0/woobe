@@ -1,20 +1,20 @@
 import { useState, type ChangeEvent } from 'react'
-import type { UseFormReturn, FieldValues, Path } from 'react-hook-form'
+import type { UseFormReturn } from 'react-hook-form'
 import { Input } from '@/components/ui/Input'
 import { slugify } from '@/lib/slug'
 import { AutoSlugHelp } from './AutoSlugHelp'
 
-interface NameSlugFieldsProps<T extends FieldValues> {
-  form: UseFormReturn<T>
-  namePath: Path<T>
-  slugPath: Path<T>
+interface NameSlugFieldsProps {
+  form: UseFormReturn<any>
+  namePath: string
+  slugPath: string
   namePlaceholder: string
   slugPlaceholder?: string
   fallback: string
   uniqueScope: string
 }
 
-export function NameSlugFields<T extends FieldValues>({
+export function NameSlugFields({
   form,
   namePath,
   slugPath,
@@ -22,15 +22,16 @@ export function NameSlugFields<T extends FieldValues>({
   slugPlaceholder = 'slug',
   fallback,
   uniqueScope,
-}: NameSlugFieldsProps<T>) {
+}: NameSlugFieldsProps) {
   const [isSlugDirty, setIsSlugDirty] = useState(false)
   const nameField = form.register(namePath)
   const slugField = form.register(slugPath)
+  const errors = form.formState.errors as Record<string, { message?: string } | undefined>
 
   const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     nameField.onChange(event)
     if (!isSlugDirty) {
-      form.setValue(slugPath, slugify(event.target.value, fallback) as never, {
+      form.setValue(slugPath, slugify(event.target.value, fallback), {
         shouldDirty: true,
         shouldValidate: true,
       })
@@ -47,14 +48,14 @@ export function NameSlugFields<T extends FieldValues>({
       <Input
         {...nameField}
         onChange={handleNameChange}
-        error={form.formState.errors[namePath]?.message as string | undefined}
+        error={errors[namePath]?.message}
         placeholder={namePlaceholder}
       />
       <div>
         <Input
           {...slugField}
           onChange={handleSlugChange}
-          error={form.formState.errors[slugPath]?.message as string | undefined}
+          error={errors[slugPath]?.message}
           placeholder={slugPlaceholder}
         />
         <AutoSlugHelp scope={uniqueScope} />
