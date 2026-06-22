@@ -22,7 +22,7 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
   const { organizations, projects, currentOrganization, currentProject, selectOrganization, selectProject } = useWorkspace()
   const routeOrganizationId = getRouteOrganizationId(pathname)
   const routeOrganization = routeOrganizationId ? organizations.find((organization) => organization.id === routeOrganizationId) : null
-  const selectedOrganization = currentOrganization ?? routeOrganization ?? null
+  const selectedOrganization = routeOrganization ?? currentOrganization ?? null
   const hasOrganization = Boolean(selectedOrganization)
   const hasProject = Boolean(currentProject)
   const isOrganizationStep = pathname === '/organizations'
