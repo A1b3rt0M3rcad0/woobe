@@ -21,7 +21,7 @@ export function DashboardLayout() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {!isProjectOverview && <Topbar />}
+        {!isProjectOverview && !isWorkspaceSelection && <Topbar />}
         {isWorkspaceSelection && <WorkspaceSelectionSidebar compact />}
         <main className={mainClassName}>
           <ErrorBoundary>
