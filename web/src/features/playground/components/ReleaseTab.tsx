@@ -221,7 +221,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             <Button size="sm" variant="outline" onClick={() => deployRelease(release)} disabled={isProduction} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />{isProduction ? 'In use' : 'Deploy'}</Button>
             <Button size="sm" variant="outline" onClick={() => rollbackToRelease(release)} disabled={isProduction} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback</Button>
             <Button size="sm" variant="outline" onClick={() => loadForEditing(release)}><Save className="mr-1 h-3 w-3" />Load for editing</Button>
-            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(release)} disabled={isProduction}><Archive className="mr-1 h-3 w-3" />Delete</Button>
+            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(release)}><Archive className="mr-1 h-3 w-3" />Delete</Button>
           </div>
         </article>
       })}
