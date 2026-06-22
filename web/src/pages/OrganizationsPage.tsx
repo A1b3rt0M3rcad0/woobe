@@ -77,14 +77,14 @@ export default function OrganizationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Organizations"
+        title="Select your organization"
         description={
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-            <span>Selecione o workspace operacional antes de abrir projetos e agentes.</span>
+            <span>Organizations help you group projects, members and settings.</span>
             {currentOrganization && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary-light">
                 <CheckCircle2 className="h-3 w-3" />
-                {currentOrganization.name} selecionada
+                {currentOrganization.name} selected
               </span>
             )}
           </div>
@@ -92,7 +92,7 @@ export default function OrganizationsPage() {
         actions={
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Organization
+            New organization
           </Button>
         }
       />
@@ -101,11 +101,11 @@ export default function OrganizationsPage() {
         <EmptyState
           icon={<Building2 className="h-12 w-12" />}
           title="No organizations yet"
-          description="Create an organization to get started."
+          description="Create an organization to start building projects and invite your team."
           action={
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Create Organization
+              Create organization
             </Button>
           }
         />
@@ -116,9 +116,9 @@ export default function OrganizationsPage() {
               <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-light">Workspace control</p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">Organizações disponíveis</h2>
+                  <h2 className="mt-2 text-lg font-semibold text-white">Available organizations</h2>
                   <p className="mt-1 text-sm text-muted">
-                    {organizations.length} {organizations.length === 1 ? 'organização cadastrada' : 'organizações cadastradas'} na sua conta.
+                    You have {organizations.length} {organizations.length === 1 ? 'organization' : 'organizations'}.
                   </p>
                 </div>
                 <div className="relative w-full sm:max-w-xs">
@@ -126,7 +126,7 @@ export default function OrganizationsPage() {
                   <Input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Buscar por nome ou slug..."
+                    placeholder="Search organizations..."
                     className="pl-9"
                   />
                 </div>
@@ -140,8 +140,8 @@ export default function OrganizationsPage() {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted">Contexto atual</p>
-                    <p className="text-sm font-semibold text-white">{currentOrganization?.name || 'Nenhum selecionado'}</p>
+                    <p className="text-xs text-muted">Current context</p>
+                    <p className="text-sm font-semibold text-white">{currentOrganization?.name || 'None selected'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -152,8 +152,8 @@ export default function OrganizationsPage() {
             <Card className="border-dashed border-border bg-surface/60">
               <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
                 <Search className="h-10 w-10 text-muted" />
-                <h3 className="mt-4 text-base font-semibold text-white">Nenhuma organização encontrada</h3>
-                <p className="mt-1 max-w-md text-sm text-muted">Revise o termo de busca ou crie uma nova organização.</p>
+                <h3 className="mt-4 text-base font-semibold text-white">No organizations found</h3>
+                <p className="mt-1 max-w-md text-sm text-muted">Adjust the search term or create a new organization.</p>
               </CardContent>
             </Card>
           ) : (
@@ -173,7 +173,7 @@ export default function OrganizationsPage() {
                         </div>
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${isSelected ? 'border-primary/40 bg-primary/20 text-primary-light' : 'border-border bg-background text-muted'}`}>
                           {isSelected && <CheckCircle2 className="h-3 w-3" />}
-                          {isSelected ? 'Selecionada' : 'Disponível'}
+                          {isSelected ? 'Selected' : 'Available'}
                         </span>
                       </div>
 
@@ -186,13 +186,13 @@ export default function OrganizationsPage() {
 
                     <CardContent className="space-y-4">
                       <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Acesso</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Projetos, agentes e configurações vinculados a esta organização.</p>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">Access</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Projects, agents and settings linked to this organization.</p>
                       </div>
 
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Button className="flex-1" size="sm" variant={isSelected ? 'default' : 'outline'} onClick={() => handleSelect(org)}>
-                          {isSelected ? 'Abrir projetos' : 'Selecionar'}
+                          {isSelected ? 'Open projects' : 'Select'}
                           <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => navigate(`/organizations/${org.id}/settings`)}>
