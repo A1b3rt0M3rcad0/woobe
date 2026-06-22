@@ -23,11 +23,14 @@ export async function createRelease(agentId: string, data: CreateReleaseRequest 
 export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'production'; copySnapshot?: boolean; changeKind?: 'compatibility' | 'feature' | 'change' }
 export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
   const isLegacy = typeof options === 'string'
-  const userId = isLegacy ? options : options.userId
-  const targetStatus = isLegacy ? 'production' : options.targetStatus ?? 'production'
-  const copySnapshot = isLegacy ? false : options.copySnapshot ?? false
-  const changeKind = isLegacy ? 'change' : options.changeKind ?? 'change'
-  return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, { user_id: userId, target_status: targetStatus, copy_snapshot: copySnapshot, change_kind: changeKind })
+  const payload: Record<string, unknown> = {
+    user_id: isLegacy ? options : options.userId,
+    target_status: isLegacy ? 'production' : options.targetStatus ?? 'production',
+    copy_snapshot: isLegacy ? false : options.copySnapshot ?? false,
+  }
+  if (!isLegacy && options.changeKind) payload.change_kind = options.changeKind
+  if (isLegacy) payload.change_kind = 'change'
+  return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, payload)
 }
 export async function rollbackRelease(agentId: string, releaseId: string, userId?: string): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/rollback`, { user_id: userId }) }
 export async function getReleaseTests(agentId: string, releaseId: string): Promise<AgentReleaseTest[]> { return get<AgentReleaseTest[]>(`/ai/agents/${agentId}/releases/${releaseId}/tests`) }
