@@ -9,13 +9,8 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { NameSlugFields } from '@/components/forms/NameSlugFields'
-import { slugify } from '@/lib/slug'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { createProjectSchema, type CreateProjectFormData } from '@/features/projects/schemas'
+import { CreateProjectDialog } from '@/components/forms/CreateProjectDialog'
 import { Activity, ArrowRight, Building2, CheckCircle2, Clock3, FolderKanban, Plus, Search, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -67,10 +62,6 @@ export default function OrgProjectsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
 
-  const form = useForm<CreateProjectFormData>({
-    resolver: zodResolver(createProjectSchema),
-  })
-
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     const items = projects ?? []
@@ -92,17 +83,15 @@ export default function OrgProjectsPage() {
     return { withStatus, updated }
   }, [projects])
 
-  const handleCreate = async (data: CreateProjectFormData) => {
+  const handleCreate = async (data: { name: string; slug: string }) => {
     if (!organizationId) return
     try {
       const project = await createProject.mutateAsync({
         organization_id: organizationId,
-        name: data.name.trim(),
-        slug: slugify(data.slug || data.name, 'project'),
+        ...data,
       })
       toast.success('Project created')
       setShowCreate(false)
-      form.reset()
       selectProject({
         id: project.id,
         organization_id: project.organization_id,
@@ -278,22 +267,12 @@ export default function OrgProjectsPage() {
         </div>
       )}
 
-      <Dialog open={showCreate} onClose={() => setShowCreate(false)} title="Create Project">
-        <form onSubmit={form.handleSubmit(handleCreate)} className="space-y-4">
-          <NameSlugFields
-            form={form}
-            namePath="name"
-            slugPath="slug"
-            namePlaceholder="Project name"
-            fallback="project"
-            uniqueScope="inside this organization"
-          />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button type="submit" loading={createProject.isPending}>Create</Button>
-          </div>
-        </form>
-      </Dialog>
+      <CreateProjectDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSubmit={handleCreate}
+        loading={createProject.isPending}
+      />
     </div>
   )
 }
