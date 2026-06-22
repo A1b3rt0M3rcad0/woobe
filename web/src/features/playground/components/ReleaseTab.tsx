@@ -133,8 +133,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   }
 
   async function deployRelease(release: AgentRelease) {
+    if (release.status === 'production') {
+      toast.info(`${release.version} is already in production`)
+      return
+    }
     try {
-      await promoteRelease.mutateAsync({ releaseId: release.id, targetStatus: 'production', copySnapshot: false })
+      await promoteRelease.mutateAsync({ releaseId: release.id, targetStatus: 'production', copySnapshot: false, restoreExistingVersion: true })
       toast.success(`${release.version} deployed`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to deploy release')
@@ -142,6 +146,10 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   }
 
   async function rollbackToRelease(release: AgentRelease) {
+    if (release.status === 'production') {
+      toast.info(`${release.version} is already in production`)
+      return
+    }
     try {
       await rollbackRelease.mutateAsync({ releaseId: release.id })
       toast.success(`Rolled back to ${release.version}`)
@@ -210,10 +218,10 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             {isProduction ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <Circle className="h-4 w-4 text-muted shrink-0" />}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" onClick={() => deployRelease(release)} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />Deploy</Button>
-            <Button size="sm" variant="outline" onClick={() => rollbackToRelease(release)} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback</Button>
+            <Button size="sm" variant="outline" onClick={() => deployRelease(release)} disabled={isProduction} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />{isProduction ? 'In use' : 'Deploy'}</Button>
+            <Button size="sm" variant="outline" onClick={() => rollbackToRelease(release)} disabled={isProduction} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback</Button>
             <Button size="sm" variant="outline" onClick={() => loadForEditing(release)}><Save className="mr-1 h-3 w-3" />Load for editing</Button>
-            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(release)}><Archive className="mr-1 h-3 w-3" />Delete</Button>
+            <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(release)} disabled={isProduction}><Archive className="mr-1 h-3 w-3" />Delete</Button>
           </div>
         </article>
       })}
