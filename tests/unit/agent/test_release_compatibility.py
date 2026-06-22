@@ -75,12 +75,47 @@ def test_json_schema_wrapper_key_rename_is_compatibility_break():
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
 
 
+def test_abbreviated_output_contract_key_rename_message_to_messagev2_is_break():
+    previous = release(output_schema={"message": "string"})
+    candidate = release(output_schema={"messagev2": "string"})
+
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_example_output_contract_key_rename_message_to_messagev2_is_break():
+    previous = release(output_schema={"message": "hello"})
+    candidate = release(output_schema={"messagev2": "hello"})
+
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_abbreviated_response_format_schema_key_rename_is_break():
+    previous = release(response_format={"type": "json", "schema": {"message": {"type": "string"}}})
+    candidate = release(response_format={"type": "json", "schema": {"messagev2": {"type": "string"}}})
+
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_nested_abbreviated_contract_key_rename_is_break():
+    previous = release(output_schema={"data": {"message": "string"}})
+    candidate = release(output_schema={"data": {"messagev2": "string"}})
+
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
 def test_added_optional_output_field_is_feature():
     previous = release(output_schema=object_schema({"name": {"type": "string"}}))
     candidate = release(output_schema=object_schema({
         "name": {"type": "string"},
         "score": {"type": "number"},
     }))
+    assert classify_release_change(previous, candidate) == ReleaseChangeKind.FEATURE
+
+
+def test_abbreviated_contract_added_field_is_feature():
+    previous = release(output_schema={"message": "string"})
+    candidate = release(output_schema={"message": "string", "confidence": "number"})
+
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.FEATURE
 
 
