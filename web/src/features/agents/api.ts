@@ -20,7 +20,7 @@ export async function createKnowledgeVersion(agentId: string, data: CreateKnowle
 export async function getReleases(agentId: string): Promise<AgentRelease[]> { return get<AgentRelease[]>(`/ai/agents/${agentId}/releases`) }
 export async function getRelease(agentId: string, releaseId: string): Promise<AgentRelease> { return get<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}`) }
 export async function createRelease(agentId: string, data: CreateReleaseRequest): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases`, data) }
-export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean }
+export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string }
 export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
   const isLegacy = typeof options === 'string'
   const payload: Record<string, unknown> = {
@@ -28,6 +28,7 @@ export async function promoteRelease(agentId: string, releaseId: string, options
     target_status: isLegacy ? 'production' : options.targetStatus ?? 'production',
     copy_snapshot: isLegacy ? false : options.copySnapshot ?? false,
     restore_existing_version: isLegacy ? true : options.restoreExistingVersion ?? false,
+    release_notes: isLegacy ? undefined : options.releaseNotes,
   }
   return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, payload)
 }
