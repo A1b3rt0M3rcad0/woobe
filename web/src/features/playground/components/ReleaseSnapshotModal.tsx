@@ -1,6 +1,7 @@
 import { FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Textarea } from '@/components/ui/Textarea'
 import type { AgentRelease } from '@/features/agents/types'
 
 type ReleaseSnapshotModalProps = {
@@ -12,6 +13,8 @@ type ReleaseSnapshotModalProps = {
   isConfirming?: boolean
   onConfirm?: () => void
   onClose: () => void
+  releaseDescription?: string
+  onReleaseDescriptionChange?: (value: string) => void
 }
 
 function formatJson(value: unknown) {
@@ -34,8 +37,9 @@ function row(label: string, value: unknown) {
   return <div className="grid grid-cols-[96px_1fr] gap-3 text-xs"><span className="text-muted">{label}</span><span className="min-w-0 break-words text-slate-200">{formatValue(value)}</span></div>
 }
 
-export function ReleaseSnapshotModal({ open, title, description, release, confirmLabel, isConfirming, onConfirm, onClose }: ReleaseSnapshotModalProps) {
+export function ReleaseSnapshotModal({ open, title, description, release, confirmLabel, isConfirming, onConfirm, onClose, releaseDescription, onReleaseDescriptionChange }: ReleaseSnapshotModalProps) {
   if (!open || !release) return null
+  const canEditDescription = Boolean(onConfirm && onReleaseDescriptionChange)
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
     <div className="max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
@@ -48,6 +52,21 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
       </div>
 
       <div className="max-h-[60vh] space-y-5 overflow-y-auto p-5">
+        {canEditDescription && <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Release description</p>
+          <Textarea
+            value={releaseDescription ?? ''}
+            onChange={(event) => onReleaseDescriptionChange?.(event.target.value)}
+            placeholder="Describe what changed in this release. This metadata does not affect the execution snapshot or version calculation."
+            className="min-h-24 text-sm"
+          />
+        </section>}
+
+        {!canEditDescription && release.release_notes && <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Release description</p>
+          <p className="whitespace-pre-wrap text-xs text-slate-200">{release.release_notes}</p>
+        </section>}
+
         <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300"><FileText className="h-3.5 w-3.5" />Agent snapshot</div>
           {row('Name', release.name)}
