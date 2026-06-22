@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 function getInitials(email?: string) {
@@ -33,7 +33,6 @@ export function SidebarUserCard() {
         >
           <LogOut className="h-4 w-4" />
         </button>
-        <ChevronRight className="hidden h-4 w-4 text-muted" />
       </div>
     </div>
   )
