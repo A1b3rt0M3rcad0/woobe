@@ -37,7 +37,7 @@ class FakePromoteUseCase:
 
 
 @pytest.mark.asyncio
-async def test_production_promotion_defaults_to_versioned_snapshot() -> None:
+async def test_controller_preserves_copy_snapshot_false_for_deploy() -> None:
     use_case = FakePromoteUseCase()
     controller = PromoteReleaseController(use_case)
     agent_id = uuid4()
@@ -51,11 +51,12 @@ async def test_production_promotion_defaults_to_versioned_snapshot() -> None:
     )
 
     assert response.status_code == 200
-    assert use_case.calls[0]["copy_snapshot"] is True
+    assert use_case.calls[0]["target_status"] == "production"
+    assert use_case.calls[0]["copy_snapshot"] is False
 
 
 @pytest.mark.asyncio
-async def test_restore_existing_version_can_preserve_move_semantics() -> None:
+async def test_controller_preserves_copy_snapshot_true_for_new_release() -> None:
     use_case = FakePromoteUseCase()
     controller = PromoteReleaseController(use_case)
     agent_id = uuid4()
@@ -64,12 +65,8 @@ async def test_restore_existing_version_can_preserve_move_semantics() -> None:
     await controller.handle(
         Request(
             path_params={"agent_id": str(agent_id), "release_id": str(release_id)},
-            body={
-                "target_status": "production",
-                "copy_snapshot": False,
-                "restore_existing_version": True,
-            },
+            body={"target_status": "production", "copy_snapshot": True},
         )
     )
 
-    assert use_case.calls[0]["copy_snapshot"] is False
+    assert use_case.calls[0]["copy_snapshot"] is True
