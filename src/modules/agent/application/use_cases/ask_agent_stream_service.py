@@ -10,6 +10,12 @@ from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_runtime import (
+    MCP_AGENT_SESSION_INPUT_KEY,
+    build_default_tool_runtime_registry,
+)
+from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.runtime_streaming import (
     RUNTIME_STREAM_HEARTBEAT_SECONDS,
     RuntimeStreamChannel,
@@ -19,9 +25,9 @@ from modules.agent.application.use_cases.runtime_streaming import (
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.redis_mcp_session_store import build_redis_mcp_session_store
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -44,8 +50,10 @@ class AskAgentStreamService:
     ) -> None:
         self._session_factory = session_factory
         settings = Settings.model_validate({})
+        self._settings = settings
         self._cipher = SecretCipherAdapter(settings.encryption_key)
         self._http_executor = http_executor
+        self._mcp_session_store = build_redis_mcp_session_store(settings.redis_url)
         self._use_case = StructuredOutputAskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
@@ -55,14 +63,24 @@ class AskAgentStreamService:
 
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         try:
+            runtime_input = dict(input_data or {})
+            context = current_execution.get()
+            if context and context.session_id:
+                runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+
             async with AgentUnitOfWork(self._session_factory) as uow:
                 resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
                 executor = self._http_executor or get_http_tool_executor()
-                result = await ExecuteToolUseCase(
+                registry = build_default_tool_runtime_registry(
+                    executor,
+                    resolver,
+                    mcp_session_store=self._mcp_session_store,
+                    mcp_session_ttl_seconds=self._settings.mcp_session_ttl_seconds,
+                )
+                result = await RuntimeExecuteToolUseCase(
                     tool_repo=uow.tools,
-                    tool_executor=executor,
-                    secret_resolver=resolver,
-                ).execute(ExecuteToolInput(tool_id=tool_id, input_data=input_data))
+                    runtime_registry=registry,
+                ).execute(ExecuteToolInput(tool_id=tool_id, input_data=runtime_input))
                 if not result.success:
                     runtime_metrics.increment_tool_failure(tool=str(tool_id))
                 return result.model_dump()
@@ -219,29 +237,14 @@ class AskAgentStreamService:
             while not channel.queue.empty():
                 yield self._sse_event(channel.queue.get_nowait())
         except asyncio.CancelledError:
-            await self._cancel_task(task, channel, input_dto, "stream_cancelled")
+            await self._cancel_task(task, channel, input_dto, "server_cancelled")
             raise
         except Exception as exc:
-            logger.exception(
-                "Agent streaming execution failed request_id=%s trace_id=%s: %s",
-                channel.request_id,
-                channel.trace_id,
-                redact_text(str(exc)),
-            )
-            await channel.emit(
-                "error",
-                code="runtime_execution_failed",
-                message="Agent streaming execution failed",
-                trace_id=str(channel.trace_id) if channel.trace_id else None,
-                session_id=str(channel.session_id) if channel.session_id else None,
-            )
+            logger.exception("Streaming runtime failed: %s", exc)
+            await channel.emit("error", message=str(exc))
             while not channel.queue.empty():
                 yield self._sse_event(channel.queue.get_nowait())
-        finally:
-            if not task.done() and not disconnected:
-                await self._cancel_task(task, channel, input_dto, "stream_closed")
 
     @staticmethod
     def _sse_event(event: RuntimeStreamEvent) -> str:
-        payload = {"type": event.event_type, **event.payload}
-        return f"data: {json.dumps(payload, default=str)}\n\n"
+        return f"event: {event.event}\ndata: {json.dumps(event.data)}\n\n"
