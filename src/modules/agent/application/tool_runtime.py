@@ -19,6 +19,7 @@ from modules.agent.application.tool_types import (
 
 _TEMPLATE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 MCP_PROTOCOL_VERSION = "2025-06-18"
+MCP_REMOTE_TOOL_INPUT_KEY = "__mcp_tool_name"
 
 
 def _replace_template(value: str, variables: dict[str, Any]) -> str:
@@ -309,8 +310,9 @@ class McpToolRuntime(ToolRuntimePort):
                 error=f"MCP transport '{transport}' is not supported by this runtime",
             )
 
+        call_input = dict(input_data or {})
         url = server.get("url") or config.get("url")
-        tool_name = config.get("tool_name")
+        tool_name = call_input.pop(MCP_REMOTE_TOOL_INPUT_KEY, None) or config.get("tool_name")
         if not url:
             return ExecutionResult(success=False, error="MCP server.url is required")
         if not tool_name:
@@ -375,7 +377,7 @@ class McpToolRuntime(ToolRuntimePort):
             "method": "tools/call",
             "params": {
                 "name": tool_name,
-                "arguments": input_data,
+                "arguments": call_input,
             },
         }
         result = await self._executor.execute(
