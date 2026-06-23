@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useTools, useSecrets, useCreateSecret } from '@/features/tools/hooks'
+import { useTools, useSecrets, useCreateSecret, useDeleteTool } from '@/features/tools/hooks'
 import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
 import { ToolsCreateDialog } from '@/pages/ToolsCreateDialog'
 import { ProjectPageShell } from '@/components/common/ProjectPageShell'
@@ -18,7 +18,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createSecretSchema, type CreateSecretFormData } from '@/features/tools/schemas'
-import { Key, LockKeyhole, Plus, ShieldCheck, Wrench } from 'lucide-react'
+import { Key, LockKeyhole, Plus, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Secret, Tool } from '@/features/tools/types'
 
@@ -47,7 +47,7 @@ function PermissionBadge({ mode }: { mode: McpToolPermissionMode }) {
 
 function isMcpProvider(tool: Tool): boolean {
   const config = (tool.config || {}) as Record<string, unknown>
-  return String(tool.type).includes('mcp') || config.protocol === 'mcp'
+  return String(tool.type).toLowerCase().includes('mcp') || config.protocol === 'mcp'
 }
 
 function mcpConnectStatus(tool: Tool): string {
@@ -81,11 +81,13 @@ export default function ToolsPage() {
   const { data: tools, isLoading: toolsLoading, isError: toolsError, refetch: refetchTools } = useTools(projectId)
   const { data: secrets, isLoading: secLoading } = useSecrets(projectId)
   const createSecret = useCreateSecret()
+  const deleteToolMutation = useDeleteTool()
   const [showTool, setShowTool] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
   const [connectingToolId, setConnectingToolId] = useState<string | null>(null)
   const [permissionToolId, setPermissionToolId] = useState<string | null>(null)
   const [permissionSavingKey, setPermissionSavingKey] = useState<string | null>(null)
+  const [deletingToolId, setDeletingToolId] = useState<string | null>(null)
 
   useEffect(() => {
     const requestedToolId = searchParams.get('configure_mcp_permissions')
@@ -102,6 +104,22 @@ export default function ToolsPage() {
       secretForm.reset()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create secret')
+    }
+  }
+
+  const handleDeleteTool = async (tool: Tool) => {
+    const confirmed = window.confirm(`Delete tool "${tool.name}"? This action cannot be undone.`)
+    if (!confirmed) return
+    try {
+      setDeletingToolId(tool.id)
+      await deleteToolMutation.mutateAsync(tool.id)
+      if (permissionToolId === tool.id) closePermissionConfig()
+      await refetchTools()
+      toast.success('Tool deleted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete tool')
+    } finally {
+      setDeletingToolId(null)
     }
   }
 
@@ -199,6 +217,9 @@ export default function ToolsPage() {
                   <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3 text-sm text-muted">
                     <div className="flex items-center justify-between gap-3"><span>Type</span><span className="font-medium text-white">{tool.type}</span></div>
                     <div className="flex items-center justify-between gap-3"><span>Status</span><StatusBadge status={tool.status} /></div>
+                    <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteTool(tool)} loading={deletingToolId === tool.id}><Trash2 className="mr-1 h-3 w-3" />Delete</Button>
+                    </div>
                     {mcpProvider ? (
                       <div className="space-y-3 border-t border-border/70 pt-3">
                         <div className="flex items-center justify-between gap-3"><span>MCP connection</span><StatusBadge status={connected ? 'connected' : connectStatus} /></div>
