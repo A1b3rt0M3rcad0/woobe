@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.domain.repositories import ToolRepository
@@ -46,6 +46,15 @@ class FakeExecutor(ToolExecutionPort):
                 }
             },
         )
+
+
+class FakeSecretResolver(ToolSecretResolverPort):
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[dict], UUID]] = []
+
+    async def resolve_headers(self, headers: list[dict], project_id: UUID) -> dict[str, str]:
+        self.calls.append((headers, project_id))
+        return {"Authorization": "Bearer resolved-token"}
 
 
 @dataclass
@@ -111,6 +120,40 @@ async def test_refresh_stale_mcp_server_tools_discovers_and_persists_tools() -> 
     assert refreshed[0].config["discovered_at"]
     assert repo.updated == [refreshed[0]]
     assert len(executor.calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_refresh_stale_mcp_server_tools_resolves_secret_headers() -> None:
+    tool = mcp_provider(
+        {
+            "protocol": "mcp",
+            "mode": "server",
+            "exposure": "all_discovered",
+            "server": {
+                "transport": "streamable_http",
+                "url": "https://mcp.example.com",
+                "headers": [{"key": "Authorization", "value": "secret://mcp-token", "sensitive": True}],
+            },
+            "discovery_cache_ttl_seconds": 3600,
+            "discovered_tools": [],
+        }
+    )
+    repo = FakeToolRepository()
+    executor = FakeExecutor()
+    resolver = FakeSecretResolver()
+
+    await refresh_stale_mcp_server_tools(
+        tools=[tool],
+        tool_repo=repo,
+        executor=executor,
+        secret_resolver=resolver,
+    )
+
+    assert resolver.calls == [(
+        [{"key": "Authorization", "value": "secret://mcp-token", "sensitive": True}],
+        tool.project_id,
+    )]
+    assert executor.calls[0]["headers"]["Authorization"] == "Bearer resolved-token"
 
 
 @pytest.mark.asyncio
