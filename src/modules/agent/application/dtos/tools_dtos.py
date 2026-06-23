@@ -47,6 +47,7 @@ class McpDiscoveredToolConfig(BaseModel):
     title: str | None = None
     description: str | None = None
     input_schema: dict[str, Any] | None = None
+    permission: dict[str, Any] | None = None
 
 
 class McpToolConfig(BaseModel):
@@ -66,10 +67,7 @@ class McpToolConfig(BaseModel):
     def validate_transport_target(self) -> "McpToolConfig":
         if not self.server.url:
             raise ValueError("MCP server.url is required for streamable_http transport")
-        if self.mode == "server" or self.exposure == "all_discovered":
-            if not self.discovered_tools:
-                raise ValueError("MCP discovered_tools is required when exposing the whole server")
-        elif not self.tool_name:
+        if self.mode != "server" and self.exposure != "all_discovered" and not self.tool_name:
             raise ValueError("MCP tool_name is required when exposing a single MCP tool")
         return self
 
