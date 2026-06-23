@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
 from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
 from modules.agent.domain.enums import ToolType
 
@@ -52,7 +53,7 @@ def _is_mcp_server_provider(tool: Any) -> bool:
 
 def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
     config = getattr(tool, "config", None) or {}
-    discovered_tools = config.get("discovered_tools") or []
+    discovered_tools = allowed_mcp_discovered_tools(config)
     parent_name = _safe_tool_name(tool)
     definitions: list[dict] = []
     mapping: dict[str, str] = {}
