@@ -23,7 +23,7 @@ export interface HttpToolConfig {
 }
 
 export interface McpServerConfig {
-  transport: 'streamable_http' | 'sse' | 'stdio'
+  transport: 'streamable_http'
   url?: string
   command?: string
   args?: string[]
