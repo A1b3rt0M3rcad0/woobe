@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from modules.agent.application.mcp_permissions import default_mcp_permission
 from modules.agent.application.ports import ToolExecutionPort
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
@@ -21,6 +22,7 @@ class McpDiscoveredTool(BaseModel):
     title: str | None = None
     description: str | None = None
     input_schema: dict[str, Any] | None = None
+    permission: dict[str, Any] = Field(default_factory=default_mcp_permission)
 
 
 class McpDiscoverOutput(BaseModel):
@@ -114,6 +116,7 @@ def _extract_tools(payload: Any) -> list[McpDiscoveredTool]:
                 title=raw.get("title") if isinstance(raw.get("title"), str) else None,
                 description=raw.get("description") if isinstance(raw.get("description"), str) else None,
                 input_schema=input_schema if isinstance(input_schema, dict) else None,
+                permission=default_mcp_permission(),
             )
         )
     return tools
@@ -180,17 +183,9 @@ class DiscoverMcpToolsUseCase:
             timeout_ms=input_dto.timeout_ms,
         )
         if not list_result.success:
-            return McpDiscoverOutput(
-                tools=[],
-                initialized=initialized,
-                error=list_result.error or "MCP tools/list failed",
-            )
+            return McpDiscoverOutput(tools=[], initialized=initialized, error=list_result.error or "MCP tools/list failed")
 
         tools = _extract_tools(_extract_body(list_result.output if isinstance(list_result.output, dict) else None))
         if not tools:
-            return McpDiscoverOutput(
-                tools=[],
-                initialized=initialized,
-                error="MCP server did not return any tools",
-            )
+            return McpDiscoverOutput(tools=[], initialized=initialized, error="MCP server did not return any tools")
         return McpDiscoverOutput(tools=tools, initialized=initialized)
