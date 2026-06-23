@@ -11,12 +11,13 @@ Supported flow:
 3. Send `notifications/initialized`.
 4. Run `tools/list`.
 5. Persist `discovered_tools` on the provider config.
-6. Expose each discovered tool as a separate model function.
-7. Route selected functions back to the parent MCP provider through `__mcp_tool_name`.
-8. Execute remote `tools/call`.
-9. Cache `Mcp-Session-Id` by `agent_session_id + provider_id` when Redis is available.
-10. Continue execution without cache when Redis is unavailable.
-11. Connect OAuth-protected MCP providers from the provider card after the MCP provider exists.
+6. Store a policy for each discovered tool: `review`, `allow`, or `deny`.
+7. Expose only `allow` discovered tools as model functions.
+8. Route selected functions back to the parent MCP provider through `__mcp_tool_name`.
+9. Execute remote `tools/call` only when the selected discovered tool is allowed by policy.
+10. Cache `Mcp-Session-Id` by `agent_session_id + provider_id` when Redis is available.
+11. Continue execution without cache when Redis is unavailable.
+12. Connect OAuth-protected MCP providers from the provider card after the MCP provider exists.
 
 Out of scope for MVP:
 
@@ -26,6 +27,7 @@ Out of scope for MVP:
 - Background discovery jobs.
 - Redis connection pooling through an external dependency.
 - Per-end-user OAuth ownership. The MVP stores MCP OAuth at project/provider level.
+- Per-call human approval. The MVP is policy-first and API-first.
 
 ## MCP OAuth connect model
 
@@ -40,6 +42,7 @@ OAuth belongs to the MCP provider, not to the agent-tool attachment. The intende
 7. The frontend calls `/tools/mcp/oauth/complete`.
 8. ProjectRAI stores the OAuth connection on `tool.config.oauth` using encrypted sensitive values.
 9. Runtime MCP calls merge the provider headers and OAuth connection headers before `initialize` and `tools/call`.
+10. The callback returns to the Tools page with permission configuration expanded for that provider.
 
 Available endpoints:
 
@@ -51,6 +54,54 @@ POST /tools/mcp/oauth/disconnect
 ```
 
 The start flow supports PKCE, `resource`, authorization server metadata discovery, and dynamic client registration when the remote authorization server exposes a registration endpoint. When dynamic registration is not available, the frontend must pass `client_id` and optionally `client_secret`.
+
+## MCP permission policy model
+
+MCP discovered tools are controlled by policy, not by per-call approval prompts. Each discovered tool has:
+
+```json
+{
+  "name": "create_video",
+  "permission": {
+    "mode": "review",
+    "risk_level": "unknown"
+  }
+}
+```
+
+Supported modes:
+
+- `review`: default for newly discovered tools. The tool is not exposed to the model and cannot execute until configured.
+- `allow`: exposed to the model and executable by runtime.
+- `deny`: not exposed to the model and blocked by runtime.
+
+Permission endpoints:
+
+```text
+PATCH /tools/mcp/permissions
+POST /tools/mcp/permissions/bulk
+```
+
+Examples:
+
+```json
+{
+  "tool_id": "provider-tool-id",
+  "permissions": [
+    {"remote_tool_name": "create_video", "mode": "allow"},
+    {"remote_tool_name": "delete_video", "mode": "deny"}
+  ]
+}
+```
+
+```json
+{
+  "tool_id": "provider-tool-id",
+  "mode": "allow"
+}
+```
+
+Rediscovery preserves any previous policy by discovered tool name. New server tools are added as `review`.
 
 ## Environment variables
 
@@ -89,14 +140,16 @@ Manual validation:
 
 1. Create and test a normal HTTP tool.
 2. Connect a public MCP server over streamable HTTP.
-3. Confirm discovered tools appear in the UI.
-4. Test one discovered MCP tool with JSON input.
-5. Save the MCP provider.
-6. Ask an agent question that forces one discovered MCP tool call.
-7. Repeat in the same session and confirm a session cache hit in logs.
-8. Stop Redis and confirm MCP calls still work without cache.
-9. Test an authenticated MCP server and confirm discovery refresh can resolve configured headers.
-10. Test an OAuth MCP provider by clicking `Connect`, completing the provider auth screen, returning to the callback page, and executing a discovered tool.
+3. Confirm discovered tools appear in the UI as `review`.
+4. Use `Allow all`, `Deny all`, and per-tool `Allow/Deny/Review` controls.
+5. Confirm only allowed tools are exposed to agents.
+6. Save the MCP provider.
+7. Ask an agent question that forces one allowed discovered MCP tool call.
+8. Confirm a denied/review tool is blocked if invoked directly.
+9. Repeat in the same session and confirm a session cache hit in logs.
+10. Stop Redis and confirm MCP calls still work without cache.
+11. Test an authenticated MCP server and confirm discovery refresh can resolve configured headers.
+12. Test an OAuth MCP provider by clicking `Connect`, completing the provider auth screen, returning to the callback page, configuring allowed tools, and executing a discovered tool.
 
 ## Security notes
 
