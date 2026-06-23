@@ -61,6 +61,22 @@ class ToolRuntimePort(ABC):
         ...
 
 
+class McpSessionStorePort(ABC):
+    """Operational cache for remote MCP protocol sessions."""
+
+    @abstractmethod
+    async def get(self, key: str) -> str | None:
+        ...
+
+    @abstractmethod
+    async def set(self, key: str, session_id: str, ttl_seconds: int) -> None:
+        ...
+
+    @abstractmethod
+    async def delete(self, key: str) -> None:
+        ...
+
+
 class SecretCipherPort(ABC):
 
     @abstractmethod
