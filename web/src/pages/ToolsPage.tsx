@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useTools, useCreateTool, useSecrets, useCreateSecret } from '@/features/tools/hooks'
+import { useTools, useSecrets, useCreateSecret } from '@/features/tools/hooks'
+import { ToolsCreateDialog } from '@/pages/ToolsCreateDialog'
 import { ProjectPageShell } from '@/components/common/ProjectPageShell'
 import { GuidedEmptyState } from '@/components/common/GuidedEmptyState'
 import { ResourceCard } from '@/components/common/ResourceCard'
@@ -10,79 +11,39 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
-import { JsonEditor } from '@/components/ui/JsonEditor'
 import { Select } from '@/components/ui/Select'
 import { Tabs } from '@/components/ui/Tabs'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createToolSchema, createSecretSchema, type CreateToolFormData, type CreateSecretFormData } from '@/features/tools/schemas'
+import { createSecretSchema, type CreateSecretFormData } from '@/features/tools/schemas'
 import { Key, LockKeyhole, Plus, ShieldCheck, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Tool, Secret } from '@/features/tools/types'
 
-const riskOptions = [
-  { value: 'read_only', label: 'Read Only' },
-  { value: 'write', label: 'Write' },
-  { value: 'destructive', label: 'Destructive' },
-  { value: 'restricted', label: 'Restricted' },
-]
-
-const toolTypeOptions = [
-  { value: 'http', label: 'HTTP' },
-  { value: 'mcp', label: 'MCP' },
-  { value: 'function', label: 'Function' },
-]
-
 function RiskBadge({ risk }: { risk?: string | null }) {
-  const value = risk || 'read_only'
-  const tone = value === 'destructive' || value === 'restricted'
+  const value = risk || 'low'
+  const tone = value === 'critical'
     ? 'border-red-500/40 bg-red-500/10 text-red-300'
-    : value === 'write'
+    : value === 'high'
       ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-      : 'border-primary/40 bg-primary/10 text-primary-light'
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{value.replace('_', ' ')}</span>
+      : value === 'medium'
+        ? 'border-blue-500/40 bg-blue-500/10 text-blue-300'
+        : 'border-primary/40 bg-primary/10 text-primary-light'
+  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{value}</span>
 }
 
 export default function ToolsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: tools, isLoading: toolsLoading, isError: toolsError, refetch: refetchTools } = useTools(projectId)
-  const createTool = useCreateTool()
   const { data: secrets, isLoading: secLoading } = useSecrets(projectId)
   const createSecret = useCreateSecret()
   const [showTool, setShowTool] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
 
-  const toolForm = useForm<CreateToolFormData>({
-    resolver: zodResolver(createToolSchema),
-    defaultValues: { type: 'http', risk_level: 'read_only' },
-  })
-
   const secretForm = useForm<CreateSecretFormData>({
     resolver: zodResolver(createSecretSchema),
   })
-
-  const handleCreateTool = async (data: CreateToolFormData) => {
-    try {
-      await createTool.mutateAsync({
-        project_id: projectId!,
-        name: data.name,
-        description: data.description,
-        type: data.type,
-        risk_level: data.risk_level || 'read_only',
-        config: data.config ? JSON.parse(data.config) : undefined,
-        input_schema: data.input_schema ? JSON.parse(data.input_schema) : undefined,
-        output_schema: data.output_schema ? JSON.parse(data.output_schema) : undefined,
-        timeout_ms: data.timeout_ms,
-      })
-      toast.success('Tool created')
-      setShowTool(false)
-      toolForm.reset({ type: 'http', risk_level: 'read_only' })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create tool')
-    }
-  }
 
   const handleCreateSecret = async (data: CreateSecretFormData) => {
     try {
@@ -105,7 +66,7 @@ export default function ToolsPage() {
 
   const toolItems = tools ?? []
   const secretItems = secrets ?? []
-  const restrictedTools = toolItems.filter((tool) => tool.risk_level === 'restricted' || tool.risk_level === 'destructive').length
+  const highRiskTools = toolItems.filter((tool) => tool.risk_level === 'high' || tool.risk_level === 'critical').length
 
   const tabs = [
     {
@@ -196,32 +157,12 @@ export default function ToolsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <ResourceSummaryCard label="Tools" value={toolItems.length} detail="External capabilities" icon={<Wrench className="h-5 w-5" />} />
         <ResourceSummaryCard label="Secrets" value={secretItems.length} detail="Stored credentials" icon={<LockKeyhole className="h-5 w-5" />} />
-        <ResourceSummaryCard label="High risk" value={restrictedTools} detail="Restricted or destructive tools" icon={<ShieldCheck className="h-5 w-5" />} />
+        <ResourceSummaryCard label="High risk" value={highRiskTools} detail="High or critical tools" icon={<ShieldCheck className="h-5 w-5" />} />
       </div>
 
       <Tabs tabs={tabs} />
 
-      <Dialog open={showTool} onClose={() => setShowTool(false)} title="Create Tool">
-        <form onSubmit={toolForm.handleSubmit(handleCreateTool)} className="space-y-4">
-          <Input {...toolForm.register('name')} error={toolForm.formState.errors.name?.message} placeholder="Tool name" />
-          <Textarea {...toolForm.register('description')} placeholder="Description" />
-          <Select {...toolForm.register('type')} options={toolTypeOptions} placeholder="Type" />
-          <Select {...toolForm.register('risk_level')} options={riskOptions} placeholder="Risk level" />
-          <JsonEditor
-            value={toolForm.watch('config') || ''}
-            onChange={(val) => toolForm.setValue('config', val)}
-            editable
-            title="Config"
-            actions={['format', 'validate', 'clear']}
-            minHeight={80}
-            placeholder='Config JSON (optional)'
-          />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowTool(false)}>Cancel</Button>
-            <Button type="submit" loading={createTool.isPending}>Create</Button>
-          </div>
-        </form>
-      </Dialog>
+      <ToolsCreateDialog open={showTool} projectId={projectId!} onClose={() => setShowTool(false)} />
 
       <Dialog open={showSecret} onClose={() => setShowSecret(false)} title="Create Secret">
         <form onSubmit={secretForm.handleSubmit(handleCreateSecret)} className="space-y-4">
