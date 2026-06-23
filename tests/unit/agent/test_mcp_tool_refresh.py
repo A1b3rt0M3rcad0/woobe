@@ -110,7 +110,7 @@ async def test_refresh_stale_mcp_server_tools_discovers_and_persists_tools() -> 
     assert refreshed[0].config["discovered_tools"][0]["name"] == "search"
     assert refreshed[0].config["discovered_at"]
     assert repo.updated == [refreshed[0]]
-    assert len(executor.calls) == 2
+    assert len(executor.calls) == 3
 
 
 @pytest.mark.asyncio
