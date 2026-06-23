@@ -80,7 +80,7 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
 
-          <Route path="/tools/mcp/oauth/callback" element={<McpConnectCallbackPage />} />
+          <Route path="/mcp/oauth/callback" element={<McpConnectCallbackPage />} />
 
           <Route path="/projects" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId" element={<LegacyProjectRedirect />} />
