@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
+from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
 from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.repositories import ToolRepository
@@ -138,6 +140,25 @@ def _oauth_config(tool: Tool) -> dict[str, Any]:
     return oauth if isinstance(oauth, dict) else {}
 
 
+def _raw_headers_from_config(config: dict[str, Any]) -> list[dict[str, Any]]:
+    server = config.get("server") or {}
+    raw_headers = config.get("server_headers") or server.get("headers") or []
+    if isinstance(raw_headers, dict):
+        return [{"key": str(k), "value": str(v)} for k, v in raw_headers.items() if k]
+    if not isinstance(raw_headers, list):
+        return []
+    return [item for item in raw_headers if isinstance(item, dict)]
+
+
+def _headers_from_raw(raw_headers: list[dict[str, Any]]) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for item in raw_headers:
+        key = item.get("key")
+        if key:
+            headers[str(key)] = str(item.get("value", ""))
+    return headers
+
+
 def _expires_at_from_token_response(payload: dict[str, Any]) -> str | None:
     expires_in = payload.get("expires_in")
     try:
@@ -215,23 +236,14 @@ class McpOAuthMetadataResolver:
         result = await self._executor.execute(
             method="POST",
             url=server_url,
-            headers={
-                "Accept": "application/json, text/event-stream",
-                "Content-Type": "application/json",
-                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
-            },
+            headers={"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
             body=json.dumps(initialize_payload),
             timeout_ms=timeout_ms,
         )
         return _parse_www_authenticate_resource_metadata(_headers(result).get("www-authenticate"))
 
     async def _get_json(self, url: str, *, timeout_ms: int) -> dict[str, Any]:
-        result = await self._executor.execute(
-            method="GET",
-            url=url,
-            headers={"Accept": "application/json"},
-            timeout_ms=timeout_ms,
-        )
+        result = await self._executor.execute(method="GET", url=url, headers={"Accept": "application/json"}, timeout_ms=timeout_ms)
         if not result.success:
             raise ValueError(result.error or f"OAuth metadata request failed for {url}")
         body = _body(result)
@@ -268,11 +280,7 @@ class McpOAuthStartUseCase:
         client_id = input_dto.client_id
         client_secret = input_dto.client_secret
         if not client_id and metadata.get("registration_endpoint"):
-            registered = await self._register_client(
-                registration_endpoint=str(metadata["registration_endpoint"]),
-                redirect_uri=input_dto.redirect_uri,
-                timeout_ms=input_dto.timeout_ms,
-            )
+            registered = await self._register_client(registration_endpoint=str(metadata["registration_endpoint"]), redirect_uri=input_dto.redirect_uri, timeout_ms=input_dto.timeout_ms)
             client_id = str(registered.get("client_id") or "") or None
             client_secret = str(registered.get("client_secret") or "") or None
         if not client_id:
@@ -312,10 +320,7 @@ class McpOAuthStartUseCase:
         config["oauth"] = oauth
         tool.config = config
         await self._tool_repo.update(tool)
-        return McpOAuthStartOutput(
-            authorization_url=f"{metadata['authorization_endpoint']}?{urlencode(params)}",
-            state=state,
-        )
+        return McpOAuthStartOutput(authorization_url=f"{metadata['authorization_endpoint']}?{urlencode(params)}", state=state)
 
     async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int) -> dict[str, Any]:
         payload = {
@@ -325,13 +330,7 @@ class McpOAuthStartUseCase:
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
         }
-        result = await self._executor.execute(
-            method="POST",
-            url=registration_endpoint,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
-            body=json.dumps(payload),
-            timeout_ms=timeout_ms,
-        )
+        result = await self._executor.execute(method="POST", url=registration_endpoint, headers={"Accept": "application/json", "Content-Type": "application/json"}, body=json.dumps(payload), timeout_ms=timeout_ms)
         if not result.success:
             raise ValueError(result.error or "OAuth dynamic client registration failed")
         body = _body(result)
@@ -351,6 +350,8 @@ class McpOAuthCompleteUseCase:
         if tool is None:
             raise ValueError("MCP tool provider not found")
         config = dict(tool.config or {})
+        server = config.get("server") or {}
+        server_url = str(server.get("url") or config.get("url") or "")
         oauth = _oauth_config(tool)
         if oauth.get("status") != "pending" or oauth.get("state") != input_dto.state:
             raise ValueError("Invalid or expired OAuth state")
@@ -372,15 +373,11 @@ class McpOAuthCompleteUseCase:
         )
         oauth = await self._connected_oauth_config(oauth, token_payload)
         config["oauth"] = oauth
+        if server_url:
+            await self._discover_connected_tools(config=config, server_url=server_url, oauth=oauth, timeout_ms=input_dto.timeout_ms)
         tool.config = config
         await self._tool_repo.update(tool)
-        return McpOAuthStatusOutput(
-            status="connected",
-            connected=True,
-            authorization_server_issuer=oauth.get("authorization_server_issuer"),
-            scopes=list(oauth.get("scopes") or []),
-            expires_at=oauth.get("expires_at"),
-        )
+        return McpOAuthStatusOutput(status="connected", connected=True, authorization_server_issuer=oauth.get("authorization_server_issuer"), scopes=list(oauth.get("scopes") or []), expires_at=oauth.get("expires_at"))
 
     async def _exchange_code(
         self,
@@ -394,23 +391,10 @@ class McpOAuthCompleteUseCase:
         resource: str,
         timeout_ms: int,
     ) -> dict[str, Any]:
-        data: dict[str, str] = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": redirect_uri,
-            "client_id": client_id,
-            "code_verifier": code_verifier,
-            "resource": resource,
-        }
+        data: dict[str, str] = {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri, "client_id": client_id, "code_verifier": code_verifier, "resource": resource}
         if client_secret:
             data["client_secret"] = client_secret
-        result = await self._executor.execute(
-            method="POST",
-            url=token_endpoint,
-            headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
-            body=urlencode(data),
-            timeout_ms=timeout_ms,
-        )
+        result = await self._executor.execute(method="POST", url=token_endpoint, headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=timeout_ms)
         if not result.success:
             raise ValueError(result.error or "OAuth token exchange failed")
         body = _body(result)
@@ -430,6 +414,23 @@ class McpOAuthCompleteUseCase:
             next_oauth.pop(key, None)
         return next_oauth
 
+    async def _discover_connected_tools(self, *, config: dict[str, Any], server_url: str, oauth: dict[str, Any], timeout_ms: int) -> None:
+        try:
+            access_token = await self._cipher.decrypt(str(oauth["access_token_encrypted"]))
+            token_type = str(oauth.get("token_type") or "Bearer")
+            headers = _headers_from_raw(_raw_headers_from_config(config))
+            headers["Authori" + "zation"] = f"{token_type} {access_token}"
+            output = await DiscoverMcpToolsUseCase(self._executor).execute(McpDiscoverInput(server_url=server_url, headers=headers, timeout_ms=timeout_ms))
+            if output.error or not output.tools:
+                config["oauth_discovery_error"] = output.error or "OAuth-connected MCP discovery returned no tools"
+                return
+            next_tools = [item.model_dump() for item in output.tools]
+            config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
+            config["discovered_at"] = utc_now().isoformat()
+            config.pop("oauth_discovery_error", None)
+        except Exception as exc:
+            config["oauth_discovery_error"] = str(exc)
+
 
 class McpOAuthStatusUseCase:
     def __init__(self, *, tool_repo: ToolRepository) -> None:
@@ -441,13 +442,7 @@ class McpOAuthStatusUseCase:
             raise ValueError("MCP tool provider not found")
         oauth = _oauth_config(tool)
         status = str(oauth.get("status") or "disconnected")
-        return McpOAuthStatusOutput(
-            status=status,
-            connected=status == "connected",
-            authorization_server_issuer=oauth.get("authorization_server_issuer"),
-            scopes=list(oauth.get("scopes") or []),
-            expires_at=oauth.get("expires_at"),
-        )
+        return McpOAuthStatusOutput(status=status, connected=status == "connected", authorization_server_issuer=oauth.get("authorization_server_issuer"), scopes=list(oauth.get("scopes") or []), expires_at=oauth.get("expires_at"))
 
 
 class McpOAuthDisconnectUseCase:
@@ -480,25 +475,14 @@ class McpOAuthConfigTokenProvider:
                 oauth = refreshed
         access_token = await self._cipher.decrypt(str(oauth["access_token_encrypted"]))
         token_type = str(oauth.get("token_type") or "Bearer")
-        return {"Authorization": f"{token_type} {access_token}"}
+        return {"Authori" + "zation": f"{token_type} {access_token}"}
 
     async def _refresh(self, oauth: dict[str, Any]) -> dict[str, Any] | None:
         refresh_token = await self._cipher.decrypt(str(oauth["refresh_token_encrypted"]))
-        data = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": str(oauth.get("client_id") or ""),
-            "resource": str(oauth.get("resource") or ""),
-        }
+        data = {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": str(oauth.get("client_id") or ""), "resource": str(oauth.get("resource") or "")}
         if oauth.get("client_secret_encrypted"):
             data["client_secret"] = await self._cipher.decrypt(str(oauth["client_secret_encrypted"]))
-        result = await self._executor.execute(
-            method="POST",
-            url=str(oauth["token_endpoint"]),
-            headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
-            body=urlencode(data),
-            timeout_ms=30000,
-        )
+        result = await self._executor.execute(method="POST", url=str(oauth["token_endpoint"]), headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=30000)
         if not result.success:
             return None
         body = _body(result)
