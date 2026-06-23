@@ -2,6 +2,7 @@ from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
@@ -106,7 +107,12 @@ def test_tool_composer(
     executor: HttpToolExecutor | None = None,
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = RuntimeTestToolUseCase(executor or get_http_tool_executor())
+    settings = Settings.model_validate({})
+    registry = build_tool_runtime_registry(
+        settings=settings,
+        executor=executor or get_http_tool_executor(),
+    )
+    use_case = RuntimeTestToolUseCase(runtime_registry=registry)
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -129,10 +135,14 @@ def execute_tool_composer(
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
     resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+    registry = build_tool_runtime_registry(
+        settings=settings,
+        executor=executor or get_http_tool_executor(),
+        secret_resolver=resolver,
+    )
     use_case = RuntimeExecuteToolUseCase(
         tool_repo=uow.tools,
-        tool_executor=executor or get_http_tool_executor(),
-        secret_resolver=resolver,
+        runtime_registry=registry,
     )
     controller = ExecuteToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
