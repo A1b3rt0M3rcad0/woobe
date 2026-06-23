@@ -92,6 +92,23 @@ function toHeaderRecord(headers: HeaderRow[]): Record<string, string> {
   }, {})
 }
 
+function parseJsonObject(value: string, label: string): Record<string, unknown> {
+  if (!value.trim()) return {}
+  const parsed = JSON.parse(value)
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object`)
+  }
+  return parsed as Record<string, unknown>
+}
+
+function formatTestToolResponse(result: TestToolResponse): string {
+  const lines = [`Status: ${result.status_code ?? 'ok'}`]
+  if (typeof result.duration_ms === 'number') lines.push(`Duration: ${Math.round(result.duration_ms)}ms`)
+  if (result.output) lines.push(`Output: ${JSON.stringify(result.output, null, 2).slice(0, 2000)}`)
+  if (result.body) lines.push(`Body: ${result.body.slice(0, 2000)}`)
+  return lines.join('\n')
+}
+
 function HeaderEditor({
   title,
   description,
@@ -153,6 +170,9 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   const [mcpTools, setMcpTools] = useState<DiscoveredMcpTool[]>([])
   const [manualMcpToolName, setManualMcpToolName] = useState('')
   const [mcpSchema, setMcpSchema] = useState('')
+  const [mcpToolTestName, setMcpToolTestName] = useState<string | null>(null)
+  const [mcpToolTestInput, setMcpToolTestInput] = useState('{}')
+  const [mcpToolTestLoading, setMcpToolTestLoading] = useState<string | null>(null)
   const [showMcpAdvanced, setShowMcpAdvanced] = useState(false)
   const [riskLevel, setRiskLevel] = useState('low')
   const [timeoutMs, setTimeoutMs] = useState(30000)
@@ -177,6 +197,9 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
     setMcpTools([])
     setManualMcpToolName('')
     setMcpSchema('')
+    setMcpToolTestName(null)
+    setMcpToolTestInput('{}')
+    setMcpToolTestLoading(null)
     setShowMcpAdvanced(false)
     setRiskLevel('low')
     setTimeoutMs(30000)
@@ -206,6 +229,9 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       return
     }
     setMcpTools([])
+    setMcpToolTestName(null)
+    setTestResult(null)
+    setTestError(null)
     try {
       const result = await discoverMcpTools.mutateAsync({
         server_url: mcpServerUrl.trim(),
@@ -252,13 +278,15 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
     return config
   }
 
+  const buildMcpServerConfig = () => ({
+    transport: 'streamable_http' as const,
+    url: mcpServerUrl.trim(),
+    headers: toHeaderConfig(mcpHeaders),
+  })
+
   const buildMcpConfig = (): McpToolConfig => {
     const manualSchema = parseMcpSchema()
-    const server = {
-      transport: 'streamable_http' as const,
-      url: mcpServerUrl.trim(),
-      headers: toHeaderConfig(mcpHeaders),
-    }
+    const server = buildMcpServerConfig()
     if (useManualMcpTool) {
       return {
         protocol: 'mcp',
@@ -280,6 +308,20 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       discovery_cache_ttl_seconds: 3600,
       timeout_ms: timeoutMs,
     }
+  }
+
+  const buildDiscoveredMcpToolConfig = (tool: DiscoveredMcpTool): McpToolConfig => {
+    const config: McpToolConfig = {
+      protocol: 'mcp',
+      mode: 'tool',
+      exposure: 'single',
+      server: buildMcpServerConfig(),
+      tool_name: tool.name,
+      input_schema_source: 'discovered',
+      timeout_ms: timeoutMs,
+    }
+    if (tool.input_schema) config.discovered_input_schema = tool.input_schema
+    return config
   }
 
   const buildConfig = (): ToolConfig => protocol === 'mcp' ? buildMcpConfig() : buildHttpConfig()
@@ -324,16 +366,59 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         timeout_ms: timeoutMs,
       })
       if (result.success) {
-        setTestResult(`Status: ${result.status_code ?? 'ok'}\nBody: ${result.body?.slice(0, 500) ?? ''}`)
+        setTestResult(formatTestToolResponse(result))
         toast.success('Tool test succeeded')
       } else {
-        setTestError(result.error || 'Request failed')
+        setTestError(result.error || result.body || 'Request failed')
         toast.error('Tool test failed')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Test request failed'
       setTestError(msg)
       toast.error(msg)
+    }
+  }
+
+  const handleDiscoveredMcpToolTest = async (tool: DiscoveredMcpTool) => {
+    if (!onTest) return
+    if (!mcpServerUrl.trim()) {
+      toast.error('MCP server URL is required')
+      return
+    }
+
+    let inputData: Record<string, unknown>
+    try {
+      inputData = parseJsonObject(mcpToolTestInput, 'MCP tool input')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'MCP tool input must be valid JSON'
+      setTestError(msg)
+      toast.error(msg)
+      return
+    }
+
+    setTestResult(null)
+    setTestError(null)
+    setMcpToolTestLoading(tool.name)
+    try {
+      const result = await onTest({
+        type: 'mcp',
+        config: buildDiscoveredMcpToolConfig(tool),
+        input_data: inputData,
+        timeout_ms: timeoutMs,
+      })
+      if (result.success) {
+        setTestResult(formatTestToolResponse(result))
+        toast.success('MCP tool test succeeded')
+      } else {
+        setTestError(result.error || result.body || 'MCP tool test failed')
+        toast.error('MCP tool test failed')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'MCP tool test failed'
+      setTestError(msg)
+      toast.error(msg)
+    } finally {
+      setMcpToolTestLoading(null)
     }
   }
 
@@ -451,9 +536,53 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
               <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>
                 {mcpTools.map(tool => (
                   <div key={tool.name} className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-background/60 p-3 text-left">
-                    <p className="text-sm font-medium break-words text-white">{displayNameForTool(tool)}</p>
-                    <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium break-words text-white">{displayNameForTool(tool)}</p>
+                        <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
+                      </div>
+                      {onTest && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => {
+                            setMcpToolTestName(prev => prev === tool.name ? null : tool.name)
+                            setMcpToolTestInput('{}')
+                            setTestResult(null)
+                            setTestError(null)
+                          }}
+                        >
+                          <Play className="h-3 w-3 mr-1" />
+                          Test
+                        </Button>
+                      )}
+                    </div>
                     {tool.description && <p className="mt-1 text-xs text-muted break-words">{tool.description}</p>}
+                    {mcpToolTestName === tool.name && (
+                      <div className="mt-3 min-w-0 space-y-2 rounded-lg border border-border/70 bg-card/50 p-3">
+                        <label className="block text-xs font-medium text-muted">Input JSON</label>
+                        <Textarea
+                          value={mcpToolTestInput}
+                          onChange={e => setMcpToolTestInput(e.target.value)}
+                          placeholder='{"query":"example"}'
+                          className="min-h-[90px] font-mono text-xs"
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDiscoveredMcpToolTest(tool)}
+                            disabled={testLoading || Boolean(mcpToolTestLoading)}
+                          >
+                            {mcpToolTestLoading === tool.name ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+                            Run test
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
