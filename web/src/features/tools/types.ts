@@ -97,6 +97,7 @@ export interface TestToolResponse {
   status_code?: number
   headers?: Record<string, string>
   body?: string
+  output?: Record<string, unknown>
   duration_ms?: number
   error?: string
 }
