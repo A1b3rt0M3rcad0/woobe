@@ -32,13 +32,23 @@ export interface McpServerConfig {
   name?: string
 }
 
+export interface DiscoveredMcpTool {
+  name: string
+  title?: string | null
+  description?: string | null
+  input_schema?: Record<string, unknown> | null
+}
+
 export interface McpToolConfig {
   protocol?: 'mcp'
+  mode?: 'tool' | 'server'
+  exposure?: 'single' | 'all_discovered'
   server: McpServerConfig
-  tool_name: string
+  tool_name?: string
   server_headers?: HttpHeader[]
   input_schema_source?: 'discovered' | 'manual'
   discovered_input_schema?: Record<string, unknown>
+  discovered_tools?: DiscoveredMcpTool[]
   discovery_cache_ttl_seconds?: number
   timeout_ms?: number
 }
@@ -89,13 +99,6 @@ export interface TestToolResponse {
   body?: string
   duration_ms?: number
   error?: string
-}
-
-export interface DiscoveredMcpTool {
-  name: string
-  title?: string | null
-  description?: string | null
-  input_schema?: Record<string, unknown> | null
 }
 
 export interface DiscoverMcpToolsRequest {
