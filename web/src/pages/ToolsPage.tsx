@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTools, useSecrets, useCreateSecret } from '@/features/tools/hooks'
+import { disconnectMcpOAuth, startMcpOAuth } from '@/features/tools/api'
 import { ToolsCreateDialog } from '@/pages/ToolsCreateDialog'
 import { ProjectPageShell } from '@/components/common/ProjectPageShell'
 import { GuidedEmptyState } from '@/components/common/GuidedEmptyState'
@@ -21,6 +22,8 @@ import { Key, LockKeyhole, Plus, ShieldCheck, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Tool, Secret } from '@/features/tools/types'
 
+const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
+
 function RiskBadge({ risk }: { risk?: string | null }) {
   const value = risk || 'low'
   const tone = value === 'critical'
@@ -33,6 +36,16 @@ function RiskBadge({ risk }: { risk?: string | null }) {
   return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{value}</span>
 }
 
+function isMcpProvider(tool: Tool): boolean {
+  const config = (tool.config || {}) as Record<string, unknown>
+  return String(tool.type).includes('mcp') || config.protocol === 'mcp'
+}
+
+function mcpConnectStatus(tool: Tool): string {
+  const config = (tool.config || {}) as { oauth?: { status?: string } }
+  return config.oauth?.status || 'disconnected'
+}
+
 export default function ToolsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: tools, isLoading: toolsLoading, isError: toolsError, refetch: refetchTools } = useTools(projectId)
@@ -40,6 +53,7 @@ export default function ToolsPage() {
   const createSecret = useCreateSecret()
   const [showTool, setShowTool] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  const [connectingToolId, setConnectingToolId] = useState<string | null>(null)
 
   const secretForm = useForm<CreateSecretFormData>({
     resolver: zodResolver(createSecretSchema),
@@ -61,6 +75,35 @@ export default function ToolsPage() {
     }
   }
 
+  const handleConnectMcp = async (tool: Tool) => {
+    try {
+      setConnectingToolId(tool.id)
+      const redirectUri = `${window.location.origin}/tools/mcp/oauth/callback`
+      const result = await startMcpOAuth({ tool_id: tool.id, redirect_uri: redirectUri })
+      window.localStorage.setItem(
+        `${MCP_CONNECT_STATE_PREFIX}${result.state}`,
+        JSON.stringify({ toolId: tool.id, returnTo: window.location.pathname + window.location.search }),
+      )
+      window.location.assign(result.authorization_url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start MCP connection')
+      setConnectingToolId(null)
+    }
+  }
+
+  const handleDisconnectMcp = async (tool: Tool) => {
+    try {
+      setConnectingToolId(tool.id)
+      await disconnectMcpOAuth({ tool_id: tool.id })
+      await refetchTools()
+      toast.success('MCP disconnected')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to disconnect MCP')
+    } finally {
+      setConnectingToolId(null)
+    }
+  }
+
   if (toolsLoading || secLoading) return <LoadingState />
   if (toolsError) return <ErrorState onRetry={refetchTools} />
 
@@ -74,27 +117,50 @@ export default function ToolsPage() {
       label: 'Tools',
       content: toolItems.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {toolItems.map((tool: Tool) => (
-            <ResourceCard
-              key={tool.id}
-              icon={<Wrench className="h-5 w-5" />}
-              title={tool.name}
-              description={tool.description || tool.type}
-              badge={<RiskBadge risk={tool.risk_level} />}
-              metadata={
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3 text-sm text-muted">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <span>Type</span>
-                    <span className="font-medium text-white">{tool.type}</span>
+          {toolItems.map((tool: Tool) => {
+            const mcpProvider = isMcpProvider(tool)
+            const connectStatus = mcpConnectStatus(tool)
+            const connected = connectStatus === 'connected'
+            return (
+              <ResourceCard
+                key={tool.id}
+                icon={<Wrench className="h-5 w-5" />}
+                title={tool.name}
+                description={tool.description || tool.type}
+                badge={<RiskBadge risk={tool.risk_level} />}
+                metadata={
+                  <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-3 text-sm text-muted">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Type</span>
+                      <span className="font-medium text-white">{tool.type}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Status</span>
+                      <StatusBadge status={tool.status} />
+                    </div>
+                    {mcpProvider ? (
+                      <div className="border-t border-border/70 pt-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <span>MCP connection</span>
+                          <StatusBadge status={connected ? 'connected' : connectStatus} />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleConnectMcp(tool)} loading={connectingToolId === tool.id}>
+                            {connected ? 'Reconnect' : 'Connect'}
+                          </Button>
+                          {connected ? (
+                            <Button size="sm" variant="outline" onClick={() => handleDisconnectMcp(tool)} loading={connectingToolId === tool.id}>
+                              Disconnect
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Status</span>
-                    <StatusBadge status={tool.status} />
-                  </div>
-                </div>
-              }
-            />
-          ))}
+                }
+              />
+            )
+          })}
         </div>
       ) : (
         <GuidedEmptyState
