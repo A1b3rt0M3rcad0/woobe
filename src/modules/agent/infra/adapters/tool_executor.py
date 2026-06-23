@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 ALLOWED_SCHEMES = frozenset({"http", "https"})
+SAFE_RESPONSE_HEADERS = frozenset({"content-type", "mcp-session-id", "x-mcp-session-id"})
+
+
+def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in headers.items()
+        if key.lower() in SAFE_RESPONSE_HEADERS
+    }
 
 
 def _blocked_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -93,8 +102,6 @@ def _peer_matches_validation(
 ) -> bool:
     peer = _connected_peer_address(response)
     if peer is None:
-        # Mock transports and some custom clients do not expose the network peer.
-        # DNS validation and redirect denial remain mandatory in those cases.
         return True
     try:
         normalized_peer = str(ipaddress.ip_address(peer))
@@ -233,7 +240,7 @@ class HttpToolExecutor(ToolExecutionPort):
             output = redact_sensitive_data(
                 {
                     "status_code": response.status_code,
-                    "headers": dict(response.headers),
+                    "headers": _safe_response_headers(response.headers),
                     "body": output_body,
                 }
             )
