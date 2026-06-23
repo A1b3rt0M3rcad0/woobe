@@ -2,6 +2,7 @@ from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.application import mcp_oauth
 from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
 from modules.agent.application.runtime_tool_use_cases import (
@@ -34,6 +35,12 @@ from modules.agent.presentation.controllers.list_tools_by_agent_controller impor
     ListToolsByAgentController,
 )
 from modules.agent.presentation.controllers.list_tools_controller import ListToolsController
+from modules.agent.presentation.controllers.mcp_connect_controllers import (
+    CompleteMcpConnectController,
+    DisconnectMcpConnectController,
+    StartMcpConnectController,
+    StatusMcpConnectController,
+)
 from modules.agent.presentation.controllers.test_tool_controller import TestToolController
 from modules.agent.presentation.controllers.update_tool_controller import UpdateToolController
 from modules.agent.presentation.controllers.update_tool_status_controller import (
@@ -48,124 +55,117 @@ def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:
     return cast(OutboxEventWriter, SQLAlchemyAgentOutboxEventWriter(uow))
 
 
-def create_tool_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def create_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = CreateToolUseCase(uow.tools, _agent_outbox(uow))
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def update_tool_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def update_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = UpdateToolUseCase(uow.tools, _agent_outbox(uow))
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def delete_tool_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def delete_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = DeleteToolUseCase(uow.tools)
     controller = DeleteToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def list_tools_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def list_tools_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = ListToolsUseCase(uow.tools)
     controller = ListToolsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def list_tools_by_agent_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def list_tools_by_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = ListToolsByAgentUseCase(uow.tools)
     controller = ListToolsByAgentController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def update_tool_status_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def update_tool_status_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = UpdateToolStatusUseCase(uow.tools, _agent_outbox(uow))
     controller = UpdateToolStatusController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def test_tool_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-    executor: HttpToolExecutor | None = None,
-) -> TransactionalHandler:
+def test_tool_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
-    registry = build_tool_runtime_registry(
-        settings=settings,
-        executor=executor or get_http_tool_executor(),
-    )
+    registry = build_tool_runtime_registry(settings=settings, executor=executor or get_http_tool_executor())
     use_case = RuntimeTestToolUseCase(runtime_registry=registry)
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def discover_mcp_tools_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-    executor: HttpToolExecutor | None = None,
-) -> TransactionalHandler:
+def discover_mcp_tools_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = DiscoverMcpToolsUseCase(executor or get_http_tool_executor())
     controller = DiscoverMcpToolsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def execute_tool_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-    executor: HttpToolExecutor | None = None,
-) -> TransactionalHandler:
+def start_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    settings = Settings.model_validate({})
+    use_case_cls = getattr(mcp_oauth, "McpOAuthStartUseCase")
+    use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
+    controller = StartMcpConnectController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def complete_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    settings = Settings.model_validate({})
+    use_case_cls = getattr(mcp_oauth, "McpOAuthCompleteUseCase")
+    use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
+    controller = CompleteMcpConnectController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def status_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case_cls = getattr(mcp_oauth, "McpOAuthStatusUseCase")
+    controller = StatusMcpConnectController(use_case_cls(tool_repo=uow.tools))
+    return TransactionalHandler(uow, controller.handle)
+
+
+def disconnect_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case_cls = getattr(mcp_oauth, "McpOAuthDisconnectUseCase")
+    controller = DisconnectMcpConnectController(use_case_cls(tool_repo=uow.tools))
+    return TransactionalHandler(uow, controller.handle)
+
+
+def execute_tool_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
     resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-    registry = build_tool_runtime_registry(
-        settings=settings,
-        executor=executor or get_http_tool_executor(),
-        secret_resolver=resolver,
-    )
-    use_case = RuntimeExecuteToolUseCase(
-        tool_repo=uow.tools,
-        runtime_registry=registry,
-    )
+    registry = build_tool_runtime_registry(settings=settings, executor=executor or get_http_tool_executor(), secret_resolver=resolver)
+    use_case = RuntimeExecuteToolUseCase(tool_repo=uow.tools, runtime_registry=registry)
     controller = ExecuteToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def create_secret_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def create_secret_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
-    use_case = CreateSecretUseCase(
-        uow.tool_secrets,
-        _agent_outbox(uow),
-        cipher,
-    )
+    use_case = CreateSecretUseCase(uow.tool_secrets, _agent_outbox(uow), cipher)
     controller = CreateSecretController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
-def list_secrets_composer(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> TransactionalHandler:
+def list_secrets_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = ListSecretsUseCase(uow.tool_secrets)
     controller = ListSecretsController(use_case)
