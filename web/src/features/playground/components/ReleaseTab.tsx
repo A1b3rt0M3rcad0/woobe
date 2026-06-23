@@ -373,7 +373,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <section className="space-y-4">
         <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
           <div className="space-y-2">
-            <h2 className="text-[22px] font-semibold tracking-tight text-white">Versions</h2>
+            <h2 className="text-sm font-medium tracking-tight text-white">Versions</h2>
             <p className="max-w-[28rem] text-sm leading-6 text-muted">
               Promote snapshots from draft to staging, then publish one production release.
             </p>
