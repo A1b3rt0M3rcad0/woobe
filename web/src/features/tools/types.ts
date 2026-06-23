@@ -91,6 +91,25 @@ export interface TestToolResponse {
   error?: string
 }
 
+export interface DiscoveredMcpTool {
+  name: string
+  title?: string | null
+  description?: string | null
+  input_schema?: Record<string, unknown> | null
+}
+
+export interface DiscoverMcpToolsRequest {
+  server_url: string
+  headers?: Record<string, string>
+  timeout_ms?: number
+}
+
+export interface DiscoverMcpToolsResponse {
+  tools: DiscoveredMcpTool[]
+  initialized: boolean
+  error?: string | null
+}
+
 export interface UpdateToolStatusRequest {
   status: 'active' | 'inactive'
 }
