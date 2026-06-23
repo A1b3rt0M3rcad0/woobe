@@ -243,6 +243,54 @@ def _derived_authorization_endpoint_candidates(metadata: dict[str, Any]) -> list
     return _dedupe(candidates)
 
 
+def _derived_token_endpoint_candidates(oauth: dict[str, Any]) -> list[str]:
+    candidates: list[str | None] = [oauth.get("token_endpoint")]
+    for raw in (oauth.get("authorization_endpoint"), oauth.get("registration_endpoint")):
+        if not isinstance(raw, str) or not raw:
+            continue
+        parsed = urlparse(raw)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        path = (parsed.path or "").rstrip("/")
+        for suffix in ("/authorize", "/authorization", "/oauth/authorize", "/oauth2/authorize"):
+            if path.endswith(suffix):
+                base = path[: -len(suffix)]
+                candidates.extend([
+                    f"{origin}{base}/token",
+                    f"{origin}{base}/oauth/token",
+                    f"{origin}{base}/oauth2/token",
+                ])
+        for suffix in ("/register", "/registration", "/clients", "/client"):
+            if path.endswith(suffix):
+                base = path[: -len(suffix)]
+                candidates.extend([
+                    f"{origin}{base}/token",
+                    f"{origin}{base}/oauth/token",
+                    f"{origin}{base}/oauth2/token",
+                ])
+        candidates.extend([
+            f"{origin}/token",
+            f"{origin}/oauth/token",
+            f"{origin}/oauth2/token",
+        ])
+    issuer = oauth.get("authorization_server_issuer")
+    if isinstance(issuer, str) and issuer:
+        try:
+            origin = _origin_from_url(issuer)
+            candidates.extend([
+                _absolute_url("token", issuer),
+                _absolute_url("oauth/token", issuer),
+                _absolute_url("oauth2/token", issuer),
+                f"{origin}/token",
+                f"{origin}/oauth/token",
+                f"{origin}/oauth2/token",
+            ])
+        except ValueError:
+            pass
+    return _dedupe(candidates)
+
+
 def _oauth_config(tool: Tool) -> dict[str, Any]:
     config = tool.config or {}
     oauth = config.get("oauth")
@@ -539,8 +587,8 @@ class McpOAuthCompleteUseCase:
         client_secret = None
         if oauth.get("client_secret_encrypted"):
             client_secret = await self._cipher.decrypt(str(oauth["client_secret_encrypted"]))
-        token_payload = await self._exchange_code(
-            token_endpoint=str(oauth["token_endpoint"]),
+        token_payload, selected_token_endpoint = await self._exchange_code(
+            oauth=oauth,
             code=input_dto.code,
             redirect_uri=str(oauth["redirect_uri"]),
             client_id=str(oauth["client_id"]),
@@ -549,6 +597,7 @@ class McpOAuthCompleteUseCase:
             resource=str(oauth["resource"]),
             timeout_ms=input_dto.timeout_ms,
         )
+        oauth["token_endpoint"] = selected_token_endpoint
         oauth = await self._connected_oauth_config(oauth, token_payload)
         config["oauth"] = oauth
         if server_url:
@@ -560,7 +609,7 @@ class McpOAuthCompleteUseCase:
     async def _exchange_code(
         self,
         *,
-        token_endpoint: str,
+        oauth: dict[str, Any],
         code: str,
         redirect_uri: str,
         client_id: str,
@@ -568,17 +617,27 @@ class McpOAuthCompleteUseCase:
         code_verifier: str,
         resource: str,
         timeout_ms: int,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], str]:
+        candidates = _derived_token_endpoint_candidates(oauth)
+        if not candidates:
+            raise ValueError("Could not discover OAuth token endpoint")
+        rejected_404: list[str] = []
         data: dict[str, str] = {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri, "client_id": client_id, "code_verifier": code_verifier, "resource": resource}
         if client_secret:
             data["client_secret"] = client_secret
-        result = await self._executor.execute(method="POST", url=token_endpoint, headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=timeout_ms)
-        if not result.success:
-            raise ValueError(result.error or "OAuth token exchange failed")
-        body = _body(result)
-        if not isinstance(body, dict) or not body.get("access_token"):
-            raise ValueError("OAuth token exchange did not return an access token")
-        return body
+        for token_endpoint in candidates:
+            result = await self._executor.execute(method="POST", url=token_endpoint, headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=timeout_ms)
+            if result.status_code == 404:
+                rejected_404.append(token_endpoint)
+                continue
+            if not result.success:
+                raise ValueError(result.error or "OAuth token exchange failed")
+            body = _body(result)
+            if not isinstance(body, dict) or not body.get("access_token"):
+                raise ValueError("OAuth token exchange did not return an access token")
+            return body, token_endpoint
+        details = ", ".join(rejected_404[:5])
+        raise ValueError(f"OAuth token endpoint returned 404. Tried: {details}")
 
     async def _connected_oauth_config(self, oauth: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         next_oauth = dict(oauth)
