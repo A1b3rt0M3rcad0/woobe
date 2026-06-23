@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from shared.infra.cache.key_value_store import AsyncKeyValueStore
 
@@ -35,6 +35,17 @@ class RedisKeyValueStore(AsyncKeyValueStore):
     async def delete(self, key: str) -> None:
         await self._execute("DEL", self._key(key))
 
+    async def _authenticate(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        password = self._parsed.password
+        if password is None:
+            return
+        decoded_password = unquote(password)
+        username = self._parsed.username
+        if username is not None:
+            await self._send(reader, writer, "AUTH", unquote(username), decoded_password)
+        else:
+            await self._send(reader, writer, "AUTH", decoded_password)
+
     async def _execute(self, *parts: str | int) -> object:
         host = self._parsed.hostname or "localhost"
         port = self._parsed.port or 6379
@@ -45,6 +56,7 @@ class RedisKeyValueStore(AsyncKeyValueStore):
             timeout=self.timeout_seconds,
         )
         try:
+            await self._authenticate(reader, writer)
             path = (self._parsed.path or "").strip("/")
             if path:
                 await self._send(reader, writer, "SELECT", path)
