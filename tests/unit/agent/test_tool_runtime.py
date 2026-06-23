@@ -89,11 +89,7 @@ async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> Non
 
     result = await runtime.execute(
         tool,
-        {
-            MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
-            MCP_REMOTE_TOOL_INPUT_KEY: "search",
-            "query": "redis",
-        },
+        {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search", "query": "redis"},
     )
 
     assert result.success is True
@@ -110,19 +106,36 @@ async def test_mcp_runtime_reuses_cached_session() -> None:
     tool = mcp_tool()
     store = MemoryMcpSessionStore()
     store.values[f"agent-session-1:{tool.id}"] = "sid-cached"
-    executor = FakeExecutor([
-        ExecutionResult(success=True, output={"body": {"result": {"content": []}}}),
-    ])
+    executor = FakeExecutor([ExecutionResult(success=True, output={"body": {"result": {"content": []}}})])
     runtime = McpToolRuntime(executor, session_store=store)
 
-    result = await runtime.execute(
-        tool,
-        {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"},
-    )
+    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
 
     assert result.success is True
     assert len(executor.calls) == 1
     assert executor.calls[0]["headers"].get("Mcp-Session-Id") == "sid-cached"
+
+
+@pytest.mark.asyncio
+async def test_mcp_runtime_reinitializes_after_invalid_cached_session() -> None:
+    tool = mcp_tool()
+    key = f"agent-session-1:{tool.id}"
+    store = MemoryMcpSessionStore()
+    store.values[key] = "sid-old"
+    executor = FakeExecutor([
+        ExecutionResult(success=False, error="invalid session", output={"body": {"error": {"message": "invalid session"}}}),
+        ExecutionResult(success=True, output={"headers": {"mcp-session-id": "sid-new"}, "body": {"result": {}}}),
+        ExecutionResult(success=True, output={"body": {"result": {}}}),
+        ExecutionResult(success=True, output={"body": {"result": {"content": []}}}),
+    ])
+    runtime = McpToolRuntime(executor, session_store=store)
+
+    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
+
+    assert result.success is True
+    assert store.deleted == [key]
+    assert store.values[key] == "sid-new"
+    assert len(executor.calls) == 4
 
 
 @pytest.mark.asyncio
