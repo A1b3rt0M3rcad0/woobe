@@ -6,6 +6,11 @@ import re
 from typing import Any
 from uuid import UUID, uuid4
 
+from modules.agent.application.mcp_permissions import (
+    MCP_PERMISSION_ALLOW,
+    MCP_PERMISSION_DENY,
+    mcp_tool_permission_mode,
+)
 from modules.agent.application.ports import (
     ExecutionResult,
     McpSessionStorePort,
@@ -33,6 +38,8 @@ ERROR_MCP_CONFIG_ERROR = "MCP_CONFIG_ERROR"
 ERROR_MCP_INITIALIZE_FAILED = "MCP_INITIALIZE_FAILED"
 ERROR_MCP_SESSION_INVALID = "MCP_SESSION_INVALID"
 ERROR_MCP_TOOL_ERROR = "MCP_TOOL_ERROR"
+ERROR_MCP_TOOL_DENIED_BY_POLICY = "MCP_TOOL_DENIED_BY_POLICY"
+ERROR_MCP_TOOL_REQUIRES_POLICY = "MCP_TOOL_REQUIRES_POLICY"
 
 
 def _error_output(code: str, message: str, protocol: str) -> dict[str, Any]:
@@ -178,6 +185,15 @@ def _mcp_error_message(body: Any) -> str:
     return "MCP tool call failed"
 
 
+def _mcp_policy_failure(config: dict[str, Any], tool_name: str) -> ExecutionResult | None:
+    mode = mcp_tool_permission_mode(config, tool_name)
+    if mode == MCP_PERMISSION_ALLOW:
+        return None
+    if mode == MCP_PERMISSION_DENY:
+        return _failure(ERROR_MCP_TOOL_DENIED_BY_POLICY, f"MCP tool '{tool_name}' is denied by policy", MCP_PROTOCOL)
+    return _failure(ERROR_MCP_TOOL_REQUIRES_POLICY, f"MCP tool '{tool_name}' must be allowed before execution", MCP_PROTOCOL)
+
+
 class UnsupportedToolRuntime(ToolRuntimePort):
     def __init__(self, protocol: str) -> None:
         self._protocol = protocol
@@ -300,6 +316,9 @@ class McpToolRuntime(ToolRuntimePort):
             return _failure(ERROR_MCP_CONFIG_ERROR, "MCP server.url is required", MCP_PROTOCOL)
         if not tool_name:
             return _failure(ERROR_MCP_CONFIG_ERROR, "MCP tool_name is required", MCP_PROTOCOL)
+        policy_failure = _mcp_policy_failure(config, str(tool_name))
+        if policy_failure is not None:
+            return policy_failure
         raw_headers = config.get("server_headers") or server.get("headers") or []
         if resolve_secrets and self._secret_resolver is not None and project_id is not None:
             configured_headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
