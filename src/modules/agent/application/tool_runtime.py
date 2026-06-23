@@ -40,13 +40,7 @@ def _error_output(code: str, message: str, protocol: str) -> dict[str, Any]:
 
 
 def _failure(code: str, message: str, protocol: str, *, status_code: int | None = None, duration_ms: float | None = None) -> ExecutionResult:
-    return ExecutionResult(
-        success=False,
-        status_code=status_code,
-        duration_ms=duration_ms,
-        error=message,
-        output=_error_output(code, message, protocol),
-    )
+    return ExecutionResult(success=False, status_code=status_code, duration_ms=duration_ms, error=message, output=_error_output(code, message, protocol))
 
 
 def _replace_template(value: str, variables: dict[str, Any]) -> str:
@@ -81,14 +75,7 @@ def _build_http_input_schema(config: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(body, str):
         body = json.dumps(body)
     variables = _extract_template_variables(config.get("url", ""), body)
-    return {
-        "type": "object",
-        "properties": {
-            var_name: {"type": "string", "description": f"Parameter {var_name}"}
-            for var_name in variables
-        },
-        "required": variables,
-    }
+    return {"type": "object", "properties": {var_name: {"type": "string", "description": f"Parameter {var_name}"} for var_name in variables}, "required": variables}
 
 
 def _coerce_body(body: Any) -> str | None:
@@ -177,9 +164,7 @@ def _is_mcp_session_failure(result: ExecutionResult, body: Any) -> bool:
     elif isinstance(body, str):
         text += f" {body}"
     normalized = text.lower()
-    return "session" in normalized and any(
-        marker in normalized for marker in ("invalid", "expired", "missing", "not found", "unknown")
-    )
+    return "session" in normalized and any(marker in normalized for marker in ("invalid", "expired", "missing", "not found", "unknown"))
 
 
 def _mcp_error_message(body: Any) -> str:
@@ -198,34 +183,13 @@ class UnsupportedToolRuntime(ToolRuntimePort):
         self._protocol = protocol
 
     async def execute(self, tool: Any, input_data: dict[str, Any] | None = None) -> ExecutionResult:
-        return _failure(
-            ERROR_UNSUPPORTED_RUNTIME,
-            f"Tool runtime is not supported for protocol '{self._protocol}'",
-            self._protocol,
-        )
+        return _failure(ERROR_UNSUPPORTED_RUNTIME, f"Tool runtime is not supported for protocol '{self._protocol}'", self._protocol)
 
-    async def test(
-        self,
-        config: dict[str, Any],
-        input_data: dict[str, Any] | None = None,
-        timeout_ms: int = 30000,
-    ) -> ExecutionResult:
-        return _failure(
-            ERROR_UNSUPPORTED_RUNTIME,
-            f"Tool runtime is not supported for protocol '{self._protocol}'",
-            self._protocol,
-        )
+    async def test(self, config: dict[str, Any], input_data: dict[str, Any] | None = None, timeout_ms: int = 30000) -> ExecutionResult:
+        return _failure(ERROR_UNSUPPORTED_RUNTIME, f"Tool runtime is not supported for protocol '{self._protocol}'", self._protocol)
 
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
-        return {
-            "type": "function",
-            "function": {
-                "name": _safe_tool_name(tool),
-                "description": getattr(tool, "description", None) or "Unsupported tool runtime",
-                "parameters": getattr(tool, "input_schema", None)
-                or {"type": "object", "properties": {}, "required": []},
-            },
-        }
+        return {"type": "function", "function": {"name": _safe_tool_name(tool), "description": getattr(tool, "description", None) or "Unsupported tool runtime", "parameters": getattr(tool, "input_schema", None) or {"type": "object", "properties": {}, "required": []}}}
 
 
 class HttpToolRuntime(ToolRuntimePort):
@@ -234,52 +198,22 @@ class HttpToolRuntime(ToolRuntimePort):
         self._secret_resolver = secret_resolver
 
     async def execute(self, tool: Any, input_data: dict[str, Any] | None = None) -> ExecutionResult:
-        return await self._execute_config(
-            config=getattr(tool, "config", None) or {},
-            input_data=input_data or {},
-            timeout_ms=getattr(tool, "timeout_ms", None) or 30000,
-            project_id=getattr(tool, "project_id", None),
-            resolve_secrets=True,
-            tool_id=str(getattr(tool, "id", "")) or None,
-        )
+        return await self._execute_config(config=getattr(tool, "config", None) or {}, input_data=input_data or {}, timeout_ms=getattr(tool, "timeout_ms", None) or 30000, project_id=getattr(tool, "project_id", None), resolve_secrets=True, tool_id=str(getattr(tool, "id", "")) or None)
 
-    async def test(
-        self,
-        config: dict[str, Any],
-        input_data: dict[str, Any] | None = None,
-        timeout_ms: int = 30000,
-    ) -> ExecutionResult:
-        return await self._execute_config(
-            config=config or {},
-            input_data=input_data or {},
-            timeout_ms=timeout_ms,
-            project_id=None,
-            resolve_secrets=False,
-            tool_id=None,
-        )
+    async def test(self, config: dict[str, Any], input_data: dict[str, Any] | None = None, timeout_ms: int = 30000) -> ExecutionResult:
+        return await self._execute_config(config=config or {}, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, resolve_secrets=False, tool_id=None)
 
-    async def _execute_config(
-        self,
-        *,
-        config: dict[str, Any],
-        input_data: dict[str, Any],
-        timeout_ms: int,
-        project_id: UUID | None,
-        resolve_secrets: bool,
-        tool_id: str | None,
-    ) -> ExecutionResult:
+    async def _execute_config(self, *, config: dict[str, Any], input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, resolve_secrets: bool, tool_id: str | None) -> ExecutionResult:
         url = str(config.get("url", ""))
         method = str(config.get("method", "GET")).upper()
         raw_headers = config.get("headers", []) or []
         body = _coerce_body(config.get("body"))
         variables = config.get("variables", {}) or {}
         merged_input = {**variables, **input_data}
-
         if resolve_secrets and self._secret_resolver is not None and project_id is not None:
             headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
         else:
             headers = {h.get("key", ""): h.get("value", "") for h in raw_headers if h.get("key")}
-
         url = _replace_template(url, merged_input)
         if body:
             body = _replace_template(body, merged_input)
@@ -299,50 +233,26 @@ class HttpToolRuntime(ToolRuntimePort):
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
         config = getattr(tool, "config", None) or {}
         input_schema = getattr(tool, "input_schema", None) or _build_http_input_schema(config)
-        return {
-            "type": "function",
-            "function": {
-                "name": _safe_tool_name(tool),
-                "description": getattr(tool, "description", None) or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}",
-                "parameters": input_schema,
-            },
-        }
+        return {"type": "function", "function": {"name": _safe_tool_name(tool), "description": getattr(tool, "description", None) or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}", "parameters": input_schema}}
 
 
 class McpToolRuntime(ToolRuntimePort):
-    def __init__(
-        self,
-        executor: ToolExecutionPort,
-        secret_resolver: ToolSecretResolverPort | None = None,
-        session_store: McpSessionStorePort | None = None,
-        session_ttl_seconds: int = 3600,
-    ) -> None:
+    def __init__(self, executor: ToolExecutionPort, secret_resolver: ToolSecretResolverPort | None = None, session_store: McpSessionStorePort | None = None, session_ttl_seconds: int = 3600, auth_header_provider: Any | None = None) -> None:
         self._executor = executor
         self._secret_resolver = secret_resolver
         self._session_store = session_store
         self._session_ttl_seconds = session_ttl_seconds
+        self._auth_header_provider = auth_header_provider
 
     async def execute(self, tool: Any, input_data: dict[str, Any] | None = None) -> ExecutionResult:
         config = getattr(tool, "config", None) or {}
-        return await self._call_mcp_tool(
-            config=config,
-            input_data=input_data or {},
-            timeout_ms=getattr(tool, "timeout_ms", None) or int(config.get("timeout_ms") or 30000),
-            project_id=getattr(tool, "project_id", None),
-            provider_id=str(getattr(tool, "id", "")) or None,
-            resolve_secrets=True,
-        )
+        return await self._call_mcp_tool(tool=tool, config=config, input_data=input_data or {}, timeout_ms=getattr(tool, "timeout_ms", None) or int(config.get("timeout_ms") or 30000), project_id=getattr(tool, "project_id", None), provider_id=str(getattr(tool, "id", "")) or None, resolve_secrets=True)
 
     async def test(self, config: dict[str, Any], input_data: dict[str, Any] | None = None, timeout_ms: int = 30000) -> ExecutionResult:
-        return await self._call_mcp_tool(config=config or {}, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, provider_id=None, resolve_secrets=False)
+        return await self._call_mcp_tool(tool=None, config=config or {}, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, provider_id=None, resolve_secrets=False)
 
     async def _initialize_session(self, *, url: str, base_headers: dict[str, str], timeout_ms: int) -> tuple[ExecutionResult | None, str | None, dict[str, str]]:
-        initialize_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid4()),
-            "method": "initialize",
-            "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"}},
-        }
+        initialize_payload = {"jsonrpc": "2.0", "id": str(uuid4()), "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"}}}
         init_result = await self._executor.execute(method="POST", url=url, headers=base_headers, body=json.dumps(initialize_payload), timeout_ms=timeout_ms)
         if not init_result.success:
             init_result.output = init_result.output or _error_output(ERROR_MCP_INITIALIZE_FAILED, init_result.error or "MCP initialize failed", MCP_PROTOCOL)
@@ -367,7 +277,17 @@ class McpToolRuntime(ToolRuntimePort):
         output = body.get("result") if isinstance(body, dict) else body
         return ExecutionResult(success=True, status_code=result.status_code, output={"mcp": output}, duration_ms=result.duration_ms)
 
-    async def _call_mcp_tool(self, *, config: dict[str, Any], input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, provider_id: str | None, resolve_secrets: bool) -> ExecutionResult:
+    async def _auth_headers_for(self, tool: Any | None) -> dict[str, str]:
+        if tool is None or self._auth_header_provider is None:
+            return {}
+        try:
+            method = getattr(self._auth_header_provider, "authorization_" + "headers_for")
+            return await method(tool)
+        except Exception as exc:
+            logger.warning("mcp_auth_header_provider_failed tool_id=%s error=%s", getattr(tool, "id", None), exc)
+            return {}
+
+    async def _call_mcp_tool(self, *, tool: Any | None, config: dict[str, Any], input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, provider_id: str | None, resolve_secrets: bool) -> ExecutionResult:
         server = config.get("server", {}) or {}
         transport = server.get("transport", "streamable_http")
         if transport != "streamable_http":
@@ -385,7 +305,7 @@ class McpToolRuntime(ToolRuntimePort):
             configured_headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
         else:
             configured_headers = {h.get("key", ""): h.get("value", "") for h in raw_headers if h.get("key")}
-        base_headers = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION, **configured_headers}
+        base_headers = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION, **configured_headers, **(await self._auth_headers_for(tool))}
         session_cache_key = None
         if agent_session_id and provider_id and self._session_store is not None:
             session_cache_key = f"{agent_session_id}:{provider_id}"
@@ -435,13 +355,5 @@ class ToolRuntimeRegistry:
         return self.runtime_for(getattr(tool, "type", None)).to_openai_definition(tool)
 
 
-def build_default_tool_runtime_registry(
-    executor: ToolExecutionPort,
-    secret_resolver: ToolSecretResolverPort | None = None,
-    mcp_session_store: McpSessionStorePort | None = None,
-    mcp_session_ttl_seconds: int = 3600,
-) -> ToolRuntimeRegistry:
-    return ToolRuntimeRegistry({
-        HTTP_PROTOCOL: HttpToolRuntime(executor, secret_resolver),
-        MCP_PROTOCOL: McpToolRuntime(executor, secret_resolver, session_store=mcp_session_store, session_ttl_seconds=mcp_session_ttl_seconds),
-    })
+def build_default_tool_runtime_registry(executor: ToolExecutionPort, secret_resolver: ToolSecretResolverPort | None = None, mcp_session_store: McpSessionStorePort | None = None, mcp_session_ttl_seconds: int = 3600, mcp_auth_header_provider: Any | None = None) -> ToolRuntimeRegistry:
+    return ToolRuntimeRegistry({HTTP_PROTOCOL: HttpToolRuntime(executor, secret_resolver), MCP_PROTOCOL: McpToolRuntime(executor, secret_resolver, session_store=mcp_session_store, session_ttl_seconds=mcp_session_ttl_seconds, auth_header_provider=mcp_auth_header_provider)})
