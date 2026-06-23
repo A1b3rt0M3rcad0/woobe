@@ -27,10 +27,50 @@ class McpDiscoverOutput(BaseModel):
     error: str | None = None
 
 
+def _parse_json_candidate(value: str) -> Any:
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def _parse_sse_payload(value: str) -> Any:
+    # Streamable HTTP MCP servers may return JSON-RPC messages as SSE frames:
+    # event: message
+    # data: {"jsonrpc":"2.0","result":...}
+    candidates: list[Any] = []
+    data_lines: list[str] = []
+    for line in value.splitlines():
+        if line.startswith("data:"):
+            data_lines.append(line[5:].strip())
+            continue
+        if line.strip() == "" and data_lines:
+            parsed = _parse_json_candidate("\n".join(data_lines))
+            if parsed is not None:
+                candidates.append(parsed)
+            data_lines = []
+    if data_lines:
+        parsed = _parse_json_candidate("\n".join(data_lines))
+        if parsed is not None:
+            candidates.append(parsed)
+    if not candidates:
+        return None
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate.get("result"):
+            return candidate
+    return candidates[-1]
+
+
 def _extract_body(output: dict[str, Any] | None) -> Any:
     if not output:
         return None
-    return output.get("body")
+    body = output.get("body")
+    if isinstance(body, str):
+        return _parse_json_candidate(body) or _parse_sse_payload(body) or body
+    return body
 
 
 def _extract_tools(payload: Any) -> list[McpDiscoveredTool]:
@@ -90,6 +130,20 @@ class DiscoverMcpToolsUseCase:
             timeout_ms=input_dto.timeout_ms,
         )
         initialized = bool(init_result.success)
+
+        if initialized:
+            initialized_payload = {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {},
+            }
+            await self._executor.execute(
+                method="POST",
+                url=input_dto.server_url,
+                headers=headers,
+                body=json.dumps(initialized_payload),
+                timeout_ms=input_dto.timeout_ms,
+            )
 
         list_payload = {
             "jsonrpc": "2.0",
