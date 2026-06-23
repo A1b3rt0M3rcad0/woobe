@@ -93,12 +93,24 @@ async def _resolve_headers(
     return _headers_from_raw(raw_headers)
 
 
+async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dict[str, str]:
+    if auth_header_provider is None:
+        return {}
+    try:
+        method = getattr(auth_header_provider, "authorization_" + "headers_for")
+        return await method(tool)
+    except Exception as exc:
+        logger.warning("MCP discovery OAuth header resolution failed for tool %s: %s", tool.id, exc)
+        return {}
+
+
 async def refresh_stale_mcp_server_tools(
     *,
     tools: list[Tool],
     tool_repo: ToolRepository,
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None = None,
+    auth_header_provider: Any | None = None,
 ) -> list[Tool]:
     now = utc_now()
     discovery = DiscoverMcpToolsUseCase(executor)
@@ -117,14 +129,12 @@ async def refresh_stale_mcp_server_tools(
             continue
 
         try:
+            configured_headers = await _resolve_headers(raw_headers=_raw_headers_from_config(config), tool=tool, secret_resolver=secret_resolver)
+            oauth_headers = await _auth_headers_for(tool, auth_header_provider)
             output = await discovery.execute(
                 McpDiscoverInput(
                     server_url=str(server_url),
-                    headers=await _resolve_headers(
-                        raw_headers=_raw_headers_from_config(config),
-                        tool=tool,
-                        secret_resolver=secret_resolver,
-                    ),
+                    headers={**configured_headers, **oauth_headers},
                     timeout_ms=tool.timeout_ms or int(config.get("timeout_ms") or 30000),
                 )
             )
@@ -141,6 +151,7 @@ async def refresh_stale_mcp_server_tools(
         next_tools = [item.model_dump() for item in output.tools]
         config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
         config["discovered_at"] = now.isoformat()
+        config.pop("oauth_discovery_error", None)
         tool.config = config
         tool.updated_at = now
         try:
