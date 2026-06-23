@@ -84,6 +84,7 @@ class RuntimeTestToolUseCase:
             status_code=result.status_code,
             headers=result.headers,
             body=body,
+            output=result.output,
             duration_ms=result.duration_ms,
             error=result.error,
         )
