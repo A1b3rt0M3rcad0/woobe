@@ -44,7 +44,6 @@ type MenuAction = {
 }
 
 type ConfirmAction =
-  | { type: 'stage' }
   | { type: 'deploy'; release: AgentRelease }
   | { type: 'rollback'; release: AgentRelease }
   | { type: 'load'; release: AgentRelease }
@@ -68,6 +67,16 @@ type ConfirmReleaseActionModalProps = {
   onConfirm: () => void
 }
 
+type DraftSnapshotModalProps = {
+  open: boolean
+  state: AgentEditorState
+  snapshot: Record<string, unknown>
+  currentStaging: AgentRelease | null
+  isConfirming?: boolean
+  onClose: () => void
+  onConfirm: () => void
+}
+
 type ConfirmModalModel = Omit<ConfirmReleaseActionModalProps, 'open' | 'onClose' | 'onConfirm'>
 
 function formatDate(value?: string) {
@@ -84,6 +93,22 @@ function formatDate(value?: string) {
   }).format(date).replace(',', '')
 }
 
+function formatJson(value: unknown) {
+  if (!value) return '—'
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return formatJson(value)
+}
+
 function modelLabel(release: AgentRelease) {
   return `${release.provider ?? '—'}/${release.model ?? '—'}`
 }
@@ -95,6 +120,15 @@ function editorModelLabel(state: AgentEditorState) {
 function responseFormatLabel(state: AgentEditorState) {
   if (!state.responseFormat?.enabled) return 'Text'
   return state.responseFormat.type === 'json' ? `JSON${state.responseFormat.strict ? ' strict' : ''}` : 'Text'
+}
+
+function modalRow(label: string, value: unknown) {
+  return (
+    <div className="grid grid-cols-[96px_1fr] gap-3 text-xs">
+      <span className="text-muted">{label}</span>
+      <span className="min-w-0 break-words text-slate-200">{formatValue(value)}</span>
+    </div>
+  )
 }
 
 function draftDetails(state: AgentEditorState): ConfirmationDetail[] {
@@ -277,6 +311,68 @@ function ConfirmReleaseActionModal({ open, title, description, details, warning,
   )
 }
 
+function DraftSnapshotModal({ open, state, snapshot, currentStaging, isConfirming, onClose, onConfirm }: DraftSnapshotModalProps) {
+  if (!open) return null
+  const outputSchema = snapshot.output_schema ?? state.outputSchema ?? state.responseFormat?.schema
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-white">Stage current draft?</h2>
+              <Badge variant="secondary">Current draft</Badge>
+            </div>
+            <p className="text-xs leading-5 text-muted">Review the editor configuration that will be copied into staging.</p>
+          </div>
+        </div>
+
+        <div className="max-h-[60vh] space-y-5 overflow-y-auto p-5">
+          {currentStaging && (
+            <div className="flex gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] p-3 text-xs leading-5 text-yellow-100">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-400" />
+              <p>This will replace the current staging snapshot: {currentStaging.version}.</p>
+            </div>
+          )}
+
+          <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300"><FileText className="h-3.5 w-3.5" />Agent snapshot</div>
+            {modalRow('Name', state.name || 'Untitled agent')}
+            {modalRow('Model', editorModelLabel(state))}
+            {modalRow('Status', state.status)}
+            {modalRow('Mode', state.sessionMode)}
+            {modalRow('Temp', state.temperature)}
+            {modalRow('Max tokens', state.maxOutputTokens)}
+            {modalRow('Response', responseFormatLabel(state))}
+          </section>
+
+          <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">System prompt</p>
+            <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-xs text-slate-200">{state.systemPrompt || '—'}</pre>
+          </section>
+
+          <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Output / schema</p>
+            <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-xs text-slate-200">{formatJson(outputSchema ?? snapshot.response_format)}</pre>
+          </section>
+
+          <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime / knowledge</p>
+            {modalRow('Collections', state.collectionIds?.length ? `${state.collectionIds.length}` : '—')}
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-xs text-slate-200">{formatJson(snapshot.runtime_config ?? state.runtimeConfig)}</pre>
+          </section>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-border p-4">
+          <Button size="sm" variant="outline" onClick={onClose} disabled={isConfirming}>Cancel</Button>
+          <Button size="sm" onClick={onConfirm} loading={isConfirming}>Stage draft</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
   const { data: releases, isLoading } = useReleases(agentId)
   const createRelease = useCreateRelease(agentId)
@@ -286,6 +382,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const { state, setState, toSnapshot, setLoadedRelease } = useAgentEditor()
   const [deleteTarget, setDeleteTarget] = useState<AgentRelease | null>(null)
   const [createReleaseOpen, setCreateReleaseOpen] = useState(false)
+  const [stageDraftOpen, setStageDraftOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const [stagingSnapshot, setStagingSnapshot] = useState<AgentRelease | null>(null)
   const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
@@ -302,7 +399,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   }, [releases])
   const rollbackTarget = useMemo(() => history.find((item) => item.status === 'archived' || item.status === 'rolled_back'), [history])
   const currentStaging = stagingSnapshot ?? staging ?? null
-  const draftPreviewDetails = draftDetails(state)
+  const draftSnapshot = toSnapshot()
 
   async function saveDraftFromEditor() {
     const snapshot = toSnapshot()
@@ -320,6 +417,11 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       toast.error(error instanceof Error ? error.message : 'Failed to promote draft to staging')
       return false
     }
+  }
+
+  async function confirmStageDraft() {
+    const succeeded = await promoteDraftToStaging()
+    if (succeeded) setStageDraftOpen(false)
   }
 
   async function fetchStagingSnapshot() {
@@ -383,9 +485,9 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       setCreateReleaseOpen(false)
       setReleaseDescription('')
       setStagingSnapshot(null)
-      toast.success('Release created from current staging')
+      toast.success('Release published to production')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create release')
+      toast.error(error instanceof Error ? error.message : 'Failed to publish release')
     }
   }
 
@@ -451,7 +553,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     if (!action) return
 
     let succeeded = false
-    if (action.type === 'stage') succeeded = await promoteDraftToStaging()
     if (action.type === 'deploy') succeeded = await deployRelease(action.release)
     if (action.type === 'rollback') succeeded = await rollbackToRelease(action.release)
     if (action.type === 'load') succeeded = await loadForEditing(action.release)
@@ -479,17 +580,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   function confirmModalProps(): ConfirmModalModel | null {
     if (!confirmAction) return null
-
-    if (confirmAction.type === 'stage') {
-      return {
-        title: 'Stage current editor draft?',
-        description: 'This creates a staging snapshot from the current editor state before anything can be published to production.',
-        warning: currentStaging ? `This will replace the current staging snapshot: ${currentStaging.version}.` : undefined,
-        details: draftPreviewDetails,
-        confirmLabel: 'Stage to staging',
-        isPending: createRelease.isPending || promoteRelease.isPending,
-      }
-    }
 
     if (confirmAction.type === 'deploy') {
       return {
@@ -543,7 +633,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
           <div className="space-y-1">
             <h2 className="text-sm font-medium tracking-tight text-white">Versions</h2>
             <p className="max-w-[18rem] text-xs leading-5 text-muted">
-              Move the editor draft through staging into production.
+              Move the current draft through staging into production.
             </p>
           </div>
           <PipelineHint />
@@ -553,7 +643,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <div className="h-px bg-border/50" />
 
       <section className="space-y-3">
-        <h3 className="text-[11px] font-medium text-muted">Working draft</h3>
+        <h3 className="text-[11px] font-medium text-muted">Current draft</h3>
         <div className="rounded-lg border border-border bg-surface/45 p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-3">
@@ -562,7 +652,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               </div>
               <div className="min-w-0 space-y-1.5">
                 <p className="truncate text-xs font-medium text-white">{state.name || 'Untitled agent'}</p>
-                <p className="text-[11px] leading-4 text-muted">Current editor state. Review it before creating or replacing staging.</p>
+                <p className="text-[11px] leading-4 text-muted">Current editor configuration. This has not been staged yet.</p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted">
                   <span>{editorModelLabel(state)}</span>
                   <span className="text-border">·</span>
@@ -577,11 +667,11 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             <Button
               size="sm"
               className="h-7 shrink-0 px-2 text-[11px]"
-              onClick={() => setConfirmAction({ type: 'stage' })}
+              onClick={() => setStageDraftOpen(true)}
               loading={createRelease.isPending || promoteRelease.isPending}
             >
               <Upload className="mr-1 h-3 w-3" />
-              Review & stage
+              Stage draft
             </Button>
           </div>
         </div>
@@ -597,7 +687,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <div className="min-w-0 space-y-2">
                 <h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{currentStaging.version}</h4>
                 <ReleaseMetadata release={currentStaging} />
-                <p className="max-w-md text-[11px] leading-4 text-muted">This is the candidate snapshot. View it before publishing to production.</p>
+                <p className="max-w-md text-[11px] leading-4 text-muted">This is the candidate snapshot. View the model and configuration before publishing.</p>
                 <div className="flex flex-wrap gap-2 pt-1">
                   <Button size="sm" variant="outline" className="h-7 min-w-[96px] px-2 text-[11px]" onClick={openViewStaging} loading={isLoadingSnapshot}>
                     <Eye className="mr-1 h-3 w-3" />
@@ -606,12 +696,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 min-w-[126px] border-yellow-500/60 px-2 text-[11px] text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
+                    className="h-7 min-w-[112px] border-yellow-500/60 px-2 text-[11px] text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
                     onClick={openCreateRelease}
                     loading={promoteRelease.isPending || isLoadingSnapshot}
                   >
                     <Rocket className="mr-1 h-3 w-3" />
-                    Publish to production
+                    Publish release
                   </Button>
                 </div>
               </div>
@@ -619,7 +709,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             </div>
           </article>
         ) : (
-          <EmptyStageCard tone="staging" message="No staging snapshot yet. Review the working draft and stage it before publishing." />
+          <EmptyStageCard tone="staging" message="No staging snapshot yet. Review the current draft and stage it before publishing." />
         )}
       </section>
 
@@ -702,15 +792,24 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       />
       <ReleaseSnapshotModal
         open={createReleaseOpen}
-        title="Publish staging to production"
-        description={production ? `Review this staging snapshot before publishing. Current production ${production.version} will be archived.` : 'Review this staging snapshot before publishing it as the active production release.'}
+        title="Publish staging release?"
+        description={production ? `Review the model and snapshot that will be published. Current production ${production.version} will be archived.` : 'Review the model and snapshot that will become the first production release.'}
         release={currentStaging}
-        confirmLabel="Publish to production"
+        confirmLabel="Publish release"
         isConfirming={promoteRelease.isPending}
         onConfirm={createReleaseFromStaging}
         onClose={() => setCreateReleaseOpen(false)}
         releaseDescription={releaseDescription}
         onReleaseDescriptionChange={setReleaseDescription}
+      />
+      <DraftSnapshotModal
+        open={stageDraftOpen}
+        state={state}
+        snapshot={draftSnapshot}
+        currentStaging={currentStaging}
+        isConfirming={createRelease.isPending || promoteRelease.isPending}
+        onClose={() => setStageDraftOpen(false)}
+        onConfirm={confirmStageDraft}
       />
       {confirmModal && (
         <ConfirmReleaseActionModal
