@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { completeMcpOAuth } from '@/features/tools/api'
 import { Button } from '@/components/ui/Button'
 
@@ -87,9 +87,7 @@ export default function McpConnectCallbackPage() {
         </h1>
         <p className="mt-3 text-sm text-muted">{message}</p>
         <div className="mt-6 flex justify-end">
-          <Button asChild>
-            <Link to={returnTo}>Back to tools</Link>
-          </Button>
+          <Button onClick={() => navigate(returnTo)}>{status === 'success' ? 'Back to tools' : 'Return'}</Button>
         </div>
       </div>
     </div>
