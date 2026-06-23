@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 ALLOWED_SCHEMES = frozenset({"http", "https"})
-SAFE_RESPONSE_HEADERS = frozenset({"content-type", "mcp-session-id", "x-mcp-session-id"})
+SAFE_RESPONSE_HEADERS = frozenset({"content-type", "mcp-session-id", "x-mcp-session-id", "www-authenticate"})
 
 
 def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
