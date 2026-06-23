@@ -14,6 +14,15 @@ class DiscoverMcpToolsController(Controller):
     async def handle(self, request: Request) -> Response:
         input_dto = McpDiscoverInput(**request.body)
         result = await self._use_case.execute(input_dto)
+        if result.error:
+            return Response(
+                status_code=502,
+                body={
+                    "success": False,
+                    "message": result.error,
+                    "data": result.model_dump(),
+                },
+            )
         return Response(
             status_code=200,
             body={"success": True, "message": "ok", "data": result.model_dump()},
