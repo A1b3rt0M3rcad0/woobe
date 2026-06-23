@@ -51,6 +51,7 @@ export interface McpToolConfig {
   discovered_tools?: DiscoveredMcpTool[]
   discovery_cache_ttl_seconds?: number
   timeout_ms?: number
+  oauth?: Record<string, unknown>
 }
 
 export type ToolConfig = HttpToolConfig | McpToolConfig | Record<string, unknown>
@@ -112,6 +113,44 @@ export interface DiscoverMcpToolsResponse {
   tools: DiscoveredMcpTool[]
   initialized: boolean
   error?: string | null
+}
+
+export interface McpOAuthStartRequest {
+  tool_id: string
+  redirect_uri: string
+  scopes?: string[]
+  authorization_endpoint?: string
+  token_endpoint?: string
+  registration_endpoint?: string
+  authorization_server_issuer?: string
+  client_id?: string
+  client_secret?: string
+  timeout_ms?: number
+}
+
+export interface McpOAuthStartResponse {
+  authorization_url: string
+  state: string
+  status: string
+}
+
+export interface McpOAuthCompleteRequest {
+  tool_id: string
+  code: string
+  state: string
+  timeout_ms?: number
+}
+
+export interface McpOAuthStatusRequest {
+  tool_id: string
+}
+
+export interface McpOAuthStatusResponse {
+  status: string
+  connected: boolean
+  authorization_server_issuer?: string | null
+  scopes: string[]
+  expires_at?: string | null
 }
 
 export interface UpdateToolStatusRequest {
