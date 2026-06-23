@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from modules.agent.application.ports import (
     ExecutionResult,
+    McpSessionStorePort,
     ToolExecutionPort,
     ToolRuntimePort,
     ToolSecretResolverPort,
@@ -20,6 +21,7 @@ from modules.agent.application.tool_types import (
 _TEMPLATE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 MCP_REMOTE_TOOL_INPUT_KEY = "__mcp_tool_name"
+MCP_AGENT_SESSION_INPUT_KEY = "__projectrai_agent_session_id"
 
 
 def _replace_template(value: str, variables: dict[str, Any]) -> str:
@@ -134,12 +136,29 @@ def _extract_headers(output: dict[str, Any] | None) -> dict[str, str]:
     return {str(k).lower(): str(v) for k, v in output["headers"].items()}
 
 
-def _session_headers(output: dict[str, Any] | None) -> dict[str, str]:
+def _extract_session_id(output: dict[str, Any] | None) -> str | None:
     headers = _extract_headers(output)
-    session_id = headers.get("mcp-session-id") or headers.get("x-mcp-session-id")
+    return headers.get("mcp-session-id") or headers.get("x-mcp-session-id")
+
+
+def _session_headers(session_id: str | None) -> dict[str, str]:
     if not session_id:
         return {}
     return {"Mcp-Session-Id": session_id}
+
+
+def _is_mcp_session_failure(result: ExecutionResult, body: Any) -> bool:
+    text = ""
+    if result.error:
+        text += f" {result.error}"
+    if isinstance(body, dict):
+        text += f" {body.get('error', '')}"
+    elif isinstance(body, str):
+        text += f" {body}"
+    normalized = text.lower()
+    return "session" in normalized and any(
+        marker in normalized for marker in ("invalid", "expired", "missing", "not found", "unknown")
+    )
 
 
 class UnsupportedToolRuntime(ToolRuntimePort):
@@ -265,9 +284,13 @@ class McpToolRuntime(ToolRuntimePort):
         self,
         executor: ToolExecutionPort,
         secret_resolver: ToolSecretResolverPort | None = None,
+        session_store: McpSessionStorePort | None = None,
+        session_ttl_seconds: int = 3600,
     ) -> None:
         self._executor = executor
         self._secret_resolver = secret_resolver
+        self._session_store = session_store
+        self._session_ttl_seconds = session_ttl_seconds
 
     async def execute(self, tool: Any, input_data: dict[str, Any] | None = None) -> ExecutionResult:
         config = getattr(tool, "config", None) or {}
@@ -276,6 +299,7 @@ class McpToolRuntime(ToolRuntimePort):
             input_data=input_data or {},
             timeout_ms=getattr(tool, "timeout_ms", None) or int(config.get("timeout_ms") or 30000),
             project_id=getattr(tool, "project_id", None),
+            provider_id=str(getattr(tool, "id", "")) or None,
             resolve_secrets=True,
         )
 
@@ -290,7 +314,95 @@ class McpToolRuntime(ToolRuntimePort):
             input_data=input_data or {},
             timeout_ms=timeout_ms,
             project_id=None,
+            provider_id=None,
             resolve_secrets=False,
+        )
+
+    async def _initialize_session(
+        self,
+        *,
+        url: str,
+        base_headers: dict[str, str],
+        timeout_ms: int,
+    ) -> tuple[ExecutionResult | None, str | None, dict[str, str]]:
+        initialize_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
+            },
+        }
+        init_result = await self._executor.execute(
+            method="POST",
+            url=url,
+            headers=base_headers,
+            body=json.dumps(initialize_payload),
+            timeout_ms=timeout_ms,
+        )
+        if not init_result.success:
+            return init_result, None, base_headers
+
+        session_id = _extract_session_id(init_result.output if isinstance(init_result.output, dict) else None)
+        request_headers = {**base_headers, **_session_headers(session_id)}
+        initialized_payload = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {},
+        }
+        await self._executor.execute(
+            method="POST",
+            url=url,
+            headers=request_headers,
+            body=json.dumps(initialized_payload),
+            timeout_ms=timeout_ms,
+        )
+        return None, session_id, request_headers
+
+    async def _call_remote_tool(
+        self,
+        *,
+        url: str,
+        headers: dict[str, str],
+        tool_name: str,
+        arguments: dict[str, Any],
+        timeout_ms: int,
+    ) -> ExecutionResult:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments,
+            },
+        }
+        result = await self._executor.execute(
+            method="POST",
+            url=url,
+            headers=headers,
+            body=json.dumps(payload),
+            timeout_ms=timeout_ms,
+        )
+        body = _extract_mcp_result_body(result)
+        if not result.success:
+            return result
+        if isinstance(body, dict) and body.get("error"):
+            return ExecutionResult(
+                success=False,
+                status_code=result.status_code,
+                output=body,
+                duration_ms=result.duration_ms,
+                error=str(body.get("error")),
+            )
+        output = body.get("result") if isinstance(body, dict) else body
+        return ExecutionResult(
+            success=True,
+            status_code=result.status_code,
+            output={"mcp": output},
+            duration_ms=result.duration_ms,
         )
 
     async def _call_mcp_tool(
@@ -300,6 +412,7 @@ class McpToolRuntime(ToolRuntimePort):
         input_data: dict[str, Any],
         timeout_ms: int,
         project_id: UUID | None,
+        provider_id: str | None,
         resolve_secrets: bool,
     ) -> ExecutionResult:
         server = config.get("server", {}) or {}
@@ -313,6 +426,7 @@ class McpToolRuntime(ToolRuntimePort):
         call_input = dict(input_data or {})
         url = server.get("url") or config.get("url")
         tool_name = call_input.pop(MCP_REMOTE_TOOL_INPUT_KEY, None) or config.get("tool_name")
+        agent_session_id = call_input.pop(MCP_AGENT_SESSION_INPUT_KEY, None)
         if not url:
             return ExecutionResult(success=False, error="MCP server.url is required")
         if not tool_name:
@@ -334,76 +448,40 @@ class McpToolRuntime(ToolRuntimePort):
             **configured_headers,
         }
 
-        initialize_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid4()),
-            "method": "initialize",
-            "params": {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
-            },
-        }
-        init_result = await self._executor.execute(
-            method="POST",
+        session_cache_key = None
+        if agent_session_id and provider_id and self._session_store is not None:
+            session_cache_key = f"{agent_session_id}:{provider_id}"
+            cached_session_id = await self._session_store.get(session_cache_key)
+            if cached_session_id:
+                cached_headers = {**base_headers, **_session_headers(cached_session_id)}
+                result = await self._call_remote_tool(
+                    url=str(url),
+                    headers=cached_headers,
+                    tool_name=str(tool_name),
+                    arguments=call_input,
+                    timeout_ms=timeout_ms,
+                )
+                body = _extract_mcp_result_body(result)
+                if result.success or not _is_mcp_session_failure(result, body):
+                    return result
+                await self._session_store.delete(session_cache_key)
+
+        init_failure, session_id, request_headers = await self._initialize_session(
             url=str(url),
-            headers=base_headers,
-            body=json.dumps(initialize_payload),
+            base_headers=base_headers,
             timeout_ms=timeout_ms,
         )
-        if not init_result.success:
-            return init_result
+        if init_failure is not None:
+            return init_failure
+        if session_cache_key and session_id:
+            await self._session_store.set(session_cache_key, session_id, self._session_ttl_seconds)
 
-        request_headers = {
-            **base_headers,
-            **_session_headers(init_result.output if isinstance(init_result.output, dict) else None),
-        }
-        initialized_payload = {
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {},
-        }
-        await self._executor.execute(
-            method="POST",
+        return await self._call_remote_tool(
             url=str(url),
             headers=request_headers,
-            body=json.dumps(initialized_payload),
+            tool_name=str(tool_name),
+            arguments=call_input,
             timeout_ms=timeout_ms,
-        )
-
-        payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid4()),
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": call_input,
-            },
-        }
-        result = await self._executor.execute(
-            method="POST",
-            url=str(url),
-            headers=request_headers,
-            body=json.dumps(payload),
-            timeout_ms=timeout_ms,
-        )
-        body = _extract_mcp_result_body(result)
-        if not result.success:
-            return result
-        if isinstance(body, dict) and body.get("error"):
-            return ExecutionResult(
-                success=False,
-                status_code=result.status_code,
-                output=body,
-                duration_ms=result.duration_ms,
-                error=str(body.get("error")),
-            )
-        output = body.get("result") if isinstance(body, dict) else body
-        return ExecutionResult(
-            success=True,
-            status_code=result.status_code,
-            output={"mcp": output},
-            duration_ms=result.duration_ms,
         )
 
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
@@ -459,9 +537,16 @@ class ToolRuntimeRegistry:
 def build_default_tool_runtime_registry(
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None = None,
+    mcp_session_store: McpSessionStorePort | None = None,
+    mcp_session_ttl_seconds: int = 3600,
 ) -> ToolRuntimeRegistry:
     http_runtime = HttpToolRuntime(executor, secret_resolver)
-    mcp_runtime = McpToolRuntime(executor, secret_resolver)
+    mcp_runtime = McpToolRuntime(
+        executor,
+        secret_resolver,
+        session_store=mcp_session_store,
+        session_ttl_seconds=mcp_session_ttl_seconds,
+    )
     return ToolRuntimeRegistry(
         {
             HTTP_PROTOCOL: http_runtime,
