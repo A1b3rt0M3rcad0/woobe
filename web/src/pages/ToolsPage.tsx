@@ -29,6 +29,12 @@ const riskOptions = [
   { value: 'restricted', label: 'Restricted' },
 ]
 
+const toolTypeOptions = [
+  { value: 'http', label: 'HTTP' },
+  { value: 'mcp', label: 'MCP' },
+  { value: 'function', label: 'Function' },
+]
+
 function RiskBadge({ risk }: { risk?: string | null }) {
   const value = risk || 'read_only'
   const tone = value === 'destructive' || value === 'restricted'
@@ -50,7 +56,7 @@ export default function ToolsPage() {
 
   const toolForm = useForm<CreateToolFormData>({
     resolver: zodResolver(createToolSchema),
-    defaultValues: { type: 'http_mcp', risk_level: 'read_only' },
+    defaultValues: { type: 'http', risk_level: 'read_only' },
   })
 
   const secretForm = useForm<CreateSecretFormData>({
@@ -72,7 +78,7 @@ export default function ToolsPage() {
       })
       toast.success('Tool created')
       setShowTool(false)
-      toolForm.reset()
+      toolForm.reset({ type: 'http', risk_level: 'read_only' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create tool')
     }
@@ -199,7 +205,7 @@ export default function ToolsPage() {
         <form onSubmit={toolForm.handleSubmit(handleCreateTool)} className="space-y-4">
           <Input {...toolForm.register('name')} error={toolForm.formState.errors.name?.message} placeholder="Tool name" />
           <Textarea {...toolForm.register('description')} placeholder="Description" />
-          <Select {...toolForm.register('type')} options={[{ value: 'http_mcp', label: 'HTTP MCP' }, { value: 'function', label: 'Function' }]} placeholder="Type" />
+          <Select {...toolForm.register('type')} options={toolTypeOptions} placeholder="Type" />
           <Select {...toolForm.register('risk_level')} options={riskOptions} placeholder="Risk level" />
           <JsonEditor
             value={toolForm.watch('config') || ''}
