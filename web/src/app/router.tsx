@@ -24,6 +24,7 @@ import EditAgentPage from '@/pages/EditAgentPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
+import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
 import BillingPage from '@/pages/BillingPage'
@@ -78,6 +79,8 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
+
+          <Route path="/tools/mcp/oauth/callback" element={<McpConnectCallbackPage />} />
 
           <Route path="/projects" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId" element={<LegacyProjectRedirect />} />
