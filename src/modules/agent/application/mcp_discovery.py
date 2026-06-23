@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from modules.agent.application.ports import ToolExecutionPort
 
+MCP_PROTOCOL_VERSION = "2025-06-18"
+
 
 class McpDiscoverInput(BaseModel):
     server_url: str = Field(..., min_length=1)
@@ -38,9 +40,6 @@ def _parse_json_candidate(value: str) -> Any:
 
 
 def _parse_sse_payload(value: str) -> Any:
-    # Streamable HTTP MCP servers may return JSON-RPC messages as SSE frames:
-    # event: message
-    # data: {"jsonrpc":"2.0","result":...}
     candidates: list[Any] = []
     data_lines: list[str] = []
     for line in value.splitlines():
@@ -64,13 +63,33 @@ def _parse_sse_payload(value: str) -> Any:
     return candidates[-1]
 
 
+def _parse_body_value(body: Any) -> Any:
+    if isinstance(body, str):
+        return _parse_json_candidate(body) or _parse_sse_payload(body) or body
+    if isinstance(body, dict) and isinstance(body.get("raw"), str):
+        raw = body["raw"]
+        return _parse_json_candidate(raw) or _parse_sse_payload(raw) or body
+    return body
+
+
 def _extract_body(output: dict[str, Any] | None) -> Any:
     if not output:
         return None
-    body = output.get("body")
-    if isinstance(body, str):
-        return _parse_json_candidate(body) or _parse_sse_payload(body) or body
-    return body
+    return _parse_body_value(output.get("body"))
+
+
+def _extract_headers(output: dict[str, Any] | None) -> dict[str, str]:
+    if not output or not isinstance(output.get("headers"), dict):
+        return {}
+    return {str(k).lower(): str(v) for k, v in output["headers"].items()}
+
+
+def _session_headers(init_output: dict[str, Any] | None) -> dict[str, str]:
+    headers = _extract_headers(init_output)
+    session_id = headers.get("mcp-session-id") or headers.get("x-mcp-session-id")
+    if not session_id:
+        return {}
+    return {"Mcp-Session-Id": session_id}
 
 
 def _extract_tools(payload: Any) -> list[McpDiscoveredTool]:
@@ -105,19 +124,19 @@ class DiscoverMcpToolsUseCase:
         self._executor = executor
 
     async def execute(self, input_dto: McpDiscoverInput) -> McpDiscoverOutput:
-        headers = {
+        base_headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
+            "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
             **input_dto.headers,
         }
 
-        initialized = False
         initialize_payload = {
             "jsonrpc": "2.0",
             "id": "initialize",
             "method": "initialize",
             "params": {
-                "protocolVersion": "2025-06-18",
+                "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
                 "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
             },
@@ -125,11 +144,13 @@ class DiscoverMcpToolsUseCase:
         init_result = await self._executor.execute(
             method="POST",
             url=input_dto.server_url,
-            headers=headers,
+            headers=base_headers,
             body=json.dumps(initialize_payload),
             timeout_ms=input_dto.timeout_ms,
         )
         initialized = bool(init_result.success)
+        session_headers = _session_headers(init_result.output if isinstance(init_result.output, dict) else None)
+        request_headers = {**base_headers, **session_headers}
 
         if initialized:
             initialized_payload = {
@@ -140,7 +161,7 @@ class DiscoverMcpToolsUseCase:
             await self._executor.execute(
                 method="POST",
                 url=input_dto.server_url,
-                headers=headers,
+                headers=request_headers,
                 body=json.dumps(initialized_payload),
                 timeout_ms=input_dto.timeout_ms,
             )
@@ -154,7 +175,7 @@ class DiscoverMcpToolsUseCase:
         list_result = await self._executor.execute(
             method="POST",
             url=input_dto.server_url,
-            headers=headers,
+            headers=request_headers,
             body=json.dumps(list_payload),
             timeout_ms=input_dto.timeout_ms,
         )
@@ -165,7 +186,7 @@ class DiscoverMcpToolsUseCase:
                 error=list_result.error or "MCP tools/list failed",
             )
 
-        tools = _extract_tools(_extract_body(list_result.output))
+        tools = _extract_tools(_extract_body(list_result.output if isinstance(list_result.output, dict) else None))
         if not tools:
             return McpDiscoverOutput(
                 tools=[],
