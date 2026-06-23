@@ -1,3 +1,5 @@
+export type ToolProtocol = 'http' | 'mcp' | 'http_mcp' | 'api' | 'webhook' | string
+
 export interface HttpHeader {
   key: string
   value: string
@@ -10,6 +12,7 @@ export interface HttpAuth {
 }
 
 export interface HttpToolConfig {
+  protocol?: 'http'
   url: string
   method: string
   headers: HttpHeader[]
@@ -19,14 +22,37 @@ export interface HttpToolConfig {
   timeout_ms?: number
 }
 
+export interface McpServerConfig {
+  transport: 'streamable_http' | 'sse' | 'stdio'
+  url?: string
+  command?: string
+  args?: string[]
+  headers?: HttpHeader[]
+  env_secret_refs?: Record<string, string>
+  name?: string
+}
+
+export interface McpToolConfig {
+  protocol?: 'mcp'
+  server: McpServerConfig
+  tool_name: string
+  server_headers?: HttpHeader[]
+  input_schema_source?: 'discovered' | 'manual'
+  discovered_input_schema?: Record<string, unknown>
+  discovery_cache_ttl_seconds?: number
+  timeout_ms?: number
+}
+
+export type ToolConfig = HttpToolConfig | McpToolConfig | Record<string, unknown>
+
 export interface Tool {
   id: string
   project_id: string
   agent_id?: string | null
   name: string
   description?: string
-  type: string
-  config?: Record<string, unknown>
+  type: ToolProtocol
+  config?: ToolConfig
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
   risk_level: string
@@ -41,8 +67,8 @@ export interface CreateToolRequest {
   agent_id?: string | null
   name: string
   description?: string
-  type?: string
-  config?: Record<string, unknown>
+  type?: ToolProtocol
+  config?: ToolConfig
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
   risk_level?: string
@@ -50,8 +76,10 @@ export interface CreateToolRequest {
 }
 
 export interface TestToolRequest {
-  config: Record<string, unknown>
+  type?: ToolProtocol
+  config: ToolConfig
   input_data?: Record<string, unknown>
+  timeout_ms?: number
 }
 
 export interface TestToolResponse {
