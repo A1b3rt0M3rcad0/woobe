@@ -78,6 +78,7 @@ def mcp_tool() -> FakeTool:
 
 @pytest.mark.asyncio
 async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> None:
+    tool = mcp_tool()
     store = MemoryMcpSessionStore()
     executor = FakeExecutor([
         ExecutionResult(success=True, output={"headers": {"mcp-session-id": "sid-1"}, "body": {"result": {}}}),
@@ -87,7 +88,7 @@ async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> Non
     runtime = McpToolRuntime(executor, session_store=store)
 
     result = await runtime.execute(
-        mcp_tool(),
+        tool,
         {
             MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
             MCP_REMOTE_TOOL_INPUT_KEY: "search",
@@ -97,7 +98,7 @@ async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> Non
 
     assert result.success is True
     assert len(executor.calls) == 3
-    assert store.values == {f"agent-session-1:{mcp_tool().id}": "sid-1"} or "sid-1" in store.values.values()
+    assert store.values == {f"agent-session-1:{tool.id}": "sid-1"}
     tool_call = json.loads(executor.calls[-1]["body"])
     assert tool_call["method"] == "tools/call"
     assert tool_call["params"]["name"] == "search"
