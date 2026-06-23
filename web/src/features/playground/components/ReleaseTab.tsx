@@ -357,10 +357,10 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   if (isLoading) {
     return (
-      <div className="space-y-4 p-4">
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="h-28 w-full rounded-2xl" />
-        <Skeleton className="h-36 w-full rounded-2xl" />
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-28 w-full rounded-xl" />
       </div>
     )
   }
@@ -369,12 +369,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const hasStaging = Boolean(currentStaging)
 
   return (
-    <div className="space-y-7 p-4">
-      <section className="space-y-4">
+    <div className="space-y-4 p-4">
+      <section className="space-y-3">
         <div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
-          <div className="space-y-2">
+          <div className="space-y-1">
             <h2 className="text-sm font-medium tracking-tight text-white">Versions</h2>
-            <p className="max-w-[28rem] text-sm leading-6 text-muted">
+            <p className="max-w-[18rem] text-xs leading-5 text-muted">
               Promote snapshots from draft to staging, then publish one production release.
             </p>
           </div>
@@ -382,12 +382,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         </div>
 
         <div className="flex flex-col gap-2 min-[420px]:flex-row">
-          <Button className="h-10 min-w-32" onClick={promoteDraftToStaging} loading={createRelease.isPending || promoteRelease.isPending}>
-            <Upload className="mr-2 h-4 w-4" />
+          <Button className="h-8 min-w-32 text-[11px]" onClick={promoteDraftToStaging} loading={createRelease.isPending || promoteRelease.isPending}>
+            <Upload className="mr-1.5 h-3 w-3" />
             Stage draft
           </Button>
-          <Button className="h-10 min-w-36" variant="outline" onClick={openViewStaging} disabled={!hasStaging} loading={isLoadingSnapshot}>
-            <Eye className="mr-2 h-4 w-4" />
+          <Button className="h-8 min-w-36 text-[11px]" variant="outline" onClick={openViewStaging} disabled={!hasStaging} loading={isLoadingSnapshot}>
+            <Eye className="mr-1.5 h-3 w-3" />
             View staging
           </Button>
         </div>
