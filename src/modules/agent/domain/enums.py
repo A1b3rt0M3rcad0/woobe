@@ -132,6 +132,10 @@ class RuntimeSessionMode(StrEnum):
 
 class ToolType(StrEnum):
     FUNCTION = auto()
+    HTTP = auto()
+    MCP = auto()
+    # Deprecated compatibility alias for existing persisted tools and clients.
+    # New clients must create HTTP tools with ToolType.HTTP instead.
     HTTP_MCP = auto()
     API = auto()
     DATABASE_QUERY = auto()
