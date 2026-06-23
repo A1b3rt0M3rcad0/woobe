@@ -10,6 +10,7 @@ from modules.agent.application.ports import ExecutionResult, McpSessionStorePort
 from modules.agent.application.tool_runtime import (
     ERROR_HTTP_ERROR,
     ERROR_MCP_CONFIG_ERROR,
+    ERROR_MCP_TOOL_DENIED_BY_POLICY,
     MCP_AGENT_SESSION_INPUT_KEY,
     MCP_REMOTE_TOOL_INPUT_KEY,
     HttpToolRuntime,
@@ -65,13 +66,13 @@ class MemoryMcpSessionStore(McpSessionStorePort):
         self.values.pop(key, None)
 
 
-def mcp_tool() -> FakeTool:
+def mcp_tool(permission_mode: str = "allow") -> FakeTool:
     return FakeTool(
         config={
             "protocol": "mcp",
             "mode": "server",
             "server": {"transport": "streamable_http", "url": "https://mcp.example.com/mcp"},
-            "discovered_tools": [{"name": "search"}],
+            "discovered_tools": [{"name": "search", "permission": {"mode": permission_mode}}],
         }
     )
 
@@ -87,10 +88,7 @@ async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> Non
     ])
     runtime = McpToolRuntime(executor, session_store=store)
 
-    result = await runtime.execute(
-        tool,
-        {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search", "query": "redis"},
-    )
+    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search", "query": "redis"})
 
     assert result.success is True
     assert len(executor.calls) == 3
@@ -136,6 +134,18 @@ async def test_mcp_runtime_reinitializes_after_invalid_cached_session() -> None:
     assert store.deleted == [key]
     assert store.values[key] == "sid-new"
     assert len(executor.calls) == 4
+
+
+@pytest.mark.asyncio
+async def test_mcp_runtime_blocks_denied_discovered_tool_before_remote_call() -> None:
+    executor = FakeExecutor()
+    runtime = McpToolRuntime(executor)
+
+    result = await runtime.execute(mcp_tool("deny"), {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
+
+    assert result.success is False
+    assert result.output and result.output["error_code"] == ERROR_MCP_TOOL_DENIED_BY_POLICY
+    assert executor.calls == []
 
 
 @pytest.mark.asyncio
