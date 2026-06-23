@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
+from modules.agent.domain.enums import ToolType
 
 MCP_PROVIDER_ROUTE_SEPARATOR = "::mcp::"
 
@@ -30,12 +31,23 @@ def _dedupe_name(name: str, used: set[str]) -> str:
     return candidate
 
 
+def _type_value(value: Any) -> str:
+    if value is None:
+        return ""
+    raw_value = getattr(value, "value", value)
+    return str(raw_value).lower()
+
+
 def _is_mcp_server_provider(tool: Any) -> bool:
     config = getattr(tool, "config", None) or {}
-    return (
-        config.get("protocol") == "mcp"
-        and (config.get("mode") == "server" or config.get("exposure") == "all_discovered")
+    tool_type = getattr(tool, "type", None)
+    is_mcp = (
+        str(config.get("protocol") or "").lower() == "mcp"
+        or tool_type in {ToolType.MCP, ToolType.HTTP_MCP}
+        or _type_value(tool_type) in {"mcp", "http_mcp"}
     )
+    exposes_server = config.get("mode") == "server" or config.get("exposure") == "all_discovered"
+    return is_mcp and exposes_server
 
 
 def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
