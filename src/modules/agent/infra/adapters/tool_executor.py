@@ -233,6 +233,7 @@ class HttpToolExecutor(ToolExecutionPort):
             output = redact_sensitive_data(
                 {
                     "status_code": response.status_code,
+                    "headers": dict(response.headers),
                     "body": output_body,
                 }
             )
