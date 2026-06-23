@@ -42,13 +42,23 @@ class McpServerConfig(BaseModel):
     name: str | None = None
 
 
+class McpDiscoveredToolConfig(BaseModel):
+    name: str = Field(..., min_length=1)
+    title: str | None = None
+    description: str | None = None
+    input_schema: dict[str, Any] | None = None
+
+
 class McpToolConfig(BaseModel):
     protocol: Literal["mcp"] | None = None
+    mode: Literal["tool", "server"] = "tool"
+    exposure: Literal["single", "all_discovered"] = "single"
     server: McpServerConfig
-    tool_name: str = Field(..., min_length=1)
+    tool_name: str | None = None
     server_headers: list[HttpHeaderConfig] = Field(default_factory=list)
     input_schema_source: Literal["discovered", "manual"] = "manual"
     discovered_input_schema: dict[str, Any] | None = None
+    discovered_tools: list[McpDiscoveredToolConfig] = Field(default_factory=list)
     discovery_cache_ttl_seconds: int | None = Field(default=None, ge=0)
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -58,6 +68,11 @@ class McpToolConfig(BaseModel):
             raise ValueError("MCP server.url is required for remote MCP transports")
         if self.server.transport == "stdio" and not self.server.command:
             raise ValueError("MCP server.command is required for stdio transport")
+        if self.mode == "server" or self.exposure == "all_discovered":
+            if not self.discovered_tools:
+                raise ValueError("MCP discovered_tools is required when exposing the whole server")
+        elif not self.tool_name:
+            raise ValueError("MCP tool_name is required when exposing a single MCP tool")
         return self
 
 
@@ -149,43 +164,6 @@ class DeleteToolInput(BaseModel):
     tool_id: UUID
 
 
-class TestToolInput(BaseModel):
-    config: dict[str, Any]
-    input_data: dict[str, Any] | None = None
-    type: ToolType | None = None
-    timeout_ms: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def validate_protocol_config(self) -> "TestToolInput":
-        if is_mcp_tool_type(self.type):
-            McpToolConfig.model_validate(self.config)
-        else:
-            HttpToolConfig.model_validate(self.config)
-        return self
-
-
-class TestToolOutput(BaseModel):
-    success: bool
-    status_code: int | None = None
-    headers: dict | None = None
-    body: str | None = None
-    duration_ms: float | None = None
-    error: str | None = None
-
-
-class ExecuteToolInput(BaseModel):
-    tool_id: UUID
-    input_data: dict | None = None
-    agent_id: UUID | None = None
-
-
-class ExecuteToolOutput(BaseModel):
-    success: bool
-    output: dict | None = None
-    duration_ms: float | None = None
-    error: str | None = None
-
-
 class ListToolsInput(BaseModel):
     project_id: UUID | None = None
 
@@ -194,5 +172,13 @@ class ListToolsByAgentInput(BaseModel):
     agent_id: UUID
 
 
-class ListSecretsInput(BaseModel):
-    project_id: UUID | None = None
+class TestToolInput(BaseModel):
+    type: ToolType | None = None
+    config: dict[str, Any]
+    input_data: dict[str, Any] | None = None
+    timeout_ms: int = Field(default=30000, ge=1)
+
+
+class ExecuteToolInput(BaseModel):
+    tool_id: UUID
+    input_data: dict[str, Any] | None = None
