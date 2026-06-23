@@ -3,12 +3,18 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_runtime import (
+    MCP_AGENT_SESSION_INPUT_KEY,
+    build_default_tool_runtime_registry,
+)
+from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.redis_mcp_session_store import build_redis_mcp_session_store
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -25,17 +31,28 @@ def ask_agent_composer(
     llm_factory = LangchainLLMFactory()
     cipher = SecretCipherAdapter(settings.encryption_key)
     executor = http_executor or get_http_tool_executor()
+    mcp_session_store = build_redis_mcp_session_store(settings.redis_url)
 
     async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+        runtime_input = dict(input_data or {})
+        context = current_execution.get()
+        if context and context.session_id:
+            runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+
         async with AgentUnitOfWork(session_factory) as uow:
             resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-            use_case = ExecuteToolUseCase(
+            registry = build_default_tool_runtime_registry(
+                executor,
+                resolver,
+                mcp_session_store=mcp_session_store,
+                mcp_session_ttl_seconds=settings.mcp_session_ttl_seconds,
+            )
+            use_case = RuntimeExecuteToolUseCase(
                 tool_repo=uow.tools,
-                tool_executor=executor,
-                secret_resolver=resolver,
+                runtime_registry=registry,
             )
             result = await use_case.execute(
-                ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+                ExecuteToolInput(tool_id=tool_id, input_data=runtime_input)
             )
             return result.model_dump()
 
