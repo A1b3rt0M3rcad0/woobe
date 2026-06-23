@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     worker_health_max_age_seconds: float = Field(default=45.0, gt=5, le=300)
     rabbitmq_url: str = "amqp://projectrai:projectrai@localhost:5672/"
     rabbitmq_exchange: str = "domain.events"
+    redis_url: str | None = None
+    mcp_session_ttl_seconds: int = Field(default=3600, gt=0, le=86400)
     outbox_batch_size: int = 50
     inbox_batch_size: int = 50
     outbox_lock_timeout_seconds: int = 300
