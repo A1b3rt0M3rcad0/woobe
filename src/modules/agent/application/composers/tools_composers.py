@@ -2,6 +2,7 @@ from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
     RuntimeTestToolUseCase,
@@ -25,6 +26,7 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.create_secret_controller import CreateSecretController
 from modules.agent.presentation.controllers.create_tool_controller import CreateToolController
 from modules.agent.presentation.controllers.delete_tool_controller import DeleteToolController
+from modules.agent.presentation.controllers.discover_mcp_tools_controller import DiscoverMcpToolsController
 from modules.agent.presentation.controllers.execute_tool_controller import ExecuteToolController
 from modules.agent.presentation.controllers.list_secrets_controller import ListSecretsController
 from modules.agent.presentation.controllers.list_tools_by_agent_controller import (
@@ -106,6 +108,16 @@ def test_tool_composer(
     uow = AgentUnitOfWork(session_factory)
     use_case = RuntimeTestToolUseCase(executor or get_http_tool_executor())
     controller = TestToolController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def discover_mcp_tools_composer(
+    session_factory: async_sessionmaker[AsyncSession],
+    executor: HttpToolExecutor | None = None,
+) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = DiscoverMcpToolsUseCase(executor or get_http_tool_executor())
+    controller = DiscoverMcpToolsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
