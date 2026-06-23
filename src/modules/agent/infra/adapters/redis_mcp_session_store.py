@@ -4,7 +4,7 @@ import logging
 from urllib.parse import urlsplit
 
 from modules.agent.application.ports import McpSessionStorePort
-from shared.infra.cache.kv_store import NetworkKeyValueStore
+from shared.infra.cache.kv_store import RedisKeyValueStore
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class RedisMcpSessionStore(McpSessionStorePort):
         key_prefix: str = "projectrai:mcp-session",
         timeout_seconds: float = 2.0,
     ) -> None:
-        self._store = NetworkKeyValueStore(
+        self._store = RedisKeyValueStore(
             redis_url,
             key_prefix=key_prefix,
             timeout_seconds=timeout_seconds,
