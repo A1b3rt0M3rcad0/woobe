@@ -24,6 +24,26 @@ import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Secret, T
 
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
 
+type ManualOAuthForm = {
+  authorization_endpoint: string
+  token_endpoint: string
+  registration_endpoint: string
+  authorization_server_issuer: string
+  client_id: string
+  client_secret: string
+  scopes: string
+}
+
+const emptyManualOAuthForm: ManualOAuthForm = {
+  authorization_endpoint: '',
+  token_endpoint: '',
+  registration_endpoint: '',
+  authorization_server_issuer: '',
+  client_id: '',
+  client_secret: '',
+  scopes: '',
+}
+
 function RiskBadge({ risk }: { risk?: string | null }) {
   const value = risk || 'low'
   const tone = value === 'critical'
@@ -75,6 +95,10 @@ function permissionSummary(tools: DiscoveredMcpTool[]) {
   )
 }
 
+function splitScopes(value: string): string[] {
+  return value.split(/[\s,]+/).map(item => item.trim()).filter(Boolean)
+}
+
 export default function ToolsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -88,6 +112,9 @@ export default function ToolsPage() {
   const [permissionToolId, setPermissionToolId] = useState<string | null>(null)
   const [permissionSavingKey, setPermissionSavingKey] = useState<string | null>(null)
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null)
+  const [manualOAuthTool, setManualOAuthTool] = useState<Tool | null>(null)
+  const [manualOAuthForm, setManualOAuthForm] = useState<ManualOAuthForm>(emptyManualOAuthForm)
+  const [manualOAuthLoading, setManualOAuthLoading] = useState(false)
 
   useEffect(() => {
     const requestedToolId = searchParams.get('configure_mcp_permissions')
@@ -123,19 +150,56 @@ export default function ToolsPage() {
     }
   }
 
+  const startMcpConnect = async (tool: Tool, overrides?: Partial<ManualOAuthForm>) => {
+    const redirectUri = `${window.location.origin}/tools/mcp/oauth/callback`
+    const result = await startMcpOAuth({
+      tool_id: tool.id,
+      redirect_uri: redirectUri,
+      authorization_endpoint: overrides?.authorization_endpoint?.trim() || undefined,
+      token_endpoint: overrides?.token_endpoint?.trim() || undefined,
+      registration_endpoint: overrides?.registration_endpoint?.trim() || undefined,
+      authorization_server_issuer: overrides?.authorization_server_issuer?.trim() || undefined,
+      client_id: overrides?.client_id?.trim() || undefined,
+      client_secret: overrides?.client_secret?.trim() || undefined,
+      scopes: overrides?.scopes ? splitScopes(overrides.scopes) : undefined,
+    })
+    window.localStorage.setItem(
+      `${MCP_CONNECT_STATE_PREFIX}${result.state}`,
+      JSON.stringify({ toolId: tool.id, returnTo: `${window.location.pathname}?configure_mcp_permissions=${tool.id}` }),
+    )
+    window.location.assign(result.authorization_url)
+  }
+
   const handleConnectMcp = async (tool: Tool) => {
     try {
       setConnectingToolId(tool.id)
-      const redirectUri = `${window.location.origin}/tools/mcp/oauth/callback`
-      const result = await startMcpOAuth({ tool_id: tool.id, redirect_uri: redirectUri })
-      window.localStorage.setItem(
-        `${MCP_CONNECT_STATE_PREFIX}${result.state}`,
-        JSON.stringify({ toolId: tool.id, returnTo: `${window.location.pathname}?configure_mcp_permissions=${tool.id}` }),
-      )
-      window.location.assign(result.authorization_url)
+      await startMcpConnect(tool)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to start MCP connection')
+      const message = err instanceof Error ? err.message : 'Failed to start MCP connection'
+      if (message.includes('OAuth endpoints') || message.includes('client_id')) {
+        setManualOAuthTool(tool)
+        setManualOAuthForm(emptyManualOAuthForm)
+        toast.error('OAuth metadata was not discovered. Enter the OAuth settings manually.')
+      } else {
+        toast.error(message)
+      }
       setConnectingToolId(null)
+    }
+  }
+
+  const handleManualOAuthSubmit = async () => {
+    if (!manualOAuthTool) return
+    if (!manualOAuthForm.authorization_endpoint.trim() || !manualOAuthForm.token_endpoint.trim()) {
+      toast.error('Authorization endpoint and token endpoint are required')
+      return
+    }
+    try {
+      setManualOAuthLoading(true)
+      await startMcpConnect(manualOAuthTool, manualOAuthForm)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start manual OAuth connection')
+    } finally {
+      setManualOAuthLoading(false)
     }
   }
 
@@ -300,6 +364,20 @@ export default function ToolsPage() {
 
       <Tabs tabs={tabs} />
       <ToolsCreateDialog open={showTool} projectId={projectId!} onClose={() => setShowTool(false)} />
+
+      <Dialog open={Boolean(manualOAuthTool)} onClose={() => setManualOAuthTool(null)} title="Manual MCP OAuth settings">
+        <div className="space-y-4">
+          <p className="text-sm text-muted">Automatic OAuth metadata discovery failed. Enter the provider OAuth endpoints manually.</p>
+          <Input value={manualOAuthForm.authorization_endpoint} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, authorization_endpoint: event.target.value }))} placeholder="Authorization endpoint" />
+          <Input value={manualOAuthForm.token_endpoint} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, token_endpoint: event.target.value }))} placeholder="Token endpoint" />
+          <Input value={manualOAuthForm.client_id} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, client_id: event.target.value }))} placeholder="Client ID, if required" />
+          <Input type="password" value={manualOAuthForm.client_secret} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, client_secret: event.target.value }))} placeholder="Client secret, optional" />
+          <Input value={manualOAuthForm.registration_endpoint} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, registration_endpoint: event.target.value }))} placeholder="Registration endpoint, optional" />
+          <Input value={manualOAuthForm.authorization_server_issuer} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, authorization_server_issuer: event.target.value }))} placeholder="Authorization server issuer, optional" />
+          <Input value={manualOAuthForm.scopes} onChange={(event) => setManualOAuthForm(prev => ({ ...prev, scopes: event.target.value }))} placeholder="Scopes, space or comma separated" />
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setManualOAuthTool(null)}>Cancel</Button><Button type="button" loading={manualOAuthLoading} onClick={handleManualOAuthSubmit}>Connect</Button></div>
+        </div>
+      </Dialog>
 
       <Dialog open={showSecret} onClose={() => setShowSecret(false)} title="Create Secret">
         <form onSubmit={secretForm.handleSubmit(handleCreateSecret)} className="space-y-4">
