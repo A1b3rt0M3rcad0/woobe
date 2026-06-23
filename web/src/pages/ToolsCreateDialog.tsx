@@ -1,5 +1,5 @@
 import { Dialog } from '@/components/ui/Dialog'
-import { ToolForm, type ToolFormSubmitValue } from '@/features/tools/components/ToolForm'
+import { ToolDiscoveryForm, type ToolFormSubmitValue } from '@/features/tools/components/ToolDiscoveryForm'
 import { useCreateTool, useTestTool } from '@/features/tools/hooks'
 import { toast } from 'sonner'
 
@@ -24,7 +24,7 @@ export function ToolsCreateDialog({ open, projectId, onClose }: ToolsCreateDialo
 
   return (
     <Dialog open={open} onClose={onClose} title="Create Tool">
-      <ToolForm
+      <ToolDiscoveryForm
         key={open ? 'tools-page-tool-form-open' : 'tools-page-tool-form-closed'}
         submitLabel="Create"
         loading={createTool.isPending}
