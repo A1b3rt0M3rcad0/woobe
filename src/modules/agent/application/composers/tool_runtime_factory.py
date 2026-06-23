@@ -12,7 +12,12 @@ def build_tool_runtime_registry(
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None = None,
 ) -> ToolRuntimeRegistry:
-    mcp_session_store = build_redis_mcp_session_store(settings.redis_url)
+    mcp_session_store = build_redis_mcp_session_store(
+        settings.redis_url,
+        enabled=settings.mcp_session_cache_enabled,
+        key_prefix=settings.mcp_session_key_prefix,
+        timeout_seconds=settings.redis_connect_timeout_seconds,
+    )
     return build_default_tool_runtime_registry(
         executor,
         secret_resolver,
