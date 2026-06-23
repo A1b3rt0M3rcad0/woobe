@@ -10,6 +10,11 @@ import type {
   UpdateToolStatusRequest,
   DiscoverMcpToolsRequest,
   DiscoverMcpToolsResponse,
+  McpOAuthCompleteRequest,
+  McpOAuthStartRequest,
+  McpOAuthStartResponse,
+  McpOAuthStatusRequest,
+  McpOAuthStatusResponse,
 } from './types'
 
 export async function getTools(projectId?: string): Promise<Tool[]> {
@@ -42,6 +47,22 @@ export async function testTool(data: TestToolRequest): Promise<TestToolResponse>
 
 export async function discoverMcpTools(data: DiscoverMcpToolsRequest): Promise<DiscoverMcpToolsResponse> {
   return post<DiscoverMcpToolsResponse>('/tools/mcp/discover', data)
+}
+
+export async function startMcpOAuth(data: McpOAuthStartRequest): Promise<McpOAuthStartResponse> {
+  return post<McpOAuthStartResponse>('/tools/mcp/oauth/start', data)
+}
+
+export async function completeMcpOAuth(data: McpOAuthCompleteRequest): Promise<McpOAuthStatusResponse> {
+  return post<McpOAuthStatusResponse>('/tools/mcp/oauth/complete', data)
+}
+
+export async function getMcpOAuthStatus(data: McpOAuthStatusRequest): Promise<McpOAuthStatusResponse> {
+  return post<McpOAuthStatusResponse>('/tools/mcp/oauth/status', data)
+}
+
+export async function disconnectMcpOAuth(data: McpOAuthStatusRequest): Promise<{ status: string }> {
+  return post<{ status: string }>('/tools/mcp/oauth/disconnect', data)
 }
 
 export async function getSecrets(projectId?: string): Promise<Secret[]> {
