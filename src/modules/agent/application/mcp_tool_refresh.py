@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
+from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
 from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
@@ -133,15 +134,12 @@ async def refresh_stale_mcp_server_tools(
             continue
 
         if output.error or not output.tools:
-            logger.warning(
-                "MCP discovery refresh returned no tools for tool %s: %s",
-                tool.id,
-                output.error,
-            )
+            logger.warning("MCP discovery refresh returned no tools for tool %s: %s", tool.id, output.error)
             refreshed_tools.append(tool)
             continue
 
-        config["discovered_tools"] = [item.model_dump() for item in output.tools]
+        next_tools = [item.model_dump() for item in output.tools]
+        config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
         config["discovered_at"] = now.isoformat()
         tool.config = config
         tool.updated_at = now
