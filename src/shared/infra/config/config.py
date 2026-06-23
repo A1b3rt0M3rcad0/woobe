@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     rabbitmq_url: str = "amqp://projectrai:projectrai@localhost:5672/"
     rabbitmq_exchange: str = "domain.events"
     redis_url: str | None = None
+    redis_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    mcp_session_cache_enabled: bool = True
+    mcp_session_key_prefix: str = "projectrai:mcp-session"
     mcp_session_ttl_seconds: int = Field(default=3600, gt=0, le=86400)
     outbox_batch_size: int = 50
     inbox_batch_size: int = 50
