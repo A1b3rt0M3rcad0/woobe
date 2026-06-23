@@ -68,7 +68,7 @@ def calculate_next_release_version(
     - compatibility change increments the first number and resets feature to 0;
     - feature change keeps compatibility and increments the second number;
     - regular change keeps compatibility and feature;
-    - daily sequence is scoped by compatibility, feature and date;
+    - daily sequence is scoped by release date across all releases created that day;
     - invalid historical versions are ignored so legacy data does not block release.
     """
 
@@ -92,8 +92,6 @@ def calculate_next_release_version(
 
     sequence = _next_daily_sequence(
         parsed_versions,
-        compatibility=compatibility,
-        feature=feature,
         release_date=release_date,
     )
 
@@ -134,17 +132,13 @@ def _latest_version(versions: list[ReleaseVersion]) -> ReleaseVersion | None:
 def _next_daily_sequence(
     versions: list[ReleaseVersion],
     *,
-    compatibility: int,
-    feature: int,
     release_date: date,
 ) -> int:
-    same_bucket = [
+    same_day = [
         version.sequence
         for version in versions
-        if version.compatibility == compatibility
-        and version.feature == feature
-        and version.release_date == release_date
+        if version.release_date == release_date
     ]
-    if not same_bucket:
-        return 0
-    return max(same_bucket) + 1
+    if not same_day:
+        return 1
+    return max(same_day) + 1

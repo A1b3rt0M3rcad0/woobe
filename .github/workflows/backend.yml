@@ -77,7 +77,18 @@ jobs:
         run: uv sync --frozen --all-groups --extra test
 
       - name: Ruff
-        run: uv run ruff check src tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run ruff check src tests 2>&1 | tee ruff.log
+
+      - name: Upload Ruff log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-log
+          path: ruff.log
+          if-no-files-found: warn
 
       - name: Full Pyright diagnostics
         continue-on-error: true

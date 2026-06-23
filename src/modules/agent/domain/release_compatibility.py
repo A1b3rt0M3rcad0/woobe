@@ -53,9 +53,19 @@ _SIMPLE_TYPES = {
 }
 
 
-def classify_release_change(previous: AgentRelease | None, candidate: AgentRelease) -> ReleaseChangeKind:
+def classify_release_change(
+    previous: AgentRelease | None,
+    candidate: AgentRelease,
+) -> ReleaseChangeKind:
     if previous is None:
         return ReleaseChangeKind.CHANGE
+
+    simple_contract_kind = _simple_contract_change_kind(
+        previous.output_schema,
+        candidate.output_schema,
+    )
+    if simple_contract_kind is not None:
+        return simple_contract_kind
 
     previous_format = _normalize_response_format(previous)
     candidate_format = _normalize_response_format(candidate)
@@ -74,6 +84,37 @@ def classify_release_change(previous: AgentRelease | None, candidate: AgentRelea
         return ReleaseChangeKind.FEATURE
 
     return ReleaseChangeKind.CHANGE
+
+
+def _simple_contract_change_kind(
+    previous: Any,
+    candidate: Any,
+) -> ReleaseChangeKind | None:
+    previous = _parse_json_if_needed(previous)
+    candidate = _parse_json_if_needed(candidate)
+    if not isinstance(previous, dict) or not isinstance(candidate, dict):
+        return None
+    if _looks_like_json_schema(previous) or _looks_like_json_schema(candidate):
+        return None
+
+    previous_keys = set(previous.keys())
+    candidate_keys = set(candidate.keys())
+    if not previous_keys.issubset(candidate_keys):
+        return ReleaseChangeKind.COMPATIBILITY
+
+    for key in previous_keys:
+        if _simple_value_type(previous[key]) != _simple_value_type(candidate[key]):
+            return ReleaseChangeKind.COMPATIBILITY
+
+    if candidate_keys - previous_keys:
+        return ReleaseChangeKind.FEATURE
+    return None
+
+
+def _simple_value_type(value: Any) -> str:
+    if isinstance(value, str):
+        return _SIMPLE_TYPES.get(value.strip().lower(), "string")
+    return str(_contract_value_to_schema(value).get("type", ""))
 
 
 def _normalize_response_format(release: AgentRelease) -> dict[str, Any]:
@@ -95,7 +136,9 @@ def _response_type(response_format: dict[str, Any]) -> str:
     raw_type = response_format.get("type")
     if raw_type in ("json", "json_object", "json_schema"):
         return "json"
-    if response_format.get("enabled") and (response_format.get("schema") or response_format.get("json_schema")):
+    if response_format.get("enabled") and (
+        response_format.get("schema") or response_format.get("json_schema")
+    ):
         return "json"
     return "text"
 
@@ -104,11 +147,16 @@ def _strict_mode(response_format: dict[str, Any]) -> bool:
     return bool(response_format.get("strict", False))
 
 
-def _effective_output_schema(release: AgentRelease, response_format: dict[str, Any]) -> dict[str, Any] | None:
+def _effective_output_schema(
+    release: AgentRelease,
+    response_format: dict[str, Any],
+) -> dict[str, Any] | None:
     for candidate in (
         release.output_schema,
         response_format.get("schema"),
-        (response_format.get("json_schema") or {}).get("schema") if isinstance(response_format.get("json_schema"), dict) else None,
+        (response_format.get("json_schema") or {}).get("schema")
+        if isinstance(response_format.get("json_schema"), dict)
+        else None,
     ):
         normalized = _normalize_schema(candidate)
         if normalized is not None:
@@ -120,9 +168,16 @@ def _normalize_schema(value: Any) -> dict[str, Any] | None:
     value = _parse_json_if_needed(value)
     if not isinstance(value, dict):
         return None
-    if isinstance(value.get("schema"), dict) and "properties" not in value and _looks_like_schema_wrapper(value):
+    if (
+        isinstance(value.get("schema"), dict)
+        and "properties" not in value
+        and _looks_like_schema_wrapper(value)
+    ):
         value = value["schema"]
-    if isinstance(value.get("json_schema"), dict) and isinstance(value["json_schema"].get("schema"), dict):
+    if isinstance(value.get("json_schema"), dict) and isinstance(
+        value["json_schema"].get("schema"),
+        dict,
+    ):
         value = value["json_schema"]["schema"]
     if _looks_like_json_schema(value):
         return _normalize_json_schema(value)
@@ -130,14 +185,27 @@ def _normalize_schema(value: Any) -> dict[str, Any] | None:
 
 
 def _looks_like_schema_wrapper(value: dict[str, Any]) -> bool:
-    return set(value.keys()).issubset({"schema", "json_schema", "name", "strict", "type", "description"})
+    return set(value.keys()).issubset(
+        {"schema", "json_schema", "name", "strict", "type", "description"}
+    )
 
 
 def _looks_like_json_schema(value: dict[str, Any]) -> bool:
     keys = set(value.keys())
     if not keys:
         return False
-    if keys & {"properties", "definitions", "oneOf", "anyOf", "allOf", "enum", "const", "items", "required", "additionalProperties"}:
+    if keys & {
+        "properties",
+        "definitions",
+        "oneOf",
+        "anyOf",
+        "allOf",
+        "enum",
+        "const",
+        "items",
+        "required",
+        "additionalProperties",
+    }:
         return True
     return keys.issubset(_SCHEMA_KEYS) and "type" in keys
 
@@ -146,7 +214,10 @@ def _normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     normalized = deepcopy(schema)
     properties = normalized.get("properties")
     if isinstance(properties, dict):
-        normalized["properties"] = {str(name): _contract_value_to_schema(child) for name, child in properties.items()}
+        normalized["properties"] = {
+            str(name): _contract_value_to_schema(child)
+            for name, child in properties.items()
+        }
     if "items" in normalized:
         normalized["items"] = _contract_value_to_schema(normalized["items"])
     for keyword in ("oneOf", "anyOf", "allOf"):
@@ -159,7 +230,10 @@ def _normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
 def _simple_contract_to_object_schema(contract: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "object",
-        "properties": {str(name): _contract_value_to_schema(child) for name, child in contract.items()},
+        "properties": {
+            str(name): _contract_value_to_schema(child)
+            for name, child in contract.items()
+        },
     }
 
 
@@ -186,7 +260,10 @@ def _contract_value_to_schema(value: Any) -> dict[str, Any]:
     return {}
 
 
-def _schema_breaks_compatibility(previous: dict[str, Any] | None, candidate: dict[str, Any] | None) -> bool:
+def _schema_breaks_compatibility(
+    previous: dict[str, Any] | None,
+    candidate: dict[str, Any] | None,
+) -> bool:
     if previous is None and candidate is None:
         return False
     if previous is None:
@@ -230,7 +307,10 @@ def _object_schema_breaks(previous: dict[str, Any], candidate: dict[str, Any]) -
     if candidate_required - set(previous_props.keys()):
         return True
 
-    if previous.get("additionalProperties", True) is True and candidate.get("additionalProperties", True) is False:
+    if (
+        previous.get("additionalProperties", True) is True
+        and candidate.get("additionalProperties", True) is False
+    ):
         return True
 
     return _enum_breaks(previous, candidate)
@@ -254,7 +334,10 @@ def _enum_breaks(previous: dict[str, Any], candidate: dict[str, Any]) -> bool:
     return False
 
 
-def _schema_adds_non_breaking_feature(previous: dict[str, Any] | None, candidate: dict[str, Any] | None) -> bool:
+def _schema_adds_non_breaking_feature(
+    previous: dict[str, Any] | None,
+    candidate: dict[str, Any] | None,
+) -> bool:
     if previous is None and candidate is not None:
         return True
     if previous is None or candidate is None:

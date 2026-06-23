@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { Button } from '@/components/ui/Button'
+import { SidebarUserCard } from './SidebarUserCard'
 
 interface NavItem {
   label: string
@@ -135,6 +136,7 @@ export function Sidebar() {
           </NavLink>
         ))}
       </div>
+      <SidebarUserCard />
     </aside>
   )
 }
