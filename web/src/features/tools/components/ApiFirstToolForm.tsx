@@ -4,10 +4,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { useDiscoverMcpTools } from '@/features/tools/hooks'
-import type { CreateToolRequest, DiscoveredMcpTool, HttpToolConfig, McpToolConfig, ToolConfig, ToolProtocol } from '@/features/tools/types'
+import type { CreateToolRequest, HttpToolConfig, McpToolConfig, ToolConfig, ToolProtocol } from '@/features/tools/types'
 
 export type ApiFirstToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
 
@@ -41,20 +39,15 @@ const RISKS = [
   { value: 'critical', label: 'Critical' },
 ]
 
-function serverName(url: string): string {
+function serverName(value: string): string {
   try {
-    return `MCP ${new URL(url).hostname}`
+    return `MCP ${new URL(value).hostname}`
   } catch {
     return 'MCP Server'
   }
 }
 
-function mcpPermissionSeed(tool: DiscoveredMcpTool): DiscoveredMcpTool {
-  return { ...tool, permission: tool.permission || { mode: 'review', risk_level: 'unknown' } }
-}
-
 export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel', loading = false, onSubmit, onCancel }: ApiFirstToolFormProps) {
-  const discoverMcpTools = useDiscoverMcpTools()
   const [protocol, setProtocol] = useState<Protocol>('http')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -64,7 +57,6 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
   const [url, setUrl] = useState('')
   const [body, setBody] = useState('')
   const [mcpUrl, setMcpUrl] = useState('')
-  const [mcpTools, setMcpTools] = useState<DiscoveredMcpTool[]>([])
 
   const reset = () => {
     setProtocol('http')
@@ -76,27 +68,6 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
     setUrl('')
     setBody('')
     setMcpUrl('')
-    setMcpTools([])
-  }
-
-  const discover = async () => {
-    if (!mcpUrl.trim()) {
-      toast.error('MCP server URL is required')
-      return
-    }
-    try {
-      const result = await discoverMcpTools.mutateAsync({ server_url: mcpUrl.trim(), timeout_ms: timeoutMs })
-      if (result.tools.length === 0) {
-        toast.error(result.error || 'No MCP tools discovered. You can still save the provider and connect it later.')
-        return
-      }
-      setMcpTools(result.tools.map(mcpPermissionSeed))
-      if (!name.trim()) setName(serverName(mcpUrl.trim()))
-      if (!description.trim()) setDescription(`${result.tools.length} MCP tools discovered. Configure allow/deny after saving.`)
-      toast.success(`Discovered ${result.tools.length} MCP tools`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Discovery failed. You can still save the provider and connect it later.')
-    }
   }
 
   const buildConfig = (): ToolConfig => {
@@ -106,7 +77,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
         mode: 'server',
         exposure: 'all_discovered',
         server: { transport: 'streamable_http', url: mcpUrl.trim(), headers: [] },
-        discovered_tools: mcpTools,
+        discovered_tools: [],
         discovery_cache_ttl_seconds: 3600,
         timeout_ms: timeoutMs,
       }
@@ -133,7 +104,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
     const resolvedName = name.trim() || (protocol === 'mcp' ? serverName(mcpUrl.trim()) : 'HTTP Tool')
     await onSubmit({
       name: resolvedName,
-      description: description.trim() || (protocol === 'mcp' ? 'MCP provider saved. Discover or connect it before enabling tools.' : undefined),
+      description: description.trim() || (protocol === 'mcp' ? 'MCP provider saved. Use Connect from the Tools page before enabling tools.' : undefined),
       type: protocol as ToolProtocol,
       config: buildConfig(),
       risk_level: riskLevel,
@@ -163,9 +134,8 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
         </div>
       ) : (
         <div className="space-y-3 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-xs text-muted">Save the MCP provider even if discovery fails. Protected servers can be connected from the Tools page after creation.</div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end"><div className="flex-1"><label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label><Input value={mcpUrl} onChange={(event) => setMcpUrl(event.target.value)} placeholder="https://mcp.example.com" /></div><Button type="button" variant="outline" onClick={discover} disabled={discoverMcpTools.isPending}>{discoverMcpTools.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Search className="mr-1 h-3 w-3" />}Discover</Button></div>
-          {mcpTools.length > 0 ? <div className="max-h-60 space-y-2 overflow-y-auto pr-1">{mcpTools.map((tool) => <div key={tool.name} className="rounded-lg border border-border/70 bg-background/70 p-2"><p className="text-sm font-medium text-white">{tool.title || tool.name}</p><p className="break-all font-mono text-[11px] text-muted">{tool.name}</p><p className="mt-1 text-[10px] uppercase text-amber-300">review</p></div>)}</div> : null}
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-xs text-muted">Save this MCP provider first. Then use Connect from the Tools page.</div>
+          <div><label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label><Input value={mcpUrl} onChange={(event) => setMcpUrl(event.target.value)} placeholder="https://mcp.example.com" /></div>
         </div>
       )}
 
