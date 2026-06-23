@@ -2,15 +2,17 @@ from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.application.runtime_tool_use_cases import (
+    RuntimeExecuteToolUseCase,
+    RuntimeTestToolUseCase,
+)
 from modules.agent.application.use_cases.tools_use_cases import (
     CreateSecretUseCase,
     CreateToolUseCase,
     DeleteToolUseCase,
-    ExecuteToolUseCase,
     ListSecretsUseCase,
     ListToolsByAgentUseCase,
     ListToolsUseCase,
-    TestToolUseCase,
     UpdateToolStatusUseCase,
     UpdateToolUseCase,
 )
@@ -102,7 +104,7 @@ def test_tool_composer(
     executor: HttpToolExecutor | None = None,
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = TestToolUseCase(executor or get_http_tool_executor())
+    use_case = RuntimeTestToolUseCase(executor or get_http_tool_executor())
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -115,7 +117,7 @@ def execute_tool_composer(
     settings = Settings.model_validate({})
     cipher = SecretCipherAdapter(settings.encryption_key)
     resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-    use_case = ExecuteToolUseCase(
+    use_case = RuntimeExecuteToolUseCase(
         tool_repo=uow.tools,
         tool_executor=executor or get_http_tool_executor(),
         secret_resolver=resolver,
