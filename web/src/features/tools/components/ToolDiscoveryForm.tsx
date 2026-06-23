@@ -66,6 +66,14 @@ function displayNameForTool(tool: DiscoveredMcpTool): string {
   return tool.title || tool.name.replace(/[_-]+/g, ' ')
 }
 
+function displayNameForServer(url: string): string {
+  try {
+    return `MCP ${new URL(url).hostname}`
+  } catch {
+    return 'MCP Server'
+  }
+}
+
 let nextId = 1
 function headerId() {
   return `hdr_${nextId++}`
@@ -143,7 +151,6 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   const [mcpServerUrl, setMcpServerUrl] = useState('')
   const [mcpHeaders, setMcpHeaders] = useState<HeaderRow[]>([])
   const [mcpTools, setMcpTools] = useState<DiscoveredMcpTool[]>([])
-  const [selectedMcpTool, setSelectedMcpTool] = useState('')
   const [manualMcpToolName, setManualMcpToolName] = useState('')
   const [mcpSchema, setMcpSchema] = useState('')
   const [showMcpAdvanced, setShowMcpAdvanced] = useState(false)
@@ -155,10 +162,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
 
   const showBody = protocol === 'http' && ['POST', 'PUT', 'PATCH'].includes(method)
   const urlVariables = useMemo(() => extractUrlVariables(url), [url])
-  const selectedTool = useMemo(
-    () => mcpTools.find(tool => tool.name === selectedMcpTool),
-    [mcpTools, selectedMcpTool],
-  )
+  const useManualMcpTool = showMcpAdvanced && manualMcpToolName.trim().length > 0
 
   const resetForm = useCallback(() => {
     setProtocol('http')
@@ -171,7 +175,6 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
     setMcpServerUrl('')
     setMcpHeaders([])
     setMcpTools([])
-    setSelectedMcpTool('')
     setManualMcpToolName('')
     setMcpSchema('')
     setShowMcpAdvanced(false)
@@ -203,7 +206,6 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       return
     }
     setMcpTools([])
-    setSelectedMcpTool('')
     try {
       const result = await discoverMcpTools.mutateAsync({
         server_url: mcpServerUrl.trim(),
@@ -215,20 +217,12 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         return
       }
       setMcpTools(result.tools)
-      const first = result.tools[0]
-      setSelectedMcpTool(first.name)
-      if (!displayName.trim()) setDisplayName(displayNameForTool(first))
-      if (!description.trim() && first.description) setDescription(first.description)
+      if (!displayName.trim()) setDisplayName(displayNameForServer(mcpServerUrl.trim()))
+      if (!description.trim()) setDescription(`${result.tools.length} MCP tools available to the agent.`)
       toast.success(`Discovered ${result.tools.length} MCP tool${result.tools.length === 1 ? '' : 's'}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'MCP discovery failed')
     }
-  }
-
-  const selectMcpTool = (tool: DiscoveredMcpTool) => {
-    setSelectedMcpTool(tool.name)
-    if (!displayName.trim()) setDisplayName(displayNameForTool(tool))
-    if (!description.trim() && tool.description) setDescription(tool.description)
   }
 
   const parseMcpSchema = () => {
@@ -260,17 +254,30 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
 
   const buildMcpConfig = (): McpToolConfig => {
     const manualSchema = parseMcpSchema()
-    const toolName = selectedTool?.name || manualMcpToolName.trim()
+    const server = {
+      transport: 'streamable_http' as const,
+      url: mcpServerUrl.trim(),
+      headers: toHeaderConfig(mcpHeaders),
+    }
+    if (useManualMcpTool) {
+      return {
+        protocol: 'mcp',
+        mode: 'tool',
+        exposure: 'single',
+        server,
+        tool_name: manualMcpToolName.trim(),
+        input_schema_source: manualSchema ? 'manual' : 'discovered',
+        discovered_input_schema: manualSchema,
+        timeout_ms: timeoutMs,
+      }
+    }
     return {
       protocol: 'mcp',
-      server: {
-        transport: 'streamable_http',
-        url: mcpServerUrl.trim(),
-        headers: toHeaderConfig(mcpHeaders),
-      },
-      tool_name: toolName,
-      input_schema_source: manualSchema ? 'manual' : 'discovered',
-      discovered_input_schema: manualSchema || selectedTool?.input_schema || undefined,
+      mode: 'server',
+      exposure: 'all_discovered',
+      server,
+      discovered_tools: mcpTools,
+      discovery_cache_ttl_seconds: 3600,
       timeout_ms: timeoutMs,
     }
   }
@@ -279,25 +286,24 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
 
   const resolvedDisplayName = () => {
     if (displayName.trim()) return displayName.trim()
-    if (selectedTool) return displayNameForTool(selectedTool)
     if (protocol === 'http') return 'HTTP Tool'
-    return manualMcpToolName.trim()
+    return displayNameForServer(mcpServerUrl.trim())
   }
 
   const validate = () => {
     if (protocol === 'http' && !url.trim()) return 'URL is required'
     if (protocol === 'mcp' && !mcpServerUrl.trim()) return 'MCP server URL is required'
-    if (protocol === 'mcp' && !selectedTool && !manualMcpToolName.trim()) return 'Discover and select a tool from the MCP server first'
+    if (protocol === 'mcp' && !useManualMcpTool && mcpTools.length === 0) return 'Connect the MCP server first so ProjectRAI can discover its tools'
     if (!resolvedDisplayName()) return 'Display name is required'
     return null
   }
 
   const buildSubmitValue = (): ToolFormSubmitValue => ({
     name: resolvedDisplayName(),
-    description: description.trim() || selectedTool?.description || undefined,
+    description: description.trim() || (protocol === 'mcp' ? `${mcpTools.length} MCP tools available to the agent.` : undefined),
     type: protocol as ToolProtocol,
     config: buildConfig(),
-    input_schema: protocol === 'mcp' ? selectedTool?.input_schema || parseMcpSchema() : undefined,
+    input_schema: useManualMcpTool ? parseMcpSchema() : undefined,
     risk_level: riskLevel,
     timeout_ms: timeoutMs,
   })
@@ -370,7 +376,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           </button>
           <button type="button" onClick={() => setProtocol('mcp')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
             <p className="text-sm font-medium break-words">MCP Server</p>
-            <p className="mt-1 text-xs text-muted break-words">Connect a server, discover tools, then select one.</p>
+            <p className="mt-1 text-xs text-muted break-words">Connect a server and let the agent choose any discovered tool.</p>
           </button>
         </div>
       </div>
@@ -378,7 +384,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       <div className="grid gap-3 md:grid-cols-2">
         <div className="min-w-0">
           <label className="block text-xs font-medium text-muted mb-1">Display name</label>
-          <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={protocol === 'mcp' ? 'Auto-filled after discovery' : 'Fetch Customer'} />
+          <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={protocol === 'mcp' ? 'Auto-filled after connection' : 'Fetch Customer'} />
         </div>
         <div className="min-w-0">
           <label className="block text-xs font-medium text-muted mb-1">Risk Level</label>
@@ -388,7 +394,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
 
       <div className="min-w-0">
         <label className="block text-xs font-medium text-muted mb-1">Description</label>
-        <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What this tool does and when the agent should use it" />
+        <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What this tool provider does and when the agent should use it" />
       </div>
 
       {protocol === 'http' ? (
@@ -422,7 +428,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
             <p className="text-sm font-medium text-blue-200 break-words">Connect MCP server</p>
-            <p className="mt-1 text-xs text-muted break-words">Enter the server URL and let ProjectRAI discover the available tools. You do not need to type the technical MCP tool name manually.</p>
+            <p className="mt-1 text-xs text-muted break-words">Connect once. ProjectRAI will expose all discovered server tools to the agent and the model will decide which one to call.</p>
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
@@ -431,23 +437,24 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
             </div>
             <Button type="button" variant="outline" onClick={handleDiscoverMcpTools} disabled={discoverMcpTools.isPending} className="w-full sm:w-auto sm:shrink-0">
               {discoverMcpTools.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Search className="h-3 w-3 mr-1" />}
-              Discover
+              Connect
             </Button>
           </div>
 
           {mcpTools.length > 0 && (
             <div className="min-w-0 space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Discovered tools</p>
+                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Available to agent</p>
                 {mcpTools.length > 2 && <p className="text-[10px] text-muted">Scroll to view all</p>}
               </div>
+              <p className="text-xs text-muted">{mcpTools.length} tools discovered. The agent can choose any of them automatically.</p>
               <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>
                 {mcpTools.map(tool => (
-                  <button key={tool.name} type="button" onClick={() => selectMcpTool(tool)} className={`w-full min-w-0 overflow-hidden rounded-xl border p-3 text-left transition ${selectedMcpTool === tool.name ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-background/60 text-muted hover:border-border-light'}`}>
-                    <p className="text-sm font-medium break-words">{displayNameForTool(tool)}</p>
+                  <div key={tool.name} className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-background/60 p-3 text-left">
+                    <p className="text-sm font-medium break-words text-white">{displayNameForTool(tool)}</p>
                     <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
                     {tool.description && <p className="mt-1 text-xs text-muted break-words">{tool.description}</p>}
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -461,8 +468,8 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
             <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border/70 bg-background/50 p-3">
               <HeaderEditor title="MCP Server Headers" description="Optional headers for discovery and calls." headers={mcpHeaders} setHeaders={setMcpHeaders} />
               <div className="min-w-0">
-                <label className="block text-xs font-medium text-muted mb-1">Manual tool name fallback</label>
-                <Input value={manualMcpToolName} onChange={e => setManualMcpToolName(e.target.value)} placeholder="Only use if discovery is unavailable" />
+                <label className="block text-xs font-medium text-muted mb-1">Single tool override</label>
+                <Input value={manualMcpToolName} onChange={e => setManualMcpToolName(e.target.value)} placeholder="Optional: expose only this tool name" />
               </div>
               <div className="min-w-0">
                 <label className="block text-xs font-medium text-muted mb-1">Manual Input Schema JSON</label>
@@ -481,7 +488,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       {testError && <div className="min-w-0 rounded-lg border border-red-500/30 bg-red-500/5 p-3"><pre className="text-xs text-red-300 whitespace-pre-wrap break-words font-mono">{testError}</pre></div>}
 
       <div className="flex flex-col justify-between gap-2 pt-2 border-t border-border sm:flex-row">
-        {onTest ? <Button type="button" size="sm" variant="outline" onClick={handleTest} disabled={testLoading}>{testLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}Test</Button> : <span />}
+        {onTest ? <Button type="button" size="sm" variant="outline" onClick={handleTest} disabled={testLoading || (protocol === 'mcp' && !useManualMcpTool)}>{testLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}Test</Button> : <span />}
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={handleCancel}>{cancelLabel}</Button><Button type="submit" loading={loading}>{submitLabel}</Button></div>
       </div>
     </form>
