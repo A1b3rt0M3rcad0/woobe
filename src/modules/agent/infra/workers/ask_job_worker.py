@@ -5,7 +5,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
-from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_runtime import (
+    MCP_AGENT_SESSION_INPUT_KEY,
+    build_default_tool_runtime_registry,
+)
+from modules.agent.infra.adapters.redis_mcp_session_store import build_redis_mcp_session_store
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
@@ -54,17 +59,27 @@ class AskJobWorker:
         settings = Settings()
         cipher = SecretCipherAdapter(settings.encryption_key)
         http_exec = HttpToolExecutor()
+        mcp_session_store = build_redis_mcp_session_store(settings.redis_url)
+        job_session_id = (job.params or {}).get("session_id")
 
         async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+            runtime_input = dict(input_data or {})
+            if job_session_id:
+                runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(job_session_id)
             async with AgentUnitOfWork(session_factory) as uow:
                 resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-                uc = ExecuteToolUseCase(
+                registry = build_default_tool_runtime_registry(
+                    http_exec,
+                    resolver,
+                    mcp_session_store=mcp_session_store,
+                    mcp_session_ttl_seconds=settings.mcp_session_ttl_seconds,
+                )
+                uc = RuntimeExecuteToolUseCase(
                     tool_repo=uow.tools,
-                    tool_executor=http_exec,
-                    secret_resolver=resolver,
+                    runtime_registry=registry,
                 )
                 result = await uc.execute(
-                    ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+                    ExecuteToolInput(tool_id=tool_id, input_data=runtime_input)
                 )
                 return result.model_dump()
 
@@ -81,7 +96,7 @@ class AskJobWorker:
                 project_id=job.project_id,
                 agent_id=job.agent_id,
                 message=(job.params or {}).get("message", ""),
-                session_id=(job.params or {}).get("session_id"),
+                session_id=job_session_id,
             )
             result = await use_case.execute(input_dto)
 
