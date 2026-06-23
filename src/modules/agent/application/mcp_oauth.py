@@ -148,8 +148,20 @@ def _parse_www_authenticate_resource_metadata(header: str | None) -> str | None:
     return value.split(",", 1)[0].strip() or None
 
 
+def _well_known_url(issuer: str, suffix: str) -> str:
+    parsed = urlparse(issuer.rstrip("/"))
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError("OAuth issuer must be an absolute URL")
+    path = (parsed.path or "").rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}/.well-known/{suffix}{path}"
+
+
 def _well_known_authorization_server_url(issuer: str) -> str:
-    return issuer.rstrip("/") + "/.well-known/oauth-authorization-server"
+    return _well_known_url(issuer, "oauth-authorization-server")
+
+
+def _well_known_openid_configuration_url(issuer: str) -> str:
+    return _well_known_url(issuer, "openid-configuration")
 
 
 def _resource_metadata_candidates(server_url: str) -> list[str]:
@@ -165,8 +177,8 @@ def _resource_metadata_candidates(server_url: str) -> list[str]:
 def _authorization_server_metadata_candidates(server_url: str) -> list[str]:
     origin = _origin_from_url(server_url)
     return [
-        f"{origin}/.well-known/oauth-authorization-server",
-        f"{origin}/.well-known/openid-configuration",
+        _well_known_authorization_server_url(origin),
+        _well_known_openid_configuration_url(origin),
     ]
 
 
@@ -258,9 +270,12 @@ class McpOAuthMetadataResolver:
 
         issuer = metadata.get("authorization_server_issuer")
         if issuer:
-            as_metadata = await self._try_get_json(_well_known_authorization_server_url(str(issuer)), timeout_ms=timeout_ms)
-            if isinstance(as_metadata, dict):
-                self._apply_authorization_server_metadata(metadata, as_metadata, str(issuer), force=True)
+            for url in [_well_known_authorization_server_url(str(issuer)), _well_known_openid_configuration_url(str(issuer))]:
+                as_metadata = await self._try_get_json(url, timeout_ms=timeout_ms)
+                if isinstance(as_metadata, dict):
+                    self._apply_authorization_server_metadata(metadata, as_metadata, str(issuer), force=True)
+                    if metadata.get("authorization_endpoint") and metadata.get("token_endpoint"):
+                        break
 
         if not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint"):
             for url in _authorization_server_metadata_candidates(server_url):
