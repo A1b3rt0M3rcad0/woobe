@@ -1,4 +1,5 @@
 export type ToolProtocol = 'http' | 'mcp' | 'http_mcp' | 'api' | 'webhook' | string
+export type McpToolPermissionMode = 'allow' | 'deny' | 'review'
 
 export interface HttpHeader {
   key: string
@@ -32,11 +33,17 @@ export interface McpServerConfig {
   name?: string
 }
 
+export interface McpToolPermission {
+  mode: McpToolPermissionMode
+  risk_level?: string | null
+}
+
 export interface DiscoveredMcpTool {
   name: string
   title?: string | null
   description?: string | null
   input_schema?: Record<string, unknown> | null
+  permission?: McpToolPermission
 }
 
 export interface McpToolConfig {
@@ -151,6 +158,28 @@ export interface McpOAuthStatusResponse {
   authorization_server_issuer?: string | null
   scopes: string[]
   expires_at?: string | null
+}
+
+export interface McpToolPermissionUpdate {
+  remote_tool_name: string
+  mode: McpToolPermissionMode
+  risk_level?: string
+}
+
+export interface UpdateMcpToolPermissionsRequest {
+  tool_id: string
+  permissions: McpToolPermissionUpdate[]
+}
+
+export interface BulkUpdateMcpToolPermissionsRequest {
+  tool_id: string
+  mode: McpToolPermissionMode
+  risk_level?: string
+}
+
+export interface McpToolPermissionsResponse {
+  tool_id: string
+  permissions: Array<{ name: string; mode: McpToolPermissionMode; risk_level?: string | null }>
 }
 
 export interface UpdateToolStatusRequest {
