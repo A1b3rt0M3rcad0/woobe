@@ -1,6 +1,16 @@
 import { get, post, patch, del } from '@/lib/api/client'
 
-import type { Tool, CreateToolRequest, Secret, CreateSecretRequest, TestToolRequest, TestToolResponse, UpdateToolStatusRequest } from './types'
+import type {
+  Tool,
+  CreateToolRequest,
+  Secret,
+  CreateSecretRequest,
+  TestToolRequest,
+  TestToolResponse,
+  UpdateToolStatusRequest,
+  DiscoverMcpToolsRequest,
+  DiscoverMcpToolsResponse,
+} from './types'
 
 export async function getTools(projectId?: string): Promise<Tool[]> {
   return get<Tool[]>('/tools/tools', { params: { project_id: projectId } })
@@ -28,6 +38,10 @@ export async function deleteTool(toolId: string): Promise<void> {
 
 export async function testTool(data: TestToolRequest): Promise<TestToolResponse> {
   return post<TestToolResponse>('/tools/tools/test', data)
+}
+
+export async function discoverMcpTools(data: DiscoverMcpToolsRequest): Promise<DiscoverMcpToolsResponse> {
+  return post<DiscoverMcpToolsResponse>('/tools/mcp/discover', data)
 }
 
 export async function getSecrets(projectId?: string): Promise<Secret[]> {
