@@ -33,7 +33,7 @@ class HttpToolConfig(BaseModel):
 
 
 class McpServerConfig(BaseModel):
-    transport: Literal["streamable_http", "sse", "stdio"] = "streamable_http"
+    transport: Literal["streamable_http"] = "streamable_http"
     url: str | None = None
     command: str | None = None
     args: list[str] | None = None
@@ -64,10 +64,8 @@ class McpToolConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_transport_target(self) -> "McpToolConfig":
-        if self.server.transport in {"streamable_http", "sse"} and not self.server.url:
-            raise ValueError("MCP server.url is required for remote MCP transports")
-        if self.server.transport == "stdio" and not self.server.command:
-            raise ValueError("MCP server.command is required for stdio transport")
+        if not self.server.url:
+            raise ValueError("MCP server.url is required for streamable_http transport")
         if self.mode == "server" or self.exposure == "all_discovered":
             if not self.discovered_tools:
                 raise ValueError("MCP discovered_tools is required when exposing the whole server")
