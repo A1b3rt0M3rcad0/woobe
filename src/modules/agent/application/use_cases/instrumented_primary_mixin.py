@@ -62,6 +62,11 @@ class InstrumentedPrimaryExecutionMixin:
             context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
             response_format = prepared[5]
             context.strict_json = bool(response_format.get("strict", False))
+            agent, session, trace_id = prepared[0], prepared[1], prepared[2]
+            context.project_id = getattr(agent, "project_id", None)
+            context.agent_id = getattr(agent, "id", None)
+            context.session_id = getattr(session, "id", None) if session else None
+            context.trace_id = trace_id
 
         stream = current_runtime_stream.get()
         if stream is not None:
