@@ -6,6 +6,8 @@ x-projectrai-environment: &projectrai-environment
   PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
   PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
   PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
+  PROJECTRAI_REDIS_URL: redis://redis:6379/0
+  PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS:-3600}
 
 services:
   migrate:
@@ -31,6 +33,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -56,6 +60,8 @@ services:
       migrate:
         condition: service_completed_successfully
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     stop_grace_period: 30s
     restart: unless-stopped
@@ -127,6 +133,21 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   pgdata:
   rabbitmq_data:
+  redis_data:
