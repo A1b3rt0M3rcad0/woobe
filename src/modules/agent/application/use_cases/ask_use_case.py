@@ -592,123 +592,355 @@ class AskAgentUseCase:
             agent.temperature = release.temperature
         if release.max_output_tokens is not None:
             agent.max_output_tokens = release.max_output_tokens
+        if release.session_mode is not None:
+            from modules.agent.domain.enums import SessionMode
+            agent.session_mode = SessionMode(release.session_mode) if isinstance(release.session_mode, str) else release.session_mode
+        if release.collection_ids is not None:
+            pass
         return agent
 
-    async def _load_credential(self, repo: ProviderCredentialRepository, agent: Agent) -> ProviderCredential:
-        cred = await repo.get_by_id(agent.provider_credential_id) if agent.provider_credential_id else None
-        if not cred or cred.project_id != agent.project_id:
-            raise CredentialNotFoundError(agent.provider_credential_id or UUID(int=0))
-        if hasattr(cred, "status") and cred.status and hasattr(cred.status, "value") and cred.status.value != "active":
+    def _apply_snapshot_override(self, agent: Agent, snapshot: dict) -> Agent:
+        if snapshot.get("system_prompt") is not None:
+            agent.system_prompt = snapshot["system_prompt"]
+        if snapshot.get("response_format") is not None:
+            settings = dict(agent.settings) if agent.settings else {}
+            settings["response_format"] = snapshot["response_format"]
+            agent.settings = settings
+        if snapshot.get("provider") is not None:
+            from modules.agent.domain.enums import Provider
+            agent.provider = Provider(snapshot["provider"]) if isinstance(snapshot["provider"], str) else snapshot["provider"]
+        if snapshot.get("model") is not None:
+            agent.model = snapshot["model"]
+        if snapshot.get("provider_credential_id") is not None:
+            agent.provider_credential_id = UUID(snapshot["provider_credential_id"]) if isinstance(snapshot["provider_credential_id"], str) else snapshot["provider_credential_id"]
+        if snapshot.get("temperature") is not None:
+            agent.temperature = snapshot["temperature"]
+        if snapshot.get("max_output_tokens") is not None:
+            agent.max_output_tokens = snapshot["max_output_tokens"]
+        if snapshot.get("session_mode") is not None:
+            from modules.agent.domain.enums import SessionMode
+            agent.session_mode = SessionMode(snapshot["session_mode"]) if isinstance(snapshot["session_mode"], str) else snapshot["session_mode"]
+        if snapshot.get("fallback_provider"):
+            from modules.agent.domain.enums import Provider
+            agent.fallback_provider = Provider(snapshot["fallback_provider"]) if isinstance(snapshot["fallback_provider"], str) else snapshot["fallback_provider"]
+        if snapshot.get("fallback_model"):
+            agent.fallback_model = snapshot["fallback_model"]
+        if snapshot.get("fallback_credential_id"):
+            agent.fallback_credential_id = UUID(snapshot["fallback_credential_id"]) if isinstance(snapshot["fallback_credential_id"], str) else snapshot["fallback_credential_id"]
+        return agent
+
+    async def _load_credential(self, credential_repo: ProviderCredentialRepository, agent: Agent) -> ProviderCredential:
+        if not agent.provider_credential_id:
             from shared.infra.errors import ValidationError
-            raise ValidationError("Provider credential is not active")
-        return cred
+            raise ValidationError(
+                "Agent has no provider credential configured"
+            )
+        return await self._load_credential_by_id(credential_repo, agent.provider_credential_id)
 
     def _decrypt_api_key(self, credential: ProviderCredential) -> str:
-        return decrypt_secret(credential.encrypted_secret, self._encryption_key)
+        try:
+            return decrypt_secret(credential.encrypted_secret, self._encryption_key)
+        except Exception as e:
+            logger.error("Failed to decrypt credential %s: %s", credential.id, e)
+            from shared.infra.errors import ValidationError
+            raise ValidationError(
+                "Provider credential secret could not be decrypted. Recreate the credential."
+            )
 
     def _resolve_base_url(self, agent: Agent, credential: ProviderCredential) -> str | None:
-        if credential.metadata and credential.metadata.get("base_url"):
-            return str(credential.metadata.get("base_url"))
-        return None
+        provider_val = agent.provider.value if hasattr(agent.provider, "value") else agent.provider
+        return self._resolve_base_url_for_provider(provider_val, credential, agent.settings)
 
-    def _get_response_format(self, agent: Agent) -> dict:
-        settings = dict(agent.settings) if agent.settings else {}
-        response_format = settings.get("response_format") or {}
-        if isinstance(response_format, dict):
-            return response_format
-        return {}
+    async def _resolve_session(
+        self, session_repo: SessionRepository, input_dto: AskInput, agent: Agent
+    ) -> Session | None:
+        if input_dto.session_id:
+            try:
+                found = await session_repo.get_by_id(input_dto.session_id)
+                logger.info("RESOLVE SESSION: found existing session %s", found.id)
+                return found
+            except Exception as exc:
+                logger.warning("RESOLVE SESSION: get_by_id failed for %s: %s", input_dto.session_id, exc)
 
-    def _clean_json_answer(self, answer: str) -> str:
-        answer = re.sub(r"```json\s*", "", answer)
-        answer = re.sub(r"```\s*", "", answer)
-        return answer.strip()
+        mode = agent.session_mode.value if hasattr(agent.session_mode, "value") else agent.session_mode
+        logger.info("RESOLVE SESSION: agent mode=%s, will create new", mode)
+        if mode == "stateless":
+            logger.info("RESOLVE SESSION: stateless mode, returning None")
+            return None
 
-    def _build_messages(self, agent: Agent, rag_context: str, history: list[Message], message: str, response_format: dict | None) -> list:
-        messages: list = []
-        system_content = agent.system_prompt or "You are a helpful AI assistant."
-        if rag_context:
-            system_content += f"\n\nRelevant context:\n{rag_context}"
-        if response_format:
-            schema = response_format.get("schema") or {}
-            system_content += (
-                "\n\nYou must respond with valid JSON matching this schema. "
-                "Do not include markdown fences or explanatory text outside JSON.\n"
-                f"Schema: {json.dumps(schema)}"
-            )
-        messages.append(SystemMessage(content=system_content))
-        for msg in history[-20:]:
-            if msg.role == MessageRole.USER:
-                messages.append(HumanMessage(content=msg.content))
-            elif msg.role == MessageRole.ASSISTANT:
-                messages.append(AIMessage(content=msg.content))
-        messages.append(HumanMessage(content=message))
-        return messages
+        session = Session(
+            project_id=input_dto.project_id,
+            agent_id=input_dto.agent_id,
+            external_session_id=None,
+            tenant_id=input_dto.tenant_id,
+            user_id=input_dto.user_id,
+            mode=SessionMode.CHAT,
+        )
+        created = await session_repo.create(session)
+        logger.info("RESOLVE SESSION: created new session %s", created.id)
+        return created
 
-    async def _load_history(self, repo: MessageRepository, session: Session) -> list[Message]:
-        return await repo.list_by_session(session.id, limit=50)
-
-    async def _save_user_message(self, session_repo: SessionRepository, message_repo: MessageRepository, session: Session, content: str, agent: Agent) -> None:
-        await message_repo.create(Message(
-            project_id=agent.project_id,
+    async def _save_user_message(
+        self, session_repo: SessionRepository, message_repo: MessageRepository,
+        session: Session, content: str, agent: Agent,
+    ) -> Message:
+        msg = Message(
+            project_id=session.project_id,
             agent_id=agent.id,
             session_id=session.id,
             role=MessageRole.USER,
             content=content,
-        ))
+        )
+        created = await message_repo.create(msg)
+        session.last_message_at = utc_now()
+        try:
+            await session_repo.update(session)
+        except Exception as e:
+            logger.warning("Failed to update session after saving user message: %s", e)
+        return created
 
-    async def _save_assistant_message(self, repo: MessageRepository, session: Session, content: str, usage: UsageInfo) -> None:
-        await repo.create(Message(
-            project_id=session.project_id,
-            agent_id=session.agent_id,
-            session_id=session.id,
-            role=MessageRole.ASSISTANT,
-            content=content,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=usage.cost_usd,
-        ))
-
-    async def _do_save_assistant_message(self, message_repo: MessageRepository, session_repo: SessionRepository, outbox: SQLAlchemyAgentOutboxEventWriter, session: Session, answer: str, usage: UsageInfo, agent: Agent, tool_calls=None) -> Message:
+    async def _do_save_assistant_message(
+        self, message_repo: MessageRepository, session_repo: SessionRepository,
+        outbox: SQLAlchemyAgentOutboxEventWriter,
+        session: Session, content: str, usage: UsageInfo, agent: Agent,
+        tool_calls: list[ToolCallInfo] | None = None,
+    ) -> Message:
         msg = Message(
             project_id=session.project_id,
             agent_id=session.agent_id,
             session_id=session.id,
             role=MessageRole.ASSISTANT,
-            content=answer,
+            content=content,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
-            data={"tool_calls": [tc.model_dump() for tc in tool_calls]} if tool_calls else None,
+            data={
+                "tool_calls": [tc.model_dump() for tc in tool_calls] if tool_calls else None,
+            } if tool_calls else None,
         )
         created = await message_repo.create(msg)
         session.last_message_at = utc_now()
-        await session_repo.update(session)
+        try:
+            await session_repo.update(session)
+        except Exception as e:
+            logger.warning("Failed to update session after saving assistant message: %s", e)
+
         event = AgentMessageCreatedV1.create(
-            agent_id=agent.id,
+            message_id=created.id,
             session_id=session.id,
-            payload={"message_id": str(created.id), "role": "assistant", "content_preview": answer[:200]},
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            role="assistant",
         )
         await outbox.write(event)
         return created
 
-    async def _load_rag_context(self, agent: Agent, query: str, uow: AgentUnitOfWork) -> tuple[str, list[SourceInfo]]:
+    async def _load_history(
+        self, message_repo: MessageRepository, session: Session,
+    ) -> list:
         try:
-            collection_repo = SQLAlchemyAgentCollectionRepository(uow)
-            links = await collection_repo.list_by_agent(agent.id)
-            if not links:
-                return "", []
-            collection_ids = [l.collection_id for l in links]
-            from modules.agent.infra.database.repositories import SQLAlchemyDocumentChunkRepository
-            chunk_repo = SQLAlchemyDocumentChunkRepository(uow)
-            chunks = await chunk_repo.search(query, collection_ids, limit=5)
-            sources = [SourceInfo(
-                document_id=c.document_id,
-                chunk_id=c.id,
-                title=c.section_title or "Document",
-                score=1.0,
-            ) for c in chunks]
-            context = "\n\n".join(c.content for c in chunks)
-            return context, sources
-        except Exception as e:
-            logger.warning("RAG context load failed: %s", e)
-            return "", []
+            messages = await message_repo.list_by_session(session.id)
+            logger.debug("Loaded %d raw messages from DB for session %s", len(messages), session.id)
+            history = []
+            for m in messages:
+                role = m.role.value if hasattr(m.role, "value") else m.role
+                if role == "user":
+                    history.append(HumanMessage(content=m.content))
+                elif role == "assistant":
+                    raw_tool_calls = (m.data or {}).get("tool_calls") or []
+                    tool_calls = None
+                    if raw_tool_calls:
+                        tool_calls = [
+                            {"id": tc["tool_call_id"], "name": tc["tool_name"], "args": tc.get("input", {})}
+                            for tc in raw_tool_calls if tc.get("tool_call_id")
+                        ]
+                    if tool_calls:
+                        msg = AIMessage(content=m.content, tool_calls=tool_calls)
+                    else:
+                        msg = AIMessage(content=m.content)
+                    history.append(msg)
+                    if tool_calls:
+                        for tc in raw_tool_calls:
+                            if tc.get("tool_call_id") and tc.get("output") is not None:
+                                history.append(ToolMessage(
+                                    content=json.dumps(tc["output"]),
+                                    tool_call_id=tc["tool_call_id"],
+                                ))
+            logger.info("BUILT HISTORY: %d messages from session %s", len(history), session.id)
+            if history:
+                logger.info("HISTORY ROLES: %s", [type(m).__name__ + ":" + (getattr(m, "content", "") or "")[:60] for m in history])
+            return history
+        except Exception as exc:
+            logger.exception("FAILED to load history for session %s: %s", session.id, exc)
+            return []
+
+    async def _load_rag_context(
+        self, agent: Agent, query: str, uow: AgentUnitOfWork,
+    ) -> tuple[str | None, list[SourceInfo]]:
+        try:
+            agent_collection_repo = SQLAlchemyAgentCollectionRepository(uow)
+            collections = await agent_collection_repo.list_by_agent(agent.id)
+            if not collections:
+                return None, []
+
+            all_sources: list[SourceInfo] = []
+            all_chunks: list[str] = []
+            chunk_repo = uow.document_chunks
+
+            for link in collections:
+                try:
+                    results = await chunk_repo.search_similar(
+                        embedding=[0.0] * 1536,
+                        collection_id=link.collection_id,
+                        limit=3,
+                        threshold=0.0,
+                    )
+                except Exception:
+                    continue
+
+                for chunk, score in results:
+                    all_chunks.append(
+                        f"[{len(all_sources) + 1}] {chunk.content[:500]}"
+                    )
+                    all_sources.append(
+                        SourceInfo(
+                            document_id=str(chunk.document_id) if chunk.document_id else None,
+                            chunk_id=str(chunk.id),
+                            page_number=chunk.page_number,
+                            score=round(score, 4),
+                            content_preview=chunk.content[:200],
+                        )
+                    )
+
+            if not all_chunks:
+                return None, []
+
+            context = "\n\n".join(all_chunks)
+            return context, all_sources
+        except Exception:
+            return None, []
+
+    def _build_messages(
+        self,
+        agent: Agent,
+        rag_context: str | None,
+        history: list,
+        user_message: str,
+        response_format: dict | None = None
+    ) -> list:
+        messages = []
+
+        system_prompt = agent.system_prompt or ""
+
+        if response_format:
+            schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+            json_instruction = (
+                "\n\nYou must respond with valid JSON only.\n"
+                "Do not include markdown code blocks.\n"
+                "Do not include explanations outside the JSON.\n"
+                "The JSON must follow this schema:\n"
+                f"<schema>\n{schema_json}\n</schema>"
+            )
+            system_prompt += json_instruction
+
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
+
+        if rag_context:
+            messages.append(
+                SystemMessage(
+                    content=(
+                        "Use the following context when relevant. "
+                        "If the context is not enough, say you do not know.\n\n"
+                        f"<context>\n{rag_context}\n</context>"
+                    )
+                )
+            )
+
+        messages.extend(history)
+        messages.append(HumanMessage(content=user_message))
+        return messages
+
+    def _get_response_format(self, agent: Agent) -> dict:
+        settings = agent.settings or {}
+        return settings.get("response_format", {})
+
+    def _clean_json_answer(self, answer: str) -> str:
+        cleaned = answer.strip()
+        cleaned = re.sub(r'^```json\s*', '', cleaned)
+        cleaned = re.sub(r'^```\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+        return cleaned.strip()
+
+    async def _load_credential_by_id(
+        self, credential_repo: ProviderCredentialRepository, credential_id: UUID,
+    ) -> ProviderCredential:
+        credential = await credential_repo.get_by_id(credential_id)
+        if not credential:
+            raise CredentialNotFoundError(credential_id)
+        return credential
+
+    def _resolve_base_url_for_provider(
+        self, provider_val: str, credential: ProviderCredential, settings: dict | None
+    ) -> str | None:
+        if provider_val == "custom":
+            base_url = (
+                (settings or {}).get("base_url")
+                or (credential.metadata or {}).get("base_url")
+            )
+            if not base_url:
+                from shared.infra.errors import ValidationError
+                raise ValidationError(
+                    "Custom provider requires base_url in credential metadata or agent settings"
+                )
+            model = (settings or {}).get("model") or (credential.metadata or {}).get("model")
+            if not model:
+                from shared.infra.errors import ValidationError
+                raise ValidationError(
+                    "Custom provider requires model in agent or credential metadata"
+                )
+            return base_url
+        return None
+
+    async def _try_fallback(
+        self, agent: Agent, messages: list, json_enabled: bool, primary_error: str,
+    ) -> tuple[Any, str, int, dict]:
+        fallback_provider_val = agent.fallback_provider.value if hasattr(agent.fallback_provider, "value") else agent.fallback_provider
+
+        fallback_api_key: str | None = None
+        fallback_base_url: str | None = None
+        if agent.fallback_credential_id:
+            try:
+                async with AgentUnitOfWork(self._session_factory) as fallback_uow:
+                    credential = await fallback_uow.provider_credentials.get_by_id(agent.fallback_credential_id)
+                    if credential:
+                        fallback_api_key = self._decrypt_api_key(credential)
+                        fallback_base_url = self._resolve_base_url_for_provider(
+                            fallback_provider_val, credential, agent.settings,
+                        )
+            except Exception as e:
+                logger.warning("Failed to load fallback credential: %s", e)
+
+        fallback_chat_model = self._llm_factory.create_chat_model(
+            provider=fallback_provider_val,
+            model=agent.fallback_model,
+            api_key=fallback_api_key or "",
+            base_url=fallback_base_url,
+            temperature=agent.temperature or 0.2,
+            max_tokens=agent.max_output_tokens or 1000,
+            response_format={"type": "json_object"} if json_enabled else None,
+        )
+
+        llm_start = time.monotonic()
+        fallback_result = await fallback_chat_model.ainvoke(messages)
+        fallback_latency = round((time.monotonic() - llm_start) * 1000)
+
+        fallback_info = {
+            "primary_model": agent.model,
+            "primary_provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
+            "primary_error": primary_error,
+            "fallback_model": agent.fallback_model,
+            "fallback_provider": fallback_provider_val,
+            "fallback_credential_id": str(agent.fallback_credential_id),
+        }
+        return fallback_result, fallback_provider_val, fallback_latency, fallback_info
