@@ -21,6 +21,8 @@ import type {
 
 type SupportedToolProtocol = 'http' | 'mcp'
 
+type HeaderRow = { id: string; key: string; value: string }
+
 export type ToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
 
 interface ToolDiscoveryFormProps {
@@ -69,13 +71,13 @@ function headerId() {
   return `hdr_${nextId++}`
 }
 
-function toHeaderConfig(headers: { id: string; key: string; value: string }[]): HttpHeader[] {
+function toHeaderConfig(headers: HeaderRow[]): HttpHeader[] {
   return headers
     .filter(h => h.key.trim())
     .map(h => ({ key: h.key.trim(), value: h.value }))
 }
 
-function toHeaderRecord(headers: { id: string; key: string; value: string }[]): Record<string, string> {
+function toHeaderRecord(headers: HeaderRow[]): Record<string, string> {
   return headers.reduce<Record<string, string>>((acc, h) => {
     if (h.key.trim()) acc[h.key.trim()] = h.value
     return acc
@@ -90,8 +92,8 @@ function HeaderEditor({
 }: {
   title: string
   description?: string
-  headers: { id: string; key: string; value: string }[]
-  setHeaders: Dispatch<SetStateAction<{ id: string; key: string; value: string }[]>>
+  headers: HeaderRow[]
+  setHeaders: Dispatch<SetStateAction<HeaderRow[]>>
 }) {
   const addHeader = () => setHeaders(prev => [...prev, { id: headerId(), key: '', value: '' }])
   const updateHeaderKey = (id: string, key: string) => setHeaders(prev => prev.map(h => h.id === id ? { ...h, key } : h))
@@ -99,11 +101,11 @@ function HeaderEditor({
   const removeHeader = (id: string) => setHeaders(prev => prev.filter(h => h.id !== id))
 
   return (
-    <div className="space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
+    <div className="min-w-0 space-y-2 rounded-xl border border-border/70 bg-background/60 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-medium text-muted uppercase tracking-wider">{title}</p>
-          {description && <p className="mt-1 text-xs text-muted">{description}</p>}
+          {description && <p className="mt-1 text-xs text-muted break-words">{description}</p>}
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
           <Plus className="h-3 w-3 mr-1" />
@@ -115,9 +117,9 @@ function HeaderEditor({
       ) : (
         <div className="space-y-1.5">
           {headers.map(h => (
-            <div key={h.id} className="flex items-center gap-1.5">
-              <Input value={h.key} onChange={e => updateHeaderKey(h.id, e.target.value)} placeholder="Header" className="flex-1" />
-              <Input value={h.value} onChange={e => updateHeaderValue(h.id, e.target.value)} placeholder="Value" className="flex-1" />
+            <div key={h.id} className="flex min-w-0 items-center gap-1.5">
+              <Input value={h.key} onChange={e => updateHeaderKey(h.id, e.target.value)} placeholder="Header" className="min-w-0 flex-1" />
+              <Input value={h.value} onChange={e => updateHeaderValue(h.id, e.target.value)} placeholder="Value" className="min-w-0 flex-1" />
               <Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}>
                 <X className="h-3 w-3" />
               </Button>
@@ -136,10 +138,10 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   const [description, setDescription] = useState('')
   const [method, setMethod] = useState('GET')
   const [url, setUrl] = useState('')
-  const [httpHeaders, setHttpHeaders] = useState<{ id: string; key: string; value: string }[]>([])
+  const [httpHeaders, setHttpHeaders] = useState<HeaderRow[]>([])
   const [body, setBody] = useState('')
   const [mcpServerUrl, setMcpServerUrl] = useState('')
-  const [mcpHeaders, setMcpHeaders] = useState<{ id: string; key: string; value: string }[]>([])
+  const [mcpHeaders, setMcpHeaders] = useState<HeaderRow[]>([])
   const [mcpTools, setMcpTools] = useState<DiscoveredMcpTool[]>([])
   const [selectedMcpTool, setSelectedMcpTool] = useState('')
   const [manualMcpToolName, setManualMcpToolName] = useState('')
@@ -149,6 +151,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   const [timeoutMs, setTimeoutMs] = useState(30000)
   const [testResult, setTestResult] = useState<string | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({})
 
   const showBody = protocol === 'http' && ['POST', 'PUT', 'PATCH'].includes(method)
   const urlVariables = useMemo(() => extractUrlVariables(url), [url])
@@ -156,7 +159,6 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
     () => mcpTools.find(tool => tool.name === selectedMcpTool),
     [mcpTools, selectedMcpTool],
   )
-  const [variableValues, setVariableValues] = useState<Record<string, string>>({})
 
   const resetForm = useCallback(() => {
     setProtocol('http')
@@ -275,19 +277,19 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
 
   const buildConfig = (): ToolConfig => protocol === 'mcp' ? buildMcpConfig() : buildHttpConfig()
 
+  const resolvedDisplayName = () => {
+    if (displayName.trim()) return displayName.trim()
+    if (selectedTool) return displayNameForTool(selectedTool)
+    if (protocol === 'http') return 'HTTP Tool'
+    return manualMcpToolName.trim()
+  }
+
   const validate = () => {
     if (protocol === 'http' && !url.trim()) return 'URL is required'
     if (protocol === 'mcp' && !mcpServerUrl.trim()) return 'MCP server URL is required'
     if (protocol === 'mcp' && !selectedTool && !manualMcpToolName.trim()) return 'Discover and select a tool from the MCP server first'
     if (!resolvedDisplayName()) return 'Display name is required'
     return null
-  }
-
-  const resolvedDisplayName = () => {
-    if (displayName.trim()) return displayName.trim()
-    if (selectedTool) return displayNameForTool(selectedTool)
-    if (protocol === 'http') return 'HTTP Tool'
-    return manualMcpToolName.trim()
   }
 
   const buildSubmitValue = (): ToolFormSubmitValue => ({
@@ -350,100 +352,101 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="rounded-2xl border border-border/80 bg-background/80 p-4 shadow-sm">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
+    <form onSubmit={handleSubmit} className="min-w-0 space-y-5 overflow-x-hidden">
+      <div className="min-w-0 rounded-2xl border border-border/80 bg-background/80 p-4 shadow-sm">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-light">Tool runtime</p>
-            <p className="mt-1 text-sm text-muted">Choose how ProjectRAI should execute this capability.</p>
+            <p className="mt-1 text-sm text-muted break-words">Choose how ProjectRAI should execute this capability.</p>
           </div>
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <Select value={protocol} onChange={e => setProtocol(e.target.value as SupportedToolProtocol)} options={TOOL_PROTOCOLS} />
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <button type="button" onClick={() => setProtocol('http')} className={`rounded-xl border p-3 text-left transition ${protocol === 'http' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
-            <p className="text-sm font-medium">HTTP API</p>
-            <p className="mt-1 text-xs text-muted">Call a REST-style endpoint directly.</p>
+          <button type="button" onClick={() => setProtocol('http')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'http' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
+            <p className="text-sm font-medium break-words">HTTP API</p>
+            <p className="mt-1 text-xs text-muted break-words">Call a REST-style endpoint directly.</p>
           </button>
-          <button type="button" onClick={() => setProtocol('mcp')} className={`rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
-            <p className="text-sm font-medium">MCP Server</p>
-            <p className="mt-1 text-xs text-muted">Connect a server, discover tools, then select one.</p>
+          <button type="button" onClick={() => setProtocol('mcp')} className={`min-w-0 rounded-xl border p-3 text-left transition ${protocol === 'mcp' ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-card/60 text-muted hover:border-border-light'}`}>
+            <p className="text-sm font-medium break-words">MCP Server</p>
+            <p className="mt-1 text-xs text-muted break-words">Connect a server, discover tools, then select one.</p>
           </button>
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-muted mb-1">Display name</label>
           <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={protocol === 'mcp' ? 'Auto-filled after discovery' : 'Fetch Customer'} />
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-muted mb-1">Risk Level</label>
           <Select value={riskLevel} onChange={e => setRiskLevel(e.target.value)} options={RISK_LEVELS} />
         </div>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <label className="block text-xs font-medium text-muted mb-1">Description</label>
         <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What this tool does and when the agent should use it" />
       </div>
 
       {protocol === 'http' ? (
-        <div className="space-y-4 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+        <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-medium text-white">HTTP request</p>
-              <p className="mt-1 text-xs text-muted">Use template variables like {'{{customerId}}'} in the URL.</p>
+              <p className="mt-1 text-xs text-muted break-words">Use template variables like {'{{customerId}}'} in the URL.</p>
             </div>
-            <div className="w-32"><Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} /></div>
+            <div className="w-full sm:w-32"><Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} /></div>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-muted mb-1">URL *</label>
             <Input value={url} onChange={e => handleUrlChange(e.target.value)} placeholder="https://api.example.com/customers/{{customerId}}" />
           </div>
           {urlVariables.length > 0 && (
-            <div className="rounded-xl border border-border/70 bg-background/60 p-3 space-y-2">
+            <div className="min-w-0 rounded-xl border border-border/70 bg-background/60 p-3 space-y-2">
               <p className="text-[10px] font-medium text-muted uppercase tracking-wider">URL Variables</p>
               {urlVariables.map(v => (
-                <div key={v} className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted min-w-[120px]">{'{{'}{v}{'}}'}</span>
-                  <Input value={variableValues[v] || ''} onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))} placeholder={`Default value for ${v}`} className="flex-1" />
+                <div key={v} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-xs font-mono text-muted break-all sm:min-w-[120px]">{'{{'}{v}{'}}'}</span>
+                  <Input value={variableValues[v] || ''} onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))} placeholder={`Default value for ${v}`} className="min-w-0 flex-1" />
                 </div>
               ))}
             </div>
           )}
-          {showBody && <div><label className="block text-xs font-medium text-muted mb-1">Body</label><Textarea value={body} onChange={e => setBody(e.target.value)} placeholder='{"key": "value"}' className="min-h-[100px] font-mono text-xs" /></div>}
+          {showBody && <div className="min-w-0"><label className="block text-xs font-medium text-muted mb-1">Body</label><Textarea value={body} onChange={e => setBody(e.target.value)} placeholder='{"key": "value"}' className="min-h-[100px] font-mono text-xs" /></div>}
           <HeaderEditor title="HTTP Headers" description="Optional request headers." headers={httpHeaders} setHeaders={setHttpHeaders} />
         </div>
       ) : (
-        <div className="space-y-4 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
-            <p className="text-sm font-medium text-blue-200">Connect MCP server</p>
-            <p className="mt-1 text-xs text-muted">Enter the server URL and let ProjectRAI discover the available tools. You do not need to type the technical MCP tool name manually.</p>
+        <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
+          <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
+            <p className="text-sm font-medium text-blue-200 break-words">Connect MCP server</p>
+            <p className="mt-1 text-xs text-muted break-words">Enter the server URL and let ProjectRAI discover the available tools. You do not need to type the technical MCP tool name manually.</p>
           </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
               <label className="block text-xs font-medium text-muted mb-1">MCP Server URL *</label>
               <Input value={mcpServerUrl} onChange={e => setMcpServerUrl(e.target.value)} placeholder="https://mcp.example.com" />
             </div>
-            <div className="pt-6">
-              <Button type="button" variant="outline" onClick={handleDiscoverMcpTools} disabled={discoverMcpTools.isPending}>
-                {discoverMcpTools.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Search className="h-3 w-3 mr-1" />}
-                Discover
-              </Button>
-            </div>
+            <Button type="button" variant="outline" onClick={handleDiscoverMcpTools} disabled={discoverMcpTools.isPending} className="w-full sm:w-auto sm:shrink-0">
+              {discoverMcpTools.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Search className="h-3 w-3 mr-1" />}
+              Discover
+            </Button>
           </div>
 
           {mcpTools.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Discovered tools</p>
-              <div className="grid gap-2">
+            <div className="min-w-0 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Discovered tools</p>
+                {mcpTools.length > 2 && <p className="text-[10px] text-muted">Scroll to view all</p>}
+              </div>
+              <div className={`grid min-w-0 gap-2 pr-1 ${mcpTools.length > 2 ? 'max-h-64 overflow-y-auto overscroll-contain' : ''}`}>
                 {mcpTools.map(tool => (
-                  <button key={tool.name} type="button" onClick={() => selectMcpTool(tool)} className={`rounded-xl border p-3 text-left transition ${selectedMcpTool === tool.name ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-background/60 text-muted hover:border-border-light'}`}>
-                    <p className="text-sm font-medium">{displayNameForTool(tool)}</p>
-                    <p className="mt-1 text-[11px] font-mono text-muted">{tool.name}</p>
-                    {tool.description && <p className="mt-1 text-xs text-muted">{tool.description}</p>}
+                  <button key={tool.name} type="button" onClick={() => selectMcpTool(tool)} className={`w-full min-w-0 overflow-hidden rounded-xl border p-3 text-left transition ${selectedMcpTool === tool.name ? 'border-primary/60 bg-primary/10 text-white' : 'border-border bg-background/60 text-muted hover:border-border-light'}`}>
+                    <p className="text-sm font-medium break-words">{displayNameForTool(tool)}</p>
+                    <p className="mt-1 text-[11px] font-mono text-muted break-all">{tool.name}</p>
+                    {tool.description && <p className="mt-1 text-xs text-muted break-words">{tool.description}</p>}
                   </button>
                 ))}
               </div>
@@ -455,13 +458,13 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
           </button>
 
           {showMcpAdvanced && (
-            <div className="space-y-3 rounded-xl border border-border/70 bg-background/50 p-3">
+            <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border/70 bg-background/50 p-3">
               <HeaderEditor title="MCP Server Headers" description="Optional headers for discovery and calls." headers={mcpHeaders} setHeaders={setMcpHeaders} />
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-muted mb-1">Manual tool name fallback</label>
                 <Input value={manualMcpToolName} onChange={e => setManualMcpToolName(e.target.value)} placeholder="Only use if discovery is unavailable" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-muted mb-1">Manual Input Schema JSON</label>
                 <Textarea value={mcpSchema} onChange={e => setMcpSchema(e.target.value)} placeholder='{"type":"object","properties":{}}' className="min-h-[100px] font-mono text-xs" />
               </div>
@@ -471,15 +474,15 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
-        <div><label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label><Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} /></div>
+        <div className="min-w-0"><label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label><Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} /></div>
       </div>
 
-      {testResult && <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3"><pre className="text-xs text-green-300 whitespace-pre-wrap font-mono">{testResult}</pre></div>}
-      {testError && <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3"><pre className="text-xs text-red-300 whitespace-pre-wrap font-mono">{testError}</pre></div>}
+      {testResult && <div className="min-w-0 rounded-lg border border-green-500/30 bg-green-500/5 p-3"><pre className="text-xs text-green-300 whitespace-pre-wrap break-words font-mono">{testResult}</pre></div>}
+      {testError && <div className="min-w-0 rounded-lg border border-red-500/30 bg-red-500/5 p-3"><pre className="text-xs text-red-300 whitespace-pre-wrap break-words font-mono">{testError}</pre></div>}
 
-      <div className="flex justify-between gap-2 pt-2 border-t border-border">
+      <div className="flex flex-col justify-between gap-2 pt-2 border-t border-border sm:flex-row">
         {onTest ? <Button type="button" size="sm" variant="outline" onClick={handleTest} disabled={testLoading}>{testLoading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}Test</Button> : <span />}
-        <div className="flex gap-2"><Button type="button" variant="outline" onClick={handleCancel}>{cancelLabel}</Button><Button type="submit" loading={loading}>{submitLabel}</Button></div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={handleCancel}>{cancelLabel}</Button><Button type="submit" loading={loading}>{submitLabel}</Button></div>
       </div>
     </form>
   )
