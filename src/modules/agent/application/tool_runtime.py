@@ -18,6 +18,7 @@ from modules.agent.application.tool_types import (
 )
 
 _TEMPLATE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+MCP_PROTOCOL_VERSION = "2025-06-18"
 
 
 def _replace_template(value: str, variables: dict[str, Any]) -> str:
@@ -48,7 +49,10 @@ def _extract_template_variables(*templates: str) -> list[str]:
 
 
 def _build_http_input_schema(config: dict[str, Any]) -> dict[str, Any]:
-    variables = _extract_template_variables(config.get("url", ""), config.get("body", ""))
+    body = config.get("body", "")
+    if not isinstance(body, str):
+        body = json.dumps(body)
+    variables = _extract_template_variables(config.get("url", ""), body)
     properties = {
         var_name: {
             "type": "string",
@@ -71,16 +75,70 @@ def _coerce_body(body: Any) -> str | None:
     return json.dumps(body)
 
 
+def _parse_json_candidate(value: str) -> Any:
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def _parse_sse_payload(value: str) -> Any:
+    candidates: list[Any] = []
+    data_lines: list[str] = []
+    for line in value.splitlines():
+        if line.startswith("data:"):
+            data_lines.append(line[5:].strip())
+            continue
+        if line.strip() == "" and data_lines:
+            parsed = _parse_json_candidate("\n".join(data_lines))
+            if parsed is not None:
+                candidates.append(parsed)
+            data_lines = []
+    if data_lines:
+        parsed = _parse_json_candidate("\n".join(data_lines))
+        if parsed is not None:
+            candidates.append(parsed)
+    if not candidates:
+        return None
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate.get("result"):
+            return candidate
+    return candidates[-1]
+
+
+def _parse_body_value(body: Any) -> Any:
+    if isinstance(body, str):
+        return _parse_json_candidate(body) or _parse_sse_payload(body) or body
+    if isinstance(body, dict) and isinstance(body.get("raw"), str):
+        raw = body["raw"]
+        return _parse_json_candidate(raw) or _parse_sse_payload(raw) or body
+    return body
+
+
 def _extract_mcp_result_body(result: ExecutionResult) -> Any:
     output = result.output or {}
     if isinstance(output, dict) and "body" in output:
-        return output["body"]
+        return _parse_body_value(output["body"])
     if result.body:
-        try:
-            return json.loads(result.body)
-        except ValueError:
-            return result.body
+        return _parse_body_value(result.body)
     return output
+
+
+def _extract_headers(output: dict[str, Any] | None) -> dict[str, str]:
+    if not output or not isinstance(output.get("headers"), dict):
+        return {}
+    return {str(k).lower(): str(v) for k, v in output["headers"].items()}
+
+
+def _session_headers(output: dict[str, Any] | None) -> dict[str, str]:
+    headers = _extract_headers(output)
+    session_id = headers.get("mcp-session-id") or headers.get("x-mcp-session-id")
+    if not session_id:
+        return {}
+    return {"Mcp-Session-Id": session_id}
 
 
 class UnsupportedToolRuntime(ToolRuntimePort):
@@ -200,12 +258,7 @@ class HttpToolRuntime(ToolRuntimePort):
 
 
 class McpToolRuntime(ToolRuntimePort):
-    """Remote MCP runtime for JSON-RPC tool calls over an HTTP endpoint.
-
-    This runtime intentionally supports remote HTTP-style MCP calls only. Local stdio
-    servers are rejected by default because they would require process execution and
-    sandbox policy outside this module.
-    """
+    """Remote MCP runtime for JSON-RPC tool calls over an HTTP endpoint."""
 
     def __init__(
         self,
@@ -265,18 +318,56 @@ class McpToolRuntime(ToolRuntimePort):
 
         raw_headers = config.get("server_headers") or server.get("headers") or []
         if resolve_secrets and self._secret_resolver is not None and project_id is not None:
-            headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
+            configured_headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
         else:
-            headers = {
+            configured_headers = {
                 h.get("key", ""): h.get("value", "")
                 for h in raw_headers
                 if h.get("key")
             }
-        headers = {
+        base_headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            **headers,
+            "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            **configured_headers,
         }
+
+        initialize_payload = {
+            "jsonrpc": "2.0",
+            "id": str(uuid4()),
+            "method": "initialize",
+            "params": {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
+            },
+        }
+        init_result = await self._executor.execute(
+            method="POST",
+            url=str(url),
+            headers=base_headers,
+            body=json.dumps(initialize_payload),
+            timeout_ms=timeout_ms,
+        )
+        if not init_result.success:
+            return init_result
+
+        request_headers = {
+            **base_headers,
+            **_session_headers(init_result.output if isinstance(init_result.output, dict) else None),
+        }
+        initialized_payload = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {},
+        }
+        await self._executor.execute(
+            method="POST",
+            url=str(url),
+            headers=request_headers,
+            body=json.dumps(initialized_payload),
+            timeout_ms=timeout_ms,
+        )
 
         payload = {
             "jsonrpc": "2.0",
@@ -290,7 +381,7 @@ class McpToolRuntime(ToolRuntimePort):
         result = await self._executor.execute(
             method="POST",
             url=str(url),
-            headers=headers,
+            headers=request_headers,
             body=json.dumps(payload),
             timeout_ms=timeout_ms,
         )
