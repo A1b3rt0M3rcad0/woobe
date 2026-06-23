@@ -272,12 +272,10 @@ class AgentToolExecutor(ToolExecutor):
         self._secret_resolver = secret_resolver
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
-        from modules.agent.application.use_cases.tools_use_cases import (
-            ExecuteToolInput,
-            ExecuteToolUseCase,
-        )
+        from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+        from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 
-        use_case = ExecuteToolUseCase(
+        use_case = RuntimeExecuteToolUseCase(
             tool_repo=self._tool_repo,
             tool_executor=self._tool_executor,
             secret_resolver=self._secret_resolver,
