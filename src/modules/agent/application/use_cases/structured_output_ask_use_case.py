@@ -15,6 +15,8 @@ from modules.agent.application.use_cases.instrumented_primary_mixin import (
     InstrumentedPrimaryExecutionMixin,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
@@ -31,10 +33,13 @@ class StructuredOutputAskAgentUseCase(
         try:
             async with AgentUnitOfWork(self._session_factory) as uow:
                 tools = await uow.tools.list_by_agent(agent.id, status="active")
+                cipher = SecretCipherAdapter(self._encryption_key)
+                resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
                 refreshed_tools = await refresh_stale_mcp_server_tools(
                     tools=tools,
                     tool_repo=uow.tools,
                     executor=get_http_tool_executor(),
+                    secret_resolver=resolver,
                 )
                 agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
         except Exception:
