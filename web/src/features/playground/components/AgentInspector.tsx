@@ -170,7 +170,7 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
       id: 'versions',
       label: 'Versions',
       icon: <Rocket className="h-3.5 w-3.5" />,
-      content: <ReleaseTab agentId={agentId} projectId={projectId} />,
+      content: <div className="versions-tab-compact h-full"><ReleaseTab agentId={agentId} projectId={projectId} /></div>,
     },
   ]
 
