@@ -92,16 +92,16 @@ function releaseToEditorState(release: AgentRelease, current: AgentEditorState):
   }
 }
 
-function ReleaseMetadata({ release, compact = false }: { release: AgentRelease; compact?: boolean }) {
+function ReleaseMetadata({ release }: { release: AgentRelease; compact?: boolean }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-muted', compact ? 'text-[11px]' : 'text-xs')}>
-      <span className="inline-flex items-center gap-1.5">
-        <CalendarDays className="h-3.5 w-3.5" />
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+      <span className="inline-flex items-center gap-1">
+        <CalendarDays className="h-3 w-3" />
         {formatDate(release.created_at)}
       </span>
-      <span className="text-border">|</span>
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <Package className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-border">·</span>
+      <span className="inline-flex min-w-0 items-center gap-1">
+        <Package className="h-3 w-3 shrink-0" />
         <span className="truncate">{modelLabel(release)}</span>
       </span>
     </div>
@@ -110,7 +110,7 @@ function ReleaseMetadata({ release, compact = false }: { release: AgentRelease; 
 
 function PipelineHint() {
   return (
-    <div className="inline-flex items-center gap-2 rounded-lg border border-border/80 bg-surface/40 px-3 py-2 text-xs font-medium shadow-sm">
+    <div className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-surface/40 px-2 py-1 text-[10px] font-medium shadow-sm">
       <span className="text-muted">Draft</span>
       <span className="text-muted">→</span>
       <span className="text-yellow-400">Staging</span>
@@ -132,21 +132,21 @@ function ReleaseActionsMenu({ actions, label = 'Release actions' }: { actions: M
         type="button"
         aria-label={label}
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-accent hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         onClick={() => setOpen((value) => !value)}
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-30 w-44 rounded-xl border border-border bg-surface p-1 shadow-2xl">
+        <div className="absolute right-0 top-8 z-30 w-40 rounded-lg border border-border bg-surface p-1 shadow-2xl">
           {enabledActions.map((action) => (
             <button
               key={action.label}
               type="button"
               disabled={action.disabled}
               className={cn(
-                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-50',
+                'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] transition-colors disabled:pointer-events-none disabled:opacity-50',
                 action.destructive ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' : 'text-slate-200 hover:bg-accent hover:text-white',
               )}
               onClick={() => {
@@ -168,7 +168,7 @@ function EmptyStageCard({ message, tone = 'neutral' }: { message: string; tone?:
   return (
     <div
       className={cn(
-        'rounded-2xl border bg-surface/40 p-4 text-sm text-muted',
+        'rounded-lg border bg-surface/40 p-3 text-xs leading-5 text-muted',
         tone === 'staging' && 'border-yellow-500/25 bg-yellow-500/[0.03]',
         tone === 'production' && 'border-emerald-500/25 bg-emerald-500/[0.03]',
         tone === 'neutral' && 'border-border',
@@ -359,8 +359,8 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     return (
       <div className="space-y-3 p-4">
         <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-24 w-full rounded-lg" />
       </div>
     )
   }
@@ -393,52 +393,52 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         </div>
       </section>
 
-      <div className="h-px bg-border/70" />
+      <div className="h-px bg-border/50" />
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted">A) Current draft</h3>
-        <div className="flex min-h-24 items-center justify-between gap-4 rounded-2xl border border-border bg-surface/45 p-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-background/30 text-primary">
-              <FileText className="h-7 w-7" />
+        <h3 className="text-[11px] font-medium text-muted">Current draft</h3>
+        <div className="flex min-h-[72px] items-center justify-between gap-3 rounded-lg border border-border bg-surface/45 p-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background/30 text-primary">
+              <FileText className="h-4 w-4" />
             </div>
             <div className="min-w-0 space-y-1">
-              <p className="text-base font-semibold text-white">Editor snapshot</p>
-              <p className="text-sm text-muted">Unstaged changes from the editor</p>
+              <p className="text-xs font-medium text-white">Editor snapshot</p>
+              <p className="text-[11px] leading-4 text-muted">Unstaged changes from the editor</p>
             </div>
           </div>
-          <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
         </div>
       </section>
 
-      <div className="h-px bg-border/70" />
+      <div className="h-px bg-border/50" />
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted">B) Staging</h3>
+        <h3 className="text-[11px] font-medium text-muted">Staging</h3>
         {currentStaging ? (
-          <article className="rounded-2xl border border-yellow-500/45 bg-yellow-500/[0.035] p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-3">
-                <h4 className="truncate font-mono text-xl font-semibold tracking-tight text-white">{currentStaging.version}</h4>
+          <article className="rounded-lg border border-yellow-500/35 bg-yellow-500/[0.03] p-3 shadow-sm">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="min-w-0 space-y-2">
+                <h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{currentStaging.version}</h4>
                 <ReleaseMetadata release={currentStaging} />
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button size="sm" variant="outline" className="min-w-24" onClick={openViewStaging} loading={isLoadingSnapshot}>
-                    <Eye className="mr-2 h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-7 min-w-[68px] px-2 text-[11px]" onClick={openViewStaging} loading={isLoadingSnapshot}>
+                    <Eye className="mr-1 h-3 w-3" />
                     View
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="min-w-28 border-yellow-500/60 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
+                    className="h-7 min-w-[74px] border-yellow-500/60 px-2 text-[11px] text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
                     onClick={openCreateRelease}
                     loading={promoteRelease.isPending || isLoadingSnapshot}
                   >
-                    <Upload className="mr-2 h-3.5 w-3.5" />
+                    <Upload className="mr-1 h-3 w-3" />
                     Publish
                   </Button>
                 </div>
               </div>
-              <Badge variant="warning" className="shrink-0 px-3 py-1 text-sm">Staging</Badge>
+              <Badge variant="warning" className="shrink-0 px-1.5 py-0 text-[10px]">Staging</Badge>
             </div>
           </article>
         ) : (
@@ -446,37 +446,37 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         )}
       </section>
 
-      <div className="h-px bg-border/70" />
+      <div className="h-px bg-border/50" />
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted">C) Production</h3>
+        <h3 className="text-[11px] font-medium text-muted">Production</h3>
         {production ? (
-          <article className="rounded-2xl border border-emerald-500/45 bg-emerald-500/[0.035] p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-3">
-                <h4 className="truncate font-mono text-xl font-semibold tracking-tight text-white">{production.version}</h4>
+          <article className="rounded-lg border border-emerald-500/35 bg-emerald-500/[0.03] p-3 shadow-sm">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="min-w-0 space-y-2">
+                <h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{production.version}</h4>
                 <ReleaseMetadata release={production} />
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button size="sm" variant="outline" className="min-w-24" onClick={() => openReleaseSnapshot(production, 'Production release')} loading={loadingReleaseId === production.id}>
-                    <Eye className="mr-2 h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-7 min-w-[68px] px-2 text-[11px]" onClick={() => openReleaseSnapshot(production, 'Production release')} loading={loadingReleaseId === production.id}>
+                    <Eye className="mr-1 h-3 w-3" />
                     View
                   </Button>
                   {rollbackTarget && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="min-w-28 border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                      className="h-7 min-w-[74px] border-emerald-500/60 px-2 text-[11px] text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                       onClick={() => rollbackToRelease(rollbackTarget)}
                       loading={rollbackRelease.isPending}
                     >
-                      <Undo2 className="mr-2 h-3.5 w-3.5" />
+                      <Undo2 className="mr-1 h-3 w-3" />
                       Rollback
                     </Button>
                   )}
                 </div>
               </div>
               <div className="flex shrink-0 items-start gap-2">
-                <Badge variant="success" className="px-3 py-1 text-sm">Production</Badge>
+                <Badge variant="success" className="px-1.5 py-0 text-[10px]">Production</Badge>
                 <ReleaseActionsMenu actions={productionActions(production)} />
               </div>
             </div>
@@ -487,17 +487,17 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted">D) History</h3>
+        <h3 className="text-[11px] font-medium text-muted">History</h3>
         {history.length === 0 ? (
           <EmptyStageCard message="No archived releases yet." />
         ) : (
-          <div className="rounded-2xl border border-border bg-surface/35">
-            {history.map((release, index) => (
-              <div key={release.id} className={cn('relative flex min-h-[82px] items-center justify-between gap-3 px-4 py-3', index !== history.length - 1 && 'border-b border-border/70')}>
+          <div className="space-y-1">
+            {history.map((release) => (
+              <div key={release.id} className="relative flex min-h-[60px] items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
                 <div className="min-w-0 space-y-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className="truncate font-mono text-base font-semibold text-white">{release.version}</p>
-                    <Badge variant={statusVariant[release.status]}>{statusLabel[release.status]}</Badge>
+                    <p className="truncate font-mono text-xs font-medium text-white">{release.version}</p>
+                    <Badge variant={statusVariant[release.status]} className="px-1.5 py-0 text-[10px]">{statusLabel[release.status]}</Badge>
                   </div>
                   <ReleaseMetadata release={release} compact />
                 </div>
