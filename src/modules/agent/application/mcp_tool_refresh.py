@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
-from modules.agent.application.ports import ToolExecutionPort
+from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
 from modules.agent.domain.repositories import ToolRepository
@@ -62,21 +62,34 @@ def _needs_refresh(tool: Tool, now: datetime) -> bool:
     return discovered_at + timedelta(seconds=ttl_seconds) <= now
 
 
-def _headers_from_config(config: dict[str, Any]) -> dict[str, str]:
+def _raw_headers_from_config(config: dict[str, Any]) -> list[dict[str, Any]]:
     server = config.get("server") or {}
     raw_headers = config.get("server_headers") or server.get("headers") or []
     if isinstance(raw_headers, dict):
-        return {str(k): str(v) for k, v in raw_headers.items() if k}
+        return [{"key": str(k), "value": str(v)} for k, v in raw_headers.items() if k]
     if not isinstance(raw_headers, list):
-        return {}
+        return []
+    return [header for header in raw_headers if isinstance(header, dict)]
+
+
+def _headers_from_raw(raw_headers: list[dict[str, Any]]) -> dict[str, str]:
     headers: dict[str, str] = {}
     for header in raw_headers:
-        if not isinstance(header, dict):
-            continue
         key = header.get("key")
         if key:
             headers[str(key)] = str(header.get("value", ""))
     return headers
+
+
+async def _resolve_headers(
+    *,
+    raw_headers: list[dict[str, Any]],
+    tool: Tool,
+    secret_resolver: ToolSecretResolverPort | None,
+) -> dict[str, str]:
+    if secret_resolver is not None and tool.project_id is not None:
+        return await secret_resolver.resolve_headers(raw_headers, tool.project_id)
+    return _headers_from_raw(raw_headers)
 
 
 async def refresh_stale_mcp_server_tools(
@@ -84,6 +97,7 @@ async def refresh_stale_mcp_server_tools(
     tools: list[Tool],
     tool_repo: ToolRepository,
     executor: ToolExecutionPort,
+    secret_resolver: ToolSecretResolverPort | None = None,
 ) -> list[Tool]:
     now = utc_now()
     discovery = DiscoverMcpToolsUseCase(executor)
@@ -105,7 +119,11 @@ async def refresh_stale_mcp_server_tools(
             output = await discovery.execute(
                 McpDiscoverInput(
                     server_url=str(server_url),
-                    headers=_headers_from_config(config),
+                    headers=await _resolve_headers(
+                        raw_headers=_raw_headers_from_config(config),
+                        tool=tool,
+                        secret_resolver=secret_resolver,
+                    ),
                     timeout_ms=tool.timeout_ms or int(config.get("timeout_ms") or 30000),
                 )
             )
