@@ -11,7 +11,7 @@ class KeyValueStoreError(RuntimeError):
     pass
 
 
-class NetworkKeyValueStore(AsyncKeyValueStore):
+class RedisKeyValueStore(AsyncKeyValueStore):
     def __init__(self, url: str, *, key_prefix: str = "projectrai", timeout_seconds: float = 2.0) -> None:
         self.url = url
         self.key_prefix = key_prefix.strip(":")
