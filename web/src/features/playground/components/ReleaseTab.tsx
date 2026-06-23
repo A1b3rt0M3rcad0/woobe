@@ -109,6 +109,11 @@ function formatValue(value: unknown): string {
   return formatJson(value)
 }
 
+function objectKeyCount(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 0
+  return Object.keys(value as Record<string, unknown>).length
+}
+
 function modelLabel(release: AgentRelease) {
   return `${release.provider ?? '—'}/${release.model ?? '—'}`
 }
@@ -117,9 +122,29 @@ function editorModelLabel(state: AgentEditorState) {
   return `${state.provider || '—'}/${state.model || '—'}`
 }
 
+function fallbackLabel(state: AgentEditorState) {
+  if (!state.fallbackProvider && !state.fallbackModel) return 'No fallback'
+  return `${state.fallbackProvider || '—'}/${state.fallbackModel || '—'}`
+}
+
 function responseFormatLabel(state: AgentEditorState) {
   if (!state.responseFormat?.enabled) return 'Text'
   return state.responseFormat.type === 'json' ? `JSON${state.responseFormat.strict ? ' strict' : ''}` : 'Text'
+}
+
+function schemaStatusLabel(state: AgentEditorState) {
+  if (!state.responseFormat?.enabled || state.responseFormat.type !== 'json') return 'Not enforced'
+  return state.responseFormat.schema ? 'Schema configured' : 'JSON without schema'
+}
+
+function promptLengthLabel(state: AgentEditorState) {
+  const length = state.systemPrompt?.trim().length ?? 0
+  return length ? `${length} chars` : 'No prompt'
+}
+
+function runtimeConfigLabel(state: AgentEditorState) {
+  const keys = objectKeyCount(state.runtimeConfig)
+  return keys ? `${keys} keys` : 'No runtime config'
 }
 
 function modalRow(label: string, value: unknown) {
@@ -131,16 +156,13 @@ function modalRow(label: string, value: unknown) {
   )
 }
 
-function draftDetails(state: AgentEditorState): ConfirmationDetail[] {
-  return [
-    { label: 'Agent', value: state.name || 'Untitled agent' },
-    { label: 'Model', value: editorModelLabel(state) },
-    { label: 'Mode', value: state.sessionMode || '—' },
-    { label: 'Temperature', value: state.temperature ?? '—' },
-    { label: 'Max tokens', value: state.maxOutputTokens ?? '—' },
-    { label: 'Collections', value: state.collectionIds?.length ?? 0 },
-    { label: 'Response', value: responseFormatLabel(state) },
-  ]
+function DraftMetric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-background/35 px-2 py-1.5">
+      <p className="text-[9px] uppercase tracking-wide text-muted">{label}</p>
+      <p className="mt-0.5 truncate text-[11px] font-medium text-slate-200">{value}</p>
+    </div>
+  )
 }
 
 function releaseDetails(release: AgentRelease): ConfirmationDetail[] {
@@ -345,6 +367,11 @@ function DraftSnapshotModal({ open, state, snapshot, currentStaging, isConfirmin
             {modalRow('Temp', state.temperature)}
             {modalRow('Max tokens', state.maxOutputTokens)}
             {modalRow('Response', responseFormatLabel(state))}
+            {modalRow('Schema', schemaStatusLabel(state))}
+            {modalRow('Fallback', fallbackLabel(state))}
+            {modalRow('Base URL', state.baseUrl)}
+            {modalRow('Prompt', promptLengthLabel(state))}
+            {modalRow('Runtime keys', objectKeyCount(state.runtimeConfig))}
           </section>
 
           <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
@@ -360,6 +387,7 @@ function DraftSnapshotModal({ open, state, snapshot, currentStaging, isConfirmin
           <section className="space-y-2 rounded-xl border border-border bg-background/40 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime / knowledge</p>
             {modalRow('Collections', state.collectionIds?.length ? `${state.collectionIds.length}` : '—')}
+            {modalRow('Runtime config', runtimeConfigLabel(state))}
             <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-xs text-slate-200">{formatJson(snapshot.runtime_config ?? state.runtimeConfig)}</pre>
           </section>
         </div>
@@ -644,7 +672,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
       <section className="space-y-3">
         <h3 className="text-[11px] font-medium text-muted">Current draft</h3>
-        <div className="rounded-lg border border-border bg-surface/45 p-3">
+        <div className="space-y-3 rounded-lg border border-border bg-surface/45 p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background/30 text-primary">
@@ -673,6 +701,17 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <Upload className="mr-1 h-3 w-3" />
               Stage draft
             </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 min-[520px]:grid-cols-4">
+            <DraftMetric label="Status" value={state.status || '—'} />
+            <DraftMetric label="Temperature" value={state.temperature ?? '—'} />
+            <DraftMetric label="Max tokens" value={state.maxOutputTokens ?? '—'} />
+            <DraftMetric label="Prompt" value={promptLengthLabel(state)} />
+            <DraftMetric label="Schema" value={schemaStatusLabel(state)} />
+            <DraftMetric label="Runtime" value={runtimeConfigLabel(state)} />
+            <DraftMetric label="Fallback" value={fallbackLabel(state)} />
+            <DraftMetric label="Base URL" value={state.baseUrl || 'Default'} />
           </div>
         </div>
       </section>
