@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 
@@ -17,6 +18,11 @@ class ExecutionResult:
 
 
 class ToolExecutionPort(ABC):
+    """Low-level HTTP execution port.
+
+    This remains intentionally HTTP-specific. Runtime-level tool dispatch must use
+    ToolRuntimePort/ToolRuntimeRegistry instead of depending on URL/method/body.
+    """
 
     @abstractmethod
     async def execute(
@@ -27,6 +33,31 @@ class ToolExecutionPort(ABC):
         body: str | None = None,
         timeout_ms: int = 30000,
     ) -> ExecutionResult:
+        ...
+
+
+class ToolRuntimePort(ABC):
+    """Runtime-agnostic tool protocol port."""
+
+    @abstractmethod
+    async def execute(
+        self,
+        tool: Any,
+        input_data: dict[str, Any] | None = None,
+    ) -> ExecutionResult:
+        ...
+
+    @abstractmethod
+    async def test(
+        self,
+        config: dict[str, Any],
+        input_data: dict[str, Any] | None = None,
+        timeout_ms: int = 30000,
+    ) -> ExecutionResult:
+        ...
+
+    @abstractmethod
+    def to_openai_definition(self, tool: Any) -> dict[str, Any]:
         ...
 
 
