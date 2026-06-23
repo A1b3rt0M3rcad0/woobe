@@ -70,8 +70,8 @@ class McpOAuthDisconnectOutput(BaseModel):
     status: str = "disconnected"
 
 
-def _canonical_resource_uri(server_url: str) -> str:
-    parsed = urlparse(server_url)
+def _origin_from_url(value: str) -> str:
+    parsed = urlparse(value)
     scheme = parsed.scheme.lower()
     host = (parsed.hostname or "").lower()
     if not scheme or not host:
@@ -79,10 +79,16 @@ def _canonical_resource_uri(server_url: str) -> str:
     netloc = host
     if parsed.port:
         netloc = f"{host}:{parsed.port}"
+    return f"{scheme}://{netloc}"
+
+
+def _canonical_resource_uri(server_url: str) -> str:
+    origin = _origin_from_url(server_url)
+    parsed = urlparse(server_url)
     path = parsed.path or ""
     if path == "/":
         path = ""
-    return f"{scheme}://{netloc}{path}"
+    return f"{origin}{path}"
 
 
 def _code_verifier() -> str:
@@ -132,6 +138,24 @@ def _parse_www_authenticate_resource_metadata(header: str | None) -> str | None:
 
 def _well_known_authorization_server_url(issuer: str) -> str:
     return issuer.rstrip("/") + "/.well-known/oauth-authorization-server"
+
+
+def _resource_metadata_candidates(server_url: str) -> list[str]:
+    parsed = urlparse(server_url)
+    origin = _origin_from_url(server_url)
+    path = parsed.path or ""
+    candidates = [f"{origin}/.well-known/oauth-protected-resource"]
+    if path and path != "/":
+        candidates.append(f"{origin}/.well-known/oauth-protected-resource{path}")
+    return list(dict.fromkeys(candidates))
+
+
+def _authorization_server_metadata_candidates(server_url: str) -> list[str]:
+    origin = _origin_from_url(server_url)
+    return [
+        f"{origin}/.well-known/oauth-authorization-server",
+        f"{origin}/.well-known/openid-configuration",
+    ]
 
 
 def _oauth_config(tool: Tool) -> dict[str, Any]:
@@ -203,24 +227,50 @@ class McpOAuthMetadataResolver:
         if metadata["authorization_endpoint"] and metadata["token_endpoint"]:
             return metadata
 
-        resource_metadata_url = await self._resource_metadata_url(server_url=server_url, timeout_ms=timeout_ms)
-        if resource_metadata_url:
-            resource_metadata = await self._get_json(resource_metadata_url, timeout_ms=timeout_ms)
-            auth_servers = resource_metadata.get("authorization_servers") if isinstance(resource_metadata, dict) else None
-            if isinstance(auth_servers, list) and auth_servers:
+        resource_metadata_urls: list[str] = []
+        header_url = await self._resource_metadata_url(server_url=server_url, timeout_ms=timeout_ms)
+        if header_url:
+            resource_metadata_urls.append(header_url)
+        resource_metadata_urls.extend(_resource_metadata_candidates(server_url))
+
+        for resource_metadata_url in list(dict.fromkeys(resource_metadata_urls)):
+            resource_metadata = await self._try_get_json(resource_metadata_url, timeout_ms=timeout_ms)
+            if not isinstance(resource_metadata, dict):
+                continue
+            metadata["authorization_endpoint"] = metadata["authorization_endpoint"] or resource_metadata.get("authorization_endpoint")
+            metadata["token_endpoint"] = metadata["token_endpoint"] or resource_metadata.get("token_endpoint")
+            metadata["registration_endpoint"] = metadata["registration_endpoint"] or resource_metadata.get("registration_endpoint")
+            auth_servers = resource_metadata.get("authorization_servers")
+            if isinstance(auth_servers, list) and auth_servers and not metadata.get("authorization_server_issuer"):
                 metadata["authorization_server_issuer"] = str(auth_servers[0])
+            if metadata.get("authorization_server_issuer") or (metadata.get("authorization_endpoint") and metadata.get("token_endpoint")):
+                break
 
         issuer = metadata.get("authorization_server_issuer")
-        if issuer:
-            as_metadata = await self._get_json(_well_known_authorization_server_url(str(issuer)), timeout_ms=timeout_ms)
+        if issuer and (not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint")):
+            as_metadata = await self._try_get_json(_well_known_authorization_server_url(str(issuer)), timeout_ms=timeout_ms)
             if isinstance(as_metadata, dict):
-                metadata["authorization_endpoint"] = metadata["authorization_endpoint"] or as_metadata.get("authorization_endpoint")
-                metadata["token_endpoint"] = metadata["token_endpoint"] or as_metadata.get("token_endpoint")
-                metadata["registration_endpoint"] = metadata["registration_endpoint"] or as_metadata.get("registration_endpoint")
+                self._apply_authorization_server_metadata(metadata, as_metadata)
 
         if not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint"):
-            raise ValueError("Could not discover MCP OAuth authorization and token endpoints")
+            for url in _authorization_server_metadata_candidates(server_url):
+                as_metadata = await self._try_get_json(url, timeout_ms=timeout_ms)
+                if isinstance(as_metadata, dict):
+                    self._apply_authorization_server_metadata(metadata, as_metadata)
+                    if not metadata.get("authorization_server_issuer"):
+                        metadata["authorization_server_issuer"] = as_metadata.get("issuer") or _origin_from_url(server_url)
+                    if metadata.get("authorization_endpoint") and metadata.get("token_endpoint"):
+                        break
+
+        if not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint"):
+            raise ValueError("Could not discover MCP OAuth authorization and token endpoints. Provide OAuth endpoints manually for this MCP provider.")
         return metadata
+
+    def _apply_authorization_server_metadata(self, metadata: dict[str, Any], as_metadata: dict[str, Any]) -> None:
+        metadata["authorization_endpoint"] = metadata["authorization_endpoint"] or as_metadata.get("authorization_endpoint")
+        metadata["token_endpoint"] = metadata["token_endpoint"] or as_metadata.get("token_endpoint")
+        metadata["registration_endpoint"] = metadata["registration_endpoint"] or as_metadata.get("registration_endpoint")
+        metadata["authorization_server_issuer"] = metadata["authorization_server_issuer"] or as_metadata.get("issuer")
 
     async def _resource_metadata_url(self, *, server_url: str, timeout_ms: int) -> str | None:
         initialize_payload = {
@@ -250,6 +300,12 @@ class McpOAuthMetadataResolver:
         if not isinstance(body, dict):
             raise ValueError(f"OAuth metadata response is not a JSON object for {url}")
         return body
+
+    async def _try_get_json(self, url: str, *, timeout_ms: int) -> dict[str, Any] | None:
+        try:
+            return await self._get_json(url, timeout_ms=timeout_ms)
+        except Exception:
+            return None
 
 
 class McpOAuthStartUseCase:
