@@ -94,6 +94,20 @@ def _absolute_url(value: Any, base_url: str | None) -> str | None:
     return urljoin(base_url.rstrip("/") + "/", text)
 
 
+def _dedupe(values: list[str | None]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        normalized = value.rstrip("/")
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
+
+
 def _canonical_resource_uri(server_url: str) -> str:
     origin = _origin_from_url(server_url)
     parsed = urlparse(server_url)
@@ -180,6 +194,53 @@ def _authorization_server_metadata_candidates(server_url: str) -> list[str]:
         _well_known_authorization_server_url(origin),
         _well_known_openid_configuration_url(origin),
     ]
+
+
+def _derived_authorization_endpoint_candidates(metadata: dict[str, Any]) -> list[str]:
+    candidates: list[str | None] = [metadata.get("authorization_endpoint")]
+    for raw in (metadata.get("token_endpoint"), metadata.get("registration_endpoint")):
+        if not isinstance(raw, str) or not raw:
+            continue
+        parsed = urlparse(raw)
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        path = (parsed.path or "").rstrip("/")
+        for suffix in ("/token", "/oauth/token", "/oauth2/token"):
+            if path.endswith(suffix):
+                base = path[: -len(suffix)]
+                candidates.extend([
+                    f"{origin}{base}/authorize",
+                    f"{origin}{base}/authorization",
+                    f"{origin}{base}/oauth/authorize",
+                    f"{origin}{base}/oauth2/authorize",
+                ])
+        for suffix in ("/register", "/registration", "/clients", "/client"):
+            if path.endswith(suffix):
+                base = path[: -len(suffix)]
+                candidates.extend([
+                    f"{origin}{base}/authorize",
+                    f"{origin}{base}/authorization",
+                    f"{origin}{base}/oauth/authorize",
+                    f"{origin}{base}/oauth2/authorize",
+                ])
+    issuer = metadata.get("authorization_server_issuer")
+    if isinstance(issuer, str) and issuer:
+        try:
+            origin = _origin_from_url(issuer)
+            candidates.extend([
+                _absolute_url("authorize", issuer),
+                _absolute_url("authorization", issuer),
+                _absolute_url("oauth/authorize", issuer),
+                _absolute_url("oauth2/authorize", issuer),
+                f"{origin}/authorize",
+                f"{origin}/authorization",
+                f"{origin}/oauth/authorize",
+                f"{origin}/oauth2/authorize",
+            ])
+        except ValueError:
+            pass
+    return _dedupe(candidates)
 
 
 def _oauth_config(tool: Tool) -> dict[str, Any]:
@@ -391,6 +452,7 @@ class McpOAuthStartUseCase:
         if scopes:
             params["scope"] = " ".join(scopes)
 
+        authorization_url = await self._select_authorization_url(metadata=metadata, params=params, timeout_ms=input_dto.timeout_ms)
         oauth = {
             "status": "pending",
             "state": state,
@@ -410,7 +472,33 @@ class McpOAuthStartUseCase:
         config["oauth"] = oauth
         tool.config = config
         await self._tool_repo.update(tool)
-        return McpOAuthStartOutput(authorization_url=f"{metadata['authorization_endpoint']}?{urlencode(params)}", state=state)
+        return McpOAuthStartOutput(authorization_url=authorization_url, state=state)
+
+    async def _select_authorization_url(self, *, metadata: dict[str, Any], params: dict[str, str], timeout_ms: int) -> str:
+        rejected_404: list[str] = []
+        candidates = _derived_authorization_endpoint_candidates(metadata)
+        if not candidates:
+            raise ValueError("Could not discover OAuth authorization endpoint")
+        for endpoint in candidates:
+            authorization_url = f"{endpoint}?{urlencode(params)}"
+            status_code = await self._authorization_url_status(authorization_url, timeout_ms=timeout_ms)
+            if status_code == 404:
+                rejected_404.append(endpoint)
+                continue
+            if status_code is None or status_code < 500:
+                metadata["authorization_endpoint"] = endpoint
+                return authorization_url
+        details = ", ".join(rejected_404[:4])
+        raise ValueError(f"Discovered OAuth authorization endpoint returned 404. Tried: {details}")
+
+    async def _authorization_url_status(self, authorization_url: str, *, timeout_ms: int) -> int | None:
+        result = await self._executor.execute(
+            method="GET",
+            url=authorization_url,
+            headers={"Accept": "text/html,application/xhtml+xml,application/json"},
+            timeout_ms=min(timeout_ms or 30000, 10000),
+        )
+        return result.status_code
 
     async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int) -> dict[str, Any]:
         payload = {
