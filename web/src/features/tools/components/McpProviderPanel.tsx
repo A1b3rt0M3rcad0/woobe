@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
-import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
+import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, refreshMcpTools, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
+import type { DiscoveredMcpTool, McpDiscoveryDiagnostic, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
 import { AlertTriangle, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -22,14 +22,24 @@ function discoveredTools(tool: Tool): DiscoveredMcpTool[] {
   return Array.isArray(config.discovered_tools) ? config.discovered_tools : []
 }
 
-function status(tool: Tool): string {
+function oauthStatus(tool: Tool): string {
   const oauth = mcpConfig(tool).oauth as { status?: string } | undefined
   return oauth?.status || 'disconnected'
 }
 
+function diagnostic(tool: Tool): McpDiscoveryDiagnostic | null {
+  const value = mcpConfig(tool).mcp_discovery
+  return value && typeof value === 'object' ? value : null
+}
+
+function readinessStatus(tool: Tool): string {
+  const config = mcpConfig(tool)
+  return config.mcp_status || diagnostic(tool)?.status || (oauthStatus(tool) === 'connected' ? 'oauth_connected' : 'disconnected')
+}
+
 function errorText(tool: Tool): string | null {
-  const config = (tool.config || {}) as Record<string, unknown>
-  return typeof config.oauth_discovery_error === 'string' ? config.oauth_discovery_error : null
+  const config = mcpConfig(tool)
+  return config.oauth_discovery_error || diagnostic(tool)?.error || null
 }
 
 function permissionMode(tool: DiscoveredMcpTool): McpToolPermissionMode {
@@ -44,6 +54,25 @@ function summary(tools: DiscoveredMcpTool[]) {
   }, { allow: 0, deny: 0, review: 0 } as Record<McpToolPermissionMode, number>)
 }
 
+function readinessLabel(value: string): string {
+  const labels: Record<string, string> = {
+    ready: 'ready',
+    token_invalid: 'token invalid',
+    scope_denied: 'scope denied',
+    discovery_failed: 'discovery failed',
+    empty: 'empty discovery',
+    oauth_connected: 'oauth connected',
+    disconnected: 'disconnected',
+  }
+  return labels[value] || value
+}
+
+function readinessBadgeStatus(value: string): string {
+  if (value === 'ready') return 'connected'
+  if (value === 'token_invalid' || value === 'scope_denied' || value === 'discovery_failed') return 'failed'
+  return value
+}
+
 interface Props {
   tool: Tool
   onChanged?: () => void | Promise<void>
@@ -51,11 +80,14 @@ interface Props {
 
 export function McpProviderPanel({ tool, onChanged }: Props) {
   const [open, setOpen] = useState(false)
+  const [showDiagnostic, setShowDiagnostic] = useState(false)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const discovered = discoveredTools(tool)
   const counts = summary(discovered)
-  const connected = status(tool) === 'connected'
+  const connected = oauthStatus(tool) === 'connected'
+  const mcpReadiness = readinessStatus(tool)
   const visibleError = errorText(tool)
+  const details = diagnostic(tool)
 
   const handleConnect = async () => {
     try {
@@ -69,6 +101,20 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       window.location.assign(result.authorization_url)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to start MCP connection')
+      setBusyKey(null)
+    }
+  }
+
+  const handleRefresh = async () => {
+    try {
+      setBusyKey('refresh')
+      const result = await refreshMcpTools({ tool_id: tool.id })
+      if (result.status === 'ready') toast.success(`MCP discovery found ${result.discovered_count} tool(s)`)
+      else toast.error(result.error || `MCP discovery status: ${result.status}`)
+      await onChanged?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to refresh MCP discovery')
+    } finally {
       setBusyKey(null)
     }
   }
@@ -124,18 +170,21 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
             <p className="truncate text-[10px] text-muted">{counts.allow} exposed to agent · {discovered.length} discovered</p>
           </div>
         </div>
-        <StatusBadge status={connected ? 'connected' : status(tool)} />
+        <StatusBadge status={readinessBadgeStatus(mcpReadiness)} />
       </div>
+
+      <div className="text-[10px] text-muted">OAuth: {oauthStatus(tool)} · MCP: {readinessLabel(mcpReadiness)}</div>
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>{connected ? 'Reconnect / rediscover' : 'Connect'}</Button>
+        {connected ? <Button size="sm" variant="outline" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh discovery</Button> : null}
         {connected ? <Button size="sm" variant="outline" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
       </div>
 
       {connected && discovered.length === 0 ? (
         <div className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Connected provider, but no remote MCP tools are visible to the agent. Use Reconnect / rediscover to request a new token and run authenticated discovery again.</span>
+          <span>OAuth is connected, but the MCP server is not ready for the agent yet. Use Refresh discovery, or Reconnect if the token audience/scope is wrong.</span>
         </div>
       ) : null}
 
@@ -147,6 +196,22 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       ) : null}
 
       {visibleError ? <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">Discovery error: {visibleError}</div> : null}
+
+      {details ? (
+        <div className="space-y-1 rounded-md border border-border/70 bg-card/40 p-2 text-[10px] text-muted">
+          <button type="button" className="text-primary-light" onClick={() => setShowDiagnostic(value => !value)}>{showDiagnostic ? 'Hide' : 'Show'} discovery diagnostic</button>
+          {showDiagnostic ? (
+            <div className="space-y-1 break-all font-mono">
+              <div>phase: {details.phase || '—'}</div>
+              <div>http_status: {details.http_status ?? '—'}</div>
+              <div>initialized: {String(details.initialized ?? false)}</div>
+              <div>server_url: {details.server_url || '—'}</div>
+              <div>checked_at: {details.checked_at || '—'}</div>
+              {details.www_authenticate ? <div>www_authenticate: {details.www_authenticate}</div> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {discovered.length > 0 ? (
         <div className="space-y-3">
