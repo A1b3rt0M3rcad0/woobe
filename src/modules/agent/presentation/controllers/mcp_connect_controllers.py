@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from modules.agent.application import mcp_oauth, mcp_oauth_flows
+from modules.agent.application import mcp_oauth
+from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
