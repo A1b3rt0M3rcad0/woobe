@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
+from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
 from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
@@ -27,7 +27,10 @@ class RefreshMcpProviderToolsOutput(BaseModel):
     tool_id: UUID
     discovered_count: int
     initialized: bool
+    status: str
     error: str | None = None
+    http_status: int | None = None
+    phase: str | None = None
 
 
 def _enum_value(value: Any) -> str:
@@ -119,6 +122,44 @@ async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dic
         return {}
 
 
+def _discovery_status(output: McpDiscoverOutput) -> str:
+    if not output.error and output.tools:
+        return "ready"
+    if output.http_status == 401:
+        return "token_invalid"
+    if output.http_status == 403:
+        return "scope_denied"
+    if output.error:
+        return "discovery_failed"
+    return "empty"
+
+
+def _safe_www_authenticate(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value[:1000]
+
+
+def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutput, *, now: datetime, server_url: str) -> str:
+    status = _discovery_status(output)
+    config["mcp_status"] = status
+    config["mcp_discovery"] = {
+        "status": status,
+        "phase": output.phase,
+        "http_status": output.http_status,
+        "initialized": output.initialized,
+        "error": output.error,
+        "server_url": server_url,
+        "checked_at": now.isoformat(),
+        "www_authenticate": _safe_www_authenticate(output.www_authenticate),
+    }
+    if output.error:
+        config["oauth_discovery_error"] = output.error
+    else:
+        config.pop("oauth_discovery_error", None)
+    return status
+
+
 async def _discover_and_persist_tool(
     *,
     tool: Tool,
@@ -145,8 +186,8 @@ async def _discover_and_persist_tool(
         )
     )
 
+    status = _write_discovery_diagnostic(config, output, now=now, server_url=str(server_url))
     if output.error or not output.tools:
-        config["oauth_discovery_error"] = output.error or "MCP discovery returned no tools"
         tool.config = config
         tool.updated_at = now
         await tool_repo.update(tool)
@@ -154,13 +195,15 @@ async def _discover_and_persist_tool(
             tool_id=tool.id,
             discovered_count=0,
             initialized=output.initialized,
-            error=config["oauth_discovery_error"],
+            status=status,
+            error=output.error,
+            http_status=output.http_status,
+            phase=output.phase,
         )
 
     next_tools = [item.model_dump() for item in output.tools]
     config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
     config["discovered_at"] = now.isoformat()
-    config.pop("oauth_discovery_error", None)
     tool.config = config
     tool.updated_at = now
     await tool_repo.update(tool)
@@ -168,7 +211,10 @@ async def _discover_and_persist_tool(
         tool_id=tool.id,
         discovered_count=len(next_tools),
         initialized=output.initialized,
+        status="ready",
         error=None,
+        http_status=output.http_status,
+        phase=output.phase,
     )
 
 
