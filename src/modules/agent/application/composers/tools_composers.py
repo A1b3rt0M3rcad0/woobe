@@ -53,7 +53,7 @@ from shared.infra.transactional_handler import TransactionalHandler
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
- def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:
+def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:
     return cast(OutboxEventWriter, SQLAlchemyAgentOutboxEventWriter(uow))
 
 
