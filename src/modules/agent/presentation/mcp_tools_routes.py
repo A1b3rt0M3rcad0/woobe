@@ -4,7 +4,9 @@ from modules.agent.application.composers.tools_composers import (
     complete_mcp_oauth_composer,
     disconnect_mcp_oauth_composer,
     discover_mcp_tools_composer,
+    poll_mcp_oauth_device_composer,
     start_mcp_oauth_composer,
+    start_mcp_oauth_device_composer,
     status_mcp_oauth_composer,
 )
 from modules.agent.application.mcp_oauth import McpOAuthConfigTokenProvider
@@ -91,6 +93,20 @@ async def start_mcp_oauth(request: FastAPIRequest):
 @router.post("/mcp/oauth/complete")
 async def complete_mcp_oauth(request: FastAPIRequest):
     handler = complete_mcp_oauth_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/mcp/oauth/device/start")
+async def start_mcp_oauth_device(request: FastAPIRequest):
+    handler = start_mcp_oauth_device_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/mcp/oauth/device/poll")
+async def poll_mcp_oauth_device(request: FastAPIRequest):
+    handler = poll_mcp_oauth_device_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
