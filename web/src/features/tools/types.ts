@@ -38,6 +38,17 @@ export interface McpToolPermission {
   risk_level?: string | null
 }
 
+export interface McpDiscoveryDiagnostic {
+  status?: string | null
+  phase?: string | null
+  http_status?: number | null
+  initialized?: boolean | null
+  error?: string | null
+  server_url?: string | null
+  checked_at?: string | null
+  www_authenticate?: string | null
+}
+
 export interface DiscoveredMcpTool {
   name: string
   title?: string | null
@@ -59,6 +70,9 @@ export interface McpToolConfig {
   discovery_cache_ttl_seconds?: number
   timeout_ms?: number
   oauth?: Record<string, unknown>
+  oauth_discovery_error?: string
+  mcp_status?: string
+  mcp_discovery?: McpDiscoveryDiagnostic
 }
 
 export type ToolConfig = HttpToolConfig | McpToolConfig | Record<string, unknown>
@@ -158,6 +172,21 @@ export interface McpOAuthStatusResponse {
   authorization_server_issuer?: string | null
   scopes: string[]
   expires_at?: string | null
+}
+
+export interface RefreshMcpToolsRequest {
+  tool_id: string
+  timeout_ms?: number
+}
+
+export interface RefreshMcpToolsResponse {
+  tool_id: string
+  discovered_count: number
+  initialized: boolean
+  status: string
+  error?: string | null
+  http_status?: number | null
+  phase?: string | null
 }
 
 export interface McpToolPermissionUpdate {
