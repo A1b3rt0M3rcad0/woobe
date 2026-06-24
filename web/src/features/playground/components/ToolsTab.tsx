@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/common/EmptyState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { Wrench, Plus, Link2, AlertTriangle, Circle, XCircle, Pencil } from 'lucide-react'
+import { Wrench, Plus, Link2, Circle, XCircle, Pencil } from 'lucide-react'
 import { ImportToolsModal } from './ImportToolsModal'
 import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
@@ -24,6 +24,13 @@ const riskVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning
   critical: 'destructive',
 }
 
+function toolTypeLabel(tool: Tool): string {
+  const config = (tool.config || {}) as Record<string, unknown>
+  if (String(tool.type).toLowerCase() === 'mcp' || config.protocol === 'mcp') return 'MCP'
+  if (String(tool.type).toLowerCase().includes('http')) return 'HTTP'
+  return String(tool.type || 'Tool').replace(/_/g, ' ').toUpperCase()
+}
+
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const { data: tools = [], isLoading, refetch } = useAgentTools(agentId)
   const { refetch: refetchProjectTools } = useTools(projectId)
@@ -35,6 +42,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
   const agentToolIds = new Set(tools.map(t => t.id))
+  const activeCount = tools.filter(tool => tool.status === 'active').length
 
   const refetchAll = async () => {
     await Promise.all([refetch(), refetchProjectTools()])
@@ -72,10 +80,6 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
     refetchProjectTools()
   }
 
-  const handleEdit = (tool: Tool) => {
-    setEditingTool(tool)
-  }
-
   const handleEditSaved = () => {
     setEditingTool(null)
     refetch()
@@ -86,27 +90,21 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-medium text-blue-300">Grant capabilities to the agent</p>
-            <p className="text-xs text-muted mt-1">
-              Activate tools to let the agent interact with external systems, execute code, and access real-time data during runs.
-            </p>
-          </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-muted uppercase tracking-wider">Agent tools</p>
+          <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} active</p>
         </div>
-      </div>
-
-      <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          Create
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
-          <Link2 className="mr-1 h-4 w-4" />
-          Import
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Create
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
+            <Link2 className="mr-1 h-4 w-4" />
+            Import
+          </Button>
+        </div>
       </div>
 
       {tools.length === 0 ? (
@@ -114,107 +112,57 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
           <EmptyState
             icon={<Wrench className="h-10 w-10" />}
             title="No tools imported"
-            description="Create or import tools to give your agent additional capabilities."
+            description="Create or import tools to give this agent extra capabilities."
             action={
               <div className="flex gap-2 mt-2">
                 <Button size="sm" onClick={() => setShowCreateModal(true)}>
                   <Plus className="mr-1 h-4 w-4" />
-                  Create Tool
+                  Create
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
                   <Link2 className="mr-1 h-4 w-4" />
-                  Import Tools
+                  Import
                 </Button>
               </div>
             }
           />
         </div>
       ) : (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted uppercase tracking-wider">Agent Tools</p>
-            <span className="text-[10px] text-muted">{tools.filter(t => t.status === 'active').length} of {tools.length} active</span>
-          </div>
-          <div className="space-y-2">
-            {tools.map((tool) => {
-              const isActive = tool.status === 'active'
-              const isMcp = isMcpProviderTool(tool)
-              return (
-              <div key={tool.id} className={`rounded-lg border p-3 space-y-2 transition-opacity ${isActive ? 'border-border bg-background' : 'border-border/50 bg-background/50 opacity-70'}`}>
-                <div className="flex items-start justify-between gap-2">
+        <div className="space-y-2">
+          {tools.map((tool) => {
+            const isActive = tool.status === 'active'
+            const isMcp = isMcpProviderTool(tool)
+            return (
+              <div key={tool.id} className={`rounded-lg border p-3 transition-opacity ${isActive ? 'border-border bg-background' : 'border-border/50 bg-background/50 opacity-70'}`}>
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      {isActive ? (
-                        <Circle className="h-2.5 w-2.5 fill-emerald-400 text-emerald-400 shrink-0" />
-                      ) : (
-                        <XCircle className="h-2.5 w-2.5 text-muted shrink-0" />
-                      )}
-                      <p className="text-sm font-medium truncate">{tool.name}</p>
-                      <Badge variant={isActive ? 'success' : 'secondary'} className="text-[10px] px-1 py-0">
-                        {isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      {isActive ? <Circle className="h-2.5 w-2.5 fill-emerald-400 text-emerald-400 shrink-0" /> : <XCircle className="h-2.5 w-2.5 text-muted shrink-0" />}
+                      <p className="truncate text-sm font-medium text-white">{tool.name}</p>
+                      <Badge variant={isActive ? 'success' : 'secondary'} className="text-[10px] px-1 py-0">{isActive ? 'Active' : 'Inactive'}</Badge>
                     </div>
-                    <p className="text-xs text-muted mt-0.5">{tool.description || 'No description'}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted">{tool.description || 'No description'}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{toolTypeLabel(tool)}</Badge>
+                      <Badge variant={riskVariant[tool.risk_level] || 'default'} className="text-[10px] px-1.5 py-0">{tool.risk_level}</Badge>
+                    </div>
                   </div>
-                  <Badge variant={riskVariant[tool.risk_level] || 'default'}>{tool.risk_level}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted uppercase tracking-wider">{tool.type}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={isActive ? 'default' : 'outline'}
-                      onClick={() => handleToggleActive(tool)}
-                    >
-                      {isActive ? 'Active' : 'Activate'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEdit(tool)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-400 hover:text-red-300"
-                      onClick={() => handleRemove(tool)}
-                    >
-                      Remove
-                    </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button size="sm" variant={isActive ? 'outline' : 'default'} onClick={() => handleToggleActive(tool)}>{isActive ? 'Deactivate' : 'Activate'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingTool(tool)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => handleRemove(tool)}>Remove</Button>
                   </div>
                 </div>
-                {isMcp ? <McpProviderPanel tool={tool} onChanged={refetchAll} /> : null}
+                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refetchAll} /></div> : null}
               </div>
-              )
-            })}
-          </div>
-        </>
+            )
+          })}
+        </div>
       )}
 
-      <ImportToolsModal
-        open={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        projectId={projectId}
-        agentId={agentId}
-        importedToolIds={agentToolIds}
-        onImport={handleImport}
-      />
-
-      <CreateToolModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        projectId={projectId}
-        agentId={agentId}
-        onCreated={handleCreated}
-      />
-
-      <EditToolModal
-        tool={editingTool}
-        onClose={() => setEditingTool(null)}
-        onSaved={handleEditSaved}
-      />
+      <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} agentId={agentId} importedToolIds={agentToolIds} onImport={handleImport} />
+      <CreateToolModal open={showCreateModal} onClose={() => setShowCreateModal(false)} projectId={projectId} agentId={agentId} onCreated={handleCreated} />
+      <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={handleEditSaved} />
     </div>
   )
 }
