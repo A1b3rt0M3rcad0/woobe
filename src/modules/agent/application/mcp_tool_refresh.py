@@ -39,9 +39,9 @@ def _enum_value(value: Any) -> str:
 
 def _is_mcp_server_provider(tool: Tool) -> bool:
     config = tool.config or {}
-    tool_type = _enum_value(tool.type)
+    tool_type = _enum_value(tool.type).lower()
     return (
-        tool_type in {ToolType.MCP.value, "mcp", "http_mcp"}
+        (tool_type == ToolType.MCP.value or tool_type == "mcp" or config.get("protocol") == "mcp")
         and (config.get("mode") == "server" or config.get("exposure") == "all_discovered")
         and (config.get("server") or {}).get("transport", "streamable_http") == "streamable_http"
     )
@@ -171,6 +171,8 @@ async def _discover_and_persist_tool(
     now: datetime,
 ) -> RefreshMcpProviderToolsOutput:
     config = dict(tool.config or {})
+    if not _is_mcp_server_provider(tool):
+        raise ValueError("Tool is not an MCP server provider")
     server = config.get("server") or {}
     server_url = server.get("url") or config.get("url")
     if not server_url:
@@ -236,49 +238,27 @@ class RefreshMcpProviderToolsUseCase:
         tool = await self._tool_repo.get_by_id(input_dto.tool_id)
         if tool is None:
             raise ValueError("MCP tool provider not found")
-        if not _is_mcp_server_provider(tool):
-            raise ValueError("Tool is not an MCP server provider")
         return await _discover_and_persist_tool(
             tool=tool,
             tool_repo=self._tool_repo,
             executor=self._executor,
             secret_resolver=self._secret_resolver,
             auth_header_provider=self._auth_header_provider,
-            timeout_ms=input_dto.timeout_ms or int((tool.config or {}).get("timeout_ms") or tool.timeout_ms or 30000),
+            timeout_ms=input_dto.timeout_ms,
             now=utc_now(),
         )
 
-
-async def refresh_stale_mcp_server_tools(
-    *,
-    tools: list[Tool],
-    tool_repo: ToolRepository,
-    executor: ToolExecutionPort,
-    secret_resolver: ToolSecretResolverPort | None = None,
-    auth_header_provider: Any | None = None,
-) -> list[Tool]:
-    now = utc_now()
-    refreshed_tools: list[Tool] = []
-
-    for tool in tools:
+    async def refresh_if_needed(self, tool: Tool) -> Tool:
+        now = utc_now()
         if not _needs_refresh(tool, now):
-            refreshed_tools.append(tool)
-            continue
-
-        try:
-            await _discover_and_persist_tool(
-                tool=tool,
-                tool_repo=tool_repo,
-                executor=executor,
-                secret_resolver=secret_resolver,
-                auth_header_provider=auth_header_provider,
-                timeout_ms=tool.timeout_ms or int((tool.config or {}).get("timeout_ms") or 30000),
-                now=now,
-            )
-            refreshed_tool = await tool_repo.get_by_id(tool.id)
-            refreshed_tools.append(refreshed_tool or tool)
-        except Exception as exc:
-            logger.warning("MCP discovery refresh failed for tool %s: %s", tool.id, exc)
-            refreshed_tools.append(tool)
-
-    return refreshed_tools
+            return tool
+        await _discover_and_persist_tool(
+            tool=tool,
+            tool_repo=self._tool_repo,
+            executor=self._executor,
+            secret_resolver=self._secret_resolver,
+            auth_header_provider=self._auth_header_provider,
+            timeout_ms=tool.timeout_ms or 30000,
+            now=now,
+        )
+        return await self._tool_repo.get_by_id(tool.id) or tool
