@@ -31,6 +31,15 @@ def _provider_advertises_client_capability(config: dict[str, Any], diagnostic: d
     return any("client_capability_based" in str(source).lower() for source in sources if source)
 
 
+def _has_auth_challenge(config: dict[str, Any], diagnostic: dict[str, Any]) -> bool:
+    if diagnostic.get("http_status") == 401:
+        return True
+    if diagnostic.get("www_authenticate"):
+        return True
+    metadata = config.get("mcp_resource_metadata")
+    return isinstance(metadata, dict) and bool(metadata.get("resource") or metadata.get("authorization_servers"))
+
+
 def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None = None) -> dict[str, Any]:
     cfg = dict(config or {})
     oauth = cfg.get("oauth") if isinstance(cfg.get("oauth"), dict) else {}
@@ -47,12 +56,25 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
         http_status == 401 and _provider_advertises_client_capability(cfg, diagnostic)
     )
     supports_device_code = _has_device_code_hint(cfg, diagnostic)
+    auth_required = _has_auth_challenge(cfg, diagnostic)
 
     if provider_client_rejected:
         state = "provider_not_supported"
         label = "Not supported"
         message = "This provider does not accept ProjectRAI with the normal OAuth flow. Use device code or provider-issued OAuth credentials."
         action = "device_code" if supports_device_code else "provider_credentials"
+        can_use_tools = False
+    elif oauth_status != "connected" and auth_required:
+        state = "needs_connection"
+        label = "Connect"
+        message = "This MCP provider requires a login before agents can use its tools."
+        action = "connect"
+        can_use_tools = False
+    elif oauth_status != "connected" and discovered_count == 0:
+        state = "needs_discovery"
+        label = "Load tools"
+        message = "Load this public MCP provider to see which tools it exposes."
+        action = "refresh"
         can_use_tools = False
     elif oauth_status != "connected":
         state = "needs_connection"
@@ -87,8 +109,8 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     else:
         state = "discovery_failed" if diagnostic else "not_ready"
         label = "Not ready"
-        message = "MCP tools are not available yet. Connect or refresh discovery."
-        action = "connect" if oauth_status != "connected" else "refresh"
+        message = "MCP tools are not available yet. Load tools or refresh discovery."
+        action = "refresh"
         can_use_tools = False
 
     return {
