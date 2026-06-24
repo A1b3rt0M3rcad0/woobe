@@ -49,6 +49,20 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
   }
 }
 
+function streamToolCallInfo(parsed: Record<string, unknown>): ToolCallInfo {
+  return {
+    tool_call_id: parsed.tool_call_id as string ?? null,
+    tool_name: parsed.tool_name as string ?? '',
+    input: parsed.input ?? null,
+    output: parsed.output ?? null,
+    duration_ms: parsed.duration_ms as number ?? null,
+    success: parsed.success as boolean ?? null,
+    status: parsed.status as string ?? null,
+    latency_ms: (parsed.http_latency_ms as number ?? parsed.latency_ms as number) ?? null,
+    error: parsed.error as string ?? null,
+  }
+}
+
 export async function createSession(data: CreateSessionRequest): Promise<Session> {
   return post<Session>('/runtime/sessions', data)
 }
@@ -167,14 +181,9 @@ export async function askStream(
             })
             break
           case 'tool_call':
-            callbacks.onToolCall?.({
-              tool_name: parsed.tool_name ?? '',
-              input: parsed.input ?? null,
-              output: parsed.output ?? null,
-              duration_ms: parsed.duration_ms ?? null,
-              success: parsed.success ?? null,
-              error: parsed.error ?? null,
-            })
+          case 'tool_call_started':
+          case 'tool_call_completed':
+            callbacks.onToolCall?.(streamToolCallInfo(parsed))
             break
         }
       } catch (e) {
