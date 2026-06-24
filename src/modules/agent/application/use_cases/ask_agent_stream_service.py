@@ -162,5 +162,5 @@ class AskAgentStreamService:
 
     @staticmethod
     def _format_event(event: RuntimeStreamEvent) -> str:
-        payload = json.dumps(event.payload, default=str)
-        return f"event: {event.event_type}\ndata: {payload}\n\n"
+        payload = {"type": event.event_type, **event.payload}
+        return f"event: {event.event_type}\ndata: {json.dumps(payload, default=str)}\n\n"
