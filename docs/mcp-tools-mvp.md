@@ -18,6 +18,8 @@ Supported flow:
 10. Cache `Mcp-Session-Id` by `agent_session_id + provider_id` when Redis is available.
 11. Continue execution without cache when Redis is unavailable.
 12. Connect OAuth-protected MCP providers from the provider card after the MCP provider exists.
+13. Prefer provider-advertised OAuth flow hints when a protected resource publishes multiple authorization servers.
+14. Support OAuth device-code connection for providers that cannot or do not accept ProjectRAI redirect callbacks.
 
 Out of scope for MVP:
 
@@ -31,7 +33,7 @@ Out of scope for MVP:
 
 ## MCP OAuth connect model
 
-OAuth belongs to the MCP provider, not to the agent-tool attachment. The intended user flow is:
+OAuth belongs to the MCP provider, not to the agent-tool attachment. The intended browser callback flow is:
 
 1. Create the MCP provider with its streamable HTTP URL. The provider can be saved even if unauthenticated discovery fails.
 2. Open the Tools page.
@@ -50,11 +52,22 @@ Available endpoints:
 ```text
 POST /tools/mcp/oauth/start
 POST /tools/mcp/oauth/complete
+POST /tools/mcp/oauth/device/start
+POST /tools/mcp/oauth/device/poll
 POST /tools/mcp/oauth/status
 POST /tools/mcp/oauth/disconnect
 ```
 
-The start flow supports PKCE, `resource`, authorization server metadata discovery, and dynamic client registration when the remote authorization server exposes a registration endpoint. When dynamic registration is not available, the API caller must pass `client_id` and optionally `client_secret`.
+The start flow supports PKCE, `resource`, authorization server metadata discovery, provider authorization hints, and dynamic client registration when the remote authorization server exposes a registration endpoint. When dynamic registration is not available, the API caller must pass `client_id` and optionally `client_secret`.
+
+For providers that advertise `client_capability_based` authorization or a `device_code` option, the backend exposes a device-code flow:
+
+1. Call `/tools/mcp/oauth/device/start` with `tool_id`, optional `scopes`, and provider-issued `client_id`/`client_secret` when dynamic registration is not available.
+2. Show `verification_uri_complete` when present; otherwise show `verification_uri` and `user_code`.
+3. Poll `/tools/mcp/oauth/device/poll` no faster than the returned `interval` until the response status is `connected`, `authorization_pending`, `slow_down`, or `device_expired`.
+4. On `connected`, ProjectRAI stores the encrypted token set and immediately retries authenticated MCP discovery.
+
+Do not treat `OAuth: connected` as equivalent to MCP readiness. The authoritative readiness state is `mcp_status=ready` after authenticated `initialize` and `tools/list` succeed.
 
 ## MCP permission policy model
 
@@ -143,15 +156,16 @@ Manual validation:
 2. Create a public MCP server and optionally run discovery during creation.
 3. Create a protected MCP server without discovery, then connect it from the Tools page.
 4. Confirm OAuth completion runs authenticated discovery and returns to permission configuration.
-5. Confirm discovered tools appear in the UI as `review`.
-6. Use `Allow all`, `Deny all`, and per-tool `Allow/Deny/Review` controls.
-7. Confirm only allowed tools are exposed to agents.
-8. Save the MCP provider.
-9. Ask an agent question that forces one allowed discovered MCP tool call.
-10. Confirm a denied/review tool is blocked if invoked directly.
-11. Repeat in the same session and confirm a session cache hit in logs.
-12. Stop Redis and confirm MCP calls still work without cache.
-13. Test an authenticated MCP server and confirm discovery refresh can resolve configured headers and OAuth headers.
+5. For a provider with device-code hints, call `/tools/mcp/oauth/device/start`, complete verification out of band, and poll `/tools/mcp/oauth/device/poll` until connected.
+6. Confirm discovered tools appear in the UI as `review`.
+7. Use `Allow all`, `Deny all`, and per-tool `Allow/Deny/Review` controls.
+8. Confirm only allowed tools are exposed to agents.
+9. Save the MCP provider.
+10. Ask an agent question that forces one allowed discovered MCP tool call.
+11. Confirm a denied/review tool is blocked if invoked directly.
+12. Repeat in the same session and confirm a session cache hit in logs.
+13. Stop Redis and confirm MCP calls still work without cache.
+14. Test an authenticated MCP server and confirm discovery refresh can resolve configured headers and OAuth headers.
 
 ## Security notes
 
@@ -163,5 +177,8 @@ Do not log:
 - sensitive headers
 - full request/response bodies
 - OAuth code/state/verifier values
+- OAuth device code
+- access tokens
+- refresh tokens
 
 HTTP and MCP remote calls both go through the guarded HTTP executor, which blocks non-public targets, private/loopback networks, DNS rebinding, and redirects.
