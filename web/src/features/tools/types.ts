@@ -62,6 +62,20 @@ export interface McpDiscoveryDiagnostic {
   www_authenticate?: string | null
 }
 
+export interface McpReadiness {
+  state: 'ready' | 'needs_connection' | 'provider_not_supported' | 'needs_permission' | 'no_tools' | 'token_rejected' | 'discovery_failed' | 'not_ready' | string
+  label: string
+  message: string
+  action: 'connect' | 'device_code' | 'provider_credentials' | 'configure_permissions' | 'refresh' | 'disconnect' | string
+  can_use_tools: boolean
+  oauth_connected: boolean
+  mcp_ready: boolean
+  discovered_count: number
+  exposed_count: number
+  supports_device_code: boolean
+  needs_provider_client: boolean
+}
+
 export interface DiscoveredMcpTool {
   name: string
   title?: string | null
@@ -87,6 +101,7 @@ export interface McpToolConfig {
   mcp_status?: string
   mcp_resource_metadata?: McpProtectedResourceMetadata
   mcp_discovery?: McpDiscoveryDiagnostic
+  mcp_readiness?: McpReadiness
 }
 
 export type ToolConfig = HttpToolConfig | McpToolConfig | Record<string, unknown>
@@ -169,6 +184,38 @@ export interface McpOAuthStartResponse {
   status: string
 }
 
+export interface McpOAuthDeviceStartRequest {
+  tool_id: string
+  scopes?: string[]
+  client_id?: string
+  client_secret?: string
+  timeout_ms?: number
+}
+
+export interface McpOAuthDeviceStartResponse {
+  status: string
+  device_code_expires_at?: string | null
+  interval_seconds: number
+  user_code?: string | null
+  verification_uri?: string | null
+  verification_uri_complete?: string | null
+  message?: string | null
+}
+
+export interface McpOAuthDevicePollRequest {
+  tool_id: string
+  timeout_ms?: number
+}
+
+export interface McpOAuthDevicePollResponse {
+  status: string
+  connected: boolean
+  message?: string | null
+  interval_seconds?: number | null
+  discovered_count?: number | null
+  error?: string | null
+}
+
 export interface McpOAuthCompleteRequest {
   tool_id: string
   code: string
@@ -245,4 +292,5 @@ export interface CreateSecretRequest {
   name: string
   type?: string
   value: string
+  data?: Record<string, unknown>
 }
