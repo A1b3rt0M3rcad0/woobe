@@ -22,6 +22,7 @@ from shared.infra.time import utc_now
 MCP_PROTOCOL_VERSION = "2025-06-18"
 OAUTH_STATE_TTL_SECONDS = 600
 OAUTH_EXPIRY_SKEW_SECONDS = 60
+SAFE_SCOPE_FALLBACK = {"openid", "email", "profile", "offline_access"}
 
 
 class McpOAuthStartInput(BaseModel):
@@ -175,7 +176,6 @@ def _parse_www_authenticate_params(header: str | None) -> dict[str, str]:
             index += 1
         if index < len(text) and text[index] == '"':
             index += 1
-            value_start = index
             escaped = False
             value_chars: list[str] = []
             while index < len(text):
@@ -240,16 +240,34 @@ def _resource_metadata_candidates(server_url: str) -> list[str]:
 
 def _authorization_server_metadata_candidates(server_url: str) -> list[str]:
     origin = _origin_from_url(server_url)
-    return [
-        _well_known_authorization_server_url(origin),
-        _well_known_openid_configuration_url(origin),
-    ]
+    return [_well_known_authorization_server_url(origin), _well_known_openid_configuration_url(origin)]
 
 
 def _list_of_strings(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
+
+def _safe_auth_hints(raw: dict[str, Any]) -> dict[str, Any]:
+    hints: dict[str, Any] = {}
+    for key, value in raw.items():
+        if key == "authorization_hints" or key.endswith("_auth_hints"):
+            if isinstance(value, dict):
+                hints[key] = value
+            elif isinstance(value, list):
+                hints[key] = value
+    return hints
+
+
+def _auth_hints_have_alternate_flow(metadata: dict[str, Any] | None) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    hints = metadata.get("authorization_hints")
+    if not isinstance(hints, dict):
+        return False
+    text = json.dumps(hints, sort_keys=True).lower()
+    return "device_code" in text or "client_capability_based" in text or "potential_clients" in text
 
 
 def _normalized_protected_resource_metadata(raw: dict[str, Any], *, base_url: str) -> dict[str, Any]:
@@ -261,6 +279,9 @@ def _normalized_protected_resource_metadata(raw: dict[str, Any], *, base_url: st
         "scopes_supported": _list_of_strings(raw.get("scopes_supported")),
         "bearer_methods_supported": _list_of_strings(raw.get("bearer_methods_supported")),
     }
+    auth_hints = _safe_auth_hints(raw)
+    if auth_hints:
+        metadata["authorization_hints"] = auth_hints
     return {key: value for key, value in metadata.items() if value not in (None, [], {})}
 
 
@@ -270,7 +291,7 @@ def _choose_scopes(*, explicit: list[str], challenge: list[str], metadata: dict[
     if challenge:
         return challenge
     supported = metadata.get("scopes_supported")
-    if isinstance(supported, list) and supported and set(supported).issubset({"openid", "email", "profile", "offline_access"}):
+    if isinstance(supported, list) and supported and set(supported).issubset(SAFE_SCOPE_FALLBACK):
         return [str(scope) for scope in supported]
     return []
 
@@ -298,21 +319,11 @@ def _derived_authorization_endpoint_candidates(metadata: dict[str, Any]) -> list
         for suffix in ("/token", "/oauth/token", "/oauth2/token"):
             if path.endswith(suffix):
                 base = path[: -len(suffix)]
-                candidates.extend([
-                    f"{origin}{base}/authorize",
-                    f"{origin}{base}/authorization",
-                    f"{origin}{base}/oauth/authorize",
-                    f"{origin}{base}/oauth2/authorize",
-                ])
+                candidates.extend([f"{origin}{base}/authorize", f"{origin}{base}/authorization", f"{origin}{base}/oauth/authorize", f"{origin}{base}/oauth2/authorize"])
         for suffix in ("/register", "/registration", "/clients", "/client"):
             if path.endswith(suffix):
                 base = path[: -len(suffix)]
-                candidates.extend([
-                    f"{origin}{base}/authorize",
-                    f"{origin}{base}/authorization",
-                    f"{origin}{base}/oauth/authorize",
-                    f"{origin}{base}/oauth2/authorize",
-                ])
+                candidates.extend([f"{origin}{base}/authorize", f"{origin}{base}/authorization", f"{origin}{base}/oauth/authorize", f"{origin}{base}/oauth2/authorize"])
     issuer = metadata.get("authorization_server_issuer")
     if isinstance(issuer, str) and issuer:
         try:
@@ -355,14 +366,7 @@ def _derived_token_endpoint_candidates(oauth: dict[str, Any]) -> list[str]:
     if isinstance(issuer, str) and issuer:
         try:
             origin = _origin_from_url(issuer)
-            candidates.extend([
-                _absolute_url("token", issuer),
-                _absolute_url("oauth/token", issuer),
-                _absolute_url("oauth2/token", issuer),
-                f"{origin}/token",
-                f"{origin}/oauth/token",
-                f"{origin}/oauth2/token",
-            ])
+            candidates.extend([_absolute_url("token", issuer), _absolute_url("oauth/token", issuer), _absolute_url("oauth2/token", issuer), f"{origin}/token", f"{origin}/oauth/token", f"{origin}/oauth2/token"])
         except ValueError:
             pass
     return _dedupe(candidates)
@@ -424,8 +428,10 @@ def _discovery_status(output: McpDiscoverOutput, oauth: dict[str, Any]) -> str:
         metadata_resource = resource_metadata.get("resource") if isinstance(resource_metadata, dict) else None
         if metadata_resource and oauth_resource and str(metadata_resource).rstrip("/") != oauth_resource.rstrip("/"):
             return "resource_mismatch"
-        if header_resource and not metadata_resource:
+        if header_resource and not resource_metadata:
             return "metadata_required"
+        if _auth_hints_have_alternate_flow(resource_metadata):
+            return "provider_client_rejected"
         return "token_invalid"
     if output.http_status == 403:
         return "scope_denied"
@@ -436,6 +442,7 @@ def _discovery_status(output: McpDiscoverOutput, oauth: dict[str, Any]) -> str:
 
 def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutput, oauth: dict[str, Any], *, server_url: str) -> None:
     status = _discovery_status(output, oauth)
+    protected = oauth.get("protected_resource_metadata") if isinstance(oauth.get("protected_resource_metadata"), dict) else {}
     config["mcp_status"] = status
     config["mcp_discovery"] = {
         "status": status,
@@ -445,7 +452,10 @@ def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutpu
         "error": output.error,
         "server_url": server_url,
         "oauth_resource": oauth.get("resource"),
-        "protected_resource": (oauth.get("protected_resource_metadata") or {}).get("resource") if isinstance(oauth.get("protected_resource_metadata"), dict) else None,
+        "protected_resource": protected.get("resource"),
+        "authorization_hints": protected.get("authorization_hints"),
+        "authorization_server_issuer": oauth.get("authorization_server_issuer"),
+        "token_endpoint_auth_method": oauth.get("token_endpoint_auth_method"),
         "checked_at": utc_now().isoformat(),
         "www_authenticate": output.www_authenticate[:1000] if output.www_authenticate else None,
     }
@@ -477,17 +487,14 @@ class McpOAuthMetadataResolver:
             "authorization_server_issuer": _absolute_url(authorization_server_issuer, server_origin),
             "resource": _canonical_resource_uri(server_url),
         }
-
         challenge = await self._resource_metadata_challenge(server_url=server_url, timeout_ms=timeout_ms)
         if challenge.get("scopes"):
             metadata["required_scopes"] = challenge["scopes"]
-
         resource_metadata_urls: list[str] = []
         header_url = challenge.get("resource_metadata_url")
         if isinstance(header_url, str) and header_url:
             resource_metadata_urls.append(_absolute_url(header_url, server_origin) or header_url)
         resource_metadata_urls.extend(_resource_metadata_candidates(server_url))
-
         for resource_metadata_url in list(dict.fromkeys(resource_metadata_urls)):
             resource_metadata = await self._try_get_json(resource_metadata_url, timeout_ms=timeout_ms)
             if not isinstance(resource_metadata, dict):
@@ -504,10 +511,8 @@ class McpOAuthMetadataResolver:
                 if isinstance(auth_servers, list) and auth_servers and not metadata.get("authorization_server_issuer"):
                     metadata["authorization_server_issuer"] = auth_servers[0]
                 break
-
         if metadata["authorization_endpoint"] and metadata["token_endpoint"]:
             return metadata
-
         issuer = metadata.get("authorization_server_issuer")
         if issuer:
             for url in [_well_known_authorization_server_url(str(issuer)), _well_known_openid_configuration_url(str(issuer))]:
@@ -516,7 +521,6 @@ class McpOAuthMetadataResolver:
                     self._apply_authorization_server_metadata(metadata, as_metadata, str(issuer), force=True)
                     if metadata.get("authorization_endpoint") and metadata.get("token_endpoint"):
                         break
-
         if not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint"):
             for url in _authorization_server_metadata_candidates(server_url):
                 as_metadata = await self._try_get_json(url, timeout_ms=timeout_ms)
@@ -527,7 +531,6 @@ class McpOAuthMetadataResolver:
                         metadata["authorization_server_issuer"] = _absolute_url(as_metadata.get("issuer"), server_origin) or server_origin
                     if metadata.get("authorization_endpoint") and metadata.get("token_endpoint"):
                         break
-
         if not metadata.get("authorization_endpoint") or not metadata.get("token_endpoint"):
             raise ValueError("Could not discover MCP OAuth authorization and token endpoints")
         return metadata
@@ -550,29 +553,10 @@ class McpOAuthMetadataResolver:
             metadata["token_endpoint_auth_methods_supported"] = token_methods
 
     async def _resource_metadata_challenge(self, *, server_url: str, timeout_ms: int) -> dict[str, Any]:
-        initialize_payload = {
-            "jsonrpc": "2.0",
-            "id": "oauth-discovery",
-            "method": "initialize",
-            "params": {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
-            },
-        }
-        result = await self._executor.execute(
-            method="POST",
-            url=server_url,
-            headers={"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
-            body=json.dumps(initialize_payload),
-            timeout_ms=timeout_ms,
-        )
+        initialize_payload = {"jsonrpc": "2.0", "id": "oauth-discovery", "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"}}}
+        result = await self._executor.execute(method="POST", url=server_url, headers={"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION}, body=json.dumps(initialize_payload), timeout_ms=timeout_ms)
         header = _headers(result).get("www-authenticate")
-        return {
-            "resource_metadata_url": _parse_www_authenticate_resource_metadata(header),
-            "scopes": _parse_www_authenticate_scopes(header),
-            "www_authenticate": header,
-        }
+        return {"resource_metadata_url": _parse_www_authenticate_resource_metadata(header), "scopes": _parse_www_authenticate_scopes(header), "www_authenticate": header}
 
     async def _get_json(self, url: str, *, timeout_ms: int) -> dict[str, Any]:
         result = await self._executor.execute(method="GET", url=url, headers={"Accept": "application/json"}, timeout_ms=timeout_ms)
@@ -605,66 +589,26 @@ class McpOAuthStartUseCase:
         server_url = str(server.get("url") or config.get("url") or "")
         if not server_url:
             raise ValueError("MCP server.url is required before OAuth connect")
-
-        metadata = await McpOAuthMetadataResolver(self._executor).resolve(
-            server_url=server_url,
-            authorization_endpoint=input_dto.authorization_endpoint,
-            token_endpoint=input_dto.token_endpoint,
-            registration_endpoint=input_dto.registration_endpoint,
-            authorization_server_issuer=input_dto.authorization_server_issuer,
-            timeout_ms=input_dto.timeout_ms,
-        )
+        metadata = await McpOAuthMetadataResolver(self._executor).resolve(server_url=server_url, authorization_endpoint=input_dto.authorization_endpoint, token_endpoint=input_dto.token_endpoint, registration_endpoint=input_dto.registration_endpoint, authorization_server_issuer=input_dto.authorization_server_issuer, timeout_ms=input_dto.timeout_ms)
         resource = str(metadata.get("resource") or _canonical_resource_uri(server_url))
         scopes = _choose_scopes(explicit=input_dto.scopes, challenge=list(metadata.get("required_scopes") or []), metadata=metadata)
         token_auth_method = _choose_token_auth_method(metadata)
-
         client_id = input_dto.client_id
         client_secret = input_dto.client_secret
         if not client_id and metadata.get("registration_endpoint"):
-            registered = await self._register_client(
-                registration_endpoint=str(metadata["registration_endpoint"]),
-                redirect_uri=input_dto.redirect_uri,
-                timeout_ms=input_dto.timeout_ms,
-                token_endpoint_auth_method=token_auth_method,
-            )
+            registered = await self._register_client(registration_endpoint=str(metadata["registration_endpoint"]), redirect_uri=input_dto.redirect_uri, timeout_ms=input_dto.timeout_ms, token_endpoint_auth_method=token_auth_method)
             client_id = str(registered.get("client_id") or "") or None
             client_secret = str(registered.get("client_secret") or "") or None
             token_auth_method = str(registered.get("token_endpoint_auth_method") or token_auth_method)
         if not client_id:
             raise ValueError("OAuth client_id is required and dynamic client registration was not available")
-
         state = secrets.token_urlsafe(32)
         verifier = _code_verifier()
-        params = {
-            "response_type": "code",
-            "client_id": client_id,
-            "redirect_uri": input_dto.redirect_uri,
-            "state": state,
-            "code_challenge": _code_challenge(verifier),
-            "code_challenge_method": "S256",
-            "resource": resource,
-        }
+        params = {"response_type": "code", "client_id": client_id, "redirect_uri": input_dto.redirect_uri, "state": state, "code_challenge": _code_challenge(verifier), "code_challenge_method": "S256", "resource": resource}
         if scopes:
             params["scope"] = " ".join(scopes)
-
         authorization_url = await self._select_authorization_url(metadata=metadata, params=params, timeout_ms=input_dto.timeout_ms)
-        oauth = {
-            "status": "pending",
-            "state": state,
-            "state_expires_at": (utc_now() + timedelta(seconds=OAUTH_STATE_TTL_SECONDS)).isoformat(),
-            "code_verifier_encrypted": await self._cipher.encrypt(verifier),
-            "redirect_uri": input_dto.redirect_uri,
-            "resource": resource,
-            "scopes": scopes,
-            "authorization_server_issuer": metadata.get("authorization_server_issuer"),
-            "authorization_endpoint": metadata["authorization_endpoint"],
-            "token_endpoint": metadata["token_endpoint"],
-            "registration_endpoint": metadata.get("registration_endpoint"),
-            "client_id": client_id,
-            "token_endpoint_auth_method": token_auth_method,
-            "protected_resource_metadata": metadata.get("protected_resource_metadata"),
-            "resource_metadata_url": metadata.get("resource_metadata_url"),
-        }
+        oauth = {"status": "pending", "state": state, "state_expires_at": (utc_now() + timedelta(seconds=OAUTH_STATE_TTL_SECONDS)).isoformat(), "code_verifier_encrypted": await self._cipher.encrypt(verifier), "redirect_uri": input_dto.redirect_uri, "resource": resource, "scopes": scopes, "authorization_server_issuer": metadata.get("authorization_server_issuer"), "authorization_endpoint": metadata["authorization_endpoint"], "token_endpoint": metadata["token_endpoint"], "registration_endpoint": metadata.get("registration_endpoint"), "client_id": client_id, "token_endpoint_auth_method": token_auth_method, "protected_resource_metadata": metadata.get("protected_resource_metadata"), "resource_metadata_url": metadata.get("resource_metadata_url")}
         if client_secret:
             oauth["client_secret_encrypted"] = await self._cipher.encrypt(client_secret)
         config["oauth"] = oauth
@@ -691,22 +635,11 @@ class McpOAuthStartUseCase:
         raise ValueError(f"Discovered OAuth authorization endpoint returned 404. Tried: {details}")
 
     async def _authorization_url_status(self, authorization_url: str, *, timeout_ms: int) -> int | None:
-        result = await self._executor.execute(
-            method="GET",
-            url=authorization_url,
-            headers={"Accept": "text/html,application/xhtml+xml,application/json"},
-            timeout_ms=min(timeout_ms or 30000, 10000),
-        )
+        result = await self._executor.execute(method="GET", url=authorization_url, headers={"Accept": "text/html,application/xhtml+xml,application/json"}, timeout_ms=min(timeout_ms or 30000, 10000))
         return result.status_code
 
     async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int, token_endpoint_auth_method: str) -> dict[str, Any]:
-        payload = {
-            "client_name": "ProjectRAI",
-            "redirect_uris": [redirect_uri],
-            "grant_types": ["authorization_code", "refresh_token"],
-            "response_types": ["code"],
-            "token_endpoint_auth_method": token_endpoint_auth_method,
-        }
+        payload = {"client_name": "ProjectRAI", "redirect_uris": [redirect_uri], "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"], "token_endpoint_auth_method": token_endpoint_auth_method}
         result = await self._executor.execute(method="POST", url=registration_endpoint, headers={"Accept": "application/json", "Content-Type": "application/json"}, body=json.dumps(payload), timeout_ms=timeout_ms)
         if not result.success:
             raise ValueError(result.error or "OAuth dynamic client registration failed")
@@ -738,16 +671,7 @@ class McpOAuthCompleteUseCase:
         client_secret = None
         if oauth.get("client_secret_encrypted"):
             client_secret = await self._cipher.decrypt(str(oauth["client_secret_encrypted"]))
-        token_payload, selected_token_endpoint = await self._exchange_code(
-            oauth=oauth,
-            code=input_dto.code,
-            redirect_uri=str(oauth["redirect_uri"]),
-            client_id=str(oauth["client_id"]),
-            client_secret=client_secret,
-            code_verifier=verifier,
-            resource=str(oauth["resource"]),
-            timeout_ms=input_dto.timeout_ms,
-        )
+        token_payload, selected_token_endpoint = await self._exchange_code(oauth=oauth, code=input_dto.code, redirect_uri=str(oauth["redirect_uri"]), client_id=str(oauth["client_id"]), client_secret=client_secret, code_verifier=verifier, resource=str(oauth["resource"]), timeout_ms=input_dto.timeout_ms)
         oauth["token_endpoint"] = selected_token_endpoint
         oauth = await self._connected_oauth_config(oauth, token_payload)
         config["oauth"] = oauth
@@ -757,18 +681,7 @@ class McpOAuthCompleteUseCase:
         await self._tool_repo.update(tool)
         return McpOAuthStatusOutput(status="connected", connected=True, authorization_server_issuer=oauth.get("authorization_server_issuer"), scopes=list(oauth.get("scopes") or []), expires_at=oauth.get("expires_at"))
 
-    async def _exchange_code(
-        self,
-        *,
-        oauth: dict[str, Any],
-        code: str,
-        redirect_uri: str,
-        client_id: str,
-        client_secret: str | None,
-        code_verifier: str,
-        resource: str,
-        timeout_ms: int,
-    ) -> tuple[dict[str, Any], str]:
+    async def _exchange_code(self, *, oauth: dict[str, Any], code: str, redirect_uri: str, client_id: str, client_secret: str | None, code_verifier: str, resource: str, timeout_ms: int) -> tuple[dict[str, Any], str]:
         candidates = _derived_token_endpoint_candidates(oauth)
         if not candidates:
             raise ValueError("Could not discover OAuth token endpoint")
