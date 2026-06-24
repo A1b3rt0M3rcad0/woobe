@@ -27,6 +27,15 @@ function oauthStatus(tool: Tool): string {
   return oauth?.status || 'disconnected'
 }
 
+function oauthResource(tool: Tool): string | null {
+  const oauth = mcpConfig(tool).oauth as { resource?: string } | undefined
+  return typeof oauth?.resource === 'string' ? oauth.resource : null
+}
+
+function protectedResource(tool: Tool): string | null {
+  return mcpConfig(tool).mcp_resource_metadata?.resource || null
+}
+
 function diagnostic(tool: Tool): McpDiscoveryDiagnostic | null {
   const value = mcpConfig(tool).mcp_discovery
   return value && typeof value === 'object' ? value : null
@@ -60,6 +69,8 @@ function readinessLabel(value: string): string {
     token_invalid: 'token invalid',
     scope_denied: 'scope denied',
     discovery_failed: 'discovery failed',
+    resource_mismatch: 'resource mismatch',
+    metadata_required: 'metadata required',
     empty: 'empty discovery',
     oauth_connected: 'oauth connected',
     disconnected: 'disconnected',
@@ -69,7 +80,7 @@ function readinessLabel(value: string): string {
 
 function readinessBadgeStatus(value: string): string {
   if (value === 'ready') return 'connected'
-  if (value === 'token_invalid' || value === 'scope_denied' || value === 'discovery_failed') return 'failed'
+  if (value === 'token_invalid' || value === 'scope_denied' || value === 'discovery_failed' || value === 'resource_mismatch' || value === 'metadata_required') return 'failed'
   return value
 }
 
@@ -96,6 +107,8 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const visibleError = errorText(tool)
   const details = diagnostic(tool)
   const requiredScopes = challengeScopes(details?.www_authenticate)
+  const currentOAuthResource = oauthResource(tool) || details?.oauth_resource || null
+  const currentProtectedResource = protectedResource(tool) || details?.protected_resource || null
 
   const handleConnect = async () => {
     try {
@@ -186,6 +199,8 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       </div>
 
       <div className="text-[10px] text-muted">OAuth: {oauthStatus(tool)} · MCP: {readinessLabel(mcpReadiness)}</div>
+      {currentOAuthResource ? <div className="break-all text-[10px] text-muted">OAuth resource: {currentOAuthResource}</div> : null}
+      {currentProtectedResource ? <div className="break-all text-[10px] text-muted">Protected resource: {currentProtectedResource}</div> : null}
       {requiredScopes.length > 0 ? <div className="text-[10px] text-amber-200">Next reconnect will request scopes: {requiredScopes.join(' ')}</div> : null}
 
       <div className="flex flex-wrap gap-2">
@@ -219,6 +234,8 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
               <div>http_status: {details.http_status ?? '—'}</div>
               <div>initialized: {String(details.initialized ?? false)}</div>
               <div>server_url: {details.server_url || '—'}</div>
+              <div>oauth_resource: {details.oauth_resource || currentOAuthResource || '—'}</div>
+              <div>protected_resource: {details.protected_resource || currentProtectedResource || '—'}</div>
               <div>checked_at: {details.checked_at || '—'}</div>
               {details.www_authenticate ? <div>www_authenticate: {details.www_authenticate}</div> : null}
             </div>
