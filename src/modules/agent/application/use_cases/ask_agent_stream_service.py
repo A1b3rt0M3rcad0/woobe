@@ -130,13 +130,13 @@ class AskAgentStreamService:
                 if disconnect_check is not None and await disconnect_check():
                     execution_task.cancel()
                     await self._persist_cancelled(channel, input_dto, "client_disconnected")
-                    yield self._format_event(RuntimeStreamEvent(type="cancelled", data={"reason": "client_disconnected"}))
+                    yield self._format_event(RuntimeStreamEvent(event_type="cancelled", payload={"reason": "client_disconnected"}))
                     break
 
                 try:
                     event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
                     yield self._format_event(event)
-                    if event.type in {"done", "error", "cancelled"}:
+                    if event.event_type in {"done", "error", "cancelled"}:
                         result_sent = True
                 except asyncio.TimeoutError:
                     pass
@@ -144,17 +144,17 @@ class AskAgentStreamService:
                 now = time.monotonic()
                 if now - heartbeat_at >= RUNTIME_STREAM_HEARTBEAT_SECONDS:
                     heartbeat_at = now
-                    yield self._format_event(RuntimeStreamEvent(type="heartbeat", data={"ts": datetime.now(timezone.utc).isoformat()}))
+                    yield self._format_event(RuntimeStreamEvent(event_type="heartbeat", payload={"ts": datetime.now(timezone.utc).isoformat()}))
 
                 if execution_task.done():
                     if not result_sent:
                         try:
                             result = execution_task.result()
-                            yield self._format_event(RuntimeStreamEvent(type="done", data=result.model_dump(mode="json")))
+                            yield self._format_event(RuntimeStreamEvent(event_type="done", payload=result.model_dump(mode="json")))
                         except asyncio.CancelledError:
-                            yield self._format_event(RuntimeStreamEvent(type="cancelled", data={"reason": "cancelled"}))
+                            yield self._format_event(RuntimeStreamEvent(event_type="cancelled", payload={"reason": "cancelled"}))
                         except Exception as exc:
-                            yield self._format_event(RuntimeStreamEvent(type="error", data={"message": redact_text(str(exc))}))
+                            yield self._format_event(RuntimeStreamEvent(event_type="error", payload={"message": redact_text(str(exc))}))
                     break
         finally:
             if not execution_task.done():
@@ -162,5 +162,5 @@ class AskAgentStreamService:
 
     @staticmethod
     def _format_event(event: RuntimeStreamEvent) -> str:
-        payload = json.dumps(event.data, default=str)
-        return f"event: {event.type}\ndata: {payload}\n\n"
+        payload = json.dumps(event.payload, default=str)
+        return f"event: {event.event_type}\ndata: {payload}\n\n"
