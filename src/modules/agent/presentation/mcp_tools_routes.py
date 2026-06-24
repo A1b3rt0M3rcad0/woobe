@@ -7,15 +7,22 @@ from modules.agent.application.composers.tools_composers import (
     start_mcp_oauth_composer,
     status_mcp_oauth_composer,
 )
+from modules.agent.application.mcp_oauth import McpOAuthConfigTokenProvider
 from modules.agent.application.mcp_permissions import (
     BulkUpdateMcpToolPermissionsUseCase,
     UpdateMcpToolPermissionsUseCase,
 )
+from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
+from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.mcp_permission_controllers import (
     BulkUpdateMcpPermissionsController,
     UpdateMcpPermissionsController,
 )
+from modules.agent.presentation.controllers.refresh_mcp_tools_controller import RefreshMcpToolsController
+from shared.infra.config import Settings
 from shared.infra.transactional_handler import TransactionalHandler
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
@@ -34,9 +41,28 @@ def _bulk_permissions_handler(session_factory):
     return TransactionalHandler(uow, controller.handle)
 
 
+def _refresh_handler(session_factory):
+    uow = AgentUnitOfWork(session_factory)
+    settings = Settings.model_validate({})
+    cipher = SecretCipherAdapter(settings.encryption_key)
+    executor = get_http_tool_executor()
+    resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+    provider = McpOAuthConfigTokenProvider(executor=executor, cipher=cipher)
+    use_case = RefreshMcpProviderToolsUseCase(tool_repo=uow.tools, executor=executor, secret_resolver=resolver, auth_header_provider=provider)
+    controller = RefreshMcpToolsController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
 @router.post("/mcp/discover")
 async def discover_mcp_tools(request: FastAPIRequest):
     handler = discover_mcp_tools_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/mcp/refresh")
+async def refresh_mcp_tools(request: FastAPIRequest):
+    handler = _refresh_handler(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
