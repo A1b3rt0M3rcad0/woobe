@@ -22,6 +22,18 @@ export interface AskJobResult {
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
 function normalizeResponse(response: Record<string, unknown>): AskResponse {
   const { type: _type, ...rest } = response
   return {
@@ -51,15 +63,15 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
 
 function streamToolCallInfo(parsed: Record<string, unknown>): ToolCallInfo {
   return {
-    tool_call_id: parsed.tool_call_id as string ?? null,
-    tool_name: parsed.tool_name as string ?? '',
+    tool_call_id: asString(parsed.tool_call_id),
+    tool_name: asString(parsed.tool_name) ?? '',
     input: parsed.input ?? null,
     output: parsed.output ?? null,
-    duration_ms: parsed.duration_ms as number ?? null,
-    success: parsed.success as boolean ?? null,
-    status: parsed.status as string ?? null,
-    latency_ms: (parsed.http_latency_ms as number ?? parsed.latency_ms as number) ?? null,
-    error: parsed.error as string ?? null,
+    duration_ms: asNumber(parsed.duration_ms) ?? undefined,
+    success: asBoolean(parsed.success),
+    status: asString(parsed.status),
+    latency_ms: asNumber(parsed.http_latency_ms) ?? asNumber(parsed.latency_ms),
+    error: asString(parsed.error),
   }
 }
 
