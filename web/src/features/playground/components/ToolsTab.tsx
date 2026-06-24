@@ -7,6 +7,7 @@ import { Wrench, Plus, Link2, AlertTriangle, Circle, XCircle, Pencil } from 'luc
 import { ImportToolsModal } from './ImportToolsModal'
 import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
+import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
 import { useAgentTools, useUpdateToolStatus, useUpdateTool, useTools } from '@/features/tools/hooks'
 import type { Tool } from '@/features/tools/types'
 import { toast } from 'sonner'
@@ -34,6 +35,10 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
   const agentToolIds = new Set(tools.map(t => t.id))
+
+  const refetchAll = async () => {
+    await Promise.all([refetch(), refetchProjectTools()])
+  }
 
   const handleToggleActive = async (tool: Tool) => {
     try {
@@ -133,6 +138,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
           <div className="space-y-2">
             {tools.map((tool) => {
               const isActive = tool.status === 'active'
+              const isMcp = isMcpProviderTool(tool)
               return (
               <div key={tool.id} className={`rounded-lg border p-3 space-y-2 transition-opacity ${isActive ? 'border-border bg-background' : 'border-border/50 bg-background/50 opacity-70'}`}>
                 <div className="flex items-start justify-between gap-2">
@@ -179,6 +185,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                     </Button>
                   </div>
                 </div>
+                {isMcp ? <McpProviderPanel tool={tool} onChanged={refetchAll} /> : null}
               </div>
               )
             })}
