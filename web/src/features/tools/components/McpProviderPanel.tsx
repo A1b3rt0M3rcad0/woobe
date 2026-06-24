@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { bulkUpdateMcpToolPermissions, updateMcpToolPermissions } from '@/features/tools/api'
+import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
 import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
 import { AlertTriangle, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
+
+const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
 
 export function isMcpProviderTool(tool: Tool): boolean {
   const config = (tool.config || {}) as Record<string, unknown>
@@ -55,6 +57,35 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const connected = status(tool) === 'connected'
   const visibleError = errorText(tool)
 
+  const handleConnect = async () => {
+    try {
+      setBusyKey('connect')
+      const redirectUri = `${window.location.origin}/mcp/oauth/callback`
+      const result = await startMcpOAuth({ tool_id: tool.id, redirect_uri: redirectUri })
+      window.localStorage.setItem(
+        `${MCP_CONNECT_STATE_PREFIX}${result.state}`,
+        JSON.stringify({ toolId: tool.id, returnTo: `${window.location.pathname}?configure_mcp_permissions=${tool.id}` }),
+      )
+      window.location.assign(result.authorization_url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start MCP connection')
+      setBusyKey(null)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      setBusyKey('disconnect')
+      await disconnectMcpOAuth({ tool_id: tool.id })
+      toast.success('MCP disconnected')
+      await onChanged?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to disconnect MCP')
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
   const handleBulk = async (mode: McpToolPermissionMode) => {
     try {
       setBusyKey(`bulk:${mode}`)
@@ -96,10 +127,15 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
         <StatusBadge status={connected ? 'connected' : status(tool)} />
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>{connected ? 'Reconnect / rediscover' : 'Connect'}</Button>
+        {connected ? <Button size="sm" variant="outline" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
+      </div>
+
       {connected && discovered.length === 0 ? (
         <div className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Connected provider, but no remote MCP tools are visible to the agent.</span>
+          <span>Connected provider, but no remote MCP tools are visible to the agent. Use Reconnect / rediscover to request a new token and run authenticated discovery again.</span>
         </div>
       ) : null}
 
