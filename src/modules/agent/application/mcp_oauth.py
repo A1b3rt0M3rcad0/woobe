@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
+from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
 from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
@@ -142,24 +142,74 @@ def _body(result: ExecutionResult) -> Any:
 def _headers(result: ExecutionResult) -> dict[str, str]:
     output = result.output or {}
     raw = output.get("headers") if isinstance(output, dict) else None
-    if not isinstance(raw, dict):
+    headers: dict[str, str] = {}
+    if isinstance(raw, dict):
+        headers.update({str(key).lower(): str(value) for key, value in raw.items()})
+    headers.update({str(key).lower(): str(value) for key, value in (result.headers or {}).items()})
+    return headers
+
+
+def _parse_www_authenticate_params(header: str | None) -> dict[str, str]:
+    if not header:
         return {}
-    return {str(key).lower(): str(value) for key, value in raw.items()}
+    params: dict[str, str] = {}
+    text = header.strip()
+    if text.lower().startswith("bearer"):
+        text = text[6:].strip()
+    index = 0
+    while index < len(text):
+        while index < len(text) and text[index] in " ,":
+            index += 1
+        key_start = index
+        while index < len(text) and text[index] not in "=, ":
+            index += 1
+        key = text[key_start:index].strip().lower()
+        while index < len(text) and text[index] == " ":
+            index += 1
+        if not key or index >= len(text) or text[index] != "=":
+            while index < len(text) and text[index] != ",":
+                index += 1
+            continue
+        index += 1
+        while index < len(text) and text[index] == " ":
+            index += 1
+        if index < len(text) and text[index] == '"':
+            index += 1
+            value_start = index
+            escaped = False
+            value_chars: list[str] = []
+            while index < len(text):
+                char = text[index]
+                if escaped:
+                    value_chars.append(char)
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    break
+                else:
+                    value_chars.append(char)
+                index += 1
+            params[key] = "".join(value_chars)
+            if index < len(text) and text[index] == '"':
+                index += 1
+        else:
+            value_start = index
+            while index < len(text) and text[index] != ",":
+                index += 1
+            params[key] = text[value_start:index].strip()
+    return params
 
 
 def _parse_www_authenticate_resource_metadata(header: str | None) -> str | None:
-    if not header:
-        return None
-    lower = header.lower()
-    marker = "resource_metadata="
-    idx = lower.find(marker)
-    if idx < 0:
-        return None
-    value = header[idx + len(marker):].strip()
-    if value.startswith('"'):
-        end = value.find('"', 1)
-        return value[1:end] if end > 1 else None
-    return value.split(",", 1)[0].strip() or None
+    return _parse_www_authenticate_params(header).get("resource_metadata")
+
+
+def _parse_www_authenticate_scopes(header: str | None) -> list[str]:
+    value = _parse_www_authenticate_params(header).get("scope")
+    if not value:
+        return []
+    return [scope.strip() for scope in value.split() if scope.strip()]
 
 
 def _well_known_url(issuer: str, suffix: str) -> str:
@@ -194,6 +244,45 @@ def _authorization_server_metadata_candidates(server_url: str) -> list[str]:
         _well_known_authorization_server_url(origin),
         _well_known_openid_configuration_url(origin),
     ]
+
+
+def _list_of_strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str) and item.strip()]
+
+
+def _normalized_protected_resource_metadata(raw: dict[str, Any], *, base_url: str) -> dict[str, Any]:
+    resource = _absolute_url(raw.get("resource"), base_url)
+    authorization_servers = [_absolute_url(item, base_url) for item in _list_of_strings(raw.get("authorization_servers"))]
+    metadata: dict[str, Any] = {
+        "resource": resource,
+        "authorization_servers": [item for item in authorization_servers if item],
+        "scopes_supported": _list_of_strings(raw.get("scopes_supported")),
+        "bearer_methods_supported": _list_of_strings(raw.get("bearer_methods_supported")),
+    }
+    return {key: value for key, value in metadata.items() if value not in (None, [], {})}
+
+
+def _choose_scopes(*, explicit: list[str], challenge: list[str], metadata: dict[str, Any]) -> list[str]:
+    if explicit:
+        return explicit
+    if challenge:
+        return challenge
+    supported = metadata.get("scopes_supported")
+    if isinstance(supported, list) and supported and set(supported).issubset({"openid", "email", "profile", "offline_access"}):
+        return [str(scope) for scope in supported]
+    return []
+
+
+def _choose_token_auth_method(metadata: dict[str, Any]) -> str:
+    supported = metadata.get("token_endpoint_auth_methods_supported")
+    if not isinstance(supported, list) or not supported:
+        return "none"
+    for candidate in ("none", "client_secret_post", "client_secret_basic"):
+        if candidate in supported:
+            return candidate
+    return str(supported[0])
 
 
 def _derived_authorization_endpoint_candidates(metadata: dict[str, Any]) -> list[str]:
@@ -256,24 +345,12 @@ def _derived_token_endpoint_candidates(oauth: dict[str, Any]) -> list[str]:
         for suffix in ("/authorize", "/authorization", "/oauth/authorize", "/oauth2/authorize"):
             if path.endswith(suffix):
                 base = path[: -len(suffix)]
-                candidates.extend([
-                    f"{origin}{base}/token",
-                    f"{origin}{base}/oauth/token",
-                    f"{origin}{base}/oauth2/token",
-                ])
+                candidates.extend([f"{origin}{base}/token", f"{origin}{base}/oauth/token", f"{origin}{base}/oauth2/token"])
         for suffix in ("/register", "/registration", "/clients", "/client"):
             if path.endswith(suffix):
                 base = path[: -len(suffix)]
-                candidates.extend([
-                    f"{origin}{base}/token",
-                    f"{origin}{base}/oauth/token",
-                    f"{origin}{base}/oauth2/token",
-                ])
-        candidates.extend([
-            f"{origin}/token",
-            f"{origin}/oauth/token",
-            f"{origin}/oauth2/token",
-        ])
+                candidates.extend([f"{origin}{base}/token", f"{origin}{base}/oauth/token", f"{origin}{base}/oauth2/token"])
+        candidates.extend([f"{origin}/token", f"{origin}/oauth/token", f"{origin}/oauth2/token"])
     issuer = oauth.get("authorization_server_issuer")
     if isinstance(issuer, str) and issuer:
         try:
@@ -337,6 +414,47 @@ def _is_expired(expires_at: str | None) -> bool:
     return parsed <= utc_now() + timedelta(seconds=OAUTH_EXPIRY_SKEW_SECONDS)
 
 
+def _discovery_status(output: McpDiscoverOutput, oauth: dict[str, Any]) -> str:
+    if not output.error and output.tools:
+        return "ready"
+    if output.http_status == 401:
+        header_resource = _parse_www_authenticate_resource_metadata(output.www_authenticate)
+        oauth_resource = str(oauth.get("resource") or "")
+        resource_metadata = oauth.get("protected_resource_metadata")
+        metadata_resource = resource_metadata.get("resource") if isinstance(resource_metadata, dict) else None
+        if metadata_resource and oauth_resource and str(metadata_resource).rstrip("/") != oauth_resource.rstrip("/"):
+            return "resource_mismatch"
+        if header_resource and not metadata_resource:
+            return "metadata_required"
+        return "token_invalid"
+    if output.http_status == 403:
+        return "scope_denied"
+    if output.error:
+        return "discovery_failed"
+    return "empty"
+
+
+def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutput, oauth: dict[str, Any], *, server_url: str) -> None:
+    status = _discovery_status(output, oauth)
+    config["mcp_status"] = status
+    config["mcp_discovery"] = {
+        "status": status,
+        "phase": output.phase,
+        "http_status": output.http_status,
+        "initialized": output.initialized,
+        "error": output.error,
+        "server_url": server_url,
+        "oauth_resource": oauth.get("resource"),
+        "protected_resource": (oauth.get("protected_resource_metadata") or {}).get("resource") if isinstance(oauth.get("protected_resource_metadata"), dict) else None,
+        "checked_at": utc_now().isoformat(),
+        "www_authenticate": output.www_authenticate[:1000] if output.www_authenticate else None,
+    }
+    if output.error:
+        config["oauth_discovery_error"] = output.error
+    else:
+        config.pop("oauth_discovery_error", None)
+
+
 class McpOAuthMetadataResolver:
     def __init__(self, executor: ToolExecutionPort) -> None:
         self._executor = executor
@@ -357,13 +475,16 @@ class McpOAuthMetadataResolver:
             "token_endpoint": _absolute_url(token_endpoint, server_origin),
             "registration_endpoint": _absolute_url(registration_endpoint, server_origin),
             "authorization_server_issuer": _absolute_url(authorization_server_issuer, server_origin),
+            "resource": _canonical_resource_uri(server_url),
         }
-        if metadata["authorization_endpoint"] and metadata["token_endpoint"]:
-            return metadata
+
+        challenge = await self._resource_metadata_challenge(server_url=server_url, timeout_ms=timeout_ms)
+        if challenge.get("scopes"):
+            metadata["required_scopes"] = challenge["scopes"]
 
         resource_metadata_urls: list[str] = []
-        header_url = await self._resource_metadata_url(server_url=server_url, timeout_ms=timeout_ms)
-        if header_url:
+        header_url = challenge.get("resource_metadata_url")
+        if isinstance(header_url, str) and header_url:
             resource_metadata_urls.append(_absolute_url(header_url, server_origin) or header_url)
         resource_metadata_urls.extend(_resource_metadata_candidates(server_url))
 
@@ -371,11 +492,21 @@ class McpOAuthMetadataResolver:
             resource_metadata = await self._try_get_json(resource_metadata_url, timeout_ms=timeout_ms)
             if not isinstance(resource_metadata, dict):
                 continue
-            resource_origin = _origin_from_url(resource_metadata_url)
-            auth_servers = resource_metadata.get("authorization_servers")
-            if isinstance(auth_servers, list) and auth_servers and not metadata.get("authorization_server_issuer"):
-                metadata["authorization_server_issuer"] = _absolute_url(str(auth_servers[0]), resource_origin)
+            normalized = _normalized_protected_resource_metadata(resource_metadata, base_url=_origin_from_url(resource_metadata_url))
+            if normalized:
+                metadata["protected_resource_metadata"] = normalized
+                metadata["resource_metadata_url"] = resource_metadata_url
+                if normalized.get("resource"):
+                    metadata["resource"] = normalized["resource"]
+                if normalized.get("scopes_supported"):
+                    metadata["scopes_supported"] = normalized["scopes_supported"]
+                auth_servers = normalized.get("authorization_servers")
+                if isinstance(auth_servers, list) and auth_servers and not metadata.get("authorization_server_issuer"):
+                    metadata["authorization_server_issuer"] = auth_servers[0]
                 break
+
+        if metadata["authorization_endpoint"] and metadata["token_endpoint"]:
+            return metadata
 
         issuer = metadata.get("authorization_server_issuer")
         if issuer:
@@ -414,8 +545,11 @@ class McpOAuthMetadataResolver:
             metadata["registration_endpoint"] = registration_endpoint or metadata.get("registration_endpoint")
         if force or not metadata.get("authorization_server_issuer"):
             metadata["authorization_server_issuer"] = issuer or metadata.get("authorization_server_issuer")
+        token_methods = _list_of_strings(as_metadata.get("token_endpoint_auth_methods_supported"))
+        if token_methods:
+            metadata["token_endpoint_auth_methods_supported"] = token_methods
 
-    async def _resource_metadata_url(self, *, server_url: str, timeout_ms: int) -> str | None:
+    async def _resource_metadata_challenge(self, *, server_url: str, timeout_ms: int) -> dict[str, Any]:
         initialize_payload = {
             "jsonrpc": "2.0",
             "id": "oauth-discovery",
@@ -433,7 +567,12 @@ class McpOAuthMetadataResolver:
             body=json.dumps(initialize_payload),
             timeout_ms=timeout_ms,
         )
-        return _parse_www_authenticate_resource_metadata(_headers(result).get("www-authenticate"))
+        header = _headers(result).get("www-authenticate")
+        return {
+            "resource_metadata_url": _parse_www_authenticate_resource_metadata(header),
+            "scopes": _parse_www_authenticate_scopes(header),
+            "www_authenticate": header,
+        }
 
     async def _get_json(self, url: str, *, timeout_ms: int) -> dict[str, Any]:
         result = await self._executor.execute(method="GET", url=url, headers={"Accept": "application/json"}, timeout_ms=timeout_ms)
@@ -466,7 +605,6 @@ class McpOAuthStartUseCase:
         server_url = str(server.get("url") or config.get("url") or "")
         if not server_url:
             raise ValueError("MCP server.url is required before OAuth connect")
-        resource = _canonical_resource_uri(server_url)
 
         metadata = await McpOAuthMetadataResolver(self._executor).resolve(
             server_url=server_url,
@@ -476,18 +614,27 @@ class McpOAuthStartUseCase:
             authorization_server_issuer=input_dto.authorization_server_issuer,
             timeout_ms=input_dto.timeout_ms,
         )
+        resource = str(metadata.get("resource") or _canonical_resource_uri(server_url))
+        scopes = _choose_scopes(explicit=input_dto.scopes, challenge=list(metadata.get("required_scopes") or []), metadata=metadata)
+        token_auth_method = _choose_token_auth_method(metadata)
+
         client_id = input_dto.client_id
         client_secret = input_dto.client_secret
         if not client_id and metadata.get("registration_endpoint"):
-            registered = await self._register_client(registration_endpoint=str(metadata["registration_endpoint"]), redirect_uri=input_dto.redirect_uri, timeout_ms=input_dto.timeout_ms)
+            registered = await self._register_client(
+                registration_endpoint=str(metadata["registration_endpoint"]),
+                redirect_uri=input_dto.redirect_uri,
+                timeout_ms=input_dto.timeout_ms,
+                token_endpoint_auth_method=token_auth_method,
+            )
             client_id = str(registered.get("client_id") or "") or None
             client_secret = str(registered.get("client_secret") or "") or None
+            token_auth_method = str(registered.get("token_endpoint_auth_method") or token_auth_method)
         if not client_id:
             raise ValueError("OAuth client_id is required and dynamic client registration was not available")
 
         state = secrets.token_urlsafe(32)
         verifier = _code_verifier()
-        scopes = input_dto.scopes or []
         params = {
             "response_type": "code",
             "client_id": client_id,
@@ -514,10 +661,14 @@ class McpOAuthStartUseCase:
             "token_endpoint": metadata["token_endpoint"],
             "registration_endpoint": metadata.get("registration_endpoint"),
             "client_id": client_id,
+            "token_endpoint_auth_method": token_auth_method,
+            "protected_resource_metadata": metadata.get("protected_resource_metadata"),
+            "resource_metadata_url": metadata.get("resource_metadata_url"),
         }
         if client_secret:
             oauth["client_secret_encrypted"] = await self._cipher.encrypt(client_secret)
         config["oauth"] = oauth
+        config["mcp_resource_metadata"] = metadata.get("protected_resource_metadata")
         tool.config = config
         await self._tool_repo.update(tool)
         return McpOAuthStartOutput(authorization_url=authorization_url, state=state)
@@ -548,13 +699,13 @@ class McpOAuthStartUseCase:
         )
         return result.status_code
 
-    async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int) -> dict[str, Any]:
+    async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int, token_endpoint_auth_method: str) -> dict[str, Any]:
         payload = {
             "client_name": "ProjectRAI",
             "redirect_uris": [redirect_uri],
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
-            "token_endpoint_auth_method": "none",
+            "token_endpoint_auth_method": token_endpoint_auth_method,
         }
         result = await self._executor.execute(method="POST", url=registration_endpoint, headers={"Accept": "application/json", "Content-Type": "application/json"}, body=json.dumps(payload), timeout_ms=timeout_ms)
         if not result.success:
@@ -622,11 +773,18 @@ class McpOAuthCompleteUseCase:
         if not candidates:
             raise ValueError("Could not discover OAuth token endpoint")
         rejected_404: list[str] = []
-        data: dict[str, str] = {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri, "client_id": client_id, "code_verifier": code_verifier, "resource": resource}
-        if client_secret:
-            data["client_secret"] = client_secret
+        token_auth_method = str(oauth.get("token_endpoint_auth_method") or "none")
+        data: dict[str, str] = {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri, "code_verifier": code_verifier, "resource": resource}
+        headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}
+        if token_auth_method == "client_secret_basic" and client_secret:
+            basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+            headers["Authori" + "zation"] = f"Basic {basic}"
+        else:
+            data["client_id"] = client_id
+            if client_secret and token_auth_method == "client_secret_post":
+                data["client_secret"] = client_secret
         for token_endpoint in candidates:
-            result = await self._executor.execute(method="POST", url=token_endpoint, headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=timeout_ms)
+            result = await self._executor.execute(method="POST", url=token_endpoint, headers=headers, body=urlencode(data), timeout_ms=timeout_ms)
             if result.status_code == 404:
                 rejected_404.append(token_endpoint)
                 continue
@@ -658,15 +816,17 @@ class McpOAuthCompleteUseCase:
             headers = _headers_from_raw(_raw_headers_from_config(config))
             headers["Authori" + "zation"] = f"{token_type} {access_token}"
             output = await DiscoverMcpToolsUseCase(self._executor).execute(McpDiscoverInput(server_url=server_url, headers=headers, timeout_ms=timeout_ms))
+            _write_discovery_diagnostic(config, output, oauth, server_url=server_url)
             if output.error or not output.tools:
-                config["oauth_discovery_error"] = output.error or "OAuth-connected MCP discovery returned no tools"
                 return
             next_tools = [item.model_dump() for item in output.tools]
             config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
             config["discovered_at"] = utc_now().isoformat()
+            config["mcp_status"] = "ready"
             config.pop("oauth_discovery_error", None)
         except Exception as exc:
             config["oauth_discovery_error"] = str(exc)
+            config["mcp_status"] = "discovery_failed"
 
 
 class McpOAuthStatusUseCase:
@@ -692,6 +852,7 @@ class McpOAuthDisconnectUseCase:
             raise ValueError("MCP tool provider not found")
         config = dict(tool.config or {})
         config.pop("oauth", None)
+        config["mcp_status"] = "disconnected"
         tool.config = config
         await self._tool_repo.update(tool)
         return McpOAuthDisconnectOutput()
@@ -716,10 +877,21 @@ class McpOAuthConfigTokenProvider:
 
     async def _refresh(self, oauth: dict[str, Any]) -> dict[str, Any] | None:
         refresh_token = await self._cipher.decrypt(str(oauth["refresh_token_encrypted"]))
-        data = {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": str(oauth.get("client_id") or ""), "resource": str(oauth.get("resource") or "")}
+        data = {"grant_type": "refresh_token", "refresh_token": refresh_token, "resource": str(oauth.get("resource") or "")}
+        token_auth_method = str(oauth.get("token_endpoint_auth_method") or "none")
+        headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}
+        client_id = str(oauth.get("client_id") or "")
+        client_secret = None
         if oauth.get("client_secret_encrypted"):
-            data["client_secret"] = await self._cipher.decrypt(str(oauth["client_secret_encrypted"]))
-        result = await self._executor.execute(method="POST", url=str(oauth["token_endpoint"]), headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}, body=urlencode(data), timeout_ms=30000)
+            client_secret = await self._cipher.decrypt(str(oauth["client_secret_encrypted"]))
+        if token_auth_method == "client_secret_basic" and client_secret:
+            basic = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+            headers["Authori" + "zation"] = f"Basic {basic}"
+        else:
+            data["client_id"] = client_id
+            if client_secret and token_auth_method == "client_secret_post":
+                data["client_secret"] = client_secret
+        result = await self._executor.execute(method="POST", url=str(oauth["token_endpoint"]), headers=headers, body=urlencode(data), timeout_ms=30000)
         if not result.success:
             return None
         body = _body(result)
