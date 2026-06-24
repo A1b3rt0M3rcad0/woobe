@@ -11,6 +11,10 @@ import type {
   DiscoverMcpToolsRequest,
   DiscoverMcpToolsResponse,
   McpOAuthCompleteRequest,
+  McpOAuthDevicePollRequest,
+  McpOAuthDevicePollResponse,
+  McpOAuthDeviceStartRequest,
+  McpOAuthDeviceStartResponse,
   McpOAuthStartRequest,
   McpOAuthStartResponse,
   McpOAuthStatusRequest,
@@ -68,6 +72,14 @@ export async function bulkUpdateMcpToolPermissions(data: BulkUpdateMcpToolPermis
 
 export async function startMcpOAuth(data: McpOAuthStartRequest): Promise<McpOAuthStartResponse> {
   return post<McpOAuthStartResponse>('/tools/mcp/oauth/start', data)
+}
+
+export async function startMcpDeviceOAuth(data: McpOAuthDeviceStartRequest): Promise<McpOAuthDeviceStartResponse> {
+  return post<McpOAuthDeviceStartResponse>('/tools/mcp/oauth/device/start', data)
+}
+
+export async function pollMcpDeviceOAuth(data: McpOAuthDevicePollRequest): Promise<McpOAuthDevicePollResponse> {
+  return post<McpOAuthDevicePollResponse>('/tools/mcp/oauth/device/poll', data)
 }
 
 export async function completeMcpOAuth(data: McpOAuthCompleteRequest): Promise<McpOAuthStatusResponse> {
