@@ -43,6 +43,7 @@ export interface McpProtectedResourceMetadata {
   authorization_servers?: string[]
   scopes_supported?: string[]
   bearer_methods_supported?: string[]
+  authorization_hints?: Record<string, unknown>
 }
 
 export interface McpDiscoveryDiagnostic {
@@ -54,6 +55,9 @@ export interface McpDiscoveryDiagnostic {
   server_url?: string | null
   oauth_resource?: string | null
   protected_resource?: string | null
+  authorization_hints?: Record<string, unknown>
+  authorization_server_issuer?: string | null
+  token_endpoint_auth_method?: string | null
   checked_at?: string | null
   www_authenticate?: string | null
 }
