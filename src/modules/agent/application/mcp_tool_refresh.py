@@ -262,3 +262,30 @@ class RefreshMcpProviderToolsUseCase:
             now=now,
         )
         return await self._tool_repo.get_by_id(tool.id) or tool
+
+
+async def refresh_stale_mcp_server_tools(
+    *,
+    tools: list[Tool],
+    tool_repo: ToolRepository,
+    executor: ToolExecutionPort,
+    secret_resolver: ToolSecretResolverPort | None = None,
+    auth_header_provider: Any | None = None,
+) -> list[Tool]:
+    refresher = RefreshMcpProviderToolsUseCase(
+        tool_repo=tool_repo,
+        executor=executor,
+        secret_resolver=secret_resolver,
+        auth_header_provider=auth_header_provider,
+    )
+    refreshed: list[Tool] = []
+    for tool in tools:
+        if not _is_mcp_server_provider(tool):
+            refreshed.append(tool)
+            continue
+        try:
+            refreshed.append(await refresher.refresh_if_needed(tool))
+        except Exception as exc:
+            logger.warning("Stale MCP tool refresh failed for tool %s: %s", tool.id, exc)
+            refreshed.append(tool)
+    return refreshed
