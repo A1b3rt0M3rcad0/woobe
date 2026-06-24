@@ -18,6 +18,8 @@ import type {
   UpdateMcpToolPermissionsRequest,
   BulkUpdateMcpToolPermissionsRequest,
   McpToolPermissionsResponse,
+  RefreshMcpToolsRequest,
+  RefreshMcpToolsResponse,
 } from './types'
 
 export async function getTools(projectId?: string): Promise<Tool[]> {
@@ -50,6 +52,10 @@ export async function testTool(data: TestToolRequest): Promise<TestToolResponse>
 
 export async function discoverMcpTools(data: DiscoverMcpToolsRequest): Promise<DiscoverMcpToolsResponse> {
   return post<DiscoverMcpToolsResponse>('/tools/mcp/discover', data)
+}
+
+export async function refreshMcpTools(data: RefreshMcpToolsRequest): Promise<RefreshMcpToolsResponse> {
+  return post<RefreshMcpToolsResponse>('/tools/mcp/refresh', data)
 }
 
 export async function updateMcpToolPermissions(data: UpdateMcpToolPermissionsRequest): Promise<McpToolPermissionsResponse> {
