@@ -43,12 +43,12 @@ function fallbackReadiness(tool: Tool): McpReadiness {
   const counts = summary(discovered)
   const connected = oauthConnected(tool)
   const ready = mcpConfig(tool).mcp_status === 'ready'
-  const state = !connected ? 'needs_connection' : ready && counts.allow > 0 ? 'ready' : ready && discovered.length > 0 ? 'needs_permission' : 'not_ready'
+  const state = !connected && discovered.length === 0 ? 'needs_discovery' : !connected ? 'needs_connection' : ready && counts.allow > 0 ? 'ready' : ready && discovered.length > 0 ? 'needs_permission' : 'not_ready'
   return {
     state,
-    label: state === 'ready' ? 'Ready' : state === 'needs_permission' ? 'Needs permission' : state === 'needs_connection' ? 'Connect' : 'Not ready',
-    message: state === 'ready' ? `${counts.allow} tools available to this agent.` : state === 'needs_permission' ? 'Choose which MCP tools this agent can use.' : state === 'needs_connection' ? 'Connect this provider to load its MCP tools.' : 'MCP tools are not available yet.',
-    action: state === 'needs_connection' ? 'connect' : state === 'needs_permission' ? 'configure_permissions' : 'refresh',
+    label: state === 'ready' ? 'Ready' : state === 'needs_permission' ? 'Needs permission' : state === 'needs_discovery' ? 'Load tools' : state === 'needs_connection' ? 'Connect' : 'Not ready',
+    message: state === 'ready' ? `${counts.allow} tools available to this agent.` : state === 'needs_permission' ? 'Choose which MCP tools this agent can use.' : state === 'needs_discovery' ? 'Load this public MCP provider to see its tools.' : state === 'needs_connection' ? 'Connect this provider to load its MCP tools.' : 'MCP tools are not available yet.',
+    action: state === 'needs_discovery' ? 'refresh' : state === 'needs_connection' ? 'connect' : state === 'needs_permission' ? 'configure_permissions' : 'refresh',
     can_use_tools: state === 'ready',
     oauth_connected: connected,
     mcp_ready: ready,
@@ -104,9 +104,9 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       setBusyKey('refresh')
       await refreshMcpTools({ tool_id: tool.id })
       await onChanged?.()
-      toast.success('MCP status updated')
+      toast.success('MCP tools updated')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to refresh MCP')
+      toast.error(err instanceof Error ? err.message : 'Failed to load MCP tools')
     } finally {
       setBusyKey(null)
     }
@@ -169,9 +169,10 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
 
       <div className="flex flex-wrap gap-2">
         {state.action === 'connect' ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
+        {state.action === 'refresh' ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
         {state.state === 'provider_not_supported' ? <Button size="sm" variant="outline" disabled>Provider setup needed</Button> : null}
         {discovered.length > 0 ? <Button size="sm" variant="outline" onClick={() => setOpenTools(value => !value)}>{openTools ? 'Hide tools' : 'Manage tools'}</Button> : null}
-        {state.oauth_connected && !state.can_use_tools ? <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button> : null}
+        {state.oauth_connected && state.action !== 'refresh' && !state.can_use_tools ? <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button> : null}
         {state.oauth_connected ? <Button size="sm" variant="ghost" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
       </div>
 
