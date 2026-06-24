@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
@@ -13,6 +16,18 @@ from modules.agent.domain.repositories import ToolRepository
 from shared.infra.time import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+class RefreshMcpProviderToolsInput(BaseModel):
+    tool_id: UUID
+    timeout_ms: int = Field(default=30000, ge=1)
+
+
+class RefreshMcpProviderToolsOutput(BaseModel):
+    tool_id: UUID
+    discovered_count: int
+    initialized: bool
+    error: str | None = None
 
 
 def _enum_value(value: Any) -> str:
@@ -104,6 +119,90 @@ async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dic
         return {}
 
 
+async def _discover_and_persist_tool(
+    *,
+    tool: Tool,
+    tool_repo: ToolRepository,
+    executor: ToolExecutionPort,
+    secret_resolver: ToolSecretResolverPort | None,
+    auth_header_provider: Any | None,
+    timeout_ms: int,
+    now: datetime,
+) -> RefreshMcpProviderToolsOutput:
+    config = dict(tool.config or {})
+    server = config.get("server") or {}
+    server_url = server.get("url") or config.get("url")
+    if not server_url:
+        raise ValueError("MCP server.url is required before discovery")
+
+    configured_headers = await _resolve_headers(raw_headers=_raw_headers_from_config(config), tool=tool, secret_resolver=secret_resolver)
+    oauth_headers = await _auth_headers_for(tool, auth_header_provider)
+    output = await DiscoverMcpToolsUseCase(executor).execute(
+        McpDiscoverInput(
+            server_url=str(server_url),
+            headers={**configured_headers, **oauth_headers},
+            timeout_ms=timeout_ms,
+        )
+    )
+
+    if output.error or not output.tools:
+        config["oauth_discovery_error"] = output.error or "MCP discovery returned no tools"
+        tool.config = config
+        tool.updated_at = now
+        await tool_repo.update(tool)
+        return RefreshMcpProviderToolsOutput(
+            tool_id=tool.id,
+            discovered_count=0,
+            initialized=output.initialized,
+            error=config["oauth_discovery_error"],
+        )
+
+    next_tools = [item.model_dump() for item in output.tools]
+    config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
+    config["discovered_at"] = now.isoformat()
+    config.pop("oauth_discovery_error", None)
+    tool.config = config
+    tool.updated_at = now
+    await tool_repo.update(tool)
+    return RefreshMcpProviderToolsOutput(
+        tool_id=tool.id,
+        discovered_count=len(next_tools),
+        initialized=output.initialized,
+        error=None,
+    )
+
+
+class RefreshMcpProviderToolsUseCase:
+    def __init__(
+        self,
+        *,
+        tool_repo: ToolRepository,
+        executor: ToolExecutionPort,
+        secret_resolver: ToolSecretResolverPort | None = None,
+        auth_header_provider: Any | None = None,
+    ) -> None:
+        self._tool_repo = tool_repo
+        self._executor = executor
+        self._secret_resolver = secret_resolver
+        self._auth_header_provider = auth_header_provider
+
+    async def execute(self, input_dto: RefreshMcpProviderToolsInput) -> RefreshMcpProviderToolsOutput:
+        tool = await self._tool_repo.get_by_id(input_dto.tool_id)
+        if tool is None:
+            raise ValueError("MCP tool provider not found")
+        if not _is_mcp_server_provider(tool):
+            raise ValueError("Tool is not an MCP server provider")
+        return await _discover_and_persist_tool(
+            tool=tool,
+            tool_repo=self._tool_repo,
+            executor=self._executor,
+            secret_resolver=self._secret_resolver,
+            auth_header_provider=self._auth_header_provider,
+            timeout_ms=input_dto.timeout_ms or int((tool.config or {}).get("timeout_ms") or tool.timeout_ms or 30000),
+            now=utc_now(),
+        )
+
+
 async def refresh_stale_mcp_server_tools(
     *,
     tools: list[Tool],
@@ -113,7 +212,6 @@ async def refresh_stale_mcp_server_tools(
     auth_header_provider: Any | None = None,
 ) -> list[Tool]:
     now = utc_now()
-    discovery = DiscoverMcpToolsUseCase(executor)
     refreshed_tools: list[Tool] = []
 
     for tool in tools:
@@ -121,43 +219,20 @@ async def refresh_stale_mcp_server_tools(
             refreshed_tools.append(tool)
             continue
 
-        config = dict(tool.config or {})
-        server = config.get("server") or {}
-        server_url = server.get("url") or config.get("url")
-        if not server_url:
-            refreshed_tools.append(tool)
-            continue
-
         try:
-            configured_headers = await _resolve_headers(raw_headers=_raw_headers_from_config(config), tool=tool, secret_resolver=secret_resolver)
-            oauth_headers = await _auth_headers_for(tool, auth_header_provider)
-            output = await discovery.execute(
-                McpDiscoverInput(
-                    server_url=str(server_url),
-                    headers={**configured_headers, **oauth_headers},
-                    timeout_ms=tool.timeout_ms or int(config.get("timeout_ms") or 30000),
-                )
+            await _discover_and_persist_tool(
+                tool=tool,
+                tool_repo=tool_repo,
+                executor=executor,
+                secret_resolver=secret_resolver,
+                auth_header_provider=auth_header_provider,
+                timeout_ms=tool.timeout_ms or int((tool.config or {}).get("timeout_ms") or 30000),
+                now=now,
             )
+            refreshed_tool = await tool_repo.get_by_id(tool.id)
+            refreshed_tools.append(refreshed_tool or tool)
         except Exception as exc:
             logger.warning("MCP discovery refresh failed for tool %s: %s", tool.id, exc)
-            refreshed_tools.append(tool)
-            continue
-
-        if output.error or not output.tools:
-            logger.warning("MCP discovery refresh returned no tools for tool %s: %s", tool.id, output.error)
-            refreshed_tools.append(tool)
-            continue
-
-        next_tools = [item.model_dump() for item in output.tools]
-        config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
-        config["discovered_at"] = now.isoformat()
-        config.pop("oauth_discovery_error", None)
-        tool.config = config
-        tool.updated_at = now
-        try:
-            refreshed_tools.append(await tool_repo.update(tool))
-        except Exception as exc:
-            logger.warning("Failed to persist MCP discovery refresh for tool %s: %s", tool.id, exc)
             refreshed_tools.append(tool)
 
     return refreshed_tools
