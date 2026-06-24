@@ -38,6 +38,13 @@ export interface McpToolPermission {
   risk_level?: string | null
 }
 
+export interface McpProtectedResourceMetadata {
+  resource?: string | null
+  authorization_servers?: string[]
+  scopes_supported?: string[]
+  bearer_methods_supported?: string[]
+}
+
 export interface McpDiscoveryDiagnostic {
   status?: string | null
   phase?: string | null
@@ -45,6 +52,8 @@ export interface McpDiscoveryDiagnostic {
   initialized?: boolean | null
   error?: string | null
   server_url?: string | null
+  oauth_resource?: string | null
+  protected_resource?: string | null
   checked_at?: string | null
   www_authenticate?: string | null
 }
@@ -72,6 +81,7 @@ export interface McpToolConfig {
   oauth?: Record<string, unknown>
   oauth_discovery_error?: string
   mcp_status?: string
+  mcp_resource_metadata?: McpProtectedResourceMetadata
   mcp_discovery?: McpDiscoveryDiagnostic
 }
 
