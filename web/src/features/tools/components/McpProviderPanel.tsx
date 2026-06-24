@@ -73,6 +73,13 @@ function readinessBadgeStatus(value: string): string {
   return value
 }
 
+function challengeScopes(value?: string | null): string[] {
+  if (!value) return []
+  const match = value.match(/scope="([^"]+)"/i) || value.match(/scope=([^,\s]+)/i)
+  if (!match?.[1]) return []
+  return match[1].split(/\s+/).map(scope => scope.trim()).filter(Boolean)
+}
+
 interface Props {
   tool: Tool
   onChanged?: () => void | Promise<void>
@@ -88,12 +95,17 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const mcpReadiness = readinessStatus(tool)
   const visibleError = errorText(tool)
   const details = diagnostic(tool)
+  const requiredScopes = challengeScopes(details?.www_authenticate)
 
   const handleConnect = async () => {
     try {
       setBusyKey('connect')
       const redirectUri = `${window.location.origin}/mcp/oauth/callback`
-      const result = await startMcpOAuth({ tool_id: tool.id, redirect_uri: redirectUri })
+      const result = await startMcpOAuth({
+        tool_id: tool.id,
+        redirect_uri: redirectUri,
+        scopes: requiredScopes.length > 0 ? requiredScopes : undefined,
+      })
       window.localStorage.setItem(
         `${MCP_CONNECT_STATE_PREFIX}${result.state}`,
         JSON.stringify({ toolId: tool.id, returnTo: `${window.location.pathname}?configure_mcp_permissions=${tool.id}` }),
@@ -174,6 +186,7 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       </div>
 
       <div className="text-[10px] text-muted">OAuth: {oauthStatus(tool)} · MCP: {readinessLabel(mcpReadiness)}</div>
+      {requiredScopes.length > 0 ? <div className="text-[10px] text-amber-200">Next reconnect will request scopes: {requiredScopes.join(' ')}</div> : null}
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>{connected ? 'Reconnect / rediscover' : 'Connect'}</Button>
