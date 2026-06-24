@@ -71,4 +71,3 @@ async def handle_ask_stream(
             "X-Accel-Buffering": "no",
         },
     )
-}
