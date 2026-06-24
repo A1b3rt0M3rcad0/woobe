@@ -39,4 +39,5 @@ dev = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"src/modules/agent/application/mcp_oauth_flows.py" = ["F401"]
 "src/modules/agent/infra/database/models.py" = ["F401"]
