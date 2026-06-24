@@ -71,6 +71,7 @@ function readinessLabel(value: string): string {
     discovery_failed: 'discovery failed',
     resource_mismatch: 'resource mismatch',
     metadata_required: 'metadata required',
+    provider_client_rejected: 'provider rejected client',
     empty: 'empty discovery',
     oauth_connected: 'oauth connected',
     disconnected: 'disconnected',
@@ -80,7 +81,7 @@ function readinessLabel(value: string): string {
 
 function readinessBadgeStatus(value: string): string {
   if (value === 'ready') return 'connected'
-  if (value === 'token_invalid' || value === 'scope_denied' || value === 'discovery_failed' || value === 'resource_mismatch' || value === 'metadata_required') return 'failed'
+  if (value === 'token_invalid' || value === 'scope_denied' || value === 'discovery_failed' || value === 'resource_mismatch' || value === 'metadata_required' || value === 'provider_client_rejected') return 'failed'
   return value
 }
 
@@ -89,6 +90,15 @@ function challengeScopes(value?: string | null): string[] {
   const match = value.match(/scope="([^"]+)"/i) || value.match(/scope=([^,\s]+)/i)
   if (!match?.[1]) return []
   return match[1].split(/\s+/).map(scope => scope.trim()).filter(Boolean)
+}
+
+function diagnosticJson(value: Record<string, unknown> | undefined | null): string | null {
+  if (!value) return null
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return null
+  }
 }
 
 interface Props {
@@ -109,6 +119,7 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const requiredScopes = challengeScopes(details?.www_authenticate)
   const currentOAuthResource = oauthResource(tool) || details?.oauth_resource || null
   const currentProtectedResource = protectedResource(tool) || details?.protected_resource || null
+  const authHints = diagnosticJson(details?.authorization_hints || mcpConfig(tool).mcp_resource_metadata?.authorization_hints)
 
   const handleConnect = async () => {
     try {
@@ -201,6 +212,7 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
       <div className="text-[10px] text-muted">OAuth: {oauthStatus(tool)} · MCP: {readinessLabel(mcpReadiness)}</div>
       {currentOAuthResource ? <div className="break-all text-[10px] text-muted">OAuth resource: {currentOAuthResource}</div> : null}
       {currentProtectedResource ? <div className="break-all text-[10px] text-muted">Protected resource: {currentProtectedResource}</div> : null}
+      {mcpReadiness === 'provider_client_rejected' ? <div className="text-[10px] text-amber-200">Provider metadata suggests this client or OAuth flow may not be accepted. Check authorization hints below.</div> : null}
       {requiredScopes.length > 0 ? <div className="text-[10px] text-amber-200">Next reconnect will request scopes: {requiredScopes.join(' ')}</div> : null}
 
       <div className="flex flex-wrap gap-2">
@@ -236,7 +248,10 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
               <div>server_url: {details.server_url || '—'}</div>
               <div>oauth_resource: {details.oauth_resource || currentOAuthResource || '—'}</div>
               <div>protected_resource: {details.protected_resource || currentProtectedResource || '—'}</div>
+              <div>authorization_server_issuer: {details.authorization_server_issuer || '—'}</div>
+              <div>token_endpoint_auth_method: {details.token_endpoint_auth_method || '—'}</div>
               <div>checked_at: {details.checked_at || '—'}</div>
+              {authHints ? <pre className="whitespace-pre-wrap break-all rounded bg-black/20 p-2">authorization_hints: {authHints}</pre> : null}
               {details.www_authenticate ? <div>www_authenticate: {details.www_authenticate}</div> : null}
             </div>
           ) : null}
