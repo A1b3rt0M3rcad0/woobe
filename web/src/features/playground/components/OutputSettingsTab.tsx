@@ -1,16 +1,17 @@
-import { useMemo } from 'react'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
+import { buildDraftRuntimePreview } from '../lib/build-draft-runtime-preview'
 
 const DEFAULT_SCHEMA = `{
   "message": "string",
   "confidence": "float"
 }`
 
-const EXAMPLE_STRUCTURED_OUTPUT = {
-  message: 'ok',
-  confidence: 0.87,
+interface OutputSettingsTabProps {
+  projectId: string
+  agentId: string
+  sessionId: string | null
 }
 
 function schemaToString(schema: unknown): string {
@@ -19,8 +20,12 @@ function schemaToString(schema: unknown): string {
   return DEFAULT_SCHEMA
 }
 
-export function OutputSettingsTab() {
-  const { state, setField } = useAgentEditor()
+function sourceLabel(source: 'current_draft' | 'draft_unsaved') {
+  return source === 'draft_unsaved' ? 'Draft with unsaved changes' : 'Current draft'
+}
+
+export function OutputSettingsTab({ projectId, agentId, sessionId }: OutputSettingsTabProps) {
+  const { state, setField, toSnapshot, activeSource } = useAgentEditor()
   const { responseFormat } = state
 
   const handleToggle = (enabled: boolean) => {
@@ -39,57 +44,13 @@ export function OutputSettingsTab() {
     setField('responseFormat', { ...responseFormat, schema: value })
   }
 
-  const previewExample = useMemo(() => {
-    if (!responseFormat.enabled) {
-      return {
-        success: true,
-        data: {
-          answer: 'Hello! How can I help you?',
-          session_id: 'uuid',
-          message_id: 'uuid',
-          usage: {
-            input_tokens: 42,
-            output_tokens: 17,
-            total_tokens: 59,
-            cost_usd: 0.0003,
-          },
-          sources: [],
-          tool_calls: [],
-          trace_id: 'uuid',
-          model: 'gpt-4o-mini',
-          provider: 'openai',
-          fallback_used: false,
-          latency_ms: 843,
-          parsed_output: null,
-          output_parse_error: null,
-        },
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        answer: JSON.stringify(EXAMPLE_STRUCTURED_OUTPUT),
-        session_id: 'uuid',
-        message_id: 'uuid',
-        usage: {
-          input_tokens: 58,
-          output_tokens: 22,
-          total_tokens: 80,
-          cost_usd: 0.0005,
-        },
-        sources: [],
-        tool_calls: [],
-        trace_id: 'uuid',
-        model: 'gpt-4o-mini',
-        provider: 'openai',
-        fallback_used: false,
-        latency_ms: 1024,
-        parsed_output: EXAMPLE_STRUCTURED_OUTPUT,
-        output_parse_error: null,
-      },
-    }
-  }, [responseFormat.enabled])
+  const draftRuntimePreview = buildDraftRuntimePreview({
+    projectId,
+    agentId,
+    sessionId,
+    activeSource,
+    snapshot: toSnapshot(),
+  })
 
   return (
     <div className="p-4 space-y-4">
@@ -142,11 +103,21 @@ export function OutputSettingsTab() {
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">API Response Preview</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Draft Runtime Preview</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                Exact playground payload for the current draft snapshot. This is the same configuration sent as <code>snapshot_override</code> when you run the agent in the playground.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
+              {sourceLabel(activeSource)}
+            </span>
+          </div>
           <JsonCodeBlock
-            value={previewExample}
-            title="Preview"
-            maxHeight={480}
+            value={draftRuntimePreview}
+            title="Draft runtime payload"
+            maxHeight={560}
             actions={['copy', 'format', 'expand']}
           />
         </div>
