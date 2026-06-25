@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 
+CONNECTION_REQUIRED_STATES = {"needs_connection", "oauth_required", "metadata_required", "disconnected"}
+TOKEN_REJECTED_STATES = {"token_invalid", "token_rejected"}
+PROVIDER_REJECTED_STATES = {"provider_client_rejected"}
+
+
 def _permission_mode(item: dict[str, Any]) -> str:
     permission = item.get("permission") if isinstance(item, dict) else None
     mode = permission.get("mode") if isinstance(permission, dict) else None
@@ -40,6 +45,10 @@ def _has_auth_challenge(config: dict[str, Any], diagnostic: dict[str, Any]) -> b
     return isinstance(metadata, dict) and bool(metadata.get("resource") or metadata.get("authorization_servers"))
 
 
+def _has_loaded_tools(discovered_count: int) -> bool:
+    return discovered_count > 0
+
+
 def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None = None) -> dict[str, Any]:
     cfg = dict(config or {})
     oauth = cfg.get("oauth") if isinstance(cfg.get("oauth"), dict) else {}
@@ -49,14 +58,15 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     discovered_count = len(discovered_tools)
     exposed_count = sum(1 for item in discovered_tools if isinstance(item, dict) and _permission_mode(item) == "allow")
     oauth_status = str(oauth.get("status") or "disconnected")
-    mcp_status = str(cfg.get("mcp_status") or diagnostic.get("status") or "disconnected")
+    mcp_status = str(cfg.get("mcp_status") or diagnostic.get("status") or "")
     discovery_status = str(diagnostic.get("status") or "")
     http_status = diagnostic.get("http_status")
-    provider_client_rejected = discovery_status == "provider_client_rejected" or (
+    supports_device_code = _has_device_code_hint(cfg, diagnostic)
+    auth_required = _has_auth_challenge(cfg, diagnostic) or mcp_status in CONNECTION_REQUIRED_STATES
+    token_rejected = http_status == 401 and oauth_status == "connected" or mcp_status in TOKEN_REJECTED_STATES or discovery_status in TOKEN_REJECTED_STATES
+    provider_client_rejected = discovery_status in PROVIDER_REJECTED_STATES or mcp_status in PROVIDER_REJECTED_STATES or (
         http_status == 401 and _provider_advertises_client_capability(cfg, diagnostic)
     )
-    supports_device_code = _has_device_code_hint(cfg, diagnostic)
-    auth_required = _has_auth_challenge(cfg, diagnostic)
 
     if provider_client_rejected:
         state = "provider_not_supported"
@@ -64,52 +74,46 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
         message = "This provider does not accept ProjectRAI with the normal OAuth flow. Use device code or provider-issued OAuth credentials."
         action = "device_code" if supports_device_code else "provider_credentials"
         can_use_tools = False
+    elif token_rejected:
+        state = "token_rejected"
+        label = "Token rejected"
+        message = "The provider rejected the current token. Disconnect and reconnect with an accepted OAuth client."
+        action = "disconnect"
+        can_use_tools = False
     elif oauth_status != "connected" and auth_required:
         state = "needs_connection"
         label = "Connect"
         message = "This MCP provider requires a login before agents can use its tools."
         action = "connect"
         can_use_tools = False
-    elif oauth_status != "connected" and discovered_count == 0:
-        state = "needs_discovery"
-        label = "Load tools"
-        message = "Load this public MCP provider to see which tools it exposes."
-        action = "refresh"
-        can_use_tools = False
-    elif oauth_status != "connected":
-        state = "needs_connection"
-        label = "Connect"
-        message = "Connect this MCP provider before agents can use its tools."
-        action = "connect"
-        can_use_tools = False
-    elif mcp_status == "ready" and discovered_count > 0 and exposed_count > 0:
+    elif _has_loaded_tools(discovered_count) and exposed_count > 0:
         state = "ready"
         label = "Ready"
         message = f"{exposed_count} MCP tool{'s' if exposed_count != 1 else ''} available to agents."
-        action = "configure_permissions"
+        action = "manage_tools"
         can_use_tools = True
-    elif mcp_status == "ready" and discovered_count > 0:
+    elif _has_loaded_tools(discovered_count):
         state = "needs_permission"
         label = "Needs permission"
         message = "Tools were found, but none are exposed to agents yet."
         action = "configure_permissions"
         can_use_tools = False
-    elif mcp_status == "ready":
+    elif mcp_status in {"ready", "empty", "no_tools"}:
         state = "no_tools"
         label = "No tools"
         message = "The MCP server connected, but did not expose any tools."
         action = "refresh"
         can_use_tools = False
-    elif http_status == 401:
-        state = "token_rejected"
-        label = "Token rejected"
-        message = "The provider rejected the current token. Disconnect and reconnect with an accepted OAuth client."
-        action = "disconnect"
-        can_use_tools = False
-    else:
-        state = "discovery_failed" if diagnostic else "not_ready"
+    elif diagnostic or mcp_status == "discovery_failed":
+        state = "discovery_failed"
         label = "Not ready"
         message = "MCP tools are not available yet. Load tools or refresh discovery."
+        action = "refresh"
+        can_use_tools = False
+    else:
+        state = "needs_discovery"
+        label = "Load tools"
+        message = "Load this public MCP provider to see which tools it exposes."
         action = "refresh"
         can_use_tools = False
 
