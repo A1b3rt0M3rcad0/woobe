@@ -280,7 +280,10 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
       },
       done: {
         event: 'done',
-        data: dataExample,
+        data: {
+          type: 'done',
+          ...dataExample,
+        },
       },
       error: {
         event: 'error',
