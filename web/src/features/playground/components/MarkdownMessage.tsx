@@ -18,7 +18,17 @@ type MarkdownTable = {
   alignments: Array<'left' | 'center' | 'right'>
 }
 
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+type InlineRenderContext = 'body' | 'table'
+
+function inlineCodeClass(context: InlineRenderContext): string {
+  if (context === 'table') {
+    return 'rounded border border-border/80 bg-surface/70 px-1.5 py-[1px] font-mono text-[0.82em] font-medium leading-none text-slate-100'
+  }
+
+  return 'rounded border border-white/10 bg-white/[0.06] px-1 py-[1px] font-mono text-[0.86em] font-medium leading-none text-slate-100'
+}
+
+function renderInline(text: string, keyPrefix: string, context: InlineRenderContext = 'body'): ReactNode[] {
   const nodes: ReactNode[] = []
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(https?:\/\/[^\s<]+)/g
   let lastIndex = 0
@@ -55,7 +65,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={`${keyPrefix}-code-${index++}`}
-          className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[0.82em] font-medium text-primary-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
+          className={inlineCodeClass(context)}
         >
           {match[5]}
         </code>,
@@ -257,7 +267,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                     alignmentClass(table.alignments[headerIndex] ?? 'left'),
                   )}
                 >
-                  {renderInline(header, `table-${currentKey}-h-${headerIndex}`)}
+                  {renderInline(header, `table-${currentKey}-h-${headerIndex}`, 'table')}
                 </th>
               ))}
             </tr>
@@ -273,7 +283,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                       alignmentClass(table.alignments[cellIndex] ?? 'left'),
                     )}
                   >
-                    {renderInline(cell, `table-${currentKey}-r-${rowIndex}-c-${cellIndex}`)}
+                    {renderInline(cell, `table-${currentKey}-r-${rowIndex}-c-${cellIndex}`, 'table')}
                   </td>
                 ))}
               </tr>
