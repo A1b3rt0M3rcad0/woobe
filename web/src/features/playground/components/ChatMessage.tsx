@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react'
 import { formatNumber, formatLatency } from '@/lib/formatters/number'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { StructuredJsonResponse } from './StructuredJsonResponse'
@@ -142,6 +142,12 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
 
       {!isStreaming && (
         <div className="pl-16 space-y-1.5">
+          {message.output_parse_error && (
+            <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{message.output_parse_error}</span>
+            </div>
+          )}
           {message.sources && message.sources.length > 0 && (
             <SourcesCollapsible sources={message.sources} />
           )}

@@ -1,12 +1,18 @@
-import { useMemo } from 'react'
+import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
+import { useLivePlaygroundSessionId } from '../lib/playground-session-store'
+import { buildDraftRuntimePreview } from '../lib/build-draft-runtime-preview'
+import { OutputContractHelpModal } from './OutputContractHelpModal'
 
 const DEFAULT_SCHEMA = `{
   "message": "string",
-  "confidence": "number"
+  "confidence": "float"
 }`
+
+type HelpSection = 'contract' | 'preview'
 
 function schemaToString(schema: unknown): string {
   if (typeof schema === 'string') return schema
@@ -14,9 +20,30 @@ function schemaToString(schema: unknown): string {
   return DEFAULT_SCHEMA
 }
 
+function sourceLabel(source: 'current_draft' | 'draft_unsaved') {
+  return source === 'draft_unsaved' ? 'Draft with unsaved changes' : 'Current draft'
+}
+
+function HelpButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-[10px] font-semibold text-muted transition-colors hover:border-primary/50 hover:text-primary"
+      aria-label={label}
+      title={label}
+    >
+      ?
+    </button>
+  )
+}
+
 export function OutputSettingsTab() {
-  const { state, setField } = useAgentEditor()
+  const { projectId = '', agentId = '' } = useParams<{ projectId: string; agentId: string }>()
+  const sessionId = useLivePlaygroundSessionId(null)
+  const { state, setField, toSnapshot, activeSource } = useAgentEditor()
   const { responseFormat } = state
+  const [helpSection, setHelpSection] = useState<HelpSection | null>(null)
 
   const handleToggle = (enabled: boolean) => {
     setField('responseFormat', {
@@ -34,76 +61,13 @@ export function OutputSettingsTab() {
     setField('responseFormat', { ...responseFormat, schema: value })
   }
 
-  const previewExample = useMemo(() => {
-    if (!responseFormat.enabled) {
-      return {
-        success: true,
-        data: {
-          answer: 'Hello! How can I help you?',
-          session_id: 'uuid',
-          message_id: 'uuid',
-          usage: {
-            input_tokens: 42,
-            output_tokens: 17,
-            total_tokens: 59,
-            cost_usd: 0.0003,
-          },
-          sources: [],
-          tool_calls: [],
-          trace_id: 'uuid',
-          model: 'gpt-4o-mini',
-          provider: 'openai',
-          fallback_used: false,
-          latency_ms: 843,
-          parsed_output: null,
-          output_parse_error: null,
-        },
-      }
-    }
-
-    const rawSchema = responseFormat.schema
-    let schemaStr: string
-    let schemaObj: Record<string, unknown> | null
-
-    if (typeof rawSchema === 'string') {
-      schemaStr = rawSchema
-      try {
-        schemaObj = JSON.parse(rawSchema) as Record<string, unknown>
-      } catch {
-        schemaObj = null
-      }
-    } else if (rawSchema && typeof rawSchema === 'object') {
-      schemaStr = JSON.stringify(rawSchema, null, 2)
-      schemaObj = rawSchema as Record<string, unknown>
-    } else {
-      schemaStr = DEFAULT_SCHEMA
-      schemaObj = JSON.parse(DEFAULT_SCHEMA) as Record<string, unknown>
-    }
-
-    return {
-      success: true,
-      data: {
-        answer: schemaStr,
-        session_id: 'uuid',
-        message_id: 'uuid',
-        usage: {
-          input_tokens: 58,
-          output_tokens: 22,
-          total_tokens: 80,
-          cost_usd: 0.0005,
-        },
-        sources: [],
-        tool_calls: [],
-        trace_id: 'uuid',
-        model: 'gpt-4o-mini',
-        provider: 'openai',
-        fallback_used: false,
-        latency_ms: 1024,
-        parsed_output: schemaObj,
-        output_parse_error: null,
-      },
-    }
-  }, [responseFormat.enabled, responseFormat.schema])
+  const draftRuntimePreview = buildDraftRuntimePreview({
+    projectId,
+    agentId,
+    sessionId,
+    activeSource,
+    snapshot: toSnapshot(),
+  })
 
   return (
     <div className="p-4 space-y-4">
@@ -123,7 +87,10 @@ export function OutputSettingsTab() {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">Output contract</label>
+            <div className="mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-medium text-muted">Output contract</label>
+              <HelpButton label="Explain output contracts" onClick={() => setHelpSection('contract')} />
+            </div>
             <JsonEditor
               value={schemaToString(responseFormat.schema)}
               onChange={handleSchemaChange}
@@ -133,6 +100,9 @@ export function OutputSettingsTab() {
               minHeight={180}
               placeholder='{ "message": "string" }'
             />
+            <p className="mt-2 text-[11px] leading-relaxed text-muted">
+              Type names such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> define expected output types. They are not literal values.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -152,15 +122,34 @@ export function OutputSettingsTab() {
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">API Response Preview</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-muted uppercase tracking-wider">Draft Runtime Preview</p>
+                <HelpButton label="Explain draft runtime preview" onClick={() => setHelpSection('preview')} />
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                Exact current draft configuration sent as <code>snapshot_override</code> when this agent runs in the playground.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
+              {sourceLabel(activeSource)}
+            </span>
+          </div>
           <JsonCodeBlock
-            value={previewExample}
-            title="Preview"
-            maxHeight={480}
+            value={draftRuntimePreview}
+            title="Draft runtime payload"
+            maxHeight={560}
             actions={['copy', 'format', 'expand']}
           />
         </div>
       </div>
+
+      <OutputContractHelpModal
+        open={helpSection !== null}
+        initialSection={helpSection ?? 'contract'}
+        onClose={() => setHelpSection(null)}
+      />
     </div>
   )
 }

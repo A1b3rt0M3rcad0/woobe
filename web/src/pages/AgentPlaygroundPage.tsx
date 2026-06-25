@@ -78,6 +78,7 @@ function PlaygroundContent() {
         sources: (m.data?.sources ?? null) as ChatMessage['sources'],
         model: (m.data?.model as string | undefined) ?? null,
         provider: (m.data?.provider as string | undefined) ?? null,
+        output_parse_error: (m.data?.output_parse_error as string | undefined) ?? null,
       }))
       syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
@@ -204,6 +205,7 @@ function PlaygroundContent() {
                   latency_ms: meta.latency_ms ?? null,
                   trace_id: meta.trace_id ?? null,
                   parsed_output: meta.parsed_output ?? null,
+                  output_parse_error: meta.output_parse_error ?? null,
                 }
               }
               return updated
@@ -226,14 +228,20 @@ function PlaygroundContent() {
             setMessages((prev) => {
               const updated = [...prev]
               const last = updated[updated.length - 1]
-              if (last?.role === 'assistant' && !last.content) {
+              if (last?.role === 'assistant') {
                 updated[updated.length - 1] = {
                   ...last,
-                  content: 'Error: Failed to get response. Check your agent configuration.',
+                  content: last.content || `Error: ${error.message}`,
+                  output_parse_error: error.message,
+                  trace_id: metadataRef.current.trace_id ?? null,
                 }
               }
               return updated
             })
+            refetchTraces()
+            if (metadataRef.current.trace_id) {
+              setTimeout(() => setSelectedTraceId(metadataRef.current.trace_id!), 100)
+            }
           },
           onFallback: (info) => {
             rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })

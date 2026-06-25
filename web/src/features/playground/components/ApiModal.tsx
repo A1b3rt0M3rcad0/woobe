@@ -4,8 +4,14 @@ import { Badge } from '@/components/ui/Badge'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Key, X } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
+import {
+  buildApiReferenceForSlot,
+  runtimeCurl,
+  type RuntimeSlot,
+} from '../lib/api-reference-contracts'
 
 interface ApiModalProps {
   open: boolean
@@ -15,51 +21,15 @@ interface ApiModalProps {
   projectId: string
 }
 
-function getResponseFormat(agent: Agent) {
-  const settings = agent.settings || {}
-  return (settings as Record<string, unknown>).response_format as
-    | Record<string, unknown>
-    | undefined
+const slotLabels: Record<RuntimeSlot, string> = {
+  production: 'Production Release',
+  staging: 'Staging Release',
 }
-
-function runtimeCurl(projectId: string, agentId: string, context: 'production' | 'staging', stream = false) {
-  return `curl ${stream ? '-N ' : ''}-X POST http://localhost:8000${stream ? '/runtime/ask/stream' : '/runtime/ask'} \\
-  -H "Content-Type: application/json" \\
-  -d '{
-  "project_id": "${projectId}",
-  "agent_id": "${agentId}",
-  "execution_context": "${context}",
-  "message": "Hello!",
-  "session_id": null
-}'`
-}
-
-const ASK_RESPONSE_EXAMPLE = `{
-  "success": true,
-  "data": {
-    "answer": "Hello! How can I help you?",
-    "session_id": "uuid",
-    "message_id": "uuid",
-    "usage": {
-      "input_tokens": 42,
-      "output_tokens": 17,
-      "total_tokens": 59,
-      "cost_usd": 0.0003
-    },
-    "sources": [],
-    "tool_calls": [],
-    "trace_id": "uuid",
-    "model": "gpt-4o-mini",
-    "provider": "openai",
-    "fallback_used": false,
-    "latency_ms": 843,
-    "parsed_output": null,
-    "output_parse_error": null
-  }
-}`
 
 export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: ApiModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [activeSlot, setActiveSlot] = useState<RuntimeSlot>('production')
+  const { data: releases = [] } = useReleases(agent.id)
 
   useEffect(() => {
     if (!open) return
@@ -70,70 +40,34 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  const responseFormat = getResponseFormat(agent)
-  const jsonEnabled = Boolean(responseFormat?.enabled && responseFormat?.type === 'json')
-  const productionCurl = useMemo(() => runtimeCurl(projectId, agent.id, 'production'), [projectId, agent.id])
-  const stagingCurl = useMemo(() => runtimeCurl(projectId, agent.id, 'staging'), [projectId, agent.id])
-  const streamCurl = useMemo(() => runtimeCurl(projectId, agent.id, 'production', true), [projectId, agent.id])
+  const productionRelease = useMemo(
+    () => releases.find((release) => release.status === 'production') ?? null,
+    [releases],
+  )
+  const stagingRelease = useMemo(
+    () => releases.find((release) => release.status === 'staging') ?? null,
+    [releases],
+  )
 
-  const structuredResponseExample = useMemo(() => {
-    const rawSchema = responseFormat?.schema
+  const activeRelease = activeSlot === 'production' ? productionRelease : stagingRelease
+  const reference = useMemo(
+    () => buildApiReferenceForSlot({
+      slot: activeSlot,
+      release: activeRelease,
+      projectId,
+      agentId: agent.id,
+    }),
+    [activeSlot, activeRelease, projectId, agent.id],
+  )
 
-    let schemaStr: string
-    let schemaObj: Record<string, unknown> | null
-
-    if (typeof rawSchema === 'string') {
-      schemaStr = rawSchema
-      try {
-        schemaObj = JSON.parse(rawSchema) as Record<string, unknown>
-      } catch {
-        schemaObj = null
-      }
-    } else if (rawSchema && typeof rawSchema === 'object') {
-      schemaStr = JSON.stringify(rawSchema, null, 2)
-      schemaObj = rawSchema as Record<string, unknown>
-    } else {
-      const defaultSchema = {
-        type: 'object',
-        properties: {
-          category: { type: 'string', enum: ['support', 'sales', 'bug', 'other'] },
-          summary: { type: 'string' },
-          confidence: { type: 'number' },
-        },
-        required: ['category', 'summary'],
-      }
-      schemaStr = JSON.stringify(defaultSchema, null, 2)
-      schemaObj = defaultSchema
-    }
-
-    return JSON.stringify(
-      {
-        success: true,
-        data: {
-          answer: schemaStr,
-          session_id: 'uuid',
-          message_id: 'uuid',
-          usage: {
-            input_tokens: 58,
-            output_tokens: 22,
-            total_tokens: 80,
-            cost_usd: 0.0005,
-          },
-          sources: [],
-          tool_calls: [],
-          trace_id: 'uuid',
-          model: 'gpt-4o-mini',
-          provider: 'openai',
-          fallback_used: false,
-          latency_ms: 1024,
-          parsed_output: schemaObj,
-          output_parse_error: null,
-        },
-      },
-      null,
-      2,
-    )
-  }, [responseFormat])
+  const activeCurl = useMemo(
+    () => runtimeCurl(projectId, agent.id, activeSlot),
+    [projectId, agent.id, activeSlot],
+  )
+  const activeStreamCurl = useMemo(
+    () => runtimeCurl(projectId, agent.id, activeSlot, true),
+    [projectId, agent.id, activeSlot],
+  )
 
   if (!open) return null
 
@@ -145,9 +79,12 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
       className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
-      <ScrollArea className="w-full max-w-2xl max-h-[80vh] rounded-xl border border-border bg-surface shadow-xl">
+      <ScrollArea className="w-full max-w-3xl max-h-[84vh] rounded-xl border border-border bg-surface shadow-xl">
         <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-surface z-10">
-          <h2 className="text-sm font-semibold text-white">API Reference</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-white">API Reference</h2>
+            <p className="mt-0.5 text-[11px] text-muted">Runtime contracts are generated from the active release snapshot for each slot.</p>
+          </div>
           <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -163,9 +100,68 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
           </div>
 
           <div className="rounded-lg border border-border bg-background p-3 text-xs text-muted space-y-2">
-            <p><strong className="text-white">production</strong> runs the currently deployed production release. This is the default runtime API context.</p>
-            <p><strong className="text-white">staging</strong> runs the current staging slot for pre-release validation.</p>
-            <p><strong className="text-white">playground</strong> is reserved for the editor and snapshot overrides.</p>
+            <p><strong className="text-white">production</strong> uses the active production release snapshot.</p>
+            <p><strong className="text-white">staging</strong> uses the active staging release snapshot.</p>
+            <p><strong className="text-white">playground</strong> is reserved for editor draft execution and snapshot overrides; it is not the public runtime contract shown here.</p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-muted mb-2">Runtime Slot</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['production', 'staging'] as RuntimeSlot[]).map((slot) => {
+                const release = slot === 'production' ? productionRelease : stagingRelease
+                const active = activeSlot === slot
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setActiveSlot(slot)}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      active ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-white">{slotLabels[slot]}</span>
+                      <Badge variant={release ? (slot === 'production' ? 'success' : 'warning') : 'secondary'} className="text-[10px]">
+                        {release ? release.version : 'not deployed'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted">
+                      {release ? `${release.provider ?? 'provider'}/${release.model ?? 'model'}` : `No ${slot} release is available.`}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-background p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-muted uppercase tracking-wider">Selected Slot Snapshot</p>
+                <p className="mt-1 text-sm text-white">{slotLabels[activeSlot]}</p>
+              </div>
+              <Badge variant={reference.available ? (activeSlot === 'production' ? 'success' : 'warning') : 'secondary'}>
+                {reference.release?.version ?? 'not deployed'}
+              </Badge>
+            </div>
+
+            {reference.release ? (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted">
+                <p>Provider: <code className="text-white">{reference.release.provider}</code></p>
+                <p>Model: <code className="text-white">{reference.release.model}</code></p>
+                <p>Session mode: <code className="text-white">{reference.release.session_mode ?? 'default'}</code></p>
+                <p>Structured output: <code className="text-white">{reference.release.structured_output_enabled ? 'enabled' : 'disabled'}</code></p>
+                <p>Strict JSON: <code className="text-white">{reference.release.strict_json ? 'true' : 'false'}</code></p>
+                <p>Fallback: <code className="text-white">{reference.release.fallback_model ? `${reference.release.fallback_provider}/${reference.release.fallback_model}` : 'none'}</code></p>
+              </div>
+            ) : null}
+
+            {reference.warnings.length > 0 && (
+              <div className="mt-3 rounded-md border border-yellow-500/30 bg-yellow-500/5 p-2 text-xs text-yellow-300 space-y-1">
+                {reference.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+              </div>
+            )}
           </div>
 
           <div>
@@ -185,43 +181,55 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-1">Production cURL</p>
-            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-              <pre className="p-4 text-xs text-muted">{productionCurl}</pre>
-            </ScrollArea>
-            <CopyButton text={productionCurl} />
+            <p className="text-xs font-medium text-muted mb-1">Request Contract</p>
+            <JsonCodeBlock value={reference.request} maxHeight={360} actions={['copy', 'format']} />
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-1">Staging cURL</p>
+            <p className="text-xs font-medium text-muted mb-1">cURL — {slotLabels[activeSlot]}</p>
             <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-              <pre className="p-4 text-xs text-muted">{stagingCurl}</pre>
+              <pre className="p-4 text-xs text-muted">{activeCurl}</pre>
             </ScrollArea>
-            <CopyButton text={stagingCurl} />
+            <CopyButton text={activeCurl} />
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-1">Streaming cURL</p>
-            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-              <pre className="p-4 text-xs text-muted">{streamCurl}</pre>
-            </ScrollArea>
+            <p className="text-xs font-medium text-muted mb-1">Sync Response Contract — POST /runtime/ask</p>
+            <p className="text-[11px] text-muted mb-2">HTTP responses use the API envelope: <code>{'{ success, data }'}</code>.</p>
+            <JsonCodeBlock value={reference.sync_response_contract} maxHeight={520} actions={['copy', 'format']} />
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted mb-1">Response Contract</p>
-            <JsonCodeBlock value={ASK_RESPONSE_EXAMPLE} maxHeight={480} actions={['copy', 'format']} />
+            <p className="text-xs font-medium text-muted mb-1">Sync Response Example — {slotLabels[activeSlot]}</p>
+            <JsonCodeBlock value={reference.sync_response_example} maxHeight={520} actions={['copy', 'format']} />
           </div>
 
-          {jsonEnabled && (
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-xs font-medium text-muted">Structured JSON Output</p>
-                <Badge variant="success" className="text-[10px]">Enabled</Badge>
-              </div>
-              <p className="text-xs text-muted mb-2">Structured output is taken from the selected production or staging release snapshot.</p>
-              <JsonCodeBlock value={structuredResponseExample} maxHeight={480} actions={['copy', 'format']} />
+          <div>
+            <p className="text-xs font-medium text-muted mb-1">Streaming cURL — {slotLabels[activeSlot]}</p>
+            <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
+              <pre className="p-4 text-xs text-muted">{activeStreamCurl}</pre>
+            </ScrollArea>
+            <CopyButton text={activeStreamCurl} />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-muted mb-1">Streaming Response Contract — POST /runtime/ask/stream</p>
+            <p className="text-[11px] text-muted mb-2">Streaming uses Server-Sent Events. The final <code>done</code> event carries the response object directly, without the <code>success/data</code> envelope.</p>
+            <JsonCodeBlock value={reference.stream_events} maxHeight={620} actions={['copy', 'format']} />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs font-medium text-muted">Structured Output — {slotLabels[activeSlot]}</p>
+              <Badge variant={reference.structured_output.enabled ? 'success' : 'secondary'} className="text-[10px]">
+                {reference.structured_output.enabled ? 'Enabled' : 'Disabled'}
+              </Badge>
             </div>
-          )}
+            <p className="text-xs text-muted mb-2">
+              Structured output is generated from the selected slot release snapshot, not from the draft agent settings.
+            </p>
+            <JsonCodeBlock value={reference.structured_output} maxHeight={520} actions={['copy', 'format']} />
+          </div>
 
           <Link
             to={p(projectId, 'api-keys')}

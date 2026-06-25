@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -6,6 +6,7 @@ import { Dropdown, type DropdownHandle } from '@/components/ui/Dropdown'
 import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft, ChevronDown, Circle } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { formatSessionLabel } from '../utils'
+import { setPlaygroundSessionId } from '../lib/playground-session-store'
 import type { Agent } from '@/features/agents/types'
 import type { SessionListItem } from '@/features/playground/types'
 import type { ReleaseStatus } from '@/features/agents/types'
@@ -45,6 +46,10 @@ export function PlaygroundHeader({
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
   const sessionDropdownRef = useRef<DropdownHandle>(null)
   const currentSession = sessionId ? sessions.find((s) => s.id === sessionId) ?? null : null
+
+  useEffect(() => {
+    setPlaygroundSessionId(sessionId)
+  }, [sessionId])
 
   const handleBackToProject = () => {
     if (organizationId && projectId) {
