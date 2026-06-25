@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-CONNECTION_REQUIRED_STATES = {"needs_connection", "oauth_required", "metadata_required", "disconnected"}
+CONNECTION_REQUIRED_STATES = {"needs_connection", "oauth_required", "metadata_required"}
 TOKEN_REJECTED_STATES = {"token_invalid", "token_rejected"}
 PROVIDER_REJECTED_STATES = {"provider_client_rejected"}
 
@@ -63,7 +63,7 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     http_status = diagnostic.get("http_status")
     supports_device_code = _has_device_code_hint(cfg, diagnostic)
     auth_required = _has_auth_challenge(cfg, diagnostic) or mcp_status in CONNECTION_REQUIRED_STATES
-    token_rejected = http_status == 401 and oauth_status == "connected" or mcp_status in TOKEN_REJECTED_STATES or discovery_status in TOKEN_REJECTED_STATES
+    token_rejected = (http_status == 401 and oauth_status == "connected") or mcp_status in TOKEN_REJECTED_STATES or discovery_status in TOKEN_REJECTED_STATES
     provider_client_rejected = discovery_status in PROVIDER_REJECTED_STATES or mcp_status in PROVIDER_REJECTED_STATES or (
         http_status == 401 and _provider_advertises_client_capability(cfg, diagnostic)
     )
