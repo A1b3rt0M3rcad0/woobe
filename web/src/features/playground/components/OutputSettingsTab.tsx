@@ -1,3 +1,4 @@
+import { useParams } from 'react-router-dom'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
@@ -7,12 +8,6 @@ const DEFAULT_SCHEMA = `{
   "message": "string",
   "confidence": "float"
 }`
-
-interface OutputSettingsTabProps {
-  projectId: string
-  agentId: string
-  sessionId: string | null
-}
 
 function schemaToString(schema: unknown): string {
   if (typeof schema === 'string') return schema
@@ -24,7 +19,8 @@ function sourceLabel(source: 'current_draft' | 'draft_unsaved') {
   return source === 'draft_unsaved' ? 'Draft with unsaved changes' : 'Current draft'
 }
 
-export function OutputSettingsTab({ projectId, agentId, sessionId }: OutputSettingsTabProps) {
+export function OutputSettingsTab() {
+  const { projectId = '', agentId = '' } = useParams<{ projectId: string; agentId: string }>()
   const { state, setField, toSnapshot, activeSource } = useAgentEditor()
   const { responseFormat } = state
 
@@ -47,7 +43,7 @@ export function OutputSettingsTab({ projectId, agentId, sessionId }: OutputSetti
   const draftRuntimePreview = buildDraftRuntimePreview({
     projectId,
     agentId,
-    sessionId,
+    sessionId: null,
     activeSource,
     snapshot: toSnapshot(),
   })
@@ -107,7 +103,7 @@ export function OutputSettingsTab({ projectId, agentId, sessionId }: OutputSetti
             <div>
               <p className="text-xs font-semibold text-muted uppercase tracking-wider">Draft Runtime Preview</p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                Exact playground payload for the current draft snapshot. This is the same configuration sent as <code>snapshot_override</code> when you run the agent in the playground.
+                Exact current draft configuration sent as <code>snapshot_override</code> when this agent runs in the playground.
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
