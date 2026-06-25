@@ -13,7 +13,8 @@ export function ToolCallsCollapsible({ toolCalls }: ToolCallsCollapsibleProps) {
 
   if (!toolCalls || toolCalls.length === 0) return null
 
-  const successCount = toolCalls.filter(tc => tc.success !== false).length
+  const completedCount = toolCalls.filter(tc => tc.status !== 'running' && tc.success != null).length
+  const successCount = toolCalls.filter(tc => tc.success === true).length
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -23,17 +24,18 @@ export function ToolCallsCollapsible({ toolCalls }: ToolCallsCollapsibleProps) {
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         <Wrench className="h-3 w-3" />
-        Tool calls ({successCount}/{toolCalls.length})
+        Tool calls ({successCount}/{completedCount || toolCalls.length})
       </button>
       {open && (
         <div className="space-y-1.5">
           {toolCalls.map((tc, i) => {
+            const isRunning = tc.status === 'running' || tc.success == null
             const isSuccess = tc.success !== false
             return (
-            <div key={i} className={`rounded-lg border p-2.5 space-y-1.5 ${isSuccess ? 'border-border bg-background' : 'border-red-500/20 bg-red-500/5'}`}>
+            <div key={tc.tool_call_id ?? i} className={`rounded-lg border p-2.5 space-y-1.5 ${isSuccess ? 'border-border bg-background' : 'border-red-500/20 bg-red-500/5'}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  {tc.success === undefined ? (
+                  {isRunning ? (
                     <Loader2 className="h-3.5 w-3.5 text-muted animate-spin shrink-0" />
                   ) : isSuccess ? (
                     <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -43,6 +45,9 @@ export function ToolCallsCollapsible({ toolCalls }: ToolCallsCollapsibleProps) {
                   <span className="text-xs font-medium text-white truncate">{tc.tool_name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {isRunning && (
+                    <span className="text-[10px] text-muted">running</span>
+                  )}
                   {!isSuccess && tc.error && (
                     <span className="text-[10px] text-red-400 truncate max-w-[120px]" title={tc.error}>
                       {tc.error}
