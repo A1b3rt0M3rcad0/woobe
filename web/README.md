@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Node.js 18+
-- Backend running on `http://localhost:8000`
+- Backend running on the URL configured in the root `.env.web` file
 
 ## Setup
 
@@ -29,9 +29,9 @@ npm run dev
 
 The frontend opens at `http://localhost:5173`.
 
-## Run with Docker Compose
+The Vite scripts run with `--mode web`, and frontend config is read from the root `.env.web` file.
 
-Docker Compose uses the root `.env.web` file as a build secret and mounts it as `web/.env` only while building the static Vite bundle.
+## Run with Docker Compose
 
 ```bash
 docker compose build web
