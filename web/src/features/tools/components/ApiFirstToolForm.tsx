@@ -104,7 +104,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
     const resolvedName = name.trim() || (protocol === 'mcp' ? serverName(mcpUrl.trim()) : 'HTTP Tool')
     await onSubmit({
       name: resolvedName,
-      description: description.trim() || (protocol === 'mcp' ? 'MCP provider saved. Use Connect from the Tools page before enabling tools.' : undefined),
+      description: description.trim() || (protocol === 'mcp' ? 'MCP provider saved. Public tools load automatically; protected providers require Connect.' : undefined),
       type: protocol as ToolProtocol,
       config: buildConfig(),
       risk_level: riskLevel,
@@ -134,7 +134,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
         </div>
       ) : (
         <div className="space-y-3 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-xs text-muted">Save this MCP provider first. Then use Connect from the Tools page.</div>
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-xs text-muted">ProjectRAI loads public MCP tools immediately after creation. If the provider requires OAuth, the tool card will show Connect.</div>
           <div><label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label><Input value={mcpUrl} onChange={(event) => setMcpUrl(event.target.value)} placeholder="https://mcp.example.com" /></div>
         </div>
       )}
