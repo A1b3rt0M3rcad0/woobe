@@ -50,9 +50,9 @@ from modules.agent.presentation.controllers.mcp_connect_controllers import (
     StartMcpDeviceConnectController,
     StatusMcpConnectController,
 )
-from modules.agent.presentation.controllers.mcp_permissions_controller import (
-    BulkUpdateMcpToolPermissionsController,
-    UpdateMcpToolPermissionsController,
+from modules.agent.presentation.controllers.mcp_permission_controllers import (
+    BulkUpdateMcpPermissionsController,
+    UpdateMcpPermissionsController,
 )
 from modules.agent.presentation.controllers.refresh_mcp_tools_controller import RefreshMcpToolsController
 from modules.agent.presentation.controllers.test_tool_controller import TestToolController
@@ -148,14 +148,14 @@ def refresh_mcp_tools_composer(session_factory: async_sessionmaker[AsyncSession]
 def update_mcp_tool_permissions_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = UpdateMcpToolPermissionsUseCase(uow.tools)
-    controller = UpdateMcpToolPermissionsController(use_case)
+    controller = UpdateMcpPermissionsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
 def bulk_update_mcp_tool_permissions_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     use_case = BulkUpdateMcpToolPermissionsUseCase(uow.tools)
-    controller = BulkUpdateMcpToolPermissionsController(use_case)
+    controller = BulkUpdateMcpPermissionsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
