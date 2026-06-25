@@ -7,6 +7,8 @@ import { PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
 
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
+const MCP_AUTH_REQUIRED_STATES = new Set(['needs_connection', 'oauth_required', 'metadata_required'])
+const MCP_TOKEN_REJECTED_STATES = new Set(['token_invalid', 'token_rejected'])
 
 export function isMcpProviderTool(tool: Tool): boolean {
   const config = (tool.config || {}) as Record<string, unknown>
@@ -25,6 +27,26 @@ function discoveredTools(tool: Tool): DiscoveredMcpTool[] {
 function oauthConnected(tool: Tool): boolean {
   const oauth = mcpConfig(tool).oauth as { status?: string } | undefined
   return oauth?.status === 'connected'
+}
+
+function hasAuthChallenge(tool: Tool): boolean {
+  const config = mcpConfig(tool) as McpToolConfig & {
+    mcp_discovery?: { http_status?: number; www_authenticate?: string | null; status?: string | null }
+    mcp_resource_metadata?: { resource?: string; authorization_servers?: unknown[] }
+  }
+  const diagnostic = config.mcp_discovery
+  const status = String(config.mcp_status || diagnostic?.status || '')
+  return MCP_AUTH_REQUIRED_STATES.has(status)
+    || MCP_TOKEN_REJECTED_STATES.has(status)
+    || diagnostic?.http_status === 401
+    || Boolean(diagnostic?.www_authenticate)
+    || Boolean(config.mcp_resource_metadata?.resource || config.mcp_resource_metadata?.authorization_servers?.length)
+}
+
+function shouldShowConnect(tool: Tool, state: McpReadiness, discovered: DiscoveredMcpTool[]): boolean {
+  if (oauthConnected(tool)) return false
+  if (discovered.length > 0 && !hasAuthChallenge(tool)) return false
+  return state.action === 'connect' && hasAuthChallenge(tool)
 }
 
 function permissionMode(tool: DiscoveredMcpTool): McpToolPermissionMode {
@@ -46,26 +68,28 @@ function fallbackReadiness(tool: Tool): McpReadiness {
   const config = mcpConfig(tool)
   const status = String(config.mcp_status || '')
   const ready = status === 'ready'
-  const connectionStates = new Set(['needs_connection', 'oauth_required', 'metadata_required', 'token_invalid', 'disconnected'])
+  const authRequired = hasAuthChallenge(tool)
 
   const state = connected && ready && counts.allow > 0
     ? 'ready'
-    : discovered.length > 0
-      ? 'needs_permission'
-      : connectionStates.has(status)
-        ? 'needs_connection'
-        : status === 'provider_client_rejected'
-          ? 'provider_not_supported'
-          : 'needs_discovery'
+    : discovered.length > 0 && counts.allow > 0
+      ? 'ready'
+      : discovered.length > 0
+        ? 'needs_permission'
+        : authRequired
+          ? 'needs_connection'
+          : status === 'provider_client_rejected'
+            ? 'provider_not_supported'
+            : 'needs_discovery'
 
   return {
     state,
     label: state === 'ready' ? 'Ready' : state === 'needs_permission' ? 'Needs permission' : state === 'needs_discovery' ? 'Load tools' : state === 'needs_connection' ? 'Connect' : state === 'provider_not_supported' ? 'Provider setup needed' : 'Not ready',
     message: state === 'ready' ? `${counts.allow} tools available to this agent.` : state === 'needs_permission' ? 'Choose which MCP tools this agent can use.' : state === 'needs_discovery' ? 'Load this MCP provider to see its tools.' : state === 'needs_connection' ? 'Connect this provider to load protected MCP tools.' : state === 'provider_not_supported' ? 'This provider needs a provider-issued client or alternate OAuth flow.' : 'MCP tools are not available yet.',
-    action: state === 'needs_connection' ? 'connect' : state === 'needs_permission' ? 'configure_permissions' : state === 'provider_not_supported' ? 'provider_credentials' : 'refresh',
+    action: state === 'needs_connection' ? 'connect' : state === 'needs_permission' || state === 'ready' ? 'manage_tools' : state === 'provider_not_supported' ? 'provider_credentials' : 'refresh',
     can_use_tools: state === 'ready',
     oauth_connected: connected,
-    mcp_ready: ready,
+    mcp_ready: ready || discovered.length > 0,
     discovered_count: discovered.length,
     exposed_count: counts.allow,
     supports_device_code: false,
@@ -99,6 +123,8 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const discovered = discoveredTools(tool)
   const counts = summary(discovered)
   const state = readiness(tool)
+  const showConnect = shouldShowConnect(tool, state, discovered)
+  const showLoadTools = !showConnect && discovered.length === 0 && state.state !== 'provider_not_supported'
 
   const handleConnect = async () => {
     try {
@@ -176,14 +202,14 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
             <p className="text-[10px] text-muted">{state.exposed_count} available · {state.discovered_count} found</p>
           </div>
         </div>
-        <ReadinessPill state={state.state} label={state.label} />
+        <ReadinessPill state={state.state} label={showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label} />
       </div>
 
-      <p className="text-xs leading-relaxed text-muted">{state.message}</p>
+      <p className="text-xs leading-relaxed text-muted">{showConnect ? state.message : discovered.length > 0 ? 'Choose which MCP tools this agent can use.' : state.message}</p>
 
       <div className="flex flex-wrap gap-2">
-        {state.action === 'connect' ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
-        {state.action === 'refresh' ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
+        {showConnect ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
+        {showLoadTools ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
         {state.state === 'provider_not_supported' ? <Button size="sm" variant="outline" disabled>Provider setup needed</Button> : null}
         {discovered.length > 0 ? <Button size="sm" variant="outline" onClick={() => setManageOpen(true)}>Manage tools</Button> : null}
         {state.oauth_connected && state.action !== 'refresh' && !state.can_use_tools ? <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button> : null}
@@ -200,7 +226,7 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
                 <p className="text-xs font-medium text-white">Discovered tools</p>
                 <p className="mt-1 text-xs text-muted">Choose which remote MCP tools this agent may use.</p>
               </div>
-              <ReadinessPill state={state.state} label={state.label} />
+              <ReadinessPill state={counts.allow > 0 ? 'ready' : 'needs_permission'} label={counts.allow > 0 ? 'Ready' : 'Needs permission'} />
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span>{counts.allow} allowed</span>
