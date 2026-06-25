@@ -112,6 +112,56 @@ def allowed_mcp_discovered_tools(config: dict[str, Any]) -> list[dict[str, Any]]
     ]
 
 
+def _permission_counts(discovered_tools: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {MCP_PERMISSION_ALLOW: 0, MCP_PERMISSION_DENY: 0, MCP_PERMISSION_REVIEW: 0}
+    for item in discovered_tools:
+        mode = normalize_permission(item.get("permission"))["mode"]
+        counts[mode] += 1
+    return counts
+
+
+def write_mcp_readiness(config: dict[str, Any]) -> None:
+    discovered_tools = normalize_discovered_tools(config.get("discovered_tools"))
+    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
+    oauth_connected = oauth.get("status") == "connected" if isinstance(oauth, dict) else False
+    mcp_ready = config.get("mcp_status") == "ready"
+    counts = _permission_counts(discovered_tools)
+
+    if discovered_tools and counts[MCP_PERMISSION_ALLOW] > 0:
+        state = "ready"
+        label = "Ready"
+        message = f"{counts[MCP_PERMISSION_ALLOW]} MCP tools are available to agents."
+        action = "manage_tools"
+        can_use_tools = True
+    elif discovered_tools:
+        state = "needs_permission"
+        label = "Needs permission"
+        message = "MCP tools were loaded. Choose which tools agents can use."
+        action = "configure_permissions"
+        can_use_tools = False
+    else:
+        existing = config.get("mcp_readiness") if isinstance(config.get("mcp_readiness"), dict) else {}
+        state = str(existing.get("state") or "not_ready")
+        label = str(existing.get("label") or "Not ready")
+        message = str(existing.get("message") or "MCP tools are not available yet.")
+        action = str(existing.get("action") or "refresh")
+        can_use_tools = False
+
+    config["mcp_readiness"] = {
+        "state": state,
+        "label": label,
+        "message": message,
+        "action": action,
+        "can_use_tools": can_use_tools,
+        "oauth_connected": oauth_connected,
+        "mcp_ready": mcp_ready,
+        "discovered_count": len(discovered_tools),
+        "exposed_count": counts[MCP_PERMISSION_ALLOW],
+        "supports_device_code": False,
+        "needs_provider_client": False,
+    }
+
+
 def _permissions_output(tool_id: UUID, discovered_tools: list[dict[str, Any]]) -> McpToolPermissionsOutput:
     return McpToolPermissionsOutput(
         tool_id=tool_id,
@@ -146,6 +196,7 @@ class UpdateMcpToolPermissionsUseCase:
                 next_permission["risk_level"] = permission.risk_level
             item["permission"] = normalize_permission(next_permission)
         config["discovered_tools"] = discovered_tools
+        write_mcp_readiness(config)
         tool.config = config
         await self._tool_repo.update(tool)
         return _permissions_output(tool.id, discovered_tools)
@@ -169,6 +220,7 @@ class BulkUpdateMcpToolPermissionsUseCase:
                 next_permission["risk_level"] = "unknown"
             item["permission"] = normalize_permission(next_permission)
         config["discovered_tools"] = discovered_tools
+        write_mcp_readiness(config)
         tool.config = config
         await self._tool_repo.update(tool)
         return _permissions_output(tool.id, discovered_tools)
