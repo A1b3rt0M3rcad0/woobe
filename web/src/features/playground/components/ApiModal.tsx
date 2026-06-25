@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Key, X } from 'lucide-react'
