@@ -5,8 +5,13 @@ import { useAgentEditor } from '../AgentEditorContext'
 
 const DEFAULT_SCHEMA = `{
   "message": "string",
-  "confidence": "number"
+  "confidence": "float"
 }`
+
+const EXAMPLE_STRUCTURED_OUTPUT = {
+  message: 'ok',
+  confidence: 0.87,
+}
 
 function schemaToString(schema: unknown): string {
   if (typeof schema === 'string') return schema
@@ -61,29 +66,10 @@ export function OutputSettingsTab() {
       }
     }
 
-    const rawSchema = responseFormat.schema
-    let schemaStr: string
-    let schemaObj: Record<string, unknown> | null
-
-    if (typeof rawSchema === 'string') {
-      schemaStr = rawSchema
-      try {
-        schemaObj = JSON.parse(rawSchema) as Record<string, unknown>
-      } catch {
-        schemaObj = null
-      }
-    } else if (rawSchema && typeof rawSchema === 'object') {
-      schemaStr = JSON.stringify(rawSchema, null, 2)
-      schemaObj = rawSchema as Record<string, unknown>
-    } else {
-      schemaStr = DEFAULT_SCHEMA
-      schemaObj = JSON.parse(DEFAULT_SCHEMA) as Record<string, unknown>
-    }
-
     return {
       success: true,
       data: {
-        answer: schemaStr,
+        answer: JSON.stringify(EXAMPLE_STRUCTURED_OUTPUT),
         session_id: 'uuid',
         message_id: 'uuid',
         usage: {
@@ -99,11 +85,11 @@ export function OutputSettingsTab() {
         provider: 'openai',
         fallback_used: false,
         latency_ms: 1024,
-        parsed_output: schemaObj,
+        parsed_output: EXAMPLE_STRUCTURED_OUTPUT,
         output_parse_error: null,
       },
     }
-  }, [responseFormat.enabled, responseFormat.schema])
+  }, [responseFormat.enabled])
 
   return (
     <div className="p-4 space-y-4">
@@ -133,6 +119,10 @@ export function OutputSettingsTab() {
               minHeight={180}
               placeholder='{ "message": "string" }'
             />
+            <p className="mt-2 text-[11px] leading-relaxed text-muted">
+              Contract values such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> are type declarations.
+              The model output must return real values, for example <code>{'{ "confidence": 0.87 }'}</code>, not <code>{'{ "confidence": "number" }'}</code>.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <input
