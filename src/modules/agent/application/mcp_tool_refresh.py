@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
-from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
+from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions, write_mcp_readiness
 from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
@@ -190,6 +190,7 @@ async def _discover_and_persist_tool(
 
     status = _write_discovery_diagnostic(config, output, now=now, server_url=str(server_url))
     if output.error or not output.tools:
+        write_mcp_readiness(config)
         tool.config = config
         tool.updated_at = now
         await tool_repo.update(tool)
@@ -206,6 +207,7 @@ async def _discover_and_persist_tool(
     next_tools = [item.model_dump() for item in output.tools]
     config["discovered_tools"] = merge_discovered_tools_with_existing_permissions(next_tools, config.get("discovered_tools"))
     config["discovered_at"] = now.isoformat()
+    write_mcp_readiness(config)
     tool.config = config
     tool.updated_at = now
     await tool_repo.update(tool)
