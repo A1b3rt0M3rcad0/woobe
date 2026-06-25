@@ -33,6 +33,30 @@ describe('MarkdownMessage', () => {
     expect(html).not.toContain('border-primary/20')
   })
 
+  it('renders inline code nested inside bold markdown without leaking backticks', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content={'1. **`explicacao`** → Fala o que a ferramenta faz.'} />,
+    )
+
+    expect(html).toContain('<strong')
+    expect(html).toContain('<code')
+    expect(html).toContain('explicacao')
+    expect(html).not.toContain('`explicacao`')
+  })
+
+  it('renders mixed bold text with nested inline code', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content={'**Campo `repoName` obrigatório**'} />,
+    )
+
+    expect(html).toContain('<strong')
+    expect(html).toContain('<code')
+    expect(html).toContain('Campo')
+    expect(html).toContain('repoName')
+    expect(html).toContain('obrigatório')
+    expect(html).not.toContain('`repoName`')
+  })
+
   it('renders horizontal rules instead of showing raw separators', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'Intro\n\n---\n\nResumo'} />)
 
