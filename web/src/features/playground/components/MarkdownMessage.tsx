@@ -28,7 +28,14 @@ function inlineCodeClass(context: InlineRenderContext): string {
   return 'rounded border border-white/10 bg-white/[0.06] px-1 py-[1px] font-mono text-[0.86em] font-medium leading-none text-slate-100'
 }
 
-function renderInline(text: string, keyPrefix: string, context: InlineRenderContext = 'body'): ReactNode[] {
+function renderInline(
+  text: string,
+  keyPrefix: string,
+  context: InlineRenderContext = 'body',
+  depth = 0,
+): ReactNode[] {
+  if (depth > 4) return [text]
+
   const nodes: ReactNode[] = []
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(https?:\/\/[^\s<]+)/g
   let lastIndex = 0
@@ -71,9 +78,19 @@ function renderInline(text: string, keyPrefix: string, context: InlineRenderCont
         </code>,
       )
     } else if (match[7]) {
-      nodes.push(<strong key={`${keyPrefix}-bold-${index++}`}>{match[7]}</strong>)
+      const nestedKey = `${keyPrefix}-bold-${index++}`
+      nodes.push(
+        <strong key={nestedKey}>
+          {renderInline(match[7], nestedKey, context, depth + 1)}
+        </strong>,
+      )
     } else if (match[9]) {
-      nodes.push(<em key={`${keyPrefix}-italic-${index++}`}>{match[9]}</em>)
+      const nestedKey = `${keyPrefix}-italic-${index++}`
+      nodes.push(
+        <em key={nestedKey}>
+          {renderInline(match[9], nestedKey, context, depth + 1)}
+        </em>,
+      )
     } else if (match[10]) {
       nodes.push(
         <a
