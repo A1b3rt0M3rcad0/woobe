@@ -20,11 +20,12 @@ const suggestions = [
 
 export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const lastMessageContent = messages[messages.length - 1]?.content ?? ''
 
   useEffect(() => {
     const el = messagesContainerRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length])
+  }, [messages.length, lastMessageContent, isSending])
 
   const isEmpty = messages.length === 0
 

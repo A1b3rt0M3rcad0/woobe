@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Bot, User, ChevronDown, ChevronRight, Loader2, Copy, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { formatNumber, formatLatency } from '@/lib/formatters/number'
-import { cn } from '@/lib/utils'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { StructuredJsonResponse } from './StructuredJsonResponse'
 import { ToolCallsCollapsible } from './ToolCallsCollapsible'
+import { MarkdownMessage } from './MarkdownMessage'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
@@ -46,7 +46,58 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
   )
 }
 
-export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMessageProps) {
+function ThinkingBubble() {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Thinking...
+    </div>
+  )
+}
+
+function AssistantContent({ message, isStreaming }: { message: ChatMessageType; isStreaming?: boolean }) {
+  if (isStreaming && !message.content) {
+    return <ThinkingBubble />
+  }
+
+  if (!isStreaming && message.parsed_output) {
+    return <StructuredJsonResponse value={message.parsed_output} />
+  }
+
+  const { isPureJson, segments } = parseAssistantMessageContent(message.content)
+  if (isPureJson && segments[0].type === 'json') {
+    return <StructuredJsonResponse value={segments[0].value} raw={segments[0].raw} />
+  }
+
+  if (segments.length === 1 && segments[0].type === 'text') {
+    return (
+      <div className="rounded-xl px-4 py-3 text-sm leading-relaxed bg-accent text-white rounded-bl-md">
+        <MarkdownMessage content={segments[0].content} isStreaming={isStreaming} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl px-4 py-3 text-sm leading-relaxed bg-accent text-white rounded-bl-md">
+      <div className="space-y-2">
+        {segments.map((seg, i) =>
+          seg.type === 'text' ? (
+            <MarkdownMessage key={i} content={seg.content} />
+          ) : (
+            <div key={i} className="my-2">
+              <JsonCodeBlock value={seg.value} maxHeight={160} />
+            </div>
+          )
+        )}
+        {isStreaming && (
+          <span className="inline-flex h-3 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-primary/80" aria-label="Streaming" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }: ChatMessageProps) {
   const isUser = message.role === 'user'
 
   // --- User message layout ---
@@ -64,41 +115,6 @@ export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMes
       </div>
     )
   }
-
-  // --- Assistant message layout ---
-  const assistantContent = isStreaming ? (
-    <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      Thinking...
-    </div>
-  ) : message.parsed_output ? (
-    <StructuredJsonResponse value={message.parsed_output} />
-  ) : (() => {
-    const { isPureJson, segments } = parseAssistantMessageContent(message.content)
-    if (isPureJson && segments[0].type === 'json') {
-      return <StructuredJsonResponse value={segments[0].value} raw={segments[0].raw} />
-    }
-    if (segments.length === 1 && segments[0].type === 'text') {
-      return (
-        <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
-          {message.content}
-        </div>
-      )
-    }
-    return (
-      <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-accent text-white rounded-bl-md">
-        {segments.map((seg, i) =>
-          seg.type === 'text' ? (
-            <span key={i}>{seg.content}</span>
-          ) : (
-            <div key={i} className="my-2">
-              <JsonCodeBlock value={seg.value} maxHeight={160} />
-            </div>
-          )
-        )}
-      </div>
-    )
-  })()
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -120,7 +136,7 @@ export function ChatMessage({ message, isStreaming, isLast, agentName }: ChatMes
 
         {/* Content column */}
         <div className="max-w-[80%]">
-          {assistantContent}
+          <AssistantContent message={message} isStreaming={isStreaming} />
         </div>
       </div>
 
