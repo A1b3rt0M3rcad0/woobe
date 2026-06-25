@@ -1,7 +1,7 @@
-import { useParams } from 'react-router-dom'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
+import { usePlaygroundRuntime } from '../PlaygroundRuntimeContext'
 import { buildDraftRuntimePreview } from '../lib/build-draft-runtime-preview'
 
 const DEFAULT_SCHEMA = `{
@@ -20,7 +20,7 @@ function sourceLabel(source: 'current_draft' | 'draft_unsaved') {
 }
 
 export function OutputSettingsTab() {
-  const { projectId = '', agentId = '' } = useParams<{ projectId: string; agentId: string }>()
+  const { projectId, agentId, sessionId } = usePlaygroundRuntime()
   const { state, setField, toSnapshot, activeSource } = useAgentEditor()
   const { responseFormat } = state
 
@@ -43,7 +43,7 @@ export function OutputSettingsTab() {
   const draftRuntimePreview = buildDraftRuntimePreview({
     projectId,
     agentId,
-    sessionId: null,
+    sessionId,
     activeSource,
     snapshot: toSnapshot(),
   })
