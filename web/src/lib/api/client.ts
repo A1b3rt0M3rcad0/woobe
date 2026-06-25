@@ -1,7 +1,25 @@
 import { getToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+function resolveBaseUrl(value: string | undefined): string {
+  const baseUrl = value?.trim()
+
+  if (!baseUrl) {
+    throw new Error('VITE_API_URL must be configured with an absolute API URL')
+  }
+
+  try {
+    const url = new URL(baseUrl)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Invalid API URL protocol')
+    }
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    throw new Error(`VITE_API_URL must be an absolute HTTP(S) URL. Received: ${baseUrl}`)
+  }
+}
+
+const BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
 
 interface RequestOptions {
   headers?: Record<string, string>
