@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Dialog } from '@/components/ui/Dialog'
 import { ApiFirstToolForm, type ApiFirstToolFormSubmitValue } from '@/features/tools/components/ApiFirstToolForm'
 import { useCreateTool } from '@/features/tools/hooks'
@@ -18,32 +18,37 @@ function isMcpTool(tool: Tool): boolean {
   return String(tool.type).toLowerCase().includes('mcp') || config.protocol === 'mcp'
 }
 
-export function CreateToolModal({ open, onClose, projectId, onCreated }: CreateToolModalProps) {
+function mcpReadinessAction(tool: Tool): string | null {
+  const config = (tool.config || {}) as { mcp_readiness?: { action?: string } }
+  return config.mcp_readiness?.action || null
+}
+
+export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }: CreateToolModalProps) {
   const createTool = useCreateTool()
-  const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId: string }>()
 
   const handleSubmit = async (value: ApiFirstToolFormSubmitValue) => {
-    const tool = await createTool.mutateAsync({ project_id: projectId, ...value })
+    const tool = await createTool.mutateAsync({ project_id: projectId, agent_id: agentId, ...value })
     onCreated(tool)
     onClose()
 
     if (isMcpTool(tool)) {
-      toast.success(`MCP provider "${tool.name}" created. Connect it before enabling tools.`)
-      const basePath = organizationId
-        ? `/organizations/${organizationId}/projects/${projectId}/tools`
-        : `/projects/${projectId}/tools`
-      navigate(`${basePath}?configure_mcp_permissions=${tool.id}`)
+      const action = mcpReadinessAction(tool)
+      if (action === 'connect') {
+        toast.success(`MCP provider "${tool.name}" created. Connect it to load protected tools.`)
+      } else {
+        toast.success(`MCP provider "${tool.name}" created and loaded for this agent.`)
+      }
       return
     }
 
-    toast.success(`Tool "${tool.name}" created. Use Import to add it to this agent.`)
+    toast.success(`Tool "${tool.name}" created for this agent.`)
   }
 
   return (
     <Dialog open={open} onClose={onClose} title="Create Tool">
       <ApiFirstToolForm
-        key={open ? 'playground-tool-form-open' : 'playground-tool-form-closed'}
+        key={open ? `playground-tool-form-open-${organizationId || 'project'}` : 'playground-tool-form-closed'}
         submitLabel="Create"
         loading={createTool.isPending}
         onSubmit={handleSubmit}
