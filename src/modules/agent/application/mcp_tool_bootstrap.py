@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from modules.agent.application.mcp_discovery import (
     DiscoverMcpToolsUseCase,
@@ -19,7 +19,6 @@ from modules.agent.application.mcp_permissions import (
 from modules.agent.application.ports import ToolExecutionPort
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.entities import Tool
-from modules.agent.domain.repositories import ToolRepository
 from shared.infra.time import utc_now
 
 DEFAULT_CREATE_DISCOVERY_TIMEOUT_MS = 10000
@@ -29,21 +28,6 @@ class McpToolBootstrapResult(BaseModel):
     tool_id: UUID
     discovered_count: int = 0
     initialized: bool = False
-    status: str
-    error: str | None = None
-    http_status: int | None = None
-    phase: str | None = None
-
-
-class RefreshMcpToolsInput(BaseModel):
-    tool_id: UUID
-    timeout_ms: int = Field(default=30000, ge=1)
-
-
-class RefreshMcpToolsOutput(BaseModel):
-    tool_id: UUID
-    discovered_count: int
-    initialized: bool
     status: str
     error: str | None = None
     http_status: int | None = None
@@ -252,7 +236,8 @@ class McpToolBootstrapper:
                 discovered_tools=existing_tools,
             )
         else:
-            config["oauth_discovery_error"] = output.error
+            if output.error:
+                config["oauth_discovery_error"] = output.error
             config["mcp_readiness"] = _readiness(
                 state="discovery_failed",
                 label="Discovery failed",
@@ -270,28 +255,4 @@ class McpToolBootstrapper:
             error=output.error,
             http_status=output.http_status,
             phase=output.phase,
-        )
-
-
-class RefreshMcpToolsUseCase:
-    def __init__(self, tool_repo: ToolRepository, bootstrapper: McpToolBootstrapper) -> None:
-        self._tool_repo = tool_repo
-        self._bootstrapper = bootstrapper
-
-    async def execute(self, input_dto: RefreshMcpToolsInput) -> RefreshMcpToolsOutput:
-        tool = await self._tool_repo.get_by_id(input_dto.tool_id)
-        if tool is None:
-            raise ValueError("MCP provider tool not found")
-        result = await self._bootstrapper.bootstrap(tool, timeout_ms=input_dto.timeout_ms)
-        await self._tool_repo.update(tool)
-        if result is None:
-            raise ValueError("Tool is not an MCP provider")
-        return RefreshMcpToolsOutput(
-            tool_id=result.tool_id,
-            discovered_count=result.discovered_count,
-            initialized=result.initialized,
-            status=result.status,
-            error=result.error,
-            http_status=result.http_status,
-            phase=result.phase,
         )
