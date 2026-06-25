@@ -12,6 +12,12 @@ type PendingList = {
   items: string[]
 }
 
+type MarkdownTable = {
+  headers: string[]
+  rows: string[][]
+  alignments: Array<'left' | 'center' | 'right'>
+}
+
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = []
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(https?:\/\/[^\s<]+)/g
@@ -49,7 +55,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={`${keyPrefix}-code-${index++}`}
-          className="rounded bg-background/70 px-1 py-0.5 font-mono text-[0.85em] text-slate-200"
+          className="rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[0.82em] font-medium text-primary-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
         >
           {match[5]}
         </code>,
@@ -77,6 +83,96 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
   pushText(text.slice(lastIndex))
   return nodes
+}
+
+function isHorizontalRule(line: string): boolean {
+  return /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)
+}
+
+function looksLikeTableRow(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.includes('|') && trimmed.replace(/\|/g, '').trim().length > 0
+}
+
+function splitTableCells(line: string): string[] {
+  const trimmed = line.trim()
+  const withoutOuterPipes = trimmed.replace(/^\|/, '').replace(/\|$/, '')
+  const cells: string[] = []
+  let current = ''
+  let escaped = false
+
+  for (const char of withoutOuterPipes) {
+    if (escaped) {
+      current += char
+      escaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+
+    if (char === '|') {
+      cells.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  cells.push(current.trim())
+  return cells
+}
+
+function parseTableSeparator(line: string, columnCount: number): MarkdownTable['alignments'] | null {
+  if (!looksLikeTableRow(line)) return null
+  const cells = splitTableCells(line)
+  if (cells.length !== columnCount) return null
+
+  const alignments: MarkdownTable['alignments'] = []
+  for (const rawCell of cells) {
+    const cell = rawCell.replace(/\s/g, '')
+    if (!/^:?-{3,}:?$/.test(cell)) return null
+    const left = cell.startsWith(':')
+    const right = cell.endsWith(':')
+    alignments.push(left && right ? 'center' : right ? 'right' : 'left')
+  }
+  return alignments
+}
+
+function parseTableAt(lines: string[], startIndex: number): { table: MarkdownTable; endIndex: number } | null {
+  const headerLine = lines[startIndex]
+  const separatorLine = lines[startIndex + 1]
+  if (!headerLine || !separatorLine || !looksLikeTableRow(headerLine)) return null
+
+  const headers = splitTableCells(headerLine)
+  if (headers.length < 2) return null
+
+  const alignments = parseTableSeparator(separatorLine, headers.length)
+  if (!alignments) return null
+
+  const rows: string[][] = []
+  let cursor = startIndex + 2
+
+  while (cursor < lines.length && looksLikeTableRow(lines[cursor])) {
+    const cells = splitTableCells(lines[cursor])
+    if (cells.length !== headers.length) break
+    rows.push(cells)
+    cursor++
+  }
+
+  return {
+    table: { headers, rows, alignments },
+    endIndex: cursor,
+  }
+}
+
+function alignmentClass(alignment: 'left' | 'center' | 'right'): string {
+  if (alignment === 'center') return 'text-center'
+  if (alignment === 'right') return 'text-right'
+  return 'text-left'
 }
 
 export function MarkdownMessage({ content, isStreaming, className }: MarkdownMessageProps) {
@@ -136,7 +232,60 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     codeFence = null
   }
 
-  for (const line of lines) {
+  const pushHorizontalRule = () => {
+    const currentKey = key++
+    blocks.push(
+      <hr
+        key={`hr-${currentKey}`}
+        className="my-3 border-0 border-t border-border/80"
+      />,
+    )
+  }
+
+  const pushTable = (table: MarkdownTable) => {
+    const currentKey = key++
+    blocks.push(
+      <div key={`table-${currentKey}`} className="my-3 overflow-x-auto rounded-lg border border-border bg-background/35">
+        <table className="min-w-full border-collapse text-xs leading-relaxed">
+          <thead className="bg-surface/70 text-muted">
+            <tr>
+              {table.headers.map((header, headerIndex) => (
+                <th
+                  key={`table-${currentKey}-h-${headerIndex}`}
+                  className={cn(
+                    'border-b border-border px-3 py-2 font-semibold uppercase tracking-wide',
+                    alignmentClass(table.alignments[headerIndex] ?? 'left'),
+                  )}
+                >
+                  {renderInline(header, `table-${currentKey}-h-${headerIndex}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, rowIndex) => (
+              <tr key={`table-${currentKey}-r-${rowIndex}`} className="border-b border-border/60 last:border-b-0">
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={`table-${currentKey}-r-${rowIndex}-c-${cellIndex}`}
+                    className={cn(
+                      'min-w-[9rem] px-3 py-2 align-top text-white/90',
+                      alignmentClass(table.alignments[cellIndex] ?? 'left'),
+                    )}
+                  >
+                    {renderInline(cell, `table-${currentKey}-r-${rowIndex}-c-${cellIndex}`)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>,
+    )
+  }
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
     const fenceMatch = line.match(/^\s*```\s*([\w-]+)?\s*$/)
     if (fenceMatch) {
       if (codeFence) {
@@ -157,6 +306,22 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     if (!line.trim()) {
       flushParagraph()
       flushList()
+      continue
+    }
+
+    if (isHorizontalRule(line)) {
+      flushParagraph()
+      flushList()
+      pushHorizontalRule()
+      continue
+    }
+
+    const table = parseTableAt(lines, lineIndex)
+    if (table) {
+      flushParagraph()
+      flushList()
+      pushTable(table.table)
+      lineIndex = table.endIndex - 1
       continue
     }
 
