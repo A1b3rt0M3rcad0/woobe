@@ -11,14 +11,20 @@ from modules.agent.application.use_cases.ask_agent_stream_service import AskAgen
 
 
 def _sse_type(chunk: str) -> str | None:
-    if not chunk.startswith("data:"):
-        return None
-    try:
-        payload = json.loads(chunk.removeprefix("data:").strip())
-    except (json.JSONDecodeError, TypeError):
-        return None
-    event_type = payload.get("type")
-    return event_type if isinstance(event_type, str) else None
+    for line in chunk.splitlines():
+        if line.startswith("event:"):
+            event_type = line.removeprefix("event:").strip()
+            return event_type or None
+    for line in chunk.splitlines():
+        if not line.startswith("data:"):
+            continue
+        try:
+            payload = json.loads(line.removeprefix("data:").strip())
+        except (json.JSONDecodeError, TypeError):
+            return None
+        event_type = payload.get("type") if isinstance(payload, dict) else None
+        return event_type if isinstance(event_type, str) else None
+    return None
 
 
 async def _commit_safe_stream(
@@ -28,9 +34,9 @@ async def _commit_safe_stream(
 ) -> AsyncGenerator[str, None]:
     pending_terminal: str | None = None
     source = (
-        service.generate(input_dto, fastapi_request.is_disconnected)
+        service.stream(input_dto, fastapi_request.is_disconnected)
         if fastapi_request is not None
-        else service.generate(input_dto)
+        else service.stream(input_dto)
     )
 
     async for chunk in source:

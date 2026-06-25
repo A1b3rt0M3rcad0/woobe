@@ -2,11 +2,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
+from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from modules.agent.application.use_cases.tools_use_cases import ExecuteToolUseCase
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
@@ -27,15 +30,24 @@ def ask_agent_composer(
     executor = http_executor or get_http_tool_executor()
 
     async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+        runtime_input = dict(input_data or {})
+        context = current_execution.get()
+        if context and context.session_id:
+            runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+
         async with AgentUnitOfWork(session_factory) as uow:
             resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-            use_case = ExecuteToolUseCase(
-                tool_repo=uow.tools,
-                tool_executor=executor,
+            registry = build_tool_runtime_registry(
+                settings=settings,
+                executor=executor,
                 secret_resolver=resolver,
             )
+            use_case = RuntimeExecuteToolUseCase(
+                tool_repo=uow.tools,
+                runtime_registry=registry,
+            )
             result = await use_case.execute(
-                ExecuteToolInput(tool_id=tool_id, input_data=input_data)
+                ExecuteToolInput(tool_id=tool_id, input_data=runtime_input)
             )
             return result.model_dump()
 

@@ -10,17 +10,17 @@ export function DashboardLayout() {
   const hideSidebar = pathname.includes('/playground')
   const isProjectOverview = /^\/organizations\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
   const mainClassName = isProjectOverview
-    ? 'project-overview-main min-w-0 flex-1 overflow-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
-    : 'min-w-0 flex-1 overflow-hidden p-4 sm:p-6'
+    ? 'project-overview-main scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
+    : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
 
   return (
-    <div className="flex h-screen min-w-0 bg-background">
+    <div className="flex h-screen min-w-0 overflow-hidden bg-background">
       {!hideSidebar && (
-        <div className="hidden shrink-0 lg:flex">
+        <div className="hidden min-h-0 shrink-0 lg:flex">
           {isWorkspaceSelection ? <WorkspaceSelectionSidebar /> : <Sidebar />}
         </div>
       )}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {!isProjectOverview && !isWorkspaceSelection && <Topbar />}
         {isWorkspaceSelection && <WorkspaceSelectionSidebar compact />}
         <main className={mainClassName}>

@@ -20,6 +20,7 @@ from modules.agent.application.dtos.tools_dtos import (
     UpdateToolInput,
     UpdateToolStatusInput,
 )
+from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
 from modules.agent.application.ports import (
     SecretCipherPort,
     ToolExecutionPort,
@@ -43,9 +44,11 @@ class CreateToolUseCase:
         self,
         repo: ToolRepository,
         outbox: OutboxEventWriter,
+        mcp_bootstrapper: McpToolBootstrapper | None = None,
     ) -> None:
         self.repo = repo
         self._outbox = outbox
+        self._mcp_bootstrapper = mcp_bootstrapper
 
     async def execute(self, input_dto: CreateToolInput) -> CreateToolOutput:
         tool = Tool(
@@ -62,6 +65,11 @@ class CreateToolUseCase:
         )
         created = await self.repo.create(tool)
 
+        if self._mcp_bootstrapper is not None:
+            bootstrapped = await self._mcp_bootstrapper.bootstrap(created)
+            if bootstrapped is not None:
+                created = await self.repo.update(created)
+
         event = AgentToolCreatedV1.create(
             tool_id=created.id,
             project_id=created.project_id,
@@ -70,6 +78,7 @@ class CreateToolUseCase:
                 "name": created.name,
                 "type": created.type.value if hasattr(created.type, "value") else created.type,
                 "risk_level": created.risk_level.value if hasattr(created.risk_level, "value") else created.risk_level,
+                "mcp_status": (created.config or {}).get("mcp_status") if created.config else None,
             },
         )
         await self._outbox.write(event)

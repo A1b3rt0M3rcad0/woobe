@@ -1,11 +1,18 @@
 x-projectrai-environment: &projectrai-environment
-  PROJECTRAI_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projectrai}
+  PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL}
   PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
   PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
   PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
   PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
-  PROJECTRAI_RABBITMQ_URL: amqp://${RABBITMQ_USER:-projectrai}:${RABBITMQ_PASSWORD:-projectrai}@rabbitmq:5672/
-  PROJECTRAI_RABBITMQ_EXCHANGE: projectrai.events
+  PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL}
+  PROJECTRAI_RABBITMQ_EXCHANGE: ${PROJECTRAI_RABBITMQ_EXCHANGE}
+  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL}
+  PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS: ${PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS:-2.0}
+  PROJECTRAI_MCP_SESSION_CACHE_ENABLED: ${PROJECTRAI_MCP_SESSION_CACHE_ENABLED:-true}
+  PROJECTRAI_MCP_SESSION_KEY_PREFIX: ${PROJECTRAI_MCP_SESSION_KEY_PREFIX:-projectrai:mcp-session}
+  PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS}
+  PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS}
+  PROJECTRAI_TRUSTED_HOSTS: ${PROJECTRAI_TRUSTED_HOSTS}
 
 services:
   migrate:
@@ -31,6 +38,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -57,14 +66,16 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     stop_grace_period: 30s
     restart: unless-stopped
 
   web:
     build:
       context: web
-      args:
-        VITE_API_URL: ""
+      secrets:
+        - web_env
     ports:
       - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
@@ -126,6 +137,20 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+secrets:
+  web_env:
+    file: ./.env.web
 
 volumes:
   pgdata:

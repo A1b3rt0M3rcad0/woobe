@@ -1,9 +1,16 @@
-from modules.agent.application.use_cases.tools_use_cases import ListToolsUseCase
 from modules.agent.application.dtos.tools_dtos import ListToolsInput
+from modules.agent.application.mcp_readiness import with_mcp_readiness
+from modules.agent.application.use_cases.tools_use_cases import ListToolsUseCase
 from modules.agent.presentation.schemas import ToolResponse
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
+
+
+def render_tool(tool) -> dict:
+    data = dict(vars(tool))
+    data["config"] = with_mcp_readiness(data.get("config"), data.get("status"))
+    return ToolResponse(**data).model_dump()
 
 
 class ListToolsController(Controller):
@@ -16,5 +23,5 @@ class ListToolsController(Controller):
         result = await self._use_case.execute(input_dto)
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": [ToolResponse(**vars(r)).model_dump() for r in result]},
+            body={"success": True, "message": "ok", "data": [render_tool(item) for item in result]},
         )

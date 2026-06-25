@@ -22,6 +22,18 @@ export interface AskJobResult {
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
 function normalizeResponse(response: Record<string, unknown>): AskResponse {
   const { type: _type, ...rest } = response
   return {
@@ -46,6 +58,20 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
     latency_ms: (rest.latency_ms as number) ?? null,
     parsed_output: (rest.parsed_output as Record<string, unknown>) ?? null,
     output_parse_error: (rest.output_parse_error as string) ?? null,
+  }
+}
+
+function streamToolCallInfo(parsed: Record<string, unknown>): ToolCallInfo {
+  return {
+    tool_call_id: asString(parsed.tool_call_id),
+    tool_name: asString(parsed.tool_name) ?? '',
+    input: parsed.input ?? null,
+    output: parsed.output ?? null,
+    duration_ms: asNumber(parsed.duration_ms) ?? undefined,
+    success: asBoolean(parsed.success),
+    status: asString(parsed.status),
+    latency_ms: asNumber(parsed.http_latency_ms) ?? asNumber(parsed.latency_ms),
+    error: asString(parsed.error),
   }
 }
 
@@ -167,14 +193,9 @@ export async function askStream(
             })
             break
           case 'tool_call':
-            callbacks.onToolCall?.({
-              tool_name: parsed.tool_name ?? '',
-              input: parsed.input ?? null,
-              output: parsed.output ?? null,
-              duration_ms: parsed.duration_ms ?? null,
-              success: parsed.success ?? null,
-              error: parsed.error ?? null,
-            })
+          case 'tool_call_started':
+          case 'tool_call_completed':
+            callbacks.onToolCall?.(streamToolCallInfo(parsed))
             break
         }
       } catch (e) {

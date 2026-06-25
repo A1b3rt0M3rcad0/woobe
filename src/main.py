@@ -16,6 +16,7 @@ from modules.agent.infra.adapters.http_tool_runtime import (
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -233,6 +234,7 @@ def create_app() -> FastAPI:
         app.include_router(agent_knowledge_router)
         app.include_router(agent_runtime_router)
         app.include_router(tools_router)
+        app.include_router(mcp_tools_router)
         app.include_router(metering_router)
         app.include_router(billing_router)
         app.include_router(observability_router)
@@ -258,40 +260,18 @@ def create_app() -> FastAPI:
 
     @app.get("/health", include_in_schema=False)
     async def health():
-        return {"status": "ok", "runtime": "api"}
-
-    @app.get("/ready", include_in_schema=False)
-    async def ready():
-        try:
-            async with asyncio.timeout(settings.readiness_timeout_seconds):
-                async with app.state.async_engine.connect() as connection:
-                    await connection.execute(text("SELECT 1"))
-        except Exception:
-            logger.warning("Readiness dependency check failed", exc_info=True)
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "unavailable",
-                    "runtime": "api",
-                    "dependencies": {"database": "unavailable"},
-                },
-            )
-        return {
-            "status": "ready",
-            "runtime": "api",
-            "dependencies": {"database": "ok"},
-        }
-
-    @app.get("/metrics", include_in_schema=False)
-    async def metrics():
-        if not settings.metrics_enabled:
-            return PlainTextResponse("metrics disabled\n", status_code=404)
-        return PlainTextResponse(
-            runtime_metrics.render_prometheus(engine=app.state.async_engine),
-            media_type="text/plain; version=0.0.4; charset=utf-8",
-        )
+        return {"status": "ok"}
 
     return app
 
 
 app = create_app()
+
+
+async def _main() -> None:
+    # Allows `python -m src.main` smoke imports without starting uvicorn.
+    await asyncio.sleep(0)
+
+
+if __name__ == "__main__":
+    asyncio.run(_main())

@@ -4,6 +4,7 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from uuid import UUID
 
 from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecution,
@@ -20,6 +21,10 @@ class RequestExecutionContext:
     request_received_at: str
     execution_started_at: str
     client_sent_at: str | None = None
+    project_id: UUID | None = None
+    agent_id: UUID | None = None
+    session_id: UUID | None = None
+    trace_id: UUID | None = None
     prepare_started_at: str | None = None
     prepare_ended_at: str | None = None
     prepare_latency_ms: int = 0

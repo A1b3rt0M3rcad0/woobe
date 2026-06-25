@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
-import { Plus, X, Loader2 } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpdateTool } from '@/features/tools/hooks'
-import type { Tool } from '@/features/tools/types'
+import type { HttpToolConfig, Tool } from '@/features/tools/types'
 
 interface EditToolModalProps {
   tool: Tool | null
@@ -21,6 +21,7 @@ const HTTP_METHODS = [
   { value: 'PUT', label: 'PUT' },
   { value: 'PATCH', label: 'PATCH' },
   { value: 'DELETE', label: 'DELETE' },
+  { value: 'HEAD', label: 'HEAD' },
 ]
 
 const RISK_LEVELS = [
@@ -34,6 +35,17 @@ function extractUrlVariables(url: string): string[] {
   const matches = url.match(/\{\{(\w+)\}\}/g)
   if (!matches) return []
   return [...new Set(matches.map(m => m.slice(2, -2)))]
+}
+
+function asHttpConfig(tool: Tool | null): Partial<HttpToolConfig> {
+  if (!tool || tool.type === 'mcp') return {}
+  return (tool.config || {}) as Partial<HttpToolConfig>
+}
+
+function bodyToText(body: HttpToolConfig['body']): string {
+  if (!body) return ''
+  if (typeof body === 'string') return body
+  return JSON.stringify(body, null, 2)
 }
 
 let nextId = 1
@@ -52,8 +64,9 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
   const [timeoutMs, setTimeoutMs] = useState(30000)
 
   const updateTool = useUpdateTool()
-
-  const showBody = ['POST', 'PUT', 'PATCH'].includes(method)
+  const isMcpTool = tool?.type === 'mcp'
+  const canEditHttpConfig = Boolean(tool && !isMcpTool)
+  const showBody = canEditHttpConfig && ['POST', 'PUT', 'PATCH'].includes(method)
 
   const urlVariables = useMemo(() => extractUrlVariables(url), [url])
   const [variableValues, setVariableValues] = useState<Record<string, string>>({})
@@ -62,16 +75,16 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
     if (!tool) return
     setName(tool.name)
     setDescription(tool.description || '')
-    const config = tool.config || {}
-    setMethod((config.method as string) || 'GET')
-    setUrl((config.url as string) || '')
-    const rawHeaders = (config.headers as Array<{ key: string; value: string }>) || []
-    setHeaders(rawHeaders.map(h => ({ id: headerId(), key: h.key, value: h.value })))
-    setBody((config.body as string) || '')
     setRiskLevel(tool.risk_level || 'low')
     setTimeoutMs(tool.timeout_ms || 30000)
-    const vars = (config.variables as Record<string, string>) || {}
-    setVariableValues(vars)
+
+    const config = asHttpConfig(tool)
+    setMethod(config.method || 'GET')
+    setUrl(config.url || '')
+    const rawHeaders = Array.isArray(config.headers) ? config.headers : []
+    setHeaders(rawHeaders.map(h => ({ id: headerId(), key: h.key, value: h.value })))
+    setBody(bodyToText(config.body))
+    setVariableValues(config.variables || {})
   }, [tool])
 
   const handleUrlChange = useCallback((value: string) => {
@@ -105,8 +118,9 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
     setHeaders(prev => prev.filter(h => h.id !== id))
   }
 
-  const buildConfig = () => {
-    const config: Record<string, unknown> = {
+  const buildHttpConfig = (): HttpToolConfig => {
+    const config: HttpToolConfig = {
+      protocol: 'http',
       url: url.trim(),
       method,
       headers: headers.filter(h => h.key.trim()).map(h => ({ key: h.key.trim(), value: h.value })),
@@ -131,12 +145,10 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
       toast.error('Tool name is required')
       return
     }
-    if (!url.trim()) {
+    if (canEditHttpConfig && !url.trim()) {
       toast.error('URL is required')
       return
     }
-
-    const config = buildConfig()
 
     try {
       await updateTool.mutateAsync({
@@ -144,7 +156,7 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
         data: {
           name: name.trim(),
           description: description.trim() || undefined,
-          config,
+          ...(canEditHttpConfig ? { type: 'http', config: buildHttpConfig() } : {}),
           risk_level: riskLevel,
           timeout_ms: timeoutMs,
         },
@@ -159,9 +171,18 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
   return (
     <Dialog open={tool !== null} onClose={onClose} title={`Edit Tool: ${tool?.name || ''}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {isMcpTool && (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+            <p className="text-xs font-medium text-blue-300">MCP tool</p>
+            <p className="text-xs text-muted mt-1">
+              This modal edits shared tool metadata. MCP server configuration is not edited in the HTTP form.
+            </p>
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-medium text-muted mb-1">Name *</label>
-          <Input value={name} onChange={e => setName(e.target.value)} placeholder="My HTTP Tool" />
+          <Input value={name} onChange={e => setName(e.target.value)} placeholder={isMcpTool ? 'My MCP Tool' : 'My HTTP Tool'} />
         </div>
 
         <div>
@@ -169,90 +190,101 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
           <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">HTTP Method</label>
-            <Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} />
-          </div>
+        {canEditHttpConfig && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">HTTP Method</label>
+                <Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label>
+                <Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1">URL *</label>
+              <Input
+                value={url}
+                onChange={e => handleUrlChange(e.target.value)}
+                placeholder="https://api.example.com/users/{{userId}}"
+              />
+              <p className="text-[10px] text-muted mt-1">
+                Use {'{{variableName}}'} for dynamic values in the URL
+              </p>
+            </div>
+
+            {urlVariables.length > 0 && (
+              <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">URL Variables</p>
+                {urlVariables.map(v => (
+                  <div key={v} className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted min-w-[100px]">{'{{'}{v}{'}}'}</span>
+                    <Input
+                      value={variableValues[v] || ''}
+                      onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
+                      placeholder={`Default value for ${v}`}
+                      className="flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Headers</p>
+                <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Header
+                </Button>
+              </div>
+              {headers.length === 0 ? (
+                <p className="text-xs text-muted italic">No headers configured</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {headers.map(h => (
+                    <div key={h.id} className="flex items-center gap-1.5">
+                      <Input
+                        value={h.key}
+                        onChange={e => updateHeaderKey(h.id, e.target.value)}
+                        placeholder="Key"
+                        className="flex-1"
+                      />
+                      <Input
+                        value={h.value}
+                        onChange={e => updateHeaderValue(h.id, e.target.value)}
+                        placeholder="Value"
+                        className="flex-1"
+                      />
+                      <Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {showBody && (
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Body</label>
+                <Textarea
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  placeholder='{"key": "value"}'
+                  className="min-h-[100px] font-mono text-xs"
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {!canEditHttpConfig && (
           <div>
             <label className="block text-xs font-medium text-muted mb-1">Timeout (ms)</label>
             <Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-muted mb-1">URL *</label>
-          <Input
-            value={url}
-            onChange={e => handleUrlChange(e.target.value)}
-            placeholder="https://api.example.com/users/{{userId}}"
-          />
-          <p className="text-[10px] text-muted mt-1">
-            Use {'{{variableName}}'} for dynamic values in the URL
-          </p>
-        </div>
-
-        {urlVariables.length > 0 && (
-          <div className="rounded-lg border border-border bg-background p-3 space-y-2">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wider">URL Variables</p>
-            {urlVariables.map(v => (
-              <div key={v} className="flex items-center gap-2">
-                <span className="text-xs font-mono text-muted min-w-[100px]">{'{{'}{v}{'}}'}</span>
-                <Input
-                  value={variableValues[v] || ''}
-                  onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
-                  placeholder={`Default value for ${v}`}
-                  className="flex-1"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wider">Headers</p>
-            <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
-              <Plus className="h-3 w-3 mr-1" />
-              Add Header
-            </Button>
-          </div>
-          {headers.length === 0 ? (
-            <p className="text-xs text-muted italic">No headers configured</p>
-          ) : (
-            <div className="space-y-1.5">
-              {headers.map(h => (
-                <div key={h.id} className="flex items-center gap-1.5">
-                  <Input
-                    value={h.key}
-                    onChange={e => updateHeaderKey(h.id, e.target.value)}
-                    placeholder="Key"
-                    className="flex-1"
-                  />
-                  <Input
-                    value={h.value}
-                    onChange={e => updateHeaderValue(h.id, e.target.value)}
-                    placeholder="Value"
-                    className="flex-1"
-                  />
-                  <Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {showBody && (
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">Body</label>
-            <Textarea
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              placeholder='{"key": "value"}'
-              className="min-h-[100px] font-mono text-xs"
-            />
           </div>
         )}
 
