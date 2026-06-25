@@ -20,6 +20,19 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('href="https://example.com"')
   })
 
+  it('renders inline code as subdued code instead of a primary badge', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content={'Use `repoName` no formato `proprietario/repositorio`.'} />,
+    )
+
+    expect(html).toContain('repoName')
+    expect(html).toContain('proprietario/repositorio')
+    expect(html).toContain('bg-white/[0.06]')
+    expect(html).toContain('border-white/10')
+    expect(html).not.toContain('bg-primary/10')
+    expect(html).not.toContain('border-primary/20')
+  })
+
   it('renders horizontal rules instead of showing raw separators', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'Intro\n\n---\n\nResumo'} />)
 
@@ -47,6 +60,7 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('Ferramenta')
     expect(html).toContain('read_wiki_structure')
     expect(html).toContain('<code')
+    expect(html).toContain('bg-surface/70')
     expect(html).not.toContain('|---|---|')
   })
 
