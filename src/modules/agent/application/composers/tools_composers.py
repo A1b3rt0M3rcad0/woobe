@@ -6,6 +6,12 @@ from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
+from modules.agent.application.mcp_permissions import (
+    BulkUpdateMcpToolPermissionsUseCase,
+    UpdateMcpToolPermissionsUseCase,
+)
+from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
+from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
     RuntimeTestToolUseCase,
@@ -44,6 +50,11 @@ from modules.agent.presentation.controllers.mcp_connect_controllers import (
     StartMcpDeviceConnectController,
     StatusMcpConnectController,
 )
+from modules.agent.presentation.controllers.mcp_permissions_controller import (
+    BulkUpdateMcpToolPermissionsController,
+    UpdateMcpToolPermissionsController,
+)
+from modules.agent.presentation.controllers.refresh_mcp_tools_controller import RefreshMcpToolsController
 from modules.agent.presentation.controllers.test_tool_controller import TestToolController
 from modules.agent.presentation.controllers.update_tool_controller import UpdateToolController
 from modules.agent.presentation.controllers.update_tool_status_controller import (
@@ -58,9 +69,10 @@ def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:
     return cast(OutboxEventWriter, SQLAlchemyAgentOutboxEventWriter(uow))
 
 
-def create_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+def create_tool_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = CreateToolUseCase(uow.tools, _agent_outbox(uow))
+    mcp_bootstrapper = McpToolBootstrapper(executor or get_http_tool_executor())
+    use_case = CreateToolUseCase(uow.tools, _agent_outbox(uow), mcp_bootstrapper=mcp_bootstrapper)
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
@@ -113,6 +125,37 @@ def discover_mcp_tools_composer(session_factory: async_sessionmaker[AsyncSession
     uow = AgentUnitOfWork(session_factory)
     use_case = DiscoverMcpToolsUseCase(executor or get_http_tool_executor())
     controller = DiscoverMcpToolsController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def refresh_mcp_tools_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    settings = Settings.model_validate({})
+    runtime_executor = executor or get_http_tool_executor()
+    cipher = SecretCipherAdapter(settings.encryption_key)
+    resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+    auth_header_provider = mcp_oauth.McpOAuthConfigTokenProvider(executor=runtime_executor, cipher=cipher)
+    use_case = RefreshMcpProviderToolsUseCase(
+        tool_repo=uow.tools,
+        executor=runtime_executor,
+        secret_resolver=resolver,
+        auth_header_provider=auth_header_provider,
+    )
+    controller = RefreshMcpToolsController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def update_mcp_tool_permissions_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = UpdateMcpToolPermissionsUseCase(uow.tools)
+    controller = UpdateMcpToolPermissionsController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def bulk_update_mcp_tool_permissions_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = BulkUpdateMcpToolPermissionsUseCase(uow.tools)
+    controller = BulkUpdateMcpToolPermissionsController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
