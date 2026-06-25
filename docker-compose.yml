@@ -11,8 +11,8 @@ x-projectrai-environment: &projectrai-environment
   PROJECTRAI_MCP_SESSION_CACHE_ENABLED: ${PROJECTRAI_MCP_SESSION_CACHE_ENABLED:-true}
   PROJECTRAI_MCP_SESSION_KEY_PREFIX: ${PROJECTRAI_MCP_SESSION_KEY_PREFIX:-projectrai:mcp-session}
   PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS}
-  PROJECTRAI_CORS_ORIGINS: "${PROJECTRAI_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://supreme-invention-qj9jwxqvvx6h9j55-5173.app.github.dev,https://supreme-invention-qj9jwxqvvx6h9j55-5174.app.github.dev}"
-  PROJECTRAI_TRUSTED_HOSTS: "${PROJECTRAI_TRUSTED_HOSTS:-localhost,127.0.0.1,test,api,supreme-invention-qj9jwxqvvx6h9j55-8000.app.github.dev}"
+  PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS}
+  PROJECTRAI_TRUSTED_HOSTS: ${PROJECTRAI_TRUSTED_HOSTS}
 
 services:
   migrate:
@@ -74,8 +74,8 @@ services:
   web:
     build:
       context: web
-      args:
-        VITE_API_URL: "${VITE_API_URL:-https://supreme-invention-qj9jwxqvvx6h9j55-8000.app.github.dev}"
+      secrets:
+        - web_env
     ports:
       - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
@@ -147,6 +147,10 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
+secrets:
+  web_env:
+    file: ./.env.web
 
 volumes:
   pgdata:
