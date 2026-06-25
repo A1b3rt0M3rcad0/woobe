@@ -185,6 +185,7 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'done', timestamp: new Date().toISOString(), payload: response })
             setRawEvents([...rawEventsRef.current])
             const meta = response
+            const finalContent = accumulatedRef.current || meta.answer || ''
             if (meta.session_id) {
               setSessionId(meta.session_id)
             }
@@ -194,7 +195,7 @@ function PlaygroundContent() {
               if (last?.role === 'assistant') {
                 updated[updated.length - 1] = {
                   ...last,
-                  content: accumulatedRef.current,
+                  content: finalContent,
                   usage: meta.usage ?? null,
                   sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
                   tool_calls: (meta.tool_calls ?? null) as ChatMessage['tool_calls'],
