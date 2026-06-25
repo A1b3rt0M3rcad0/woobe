@@ -67,7 +67,7 @@ function toolOf(item: Record<string, unknown>): ToolCallInfo {
     input: item.input ?? null,
     output: item.output ?? null,
     duration_ms: numberOrNull(item.duration_ms) ?? undefined,
-    success: typeof item.success === 'boolean' ? item.success : null,
+    success: typeof item.success === 'boolean' ? item.success : undefined,
     status: typeof item.status === 'string' ? item.status : null,
     latency_ms: numberOrNull(item.latency_ms),
     error: typeof item.error === 'string' ? item.error : null,
