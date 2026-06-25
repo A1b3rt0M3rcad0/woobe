@@ -92,6 +92,19 @@ export interface FallbackEventInfo {
   error: string
 }
 
+export type StreamTokenVisibility = 'assistant' | 'internal' | 'debug'
+export type StreamTokenChannel = 'final' | 'reasoning' | 'tool_planning' | 'system' | string
+
+export interface StreamTokenInfo {
+  content: string
+  visibility: StreamTokenVisibility
+  channel: StreamTokenChannel
+  phase?: string | null
+  provider?: string | null
+  model?: string | null
+  redacted?: boolean | null
+}
+
 export interface ExecutionEvent {
   schema_version: number
   event_id: string
