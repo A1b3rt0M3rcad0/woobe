@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .
-RUN --mount=type=secret,id=web_env,target=/app/.env,required=true npm run build
+RUN --mount=type=secret,id=web_env,target=/.env,required=true npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
