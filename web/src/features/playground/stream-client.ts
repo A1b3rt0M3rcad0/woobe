@@ -7,6 +7,7 @@ import type {
   ExecutionEvent,
   FallbackEventInfo,
   SourceInfo,
+  StreamTokenInfo,
   ToolCallInfo,
   UsageInfo,
 } from './types'
@@ -15,7 +16,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
 
 export interface StreamCallbacks {
-  onToken: (content: string) => void
+  onToken: (token: StreamTokenInfo) => void
   onSources: (sources: SourceInfo[]) => void
   onMeta: (meta: { session_id?: string | null; trace_id?: string | null; request_id?: string | null }) => void
   onDone: (response: Partial<AskResponse>) => void
@@ -24,6 +25,7 @@ export interface StreamCallbacks {
   onToolCall?: (info: ToolCallInfo) => void
   onToolCallStarted?: (info: ToolCallInfo) => void
   onToolCallCompleted?: (info: ToolCallInfo) => void
+  onInternalToken?: (token: StreamTokenInfo) => void
   onUsage?: (usage: UsageInfo) => void
   onHeartbeat?: (event: Record<string, unknown>) => void
   onCancelled?: (event: Record<string, unknown>) => void
@@ -43,6 +45,18 @@ function usageOf(value: unknown): UsageInfo | null {
     output_tokens: numberOrNull(item.output_tokens),
     total_tokens: numberOrNull(item.total_tokens),
     cost_usd: numberOrNull(item.cost_usd),
+  }
+}
+
+function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
+  return {
+    content: typeof item.content === 'string' ? item.content : '',
+    visibility: item.visibility === 'internal' || item.visibility === 'debug' ? item.visibility : 'assistant',
+    channel: typeof item.channel === 'string' ? item.channel : 'final',
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
+    redacted: typeof item.redacted === 'boolean' ? item.redacted : null,
   }
 }
 
@@ -92,7 +106,8 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
     callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
   }
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
-  if (type === 'token') callbacks.onToken(typeof item.content === 'string' ? item.content : '')
+  if (type === 'token') callbacks.onToken(tokenOf(item))
+  else if (type === 'internal_token') callbacks.onInternalToken?.(tokenOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
   else if (type === 'meta') callbacks.onMeta({
     session_id: typeof item.session_id === 'string' ? item.session_id : null,
