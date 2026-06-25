@@ -20,6 +20,54 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('href="https://example.com"')
   })
 
+  it('renders horizontal rules instead of showing raw separators', () => {
+    const html = renderToStaticMarkup(<MarkdownMessage content={'Intro\n\n---\n\nResumo'} />)
+
+    expect(html).toContain('<hr')
+    expect(html).toContain('Intro')
+    expect(html).toContain('Resumo')
+    expect(html).not.toContain('&lt;hr')
+  })
+
+  it('renders markdown tables with inline code inside cells', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          '| Ferramenta | O que faz |',
+          '|---|---|',
+          '| `read_wiki_structure` | Mostra os tópicos disponíveis |',
+          '| `ask_question` | Responde perguntas baseadas na documentação |',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('<table')
+    expect(html).toContain('<thead')
+    expect(html).toContain('<tbody')
+    expect(html).toContain('Ferramenta')
+    expect(html).toContain('read_wiki_structure')
+    expect(html).toContain('<code')
+    expect(html).not.toContain('|---|---|')
+  })
+
+  it('keeps markdown-looking tables inside code fences as code', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          '```md',
+          '| Ferramenta | O que faz |',
+          '|---|---|',
+          '| x | y |',
+          '```',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('<pre')
+    expect(html).toContain('| Ferramenta | O que faz |')
+    expect(html).not.toContain('<table')
+  })
+
   it('escapes raw html instead of injecting it', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'<script>alert(1)</script>'} />)
 
