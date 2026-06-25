@@ -12,7 +12,7 @@ MCP_PERMISSION_ALLOW = "allow"
 MCP_PERMISSION_DENY = "deny"
 MCP_PERMISSION_REVIEW = "review"
 MCP_PERMISSION_MODES = {MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW}
-MCP_CONNECTION_STATES = {"needs_connection", "oauth_required", "metadata_required", "token_invalid", "disconnected"}
+MCP_CONNECTION_STATES = {"needs_connection", "oauth_required", "metadata_required"}
 
 
 class McpToolPermissionInput(BaseModel):
