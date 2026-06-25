@@ -13,6 +13,18 @@ from shared.observability.metrics import runtime_metrics
 RUNTIME_STREAM_PROTOCOL_VERSION = 1
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
 
+_TEXT_BLOCK_TYPES = {"", "text", "output_text"}
+_INTERNAL_BLOCK_TYPES = {
+    "reasoning",
+    "reasoning_content",
+    "thinking",
+    "thought",
+    "internal",
+    "tool_use",
+    "server_tool_call",
+    "web_search_call",
+}
+
 
 def _stream_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -22,6 +34,14 @@ def _stream_utc_iso() -> str:
 class RuntimeStreamEvent:
     event_type: str
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RuntimeStreamTextPart:
+    content: str
+    visibility: str = "assistant"
+    channel: str = "final"
+    redacted: bool = False
 
 
 @dataclass
@@ -93,22 +113,61 @@ async def emit_runtime_event(event_type: str, **payload: Any) -> None:
         await channel.emit(event_type, **payload)
 
 
-def extract_chunk_text(chunk: Any) -> str:
+def _text_from_block(block: dict[str, Any]) -> str:
+    for key in ("text", "content", "delta"):
+        value = block.get(key)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+def _classify_text_block(block: dict[str, Any]) -> RuntimeStreamTextPart | None:
+    block_type = str(block.get("type") or "").lower()
+    text = _text_from_block(block)
+    if not text:
+        return None
+    if block_type in _INTERNAL_BLOCK_TYPES:
+        return RuntimeStreamTextPart(
+            content=text,
+            visibility="internal",
+            channel=block_type or "internal",
+            redacted=True,
+        )
+    if block_type not in _TEXT_BLOCK_TYPES:
+        return RuntimeStreamTextPart(
+            content=text,
+            visibility="internal",
+            channel=block_type or "internal",
+            redacted=True,
+        )
+    return RuntimeStreamTextPart(content=text)
+
+
+def extract_chunk_text_parts(chunk: Any) -> list[RuntimeStreamTextPart]:
     content = getattr(chunk, "content", None)
     if isinstance(content, str):
-        return content
+        return [RuntimeStreamTextPart(content=content)] if content else []
     if not isinstance(content, list):
-        return ""
+        return []
 
-    parts: list[str] = []
+    parts: list[RuntimeStreamTextPart] = []
     for block in content:
         if isinstance(block, str):
-            parts.append(block)
+            if block:
+                parts.append(RuntimeStreamTextPart(content=block))
         elif isinstance(block, dict):
-            text = block.get("text") or block.get("content")
-            if isinstance(text, str):
-                parts.append(text)
-    return "".join(parts)
+            part = _classify_text_block(block)
+            if part is not None:
+                parts.append(part)
+    return parts
+
+
+def extract_chunk_text(chunk: Any) -> str:
+    return "".join(
+        part.content
+        for part in extract_chunk_text_parts(chunk)
+        if part.visibility == "assistant" and part.channel == "final"
+    )
 
 
 def _combine_chunks(accumulated: Any | None, chunk: Any) -> Any:
@@ -118,6 +177,38 @@ def _combine_chunks(accumulated: Any | None, chunk: Any) -> Any:
         return accumulated + chunk
     except (TypeError, ValueError):
         return chunk
+
+
+def _result_has_tool_calls(result: Any | None) -> bool:
+    return bool(getattr(result, "tool_calls", None))
+
+
+def _can_stream_phase_live(phase: str) -> bool:
+    return phase == "response_generation"
+
+
+def _can_emit_phase_as_final(phase: str) -> bool:
+    return phase != "json_repair"
+
+
+async def _emit_visible_token(
+    channel: RuntimeStreamChannel,
+    *,
+    content: str,
+    phase: str,
+    provider: str,
+    model_name: str,
+) -> None:
+    channel.mark_first_token(provider=provider, model=model_name)
+    await channel.emit(
+        "token",
+        content=content,
+        visibility="assistant",
+        channel="final",
+        phase=phase,
+        provider=provider,
+        model=model_name,
+    )
 
 
 async def invoke_model_with_optional_streaming(
@@ -142,19 +233,23 @@ async def invoke_model_with_optional_streaming(
             raise
 
     accumulated = None
+    pending_visible_tokens: list[str] = []
     try:
         async for chunk in model.astream(messages):
             accumulated = _combine_chunks(accumulated, chunk)
-            text = extract_chunk_text(chunk)
-            if text:
-                channel.mark_first_token(provider=provider, model=model_name)
-                await channel.emit(
-                    "token",
-                    content=text,
-                    phase=phase,
-                    provider=provider,
-                    model=model_name,
-                )
+            for part in extract_chunk_text_parts(chunk):
+                if part.visibility != "assistant" or part.channel != "final":
+                    continue
+                if _can_stream_phase_live(phase):
+                    await _emit_visible_token(
+                        channel,
+                        content=part.content,
+                        phase=phase,
+                        provider=provider,
+                        model_name=model_name,
+                    )
+                else:
+                    pending_visible_tokens.append(part.content)
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -170,4 +265,19 @@ async def invoke_model_with_optional_streaming(
             model=model_name,
         )
         raise RuntimeError("Provider stream completed without a response")
+
+    if (
+        pending_visible_tokens
+        and _can_emit_phase_as_final(phase)
+        and not _result_has_tool_calls(accumulated)
+    ):
+        for content in pending_visible_tokens:
+            await _emit_visible_token(
+                channel,
+                content=content,
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+            )
+
     return accumulated
