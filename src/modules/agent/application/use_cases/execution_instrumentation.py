@@ -150,7 +150,7 @@ async def execute_tool_call(
     tool_name = tool_call["name"]
     await emit_agent_activity(
         "calling_tool",
-        message=f"Chamando ferramenta: {tool_name}...",
+        message=f"Calling tool: {tool_name}...",
         tool_name=tool_name,
     )
     await emit_runtime_event(
@@ -197,7 +197,7 @@ async def execute_tool_call(
     await emit_runtime_event("tool_call_completed", **payload)
     await emit_agent_activity(
         "processing_tool_result",
-        message="Processando resultado da ferramenta...",
+        message="Processing tool result...",
         tool_name=tool_name,
     )
     return info, message, payload
