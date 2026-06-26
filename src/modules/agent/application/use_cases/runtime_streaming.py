@@ -312,6 +312,8 @@ async def invoke_model_with_optional_streaming(
             "token_retract",
             phase=phase,
             reason="tool_call_selected",
+            content_length=sum(len(content) for content in streamed_visible_tokens),
+            token_count=len(streamed_visible_tokens),
             provider=provider,
             model=model_name,
         )
