@@ -7,6 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_inventory import (
+    execute_runtime_tool_inventory,
+    is_runtime_tool_inventory_id,
+)
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
@@ -59,6 +63,9 @@ class AskJobWorker:
         job_session_id = (job.params or {}).get("session_id")
 
         async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+            if is_runtime_tool_inventory_id(tool_id):
+                return execute_runtime_tool_inventory(input_data)
+
             runtime_input = dict(input_data or {})
             if job_session_id:
                 runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(job_session_id)
