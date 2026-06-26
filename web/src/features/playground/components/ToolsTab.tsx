@@ -90,16 +90,16 @@ function ToolStatusToggle({
       aria-pressed={active}
       disabled={loading}
       onClick={onClick}
-      className={`relative h-7 w-12 shrink-0 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
+      className={`relative h-6 w-9 shrink-0 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
         active
           ? 'border-primary/45 bg-primary/10 shadow-sm shadow-primary/10'
           : 'border-border bg-background/80'
       }`}
     >
       <span
-        className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all ${
+        className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full transition-all ${
           active
-            ? 'left-6 bg-primary shadow-md shadow-primary/20'
+            ? 'left-4 bg-primary shadow-sm shadow-primary/20'
             : 'left-1 bg-muted'
         }`}
       />
