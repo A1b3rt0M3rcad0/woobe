@@ -204,7 +204,9 @@ def _result_has_tool_calls(result: Any | None) -> bool:
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    return phase == "response_generation" or phase.startswith("tool_followup_")
+    # Tool-capable phases can emit assistant text before selecting a tool call.
+    # Buffer those candidate tokens until the model result is known to be final.
+    return phase == "response_generation"
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
