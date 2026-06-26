@@ -213,14 +213,14 @@ def _can_emit_phase_as_final(phase: str) -> bool:
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
     if phase == "tool_planning":
-        return "planning_tools", "Verificando se precisa usar ferramentas..."
+        return "planning_tools", "Checking whether tools are needed..."
     if phase.startswith("tool_followup_"):
-        return "generating_answer", "Gerando resposta..."
+        return "generating_answer", "Generating response..."
     if phase == "response_generation":
-        return "generating_answer", "Gerando resposta..."
+        return "generating_answer", "Generating response..."
     if phase == "json_repair":
-        return "formatting_response", "Formatando resposta estruturada..."
-    return "thinking", "Pensando..."
+        return "formatting_response", "Formatting structured response..."
+    return "thinking", "Working..."
 
 
 async def _emit_visible_token(

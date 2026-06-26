@@ -48,12 +48,12 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
 
 function activityMessage(activity?: AgentActivityInfo | null): string {
   if (activity?.message) return activity.message
-  if (activity?.status === 'planning_tools') return 'Verificando se precisa usar ferramentas...'
-  if (activity?.status === 'calling_tool') return activity.tool_name ? `Chamando ferramenta: ${activity.tool_name}...` : 'Chamando ferramenta...'
-  if (activity?.status === 'processing_tool_result') return 'Processando resultado da ferramenta...'
-  if (activity?.status === 'generating_answer') return 'Gerando resposta...'
-  if (activity?.status === 'formatting_response') return 'Formatando resposta estruturada...'
-  return 'Pensando...'
+  if (activity?.status === 'planning_tools') return 'Checking whether tools are needed...'
+  if (activity?.status === 'calling_tool') return activity.tool_name ? `Calling tool: ${activity.tool_name}...` : 'Calling tool...'
+  if (activity?.status === 'processing_tool_result') return 'Processing tool result...'
+  if (activity?.status === 'generating_answer') return 'Generating response...'
+  if (activity?.status === 'formatting_response') return 'Formatting structured response...'
+  return 'Working...'
 }
 
 function ActivityBubble({ activity }: { activity?: AgentActivityInfo | null }) {

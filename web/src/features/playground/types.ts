@@ -107,6 +107,7 @@ export interface StreamTokenInfo {
 
 export type AgentActivityStatus =
   | 'thinking'
+  | 'working'
   | 'planning_tools'
   | 'calling_tool'
   | 'processing_tool_result'

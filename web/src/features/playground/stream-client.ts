@@ -78,11 +78,11 @@ function activityMessage(status: string, toolName?: string | null): string {
   if (status === 'processing_tool_result') return 'Processing tool result...'
   if (status === 'generating_answer') return 'Generating response...'
   if (status === 'formatting_response') return 'Formatting structured response...'
-  return 'Thinking...'
+  return 'Working...'
 }
 
 function activityOf(item: Record<string, unknown>): AgentActivityInfo {
-  const status = typeof item.status === 'string' ? item.status : 'thinking'
+  const status = typeof item.status === 'string' ? item.status : 'working'
   const toolName = typeof item.tool_name === 'string' ? item.tool_name : null
   return {
     status,

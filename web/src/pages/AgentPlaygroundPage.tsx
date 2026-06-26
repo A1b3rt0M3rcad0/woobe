@@ -152,7 +152,7 @@ function PlaygroundContent() {
     const assistantMsg: ChatMessage = {
       role: 'assistant',
       content: '',
-      activity: { status: 'thinking', message: 'Pensando...' },
+      activity: { status: 'working', message: 'Working...' },
     }
 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
@@ -210,7 +210,7 @@ function PlaygroundContent() {
             updateLastAssistantMessage((last) => ({
               ...last,
               content: accumulatedRef.current,
-              activity: { status: 'planning_tools', message: 'Verificando se precisa usar ferramentas...' },
+              activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' },
             }))
           },
           onInternalToken: (token) => {
@@ -227,7 +227,7 @@ function PlaygroundContent() {
               ...last,
               activity: {
                 status: 'calling_tool',
-                message: `Chamando ferramenta: ${runningInfo.tool_name}...`,
+                message: `Calling tool: ${runningInfo.tool_name}...`,
                 tool_name: runningInfo.tool_name,
               },
               tool_calls: upsertToolCall(last.tool_calls, runningInfo),
@@ -239,7 +239,7 @@ function PlaygroundContent() {
               ...last,
               activity: {
                 status: 'processing_tool_result',
-                message: 'Processando resultado da ferramenta...',
+                message: 'Processing tool result...',
                 tool_name: info.tool_name,
               },
               tool_calls: upsertToolCall(last.tool_calls, info),
@@ -321,7 +321,7 @@ function PlaygroundContent() {
             updateLastAssistantMessage((last) => ({
               ...last,
               content: '',
-              activity: { status: 'thinking', message: 'Tentando modelo alternativo...' },
+              activity: { status: 'working', message: 'Trying fallback model...' },
             }))
             toast.info(
               `Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`,
