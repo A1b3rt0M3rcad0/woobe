@@ -17,8 +17,8 @@ export function SidebarUserCard() {
 
   return (
     <div className="border-t border-border p-3">
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-background/70 p-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
+      <div className="group flex items-center gap-3 rounded-xl border border-border/80 bg-background/60 p-2.5 transition-colors hover:border-primary/20 hover:bg-background/75">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
           {getInitials(user?.email)}
         </div>
         <div className="min-w-0 flex-1">
