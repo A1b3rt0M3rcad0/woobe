@@ -1,6 +1,7 @@
 import { get } from '@/lib/api/client'
 import type { ProjectOverview, ProjectOverviewParams } from './types'
-import { PROJECT_OVERVIEW_RECENT_LIMIT } from './hooks'
+
+const PROJECT_OVERVIEW_RECENT_LIMIT = 3
 
 export async function getProjectOverview(params: ProjectOverviewParams): Promise<ProjectOverview> {
   return get<ProjectOverview>(`/core/projects/${params.projectId}/overview`, {
