@@ -1,7 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Building2, FolderKanban, Play, type LucideIcon } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { cn } from '@/lib/utils'
 import { SidebarUserCard } from './SidebarUserCard'
 
@@ -9,14 +8,9 @@ function getRouteOrganizationId(pathname: string) {
   return pathname.match(/^\/organizations\/([^/]+)\/projects/)?.[1]
 }
 
-function getRouteProjectId(pathname: string) {
-  return pathname.match(/^\/organizations\/[^/]+\/projects\/([^/]+)/)?.[1]
-}
-
 interface FlowItemProps {
   title: string
   description: string
-  meta?: string
   icon: LucideIcon
   active?: boolean
   disabled?: boolean
@@ -24,7 +18,7 @@ interface FlowItemProps {
   onClick?: () => void
 }
 
-function FlowItem({ title, description, meta, icon: Icon, active, disabled, compact, onClick }: FlowItemProps) {
+function FlowItem({ title, description, icon: Icon, active, disabled, compact, onClick }: FlowItemProps) {
   return (
     <button
       type="button"
@@ -52,7 +46,6 @@ function FlowItem({ title, description, meta, icon: Icon, active, disabled, comp
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-white">{title}</span>
           <span className="mt-1 block text-xs leading-5 text-muted">{description}</span>
-          {meta && <span className="mt-3 block truncate font-mono text-xs text-primary-light">{meta}</span>}
         </span>
       </div>
     </button>
@@ -62,25 +55,17 @@ function FlowItem({ title, description, meta, icon: Icon, active, disabled, comp
 export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boolean }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const { organizations, projects, currentOrganization, currentProject } = useWorkspace()
 
   const routeOrganizationId = getRouteOrganizationId(pathname)
-  const routeProjectId = getRouteProjectId(pathname)
-  const routeOrganization = routeOrganizationId ? organizations.find((organization) => organization.id === routeOrganizationId) : null
-  const routeProject = routeProjectId ? projects.find((project) => project.id === routeProjectId) : null
-  const selectedOrganization = routeOrganization ?? currentOrganization ?? null
-  const persistedProject = selectedOrganization && currentProject?.organization_id === selectedOrganization.id ? currentProject : null
-  const selectedProject = routeProject ?? persistedProject
-  const hasOrganization = Boolean(selectedOrganization)
+  const hasRouteOrganization = Boolean(routeOrganizationId)
   const isOrganizationsView = pathname === '/organizations'
-  const isProjectsView = Boolean(routeOrganizationId)
+  const isProjectsView = hasRouteOrganization
 
   const flowItems = (
     <>
       <FlowItem
         title="Organizations"
-        description={selectedOrganization ? 'Current organization' : 'Select or create an organization'}
-        meta={selectedOrganization?.name}
+        description="Select or create an organization"
         icon={Building2}
         active={isOrganizationsView}
         compact={compact}
@@ -89,19 +74,12 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
 
       <FlowItem
         title="Projects"
-        description={
-          !hasOrganization
-            ? 'Select an organization first'
-            : selectedProject
-              ? 'Current project'
-              : 'Select or create a project'
-        }
-        meta={selectedProject?.name}
+        description={hasRouteOrganization ? 'Select or create a project' : 'Select an organization first'}
         icon={FolderKanban}
         active={isProjectsView}
-        disabled={!selectedOrganization}
+        disabled={!hasRouteOrganization}
         compact={compact}
-        onClick={() => selectedOrganization && navigate(`/organizations/${selectedOrganization.id}/projects`)}
+        onClick={() => routeOrganizationId && navigate(`/organizations/${routeOrganizationId}/projects`)}
       />
     </>
   )
