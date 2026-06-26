@@ -19,11 +19,6 @@ interface KnowledgeTabProps {
   agentId: string
 }
 
-const collectionStatusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  active: 'success',
-  archived: 'secondary',
-}
-
 export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { data: agentCollections, isLoading, refetch } = useAgentCollections(agentId)
   const { data: allCollections } = useCollections(projectId)
@@ -114,7 +109,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{colName}</p>
                     </div>
-                    <Badge variant={collectionStatusVariant[ac.status] || 'success'}>active</Badge>
+                    <Badge variant="success">active</Badge>
                   </div>
                   <div className="flex gap-2">
                     <Button
