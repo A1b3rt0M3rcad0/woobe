@@ -15,6 +15,7 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
+const COMMITTED_TOKEN_PHASES = new Set(['response_generation', 'final_response_generation'])
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -70,6 +71,15 @@ function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
     model: typeof item.model === 'string' ? item.model : null,
     redacted: typeof item.redacted === 'boolean' ? item.redacted : null,
   }
+}
+
+function isCommittedToken(token: StreamTokenInfo): boolean {
+  return (
+    token.visibility === 'assistant' &&
+    token.channel === 'final' &&
+    typeof token.phase === 'string' &&
+    COMMITTED_TOKEN_PHASES.has(token.phase)
+  )
 }
 
 function activityMessage(status: string, toolName?: string | null): string {
@@ -151,7 +161,11 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
     callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
   }
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
-  if (type === 'token') callbacks.onToken(tokenOf(item))
+  if (type === 'token') {
+    const token = tokenOf(item)
+    if (isCommittedToken(token)) callbacks.onToken(token)
+    else callbacks.onInternalToken?.({ ...token, visibility: 'internal', redacted: true })
+  }
   else if (type === 'token_retract') callbacks.onTokenRetract?.(tokenRetractOf(item))
   else if (type === 'internal_token') callbacks.onInternalToken?.(tokenOf(item))
   else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
