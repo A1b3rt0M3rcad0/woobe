@@ -113,6 +113,23 @@ async def emit_runtime_event(event_type: str, **payload: Any) -> None:
         await channel.emit(event_type, **payload)
 
 
+async def emit_agent_activity(
+    status: str,
+    *,
+    phase: str | None = None,
+    message: str | None = None,
+    tool_name: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {"status": status}
+    if phase is not None:
+        payload["phase"] = phase
+    if message is not None:
+        payload["message"] = message
+    if tool_name is not None:
+        payload["tool_name"] = tool_name
+    await emit_runtime_event("agent_activity", **payload)
+
+
 def _text_from_block(block: dict[str, Any]) -> str:
     for key in ("text", "content", "delta"):
         value = block.get(key)
@@ -184,11 +201,23 @@ def _result_has_tool_calls(result: Any | None) -> bool:
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    return phase == "response_generation"
+    return phase == "response_generation" or phase.startswith("tool_followup_")
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
     return phase != "json_repair"
+
+
+def _activity_for_phase(phase: str) -> tuple[str, str]:
+    if phase == "tool_planning":
+        return "planning_tools", "Verificando se precisa usar ferramentas..."
+    if phase.startswith("tool_followup_"):
+        return "generating_answer", "Gerando resposta..."
+    if phase == "response_generation":
+        return "generating_answer", "Gerando resposta..."
+    if phase == "json_repair":
+        return "formatting_response", "Formatando resposta estruturada..."
+    return "thinking", "Pensando..."
 
 
 async def _emit_visible_token(
@@ -232,8 +261,19 @@ async def invoke_model_with_optional_streaming(
             )
             raise
 
+    activity_status, activity_message = _activity_for_phase(phase)
+    await channel.emit(
+        "agent_activity",
+        status=activity_status,
+        phase=phase,
+        message=activity_message,
+        provider=provider,
+        model=model_name,
+    )
+
     accumulated = None
     pending_visible_tokens: list[str] = []
+    streamed_visible_tokens: list[str] = []
     try:
         async for chunk in model.astream(messages):
             accumulated = _combine_chunks(accumulated, chunk)
@@ -241,6 +281,7 @@ async def invoke_model_with_optional_streaming(
                 if part.visibility != "assistant" or part.channel != "final":
                     continue
                 if _can_stream_phase_live(phase):
+                    streamed_visible_tokens.append(part.content)
                     await _emit_visible_token(
                         channel,
                         content=part.content,
@@ -266,7 +307,15 @@ async def invoke_model_with_optional_streaming(
         )
         raise RuntimeError("Provider stream completed without a response")
 
-    if (
+    if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
+        await channel.emit(
+            "token_retract",
+            phase=phase,
+            reason="tool_call_selected",
+            provider=provider,
+            model=model_name,
+        )
+    elif (
         pending_visible_tokens
         and _can_emit_phase_as_final(phase)
         and not _result_has_tool_calls(accumulated)
