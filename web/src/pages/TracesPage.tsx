@@ -11,7 +11,7 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatDateTime } from '@/lib/formatters/date'
 import { formatMoney } from '@/lib/formatters/money'
 import { formatLatency } from '@/lib/formatters/number'
-import { Activity, Clock, Search } from 'lucide-react'
+import { Activity, Search } from 'lucide-react'
 import type { Trace } from '@/features/traces/types'
 
 type StatusFilter = 'all' | 'running' | 'completed' | 'failed' | 'cancelled'
