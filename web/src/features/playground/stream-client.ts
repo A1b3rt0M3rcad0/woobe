@@ -72,12 +72,23 @@ function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
   }
 }
 
+function activityMessage(status: string, toolName?: string | null): string {
+  if (status === 'planning_tools') return 'Checking whether tools are needed...'
+  if (status === 'calling_tool') return toolName ? `Calling tool: ${toolName}...` : 'Calling tool...'
+  if (status === 'processing_tool_result') return 'Processing tool result...'
+  if (status === 'generating_answer') return 'Generating response...'
+  if (status === 'formatting_response') return 'Formatting structured response...'
+  return 'Thinking...'
+}
+
 function activityOf(item: Record<string, unknown>): AgentActivityInfo {
+  const status = typeof item.status === 'string' ? item.status : 'thinking'
+  const toolName = typeof item.tool_name === 'string' ? item.tool_name : null
   return {
-    status: typeof item.status === 'string' ? item.status : 'thinking',
+    status,
     phase: typeof item.phase === 'string' ? item.phase : null,
-    message: typeof item.message === 'string' ? item.message : null,
-    tool_name: typeof item.tool_name === 'string' ? item.tool_name : null,
+    message: activityMessage(status, toolName),
+    tool_name: toolName,
     provider: typeof item.provider === 'string' ? item.provider : null,
     model: typeof item.model === 'string' ? item.model : null,
   }
