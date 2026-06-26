@@ -24,6 +24,7 @@ _INTERNAL_BLOCK_TYPES = {
     "server_tool_call",
     "web_search_call",
 }
+_FINAL_RESPONSE_PHASES = {"response_generation", "final_response_generation"}
 
 
 def _stream_utc_iso() -> str:
@@ -203,14 +204,18 @@ def _result_has_tool_calls(result: Any | None) -> bool:
     )
 
 
+def _is_final_response_phase(phase: str) -> bool:
+    return phase in _FINAL_RESPONSE_PHASES
+
+
 def _can_stream_phase_live(phase: str) -> bool:
     # Tool-capable phases can emit assistant text before selecting a tool call.
     # Stream only phases that are committed to final user-facing output.
-    return phase in {"response_generation", "final_response_generation"}
+    return _is_final_response_phase(phase)
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
-    return phase != "json_repair"
+    return _is_final_response_phase(phase)
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
@@ -218,7 +223,7 @@ def _activity_for_phase(phase: str) -> tuple[str, str]:
         return "planning_tools", "Checking whether tools are needed..."
     if phase.startswith("tool_followup_"):
         return "generating_answer", "Generating response..."
-    if phase in {"response_generation", "final_response_generation"}:
+    if _is_final_response_phase(phase):
         return "generating_answer", "Generating response..."
     if phase == "json_repair":
         return "formatting_response", "Formatting structured response..."
