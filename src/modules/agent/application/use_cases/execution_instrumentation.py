@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -14,6 +13,9 @@ from modules.agent.application.use_cases.runtime_streaming import (
     emit_agent_activity,
     emit_runtime_event,
     invoke_model_with_optional_streaming,
+)
+from modules.agent.application.use_cases.tool_output_compaction import (
+    compact_tool_output_for_llm,
 )
 from shared.infra.llm_usage import normalize_llm_usage
 
@@ -167,6 +169,7 @@ async def execute_tool_call(
     duration_ms = round((time.monotonic() - started) * 1000)
     success = output.get("success", False) if isinstance(output, dict) else True
     error = output.get("error") if isinstance(output, dict) else None
+    llm_content = compact_tool_output_for_llm(output)
     info = ToolCallInfo(
         tool_call_id=tool_call["id"],
         tool_name=tool_name,
@@ -177,7 +180,7 @@ async def execute_tool_call(
         error=error,
     )
     message = ToolMessage(
-        content=json.dumps(output) if isinstance(output, dict) else str(output),
+        content=llm_content,
         tool_call_id=tool_call["id"],
     )
     payload = {
@@ -185,6 +188,7 @@ async def execute_tool_call(
         "tool_name": tool_name,
         "input": tool_call.get("args"),
         "output": output,
+        "llm_output_size_chars": len(llm_content),
         "duration_ms": duration_ms,
         "http_latency_ms": tool_http_latency_ms(output),
         "success": success,
