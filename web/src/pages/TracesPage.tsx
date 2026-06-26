@@ -24,6 +24,8 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+const panelScrollClass = 'scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-muted [scrollbar-color:rgb(51_65_85)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-border/70 [&::-webkit-scrollbar-thumb]:bg-clip-padding hover:[&::-webkit-scrollbar-thumb]:bg-muted'
+
 function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6">
@@ -166,7 +168,7 @@ export default function TracesPage() {
 
       <Dialog open={!!selectedTraceId} onClose={() => setSelectedTraceId(null)} title="Trace detail" className="max-h-[90vh] max-w-5xl overflow-hidden">
         {traceDetail ? (
-          <div className="max-h-[calc(90vh-96px)] overflow-y-auto pr-1">
+          <div className={`max-h-[calc(90vh-96px)] overflow-y-auto pr-2 ${panelScrollClass}`}>
             <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
                 <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
