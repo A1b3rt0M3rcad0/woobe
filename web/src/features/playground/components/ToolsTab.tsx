@@ -25,7 +25,7 @@ function toolTypeLabel(tool: Tool): string {
 
 function ToolTypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex h-8 items-center rounded-xl bg-muted/15 px-3 text-xs font-semibold uppercase tracking-wide text-white ring-1 ring-border/70">
+    <span className="inline-flex h-6 items-center rounded-lg bg-muted/15 px-2 text-[10px] font-semibold uppercase tracking-wide text-white ring-1 ring-border/70">
       {type}
     </span>
   )
@@ -51,16 +51,16 @@ function RiskIndicator({ risk }: { risk?: string | null }) {
 
   return (
     <span
-      className="inline-flex h-8 items-center gap-2 rounded-xl border border-border/80 bg-background/70 px-2.5 text-muted"
+      className="inline-flex h-6 items-center gap-1.5 rounded-lg border border-border/80 bg-background/70 px-2 text-muted"
       title={`Risk: ${normalized}`}
       aria-label={`Risk: ${normalized}`}
     >
-      <Shield className="h-4 w-4 text-white/90" />
+      <Shield className="h-3.5 w-3.5 text-white/90" />
       <span className="flex items-center gap-1">
         {[0, 1, 2].map(index => (
           <span
             key={index}
-            className={`h-2 w-2 rounded-full ${index < activeDots ? `${dotTone} shadow-sm` : 'bg-muted/25'}`}
+            className={`h-1.5 w-1.5 rounded-full ${index < activeDots ? `${dotTone} shadow-sm` : 'bg-muted/25'}`}
           />
         ))}
       </span>
@@ -84,16 +84,16 @@ function ToolStatusToggle({
       aria-pressed={active}
       disabled={loading}
       onClick={onClick}
-      className={`relative h-9 w-16 shrink-0 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
+      className={`relative h-7 w-12 shrink-0 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
         active
           ? 'border-primary/45 bg-primary/10 shadow-sm shadow-primary/10'
           : 'border-border bg-background/80'
       }`}
     >
       <span
-        className={`absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full transition-all ${
+        className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all ${
           active
-            ? 'left-8 bg-primary shadow-lg shadow-primary/20'
+            ? 'left-6 bg-primary shadow-md shadow-primary/20'
             : 'left-1 bg-muted'
         }`}
       />
@@ -121,9 +121,9 @@ function ToolIconButton({
       title={label}
       disabled={loading}
       onClick={onClick}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border bg-background/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
+      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-background/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 ${
         tone === 'danger'
-          ? 'border-red-500/25 text-red-200 hover:bg-red-500/10 hover:text-red-100'
+          ? 'border-red-500/30 text-red-200 hover:bg-red-500/10 hover:text-red-100'
           : 'border-border/80 text-white/80 hover:bg-accent hover:text-white'
       }`}
     >
@@ -189,7 +189,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   if (isLoading) return <LoadingState />
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-3 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted">Agent tools</p>
@@ -228,37 +228,37 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
           />
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {tools.map((tool) => {
             const isActive = tool.status === 'active'
             const isMcp = isMcpProviderTool(tool)
             return (
               <article
                 key={tool.id}
-                className={`rounded-2xl border p-5 shadow-sm transition-all ${
+                className={`rounded-xl border p-3 shadow-sm transition-all ${
                   isActive
                     ? 'border-border bg-background'
                     : 'border-border/50 bg-background/50 opacity-70'
                 }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <h3 className="truncate text-xl font-semibold tracking-tight text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <h3 className="truncate text-sm font-semibold text-white">
                       {tool.name}
                     </h3>
-                    <p className="line-clamp-2 text-sm leading-relaxed text-muted">
+                    <p className="line-clamp-2 text-xs leading-relaxed text-muted">
                       {tool.description || 'No description'}
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <ToolStatusToggle
                       active={isActive}
                       loading={updateStatus.isPending}
                       onClick={() => handleToggleActive(tool)}
                     />
                     <ToolIconButton label="Edit tool" onClick={() => setEditingTool(tool)}>
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </ToolIconButton>
                     <ToolIconButton
                       label="Remove tool from agent"
@@ -266,17 +266,17 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                       loading={updateTool.isPending}
                       onClick={() => handleRemove(tool)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </ToolIconButton>
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <ToolTypeBadge type={toolTypeLabel(tool)} />
                   <RiskIndicator risk={tool.risk_level} />
                 </div>
 
-                {isMcp ? <div className="mt-5"><McpProviderPanel tool={tool} onChanged={refetchAll} /></div> : null}
+                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refetchAll} /></div> : null}
               </article>
             )
           })}
