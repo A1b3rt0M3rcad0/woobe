@@ -39,6 +39,7 @@ export function CreateOrganizationDialog({ open, onClose, onSubmit, loading }: C
           namePlaceholder="Organization name"
           fallback="organization"
           uniqueScope="globally"
+          lockSlug
         />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={close}>Cancel</Button>

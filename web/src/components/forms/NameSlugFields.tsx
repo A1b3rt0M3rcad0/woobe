@@ -12,6 +12,7 @@ interface NameSlugFieldsProps {
   slugPlaceholder?: string
   fallback: string
   uniqueScope: string
+  lockSlug?: boolean
 }
 
 export function NameSlugFields({
@@ -22,6 +23,7 @@ export function NameSlugFields({
   slugPlaceholder = 'slug',
   fallback,
   uniqueScope,
+  lockSlug = false,
 }: NameSlugFieldsProps) {
   const [isSlugDirty, setIsSlugDirty] = useState(false)
   const nameField = form.register(namePath)
@@ -30,7 +32,7 @@ export function NameSlugFields({
 
   const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     nameField.onChange(event)
-    if (!isSlugDirty) {
+    if (lockSlug || !isSlugDirty) {
       form.setValue(slugPath, slugify(event.target.value, fallback), {
         shouldDirty: true,
         shouldValidate: true,
@@ -39,6 +41,7 @@ export function NameSlugFields({
   }
 
   const handleSlugChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (lockSlug) return
     setIsSlugDirty(true)
     slugField.onChange(event)
   }
@@ -54,9 +57,12 @@ export function NameSlugFields({
       <div>
         <Input
           {...slugField}
+          readOnly={lockSlug}
+          aria-readonly={lockSlug}
           onChange={handleSlugChange}
           error={errors[slugPath]?.message}
           placeholder={slugPlaceholder}
+          className={lockSlug ? 'cursor-default bg-background/50 text-muted' : undefined}
         />
         <AutoSlugHelp scope={uniqueScope} />
       </div>
