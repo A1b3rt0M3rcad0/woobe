@@ -14,6 +14,11 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     invoke_llm,
 )
 
+_FINAL_RESPONSE_INSTRUCTION = (
+    "Generate the final user-facing answer now using the conversation and any "
+    "tool results above. Do not call tools. Do not include internal planning."
+)
+
 
 async def run_tool_loop(
     *,
@@ -25,6 +30,7 @@ async def run_tool_loop(
     model_name: str,
     initial_phase: str,
     final_json_instruction: str | None,
+    final_model: Any | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     execution = InstrumentedExecution(result=None)
     call_index = 1
@@ -108,5 +114,37 @@ async def run_tool_loop(
             tool_wall_latency_ms=execution.tool_wall_latency_ms,
             tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
         )
+
+    if final_model is not None:
+        if final_json_instruction and not instruction_added:
+            messages.append(SystemMessage(content=final_json_instruction))
+            instruction_added = True
+        elif not final_json_instruction:
+            messages.append(SystemMessage(content=_FINAL_RESPONSE_INSTRUCTION))
+
+        call_index += 1
+        try:
+            result, call = await invoke_llm(
+                model=final_model,
+                messages=messages,
+                phase="final_response_generation",
+                call_index=call_index,
+                provider=provider,
+                model_name=model_name,
+            )
+        except InstrumentedExecutionError as exc:
+            raise InstrumentedExecutionError(
+                str(exc),
+                llm_calls=execution.llm_calls + exc.llm_calls,
+                tool_calls=execution.tool_calls,
+                timeline=execution.timeline + exc.timeline,
+                tool_wall_latency_ms=execution.tool_wall_latency_ms,
+                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            ) from exc
+        execution.llm_calls.append(call)
+        execution.timeline.append(
+            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+        )
+
     execution.result = result
     return execution, call_index
