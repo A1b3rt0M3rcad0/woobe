@@ -4,8 +4,6 @@ import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { useCreateOrganization } from '@/features/organizations/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
-import { Card, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { CreateOrganizationDialog } from '@/components/forms/CreateOrganizationDialog'
 import { ArrowRight, Plus, Search } from 'lucide-react'
@@ -87,45 +85,41 @@ export default function OrganizationsPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {visibleOrganizations.map((org) => (
-          <Card
+          <button
             key={org.id}
-            className="group relative overflow-hidden border-border/90 bg-surface/70 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-surface hover:shadow-xl hover:shadow-primary/5"
+            type="button"
+            aria-label={`Open projects for ${org.name}`}
+            onClick={() => handleSelect(org)}
+            className="group flex min-h-[260px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <CardContent className="flex min-h-[260px] flex-col p-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-sm font-semibold text-primary-light shadow-sm">
-                {getInitials(org.name)}
-              </div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-sm font-semibold text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
+              {getInitials(org.name)}
+            </span>
 
-              <div className="mt-6">
-                <h2 className="text-base font-semibold text-white">{org.name}</h2>
-                <p className="mt-1 truncate font-mono text-sm text-muted">/{org.slug}</p>
-              </div>
+            <span className="mt-6 block min-w-0">
+              <span className="block truncate text-base font-semibold text-white">{org.name}</span>
+              <span className="mt-1 block truncate font-mono text-sm text-muted">/{org.slug}</span>
+            </span>
 
-              <div className="my-5 h-px bg-border/80" />
+            <span className="my-5 block h-px bg-border/80" />
 
-              <p className="min-h-[48px] text-sm leading-6 text-muted">
-                Projects, agents and settings linked to this organization.
-              </p>
+            <span className="block min-h-[48px] text-sm leading-6 text-muted">
+              Projects, agents and settings linked to this organization.
+            </span>
 
-              <Button
-                className="mt-auto w-full justify-between border-border/90 bg-background/40 text-primary-light hover:bg-primary/10 hover:text-primary-light"
-                size="sm"
-                variant="outline"
-                onClick={() => handleSelect(org)}
-              >
-                Open projects
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </CardContent>
-          </Card>
+            <span className="mt-auto flex w-full items-center justify-between pt-5 text-sm font-medium text-primary-light transition-colors duration-200 group-hover:text-white">
+              Open projects
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </span>
+          </button>
         ))}
 
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="group flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-all hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-xl hover:shadow-primary/5"
+          className="group flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors group-hover:bg-primary/15">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
             <Plus className="h-6 w-6" />
           </span>
           <span className="mt-5 text-base font-semibold text-white">New organization</span>
