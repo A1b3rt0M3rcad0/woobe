@@ -1,7 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { WorkspaceSelectionSidebar } from '@/components/layout/WorkspaceSelectionSidebar'
-import { Topbar } from '@/components/layout/Topbar'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
 export function DashboardLayout() {
@@ -21,7 +20,6 @@ export function DashboardLayout() {
         </div>
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {!isProjectOverview && !isWorkspaceSelection && <Topbar />}
         {isWorkspaceSelection && <WorkspaceSelectionSidebar compact />}
         <main className={mainClassName}>
           <ErrorBoundary>
