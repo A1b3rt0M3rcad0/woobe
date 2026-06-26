@@ -11,7 +11,7 @@ Every event is encoded as one JSON object in an SSE `data:` field and contains:
 
 ## Event sequence
 
-A successful execution emits an early `meta` event after trace, session, and user-message persistence. It can then emit `sources`, assistant-visible `token` events, tool events, `fallback`, and periodic `heartbeat` events. A `usage` event precedes the terminal `done` event.
+A successful execution emits an early `meta` event after trace, session, and user-message persistence. It can then emit `agent_activity`, `sources`, assistant-visible `token` events, tool events, `fallback`, and periodic `heartbeat` events. A `usage` event precedes the terminal `done` event.
 
 Text events are visibility-scoped. Only `token` events with `visibility: "assistant"` and `channel: "final"` are eligible for the chat canvas. Internal reasoning, tool planning, provider-specific thinking blocks, and debug text must not be appended to the assistant message content.
 
@@ -24,12 +24,24 @@ Assistant-visible token payload:
 - `provider`: model provider;
 - `model`: model name.
 
+Runtime activity uses `agent_activity` events. These are runtime-generated operational states, not model-authored answer content. Consumers may show them as a lightweight status indicator while the assistant message has no visible final text or while a tool is running.
+
+Activity payload:
+
+- `status`: `thinking`, `planning_tools`, `calling_tool`, `processing_tool_result`, `generating_answer`, or `formatting_response`;
+- `message`: user-facing status message;
+- `phase`: execution phase when applicable;
+- `tool_name`: tool name when applicable;
+- `provider` and `model`: model metadata when applicable.
+
 Tool execution uses two events:
 
 - `tool_call_started`: tool name, call identifier, input, and start time;
 - `tool_call_completed`: output, status, duration, and error when applicable.
 
 Tool events are operational events. Consumers may render them as tool activity, but must not concatenate them into the assistant answer.
+
+If a model streams visible text during a follow-up phase and then selects another tool call, the server emits `token_retract`. Consumers should remove the last `content_length` characters from the current visible stream buffer and return to an operational activity state. This prevents partial pre-tool text from remaining in the final answer.
 
 Exactly one terminal event is emitted:
 
