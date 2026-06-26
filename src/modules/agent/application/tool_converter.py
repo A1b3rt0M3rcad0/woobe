@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
+from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
 from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
 from modules.agent.domain.enums import ToolType
 
@@ -125,7 +126,7 @@ def agent_tools_to_openai_definitions_and_mapping(tools: list) -> tuple[list[dic
         definitions.append(definition)
         mapping[unique_name] = str(tool.id)
 
-    return definitions, mapping
+    return append_runtime_inventory_tool(definitions, mapping)
 
 
 def _safe_tool_name(tool) -> str:
