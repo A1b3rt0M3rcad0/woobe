@@ -15,8 +15,11 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 )
 
 _FINAL_RESPONSE_INSTRUCTION = (
-    "Generate the final user-facing answer now using the conversation and any "
-    "tool results above. Do not call tools. Do not include internal planning."
+    "Generate one single final user-facing answer for the latest user request. "
+    "Fulfill every part of that request completely and in the same order the user asked. "
+    "If the user asked for a story and then a calculation, include the full story first "
+    "and then include the calculation result. Use the verified tool results above exactly "
+    "where relevant. Do not call tools. Do not mention internal planning or execution phases."
 )
 
 
