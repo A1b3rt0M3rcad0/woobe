@@ -205,8 +205,8 @@ def _result_has_tool_calls(result: Any | None) -> bool:
 
 def _can_stream_phase_live(phase: str) -> bool:
     # Tool-capable phases can emit assistant text before selecting a tool call.
-    # Buffer those candidate tokens until the model result is known to be final.
-    return phase == "response_generation"
+    # Stream only phases that are committed to final user-facing output.
+    return phase in {"response_generation", "final_response_generation"}
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
@@ -218,7 +218,7 @@ def _activity_for_phase(phase: str) -> tuple[str, str]:
         return "planning_tools", "Checking whether tools are needed..."
     if phase.startswith("tool_followup_"):
         return "generating_answer", "Generating response..."
-    if phase == "response_generation":
+    if phase in {"response_generation", "final_response_generation"}:
         return "generating_answer", "Generating response..."
     if phase == "json_repair":
         return "formatting_response", "Formatting structured response..."
