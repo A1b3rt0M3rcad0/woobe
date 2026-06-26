@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { Textarea } from '@/components/ui/Textarea'
 import { bulkUpdateMcpToolPermissions, refreshMcpTools, updateMcpToolPermissions } from '@/features/tools/api'
 import { useDeleteTool, useTools, useUpdateTool, useUpdateToolStatus } from '@/features/tools/hooks'
 import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
@@ -59,15 +58,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       {children}
     </section>
   )
-}
-
-function safeJson(value: unknown) {
-  return JSON.stringify(value ?? {}, null, 2)
-}
-
-function parseJsonField(value: string) {
-  if (!value.trim()) return {}
-  return JSON.parse(value)
 }
 
 function getMcpConfig(tool: Tool): McpToolConfig {
@@ -123,9 +113,6 @@ export default function ToolsPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editRiskLevel, setEditRiskLevel] = useState('')
   const [editTimeoutMs, setEditTimeoutMs] = useState('')
-  const [editConfigJson, setEditConfigJson] = useState('')
-  const [editInputSchemaJson, setEditInputSchemaJson] = useState('')
-  const [editOutputSchemaJson, setEditOutputSchemaJson] = useState('')
 
   const items = tools ?? []
   const selectedTool = items.find((tool) => tool.id === selectedToolId) ?? null
@@ -151,9 +138,6 @@ export default function ToolsPage() {
     setEditDescription(tool.description || '')
     setEditRiskLevel(tool.risk_level || 'low')
     setEditTimeoutMs(tool.timeout_ms ? String(tool.timeout_ms) : '')
-    setEditConfigJson(safeJson(tool.config))
-    setEditInputSchemaJson(safeJson(tool.input_schema))
-    setEditOutputSchemaJson(safeJson(tool.output_schema))
   }
 
   const closeToolModal = () => {
@@ -165,6 +149,16 @@ export default function ToolsPage() {
   const handleSaveTool = async () => {
     if (!selectedTool) return
 
+    if (!editName.trim()) {
+      toast.error('Tool name is required')
+      return
+    }
+
+    if (editTimeoutMs && Number.isNaN(Number(editTimeoutMs))) {
+      toast.error('Timeout must be a number')
+      return
+    }
+
     try {
       await updateToolMutation.mutateAsync({
         toolId: selectedTool.id,
@@ -173,9 +167,6 @@ export default function ToolsPage() {
           description: editDescription.trim() || undefined,
           risk_level: editRiskLevel,
           timeout_ms: editTimeoutMs ? Number(editTimeoutMs) : undefined,
-          config: parseJsonField(editConfigJson),
-          input_schema: parseJsonField(editInputSchemaJson),
-          output_schema: parseJsonField(editOutputSchemaJson),
         },
       })
       await refetch()
@@ -368,14 +359,6 @@ export default function ToolsPage() {
               <Button size="sm" variant="outline" onClick={handleToggleStatus} loading={busyToolId === selectedTool.id || updateToolStatusMutation.isPending}>
                 {selectedTool.status === 'active' ? 'Disable tool' : 'Enable tool'}
               </Button>
-            </Section>
-
-            <Section title="Configuration">
-              <Textarea value={editConfigJson} onChange={(event) => setEditConfigJson(event.target.value)} className="min-h-[140px] font-mono text-xs" placeholder="Config JSON" />
-              <div className="grid gap-3 md:grid-cols-2">
-                <Textarea value={editInputSchemaJson} onChange={(event) => setEditInputSchemaJson(event.target.value)} className="min-h-[120px] font-mono text-xs" placeholder="Input schema JSON" />
-                <Textarea value={editOutputSchemaJson} onChange={(event) => setEditOutputSchemaJson(event.target.value)} className="min-h-[120px] font-mono text-xs" placeholder="Output schema JSON" />
-              </div>
             </Section>
 
             {isMcpTool(selectedTool) && (
