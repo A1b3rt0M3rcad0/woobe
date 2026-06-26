@@ -149,7 +149,11 @@ function PlaygroundContent() {
     rawEventsRef.current = []
 
     const userMsg: ChatMessage = { role: 'user', content }
-    const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
+    const assistantMsg: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      activity: { status: 'thinking', message: 'Pensando...' },
+    }
 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsSending(true)
@@ -179,13 +183,35 @@ function PlaygroundContent() {
               metadataRef.current.trace_id = meta.trace_id
             }
           },
+          onAgentActivity: (activity) => {
+            rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
+            updateLastAssistantMessage((last) => ({ ...last, activity }))
+          },
           onToken: (token) => {
             rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
             if (token.visibility !== 'assistant' || token.channel !== 'final') {
               return
             }
             accumulatedRef.current += token.content
-            updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current }))
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: accumulatedRef.current,
+              activity: null,
+            }))
+          },
+          onTokenRetract: (info) => {
+            rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
+            if (info.content_length > 0) {
+              accumulatedRef.current = accumulatedRef.current.slice(
+                0,
+                Math.max(0, accumulatedRef.current.length - info.content_length),
+              )
+            }
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: accumulatedRef.current,
+              activity: { status: 'planning_tools', message: 'Verificando se precisa usar ferramentas...' },
+            }))
           },
           onInternalToken: (token) => {
             rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token })
@@ -199,6 +225,11 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'tool_call_started', timestamp: new Date().toISOString(), payload: runningInfo })
             updateLastAssistantMessage((last) => ({
               ...last,
+              activity: {
+                status: 'calling_tool',
+                message: `Chamando ferramenta: ${runningInfo.tool_name}...`,
+                tool_name: runningInfo.tool_name,
+              },
               tool_calls: upsertToolCall(last.tool_calls, runningInfo),
             }))
           },
@@ -206,6 +237,11 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'tool_call_completed', timestamp: new Date().toISOString(), payload: info })
             updateLastAssistantMessage((last) => ({
               ...last,
+              activity: {
+                status: 'processing_tool_result',
+                message: 'Processando resultado da ferramenta...',
+                tool_name: info.tool_name,
+              },
               tool_calls: upsertToolCall(last.tool_calls, info),
             }))
           },
@@ -231,6 +267,7 @@ function PlaygroundContent() {
                 updated[updated.length - 1] = {
                   ...last,
                   content: finalContent,
+                  activity: null,
                   usage: meta.usage ?? null,
                   sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
                   tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'],
@@ -265,6 +302,7 @@ function PlaygroundContent() {
               if (last?.role === 'assistant') {
                 updated[updated.length - 1] = {
                   ...last,
+                  activity: null,
                   content: last.content || `Error: ${error.message}`,
                   output_parse_error: error.message,
                   trace_id: metadataRef.current.trace_id ?? null,
@@ -280,7 +318,11 @@ function PlaygroundContent() {
           onFallback: (info) => {
             rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
             accumulatedRef.current = ''
-            updateLastAssistantMessage((last) => ({ ...last, content: '' }))
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: '',
+              activity: { status: 'thinking', message: 'Tentando modelo alternativo...' },
+            }))
             toast.info(
               `Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`,
             )
