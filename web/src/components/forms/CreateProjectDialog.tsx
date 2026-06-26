@@ -39,6 +39,7 @@ export function CreateProjectDialog({ open, onClose, onSubmit, loading }: Create
           namePlaceholder="Project name"
           fallback="project"
           uniqueScope="inside this organization"
+          lockSlug
         />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={close}>Cancel</Button>
