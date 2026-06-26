@@ -14,6 +14,13 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     invoke_llm,
 )
 
+_NO_MORE_TOOLS_SENTINEL = "__NO_MORE_TOOLS__"
+_TOOL_DECISION_INSTRUCTION = (
+    "Tool decision phase only. Decide whether another tool call is required to satisfy "
+    "the latest user request. If a tool is required, call the tool. If no more tools are "
+    f"required, reply exactly {_NO_MORE_TOOLS_SENTINEL}. Do not answer the user. Do not "
+    "summarize. Do not generate final user-facing content."
+)
 _FINAL_RESPONSE_INSTRUCTION = (
     "Generate one single final user-facing answer for the latest user request. "
     "Fulfill every part of that request completely and in the same order the user asked. "
@@ -21,6 +28,82 @@ _FINAL_RESPONSE_INSTRUCTION = (
     "and then include the calculation result. Use the verified tool results above exactly "
     "where relevant. Do not call tools. Do not mention internal planning or execution phases."
 )
+
+
+def _message_content(message: Any) -> str:
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(part for part in parts if part)
+    return ""
+
+
+def _is_user_message(message: Any) -> bool:
+    role = getattr(message, "role", None)
+    message_type = getattr(message, "type", None)
+    class_name = message.__class__.__name__
+    return role == "user" or message_type in {"human", "user"} or class_name == "HumanMessage"
+
+
+def _latest_user_request(messages: list) -> str:
+    for message in reversed(messages):
+        if _is_user_message(message):
+            content = _message_content(message).strip()
+            if content:
+                return content
+    return ""
+
+
+def _tool_decision_messages(messages: list) -> list:
+    return [*messages, SystemMessage(content=_TOOL_DECISION_INSTRUCTION)]
+
+
+def _build_final_response_instruction(
+    *,
+    messages: list,
+    final_json_instruction: str | None,
+) -> str:
+    latest_request = _latest_user_request(messages)
+    request_block = (
+        f"\n\nLatest user request:\n<user_request>\n{latest_request}\n</user_request>"
+        if latest_request
+        else ""
+    )
+    json_block = (
+        "\n\nStructured output requirement:\n"
+        f"{final_json_instruction}"
+        if final_json_instruction
+        else ""
+    )
+    return (
+        f"{_FINAL_RESPONSE_INSTRUCTION}"
+        f"{request_block}"
+        "\n\nThe conversation above includes any verified tool results. Use those tool results "
+        "as facts. Do not omit non-tool parts of the latest user request. Do not summarize "
+        "content the user explicitly asked to be long, complete, or detailed."
+        f"{json_block}"
+    )
+
+
+def _final_response_messages(messages: list, final_json_instruction: str | None) -> list:
+    return [
+        *messages,
+        SystemMessage(
+            content=_build_final_response_instruction(
+                messages=messages,
+                final_json_instruction=final_json_instruction,
+            )
+        ),
+    ]
 
 
 async def run_tool_loop(
@@ -39,7 +122,7 @@ async def run_tool_loop(
     call_index = 1
     result, call = await invoke_llm(
         model=model,
-        messages=messages,
+        messages=_tool_decision_messages(messages) if final_model is not None else messages,
         phase=initial_phase,
         call_index=call_index,
         provider=provider,
@@ -80,7 +163,7 @@ async def run_tool_loop(
             )
             messages.append(message)
 
-        if final_json_instruction and not instruction_added:
+        if final_model is None and final_json_instruction and not instruction_added:
             messages.append(SystemMessage(content=final_json_instruction))
             instruction_added = True
 
@@ -88,7 +171,11 @@ async def run_tool_loop(
         try:
             result, call = await invoke_llm(
                 model=model,
-                messages=messages,
+                messages=(
+                    _tool_decision_messages(messages)
+                    if final_model is not None
+                    else messages
+                ),
                 phase=f"tool_followup_{round_index}",
                 call_index=call_index,
                 provider=provider,
@@ -119,17 +206,11 @@ async def run_tool_loop(
         )
 
     if final_model is not None:
-        if final_json_instruction and not instruction_added:
-            messages.append(SystemMessage(content=final_json_instruction))
-            instruction_added = True
-        elif not final_json_instruction:
-            messages.append(SystemMessage(content=_FINAL_RESPONSE_INSTRUCTION))
-
         call_index += 1
         try:
             result, call = await invoke_llm(
                 model=final_model,
-                messages=messages,
+                messages=_final_response_messages(messages, final_json_instruction),
                 phase="final_response_generation",
                 call_index=call_index,
                 provider=provider,
