@@ -48,6 +48,15 @@
 }
 
 /*
+ * The agent playground used to subtract the old topbar height with
+ * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
+ * fullscreen container aligned to the full viewport.
+ */
+.h-\[calc\(100vh-3\.5rem\)\] {
+  height: 100svh !important;
+}
+
+/*
  * Project overview is a dense operational dashboard. Keep it fluid instead of
  * centering it inside a fixed desktop width, otherwise browser zoom and ultra
  * wide screens create large empty gutters and make every card look undersized.
