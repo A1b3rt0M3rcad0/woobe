@@ -10,6 +10,7 @@ import type {
 
 export const PROJECT_OVERVIEW_STALE_TIME_MS = 15_000
 export const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000
+export const PROJECT_OVERVIEW_RECENT_LIMIT = 3
 
 export function projectOverviewQueryKey(params: ProjectOverviewParams) {
   return [
@@ -20,7 +21,7 @@ export function projectOverviewQueryKey(params: ProjectOverviewParams) {
     params.bucket,
     params.from,
     params.to,
-    params.recentLimit ?? 5,
+    params.recentLimit ?? PROJECT_OVERVIEW_RECENT_LIMIT,
   ] as const
 }
 
