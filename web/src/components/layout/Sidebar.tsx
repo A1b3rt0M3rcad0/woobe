@@ -113,7 +113,7 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors',
+        'flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-[border-color,background-color,color,transform] duration-150 ease-out active:scale-[0.99]',
         active
           ? 'border-primary/30 bg-primary/10 text-white'
           : 'border-transparent text-muted hover:border-primary/20 hover:bg-background/70 hover:text-white',
@@ -181,7 +181,7 @@ function ProjectContextCard({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'group w-full rounded-xl border bg-background/45 p-3 text-left transition-[border-color,background-color,box-shadow]',
+          'group w-full rounded-xl border bg-background/45 p-3 text-left transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out active:scale-[0.99]',
           open
             ? 'border-primary/35 bg-primary/10 shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_30px_rgba(37,99,235,0.06)]'
             : 'border-border/80 hover:border-primary/25 hover:bg-background/70',
@@ -192,68 +192,74 @@ function ProjectContextCard({
             <span className="block truncate text-sm font-semibold text-white">{currentProject.name}</span>
             <span className="mt-1 block truncate text-xs text-muted">{currentOrganization.name}</span>
           </span>
-          <ChevronDown className={cn('mt-0.5 h-3.5 w-3.5 shrink-0 text-muted transition-transform', open && 'rotate-180 text-primary-light')} />
+          <ChevronDown className={cn('mt-0.5 h-3.5 w-3.5 shrink-0 text-muted transition-[color,transform] duration-200 ease-out', open && 'rotate-180 text-primary-light')} />
         </span>
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-40 mt-2 rounded-xl border border-border bg-surface p-2 shadow-2xl shadow-black/30">
-          <div className="space-y-2">
-            <div>
-              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Switch project</p>
-              <div className="max-h-44 space-y-1 overflow-y-auto pr-1 scrollbar-thin">
-                {projects.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-muted">No projects available</p>
-                ) : projects.map((project) => (
-                  <ContextMenuItem
-                    key={project.id}
-                    icon={FolderKanban}
-                    title={project.name}
-                    description="Project workspace"
-                    active={project.id === currentProject.id}
-                    onClick={() => handleProjectSelect(project)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t border-border pt-2">
-              <ContextMenuItem
-                icon={List}
-                title="Manage projects"
-                description="Select, create or review projects"
-                onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects`)}
-              />
-              <ContextMenuItem
-                icon={Settings}
-                title="Project settings"
-                description="Configure this project"
-                onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects/${currentProject.id}/settings`)}
-              />
-            </div>
-
-            <div className="border-t border-border pt-2">
-              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Organization</p>
-              {organizations.map((organization) => (
+      <div
+        aria-hidden={!open}
+        className={cn(
+          'absolute left-0 right-0 top-full z-40 mt-2 origin-top rounded-xl border border-border bg-surface p-2 shadow-2xl shadow-black/30 transition-[opacity,transform,filter] duration-200 ease-out will-change-transform',
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100 blur-0'
+            : 'pointer-events-none -translate-y-1 scale-[0.98] opacity-0 blur-[1px]',
+        )}
+      >
+        <div className="space-y-2">
+          <div>
+            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Switch project</p>
+            <div className="max-h-44 space-y-1 overflow-y-auto pr-1 scrollbar-thin">
+              {projects.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted">No projects available</p>
+              ) : projects.map((project) => (
                 <ContextMenuItem
-                  key={organization.id}
-                  icon={Building2}
-                  title={organization.name}
-                  description="Organization workspace"
-                  active={organization.id === currentOrganization.id}
-                  onClick={() => handleOrganizationSelect(organization)}
+                  key={project.id}
+                  icon={FolderKanban}
+                  title={project.name}
+                  description="Project workspace"
+                  active={project.id === currentProject.id}
+                  onClick={() => handleProjectSelect(project)}
                 />
               ))}
-              <ContextMenuItem
-                icon={List}
-                title="Manage organizations"
-                description="Select, create or review organizations"
-                onClick={() => navigateAndClose('/organizations')}
-              />
             </div>
           </div>
+
+          <div className="border-t border-border pt-2">
+            <ContextMenuItem
+              icon={List}
+              title="Manage projects"
+              description="Select, create or review projects"
+              onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects`)}
+            />
+            <ContextMenuItem
+              icon={Settings}
+              title="Project settings"
+              description="Configure this project"
+              onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects/${currentProject.id}/settings`)}
+            />
+          </div>
+
+          <div className="border-t border-border pt-2">
+            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Organization</p>
+            {organizations.map((organization) => (
+              <ContextMenuItem
+                key={organization.id}
+                icon={Building2}
+                title={organization.name}
+                description="Organization workspace"
+                active={organization.id === currentOrganization.id}
+                onClick={() => handleOrganizationSelect(organization)}
+              />
+            ))}
+            <ContextMenuItem
+              icon={List}
+              title="Manage organizations"
+              description="Select, create or review organizations"
+              onClick={() => navigateAndClose('/organizations')}
+            />
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
