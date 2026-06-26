@@ -58,7 +58,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
     }
   }
 
-  if (isLoading) return <LoadingState />
+  if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading knowledge..." />
 
   return (
     <div className="p-4 space-y-4">
@@ -114,7 +114,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{colName}</p>
                     </div>
-                    <Badge variant="success">active</Badge>
+                    <Badge variant={collectionStatusVariant[ac.status] || 'success'}>active</Badge>
                   </div>
                   <div className="flex gap-2">
                     <Button
