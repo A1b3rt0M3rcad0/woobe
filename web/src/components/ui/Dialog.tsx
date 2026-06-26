@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
 
@@ -29,10 +30,10 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex min-h-svh w-screen items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md"
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div
@@ -44,14 +45,16 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           {title && <h2 className="text-lg font-semibold">{title}</h2>}
           <button
+            type="button"
             onClick={onClose}
-            className="ml-auto rounded-lg p-1 hover:bg-accent transition-colors"
+            className="ml-auto rounded-lg p-1 transition-colors hover:bg-accent"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

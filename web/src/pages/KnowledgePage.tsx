@@ -1,10 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useCollections, useCreateCollection, useDocuments, useUploadDocument } from '@/features/knowledge/hooks'
-import { ProjectPageShell } from '@/components/common/ProjectPageShell'
-import { GuidedEmptyState } from '@/components/common/GuidedEmptyState'
-import { ResourceCard } from '@/components/common/ResourceCard'
-import { ResourceSummaryCard } from '@/components/common/ResourceSummaryCard'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -18,11 +14,48 @@ import { Tabs } from '@/components/ui/Tabs'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createCollectionSchema, type CreateCollectionFormData } from '@/features/knowledge/schemas'
-import { BookOpen, Database, FileText, Plus, Upload } from 'lucide-react'
+import { Database, FileText, Plus, Search, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatBytes } from '@/lib/formatters/bytes'
 import { formatDate } from '@/lib/formatters/date'
 import type { Collection, Document } from '@/features/knowledge/types'
+
+function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return (
+    <div className="mx-auto w-full max-w-[1500px] space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function CreateCard({ title, description, icon, compact = false, onClick }: { title: string; description: string; icon: ReactNode; compact?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${compact ? 'min-h-[160px]' : 'min-h-[240px]'} group flex flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
+    >
+      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
+        {icon}
+      </span>
+      <span className="mt-5 text-base font-semibold text-white">{title}</span>
+      <span className="mt-2 max-w-[220px] text-sm leading-6 text-muted">{description}</span>
+    </button>
+  )
+}
+
+function NoResults({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-4">
+      <h2 className="text-sm font-semibold text-white">{title}</h2>
+      <p className="mt-1 text-sm text-muted">{description}</p>
+    </div>
+  )
+}
 
 export default function KnowledgePage() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -32,6 +65,7 @@ export default function KnowledgePage() {
   const uploadDocument = useUploadDocument()
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [query, setQuery] = useState('')
 
   const colForm = useForm<CreateCollectionFormData>({
     resolver: zodResolver(createCollectionSchema),
@@ -82,83 +116,117 @@ export default function KnowledgePage() {
     { key: 'created_at', header: 'Created', render: (d: Document) => d.created_at ? formatDate(d.created_at) : '—' },
   ]
 
+  const collectionItems = collections ?? []
+  const documentItems = documents ?? []
+
+  const visibleCollections = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return collectionItems
+
+    return collectionItems.filter((collection) => (
+      collection.name.toLowerCase().includes(normalizedQuery)
+      || collection.description?.toLowerCase().includes(normalizedQuery)
+    ))
+  }, [collectionItems, query])
+
+  const visibleDocuments = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return documentItems
+
+    return documentItems.filter((document) => (
+      document.title.toLowerCase().includes(normalizedQuery)
+      || document.file_name.toLowerCase().includes(normalizedQuery)
+      || document.content_type.toLowerCase().includes(normalizedQuery)
+      || document.status?.toLowerCase().includes(normalizedQuery)
+    ))
+  }, [documentItems, query])
+
   if (colsLoading || docsLoading) return <LoadingState />
   if (colsError) return <ErrorState onRetry={refetchCols} />
 
-  const collectionItems = collections ?? []
-  const documentItems = documents ?? []
+  const hasCollectionSearchMiss = query.trim().length > 0 && visibleCollections.length === 0
+  const hasDocumentSearchMiss = query.trim().length > 0 && visibleDocuments.length === 0
 
   const tabs = [
     {
       id: 'collections',
       label: 'Collections',
-      content: collectionItems.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {collectionItems.map((col: Collection) => (
-            <ResourceCard
-              key={col.id}
-              icon={<Database className="h-5 w-5" />}
-              title={col.name}
-              description={col.description || 'No description provided'}
-              metadata={<p className="rounded-lg border border-border/70 bg-background/70 p-3 text-sm text-muted">Use this collection to group retrievable documents for agents.</p>}
+      content: (
+        <div className="space-y-4">
+          {hasCollectionSearchMiss && (
+            <NoResults title="No collections found" description="Create a new collection or adjust the search term." />
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleCollections.map((col: Collection) => (
+              <article
+                key={col.id}
+                className="flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm">
+                  <Database className="h-5 w-5" />
+                </div>
+                <div className="mt-6 min-w-0">
+                  <h2 className="truncate text-base font-semibold text-white">{col.name}</h2>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{col.description || 'No description provided'}</p>
+                </div>
+                <div className="my-5 h-px bg-border/80" />
+                <p className="mt-auto text-sm leading-6 text-muted">Retrievable documents grouped for agent runtime use.</p>
+              </article>
+            ))}
+
+            <CreateCard
+              title="New collection"
+              description="Group documents for retrieval"
+              icon={<Plus className="h-6 w-6" />}
+              onClick={() => setShowCreateCol(true)}
             />
-          ))}
+          </div>
         </div>
-      ) : (
-        <GuidedEmptyState
-          icon={<BookOpen className="h-6 w-6" />}
-          title="No collections"
-          description="Create a collection to group documents that agents can retrieve from."
-          actionLabel="Create collection"
-          onAction={() => setShowCreateCol(true)}
-          next={["Create a collection", "Upload documents", "Attach knowledge to an agent"]}
-        />
       ),
     },
     {
       id: 'documents',
       label: 'Documents',
-      content: documentItems.length > 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table columns={docColumns} data={documentItems} keyExtractor={(d) => d.id} />
-          </CardContent>
-        </Card>
-      ) : (
-        <GuidedEmptyState
-          icon={<FileText className="h-6 w-6" />}
-          title="No documents"
-          description="Upload documents to make project knowledge available for retrieval."
-          actionLabel="Upload document"
-          onAction={() => setShowUpload(true)}
-          next={["Choose a collection", "Upload content", "Review processing status"]}
-        />
+      content: (
+        <div className="space-y-4">
+          {hasDocumentSearchMiss && (
+            <NoResults title="No documents found" description="Upload a new document or adjust the search term." />
+          )}
+
+          <CreateCard
+            title="Upload document"
+            description="Add source material for retrieval"
+            icon={<Upload className="h-6 w-6" />}
+            compact
+            onClick={() => setShowUpload(true)}
+          />
+
+          {visibleDocuments.length > 0 && (
+            <Card className="border-border/90 bg-surface/70">
+              <CardContent className="p-0">
+                <Table columns={docColumns} data={visibleDocuments} keyExtractor={(d) => d.id} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       ),
     },
   ]
 
   return (
-    <ProjectPageShell
-      eyebrow="Knowledge"
+    <MinimalShell
       title="Knowledge"
-      description="Upload documents your agents can retrieve from during runtime."
-      actions={
-        <>
-          <Button variant="outline" onClick={() => setShowUpload(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Upload document
-          </Button>
-          <Button onClick={() => setShowCreateCol(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create collection
-          </Button>
-        </>
-      }
+      description="Upload and organize documents your agents can retrieve from during runtime."
     >
-      <div className="grid gap-4 md:grid-cols-3">
-        <ResourceSummaryCard label="Collections" value={collectionItems.length} detail="Document groups" icon={<Database className="h-5 w-5" />} />
-        <ResourceSummaryCard label="Documents" value={documentItems.length} detail="Uploaded sources" icon={<FileText className="h-5 w-5" />} />
-        <ResourceSummaryCard label="Workflow" value="3 steps" detail="Create, upload, attach" icon={<BookOpen className="h-5 w-5" />} />
+      <div className="relative max-w-3xl">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search knowledge..."
+          className="h-11 pl-9"
+        />
       </div>
 
       <Tabs tabs={tabs} />
@@ -177,7 +245,7 @@ export default function KnowledgePage() {
       <Dialog open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">Collection</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Collection</label>
             <select
               value={uploadColId}
               onChange={(e) => setUploadColId(e.target.value)}
@@ -195,7 +263,7 @@ export default function KnowledgePage() {
             placeholder="Document title"
           />
           <div className="rounded-lg border-2 border-dashed border-border p-8 text-center">
-            <Upload className="mx-auto h-8 w-8 text-muted mb-2" />
+            <Upload className="mx-auto mb-2 h-8 w-8 text-muted" />
             <p className="text-sm text-muted">Drop file here or click to browse</p>
           </div>
           <div className="flex justify-end gap-2">
@@ -204,6 +272,6 @@ export default function KnowledgePage() {
           </div>
         </div>
       </Dialog>
-    </ProjectPageShell>
+    </MinimalShell>
   )
 }
