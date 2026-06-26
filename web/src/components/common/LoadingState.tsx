@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Activity, Loader2, Play } from 'lucide-react'
+import { Loader2, Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type LoadingVariant = 'page' | 'workspace' | 'panel' | 'inline' | 'fullscreen'
@@ -239,28 +239,45 @@ function AuthSkeleton({ message, description }: { message: string; description?:
   )
 }
 
-function renderLayout(layout: LoadingLayout, variant: LoadingVariant) {
+function renderLayout(layout: LoadingLayout, variant: LoadingVariant, message: string) {
   if (layout === 'metrics') return <MetricsSkeleton />
   if (layout === 'list') return <ListSkeleton />
   if (layout === 'table') return <TableSkeleton />
-  if (layout === 'playground') return <PlaygroundSkeleton message="Loading playground..." />
+  if (layout === 'playground') return <PlaygroundSkeleton message={message} />
   return <CardsSkeleton tall={variant === 'workspace'} />
+}
+
+function getImplicitContext(message: string): { variant: LoadingVariant; layout: LoadingLayout } {
+  const isBrowser = typeof window !== 'undefined'
+  const path = isBrowser ? window.location.pathname : ''
+  const normalizedMessage = message.toLowerCase()
+
+  if (normalizedMessage.includes('authentication')) return { variant: 'fullscreen', layout: 'auth' }
+  if (path.includes('/playground')) return { variant: 'fullscreen', layout: 'playground' }
+  if (path === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(path)) return { variant: 'workspace', layout: 'cards' }
+  if (path.includes('/usage')) return { variant: 'page', layout: 'metrics' }
+  if (path.includes('/traces')) return { variant: 'page', layout: 'list' }
+
+  return { variant: 'page', layout: 'cards' }
 }
 
 export function LoadingState({
   message = 'Loading...',
   description,
-  variant = 'page',
-  layout = 'cards',
+  variant,
+  layout,
   className,
   delayMs,
 }: LoadingStateProps) {
-  const resolvedDelay = delayMs ?? (variant === 'fullscreen' || variant === 'inline' ? 0 : 120)
+  const implicit = getImplicitContext(message)
+  const resolvedVariant = variant ?? implicit.variant
+  const resolvedLayout = layout ?? implicit.layout
+  const resolvedDelay = delayMs ?? (resolvedVariant === 'fullscreen' || resolvedVariant === 'inline' ? 0 : 120)
   const visible = useDelayedVisible(resolvedDelay)
 
   if (!visible) return null
 
-  if (variant === 'inline') {
+  if (resolvedVariant === 'inline') {
     return (
       <div className={cn('inline-flex items-center gap-2 text-sm text-muted', className)}>
         <Loader2 className="h-4 w-4 animate-spin text-primary-light" />
@@ -269,11 +286,11 @@ export function LoadingState({
     )
   }
 
-  if (variant === 'fullscreen' && layout === 'auth') {
+  if (resolvedVariant === 'fullscreen' && resolvedLayout === 'auth') {
     return <AuthSkeleton message={message} description={description} />
   }
 
-  if (variant === 'fullscreen' && layout === 'playground') {
+  if (resolvedVariant === 'fullscreen' && resolvedLayout === 'playground') {
     return (
       <div className={cn('h-full w-full bg-background p-4', className)}>
         <PlaygroundSkeleton message={message} />
@@ -281,7 +298,7 @@ export function LoadingState({
     )
   }
 
-  if (variant === 'panel') {
+  if (resolvedVariant === 'panel') {
     return (
       <div className={cn('rounded-xl border border-border/80 bg-surface/60 p-4', className)}>
         <div className="mb-4 flex items-center gap-3">
@@ -291,7 +308,7 @@ export function LoadingState({
             {description && <p className="mt-1 text-xs text-muted">{description}</p>}
           </div>
         </div>
-        {layout === 'list' ? <ListSkeleton count={3} /> : <CardsSkeleton count={2} />}
+        {resolvedLayout === 'list' ? <ListSkeleton count={3} /> : <CardsSkeleton count={2} />}
       </div>
     )
   }
@@ -299,7 +316,7 @@ export function LoadingState({
   return (
     <div className={cn('w-full space-y-5', className)}>
       <LoadingHeader message={message} description={description} />
-      {renderLayout(layout, variant)}
+      {renderLayout(resolvedLayout, resolvedVariant, message)}
     </div>
   )
 }
