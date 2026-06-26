@@ -15,6 +15,8 @@ A successful execution emits an early `meta` event after trace, session, and use
 
 Text events are visibility-scoped. Only `token` events with `visibility: "assistant"` and `channel: "final"` are eligible for the chat canvas. Internal reasoning, tool planning, provider-specific thinking blocks, and debug text must not be appended to the assistant message content.
 
+Tool-capable phases must not stream candidate assistant text directly into the chat canvas. The server buffers assistant-visible text produced by tool planning and tool follow-up phases until the model result is known. If the model selects another tool call, the buffered candidate text is discarded. If the model produces a final answer without tool calls, the buffered text can be emitted as committed assistant-visible `token` events.
+
 Assistant-visible token payload:
 
 - `content`: text delta to append to the visible assistant answer;
@@ -41,7 +43,7 @@ Tool execution uses two events:
 
 Tool events are operational events. Consumers may render them as tool activity, but must not concatenate them into the assistant answer.
 
-If a model streams visible text during a follow-up phase and then selects another tool call, the server emits `token_retract`. Consumers should remove the last `content_length` characters from the current visible stream buffer and return to an operational activity state. This prevents partial pre-tool text from remaining in the final answer.
+`token_retract` remains part of the protocol as a defensive compatibility event. Consumers should remove the last `content_length` characters from the current visible stream buffer and return to an operational activity state when it is received. Normal tool-capable flows should avoid relying on `token_retract` because candidate text is buffered server-side before it reaches the chat canvas.
 
 Exactly one terminal event is emitted:
 
