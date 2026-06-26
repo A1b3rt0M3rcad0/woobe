@@ -197,7 +197,10 @@ def _combine_chunks(accumulated: Any | None, chunk: Any) -> Any:
 
 
 def _result_has_tool_calls(result: Any | None) -> bool:
-    return bool(getattr(result, "tool_calls", None))
+    return bool(
+        getattr(result, "tool_calls", None)
+        or getattr(result, "tool_call_chunks", None)
+    )
 
 
 def _can_stream_phase_live(phase: str) -> bool:
