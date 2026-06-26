@@ -253,7 +253,6 @@ function getImplicitContext(message: string): { variant: LoadingVariant; layout:
   const normalizedMessage = message.toLowerCase()
 
   if (normalizedMessage.includes('authentication')) return { variant: 'fullscreen', layout: 'auth' }
-  if (path.includes('/playground')) return { variant: 'fullscreen', layout: 'playground' }
   if (path === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(path)) return { variant: 'workspace', layout: 'cards' }
   if (path.includes('/usage')) return { variant: 'page', layout: 'metrics' }
   if (path.includes('/traces')) return { variant: 'page', layout: 'list' }
