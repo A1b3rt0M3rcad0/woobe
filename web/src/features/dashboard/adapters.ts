@@ -15,6 +15,8 @@ import type {
   ProjectOverviewTrace,
 } from './types'
 
+const OVERVIEW_RECENT_ROW_LIMIT = 3
+
 export interface DashboardMetric {
   label: string
   value: string
@@ -242,13 +244,13 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     percent: environmentTotal === 0 ? 0 : (slice.value / environmentTotal) * 100,
   }))
 
-  const releases = overview.recent_releases.map((release) => ({
+  const releases = overview.recent_releases.slice(0, OVERVIEW_RECENT_ROW_LIMIT).map((release) => ({
     ...release,
     environmentLabel: environmentLabel(release.environment),
     promotedLabel: safeDateLabel(release.promoted_at ?? release.created_at),
   }))
 
-  const traces = overview.recent_traces.map((trace) => ({
+  const traces = overview.recent_traces.slice(0, OVERVIEW_RECENT_ROW_LIMIT).map((trace) => ({
     ...trace,
     agentLabel: trace.agent_name ?? 'Unknown agent',
     environmentLabel: environmentLabel(trace.environment),
