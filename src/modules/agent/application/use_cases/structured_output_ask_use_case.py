@@ -4,6 +4,7 @@ from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
 from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
+from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.execution_context import current_execution
@@ -32,6 +33,12 @@ _OUTPUT_CONTRACT_RUNTIME_RULES = (
     "- For 'integer' fields, return an integer. For 'boolean' fields, return "
     "true or false.\n"
     "- Return only the final JSON object."
+)
+
+_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
+    "Runtime tool inventory rule: if the user asks what tools, MCP providers, "
+    "integrations, external access, or runtime capabilities are available, call "
+    f"{RUNTIME_TOOL_INVENTORY_NAME} before answering."
 )
 
 
@@ -86,6 +93,11 @@ class StructuredOutputAskAgentUseCase(
         updated[7] = agent_tools
         updated[8] = tool_name_to_id
         updated[9] = bool(agent_tools)
+        if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
+            messages = list(updated[11])
+            insert_at = len(messages) - 1 if messages else 0
+            messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
+            updated[11] = messages
         return tuple(updated)
 
     async def _finalize(

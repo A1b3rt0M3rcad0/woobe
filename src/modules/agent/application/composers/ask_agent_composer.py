@@ -4,6 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_inventory import (
+    execute_runtime_tool_inventory,
+    is_runtime_tool_inventory_id,
+)
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
@@ -30,6 +34,9 @@ def ask_agent_composer(
     executor = http_executor or get_http_tool_executor()
 
     async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+        if is_runtime_tool_inventory_id(tool_id):
+            return execute_runtime_tool_inventory(input_data)
+
         runtime_input = dict(input_data or {})
         context = current_execution.get()
         if context and context.session_id:
