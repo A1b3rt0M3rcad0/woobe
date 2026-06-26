@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, refreshMcpTools, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
 import type { DiscoveredMcpTool, McpReadiness, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
-import { PlugZap } from 'lucide-react'
+import { PlugZap, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
@@ -103,13 +103,19 @@ function readiness(tool: Tool): McpReadiness {
 
 function ReadinessPill({ state, label }: { state: string; label: string }) {
   const tone = state === 'ready'
-    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
     : state === 'provider_not_supported' || state === 'token_rejected'
       ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
       : state === 'needs_permission'
         ? 'border-blue-500/30 bg-blue-500/10 text-blue-300'
         : 'border-border bg-surface/70 text-muted'
-  return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${tone}`}>{label}</span>
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${tone}`}>
+      {state === 'ready' ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" /> : null}
+      {label}
+    </span>
+  )
 }
 
 interface Props {
@@ -125,6 +131,8 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   const state = readiness(tool)
   const showConnect = shouldShowConnect(tool, state, discovered)
   const showLoadTools = !showConnect && discovered.length === 0 && state.state !== 'provider_not_supported'
+  const visibleLabel = showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label
+  const visibleState = discovered.length > 0 && counts.allow > 0 ? 'ready' : state.state
 
   const handleConnect = async () => {
     try {
@@ -193,25 +201,34 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   if (!isMcpProviderTool(tool)) return null
 
   return (
-    <div className="rounded-lg border border-border/70 bg-background/60 p-3 space-y-3">
+    <div className="space-y-4 rounded-2xl border border-border/70 bg-background/55 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <PlugZap className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary-light ring-1 ring-primary/20">
+            <PlugZap className="h-4 w-4" />
+          </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-white">MCP tools</p>
-            <p className="text-[10px] text-muted">{state.exposed_count} available · {state.discovered_count} found</p>
+            <p className="font-semibold text-white">MCP tools</p>
+            <p className="text-xs text-muted">{state.exposed_count} available · {state.discovered_count} found</p>
           </div>
         </div>
-        <ReadinessPill state={state.state} label={showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label} />
+        <ReadinessPill state={visibleState} label={visibleLabel} />
       </div>
 
-      <p className="text-xs leading-relaxed text-muted">{showConnect ? state.message : discovered.length > 0 ? 'Choose which MCP tools this agent can use.' : state.message}</p>
+      <p className="text-sm leading-relaxed text-muted">
+        {showConnect ? state.message : discovered.length > 0 ? 'Choose which MCP tools this agent can use.' : state.message}
+      </p>
 
       <div className="flex flex-wrap gap-2">
         {showConnect ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
         {showLoadTools ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
         {state.state === 'provider_not_supported' ? <Button size="sm" variant="outline" disabled>Provider setup needed</Button> : null}
-        {discovered.length > 0 ? <Button size="sm" variant="outline" onClick={() => setManageOpen(true)}>Manage tools</Button> : null}
+        {discovered.length > 0 ? (
+          <Button size="sm" variant="outline" onClick={() => setManageOpen(true)}>
+            <Settings2 className="mr-2 h-4 w-4" />
+            Manage tools
+          </Button>
+        ) : null}
         {state.oauth_connected && state.action !== 'refresh' && !state.can_use_tools ? <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button> : null}
         {state.oauth_connected ? <Button size="sm" variant="ghost" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
       </div>
@@ -250,7 +267,7 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
                   <div key={item.name} className="rounded-md border border-border/70 bg-background/70 p-3">
                     <div className="mb-3 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-xs font-medium text-white break-words">{item.title || item.name}</p>
+                        <p className="break-words text-xs font-medium text-white">{item.title || item.name}</p>
                         <p className="mt-0.5 break-all font-mono text-[10px] text-muted">{item.name}</p>
                         {item.description ? <p className="mt-1 line-clamp-2 text-[10px] text-muted">{item.description}</p> : null}
                       </div>
