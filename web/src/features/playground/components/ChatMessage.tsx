@@ -6,7 +6,7 @@ import { StructuredJsonResponse } from './StructuredJsonResponse'
 import { ToolCallsCollapsible } from './ToolCallsCollapsible'
 import { MarkdownMessage } from './MarkdownMessage'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
-import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
+import type { AgentActivityInfo, ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -46,18 +46,28 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
   )
 }
 
-function ThinkingBubble() {
+function activityMessage(activity?: AgentActivityInfo | null): string {
+  if (activity?.message) return activity.message
+  if (activity?.status === 'planning_tools') return 'Verificando se precisa usar ferramentas...'
+  if (activity?.status === 'calling_tool') return activity.tool_name ? `Chamando ferramenta: ${activity.tool_name}...` : 'Chamando ferramenta...'
+  if (activity?.status === 'processing_tool_result') return 'Processando resultado da ferramenta...'
+  if (activity?.status === 'generating_answer') return 'Gerando resposta...'
+  if (activity?.status === 'formatting_response') return 'Formatando resposta estruturada...'
+  return 'Pensando...'
+}
+
+function ActivityBubble({ activity }: { activity?: AgentActivityInfo | null }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
+    <div className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
       <Loader2 className="h-4 w-4 animate-spin" />
-      Thinking...
+      {activityMessage(activity)}
     </div>
   )
 }
 
 function AssistantContent({ message, isStreaming }: { message: ChatMessageType; isStreaming?: boolean }) {
   if (isStreaming && !message.content) {
-    return <ThinkingBubble />
+    return <ActivityBubble activity={message.activity} />
   }
 
   if (!isStreaming && message.parsed_output) {
@@ -132,8 +142,11 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
           )}
         </div>
 
-        <div className="max-w-[80%]">
+        <div className="max-w-[80%] space-y-1.5">
           <AssistantContent message={message} isStreaming={isStreaming} />
+          {isStreaming && message.content && message.activity && (
+            <ActivityBubble activity={message.activity} />
+          )}
         </div>
       </div>
 
