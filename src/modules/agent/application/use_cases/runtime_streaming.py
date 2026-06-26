@@ -13,6 +13,19 @@ from shared.observability.metrics import runtime_metrics
 RUNTIME_STREAM_PROTOCOL_VERSION = 1
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
 
+_TEXT_BLOCK_TYPES = {"", "text", "output_text"}
+_INTERNAL_BLOCK_TYPES = {
+    "reasoning",
+    "reasoning_content",
+    "thinking",
+    "thought",
+    "internal",
+    "tool_use",
+    "server_tool_call",
+    "web_search_call",
+}
+_FINAL_RESPONSE_PHASES = {"response_generation", "final_response_generation"}
+
 
 def _stream_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -22,6 +35,14 @@ def _stream_utc_iso() -> str:
 class RuntimeStreamEvent:
     event_type: str
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RuntimeStreamTextPart:
+    content: str
+    visibility: str = "assistant"
+    channel: str = "final"
+    redacted: bool = False
 
 
 @dataclass
@@ -93,22 +114,78 @@ async def emit_runtime_event(event_type: str, **payload: Any) -> None:
         await channel.emit(event_type, **payload)
 
 
-def extract_chunk_text(chunk: Any) -> str:
+async def emit_agent_activity(
+    status: str,
+    *,
+    phase: str | None = None,
+    message: str | None = None,
+    tool_name: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {"status": status}
+    if phase is not None:
+        payload["phase"] = phase
+    if message is not None:
+        payload["message"] = message
+    if tool_name is not None:
+        payload["tool_name"] = tool_name
+    await emit_runtime_event("agent_activity", **payload)
+
+
+def _text_from_block(block: dict[str, Any]) -> str:
+    for key in ("text", "content", "delta"):
+        value = block.get(key)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+def _classify_text_block(block: dict[str, Any]) -> RuntimeStreamTextPart | None:
+    block_type = str(block.get("type") or "").lower()
+    text = _text_from_block(block)
+    if not text:
+        return None
+    if block_type in _INTERNAL_BLOCK_TYPES:
+        return RuntimeStreamTextPart(
+            content=text,
+            visibility="internal",
+            channel=block_type or "internal",
+            redacted=True,
+        )
+    if block_type not in _TEXT_BLOCK_TYPES:
+        return RuntimeStreamTextPart(
+            content=text,
+            visibility="internal",
+            channel=block_type or "internal",
+            redacted=True,
+        )
+    return RuntimeStreamTextPart(content=text)
+
+
+def extract_chunk_text_parts(chunk: Any) -> list[RuntimeStreamTextPart]:
     content = getattr(chunk, "content", None)
     if isinstance(content, str):
-        return content
+        return [RuntimeStreamTextPart(content=content)] if content else []
     if not isinstance(content, list):
-        return ""
+        return []
 
-    parts: list[str] = []
+    parts: list[RuntimeStreamTextPart] = []
     for block in content:
         if isinstance(block, str):
-            parts.append(block)
+            if block:
+                parts.append(RuntimeStreamTextPart(content=block))
         elif isinstance(block, dict):
-            text = block.get("text") or block.get("content")
-            if isinstance(text, str):
-                parts.append(text)
-    return "".join(parts)
+            part = _classify_text_block(block)
+            if part is not None:
+                parts.append(part)
+    return parts
+
+
+def extract_chunk_text(chunk: Any) -> str:
+    return "".join(
+        part.content
+        for part in extract_chunk_text_parts(chunk)
+        if part.visibility == "assistant" and part.channel == "final"
+    )
 
 
 def _combine_chunks(accumulated: Any | None, chunk: Any) -> Any:
@@ -118,6 +195,59 @@ def _combine_chunks(accumulated: Any | None, chunk: Any) -> Any:
         return accumulated + chunk
     except (TypeError, ValueError):
         return chunk
+
+
+def _result_has_tool_calls(result: Any | None) -> bool:
+    return bool(
+        getattr(result, "tool_calls", None)
+        or getattr(result, "tool_call_chunks", None)
+    )
+
+
+def _is_final_response_phase(phase: str) -> bool:
+    return phase in _FINAL_RESPONSE_PHASES
+
+
+def _can_stream_phase_live(phase: str) -> bool:
+    # Tool-capable phases can emit assistant text before selecting a tool call.
+    # Stream only phases that are committed to final user-facing output.
+    return _is_final_response_phase(phase)
+
+
+def _can_emit_phase_as_final(phase: str) -> bool:
+    return _is_final_response_phase(phase)
+
+
+def _activity_for_phase(phase: str) -> tuple[str, str]:
+    if phase == "tool_planning":
+        return "planning_tools", "Checking whether tools are needed..."
+    if phase.startswith("tool_followup_"):
+        return "generating_answer", "Generating response..."
+    if _is_final_response_phase(phase):
+        return "generating_answer", "Generating response..."
+    if phase == "json_repair":
+        return "formatting_response", "Formatting structured response..."
+    return "thinking", "Working..."
+
+
+async def _emit_visible_token(
+    channel: RuntimeStreamChannel,
+    *,
+    content: str,
+    phase: str,
+    provider: str,
+    model_name: str,
+) -> None:
+    channel.mark_first_token(provider=provider, model=model_name)
+    await channel.emit(
+        "token",
+        content=content,
+        visibility="assistant",
+        channel="final",
+        phase=phase,
+        provider=provider,
+        model=model_name,
+    )
 
 
 async def invoke_model_with_optional_streaming(
@@ -141,20 +271,36 @@ async def invoke_model_with_optional_streaming(
             )
             raise
 
+    activity_status, activity_message = _activity_for_phase(phase)
+    await channel.emit(
+        "agent_activity",
+        status=activity_status,
+        phase=phase,
+        message=activity_message,
+        provider=provider,
+        model=model_name,
+    )
+
     accumulated = None
+    pending_visible_tokens: list[str] = []
+    streamed_visible_tokens: list[str] = []
     try:
         async for chunk in model.astream(messages):
             accumulated = _combine_chunks(accumulated, chunk)
-            text = extract_chunk_text(chunk)
-            if text:
-                channel.mark_first_token(provider=provider, model=model_name)
-                await channel.emit(
-                    "token",
-                    content=text,
-                    phase=phase,
-                    provider=provider,
-                    model=model_name,
-                )
+            for part in extract_chunk_text_parts(chunk):
+                if part.visibility != "assistant" or part.channel != "final":
+                    continue
+                if _can_stream_phase_live(phase):
+                    streamed_visible_tokens.append(part.content)
+                    await _emit_visible_token(
+                        channel,
+                        content=part.content,
+                        phase=phase,
+                        provider=provider,
+                        model_name=model_name,
+                    )
+                else:
+                    pending_visible_tokens.append(part.content)
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -170,4 +316,29 @@ async def invoke_model_with_optional_streaming(
             model=model_name,
         )
         raise RuntimeError("Provider stream completed without a response")
+
+    if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
+        await channel.emit(
+            "token_retract",
+            phase=phase,
+            reason="tool_call_selected",
+            content_length=sum(len(content) for content in streamed_visible_tokens),
+            token_count=len(streamed_visible_tokens),
+            provider=provider,
+            model=model_name,
+        )
+    elif (
+        pending_visible_tokens
+        and _can_emit_phase_as_final(phase)
+        and not _result_has_tool_calls(accumulated)
+    ):
+        for content in pending_visible_tokens:
+            await _emit_visible_token(
+                channel,
+                content=content,
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+            )
+
     return accumulated

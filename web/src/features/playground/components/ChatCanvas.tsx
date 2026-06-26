@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { Bot, ArrowRight } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
 import { ChatComposer } from './ChatComposer'
@@ -18,14 +18,44 @@ const suggestions = [
   'Show me an example API response',
 ]
 
+const BOTTOM_THRESHOLD_PX = 48
+
+function isNearBottom(el: HTMLDivElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD_PX
+}
+
 export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const messagesContentRef = useRef<HTMLDivElement>(null)
+  const shouldStickToBottomRef = useRef(true)
   const lastMessageContent = messages[messages.length - 1]?.content ?? ''
 
-  useEffect(() => {
+  const scrollToBottomIfPinned = useCallback(() => {
     const el = messagesContainerRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length, lastMessageContent, isSending])
+    if (!el || !shouldStickToBottomRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    shouldStickToBottomRef.current = isNearBottom(el)
+  }, [])
+
+  useLayoutEffect(() => {
+    scrollToBottomIfPinned()
+  }, [messages.length, lastMessageContent, isSending, scrollToBottomIfPinned])
+
+  useLayoutEffect(() => {
+    const content = messagesContentRef.current
+    if (!content) return
+
+    const observer = new ResizeObserver(() => {
+      scrollToBottomIfPinned()
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [scrollToBottomIfPinned])
 
   const isEmpty = messages.length === 0
 
@@ -34,6 +64,7 @@ export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanva
       <ScrollArea
         ref={messagesContainerRef}
         className="flex-1 min-h-0 relative"
+        onScroll={handleScroll}
       >
         <div
           className="absolute inset-0 pointer-events-none"
@@ -67,7 +98,7 @@ export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanva
             </div>
           </div>
         ) : (
-          <div className="relative space-y-4 p-4 pb-2">
+          <div ref={messagesContentRef} className="relative space-y-4 p-4 pb-2">
             {messages.map((msg, i) => (
               <ChatMessage
                 key={i}

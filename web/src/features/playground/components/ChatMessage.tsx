@@ -6,7 +6,7 @@ import { StructuredJsonResponse } from './StructuredJsonResponse'
 import { ToolCallsCollapsible } from './ToolCallsCollapsible'
 import { MarkdownMessage } from './MarkdownMessage'
 import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
-import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
+import type { AgentActivityInfo, ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -46,18 +46,28 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
   )
 }
 
-function ThinkingBubble() {
+function activityMessage(activity?: AgentActivityInfo | null): string {
+  if (activity?.message) return activity.message
+  if (activity?.status === 'planning_tools') return 'Checking whether tools are needed...'
+  if (activity?.status === 'calling_tool') return activity.tool_name ? `Calling tool: ${activity.tool_name}...` : 'Calling tool...'
+  if (activity?.status === 'processing_tool_result') return 'Processing tool result...'
+  if (activity?.status === 'generating_answer') return 'Generating response...'
+  if (activity?.status === 'formatting_response') return 'Formatting structured response...'
+  return 'Working...'
+}
+
+function ActivityBubble({ activity }: { activity?: AgentActivityInfo | null }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
+    <div className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
       <Loader2 className="h-4 w-4 animate-spin" />
-      Thinking...
+      {activityMessage(activity)}
     </div>
   )
 }
 
 function AssistantContent({ message, isStreaming }: { message: ChatMessageType; isStreaming?: boolean }) {
   if (isStreaming && !message.content) {
-    return <ThinkingBubble />
+    return <ActivityBubble activity={message.activity} />
   }
 
   if (!isStreaming && message.parsed_output) {
@@ -100,7 +110,6 @@ function AssistantContent({ message, isStreaming }: { message: ChatMessageType; 
 export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }: ChatMessageProps) {
   const isUser = message.role === 'user'
 
-  // --- User message layout ---
   if (isUser) {
     return (
       <div className="flex gap-3 justify-end overflow-hidden">
@@ -119,7 +128,6 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-3 justify-start overflow-hidden">
-        {/* Avatar + name column */}
         <div className="flex flex-col items-center gap-1.5 shrink-0 w-14">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
             <Bot className="h-4 w-4 text-primary" />
@@ -134,11 +142,19 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
           )}
         </div>
 
-        {/* Content column */}
-        <div className="max-w-[80%]">
+        <div className="max-w-[80%] space-y-1.5">
           <AssistantContent message={message} isStreaming={isStreaming} />
+          {isStreaming && message.content && message.activity && (
+            <ActivityBubble activity={message.activity} />
+          )}
         </div>
       </div>
+
+      {message.tool_calls && message.tool_calls.length > 0 && (
+        <div className="pl-16 space-y-1.5">
+          <ToolCallsCollapsible toolCalls={message.tool_calls} />
+        </div>
+      )}
 
       {!isStreaming && (
         <div className="pl-16 space-y-1.5">
@@ -150,9 +166,6 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
           )}
           {message.sources && message.sources.length > 0 && (
             <SourcesCollapsible sources={message.sources} />
-          )}
-          {message.tool_calls && message.tool_calls.length > 0 && (
-            <ToolCallsCollapsible toolCalls={message.tool_calls} />
           )}
 
           <div className="flex items-center gap-3 text-[11px] text-muted">

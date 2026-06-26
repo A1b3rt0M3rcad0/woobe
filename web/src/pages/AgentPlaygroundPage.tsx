@@ -16,7 +16,31 @@ import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEvent } from '@/features/playground/types'
+import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo } from '@/features/playground/types'
+
+function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolCallInfo): ToolCallInfo[] {
+  const items = existing ? [...existing] : []
+  const index = next.tool_call_id
+    ? items.findIndex((item) => item.tool_call_id === next.tool_call_id)
+    : -1
+
+  if (index === -1) {
+    return [...items, next]
+  }
+
+  items[index] = {
+    ...items[index],
+    ...next,
+    input: next.input ?? items[index].input,
+    output: next.output ?? items[index].output,
+    duration_ms: next.duration_ms ?? items[index].duration_ms,
+    success: next.success ?? items[index].success,
+    status: next.status ?? items[index].status,
+    latency_ms: next.latency_ms ?? items[index].latency_ms,
+    error: next.error ?? items[index].error,
+  }
+  return items
+}
 
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
@@ -106,6 +130,17 @@ function PlaygroundContent() {
     setSelectedTraceId(null)
   }, [cancelStream])
 
+  const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
+    setMessages((prev) => {
+      const updated = [...prev]
+      const last = updated[updated.length - 1]
+      if (last?.role === 'assistant') {
+        updated[updated.length - 1] = updater(last)
+      }
+      return updated
+    })
+  }, [])
+
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
 
@@ -114,7 +149,11 @@ function PlaygroundContent() {
     rawEventsRef.current = []
 
     const userMsg: ChatMessage = { role: 'user', content }
-    const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
+    const assistantMsg: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      activity: { status: 'working', message: 'Working...' },
+    }
 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsSending(true)
@@ -144,36 +183,67 @@ function PlaygroundContent() {
               metadataRef.current.trace_id = meta.trace_id
             }
           },
+          onAgentActivity: (activity) => {
+            rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
+            updateLastAssistantMessage((last) => ({ ...last, activity }))
+          },
           onToken: (token) => {
-            rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: { content: token } })
-            accumulatedRef.current += token
-            setMessages((prev) => {
-              const updated = [...prev]
-              const last = updated[updated.length - 1]
-              if (last?.role === 'assistant') {
-                updated[updated.length - 1] = { ...last, content: accumulatedRef.current }
-              }
-              return updated
-            })
+            rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
+            if (token.visibility !== 'assistant' || token.channel !== 'final') {
+              return
+            }
+            accumulatedRef.current += token.content
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: accumulatedRef.current,
+              activity: null,
+            }))
+          },
+          onTokenRetract: (info) => {
+            rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
+            if (info.content_length > 0) {
+              accumulatedRef.current = accumulatedRef.current.slice(
+                0,
+                Math.max(0, accumulatedRef.current.length - info.content_length),
+              )
+            }
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: accumulatedRef.current,
+              activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' },
+            }))
+          },
+          onInternalToken: (token) => {
+            rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token })
           },
           onSources: (sources) => {
             rawEventsRef.current.push({ type: 'sources', timestamp: new Date().toISOString(), payload: { sources } })
             metadataRef.current.sources = sources
           },
-          onToolCall: (info) => {
-            rawEventsRef.current.push({ type: 'tool_call', timestamp: new Date().toISOString(), payload: info })
-            setMessages((prev) => {
-              const updated = [...prev]
-              const last = updated[updated.length - 1]
-              if (last?.role === 'assistant') {
-                const existing = last.tool_calls ?? []
-                updated[updated.length - 1] = {
-                  ...last,
-                  tool_calls: [...existing, info] as ChatMessage['tool_calls'],
-                }
-              }
-              return updated
-            })
+          onToolCallStarted: (info) => {
+            const runningInfo: ToolCallInfo = { ...info, status: info.status ?? 'running' }
+            rawEventsRef.current.push({ type: 'tool_call_started', timestamp: new Date().toISOString(), payload: runningInfo })
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              activity: {
+                status: 'calling_tool',
+                message: `Calling tool: ${runningInfo.tool_name}...`,
+                tool_name: runningInfo.tool_name,
+              },
+              tool_calls: upsertToolCall(last.tool_calls, runningInfo),
+            }))
+          },
+          onToolCallCompleted: (info) => {
+            rawEventsRef.current.push({ type: 'tool_call_completed', timestamp: new Date().toISOString(), payload: info })
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              activity: {
+                status: 'processing_tool_result',
+                message: 'Processing tool result...',
+                tool_name: info.tool_name,
+              },
+              tool_calls: upsertToolCall(last.tool_calls, info),
+            }))
           },
           onDone: (response) => {
             for (const event of response.execution_events ?? []) {
@@ -186,7 +256,7 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'done', timestamp: new Date().toISOString(), payload: response })
             setRawEvents([...rawEventsRef.current])
             const meta = response
-            const finalContent = accumulatedRef.current || meta.answer || ''
+            const finalContent = meta.answer || accumulatedRef.current || ''
             if (meta.session_id) {
               setSessionId(meta.session_id)
             }
@@ -197,9 +267,10 @@ function PlaygroundContent() {
                 updated[updated.length - 1] = {
                   ...last,
                   content: finalContent,
+                  activity: null,
                   usage: meta.usage ?? null,
                   sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
-                  tool_calls: (meta.tool_calls ?? null) as ChatMessage['tool_calls'],
+                  tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'],
                   model: meta.model ?? null,
                   provider: meta.provider ?? null,
                   latency_ms: meta.latency_ms ?? null,
@@ -231,6 +302,7 @@ function PlaygroundContent() {
               if (last?.role === 'assistant') {
                 updated[updated.length - 1] = {
                   ...last,
+                  activity: null,
                   content: last.content || `Error: ${error.message}`,
                   output_parse_error: error.message,
                   trace_id: metadataRef.current.trace_id ?? null,
@@ -246,14 +318,11 @@ function PlaygroundContent() {
           onFallback: (info) => {
             rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
             accumulatedRef.current = ''
-            setMessages((prev) => {
-              const updated = [...prev]
-              const last = updated[updated.length - 1]
-              if (last?.role === 'assistant') {
-                updated[updated.length - 1] = { ...last, content: '' }
-              }
-              return updated
-            })
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: '',
+              activity: { status: 'working', message: 'Trying fallback model...' },
+            }))
             toast.info(
               `Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`,
             )
@@ -331,7 +400,7 @@ function PlaygroundContent() {
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
         <PlaygroundHeader
           agent={agent}
-          sessions={sessions}
+          sessions={sessions as SessionListItem[]}
           sessionId={sessionId}
           showLeftPanel={showLeftPanel}
           showRightPanel={showRightPanel}

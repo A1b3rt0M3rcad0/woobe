@@ -1,21 +1,33 @@
 import { getToken } from '@/lib/auth/token'
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
+  AgentActivityInfo,
   AskRequest,
   AskResponse,
   ExecutionDiagnostics,
   ExecutionEvent,
   FallbackEventInfo,
   SourceInfo,
+  StreamTokenInfo,
   ToolCallInfo,
   UsageInfo,
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
+const COMMITTED_TOKEN_PHASES = new Set(['response_generation', 'final_response_generation'])
+
+export interface TokenRetractInfo {
+  phase?: string | null
+  reason?: string | null
+  content_length: number
+  token_count?: number | null
+  provider?: string | null
+  model?: string | null
+}
 
 export interface StreamCallbacks {
-  onToken: (content: string) => void
+  onToken: (token: StreamTokenInfo) => void
   onSources: (sources: SourceInfo[]) => void
   onMeta: (meta: { session_id?: string | null; trace_id?: string | null; request_id?: string | null }) => void
   onDone: (response: Partial<AskResponse>) => void
@@ -24,6 +36,9 @@ export interface StreamCallbacks {
   onToolCall?: (info: ToolCallInfo) => void
   onToolCallStarted?: (info: ToolCallInfo) => void
   onToolCallCompleted?: (info: ToolCallInfo) => void
+  onAgentActivity?: (info: AgentActivityInfo) => void
+  onInternalToken?: (token: StreamTokenInfo) => void
+  onTokenRetract?: (info: TokenRetractInfo) => void
   onUsage?: (usage: UsageInfo) => void
   onHeartbeat?: (event: Record<string, unknown>) => void
   onCancelled?: (event: Record<string, unknown>) => void
@@ -46,6 +61,60 @@ function usageOf(value: unknown): UsageInfo | null {
   }
 }
 
+function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
+  return {
+    content: typeof item.content === 'string' ? item.content : '',
+    visibility: item.visibility === 'internal' || item.visibility === 'debug' ? item.visibility : 'assistant',
+    channel: typeof item.channel === 'string' ? item.channel : 'final',
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
+    redacted: typeof item.redacted === 'boolean' ? item.redacted : null,
+  }
+}
+
+function isCommittedToken(token: StreamTokenInfo): boolean {
+  return (
+    token.visibility === 'assistant' &&
+    token.channel === 'final' &&
+    typeof token.phase === 'string' &&
+    COMMITTED_TOKEN_PHASES.has(token.phase)
+  )
+}
+
+function activityMessage(status: string, toolName?: string | null): string {
+  if (status === 'planning_tools') return 'Checking whether tools are needed...'
+  if (status === 'calling_tool') return toolName ? `Calling tool: ${toolName}...` : 'Calling tool...'
+  if (status === 'processing_tool_result') return 'Processing tool result...'
+  if (status === 'generating_answer') return 'Generating response...'
+  if (status === 'formatting_response') return 'Formatting structured response...'
+  return 'Working...'
+}
+
+function activityOf(item: Record<string, unknown>): AgentActivityInfo {
+  const status = typeof item.status === 'string' ? item.status : 'working'
+  const toolName = typeof item.tool_name === 'string' ? item.tool_name : null
+  return {
+    status,
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    message: activityMessage(status, toolName),
+    tool_name: toolName,
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
+  }
+}
+
+function tokenRetractOf(item: Record<string, unknown>): TokenRetractInfo {
+  return {
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    reason: typeof item.reason === 'string' ? item.reason : null,
+    content_length: numberOrNull(item.content_length) ?? 0,
+    token_count: numberOrNull(item.token_count),
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
+  }
+}
+
 function toolOf(item: Record<string, unknown>): ToolCallInfo {
   return {
     tool_call_id: typeof item.tool_call_id === 'string' ? item.tool_call_id : null,
@@ -53,7 +122,7 @@ function toolOf(item: Record<string, unknown>): ToolCallInfo {
     input: item.input ?? null,
     output: item.output ?? null,
     duration_ms: numberOrNull(item.duration_ms) ?? undefined,
-    success: typeof item.success === 'boolean' ? item.success : null,
+    success: typeof item.success === 'boolean' ? item.success : undefined,
     status: typeof item.status === 'string' ? item.status : null,
     latency_ms: numberOrNull(item.latency_ms),
     error: typeof item.error === 'string' ? item.error : null,
@@ -92,7 +161,14 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
     callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
   }
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
-  if (type === 'token') callbacks.onToken(typeof item.content === 'string' ? item.content : '')
+  if (type === 'token') {
+    const token = tokenOf(item)
+    if (isCommittedToken(token)) callbacks.onToken(token)
+    else callbacks.onInternalToken?.({ ...token, visibility: 'internal', redacted: true })
+  }
+  else if (type === 'token_retract') callbacks.onTokenRetract?.(tokenRetractOf(item))
+  else if (type === 'internal_token') callbacks.onInternalToken?.(tokenOf(item))
+  else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
   else if (type === 'meta') callbacks.onMeta({
     session_id: typeof item.session_id === 'string' ? item.session_id : null,

@@ -92,6 +92,37 @@ export interface FallbackEventInfo {
   error: string
 }
 
+export type StreamTokenVisibility = 'assistant' | 'internal' | 'debug'
+export type StreamTokenChannel = 'final' | 'reasoning' | 'tool_planning' | 'system' | string
+
+export interface StreamTokenInfo {
+  content: string
+  visibility: StreamTokenVisibility
+  channel: StreamTokenChannel
+  phase?: string | null
+  provider?: string | null
+  model?: string | null
+  redacted?: boolean | null
+}
+
+export type AgentActivityStatus =
+  | 'thinking'
+  | 'working'
+  | 'planning_tools'
+  | 'calling_tool'
+  | 'processing_tool_result'
+  | 'generating_answer'
+  | 'formatting_response'
+
+export interface AgentActivityInfo {
+  status: AgentActivityStatus | string
+  phase?: string | null
+  message?: string | null
+  tool_name?: string | null
+  provider?: string | null
+  model?: string | null
+}
+
 export interface ExecutionEvent {
   schema_version: number
   event_id: string
@@ -165,6 +196,7 @@ export interface ChatMessage {
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
   tool_calls?: ToolCallInfo[] | null
+  activity?: AgentActivityInfo | null
   model?: string | null
   provider?: string | null
   latency_ms?: number | null

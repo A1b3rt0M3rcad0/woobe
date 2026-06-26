@@ -11,6 +11,7 @@ from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
 from modules.agent.application.use_cases.runtime_streaming import (
+    emit_agent_activity,
     emit_runtime_event,
     invoke_model_with_optional_streaming,
 )
@@ -146,10 +147,16 @@ async def execute_tool_call(
     resolved_tool_id: str,
 ) -> tuple[ToolCallInfo, ToolMessage, dict[str, Any]]:
     started_at = utc_iso()
+    tool_name = tool_call["name"]
+    await emit_agent_activity(
+        "calling_tool",
+        message=f"Calling tool: {tool_name}...",
+        tool_name=tool_name,
+    )
     await emit_runtime_event(
         "tool_call_started",
         tool_call_id=tool_call["id"],
-        tool_name=tool_call["name"],
+        tool_name=tool_name,
         input=tool_call.get("args"),
         status="running",
         started_at=started_at,
@@ -162,7 +169,7 @@ async def execute_tool_call(
     error = output.get("error") if isinstance(output, dict) else None
     info = ToolCallInfo(
         tool_call_id=tool_call["id"],
-        tool_name=tool_call["name"],
+        tool_name=tool_name,
         input=tool_call.get("args"),
         output=output,
         duration_ms=duration_ms,
@@ -175,7 +182,7 @@ async def execute_tool_call(
     )
     payload = {
         "tool_call_id": tool_call["id"],
-        "tool_name": tool_call["name"],
+        "tool_name": tool_name,
         "input": tool_call.get("args"),
         "output": output,
         "duration_ms": duration_ms,
@@ -188,6 +195,11 @@ async def execute_tool_call(
         "occurred_at": ended_at,
     }
     await emit_runtime_event("tool_call_completed", **payload)
+    await emit_agent_activity(
+        "processing_tool_result",
+        message="Processing tool result...",
+        tool_name=tool_name,
+    )
     return info, message, payload
 
 
