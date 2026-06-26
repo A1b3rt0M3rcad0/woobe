@@ -1,6 +1,7 @@
 import { getToken } from '@/lib/auth/token'
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
+  AgentActivityInfo,
   AskRequest,
   AskResponse,
   ExecutionDiagnostics,
@@ -15,6 +16,15 @@ import type {
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
 
+export interface TokenRetractInfo {
+  phase?: string | null
+  reason?: string | null
+  content_length: number
+  token_count?: number | null
+  provider?: string | null
+  model?: string | null
+}
+
 export interface StreamCallbacks {
   onToken: (token: StreamTokenInfo) => void
   onSources: (sources: SourceInfo[]) => void
@@ -25,7 +35,9 @@ export interface StreamCallbacks {
   onToolCall?: (info: ToolCallInfo) => void
   onToolCallStarted?: (info: ToolCallInfo) => void
   onToolCallCompleted?: (info: ToolCallInfo) => void
+  onAgentActivity?: (info: AgentActivityInfo) => void
   onInternalToken?: (token: StreamTokenInfo) => void
+  onTokenRetract?: (info: TokenRetractInfo) => void
   onUsage?: (usage: UsageInfo) => void
   onHeartbeat?: (event: Record<string, unknown>) => void
   onCancelled?: (event: Record<string, unknown>) => void
@@ -57,6 +69,28 @@ function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
     provider: typeof item.provider === 'string' ? item.provider : null,
     model: typeof item.model === 'string' ? item.model : null,
     redacted: typeof item.redacted === 'boolean' ? item.redacted : null,
+  }
+}
+
+function activityOf(item: Record<string, unknown>): AgentActivityInfo {
+  return {
+    status: typeof item.status === 'string' ? item.status : 'thinking',
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    message: typeof item.message === 'string' ? item.message : null,
+    tool_name: typeof item.tool_name === 'string' ? item.tool_name : null,
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
+  }
+}
+
+function tokenRetractOf(item: Record<string, unknown>): TokenRetractInfo {
+  return {
+    phase: typeof item.phase === 'string' ? item.phase : null,
+    reason: typeof item.reason === 'string' ? item.reason : null,
+    content_length: numberOrNull(item.content_length) ?? 0,
+    token_count: numberOrNull(item.token_count),
+    provider: typeof item.provider === 'string' ? item.provider : null,
+    model: typeof item.model === 'string' ? item.model : null,
   }
 }
 
@@ -107,7 +141,9 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
   }
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
   if (type === 'token') callbacks.onToken(tokenOf(item))
+  else if (type === 'token_retract') callbacks.onTokenRetract?.(tokenRetractOf(item))
   else if (type === 'internal_token') callbacks.onInternalToken?.(tokenOf(item))
+  else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
   else if (type === 'meta') callbacks.onMeta({
     session_id: typeof item.session_id === 'string' ? item.session_id : null,
