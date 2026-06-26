@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from typing import Any, Callable, Coroutine
 
@@ -14,12 +15,12 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     invoke_llm,
 )
 
-_NO_MORE_TOOLS_SENTINEL = "__NO_MORE_TOOLS__"
 _TOOL_DECISION_INSTRUCTION = (
     "Tool decision phase only. Decide whether another tool call is required to satisfy "
-    "the latest user request. If a tool is required, call the tool. If no more tools are "
-    f"required, reply exactly {_NO_MORE_TOOLS_SENTINEL}. Do not answer the user. Do not "
-    "summarize. Do not generate final user-facing content."
+    "the latest user request. If another tool call is required, call the tool. If no "
+    "more tool calls are required, do not call any tool. Do not answer the user. Do not "
+    "summarize. Do not generate final user-facing content. Any text content from this "
+    "phase is ignored and will not be shown to the user."
 )
 _FINAL_RESPONSE_INSTRUCTION = (
     "Generate one single final user-facing answer for the latest user request. "
@@ -63,6 +64,60 @@ def _latest_user_request(messages: list) -> str:
     return ""
 
 
+def _json_preview(value: Any, *, max_chars: int = 1200) -> str:
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        text = str(value)
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars]}..."
+
+
+def _extract_tool_result(output: Any) -> Any:
+    if not isinstance(output, dict):
+        return output
+    if "result" in output:
+        return output["result"]
+
+    nested = output.get("output")
+    if isinstance(nested, dict):
+        if "result" in nested:
+            return nested["result"]
+        body = nested.get("body")
+        if isinstance(body, dict) and "result" in body:
+            return body["result"]
+        if body is not None:
+            return body
+
+    return output
+
+
+def _tool_results_summary(tool_calls: list[Any]) -> str:
+    if not tool_calls:
+        return ""
+
+    lines: list[str] = []
+    for index, call in enumerate(tool_calls, start=1):
+        tool_name = getattr(call, "tool_name", None) or "tool"
+        tool_input = getattr(call, "input", None)
+        output = getattr(call, "output", None)
+        success = getattr(call, "success", None)
+        error = getattr(call, "error", None)
+        result = _extract_tool_result(output)
+
+        status = "success" if success is not False else "failed"
+        input_preview = _json_preview(tool_input) if tool_input is not None else "{}"
+        if success is False and error:
+            result_preview = f"error: {error}"
+        else:
+            result_preview = _json_preview(result)
+        lines.append(
+            f"{index}. {tool_name}({input_preview}) -> {status}: {result_preview}"
+        )
+    return "\n".join(lines)
+
+
 def _tool_decision_messages(messages: list) -> list:
     return [*messages, SystemMessage(content=_TOOL_DECISION_INSTRUCTION)]
 
@@ -71,11 +126,18 @@ def _build_final_response_instruction(
     *,
     messages: list,
     final_json_instruction: str | None,
+    tool_calls: list[Any],
 ) -> str:
     latest_request = _latest_user_request(messages)
     request_block = (
         f"\n\nLatest user request:\n<user_request>\n{latest_request}\n</user_request>"
         if latest_request
+        else ""
+    )
+    tool_results = _tool_results_summary(tool_calls)
+    tool_results_block = (
+        f"\n\nVerified tool results:\n<tool_results>\n{tool_results}\n</tool_results>"
+        if tool_results
         else ""
     )
     json_block = (
@@ -87,20 +149,28 @@ def _build_final_response_instruction(
     return (
         f"{_FINAL_RESPONSE_INSTRUCTION}"
         f"{request_block}"
-        "\n\nThe conversation above includes any verified tool results. Use those tool results "
+        f"{tool_results_block}"
+        "\n\nThe conversation above includes any raw tool messages. The verified tool results "
+        "block is the normalized source of truth for tool outputs. Use those tool results "
         "as facts. Do not omit non-tool parts of the latest user request. Do not summarize "
-        "content the user explicitly asked to be long, complete, or detailed."
+        "content the user explicitly asked to be long, complete, or detailed. Ignore any "
+        "text produced during tool decision phases; those phases are not user-facing answers."
         f"{json_block}"
     )
 
 
-def _final_response_messages(messages: list, final_json_instruction: str | None) -> list:
+def _final_response_messages(
+    messages: list,
+    final_json_instruction: str | None,
+    tool_calls: list[Any],
+) -> list:
     return [
         *messages,
         SystemMessage(
             content=_build_final_response_instruction(
                 messages=messages,
                 final_json_instruction=final_json_instruction,
+                tool_calls=tool_calls,
             )
         ),
     ]
@@ -210,7 +280,11 @@ async def run_tool_loop(
         try:
             result, call = await invoke_llm(
                 model=final_model,
-                messages=_final_response_messages(messages, final_json_instruction),
+                messages=_final_response_messages(
+                    messages,
+                    final_json_instruction,
+                    execution.tool_calls,
+                ),
                 phase="final_response_generation",
                 call_index=call_index,
                 provider=provider,
