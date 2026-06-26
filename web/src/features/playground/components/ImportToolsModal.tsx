@@ -84,7 +84,7 @@ export function ImportToolsModal({ open, onClose, projectId, agentId, importedTo
     <Dialog open={open} onClose={onClose} title="Import Tool">
       <div className="space-y-4">
         {isLoading ? (
-          <LoadingState />
+          <LoadingState variant="panel" layout="list" message="Loading tools..." />
         ) : availableTools.length === 0 ? (
           <div className="py-6">
             <EmptyState
