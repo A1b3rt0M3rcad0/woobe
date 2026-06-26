@@ -5,7 +5,7 @@ import json
 import time
 from typing import Any, Callable, Coroutine
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 
 from modules.agent.application.use_cases.ask_use_case import _has_tool_calls
 from modules.agent.application.use_cases.execution_instrumentation import (
@@ -53,6 +53,31 @@ def _is_user_message(message: Any) -> bool:
     message_type = getattr(message, "type", None)
     class_name = message.__class__.__name__
     return role == "user" or message_type in {"human", "user"} or class_name == "HumanMessage"
+
+
+def _is_tool_message(message: Any) -> bool:
+    role = getattr(message, "role", None)
+    message_type = getattr(message, "type", None)
+    class_name = message.__class__.__name__
+    return role == "tool" or message_type == "tool" or class_name == "ToolMessage"
+
+
+def _sanitize_base_messages(messages: list) -> list:
+    """Remove raw historical tool payloads before a new LLM execution.
+
+    The current execution still appends compact ToolMessage objects after fresh tool
+    calls. This only protects the initial conversation history, where persisted raw
+    tool outputs can otherwise be rehydrated into the prompt on later turns.
+    """
+    sanitized: list = []
+    for message in messages:
+        if _is_tool_message(message):
+            continue
+        if getattr(message, "tool_calls", None):
+            sanitized.append(AIMessage(content=_message_content(message)))
+        else:
+            sanitized.append(message)
+    return sanitized
 
 
 def _latest_user_request(messages: list) -> str:
@@ -150,11 +175,12 @@ def _build_final_response_instruction(
         f"{_FINAL_RESPONSE_INSTRUCTION}"
         f"{request_block}"
         f"{tool_results_block}"
-        "\n\nThe conversation above includes any raw tool messages. The verified tool results "
-        "block is the normalized source of truth for tool outputs. Use those tool results "
-        "as facts. Do not omit non-tool parts of the latest user request. Do not summarize "
-        "content the user explicitly asked to be long, complete, or detailed. Ignore any "
-        "text produced during tool decision phases; those phases are not user-facing answers."
+        "\n\nUse the verified tool results block as the normalized source of truth for tool "
+        "outputs. The final-response phase intentionally receives compact tool results "
+        "instead of raw tool payloads. Do not omit non-tool parts of the latest user "
+        "request. Do not summarize content the user explicitly asked to be long, "
+        "complete, or detailed. Ignore any text produced during tool decision phases; "
+        "those phases are not user-facing answers."
         f"{json_block}"
     )
 
@@ -189,10 +215,16 @@ async def run_tool_loop(
     final_model: Any | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     execution = InstrumentedExecution(result=None)
+    base_messages = _sanitize_base_messages(messages)
+    tool_loop_messages = list(base_messages)
     call_index = 1
     result, call = await invoke_llm(
         model=model,
-        messages=_tool_decision_messages(messages) if final_model is not None else messages,
+        messages=(
+            _tool_decision_messages(tool_loop_messages)
+            if final_model is not None
+            else tool_loop_messages
+        ),
         phase=initial_phase,
         call_index=call_index,
         provider=provider,
@@ -207,7 +239,7 @@ async def run_tool_loop(
     instruction_added = False
     while _has_tool_calls(result) and round_index < 5:
         round_index += 1
-        messages.append(result)
+        tool_loop_messages.append(result)
         tool_calls = list(getattr(result, "tool_calls", None) or [])
         started = time.monotonic()
         results = await asyncio.gather(
@@ -231,10 +263,10 @@ async def run_tool_loop(
             execution.timeline.append(
                 {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
             )
-            messages.append(message)
+            tool_loop_messages.append(message)
 
         if final_model is None and final_json_instruction and not instruction_added:
-            messages.append(SystemMessage(content=final_json_instruction))
+            tool_loop_messages.append(SystemMessage(content=final_json_instruction))
             instruction_added = True
 
         call_index += 1
@@ -242,9 +274,9 @@ async def run_tool_loop(
             result, call = await invoke_llm(
                 model=model,
                 messages=(
-                    _tool_decision_messages(messages)
+                    _tool_decision_messages(tool_loop_messages)
                     if final_model is not None
-                    else messages
+                    else tool_loop_messages
                 ),
                 phase=f"tool_followup_{round_index}",
                 call_index=call_index,
@@ -281,7 +313,7 @@ async def run_tool_loop(
             result, call = await invoke_llm(
                 model=final_model,
                 messages=_final_response_messages(
-                    messages,
+                    base_messages,
                     final_json_instruction,
                     execution.tool_calls,
                 ),
