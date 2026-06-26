@@ -8,7 +8,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
 
   if (isLoading || isInitializing) {
-    return <LoadingState message="Checking authentication..." />
+    return <LoadingState variant="fullscreen" layout="auth" message="Checking authentication..." />
   }
 
   if (!isAuthenticated) {

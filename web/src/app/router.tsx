@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AppProviders } from './providers'
 import { PublicLayout } from '@/layouts/PublicLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
@@ -18,9 +18,6 @@ import ProjectsPage from '@/pages/ProjectsPage'
 import ProjectDetailPage from '@/pages/ProjectDetailPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
-import CreateAgentPage from '@/pages/CreateAgentPage'
-import AgentDetailPage from '@/pages/AgentDetailPage'
-import EditAgentPage from '@/pages/EditAgentPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
@@ -48,6 +45,16 @@ function DashboardRedirect() {
   return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
 }
 
+function AgentListRedirect() {
+  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  return <Navigate to={`/organizations/${organizationId}/projects/${projectId}/agents`} replace />
+}
+
+function AgentPlaygroundRedirect() {
+  const { organizationId, projectId, agentId } = useParams<{ organizationId: string; projectId: string; agentId: string }>()
+  return <Navigate to={`/organizations/${organizationId}/projects/${projectId}/agents/${agentId}/playground`} replace />
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -70,9 +77,9 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<CreateAgentPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentDetailPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/edit" element={<EditAgentPage />} />
+          <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
+          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentPlaygroundRedirect />} />
+          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/edit" element={<AgentPlaygroundRedirect />} />
           <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/knowledge" element={<KnowledgePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/tools" element={<ToolsPage />} />

@@ -42,7 +42,7 @@ export function DocumentsDrawer({ open, onClose, collectionId, collectionName }:
         </div>
 
         {isLoading ? (
-          <LoadingState />
+          <LoadingState variant="panel" layout="list" message="Loading documents..." />
         ) : !documents || documents.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted">No documents in this collection.</p>

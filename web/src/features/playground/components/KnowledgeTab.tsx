@@ -19,11 +19,6 @@ interface KnowledgeTabProps {
   agentId: string
 }
 
-const collectionStatusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  active: 'success',
-  archived: 'secondary',
-}
-
 export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { data: agentCollections, isLoading, refetch } = useAgentCollections(agentId)
   const { data: allCollections } = useCollections(projectId)
@@ -58,7 +53,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
     }
   }
 
-  if (isLoading) return <LoadingState />
+  if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading knowledge..." />
 
   return (
     <div className="p-4 space-y-4">
