@@ -5,7 +5,7 @@ import json
 import time
 from typing import Any, Callable, Coroutine
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 
 from modules.agent.application.use_cases.ask_use_case import _has_tool_calls
 from modules.agent.application.use_cases.execution_instrumentation import (
@@ -53,6 +53,31 @@ def _is_user_message(message: Any) -> bool:
     message_type = getattr(message, "type", None)
     class_name = message.__class__.__name__
     return role == "user" or message_type in {"human", "user"} or class_name == "HumanMessage"
+
+
+def _is_tool_message(message: Any) -> bool:
+    role = getattr(message, "role", None)
+    message_type = getattr(message, "type", None)
+    class_name = message.__class__.__name__
+    return role == "tool" or message_type == "tool" or class_name == "ToolMessage"
+
+
+def _sanitize_base_messages(messages: list) -> list:
+    """Remove raw historical tool payloads before a new LLM execution.
+
+    The current execution still appends compact ToolMessage objects after fresh tool
+    calls. This only protects the initial conversation history, where persisted raw
+    tool outputs can otherwise be rehydrated into the prompt on later turns.
+    """
+    sanitized: list = []
+    for message in messages:
+        if _is_tool_message(message):
+            continue
+        if getattr(message, "tool_calls", None):
+            sanitized.append(AIMessage(content=_message_content(message)))
+        else:
+            sanitized.append(message)
+    return sanitized
 
 
 def _latest_user_request(messages: list) -> str:
@@ -190,8 +215,8 @@ async def run_tool_loop(
     final_model: Any | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     execution = InstrumentedExecution(result=None)
-    base_messages = list(messages)
-    tool_loop_messages = list(messages)
+    base_messages = _sanitize_base_messages(messages)
+    tool_loop_messages = list(base_messages)
     call_index = 1
     result, call = await invoke_llm(
         model=model,
