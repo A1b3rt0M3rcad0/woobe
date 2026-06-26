@@ -192,7 +192,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
     refetchProjectTools()
   }
 
-  if (isLoading) return <LoadingState />
+  if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
 
   return (
     <div className="space-y-3 p-4">
