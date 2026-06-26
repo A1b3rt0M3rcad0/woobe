@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent, useReleases } from '@/features/agents/hooks'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
-import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { orgProjectPath } from '@/lib/constants/routes'
@@ -40,6 +39,92 @@ function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolC
     error: next.error ?? items[index].error,
   }
   return items
+}
+
+function SkeletonLine({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-full bg-white/[0.07] ${className}`} />
+}
+
+function SkeletonBox({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-xl border border-border/80 bg-surface/50 ${className}`} />
+}
+
+function AgentPlaygroundSkeleton() {
+  return (
+    <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
+      <div className="h-12 shrink-0 border-b border-border bg-surface/60 px-3">
+        <div className="flex h-full items-center gap-3">
+          <SkeletonLine className="h-3 w-16" />
+          <div className="h-5 w-px bg-border" />
+          <SkeletonLine className="h-4 w-24" />
+          <SkeletonLine className="h-5 w-20" />
+          <SkeletonLine className="h-5 w-14" />
+          <SkeletonLine className="h-5 w-28" />
+          <div className="ml-auto flex items-center gap-2">
+            <SkeletonLine className="h-7 w-24" />
+            <SkeletonLine className="h-7 w-32" />
+            <SkeletonLine className="h-7 w-16" />
+            <SkeletonLine className="h-7 w-20" />
+          </div>
+        </div>
+      </div>
+
+      <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
+        <SkeletonLine className="h-2 w-28" />
+        <SkeletonLine className="ml-auto h-2 w-36" />
+      </div>
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="w-9 shrink-0 border-r border-border bg-surface/70 p-1.5">
+          <div className="space-y-2">
+            <SkeletonBox className="h-8 rounded-lg" />
+            <SkeletonBox className="h-8 rounded-lg" />
+            <SkeletonBox className="h-8 rounded-lg" />
+          </div>
+          <SkeletonBox className="mt-[52vh] h-4 rounded" />
+        </div>
+
+        <div className="hidden w-64 shrink-0 border-r border-border bg-surface/65 p-6 md:block">
+          <div className="mx-auto h-9 w-9 animate-pulse rounded-full border border-border bg-background" />
+          <SkeletonLine className="mx-auto mt-5 h-3 w-44" />
+          <SkeletonLine className="mx-auto mt-2 h-2 w-52" />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <div className="w-full max-w-sm text-center">
+              <div className="mx-auto h-12 w-12 animate-pulse rounded-full border border-primary/20 bg-primary/10" />
+              <SkeletonLine className="mx-auto mt-5 h-3.5 w-64" />
+              <SkeletonLine className="mx-auto mt-3 h-2.5 w-56" />
+              <div className="mt-6 space-y-3">
+                <SkeletonBox className="h-8 w-full" />
+                <SkeletonBox className="h-8 w-full" />
+                <SkeletonBox className="h-8 w-full" />
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-border bg-surface/60 p-3">
+            <SkeletonBox className="mx-auto h-[62px] w-full max-w-[790px] rounded-xl" />
+          </div>
+        </div>
+
+        <div className="hidden w-[268px] shrink-0 border-l border-border bg-surface/65 xl:flex xl:flex-col">
+          <div className="h-14 shrink-0 border-b border-border p-3">
+            <SkeletonLine className="h-2.5 w-20" />
+            <SkeletonLine className="mt-3 h-2 w-32" />
+          </div>
+          <div className="border-b border-border p-3">
+            <SkeletonLine className="h-8 w-full" />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+            <SkeletonBox className="h-24" />
+            <SkeletonBox className="h-32" />
+            <SkeletonBox className="h-40" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PlaygroundContent() {
@@ -380,7 +465,7 @@ function PlaygroundContent() {
     return mapped
   }, [backendTraces])
 
-  if (agentLoading) return <LoadingState />
+  if (agentLoading) return <AgentPlaygroundSkeleton />
   if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
@@ -487,7 +572,7 @@ export default function AgentPlaygroundPage() {
   const { projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const { data: agent, isLoading } = useAgent(agentId)
 
-  if (isLoading) return <LoadingState />
+  if (isLoading) return <AgentPlaygroundSkeleton />
   if (!agent) return <ErrorState message="Agent not found" />
 
   return (
