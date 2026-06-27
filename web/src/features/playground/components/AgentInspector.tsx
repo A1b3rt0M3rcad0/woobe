@@ -8,7 +8,6 @@ import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
 import { OutputSettingsTab } from './OutputSettingsTab'
 import { ReleaseTab } from './ReleaseTab'
-import { PanelRightClose } from 'lucide-react'
 import { useAgentEditor } from '../AgentEditorContext'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -23,7 +22,6 @@ interface AgentInspectorProps {
   agentId: string
   activeTab: string
   onTabChange: (tab: string) => void
-  onCollapse: () => void
 }
 
 const editorSubTabs = [
@@ -158,7 +156,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
   )
 }
 
-export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChange, onCollapse }: AgentInspectorProps) {
+export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChange }: AgentInspectorProps) {
   const tabs = [
     {
       id: 'editor',
@@ -176,15 +174,8 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
 
   return (
     <div className="w-[400px] shrink-0 border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5 flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/90 bg-background/25 shrink-0">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border/90 bg-background/25 shrink-0">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider">Inspector</p>
-        <button
-          onClick={onCollapse}
-          className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors"
-          title="Collapse inspector"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <InspectorTabs tabs={tabs} defaultTab={activeTab} onTabChange={onTabChange} />
