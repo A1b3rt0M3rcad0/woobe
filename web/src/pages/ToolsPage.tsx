@@ -278,45 +278,26 @@ export default function ToolsPage() {
   const hasSearchMiss = query.trim().length > 0 && visibleTools.length === 0
 
   return (
-    <MinimalShell
-      title="Tools"
-      description="Connect and review external capabilities available to agents in this project."
-    >
+    <MinimalShell title="Tools" description="Connect and review external capabilities available to agents in this project.">
       <div className="relative max-w-3xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search tools..."
-          className="h-11 pl-9"
-        />
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tools..." className="h-11 pl-9" />
       </div>
 
       {hasSearchMiss && <NoResults />}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleTools.map((tool: Tool) => (
-          <button
-            key={tool.id}
-            type="button"
-            aria-label={`Open tool settings for ${tool.name}`}
-            onClick={() => openToolModal(tool)}
-            className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
+          <button key={tool.id} type="button" aria-label={`Open tool settings for ${tool.name}`} onClick={() => openToolModal(tool)} className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
             <span className="flex items-start justify-between gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
-                <Wrench className="h-5 w-5" />
-              </span>
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10"><Wrench className="h-5 w-5" /></span>
               <StatusBadge status={tool.status} />
             </span>
-
             <span className="mt-6 block min-w-0">
               <span className="block truncate text-base font-semibold text-white">{tool.name}</span>
               <span className="mt-2 block line-clamp-2 text-sm leading-6 text-muted">{tool.description || tool.type}</span>
             </span>
-
             <span className="my-5 block h-px bg-border/80" />
-
             <span className="mt-auto flex flex-wrap gap-2 text-xs text-muted">
               <Pill>{String(tool.type)}</Pill>
               {tool.risk_level && <Pill tone={tool.risk_level === 'critical' || tool.risk_level === 'high' ? 'danger' : 'default'}>Risk · {tool.risk_level}</Pill>}
@@ -325,14 +306,10 @@ export default function ToolsPage() {
           </button>
         ))}
 
-        <CreateCard
-          title="New tool"
-          description="Connect an external capability"
-          onClick={() => setShowCreate(true)}
-        />
+        <CreateCard title="New tool" description="Connect an external capability" onClick={() => setShowCreate(true)} />
       </div>
 
-      <ToolsCreateDialog open={showCreate} projectId={projectId!} onClose={() => setShowCreate(false)} />
+      <ToolsCreateDialog open={showCreate} projectId={projectId!} onClose={() => setShowCreate(false)} onCreated={async () => { await refetch(); setShowCreate(false) }} />
 
       <Dialog open={Boolean(selectedTool)} onClose={closeToolModal} title="Tool settings" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
         {selectedTool && (
@@ -340,127 +317,32 @@ export default function ToolsPage() {
             <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
                 <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-                    <Wrench className="h-5 w-5" />
-                  </div>
-                  <div className="mt-5 min-w-0">
-                    <h2 className="truncate text-base font-semibold text-white">{selectedTool.name}</h2>
-                    <p className="mt-1 truncate text-sm text-muted">{String(selectedTool.type)}</p>
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <StatusBadge status={selectedTool.status} />
-                    <Pill tone={editRiskLevel === 'critical' || editRiskLevel === 'high' ? 'danger' : 'default'}>Risk · {editRiskLevel || 'unset'}</Pill>
-                    {isMcpTool(selectedTool) && <Pill tone="primary">MCP</Pill>}
-                  </div>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light"><Wrench className="h-5 w-5" /></div>
+                  <div className="mt-5 min-w-0"><h2 className="truncate text-base font-semibold text-white">{selectedTool.name}</h2><p className="mt-1 truncate text-sm text-muted">{String(selectedTool.type)}</p></div>
+                  <div className="mt-5 flex flex-wrap gap-2"><StatusBadge status={selectedTool.status} /><Pill tone={editRiskLevel === 'critical' || editRiskLevel === 'high' ? 'danger' : 'default'}>Risk · {editRiskLevel || 'unset'}</Pill>{isMcpTool(selectedTool) && <Pill tone="primary">MCP</Pill>}</div>
                 </div>
 
-                <div className="rounded-xl border border-border/90 bg-background/60 p-4">
-                  <p className="text-sm font-semibold text-white">Runtime status</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Control whether this tool can be used by agents.</p>
-                  <Button className="mt-4 w-full" size="sm" variant="outline" onClick={handleToggleStatus} loading={busyToolId === selectedTool.id || updateToolStatusMutation.isPending}>
-                    {selectedTool.status === 'active' ? 'Disable tool' : 'Enable tool'}
-                  </Button>
-                </div>
+                <div className="rounded-xl border border-border/90 bg-background/60 p-4"><p className="text-sm font-semibold text-white">Runtime status</p><p className="mt-1 text-xs leading-5 text-muted">Control whether this tool can be used by agents.</p><Button className="mt-4 w-full" size="sm" variant="outline" onClick={handleToggleStatus} loading={busyToolId === selectedTool.id || updateToolStatusMutation.isPending}>{selectedTool.status === 'active' ? 'Disable tool' : 'Enable tool'}</Button></div>
 
-                <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-4">
-                  <h3 className="text-sm font-semibold text-red-100">Danger zone</h3>
-                  <p className="mt-1 text-xs leading-5 text-red-200/80">Delete this tool permanently.</p>
-                  <Button className="mt-4 w-full" variant="destructive" size="sm" onClick={handleDeleteTool} loading={busyToolId === selectedTool.id || deleteToolMutation.isPending}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete tool
-                  </Button>
-                </section>
+                <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-4"><h3 className="text-sm font-semibold text-red-100">Danger zone</h3><p className="mt-1 text-xs leading-5 text-red-200/80">Delete this tool permanently.</p><Button className="mt-4 w-full" variant="destructive" size="sm" onClick={handleDeleteTool} loading={busyToolId === selectedTool.id || deleteToolMutation.isPending}><Trash2 className="mr-2 h-4 w-4" />Delete tool</Button></section>
               </aside>
 
               <main className="space-y-5">
-                <Section title="General" description="Edit customer-safe tool metadata. Structural configuration stays managed by the platform.">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Tool name" />
-                    <Select
-                      value={editRiskLevel}
-                      onChange={(event) => setEditRiskLevel(event.target.value)}
-                      options={[
-                        { value: 'low', label: 'Low risk' },
-                        { value: 'medium', label: 'Medium risk' },
-                        { value: 'high', label: 'High risk' },
-                        { value: 'critical', label: 'Critical risk' },
-                      ]}
-                    />
-                    <Input value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Description" />
-                    <Input value={editTimeoutMs} onChange={(event) => setEditTimeoutMs(event.target.value)} placeholder="Timeout ms" inputMode="numeric" />
-                  </div>
-                </Section>
+                <Section title="General" description="Edit customer-safe tool metadata. Structural configuration stays managed by the platform."><div className="grid gap-3 md:grid-cols-2"><Input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Tool name" /><Select value={editRiskLevel} onChange={(event) => setEditRiskLevel(event.target.value)} options={[{ value: 'low', label: 'Low risk' }, { value: 'medium', label: 'Medium risk' }, { value: 'high', label: 'High risk' }, { value: 'critical', label: 'Critical risk' }]} /><Input value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Description" /><Input value={editTimeoutMs} onChange={(event) => setEditTimeoutMs(event.target.value)} placeholder="Timeout ms" inputMode="numeric" /></div></Section>
 
                 {isMcpTool(selectedTool) && (
                   <Section title="MCP permissions" description="Choose which discovered MCP tools are exposed to agents.">
                     <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-white">Discovered tools</p>
-                          <p className="mt-1 text-xs text-muted">
-                            {discoveredTools.length} found · {counts.allow} allow · {counts.review} review · {counts.deny} deny
-                          </p>
-                        </div>
-                        <Button size="sm" variant="outline" onClick={handleRefreshMcp} loading={busyToolId === selectedTool.id}>
-                          <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                          Refresh
-                        </Button>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => handleBulkPermission('allow')} loading={permissionSavingKey === 'bulk:allow'}>
-                          Allow all
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleBulkPermission('review')} loading={permissionSavingKey === 'bulk:review'}>
-                          Review all
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleBulkPermission('deny')} loading={permissionSavingKey === 'bulk:deny'}>
-                          Deny all
-                        </Button>
-                      </div>
-
-                      <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                        {discoveredTools.length === 0 ? (
-                          <p className="rounded-lg border border-border/70 bg-surface/50 p-3 text-sm text-muted">No discovered MCP tools yet. Refresh to load available tools.</p>
-                        ) : discoveredTools.map((item) => {
-                          const mode = getPermissionMode(item)
-                          return (
-                            <div key={item.name} className="grid gap-3 rounded-lg border border-border/70 bg-surface/60 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="break-words text-sm font-medium text-white">{item.title || item.name}</p>
-                                  <PermissionBadge mode={mode} />
-                                </div>
-                                <p className="mt-1 break-all font-mono text-[10px] text-muted">{item.name}</p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 lg:justify-end">
-                                <Button size="sm" variant={mode === 'allow' ? 'default' : 'outline'} onClick={() => handleSinglePermission(item.name, 'allow')} loading={permissionSavingKey === `${item.name}:allow`}>
-                                  Allow
-                                </Button>
-                                <Button size="sm" variant={mode === 'review' ? 'secondary' : 'outline'} onClick={() => handleSinglePermission(item.name, 'review')} loading={permissionSavingKey === `${item.name}:review`}>
-                                  Review
-                                </Button>
-                                <Button size="sm" variant={mode === 'deny' ? 'destructive' : 'outline'} onClick={() => handleSinglePermission(item.name, 'deny')} loading={permissionSavingKey === `${item.name}:deny`}>
-                                  Deny
-                                </Button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-medium text-white">Discovered tools</p><p className="mt-1 text-xs text-muted">{discoveredTools.length} found · {counts.allow} allow · {counts.review} review · {counts.deny} deny</p></div><Button size="sm" variant="outline" onClick={handleRefreshMcp} loading={busyToolId === selectedTool.id}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button></div>
+                      <div className="mt-4 flex flex-wrap gap-2"><Button size="sm" onClick={() => handleBulkPermission('allow')} loading={permissionSavingKey === 'bulk:allow'}>Allow all</Button><Button size="sm" variant="outline" onClick={() => handleBulkPermission('review')} loading={permissionSavingKey === 'bulk:review'}>Review all</Button><Button size="sm" variant="outline" onClick={() => handleBulkPermission('deny')} loading={permissionSavingKey === 'bulk:deny'}>Deny all</Button></div>
+                      <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">{discoveredTools.length === 0 ? <p className="rounded-lg border border-border/70 bg-surface/50 p-3 text-sm text-muted">No discovered MCP tools yet. Refresh to load available tools.</p> : discoveredTools.map((item) => { const mode = getPermissionMode(item); return <div key={item.name} className="grid gap-3 rounded-lg border border-border/70 bg-surface/60 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="break-words text-sm font-medium text-white">{item.title || item.name}</p><PermissionBadge mode={mode} /></div><p className="mt-1 break-all font-mono text-[10px] text-muted">{item.name}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><Button size="sm" variant={mode === 'allow' ? 'default' : 'outline'} onClick={() => handleSinglePermission(item.name, 'allow')} loading={permissionSavingKey === `${item.name}:allow`}>Allow</Button><Button size="sm" variant={mode === 'review' ? 'secondary' : 'outline'} onClick={() => handleSinglePermission(item.name, 'review')} loading={permissionSavingKey === `${item.name}:review`}>Review</Button><Button size="sm" variant={mode === 'deny' ? 'destructive' : 'outline'} onClick={() => handleSinglePermission(item.name, 'deny')} loading={permissionSavingKey === `${item.name}:deny`}>Deny</Button></div></div> })}</div>
                     </div>
                   </Section>
                 )}
               </main>
             </div>
 
-            <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur">
-              <Button variant="outline" onClick={closeToolModal}>Cancel</Button>
-              <Button onClick={handleSaveTool} loading={updateToolMutation.isPending}>
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Save changes
-              </Button>
-            </div>
+            <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur"><Button variant="outline" onClick={closeToolModal}>Cancel</Button><Button onClick={handleSaveTool} loading={updateToolMutation.isPending}><ShieldCheck className="mr-2 h-4 w-4" />Save changes</Button></div>
           </div>
         )}
       </Dialog>

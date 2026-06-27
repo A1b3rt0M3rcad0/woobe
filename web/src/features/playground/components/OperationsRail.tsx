@@ -1,4 +1,4 @@
-import { Bug, Activity, History, PanelLeftClose } from 'lucide-react'
+import { Bug, Activity, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type LeftPanelTab = 'debug' | 'traces' | 'sessions'
@@ -6,7 +6,6 @@ export type LeftPanelTab = 'debug' | 'traces' | 'sessions'
 interface OperationsRailProps {
   activeTab: LeftPanelTab | null
   onTabChange: (tab: LeftPanelTab) => void
-  onCollapse: () => void
 }
 
 const items: { id: LeftPanelTab; label: string; icon: typeof Bug }[] = [
@@ -15,9 +14,9 @@ const items: { id: LeftPanelTab; label: string; icon: typeof Bug }[] = [
   { id: 'sessions', label: 'Sessions', icon: History },
 ]
 
-export function OperationsRail({ activeTab, onTabChange, onCollapse }: OperationsRailProps) {
+export function OperationsRail({ activeTab, onTabChange }: OperationsRailProps) {
   return (
-    <div className="w-[52px] shrink-0 flex flex-col items-center border-r border-border bg-surface py-3 gap-1">
+    <div className="w-[52px] shrink-0 flex flex-col items-center border-r border-border/90 bg-surface/75 py-3 gap-1 shadow-sm shadow-black/5">
       {items.map((item) => {
         const Icon = item.icon
         const isActive = activeTab === item.id
@@ -26,10 +25,10 @@ export function OperationsRail({ activeTab, onTabChange, onCollapse }: Operation
             key={item.id}
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'flex flex-col items-center gap-0.5 w-10 py-2 rounded-lg text-xs transition-colors',
+              'flex flex-col items-center gap-0.5 w-10 rounded-lg border py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50',
               isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted hover:text-white hover:bg-accent',
+                ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
+                : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
             )}
             title={item.label}
           >
@@ -39,13 +38,6 @@ export function OperationsRail({ activeTab, onTabChange, onCollapse }: Operation
         )
       })}
       <div className="flex-1" />
-      <button
-        onClick={onCollapse}
-        className="flex flex-col items-center gap-0.5 w-10 py-2 rounded-lg text-xs text-muted hover:text-white hover:bg-accent transition-colors"
-        title="Collapse panel"
-      >
-        <PanelLeftClose className="h-4 w-4" />
-      </button>
     </div>
   )
 }

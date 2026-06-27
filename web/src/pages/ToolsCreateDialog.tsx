@@ -1,32 +1,40 @@
 import { Dialog } from '@/components/ui/Dialog'
 import { ApiFirstToolForm, type ApiFirstToolFormSubmitValue } from '@/features/tools/components/ApiFirstToolForm'
 import { useCreateTool } from '@/features/tools/hooks'
+import type { Tool } from '@/features/tools/types'
 import { toast } from 'sonner'
 
 interface ToolsCreateDialogProps {
   open: boolean
   projectId: string
+  agentId?: string | null
+  formKey?: string
+  title?: string
   onClose: () => void
+  onCreated?: (tool: Tool) => void | Promise<void>
 }
 
-export function ToolsCreateDialog({ open, projectId, onClose }: ToolsCreateDialogProps) {
+export function ToolsCreateDialog({ open, projectId, agentId = null, formKey = 'tools-page-tool-form', title = 'Create Tool', onClose, onCreated }: ToolsCreateDialogProps) {
   const createTool = useCreateTool()
 
   const handleSubmit = async (value: ApiFirstToolFormSubmitValue) => {
-    await createTool.mutateAsync({ project_id: projectId, ...value })
+    const tool = await createTool.mutateAsync({ project_id: projectId, agent_id: agentId, ...value })
+    await onCreated?.(tool)
     toast.success('Tool created')
     onClose()
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Create Tool">
-      <ApiFirstToolForm
-        key={open ? 'tools-page-tool-form-open' : 'tools-page-tool-form-closed'}
-        submitLabel="Create"
-        loading={createTool.isPending}
-        onSubmit={handleSubmit}
-        onCancel={onClose}
-      />
+    <Dialog open={open} onClose={onClose} title={title} className="max-w-4xl bg-surface/95">
+      <div className="rounded-xl border border-border/80 bg-background/25 p-4">
+        <ApiFirstToolForm
+          key={open ? `${formKey}-open` : `${formKey}-closed`}
+          submitLabel="Create"
+          loading={createTool.isPending}
+          onSubmit={handleSubmit}
+          onCancel={onClose}
+        />
+      </div>
     </Dialog>
   )
 }

@@ -8,6 +8,7 @@ import type { ChatMessage as ChatMessageType } from '@/features/playground/types
 interface ChatCanvasProps {
   messages: ChatMessageType[]
   isSending: boolean
+  isSessionLoading?: boolean
   onSend: (content: string) => void
   agentName?: string
 }
@@ -24,7 +25,32 @@ function isNearBottom(el: HTMLDivElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD_PX
 }
 
-export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanvasProps) {
+function SessionMessagesLoading() {
+  return (
+    <div className="relative flex h-full items-center justify-center px-6">
+      <div className="w-full max-w-2xl space-y-4">
+        <div className="flex gap-3 justify-start">
+          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-border bg-surface" />
+          <div className="w-[72%] space-y-2 rounded-xl rounded-bl-md border border-border/80 bg-surface/70 px-4 py-3 shadow-sm shadow-black/5">
+            <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/[0.07]" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-white/[0.07]" />
+            <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/[0.07]" />
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <div className="w-[52%] space-y-2 rounded-xl rounded-br-md border border-primary/20 bg-primary/10 px-4 py-3 shadow-sm shadow-black/5">
+            <div className="ml-auto h-3 w-full animate-pulse rounded-full bg-white/[0.08]" />
+            <div className="ml-auto h-3 w-2/3 animate-pulse rounded-full bg-white/[0.08]" />
+          </div>
+          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-primary/25 bg-primary/10" />
+        </div>
+        <p className="pt-2 text-center text-xs font-medium text-muted">Loading session messages...</p>
+      </div>
+    </div>
+  )
+}
+
+export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, agentName }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -69,30 +95,32 @@ export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanva
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.06) 0%, transparent 70%)',
+            backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.045) 0%, transparent 68%)',
           }}
         />
 
-        {isEmpty ? (
+        {isSessionLoading ? (
+          <SessionMessagesLoading />
+        ) : isEmpty ? (
           <div className="relative flex flex-col items-center justify-center h-full px-6 text-center">
-            <div className="rounded-full bg-primary/10 p-4 mb-4">
-              <Bot className="h-8 w-8 text-primary" />
+            <div className="mb-4 rounded-2xl border border-primary/25 bg-primary/10 p-4 shadow-lg shadow-primary/5">
+              <Bot className="h-8 w-8 text-primary-light" />
             </div>
-            <h2 className="text-lg font-semibold text-white mb-1">
+            <h2 className="text-lg font-semibold tracking-tight text-white mb-1">
               Start a conversation with your agent
             </h2>
             <p className="text-sm text-muted max-w-md mb-6">
-              Ask anything, test capabilities, and iterate.
+              Test behavior, inspect runtime execution, and iterate from the same workspace.
             </p>
             <div className="flex flex-col gap-2 w-full max-w-sm">
               {suggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => onSend(suggestion)}
-                  className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted hover:text-white hover:border-primary/30 hover:bg-primary/5 transition-all text-left"
+                  className="group flex items-center justify-between rounded-xl border border-border/80 bg-surface/45 px-4 py-3 text-sm text-muted hover:text-white hover:border-primary/35 hover:bg-primary/5 transition-all text-left shadow-sm shadow-black/5"
                 >
                   <span>{suggestion}</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 ml-2" />
+                  <ArrowRight className="h-4 w-4 shrink-0 ml-2 transition-transform group-hover:translate-x-0.5" />
                 </button>
               ))}
             </div>

@@ -47,6 +47,47 @@
   }
 }
 
+/* Overview environment semantics: All is aggregate, Draft is neutral, Staging is operational. */
+.rounded-lg.border.border-border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
+  display: none;
+}
+
+.border-blue-500\/35.bg-blue-500\/10.text-blue-300,
+.border-blue-500\/40.bg-blue-500\/10.text-blue-300 {
+  border-color: rgb(100 116 139 / 0.35) !important;
+  background-color: rgb(100 116 139 / 0.1) !important;
+  color: rgb(203 213 225) !important;
+}
+
+.bg-blue-400 {
+  background-color: rgb(148 163 184) !important;
+}
+
+.border-amber-500\/35.bg-amber-500\/10.text-amber-300,
+.border-amber-500\/40.bg-amber-500\/10.text-amber-300 {
+  border-color: rgb(99 102 241 / 0.4) !important;
+  background-color: rgb(99 102 241 / 0.1) !important;
+  color: rgb(165 180 252) !important;
+}
+
+.bg-amber-400 {
+  background-color: rgb(129 140 248) !important;
+}
+
+.border-slate-600\/70.bg-slate-800\/60.text-slate-100 .bg-slate-300 {
+  display: none;
+}
+
+/* Keep composition segments out of inline baseline layout. */
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
+  display: flex;
+}
+
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 > .inline-block {
+  display: block;
+  flex-shrink: 0;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
