@@ -78,6 +78,16 @@
   display: none;
 }
 
+/* Keep composition segments out of inline baseline layout. */
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
+  display: flex;
+}
+
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 > .inline-block {
+  display: block;
+  flex-shrink: 0;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
