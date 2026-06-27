@@ -1,4 +1,4 @@
-import { Bug, Activity, History, PanelLeftClose } from 'lucide-react'
+import { Bug, Activity, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type LeftPanelTab = 'debug' | 'traces' | 'sessions'
@@ -6,7 +6,6 @@ export type LeftPanelTab = 'debug' | 'traces' | 'sessions'
 interface OperationsRailProps {
   activeTab: LeftPanelTab | null
   onTabChange: (tab: LeftPanelTab) => void
-  onCollapse: () => void
 }
 
 const items: { id: LeftPanelTab; label: string; icon: typeof Bug }[] = [
@@ -15,7 +14,7 @@ const items: { id: LeftPanelTab; label: string; icon: typeof Bug }[] = [
   { id: 'sessions', label: 'Sessions', icon: History },
 ]
 
-export function OperationsRail({ activeTab, onTabChange, onCollapse }: OperationsRailProps) {
+export function OperationsRail({ activeTab, onTabChange }: OperationsRailProps) {
   return (
     <div className="w-[52px] shrink-0 flex flex-col items-center border-r border-border/90 bg-surface/75 py-3 gap-1 shadow-sm shadow-black/5">
       {items.map((item) => {
@@ -39,13 +38,6 @@ export function OperationsRail({ activeTab, onTabChange, onCollapse }: Operation
         )
       })}
       <div className="flex-1" />
-      <button
-        onClick={onCollapse}
-        className="flex flex-col items-center gap-0.5 w-10 rounded-lg border border-transparent py-2 text-xs text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
-        title="Collapse panel"
-      >
-        <PanelLeftClose className="h-4 w-4" />
-      </button>
     </div>
   )
 }
