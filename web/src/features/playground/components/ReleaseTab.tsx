@@ -14,7 +14,7 @@ import type { AgentRelease, ReleaseStatus } from '@/features/agents/types'
 
 const statusVariant: Record<ReleaseStatus, 'success' | 'warning' | 'secondary' | 'default' | 'destructive'> = {
   production: 'success',
-  staging: 'warning',
+  staging: 'secondary',
   draft: 'secondary',
   archived: 'default',
   rolled_back: 'destructive',
@@ -128,7 +128,7 @@ function PipelineHint() {
     <div className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-surface/40 px-2 py-1 text-[10px] font-medium shadow-sm">
       <span className="text-muted">Draft</span>
       <span className="text-muted">→</span>
-      <span className="text-yellow-400">Staging</span>
+      <span className="text-indigo-300">Staging</span>
       <span className="text-muted">→</span>
       <span className="text-emerald-400">Production</span>
     </div>
@@ -178,7 +178,7 @@ function ReleaseActionsMenu({ actions, label = 'Release actions' }: { actions: M
 
 function EmptyStageCard({ message, tone = 'neutral' }: { message: string; tone?: 'neutral' | 'staging' | 'production' }) {
   const toneClass = tone === 'staging'
-    ? 'border-yellow-500/25 bg-yellow-500/[0.03]'
+    ? 'border-indigo-500/25 bg-indigo-500/[0.04]'
     : tone === 'production'
       ? 'border-emerald-500/25 bg-emerald-500/[0.03]'
       : 'border-border bg-surface/40'
@@ -478,7 +478,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <section className="space-y-3">
         <h3 className="text-[11px] font-medium text-muted">Staging</h3>
         {currentStaging ? (
-          <article className="rounded-lg border border-yellow-500/35 bg-yellow-500/[0.03] p-3 shadow-sm">
+          <article className="rounded-lg border border-indigo-500/35 bg-indigo-500/[0.04] p-3 shadow-sm">
             <div className="flex items-start justify-between gap-2.5">
               <div className="min-w-0 space-y-2">
                 <h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{currentStaging.version}</h4>
@@ -489,7 +489,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
                   <Button size="sm" className="h-7 min-w-[110px] px-2 text-[11px]" onClick={openCreateRelease} loading={promoteRelease.isPending || isLoadingSnapshot}><Rocket className="mr-1 h-3 w-3" />Publish release</Button>
                 </div>
               </div>
-              <Badge variant="warning" className="shrink-0 px-1.5 py-0 text-[10px]">Staging</Badge>
+              <Badge variant="secondary" className="shrink-0 border-indigo-500/35 bg-indigo-500/10 px-1.5 py-0 text-[10px] text-indigo-300">Staging</Badge>
             </div>
           </article>
         ) : <EmptyStageCard tone="staging" message="No staging snapshot yet. Review the current draft and stage it before publishing." />}
