@@ -17,7 +17,7 @@ const items: { id: LeftPanelTab; label: string; icon: typeof Bug }[] = [
 
 export function OperationsRail({ activeTab, onTabChange, onCollapse }: OperationsRailProps) {
   return (
-    <div className="w-[52px] shrink-0 flex flex-col items-center border-r border-border bg-surface py-3 gap-1">
+    <div className="w-[52px] shrink-0 flex flex-col items-center border-r border-border/90 bg-surface/75 py-3 gap-1 shadow-sm shadow-black/5">
       {items.map((item) => {
         const Icon = item.icon
         const isActive = activeTab === item.id
@@ -26,10 +26,10 @@ export function OperationsRail({ activeTab, onTabChange, onCollapse }: Operation
             key={item.id}
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'flex flex-col items-center gap-0.5 w-10 py-2 rounded-lg text-xs transition-colors',
+              'flex flex-col items-center gap-0.5 w-10 rounded-lg border py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50',
               isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted hover:text-white hover:bg-accent',
+                ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
+                : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
             )}
             title={item.label}
           >
@@ -41,7 +41,7 @@ export function OperationsRail({ activeTab, onTabChange, onCollapse }: Operation
       <div className="flex-1" />
       <button
         onClick={onCollapse}
-        className="flex flex-col items-center gap-0.5 w-10 py-2 rounded-lg text-xs text-muted hover:text-white hover:bg-accent transition-colors"
+        className="flex flex-col items-center gap-0.5 w-10 rounded-lg border border-transparent py-2 text-xs text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
         title="Collapse panel"
       >
         <PanelLeftClose className="h-4 w-4" />
