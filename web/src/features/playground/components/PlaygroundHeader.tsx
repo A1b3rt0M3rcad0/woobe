@@ -1,7 +1,7 @@
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Code2, Settings, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
+import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Agent } from '@/features/agents/types'
 import type { ReleaseStatus } from '@/features/agents/types'
@@ -13,7 +13,6 @@ interface PlaygroundHeaderProps {
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
   onApiClick: () => void
-  onSettingsClick: () => void
   releaseVersion?: string
   releaseStatus?: ReleaseStatus
 }
@@ -25,7 +24,6 @@ export function PlaygroundHeader({
   onToggleLeftPanel,
   onToggleRightPanel,
   onApiClick,
-  onSettingsClick,
   releaseVersion,
   releaseStatus,
 }: PlaygroundHeaderProps) {
@@ -83,10 +81,6 @@ export function PlaygroundHeader({
         <Button variant="outline" size="sm" onClick={onApiClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
           <Code2 className="mr-1 h-4 w-4" />
           API
-        </Button>
-        <Button variant="outline" size="sm" onClick={onSettingsClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
-          <Settings className="mr-1 h-4 w-4" />
-          Settings
         </Button>
 
         <button
