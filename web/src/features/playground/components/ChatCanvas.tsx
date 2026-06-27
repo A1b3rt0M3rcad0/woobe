@@ -8,6 +8,7 @@ import type { ChatMessage as ChatMessageType } from '@/features/playground/types
 interface ChatCanvasProps {
   messages: ChatMessageType[]
   isSending: boolean
+  isSessionLoading?: boolean
   onSend: (content: string) => void
   agentName?: string
 }
@@ -24,7 +25,32 @@ function isNearBottom(el: HTMLDivElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD_PX
 }
 
-export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanvasProps) {
+function SessionMessagesLoading() {
+  return (
+    <div className="relative flex h-full items-center justify-center px-6">
+      <div className="w-full max-w-2xl space-y-4">
+        <div className="flex gap-3 justify-start">
+          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-border bg-surface" />
+          <div className="w-[72%] space-y-2 rounded-xl rounded-bl-md border border-border/80 bg-surface/70 px-4 py-3 shadow-sm shadow-black/5">
+            <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/[0.07]" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-white/[0.07]" />
+            <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/[0.07]" />
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <div className="w-[52%] space-y-2 rounded-xl rounded-br-md border border-primary/20 bg-primary/10 px-4 py-3 shadow-sm shadow-black/5">
+            <div className="ml-auto h-3 w-full animate-pulse rounded-full bg-white/[0.08]" />
+            <div className="ml-auto h-3 w-2/3 animate-pulse rounded-full bg-white/[0.08]" />
+          </div>
+          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-primary/25 bg-primary/10" />
+        </div>
+        <p className="pt-2 text-center text-xs font-medium text-muted">Loading session messages...</p>
+      </div>
+    </div>
+  )
+}
+
+export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, agentName }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -73,7 +99,9 @@ export function ChatCanvas({ messages, isSending, onSend, agentName }: ChatCanva
           }}
         />
 
-        {isEmpty ? (
+        {isSessionLoading ? (
+          <SessionMessagesLoading />
+        ) : isEmpty ? (
           <div className="relative flex flex-col items-center justify-center h-full px-6 text-center">
             <div className="mb-4 rounded-2xl border border-primary/25 bg-primary/10 p-4 shadow-lg shadow-primary/5">
               <Bot className="h-8 w-8 text-primary-light" />
