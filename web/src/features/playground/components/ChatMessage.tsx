@@ -114,7 +114,7 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
     return (
       <div className="flex gap-3 justify-end overflow-hidden">
         <div className="max-w-[80%]">
-          <div className="rounded-xl rounded-br-md border border-primary/30 bg-primary/90 px-4 py-3 text-sm leading-relaxed text-white whitespace-pre-wrap break-words shadow-sm shadow-primary/10">
+          <div className="rounded-xl rounded-br-md border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-relaxed text-white whitespace-pre-wrap break-words shadow-sm shadow-black/5">
             {message.content}
           </div>
         </div>
