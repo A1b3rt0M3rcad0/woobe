@@ -35,8 +35,8 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
   }
 
   return (
-    <div className="p-4 border-t border-border bg-surface">
-      <div className="rounded-xl border border-border bg-background shadow-sm">
+    <div className="border-t border-border/90 bg-surface/70 p-4 shadow-[0_-18px_50px_rgba(0,0,0,0.10)]">
+      <div className="rounded-xl border border-border/90 bg-background/75 shadow-lg shadow-black/10 transition-colors focus-within:border-primary/35 focus-within:ring-1 focus-within:ring-primary/10">
         <textarea
           ref={textareaRef}
           value={input}
@@ -51,7 +51,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-white hover:bg-accent transition-colors"
+              className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted hover:text-white hover:border-border/80 hover:bg-surface/70 transition-colors disabled:opacity-40"
               disabled={isSending}
             >
               <Paperclip className="h-3.5 w-3.5" />
@@ -59,7 +59,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
             </button>
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:text-white hover:bg-accent transition-colors"
+              className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted hover:text-white hover:border-border/80 hover:bg-surface/70 transition-colors disabled:opacity-40"
               disabled={isSending}
             >
               <Wrench className="h-3.5 w-3.5" />
@@ -67,7 +67,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted hidden sm:inline">
+            <span className="text-[11px] text-muted/80 hidden sm:inline">
               {isSending ? 'Stop to cancel generation' : 'Enter to send · Shift+Enter for new line'}
             </span>
             {isSending ? (
@@ -75,7 +75,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
                 type="button"
                 onClick={cancelActiveAskStream}
                 aria-label="Stop generation"
-                className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500 text-white hover:bg-red-500/90 transition-colors"
+                className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-500/35 bg-red-500/15 text-red-100 hover:bg-red-500/25 transition-colors"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
@@ -84,7 +84,7 @@ export function ChatComposer({ isSending, onSend }: ChatComposerProps) {
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim()}
-                className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center justify-center w-8 h-8 rounded-lg border border-primary/35 bg-primary/90 text-white hover:bg-primary transition-colors disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4" />
               </button>
