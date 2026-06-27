@@ -47,6 +47,23 @@
   }
 }
 
+/* Keep staging visually operational instead of warning-colored in project overview. */
+.border-amber-500\/35.bg-amber-500\/10.text-amber-300,
+.border-amber-500\/40.bg-amber-500\/10.text-amber-300 {
+  border-color: rgb(99 102 241 / 0.4) !important;
+  background-color: rgb(99 102 241 / 0.1) !important;
+  color: rgb(165 180 252) !important;
+}
+
+.bg-amber-400 {
+  background-color: rgb(129 140 248) !important;
+}
+
+[style*="#fbbf24"],
+[style*="rgb(251, 191, 36)"] {
+  background-color: #6366f1 !important;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
