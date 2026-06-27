@@ -37,11 +37,11 @@ const editorSubTabs = [
 function EditorHeader() {
   const { loadedReleaseVersion, isDirty } = useAgentEditor()
   return (
-    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-surface/50 shrink-0">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-border/90 bg-background/25 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] text-muted font-medium whitespace-nowrap">
           {loadedReleaseVersion ? (
-            <>Editing: <span className="text-blue-400">{loadedReleaseVersion}</span></>
+            <>Editing: <span className="text-primary-light">{loadedReleaseVersion}</span></>
           ) : (
             'Current Draft'
           )}
@@ -99,11 +99,11 @@ function EditorActions({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border bg-surface/50 shrink-0">
+    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/90 bg-background/20 shrink-0">
       <Button
         size="sm"
         variant="outline"
-        className="text-[11px] flex-1"
+        className="text-[11px] flex-1 border-primary/30 bg-primary/10 text-primary-light hover:bg-primary/15 hover:text-white"
         onClick={handleSaveDraft}
         loading={updateAgent.isPending}
       >
@@ -113,7 +113,7 @@ function EditorActions({ agentId }: { agentId: string }) {
       <Button
         size="sm"
         variant="ghost"
-        className="text-[11px]"
+        className="text-[11px] border border-border/80 bg-background/45 hover:bg-surface/70"
         onClick={handleReset}
         title="Reset editor to last saved agent state"
       >
@@ -130,16 +130,16 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
     <div className="flex flex-col h-full">
       <EditorHeader />
       <EditorActions agentId={agentId} />
-      <div className="flex border-b border-border bg-surface shrink-0">
+      <div className="flex gap-1 border-b border-border/90 bg-surface/70 p-1.5 shrink-0">
         {editorSubTabs.map((sub) => (
           <button
             key={sub.id}
             onClick={() => setEditorTab(sub.id)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors border-b-2 -mb-[1px]',
+              'flex-1 flex items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-[11px] font-medium transition-colors',
               editorTab === sub.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted hover:text-white',
+                ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
+                : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
             )}
           >
             {sub.icon}
@@ -175,12 +175,12 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
   ]
 
   return (
-    <div className="w-[400px] shrink-0 border-l border-border bg-surface flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+    <div className="w-[400px] shrink-0 border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5 flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/90 bg-background/25 shrink-0">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider">Inspector</p>
         <button
           onClick={onCollapse}
-          className="flex items-center justify-center w-7 h-7 rounded-md text-muted hover:text-white hover:bg-accent transition-colors"
+          className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors"
           title="Collapse inspector"
         >
           <PanelRightClose className="h-4 w-4" />
