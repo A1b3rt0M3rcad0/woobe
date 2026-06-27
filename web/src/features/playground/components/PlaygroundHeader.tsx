@@ -60,22 +60,25 @@ export function PlaygroundHeader({
   }
 
   return (
-    <header className="h-[72px] shrink-0 flex items-center justify-between border-b border-border bg-surface px-4">
-      <div className="flex items-center gap-4 min-w-0">
+    <header className="h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
+      <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={handleBackToProject}
-          className="flex items-center gap-1 text-xs text-muted hover:text-white transition-colors shrink-0"
+          className="flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-xs font-medium text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors shrink-0"
           title="Back to project"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Project</span>
         </button>
-        <div className="flex items-center gap-2 shrink-0">
-          <Bot className="h-5 w-5 text-primary" />
+        <div className="h-8 w-px bg-border/80" />
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-light">
+            <Bot className="h-3.5 w-3.5" />
+          </span>
           <span className="text-sm font-semibold text-white">ProjectRAI</span>
         </div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-sm font-medium text-white truncate max-w-[200px]">{agent.name}</h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-sm font-semibold text-white truncate max-w-[220px]">{agent.name}</h1>
           <StatusBadge status={agent.status} />
           {releaseVersion && releaseStatus && (
             <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
@@ -83,7 +86,7 @@ export function PlaygroundHeader({
             </Badge>
           )}
         </div>
-        <span className="text-xs text-muted hidden md:inline">
+        <span className="hidden max-w-[180px] truncate rounded-md border border-border/70 bg-background/45 px-2 py-1 font-mono text-[11px] text-muted md:inline">
           {agent.provider}/{agent.model}
         </span>
       </div>
@@ -91,14 +94,14 @@ export function PlaygroundHeader({
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleLeftPanel}
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-white hover:bg-accent transition-colors"
+          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showLeftPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
           title={showLeftPanel ? 'Hide operations' : 'Show operations'}
         >
           <PanelLeft className={`h-4 w-4 transition-opacity ${showLeftPanel ? 'opacity-100' : 'opacity-50'}`} />
         </button>
 
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={onNewSession}>
+          <Button variant="outline" size="sm" onClick={onNewSession} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
             <Plus className="mr-1 h-4 w-4" />
             New Session
           </Button>
@@ -107,7 +110,7 @@ export function PlaygroundHeader({
             align="end"
             className="min-w-[180px]"
             trigger={
-              <button className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-transparent px-3 py-1 text-sm transition-colors cursor-pointer hover:border-primary/30">
+              <button className="flex h-9 w-full min-w-[190px] items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/55 px-3 py-1 text-sm transition-colors cursor-pointer hover:border-primary/35 hover:bg-background/75">
                 <span className={currentSession ? 'text-white truncate' : 'text-muted truncate'}>
                   {currentSession ? formatSessionLabel(currentSession) : 'Select a session'}
                 </span>
@@ -118,7 +121,7 @@ export function PlaygroundHeader({
             <div className="py-1">
               <button
                 onClick={() => { onNewSession(); sessionDropdownRef.current?.close() }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-accent transition-colors"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:text-white hover:bg-background/70 transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 New Session
@@ -128,16 +131,16 @@ export function PlaygroundHeader({
                 <button
                   key={s.id}
                   onClick={() => { onSessionSelect(s.id); sessionDropdownRef.current?.close() }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
                     s.id === sessionId
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted hover:text-white hover:bg-accent'
+                      ? 'bg-primary/10 text-primary-light ring-1 ring-primary/20'
+                      : 'text-muted hover:text-white hover:bg-background/70'
                   }`}
                 >
-                  <Circle className={`h-2 w-2 shrink-0 fill-current ${s.id === sessionId ? 'text-primary' : 'text-muted'}`} />
+                  <Circle className={`h-2 w-2 shrink-0 fill-current ${s.id === sessionId ? 'text-primary-light' : 'text-muted'}`} />
                   <span className="truncate text-left flex-1">{formatSessionLabel(s)}</span>
                   {s.id === sessionId && (
-                    <span className="ml-auto text-[10px] font-medium text-primary uppercase">Active</span>
+                    <span className="ml-auto text-[10px] font-medium text-primary-light uppercase">Active</span>
                   )}
                 </button>
               ))}
@@ -145,18 +148,18 @@ export function PlaygroundHeader({
           </Dropdown>
         </div>
 
-        <Button variant="outline" size="sm" onClick={onApiClick}>
+        <Button variant="outline" size="sm" onClick={onApiClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
           <Code2 className="mr-1 h-4 w-4" />
           API
         </Button>
-        <Button variant="outline" size="sm" onClick={onSettingsClick}>
+        <Button variant="outline" size="sm" onClick={onSettingsClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
           <Settings className="mr-1 h-4 w-4" />
           Settings
         </Button>
 
         <button
           onClick={onToggleRightPanel}
-          className="flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-white hover:bg-accent transition-colors"
+          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showRightPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
           title={showRightPanel ? 'Hide inspector' : 'Show inspector'}
         >
           <PanelRight className={`h-4 w-4 transition-opacity ${showRightPanel ? 'opacity-100' : 'opacity-50'}`} />
