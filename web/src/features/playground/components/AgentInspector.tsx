@@ -22,6 +22,7 @@ interface AgentInspectorProps {
   agentId: string
   activeTab: string
   onTabChange: (tab: string) => void
+  onCollapse?: () => void
 }
 
 const editorSubTabs = [
