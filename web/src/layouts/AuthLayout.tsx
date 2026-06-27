@@ -27,7 +27,7 @@ export function AuthLayout() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">ProjectRAI</p>
-                <p className="text-xs text-muted">Runtime For Intelligence</p>
+                <p className="text-xs text-muted">Control Plane for AI Agents</p>
               </div>
             </div>
 
