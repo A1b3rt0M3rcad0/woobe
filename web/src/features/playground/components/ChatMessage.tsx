@@ -23,7 +23,7 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
     <div className="mt-2">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 text-xs text-primary hover:underline"
+        className="flex items-center gap-1 text-xs text-primary-light hover:text-white transition-colors"
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         Sources ({sources.length})
@@ -31,11 +31,11 @@ function SourcesCollapsible({ sources }: { sources: NonNullable<ChatMessageType[
       {open && (
         <div className="mt-1 space-y-1">
           {sources.map((s, i) => (
-            <div key={i} className="rounded border border-border bg-background p-2 text-xs">
+            <div key={i} className="rounded-lg border border-border/80 bg-background/60 p-2 text-xs">
               <p className="font-medium text-white">{s.document_title || 'Untitled'}</p>
               {s.page_number != null && <p className="text-muted">Page {s.page_number}</p>}
               {s.content_preview && (
-                <p className="text-muted mt-0.5 italic">"{s.content_preview.slice(0, 200)}..."</p>
+                <p className="text-muted mt-0.5 italic">&quot;{s.content_preview.slice(0, 200)}...&quot;</p>
               )}
               {s.score != null && <p className="text-muted">Score: {formatNumber(s.score, 3)}</p>}
             </div>
@@ -58,8 +58,8 @@ function activityMessage(activity?: AgentActivityInfo | null): string {
 
 function ActivityBubble({ activity }: { activity?: AgentActivityInfo | null }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm text-muted">
-      <Loader2 className="h-4 w-4 animate-spin" />
+    <div className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-surface/70 px-4 py-3 text-sm text-muted shadow-sm shadow-black/5">
+      <Loader2 className="h-4 w-4 animate-spin text-primary-light" />
       {activityMessage(activity)}
     </div>
   )
@@ -81,14 +81,14 @@ function AssistantContent({ message, isStreaming }: { message: ChatMessageType; 
 
   if (segments.length === 1 && segments[0].type === 'text') {
     return (
-      <div className="rounded-xl px-4 py-3 text-sm leading-relaxed bg-accent text-white rounded-bl-md">
+      <div className="rounded-xl rounded-bl-md border border-border/80 bg-surface/75 px-4 py-3 text-sm leading-relaxed text-white shadow-sm shadow-black/5">
         <MarkdownMessage content={segments[0].content} isStreaming={isStreaming} />
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl px-4 py-3 text-sm leading-relaxed bg-accent text-white rounded-bl-md">
+    <div className="rounded-xl rounded-bl-md border border-border/80 bg-surface/75 px-4 py-3 text-sm leading-relaxed text-white shadow-sm shadow-black/5">
       <div className="space-y-2">
         {segments.map((seg, i) =>
           seg.type === 'text' ? (
@@ -114,12 +114,12 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
     return (
       <div className="flex gap-3 justify-end overflow-hidden">
         <div className="max-w-[80%]">
-          <div className="rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words bg-primary text-white rounded-br-md">
+          <div className="rounded-xl rounded-br-md border border-primary/30 bg-primary/90 px-4 py-3 text-sm leading-relaxed text-white whitespace-pre-wrap break-words shadow-sm shadow-primary/10">
             {message.content}
           </div>
         </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
-          <User className="h-4 w-4 text-primary" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary/10 shrink-0">
+          <User className="h-4 w-4 text-primary-light" />
         </div>
       </div>
     )
@@ -129,8 +129,8 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-3 justify-start overflow-hidden">
         <div className="flex flex-col items-center gap-1.5 shrink-0 w-14">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent shrink-0">
-            <Bot className="h-4 w-4 text-primary" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface shrink-0">
+            <Bot className="h-4 w-4 text-primary-light" />
           </div>
           {agentName && (
             <span
@@ -159,7 +159,7 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
       {!isStreaming && (
         <div className="pl-16 space-y-1.5">
           {message.output_parse_error && (
-            <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+            <div className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>{message.output_parse_error}</span>
             </div>
@@ -186,13 +186,13 @@ export function ChatMessage({ message, isStreaming, isLast: _isLast, agentName }
           </div>
 
           <div className="flex items-center gap-1">
-            <button className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors" title="Copy">
+            <button className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/70 transition-colors" title="Copy">
               <Copy className="h-3 w-3" />
             </button>
-            <button className="p-1 rounded text-muted hover:text-emerald-400 hover:bg-accent transition-colors" title="Good response">
+            <button className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted hover:text-emerald-300 hover:border-emerald-500/30 hover:bg-emerald-500/10 transition-colors" title="Good response">
               <ThumbsUp className="h-3 w-3" />
             </button>
-            <button className="p-1 rounded text-muted hover:text-red-400 hover:bg-accent transition-colors" title="Bad response">
+            <button className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted hover:text-red-300 hover:border-red-500/30 hover:bg-red-500/10 transition-colors" title="Bad response">
               <ThumbsDown className="h-3 w-3" />
             </button>
           </div>
