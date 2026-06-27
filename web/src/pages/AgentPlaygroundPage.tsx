@@ -13,9 +13,10 @@ import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
+import { setPlaygroundSessionId } from '@/features/playground/lib/playground-session-store'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, SessionListItem, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo } from '@/features/playground/types'
+import type { AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo } from '@/features/playground/types'
 
 function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolCallInfo): ToolCallInfo[] {
   const items = existing ? [...existing] : []
@@ -81,7 +82,6 @@ function AgentPlaygroundSkeleton() {
             <SkeletonBox className="h-8 rounded-lg" />
             <SkeletonBox className="h-8 rounded-lg" />
           </div>
-          <SkeletonBox className="mt-[52vh] h-4 rounded" />
         </div>
 
         <div className="hidden w-64 shrink-0 border-r border-border bg-surface/65 p-6 md:block">
@@ -176,6 +176,11 @@ function PlaygroundContent() {
   const { data: historyMessages, isFetching } = useSessionMessages(
     selectedSessionId ?? undefined,
   )
+  const isSessionLoading = Boolean(selectedSessionId) && isFetching && syncedSessionRef.current !== selectedSessionId
+
+  useEffect(() => {
+    setPlaygroundSessionId(sessionId)
+  }, [sessionId])
 
   useEffect(() => {
     if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
@@ -485,14 +490,10 @@ function PlaygroundContent() {
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
         <PlaygroundHeader
           agent={agent}
-          sessions={sessions as SessionListItem[]}
-          sessionId={sessionId}
           showLeftPanel={showLeftPanel}
           showRightPanel={showRightPanel}
           onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
           onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
-          onNewSession={handleNewSession}
-          onSessionSelect={handleSessionSelect}
           onApiClick={() => setShowApiModal(true)}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
           releaseVersion={releaseVersion}
@@ -512,7 +513,6 @@ function PlaygroundContent() {
           <OperationsRail
             activeTab={showLeftPanel ? leftPanelTab : null}
             onTabChange={handleLeftPanelTabChange}
-            onCollapse={() => setShowLeftPanel(false)}
           />
 
           {showLeftPanel && (
@@ -539,6 +539,7 @@ function PlaygroundContent() {
             <ChatCanvas
               messages={messages}
               isSending={isSending}
+              isSessionLoading={isSessionLoading}
               onSend={handleSend}
               agentName={agent?.name}
             />
