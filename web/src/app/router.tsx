@@ -1,12 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
-import { AppProviders } from './providers'
-import { PublicLayout } from '@/layouts/PublicLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute, PublicRoute } from '@/features/auth/ProtectedRoute'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
-import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import DashboardPage from '@/pages/DashboardPage'
@@ -27,6 +25,11 @@ import TracesPage from '@/pages/TracesPage'
 import BillingPage from '@/pages/BillingPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+
+function RootRedirect() {
+  const { isAuthenticated } = useAuth()
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
+}
 
 function LegacyProjectRedirect() {
   const { currentOrganization } = useWorkspace()
@@ -59,9 +62,7 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<LandingPage />} />
-        </Route>
+        <Route path="/" element={<RootRedirect />} />
 
         <Route element={<PublicRoute><AuthLayout /></PublicRoute>}>
           <Route path="/login" element={<LoginPage />} />
