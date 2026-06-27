@@ -13,6 +13,7 @@ interface PlaygroundHeaderProps {
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
   onApiClick: () => void
+  onSettingsClick?: () => void
   releaseVersion?: string
   releaseStatus?: ReleaseStatus
 }
