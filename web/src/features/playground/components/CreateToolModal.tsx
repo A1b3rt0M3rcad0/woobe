@@ -35,25 +35,27 @@ export function CreateToolModal({ open, onClose, projectId, agentId, onCreated }
     if (isMcpTool(tool)) {
       const action = mcpReadinessAction(tool)
       if (action === 'connect') {
-        toast.success(`MCP provider "${tool.name}" created. Connect it to load protected tools.`)
+        toast.success(`MCP provider ${tool.name} created. Connect it to load protected tools.`)
       } else {
-        toast.success(`MCP provider "${tool.name}" created and loaded for this agent.`)
+        toast.success(`MCP provider ${tool.name} created and loaded for this agent.`)
       }
       return
     }
 
-    toast.success(`Tool "${tool.name}" created for this agent.`)
+    toast.success(`Tool ${tool.name} created for this agent.`)
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Create Tool">
-      <ApiFirstToolForm
-        key={open ? `playground-tool-form-open-${organizationId || 'project'}` : 'playground-tool-form-closed'}
-        submitLabel="Create"
-        loading={createTool.isPending}
-        onSubmit={handleSubmit}
-        onCancel={onClose}
-      />
+    <Dialog open={open} onClose={onClose} title="Create Tool" className="max-w-4xl bg-surface/95">
+      <div className="rounded-xl border border-border/80 bg-background/25 p-4">
+        <ApiFirstToolForm
+          key={open ? `playground-tool-form-open-${organizationId || 'project'}` : 'playground-tool-form-closed'}
+          submitLabel="Create"
+          loading={createTool.isPending}
+          onSubmit={handleSubmit}
+          onCancel={onClose}
+        />
+      </div>
     </Dialog>
   )
 }
