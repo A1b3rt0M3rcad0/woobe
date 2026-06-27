@@ -70,6 +70,10 @@
   background-color: rgb(129 140 248) !important;
 }
 
+.border-slate-600\/70.bg-slate-800\/60.text-slate-100 .bg-slate-300 {
+  display: none;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
