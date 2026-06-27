@@ -47,7 +47,11 @@
   }
 }
 
-/* Overview environment semantics: Draft is neutral, Staging is operational. */
+/* Overview environment semantics: All is aggregate, Draft is neutral, Staging is operational. */
+.rounded-lg.border.border-border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
+  display: none;
+}
+
 .border-blue-500\/35.bg-blue-500\/10.text-blue-300,
 .border-blue-500\/40.bg-blue-500\/10.text-blue-300 {
   border-color: rgb(100 116 139 / 0.35) !important;
