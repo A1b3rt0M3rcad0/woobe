@@ -1,26 +1,17 @@
-import { useEffect, useRef } from 'react'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Dropdown, type DropdownHandle } from '@/components/ui/Dropdown'
-import { Code2, Settings, Plus, PanelRight, PanelLeft, Bot, ArrowLeft, ChevronDown, Circle } from 'lucide-react'
+import { Code2, Settings, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { formatSessionLabel } from '../utils'
-import { setPlaygroundSessionId } from '../lib/playground-session-store'
 import type { Agent } from '@/features/agents/types'
-import type { SessionListItem } from '@/features/playground/types'
 import type { ReleaseStatus } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
   agent: Agent
-  sessions: SessionListItem[]
-  sessionId: string | null
   showLeftPanel: boolean
   showRightPanel: boolean
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
-  onNewSession: () => void
-  onSessionSelect: (id: string) => void
   onApiClick: () => void
   onSettingsClick: () => void
   releaseVersion?: string
@@ -29,14 +20,10 @@ interface PlaygroundHeaderProps {
 
 export function PlaygroundHeader({
   agent,
-  sessions,
-  sessionId,
   showLeftPanel,
   showRightPanel,
   onToggleLeftPanel,
   onToggleRightPanel,
-  onNewSession,
-  onSessionSelect,
   onApiClick,
   onSettingsClick,
   releaseVersion,
@@ -44,12 +31,6 @@ export function PlaygroundHeader({
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
-  const sessionDropdownRef = useRef<DropdownHandle>(null)
-  const currentSession = sessionId ? sessions.find((s) => s.id === sessionId) ?? null : null
-
-  useEffect(() => {
-    setPlaygroundSessionId(sessionId)
-  }, [sessionId])
 
   const handleBackToProject = () => {
     if (organizationId && projectId) {
@@ -71,14 +52,13 @@ export function PlaygroundHeader({
           <span className="hidden sm:inline">Project</span>
         </button>
         <div className="h-8 w-px bg-border/80" />
-        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-light">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5 min-w-0">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-light shrink-0">
             <Bot className="h-3.5 w-3.5" />
           </span>
-          <span className="text-sm font-semibold text-white">ProjectRAI</span>
+          <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
         </div>
         <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-sm font-semibold text-white truncate max-w-[220px]">{agent.name}</h1>
           <StatusBadge status={agent.status} />
           {releaseVersion && releaseStatus && (
             <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
@@ -99,54 +79,6 @@ export function PlaygroundHeader({
         >
           <PanelLeft className={`h-4 w-4 transition-opacity ${showLeftPanel ? 'opacity-100' : 'opacity-50'}`} />
         </button>
-
-        <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={onNewSession} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
-            <Plus className="mr-1 h-4 w-4" />
-            New Session
-          </Button>
-          <Dropdown
-            ref={sessionDropdownRef}
-            align="end"
-            className="min-w-[180px]"
-            trigger={
-              <button className="flex h-9 w-full min-w-[190px] items-center justify-between gap-2 rounded-lg border border-border/80 bg-background/55 px-3 py-1 text-sm transition-colors cursor-pointer hover:border-primary/35 hover:bg-background/75">
-                <span className={currentSession ? 'text-white truncate' : 'text-muted truncate'}>
-                  {currentSession ? formatSessionLabel(currentSession) : 'Select a session'}
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
-              </button>
-            }
-          >
-            <div className="py-1">
-              <button
-                onClick={() => { onNewSession(); sessionDropdownRef.current?.close() }}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:text-white hover:bg-background/70 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                New Session
-              </button>
-              {sessions.length > 0 && <div className="mx-2 my-1 border-t border-border" />}
-              {sessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => { onSessionSelect(s.id); sessionDropdownRef.current?.close() }}
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                    s.id === sessionId
-                      ? 'bg-primary/10 text-primary-light ring-1 ring-primary/20'
-                      : 'text-muted hover:text-white hover:bg-background/70'
-                  }`}
-                >
-                  <Circle className={`h-2 w-2 shrink-0 fill-current ${s.id === sessionId ? 'text-primary-light' : 'text-muted'}`} />
-                  <span className="truncate text-left flex-1">{formatSessionLabel(s)}</span>
-                  {s.id === sessionId && (
-                    <span className="ml-auto text-[10px] font-medium text-primary-light uppercase">Active</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </Dropdown>
-        </div>
 
         <Button variant="outline" size="sm" onClick={onApiClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
           <Code2 className="mr-1 h-4 w-4" />
