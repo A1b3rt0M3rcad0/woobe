@@ -2,9 +2,9 @@ import { Outlet } from 'react-router-dom'
 import { Activity, CheckCircle2, GitBranch, Play, ShieldCheck } from 'lucide-react'
 
 const operationalSignals = [
-  { label: 'Draft → Staging → Production', icon: GitBranch },
-  { label: 'Agents, tools, knowledge and traces', icon: Activity },
-  { label: 'Versioned runtime control', icon: ShieldCheck },
+  { title: 'Release lifecycle', description: 'Draft, staging, production and rollback.', icon: GitBranch },
+  { title: 'Runtime observability', description: 'Traces, tool calls, latency, tokens and cost.', icon: Activity },
+  { title: 'Operational control', description: 'Models, credentials, tools and contracts in one place.', icon: ShieldCheck },
 ]
 
 export function AuthLayout() {
@@ -42,13 +42,13 @@ export function AuthLayout() {
               {operationalSignals.map((item) => {
                 const Icon = item.icon
                 return (
-                  <div key={item.label} className="flex items-center gap-3 rounded-xl border border-border/80 bg-surface/45 p-3 shadow-sm">
+                  <div key={item.title} className="flex items-center gap-3 rounded-xl border border-border/80 bg-surface/45 p-3 shadow-sm">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/70 text-primary-light">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-100">{item.label}</p>
-                      <p className="mt-0.5 text-xs text-muted">Operational entry point</p>
+                      <p className="truncate text-sm font-medium text-slate-100">{item.title}</p>
+                      <p className="mt-0.5 text-xs text-muted">{item.description}</p>
                     </div>
                     <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-400" />
                   </div>
