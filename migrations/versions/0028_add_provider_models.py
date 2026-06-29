@@ -1,7 +1,7 @@
 """add reusable provider models
 
 Revision ID: rai_provider_models_20260629_01
-Revises: 0029
+Revises: rai_merge_heads_before_provider_models_20260629
 """
 from alembic import op
 import sqlalchemy as sa
@@ -9,7 +9,7 @@ from sqlalchemy.dialects import postgresql
 
 
 revision = "rai_provider_models_20260629_01"
-down_revision = "0029"
+down_revision = "rai_merge_heads_before_provider_models_20260629"
 branch_labels = None
 depends_on = None
 
