@@ -134,6 +134,10 @@ class CreateTraceInput(BaseModel):
     total_cost_usd: float | None = None
     provider: str | None = None
     model: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
     fallback_used: bool = False
     error: str | None = None
     data: dict | None = None
@@ -195,6 +199,11 @@ class TraceSummaryResponse(BaseModel):
     total_cost_usd: float | None = None
     provider: str | None = None
     model: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
+    fallback_used: bool = False
     error: str | None = None
     data: dict | None = None
     created_at: datetime | None = None
@@ -218,6 +227,11 @@ class TraceListItemResponse(BaseModel):
     status: str
     provider: str | None = None
     model: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
+    fallback_used: bool = False
     total_latency_ms: float | None = None
     total_cost_usd: float | None = None
     error: str | None = None
