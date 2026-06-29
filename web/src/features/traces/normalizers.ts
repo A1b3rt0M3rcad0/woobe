@@ -1,5 +1,6 @@
 import type {
   FallbackInfo,
+  ModelBindingInfo,
   Trace,
   TraceDetail,
   TraceDetailNormalized,
@@ -15,6 +16,18 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {}
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function pickString(...values: unknown[]): string | null {
+  for (const value of values) {
+    const found = asString(value)
+    if (found) return found
+  }
+  return null
 }
 
 function inferTitle(trace: Trace): string {
@@ -50,22 +63,53 @@ function safeNumber(value: unknown): number | null {
   return null
 }
 
+function normalizeBinding(raw: unknown, fallback?: ModelBindingInfo | null): ModelBindingInfo | null {
+  const binding = asRecord(raw)
+  const result: ModelBindingInfo = {
+    provider_model_id: pickString(binding.provider_model_id, fallback?.provider_model_id),
+    provider_credential_id: pickString(binding.provider_credential_id, fallback?.provider_credential_id),
+    provider: pickString(binding.provider, fallback?.provider),
+    model: pickString(binding.model, fallback?.model),
+  }
+  return Object.values(result).some(Boolean) ? result : null
+}
+
 function normalizeFallbackInfo(raw: unknown): FallbackInfo | null {
   const fallback = asRecord(raw)
   if (Object.keys(fallback).length === 0) return null
   return {
     primary_model: typeof fallback.primary_model === 'string' ? fallback.primary_model : null,
     primary_provider: typeof fallback.primary_provider === 'string' ? fallback.primary_provider : null,
+    primary_provider_model_id: pickString(fallback.primary_provider_model_id, fallback.provider_model_id),
+    primary_credential_id: pickString(fallback.primary_credential_id, fallback.provider_credential_id),
     primary_error: typeof fallback.primary_error === 'string' ? fallback.primary_error : '',
     fallback_model: typeof fallback.fallback_model === 'string' ? fallback.fallback_model : null,
     fallback_provider: typeof fallback.fallback_provider === 'string' ? fallback.fallback_provider : null,
+    fallback_provider_model_id: pickString(fallback.fallback_provider_model_id),
     fallback_credential_id:
-      typeof fallback.fallback_credential_id === 'string' ? fallback.fallback_credential_id : null,
+      pickString(fallback.fallback_credential_id),
   }
 }
 
 export function normalizeTraceSummary(raw: Trace): TraceSummary {
   const data = asRecord(raw.data)
+  const providerModelId = pickString(raw.provider_model_id, data.provider_model_id)
+  const providerCredentialId = pickString(raw.provider_credential_id, data.provider_credential_id)
+  const fallbackProviderModelId = pickString(raw.fallback_provider_model_id, data.fallback_provider_model_id)
+  const fallbackCredentialId = pickString(raw.fallback_credential_id, data.fallback_credential_id)
+  const modelBinding = normalizeBinding(data.model_binding, {
+    provider_model_id: providerModelId,
+    provider_credential_id: providerCredentialId,
+    provider: pickString(raw.provider, data.provider),
+    model: pickString(raw.model, data.model),
+  })
+  const fallbackModelBinding = normalizeBinding(data.fallback_model_binding, {
+    provider_model_id: fallbackProviderModelId,
+    provider_credential_id: fallbackCredentialId,
+    provider: pickString(data.fallback_provider),
+    model: pickString(data.fallback_model),
+  })
+
   return {
     id: raw.id,
     projectId: raw.project_id,
@@ -76,6 +120,12 @@ export function normalizeTraceSummary(raw: Trace): TraceSummary {
     status: normalizeStatus(raw.status),
     model: raw.model ?? (typeof data.model === 'string' ? data.model : null),
     provider: raw.provider ?? (typeof data.provider === 'string' ? data.provider : null),
+    providerModelId,
+    providerCredentialId,
+    fallbackProviderModelId,
+    fallbackCredentialId,
+    modelBinding,
+    fallbackModelBinding,
     latencyMs: safeNumber(raw.total_latency_ms ?? data.latency_ms),
     inputTokens: safeNumber(data.input_tokens),
     outputTokens: safeNumber(data.output_tokens),
@@ -192,10 +242,44 @@ export function normalizeTraceDetail(raw: TraceDetail): TraceDetailNormalized {
   const messageId = summary.messageId
     ?? (typeof completion?.message_id === 'string' ? completion.message_id : null)
 
+  const diagnosticsRaw = asRecord(data.diagnostics ?? completion?.diagnostics)
+  const diagnostics = Object.keys(diagnosticsRaw).length > 0
+    ? {
+        schemaVersion: safeNumber(diagnosticsRaw.schema_version) ?? 1,
+        agentRuntimeLatencyMs: safeNumber(diagnosticsRaw.agent_runtime_latency_ms ?? diagnosticsRaw.total_latency_ms),
+        llmRuntimeLatencyMs: safeNumber(diagnosticsRaw.llm_runtime_latency_ms),
+        toolWallLatencyMs: safeNumber(diagnosticsRaw.tool_wall_latency_ms),
+        toolCallDurationSumMs: safeNumber(diagnosticsRaw.tool_call_duration_sum_ms),
+        toolHttpLatencyMs: safeNumber(diagnosticsRaw.tool_http_latency_ms),
+        toolOverheadLatencyMs: safeNumber(diagnosticsRaw.tool_overhead_latency_ms),
+        prepareLatencyMs: safeNumber(diagnosticsRaw.prepare_latency_ms),
+        persistenceLatencyMs: safeNumber(diagnosticsRaw.persistence_latency_ms),
+        orchestrationLatencyMs: safeNumber(diagnosticsRaw.orchestration_latency_ms),
+        unaccountedLatencyMs: safeNumber(diagnosticsRaw.unaccounted_latency_ms),
+        toolSharePercent: safeNumber(diagnosticsRaw.tool_share_percent),
+        toolCallCount: safeNumber(diagnosticsRaw.tool_call_count) ?? 0,
+        llmCallCount: safeNumber(diagnosticsRaw.llm_call_count) ?? 0,
+        successfulToolCalls: safeNumber(diagnosticsRaw.successful_tool_calls) ?? 0,
+        failedToolCalls: safeNumber(diagnosticsRaw.failed_tool_calls) ?? 0,
+        usageComplete: Boolean(diagnosticsRaw.usage_complete),
+        costStatus: diagnosticsRaw.cost_status === 'unknown' ? 'unknown' as const : 'known' as const,
+        sourceCount: safeNumber(diagnosticsRaw.source_count) ?? 0,
+        answerLength: safeNumber(diagnosticsRaw.answer_length),
+        fallbackUsed: Boolean(diagnosticsRaw.fallback_used),
+        structuredOutput: Boolean(diagnosticsRaw.structured_output),
+        providerModelId: pickString(diagnosticsRaw.provider_model_id, summary.providerModelId),
+        providerCredentialId: pickString(diagnosticsRaw.provider_credential_id, summary.providerCredentialId),
+        fallbackProviderModelId: pickString(diagnosticsRaw.fallback_provider_model_id, summary.fallbackProviderModelId),
+        fallbackCredentialId: pickString(diagnosticsRaw.fallback_credential_id, summary.fallbackCredentialId),
+        notes: Array.isArray(diagnosticsRaw.notes) ? diagnosticsRaw.notes.filter((item): item is string => typeof item === 'string') : undefined,
+      }
+    : null
+
   return {
     ...summary,
     messageId,
     usage,
+    diagnostics,
     parsedOutput: data.parsed_output ?? completion?.parsed_output ?? null,
     outputParseError:
       typeof (data.output_parse_error ?? completion?.output_parse_error) === 'string'
