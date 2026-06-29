@@ -27,6 +27,46 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _id_text(value) -> str | None:
+    return str(value) if value else None
+
+
+def _provider_value(value) -> str | None:
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
+
+
+def _model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+        "provider": _provider_value(getattr(agent, "provider", None)),
+        "model": getattr(agent, "model", None),
+        "model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "provider", None)),
+            "model": getattr(agent, "model", None),
+        },
+    }
+
+
+def _fallback_model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+        "fallback_provider": _provider_value(getattr(agent, "fallback_provider", None)),
+        "fallback_model": getattr(agent, "fallback_model", None),
+        "fallback_model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "fallback_provider", None)),
+            "model": getattr(agent, "fallback_model", None),
+        },
+    }
+
+
 def _event(
     trace_id: str,
     event_type: str,
@@ -75,6 +115,9 @@ async def finalize_instrumented_execution(owner, **kw):
 
     project_id_text = str(kw["input_dto"].project_id)
     agent_id_text = str(agent.id)
+    binding_payload = _model_binding_payload(agent)
+    fallback_binding_payload = _fallback_model_binding_payload(agent)
+    trace_binding_payload = {**binding_payload, **fallback_binding_payload}
 
     async with AgentUnitOfWork(owner._session_factory) as uow:
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
@@ -98,6 +141,7 @@ async def finalize_instrumented_execution(owner, **kw):
                 "trace_id": trace_id_text,
                 "project_id": project_id_text,
                 "agent_id": agent_id_text,
+                **trace_binding_payload,
                 **item["payload"],
             }
             event = (
@@ -114,6 +158,7 @@ async def finalize_instrumented_execution(owner, **kw):
                         "trace_id": trace_id_text,
                         "project_id": project_id_text,
                         "agent_id": agent_id_text,
+                        **trace_binding_payload,
                         **kw["fallback_info"],
                     },
                 )
@@ -154,6 +199,10 @@ async def finalize_instrumented_execution(owner, **kw):
         "tool_call_count": len(execution.tool_calls),
         "usage_complete": kw["usage_complete"],
         "cost_status": kw["cost_status"],
+        "provider_model_id": binding_payload["provider_model_id"],
+        "provider_credential_id": binding_payload["provider_credential_id"],
+        "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+        "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
     }
 
     request_received_at = (
@@ -187,6 +236,10 @@ async def finalize_instrumented_execution(owner, **kw):
             started_at=execution_started_at,
             span_id=trace_id_text,
             parent_span_id=None,
+            attributes={
+                **binding_payload["model_binding"],
+                "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+            },
         ),
     ]
     if context and context.prepare_started_at:
@@ -260,7 +313,7 @@ async def finalize_instrumented_execution(owner, **kw):
             started_at=execution_started_at,
             ended_at=execution_completed_at,
             duration_ms=total_ms,
-            attributes={"diagnostics": diagnostics},
+            attributes={"diagnostics": diagnostics, **binding_payload["model_binding"]},
             span_id=trace_id_text,
             parent_span_id=None,
         ),
@@ -291,6 +344,7 @@ async def finalize_instrumented_execution(owner, **kw):
         "usage_complete": kw["usage_complete"],
         "model": kw["response_model"] or agent.model,
         "provider": kw["response_provider"] or "",
+        **trace_binding_payload,
         "latency_ms": total_ms,
         "total_latency_ms": total_ms,
         "runtime_scope": "through_response_persistence",
@@ -305,7 +359,7 @@ async def finalize_instrumented_execution(owner, **kw):
         "timeline_complete": True,
     }
     if kw["fallback_info"]:
-        payload["fallback_info"] = kw["fallback_info"]
+        payload["fallback_info"] = {**kw["fallback_info"], **fallback_binding_payload}
     async with AgentUnitOfWork(owner._session_factory) as uow:
         writer = SQLAlchemyAgentOutboxEventWriter(uow)
         await writer.write(completed_event(agent.id, payload))
@@ -320,8 +374,12 @@ async def finalize_instrumented_execution(owner, **kw):
         trace_id=trace_id,
         model=kw["response_model"],
         provider=kw["response_provider"],
+        provider_model_id=getattr(agent, "provider_model_id", None),
+        provider_credential_id=getattr(agent, "provider_credential_id", None),
+        fallback_provider_model_id=getattr(agent, "fallback_provider_model_id", None),
+        fallback_credential_id=getattr(agent, "fallback_credential_id", None),
         fallback_used=kw["fallback_used"],
-        fallback_info=kw["fallback_info"],
+        fallback_info=payload.get("fallback_info"),
         latency_ms=total_ms,
         parsed_output=kw["parsed_output"],
         output_parse_error=kw["output_parse_error"],
