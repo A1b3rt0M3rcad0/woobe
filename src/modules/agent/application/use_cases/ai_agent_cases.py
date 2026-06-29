@@ -9,22 +9,37 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateAgentOutput,
 )
 from modules.agent.domain.entities import Agent
+from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
 from modules.agent.domain.repositories import AgentRepository, ProviderCredentialRepository
+from shared.infra.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
 class CreateAgentUseCase:
-    def __init__(self, agent_repo: AgentRepository, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter) -> None:
+    def __init__(
+        self,
+        agent_repo: AgentRepository,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+        provider_model_repo=None,
+    ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
+        self._provider_model_repo = provider_model_repo
         self._outbox = outbox
 
     async def execute(self, input_dto: CreateAgentInput) -> Agent:
-        if input_dto.provider_credential_id and not await self._credential_repo.get_by_id(input_dto.provider_credential_id):
+        agent = Agent(**input_dto.model_dump())
+        await _resolve_provider_model_bindings(
+            agent,
+            self._provider_model_repo,
+            self._credential_repo,
+        )
+        if agent.provider_credential_id and not await self._credential_repo.get_by_id(agent.provider_credential_id):
             from modules.agent.domain.errors import CredentialNotFoundError
-            raise CredentialNotFoundError(input_dto.provider_credential_id)
-        saved = await self._agent_repo.save(Agent(**input_dto.model_dump()))
+            raise CredentialNotFoundError(agent.provider_credential_id)
+        saved = await self._agent_repo.save(agent)
         await self._outbox.write(AgentCreatedV1.create(
             agent_id=saved.id,
             project_id=saved.project_id,
@@ -36,9 +51,16 @@ class CreateAgentUseCase:
 
 
 class UpdateAgentUseCase:
-    def __init__(self, agent_repo: AgentRepository, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter) -> None:
+    def __init__(
+        self,
+        agent_repo: AgentRepository,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+        provider_model_repo=None,
+    ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
+        self._provider_model_repo = provider_model_repo
         self._outbox = outbox
 
     async def execute(self, agent_id: UUID, input_dto: UpdateAgentInput) -> UpdateAgentOutput:
@@ -48,6 +70,11 @@ class UpdateAgentUseCase:
             raise AgentNotFoundError(agent_id)
         for field, value in input_dto.model_dump(exclude_unset=True).items():
             setattr(existing, field, value)
+        await _resolve_provider_model_bindings(
+            existing,
+            self._provider_model_repo,
+            self._credential_repo,
+        )
         saved = await self._agent_repo.update(existing)
         await self._outbox.write(AgentUpdatedV1.create(
             agent_id=saved.id,
@@ -63,6 +90,8 @@ class UpdateAgentUseCase:
             type=saved.type,
             provider=saved.provider,
             model=saved.model,
+            provider_model_id=saved.provider_model_id,
+            fallback_provider_model_id=saved.fallback_provider_model_id,
             provider_credential_id=saved.provider_credential_id,
             fallback_credential_id=saved.fallback_credential_id,
             fallback_provider=saved.fallback_provider,
@@ -87,7 +116,16 @@ class ListAgentsUseCase:
         if not input_dto.project_id:
             return []
         return [
-            ListAgentsOutput(id=item.id, project_id=item.project_id, name=item.name, provider=item.provider, model=item.model, status=item.status, created_at=item.created_at)
+            ListAgentsOutput(
+                id=item.id,
+                project_id=item.project_id,
+                name=item.name,
+                provider=item.provider,
+                model=item.model,
+                provider_model_id=item.provider_model_id,
+                status=item.status,
+                created_at=item.created_at,
+            )
             for item in await self._agent_repo.list_by_project(input_dto.project_id)
         ]
 
@@ -102,3 +140,41 @@ class GetAgentByIdUseCase:
         if not item:
             raise AgentNotFoundError(input_dto.agent_id)
         return item
+
+
+async def _resolve_provider_model_bindings(
+    agent: Agent,
+    provider_model_repo,
+    credential_repo: ProviderCredentialRepository,
+) -> None:
+    if provider_model_repo is None:
+        return
+    if agent.provider_model_id:
+        provider_model = await provider_model_repo.get_by_id(agent.provider_model_id)
+        if provider_model is None or provider_model.project_id != agent.project_id:
+            from modules.agent.domain.errors import ModelConfigNotFoundError
+            raise ModelConfigNotFoundError
+        if getattr(provider_model.status, "value", provider_model.status) != ProviderModelStatus.active.value:
+            raise ValidationError("Provider model must be active")
+        credential = await credential_repo.get_by_id(provider_model.provider_credential_id)
+        if credential is None or credential.project_id != agent.project_id:
+            from modules.agent.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(provider_model.provider_credential_id)
+        if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:
+            raise ValidationError("Provider credential must be active")
+        agent.provider_credential_id = credential.id
+        agent.provider = credential.provider
+        agent.model = provider_model.model
+
+    if agent.fallback_provider_model_id:
+        fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
+        if fallback_model is None or fallback_model.project_id != agent.project_id:
+            from modules.agent.domain.errors import ModelConfigNotFoundError
+            raise ModelConfigNotFoundError
+        credential = await credential_repo.get_by_id(fallback_model.provider_credential_id)
+        if credential is None or credential.project_id != agent.project_id:
+            from modules.agent.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(fallback_model.provider_credential_id)
+        agent.fallback_credential_id = credential.id
+        agent.fallback_provider = credential.provider
+        agent.fallback_model = fallback_model.model
