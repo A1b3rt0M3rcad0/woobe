@@ -19,6 +19,7 @@ import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
+import ModelsPage from '@/pages/ModelsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
@@ -84,6 +85,7 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/knowledge" element={<KnowledgePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/tools" element={<ToolsPage />} />
+          <Route path="/organizations/:organizationId/projects/:projectId/models" element={<ModelsPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
           <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
@@ -99,6 +101,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/agents/:agentId/playground" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/knowledge" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/tools" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/models" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/api-keys" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
