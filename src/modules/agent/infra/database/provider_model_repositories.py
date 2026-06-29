@@ -3,14 +3,17 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint, select, text
+from sqlalchemy import ForeignKey, Index, String, UniqueConstraint, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from modules.agent.domain.entities import Agent, ProviderModel
-from modules.agent.domain.enums import ProviderModelStatus
-from modules.agent.infra.database.repositories import SQLAlchemyAgentRepository
+from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
+from modules.agent.domain.enums import ProviderModelStatus, ReleaseStatus
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentReleaseRepository,
+    SQLAlchemyAgentRepository,
+)
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.database.base import BaseModel
 from shared.infra.objects import CursorPage
@@ -69,9 +72,7 @@ def provider_model_entity_to_model(entity: ProviderModel) -> ProviderModelModel:
     )
 
 
-class SQLAlchemyProviderModelRepository(
-    BaseSQLAlchemyRepository[ProviderModelModel]
-):
+class SQLAlchemyProviderModelRepository(BaseSQLAlchemyRepository[ProviderModelModel]):
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         super().__init__(session, ProviderModelModel)
 
@@ -197,6 +198,63 @@ class SQLAlchemyAgentRepositoryWithProviderModels(SQLAlchemyAgentRepository):
                 "agent_id": agent.id,
                 "provider_model_id": agent.provider_model_id,
                 "fallback_provider_model_id": agent.fallback_provider_model_id,
+            },
+        )
+        await self._flush()
+
+
+class SQLAlchemyAgentReleaseRepositoryWithProviderModels(SQLAlchemyAgentReleaseRepository):
+    async def save(self, release: AgentRelease) -> AgentRelease:
+        saved = await super().save(release)
+        await self._persist_provider_model_refs(release)
+        return await self.get_by_id(saved.id) or saved
+
+    async def get_by_id(self, release_id: UUID) -> AgentRelease | None:
+        release = await super().get_by_id(release_id)
+        return await self._hydrate_provider_model_refs(release)
+
+    async def get_active_production(self, agent_id: UUID) -> AgentRelease | None:
+        release = await super().get_active_production(agent_id)
+        return await self._hydrate_provider_model_refs(release)
+
+    async def list_by_agent(self, agent_id: UUID) -> list[AgentRelease]:
+        releases = await super().list_by_agent(agent_id)
+        return [await self._hydrate_provider_model_refs(release) for release in releases]
+
+    async def list_by_status(
+        self, agent_id: UUID, status: ReleaseStatus
+    ) -> list[AgentRelease]:
+        releases = await super().list_by_status(agent_id, status)
+        return [await self._hydrate_provider_model_refs(release) for release in releases]
+
+    async def _hydrate_provider_model_refs(self, release: AgentRelease | None) -> AgentRelease | None:
+        if release is None:
+            return None
+        result = await self._session.execute(
+            text(
+                "SELECT provider_model_id, fallback_provider_model_id "
+                "FROM agent.agent_releases WHERE id = :release_id"
+            ),
+            {"release_id": release.id},
+        )
+        row = result.mappings().first()
+        if row:
+            release.provider_model_id = row["provider_model_id"]
+            release.fallback_provider_model_id = row["fallback_provider_model_id"]
+        return release
+
+    async def _persist_provider_model_refs(self, release: AgentRelease) -> None:
+        await self._session.execute(
+            text(
+                "UPDATE agent.agent_releases "
+                "SET provider_model_id = :provider_model_id, "
+                "fallback_provider_model_id = :fallback_provider_model_id "
+                "WHERE id = :release_id"
+            ),
+            {
+                "release_id": release.id,
+                "provider_model_id": release.provider_model_id,
+                "fallback_provider_model_id": release.fallback_provider_model_id,
             },
         )
         await self._flush()
