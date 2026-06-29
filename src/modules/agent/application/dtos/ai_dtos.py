@@ -12,6 +12,7 @@ from modules.agent.domain.enums import (
     ModelConfigStatus,
     PromptStatus,
     Provider,
+    ProviderModelStatus,
     ReleaseStatus,
     ReleaseTestStatus,
     SessionMode,
@@ -70,8 +71,44 @@ class ListProviderCredentialsOutput(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class CreateProviderModelInput(BaseModel):
+    project_id: UUID
+    provider_credential_id: UUID
+    name: str
+    model: str
+    metadata: dict[str, Any] = {}
+
+
+class UpdateProviderModelInput(BaseModel):
+    provider_credential_id: UUID | None = None
+    name: str | None = None
+    model: str | None = None
+    metadata: dict[str, Any] | None = None
+    status: ProviderModelStatus | None = None
+
+
+class ListProviderModelsInput(BaseModel):
+    project_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+
+
+class ProviderModelOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    provider_credential_id: UUID
+    provider: Provider | None = None
+    name: str
+    model: str
+    status: ProviderModelStatus
+    metadata: dict[str, Any] = {}
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class CreateAgentInput(BaseModel):
     project_id: UUID
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     provider_credential_id: UUID | None = None
     fallback_credential_id: UUID | None = None
     name: str
@@ -95,6 +132,8 @@ class CreateAgentOutput(BaseModel):
     type: AgentType
     provider: Provider
     model: str
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     status: AgentStatus
     created_at: datetime | None = None
 
@@ -105,6 +144,8 @@ class UpdateAgentInput(BaseModel):
     system_prompt: str | None = None
     provider: Provider | None = None
     model: str | None = None
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     provider_credential_id: UUID | None = None
     fallback_provider: Provider | None = None
     fallback_model: str | None = None
@@ -123,6 +164,8 @@ class UpdateAgentOutput(BaseModel):
     type: AgentType
     provider: Provider
     model: str
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     provider_credential_id: UUID | None = None
     fallback_credential_id: UUID | None = None
     fallback_provider: Provider | None = None
@@ -148,6 +191,7 @@ class ListAgentsOutput(BaseModel):
     name: str
     provider: Provider
     model: str
+    provider_model_id: UUID | None = None
     status: AgentStatus
     created_at: datetime | None = None
 
@@ -306,6 +350,8 @@ class CreateReleaseInput(BaseModel):
     contract_version_id: UUID | None = None
     knowledge_version_id: UUID | None = None
     model_config_version_id: UUID | None = None
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
@@ -339,6 +385,8 @@ class CreateReleaseOutput(BaseModel):
     contract_version_id: UUID | None = None
     knowledge_version_id: UUID | None = None
     model_config_version_id: UUID | None = None
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
