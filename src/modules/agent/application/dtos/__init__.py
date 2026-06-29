@@ -1,5 +1,4 @@
 from modules.agent.application.dtos.ai_dtos import (
-    CreateAgentInput,
     CreateAgentOutput,
     CreateContractInput,
     CreateContractOutput,
@@ -28,13 +27,16 @@ from modules.agent.application.dtos.ai_dtos import (
     PromoteReleaseInput,
     ProviderModelOutput,
     RollbackReleaseInput,
-    UpdateAgentInput,
     UpdateAgentOutput,
     UpdateContractInput,
     UpdateContractOutput,
     UpdateProviderCredentialInput,
     UpdateProviderCredentialOutput,
     UpdateProviderModelInput,
+)
+from modules.agent.application.dtos.agent_binding_dtos import (
+    CreateAgentInput,
+    UpdateAgentInput,
 )
 from modules.agent.application.dtos.knowledge_dtos import (
     AgentCollectionOutput,
