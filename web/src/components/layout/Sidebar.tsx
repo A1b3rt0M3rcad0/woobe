@@ -5,6 +5,7 @@ import {
   Bot,
   BookOpen,
   Wrench,
+  Boxes,
   Key,
   BarChart3,
   Activity,
@@ -37,6 +38,7 @@ const buildNavItems: NavItem[] = [
   { label: 'Agents', icon: Bot, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'agents') },
   { label: 'Knowledge', icon: BookOpen, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'knowledge') },
   { label: 'Tools', icon: Wrench, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'tools') },
+  { label: 'Models', icon: Boxes, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'models') },
 ]
 
 const operateNavItems: NavItem[] = [
