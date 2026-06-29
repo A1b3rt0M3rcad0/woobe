@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Boxes, Key, Plus, Search, Cpu, Pencil, Archive, ServerCog } from 'lucide-react'
+import { Archive, Cpu, Key, Plus, Search, ServerCog } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/common/LoadingState'
@@ -176,9 +176,10 @@ function ModelDialog({
   const credential = credentials.find((item) => item.id === form.credentialId) || null
   const suggestions = credential ? commonModelSuggestions[credential.provider] || [] : []
 
-  useMemo(() => {
+  useEffect(() => {
+    if (!open) return
     setForm(modelToForm(selectedModel, credentials))
-  }, [selectedModel, credentials])
+  }, [open, selectedModel, credentials])
 
   const setField = <K extends keyof ModelFormState>(key: K, value: ModelFormState[K]) => {
     setForm((previous) => ({ ...previous, [key]: value }))
@@ -340,6 +341,16 @@ export default function ModelsPage() {
     })
   }, [models, query, credentialsById])
 
+  const openCreateModel = () => {
+    setSelectedModelId(null)
+    setShowModelDialog(true)
+  }
+
+  const openEditModel = (id: string) => {
+    setSelectedModelId(id)
+    setShowModelDialog(true)
+  }
+
   const handleCloseModelDialog = () => {
     setShowModelDialog(false)
     setSelectedModelId(null)
@@ -378,7 +389,7 @@ export default function ModelsPage() {
             <Key className="mr-2 h-4 w-4" />
             Add credential
           </Button>
-          <Button onClick={() => setShowModelDialog(true)} disabled={!hasCredentials}>
+          <Button onClick={openCreateModel} disabled={!hasCredentials}>
             <Plus className="mr-2 h-4 w-4" />
             New model
           </Button>
@@ -411,92 +422,23 @@ export default function ModelsPage() {
             key={model.id}
             model={model}
             credential={credentialsById.get(model.provider_credential_id)}
-            onClick={() => {
-              setSelectedModelId(model.id)
-              setShowModelDialog(true)
-            }}
+            onClick={() => openEditModel(model.id)}
           />
         ))}
-        <CreateCard onClick={() => setShowModelDialog(true)} />
+        <CreateCard onClick={openCreateModel} />
       </div>
 
-      <Dialog
-        open={Boolean(selectedModel)}
-        onClose={() => setSelectedModelId(null)}
-        title="Model settings"
-        className="max-h-[90vh] max-w-4xl overflow-hidden"
-      >
-        {selectedModel && (
-          <div className="max-h-[calc(90vh-96px)] overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-                    <Boxes className="h-5 w-5" />
-                  </div>
-                  <div className="mt-5 min-w-0">
-                    <h2 className="truncate text-base font-semibold text-white">{selectedModel.name}</h2>
-                    <code className="mt-1 block truncate text-xs text-muted">{selectedModel.model}</code>
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <StatusBadge status={selectedModel.status || 'active'} />
-                    <Pill>{providerLabel(selectedModel.provider || credentialsById.get(selectedModel.provider_credential_id)?.provider)}</Pill>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/90 bg-background/60 p-4">
-                  <p className="text-sm font-semibold text-white">Credential binding</p>
-                  <div className="mt-3 space-y-2 text-xs leading-5 text-muted">
-                    <p className="truncate">{getCredentialLabel(credentialsById.get(selectedModel.provider_credential_id))}</p>
-                    <p>Created · {formatDate(selectedModel.created_at)}</p>
-                    <p>Updated · {formatDate(selectedModel.updated_at)}</p>
-                  </div>
-                </div>
-
-                <section className="rounded-xl border border-border/90 bg-background/60 p-4">
-                  <h3 className="text-sm font-semibold text-white">State</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Archive or disable from the edit form. Agents using archived models should be migrated.</p>
-                  <Button className="mt-4 w-full" variant="outline" size="sm" onClick={() => { setShowModelDialog(true) }}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit model
-                  </Button>
-                </section>
-              </aside>
-
-              <section className="space-y-4">
-                <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex items-center gap-2">
-                    <Cpu className="h-4 w-4 text-primary-light" />
-                    <p className="text-sm font-semibold text-white">Model identifier</p>
-                  </div>
-                  <code className="mt-3 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted">{selectedModel.model}</code>
-                </div>
-
-                <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex items-center gap-2">
-                    <Key className="h-4 w-4 text-primary-light" />
-                    <p className="text-sm font-semibold text-white">Provider credential</p>
-                  </div>
-                  <div className="mt-3 rounded-lg border border-border bg-background p-3 text-sm text-muted">
-                    <p>{getCredentialLabel(credentialsById.get(selectedModel.provider_credential_id))}</p>
-                    {credentialsById.get(selectedModel.provider_credential_id)?.metadata?.base_url && (
-                      <p className="mt-2 truncate text-xs">Base URL: <code>{credentialsById.get(selectedModel.provider_credential_id)?.metadata?.base_url}</code></p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex items-center gap-2">
-                    <Archive className="h-4 w-4 text-primary-light" />
-                    <p className="text-sm font-semibold text-white">Runtime separation</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted">This model does not store temperature, max output tokens, prompts, tools or knowledge. Those remain agent/runtime configuration.</p>
-                </div>
-              </section>
-            </div>
+      <div className="rounded-xl border border-border/90 bg-surface/60 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
+            <Archive className="h-4 w-4" />
           </div>
-        )}
-      </Dialog>
+          <div>
+            <p className="text-sm font-semibold text-white">Runtime separation</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Models only bind a model identifier to a credential. Temperature, max output tokens, tools, knowledge and prompts remain configured inside each agent.</p>
+          </div>
+        </div>
+      </div>
 
       <ModelDialog
         open={showModelDialog}
