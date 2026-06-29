@@ -8,6 +8,7 @@ class Provider(StrEnum):
     azure = auto()
     aws_bedrock = auto()
     custom = auto()
+    openrouter = auto()
     groq = auto()
 
 
@@ -16,6 +17,12 @@ class CredentialStatus(StrEnum):
     expired = auto()
     revoked = auto()
     invalid = auto()
+
+
+class ProviderModelStatus(StrEnum):
+    active = auto()
+    inactive = auto()
+    archived = auto()
 
 
 class AgentStatus(StrEnum):
