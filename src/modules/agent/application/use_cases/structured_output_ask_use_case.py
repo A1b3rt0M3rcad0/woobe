@@ -17,9 +17,11 @@ from modules.agent.application.use_cases.structured_output_contract import (
     normalize_contract_for_prompt,
     validate_output_against_contract,
 )
+from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
@@ -40,6 +42,16 @@ _RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
     "integrations, external access, or runtime capabilities are available, call "
     f"{RUNTIME_TOOL_INVENTORY_NAME} before answering."
 )
+
+
+def _id_text(value) -> str | None:
+    return str(value) if value else None
+
+
+def _provider_value(value) -> str | None:
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
 
 
 class StructuredOutputAskAgentUseCase(
@@ -99,6 +111,49 @@ class StructuredOutputAskAgentUseCase(
             messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
             updated[11] = messages
         return tuple(updated)
+
+    async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
+        try:
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+                provider = _provider_value(getattr(agent, "provider", None))
+                fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
+                failed_event = AgentExecutionFailedV1.create(
+                    agent_id=agent.id,
+                    session_id=session.id if session else None,
+                    payload={
+                        "trace_id": str(trace_id) if trace_id else None,
+                        "project_id": str(input_dto.project_id),
+                        "agent_id": str(agent.id),
+                        "session_id": str(session.id) if session else None,
+                        "provider": provider,
+                        "model": getattr(agent, "model", None),
+                        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                        "fallback_provider": fallback_provider,
+                        "fallback_model": getattr(agent, "fallback_model", None),
+                        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                        "model_binding": {
+                            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                            "provider": provider,
+                            "model": getattr(agent, "model", None),
+                        },
+                        "fallback_model_binding": {
+                            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                            "provider": fallback_provider,
+                            "model": getattr(agent, "fallback_model", None),
+                        },
+                        "error": error,
+                    },
+                )
+                await outbox.write(failed_event)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("Failed to emit instrumented AgentExecutionFailedV1: %s", exc)
 
     async def _finalize(
         self, session, agent, input_dto, trace_id, answer, usage,
