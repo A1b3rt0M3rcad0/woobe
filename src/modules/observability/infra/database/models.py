@@ -21,6 +21,9 @@ class TraceModel(BaseModel):
             "started_at",
             postgresql_where=text("status IN ('completed', 'failed', 'cancelled')"),
         ),
+        Index("ix_observability_traces_provider_model_id", "provider_model_id"),
+        Index("ix_observability_traces_provider_credential_id", "provider_credential_id"),
+        Index("ix_observability_traces_fallback_provider_model_id", "fallback_provider_model_id"),
         {"schema": "observability"},
     )
 
@@ -37,6 +40,10 @@ class TraceModel(BaseModel):
     total_cost_usd: Mapped[float | None] = mapped_column(Float)
     provider: Mapped[str | None] = mapped_column(String(64))
     model: Mapped[str | None] = mapped_column(String(128))
+    provider_model_id: Mapped[UUID | None]
+    provider_credential_id: Mapped[UUID | None]
+    fallback_provider_model_id: Mapped[UUID | None]
+    fallback_credential_id: Mapped[UUID | None]
     fallback_used: Mapped[bool] = mapped_column(default=False)
     error: Mapped[str | None] = mapped_column(Text)
     data: Mapped[dict | None] = mapped_column(JSONB)
