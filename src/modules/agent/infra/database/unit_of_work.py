@@ -8,13 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyProviderModelRepository,
 )
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentInboxRepository,
     SQLAlchemyAgentOutboxRepository,
-    SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentToolRepository,
     SQLAlchemyAgentToolSecretRepository,
     SQLAlchemyAskJobRepository,
@@ -35,7 +35,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._agents: SQLAlchemyAgentRepositoryWithProviderModels | None = None
         self._provider_credentials: SQLAlchemyProviderCredentialRepository | None = None
         self._provider_models: SQLAlchemyProviderModelRepository | None = None
-        self._releases: SQLAlchemyAgentReleaseRepository | None = None
+        self._releases: SQLAlchemyAgentReleaseRepositoryWithProviderModels | None = None
         self._sessions: SQLAlchemySessionRepository | None = None
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
@@ -73,9 +73,9 @@ class AgentUnitOfWork(UnitOfWork):
         return self._provider_models
 
     @property
-    def releases(self) -> SQLAlchemyAgentReleaseRepository:
+    def releases(self) -> SQLAlchemyAgentReleaseRepositoryWithProviderModels:
         if self._releases is None:
-            self._releases = SQLAlchemyAgentReleaseRepository(self)
+            self._releases = SQLAlchemyAgentReleaseRepositoryWithProviderModels(self)
         return self._releases
 
     @property
