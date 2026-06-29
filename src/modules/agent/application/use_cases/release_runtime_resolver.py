@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from modules.agent.domain.entities import Agent
-from modules.agent.domain.enums import ReleaseStatus
+from modules.agent.domain.entities import Agent, AgentRelease
+from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus
+from shared.infra.errors import ValidationError
 
 
 class ReleaseRuntimeResolver(AskAgentUseCase):
@@ -19,7 +21,10 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
                 return agent
             release = await release_repo.get_active_production(agent.id)
             if release is not None:
-                return self._apply_release_to_agent(agent, release)
+                return self._apply_release_snapshot_ids(
+                    self._apply_release_to_agent(agent, release),
+                    release,
+                )
             return agent
 
         if context == "staging":
@@ -27,30 +32,42 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
                 return agent
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
             if releases:
-                return self._apply_release_to_agent(agent, releases[0])
+                return self._apply_release_snapshot_ids(
+                    self._apply_release_to_agent(agent, releases[0]),
+                    releases[0],
+                )
             return agent
 
         if context != "playground":
             raise ValueError("Unsupported execution context")
 
         if input_dto.snapshot_override:
-            return self._apply_snapshot_override(agent, input_dto.snapshot_override)
+            agent = self._apply_snapshot_override(agent, input_dto.snapshot_override)
+            self._apply_snapshot_provider_model_ids(agent, input_dto.snapshot_override)
+            return await self._resolve_provider_model_refs(uow, agent)
 
         if input_dto.loaded_release_id and release_repo is not None:
             release = await release_repo.get_by_id(input_dto.loaded_release_id)
             if release is not None:
-                return self._apply_release_to_agent(agent, release)
+                agent = self._apply_release_snapshot_ids(
+                    self._apply_release_to_agent(agent, release),
+                    release,
+                )
+                return await self._resolve_provider_model_refs(uow, agent)
 
         if release_repo is not None:
             drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)
             if drafts:
-                return self._apply_release_to_agent(agent, drafts[0])
+                agent = self._apply_release_snapshot_ids(
+                    self._apply_release_to_agent(agent, drafts[0]),
+                    drafts[0],
+                )
+                return await self._resolve_provider_model_refs(uow, agent)
 
-        return agent
+        return await self._resolve_provider_model_refs(uow, agent)
 
     async def _load_base_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         from modules.agent.domain.errors import AgentNotFoundError
-        from shared.infra.errors import ValidationError
 
         agent = await uow.agents.get_by_id(input_dto.agent_id)
         if agent is None:
@@ -61,4 +78,59 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
         status_value = getattr(status, "value", status)
         if status_value not in (None, "active"):
             raise ValidationError("Agent is not active")
+        return agent
+
+    def _apply_release_snapshot_ids(self, agent: Agent, release: AgentRelease) -> Agent:
+        agent.provider_model_id = getattr(release, "provider_model_id", None) or agent.provider_model_id
+        agent.fallback_provider_model_id = (
+            getattr(release, "fallback_provider_model_id", None)
+            or agent.fallback_provider_model_id
+        )
+        return agent
+
+    def _apply_snapshot_provider_model_ids(self, agent: Agent, snapshot: dict) -> None:
+        if snapshot.get("provider_model_id") is not None:
+            value = snapshot["provider_model_id"]
+            agent.provider_model_id = UUID(value) if isinstance(value, str) else value
+        if snapshot.get("fallback_provider_model_id") is not None:
+            value = snapshot["fallback_provider_model_id"]
+            agent.fallback_provider_model_id = UUID(value) if isinstance(value, str) else value
+
+    async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
+        provider_model_repo = getattr(uow, "provider_models", None)
+        if provider_model_repo is None:
+            return agent
+        if agent.provider_model_id:
+            provider_model = await provider_model_repo.get_by_id(agent.provider_model_id)
+            if provider_model is None or provider_model.project_id != agent.project_id:
+                from modules.agent.domain.errors import ModelConfigNotFoundError
+
+                raise ModelConfigNotFoundError
+            if getattr(provider_model.status, "value", provider_model.status) != ProviderModelStatus.active.value:
+                raise ValidationError("Provider model must be active")
+            credential = await uow.provider_credentials.get_by_id(provider_model.provider_credential_id)
+            if credential is None or credential.project_id != agent.project_id:
+                from modules.agent.domain.errors import CredentialNotFoundError
+
+                raise CredentialNotFoundError(provider_model.provider_credential_id)
+            if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:
+                raise ValidationError("Provider credential must be active")
+            agent.provider_credential_id = credential.id
+            agent.provider = credential.provider
+            agent.model = provider_model.model
+
+        if agent.fallback_provider_model_id:
+            fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
+            if fallback_model is None or fallback_model.project_id != agent.project_id:
+                from modules.agent.domain.errors import ModelConfigNotFoundError
+
+                raise ModelConfigNotFoundError
+            credential = await uow.provider_credentials.get_by_id(fallback_model.provider_credential_id)
+            if credential is None or credential.project_id != agent.project_id:
+                from modules.agent.domain.errors import CredentialNotFoundError
+
+                raise CredentialNotFoundError(fallback_model.provider_credential_id)
+            agent.fallback_credential_id = credential.id
+            agent.fallback_provider = credential.provider
+            agent.fallback_model = fallback_model.model
         return agent
