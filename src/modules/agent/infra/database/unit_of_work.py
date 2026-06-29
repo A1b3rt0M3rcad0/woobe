@@ -7,10 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
+from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyAgentRepositoryWithProviderModels,
+    SQLAlchemyProviderModelRepository,
+)
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentInboxRepository,
     SQLAlchemyAgentOutboxRepository,
-    SQLAlchemyAgentRepository,
     SQLAlchemyAgentToolRepository,
     SQLAlchemyAgentToolSecretRepository,
     SQLAlchemyAskJobRepository,
@@ -28,8 +31,9 @@ class AgentUnitOfWork(UnitOfWork):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
-        self._agents: SQLAlchemyAgentRepository | None = None
+        self._agents: SQLAlchemyAgentRepositoryWithProviderModels | None = None
         self._provider_credentials: SQLAlchemyProviderCredentialRepository | None = None
+        self._provider_models: SQLAlchemyProviderModelRepository | None = None
         self._sessions: SQLAlchemySessionRepository | None = None
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
@@ -49,9 +53,9 @@ class AgentUnitOfWork(UnitOfWork):
         return self._session
 
     @property
-    def agents(self) -> SQLAlchemyAgentRepository:
+    def agents(self) -> SQLAlchemyAgentRepositoryWithProviderModels:
         if self._agents is None:
-            self._agents = SQLAlchemyAgentRepository(self)
+            self._agents = SQLAlchemyAgentRepositoryWithProviderModels(self)
         return self._agents
 
     @property
@@ -59,6 +63,12 @@ class AgentUnitOfWork(UnitOfWork):
         if self._provider_credentials is None:
             self._provider_credentials = SQLAlchemyProviderCredentialRepository(self)
         return self._provider_credentials
+
+    @property
+    def provider_models(self) -> SQLAlchemyProviderModelRepository:
+        if self._provider_models is None:
+            self._provider_models = SQLAlchemyProviderModelRepository(self)
+        return self._provider_models
 
     @property
     def sessions(self) -> SQLAlchemySessionRepository:
@@ -152,6 +162,7 @@ class AgentUnitOfWork(UnitOfWork):
             self._session = None
         self._agents = None
         self._provider_credentials = None
+        self._provider_models = None
         self._sessions = None
         self._messages = None
         self._ask_jobs = None
