@@ -34,6 +34,12 @@ _DATA_FIELDS = {
     "fallback_info",
     "model",
     "provider",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+    "model_binding",
+    "fallback_model_binding",
     "diagnostics",
 }
 
@@ -80,6 +86,13 @@ def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
             data[field] = payload[field]
     data["last_event_type"] = event_type
     trace.data = data
+
+
+def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
+    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
+    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
 
 
 async def _save_event(
@@ -185,9 +198,14 @@ def _build_execution_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
         "structured_output": payload.get("parsed_output") is not None,
         "provider": payload.get("provider"),
         "model": payload.get("model"),
+        "provider_model_id": payload.get("provider_model_id"),
+        "provider_credential_id": payload.get("provider_credential_id"),
+        "fallback_provider_model_id": payload.get("fallback_provider_model_id"),
+        "fallback_credential_id": payload.get("fallback_credential_id"),
         "notes": [
             "non_tool_runtime_latency_ms includes all model calls and orchestration outside Tool execution",
             "token counters reflect the usage reported by the Agent runtime",
+            "provider_model_id identifies the reusable model binding used by the agent runtime",
         ],
     }
 
@@ -227,6 +245,7 @@ async def project_agent_event(
     trace.session_id = trace.session_id or _uuid(payload.get("session_id"))
     trace.provider = payload.get("provider") or trace.provider
     trace.model = payload.get("model") or trace.model
+    _apply_provider_model_refs(trace, payload)
     _merge_data(trace, payload, event_type)
 
     if event_type == "agent.execution.requested.v1":
@@ -240,10 +259,11 @@ async def project_agent_event(
             payload={"event": event_type, **payload},
         )
         logger.info(
-            "Trace projection created trace_id=%s project_id=%s session_id=%s",
+            "Trace projection created trace_id=%s project_id=%s session_id=%s provider_model_id=%s",
             trace_id,
             project_id,
             trace.session_id,
+            trace.provider_model_id,
         )
         return
 
@@ -285,7 +305,6 @@ async def project_agent_event(
                 payload.get("tool_name"),
             )
             return
-
         discriminator = _tool_discriminator(payload, "tool")
         await _save_event(
             event_repo,
@@ -301,6 +320,7 @@ async def project_agent_event(
     if event_type == "agent.execution.fallback_triggered.v1":
         trace.fallback_used = True
         _merge_data(trace, {**payload, "fallback_used": True}, event_type)
+        _apply_provider_model_refs(trace, payload)
         await trace_repo.save(trace)
         await _save_event(
             event_repo,
@@ -344,6 +364,7 @@ async def project_agent_event(
         or payload.get("latency_ms")
         or trace.total_latency_ms
     )
+    _apply_provider_model_refs(trace, payload)
     _merge_data(trace, payload_with_diagnostics, event_type)
     await trace_repo.save(trace)
 
@@ -393,9 +414,10 @@ async def project_agent_event(
     )
 
     logger.info(
-        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s",
+        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s provider_model_id=%s",
         trace_id,
         diagnostics["agent_runtime_latency_ms"],
         diagnostics["tool_runtime_latency_ms"],
         diagnostics["tool_call_count"],
+        trace.provider_model_id,
     )
