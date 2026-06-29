@@ -41,8 +41,6 @@ def _model_binding_payload(agent) -> dict[str, Any]:
     return {
         "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
         "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
-        "provider": _provider_value(getattr(agent, "provider", None)),
-        "model": getattr(agent, "model", None),
         "model_binding": {
             "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
             "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
@@ -342,9 +340,9 @@ async def finalize_instrumented_execution(owner, **kw):
         "cost_usd": usage.cost_usd,
         "cost_status": kw["cost_status"],
         "usage_complete": kw["usage_complete"],
+        **trace_binding_payload,
         "model": kw["response_model"] or agent.model,
         "provider": kw["response_provider"] or "",
-        **trace_binding_payload,
         "latency_ms": total_ms,
         "total_latency_ms": total_ms,
         "runtime_scope": "through_response_persistence",
