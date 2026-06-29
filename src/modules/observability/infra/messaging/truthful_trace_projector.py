@@ -20,6 +20,13 @@ from modules.observability.infra.messaging.trace_projector import (
 )
 
 
+def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
+    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
+    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+
+
 async def _project_cancelled(
     *,
     payload: dict[str, Any],
@@ -49,12 +56,17 @@ async def _project_cancelled(
     trace.status = TraceStatus.cancelled
     trace.started_at = trace.started_at or now
     trace.ended_at = now
+    _apply_provider_model_refs(trace, payload)
     data = dict(trace.data or {})
     data.update(
         {
             "last_event_type": "agent.execution.cancelled.v1",
             "cancellation_reason": payload.get("reason"),
             "request_id": payload.get("request_id"),
+            "provider_model_id": payload.get("provider_model_id"),
+            "provider_credential_id": payload.get("provider_credential_id"),
+            "fallback_provider_model_id": payload.get("fallback_provider_model_id"),
+            "fallback_credential_id": payload.get("fallback_credential_id"),
         }
     )
     trace.data = data
@@ -86,6 +98,8 @@ async def project_agent_event(
     if trace is None:
         return
 
+    _apply_provider_model_refs(trace, payload)
+
     if event_type == "agent.execution.llm_completed.v1":
         await event_repo.delete(_event_id(trace_id, "llm_completed"))
         discriminator = payload.get("call_id") or payload.get("call_index") or "call"
@@ -106,6 +120,7 @@ async def project_agent_event(
         return
 
     if event_type != "agent.execution.completed.v1":
+        await trace_repo.save(trace)
         return
 
     diagnostics = build(payload)
@@ -116,6 +131,9 @@ async def project_agent_event(
         "parsed_output", "output_parse_error", "fallback_used",
         "fallback_info", "model", "provider", "cost_status",
         "usage_complete", "execution_events", "timeline_complete",
+        "provider_model_id", "provider_credential_id",
+        "fallback_provider_model_id", "fallback_credential_id",
+        "model_binding", "fallback_model_binding",
     ):
         data[field] = payload.get(field)
     data["cost_usd"] = payload.get("cost_usd")
