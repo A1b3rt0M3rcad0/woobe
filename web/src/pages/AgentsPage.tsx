@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAgents, useCreateAgent } from '@/features/agents/hooks'
-import { useCredentials } from '@/features/provider-credentials/hooks'
-import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
+import { useProviderModels } from '@/features/provider-models/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -10,35 +9,27 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { ArrowRight, Bot, Plus, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Bot, Boxes, Plus, Search, ShieldCheck } from 'lucide-react'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
-import type { ProviderCredential } from '@/features/provider-credentials/types'
-
-const defaultModels: Record<string, string> = {
-  openai: 'gpt-4o-mini',
-  anthropic: 'claude-3-5-haiku-latest',
-  google: 'gemini-1.5-flash',
-}
+import type { ProviderModel } from '@/features/provider-models/types'
 
 const providerLabels: Record<string, string> = {
   openai: 'OpenAI',
+  openrouter: 'OpenRouter',
   anthropic: 'Anthropic',
   google: 'Google',
   custom: 'Custom',
 }
 
-function getCredentialModel(credential: ProviderCredential): string {
-  return credential.metadata?.model || credential.metadata?.model_name || ''
-}
-
-function getCredentialBaseUrl(credential: ProviderCredential): string {
-  return credential.metadata?.base_url || ''
-}
-
 function providerLabel(agent: Agent) {
   return [agent.provider, agent.model].filter(Boolean).join(' / ') || 'Model not configured'
+}
+
+function modelProviderLabel(model: ProviderModel) {
+  const provider = model.provider || ''
+  return providerLabels[provider] || provider || 'Provider'
 }
 
 function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -69,23 +60,19 @@ function CreateCard({ title, description, onClick }: { title: string; descriptio
   )
 }
 
-function CredentialSummary({ credential }: { credential: ProviderCredential }) {
-  const isCustom = credential.provider === 'custom'
+function ModelSummary({ model }: { model: ProviderModel }) {
   return (
     <div className="rounded-xl border border-border/80 bg-background/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{credential.name}</p>
-          <p className="mt-1 text-xs text-muted">{providerLabels[credential.provider] || credential.provider}</p>
+          <p className="truncate text-sm font-semibold text-white">{model.name}</p>
+          <p className="mt-1 text-xs text-muted">{modelProviderLabel(model)}</p>
         </div>
-        <StatusBadge status={credential.status || 'active'} />
+        <StatusBadge status={model.status || 'active'} />
       </div>
-      {isCustom && (
-        <div className="mt-3 space-y-1 text-xs text-muted">
-          <p>Model · <code className="rounded bg-surface px-1">{getCredentialModel(credential) || 'missing'}</code></p>
-          <p>Base URL · <code className="rounded bg-surface px-1">{getCredentialBaseUrl(credential) || 'missing'}</code></p>
-        </div>
-      )}
+      <div className="mt-3 space-y-1 text-xs text-muted">
+        <p>Model · <code className="rounded bg-surface px-1">{model.model}</code></p>
+      </div>
     </div>
   )
 }
@@ -95,17 +82,17 @@ export default function AgentsPage() {
   const navigate = useNavigate()
   const { data: agents, isLoading, isError, error, refetch } = useAgents(projectId)
   const createAgent = useCreateAgent(projectId)
-  const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
+  const { data: providerModels = [], isLoading: modelsLoading } = useProviderModels(projectId)
   const [query, setQuery] = useState('')
   const [showCreateAgent, setShowCreateAgent] = useState(false)
-  const [showAddCredential, setShowAddCredential] = useState(false)
-  const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
   const [agentName, setAgentName] = useState('')
   const [agentDescription, setAgentDescription] = useState('')
-  const pendingCredentialId = useRef<string | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
 
   const p = (projectId: string, ...segments: string[]) => orgProjectPath(organizationId, projectId, ...segments)
   const items = agents ?? []
+  const activeModels = providerModels.filter((model) => model.status !== 'archived')
+  const selectedModel = activeModels.find((model) => model.id === selectedModelId) || null
 
   const visibleAgents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -119,56 +106,24 @@ export default function AgentsPage() {
     ))
   }, [items, query])
 
-  useEffect(() => {
-    if (pendingCredentialId.current) {
-      const match = credentials.find((credential) => credential.id === pendingCredentialId.current)
-      if (match) {
-        setSelectedCredential(match)
-        pendingCredentialId.current = null
-        return
-      }
-    }
-
-    if (!selectedCredential) return
-    const match = credentials.find((credential) => credential.id === selectedCredential.id)
-    if (match) setSelectedCredential(match)
-  }, [credentials, selectedCredential])
-
-  const handleCredentialCreated = async (credentialId: string) => {
-    setShowAddCredential(false)
-    pendingCredentialId.current = credentialId
-    await refetchCredentials()
-  }
-
   const openCreateAgent = () => {
     setAgentName('')
     setAgentDescription('')
-    setSelectedCredential(null)
+    setSelectedModelId(null)
     setShowCreateAgent(true)
   }
 
   const closeCreateAgent = () => {
     setShowCreateAgent(false)
-    setShowAddCredential(false)
-    setSelectedCredential(null)
+    setSelectedModelId(null)
     setAgentName('')
     setAgentDescription('')
-    pendingCredentialId.current = null
-  }
-
-  const selectCredential = (credentialId: string) => {
-    const credential = credentials.find((item) => item.id === credentialId)
-    setSelectedCredential(credential || null)
   }
 
   const getDisabledReason = () => {
     if (!agentName.trim()) return 'Agent name is required.'
-    if (!selectedCredential) return 'Select a provider credential.'
+    if (!selectedModel) return 'Select a reusable model.'
     if (!projectId) return 'Project ID is missing.'
-    if (selectedCredential.provider === 'custom') {
-      if (!getCredentialModel(selectedCredential)) return 'Custom credentials require a model name.'
-      if (!getCredentialBaseUrl(selectedCredential)) return 'Custom credentials require a base URL.'
-    }
     return null
   }
 
@@ -178,31 +133,21 @@ export default function AgentsPage() {
       toast.error(reason)
       return
     }
-    if (!selectedCredential || !projectId) return
-
-    const model = selectedCredential.provider === 'custom'
-      ? getCredentialModel(selectedCredential)
-      : defaultModels[selectedCredential.provider] || getCredentialModel(selectedCredential) || 'gpt-4o-mini'
-
-    const settings: Record<string, unknown> = {}
-    if (selectedCredential.provider === 'custom') {
-      const baseUrl = getCredentialBaseUrl(selectedCredential)
-      if (baseUrl) settings.base_url = baseUrl
-    }
+    if (!selectedModel || !projectId) return
 
     try {
       const agent = await createAgent.mutateAsync({
         project_id: projectId,
         name: agentName.trim(),
         description: agentDescription.trim() || '',
-        provider: selectedCredential.provider,
-        model,
+        provider_model_id: selectedModel.id,
+        provider: selectedModel.provider || 'openai',
+        model: selectedModel.model,
         system_prompt: '',
         temperature: 0.7,
         max_output_tokens: 2048,
-        provider_credential_id: selectedCredential.id,
+        provider_credential_id: selectedModel.provider_credential_id,
         session_mode: 'stateful',
-        settings: Object.keys(settings).length > 0 ? settings : undefined,
       })
       toast.success('Agent created')
       closeCreateAgent()
@@ -212,7 +157,7 @@ export default function AgentsPage() {
     }
   }
 
-  if (isLoading) return <LoadingState />
+  if (isLoading || modelsLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={refetch} />
 
   const hasSearchMiss = query.trim().length > 0 && visibleAgents.length === 0
@@ -276,7 +221,7 @@ export default function AgentsPage() {
 
         <CreateCard
           title="New agent"
-          description="Create with name, description and credential"
+          description="Create with name, description and reusable model"
           onClick={openCreateAgent}
         />
       </div>
@@ -304,44 +249,35 @@ export default function AgentsPage() {
 
           <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-white">Model credential</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Select the provider credential this agent will use at runtime.</p>
+              <h3 className="text-sm font-semibold text-white">Model</h3>
+              <p className="mt-1 text-xs leading-5 text-muted">Select a reusable model from the Models page. Runtime settings can be changed after creation.</p>
             </div>
 
-            {selectedCredential ? (
+            {selectedModel ? (
               <div className="space-y-3">
-                <CredentialSummary credential={selectedCredential} />
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedCredential(null)}>
-                    Change credential
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddCredential(true)}>
-                    Add another
-                  </Button>
-                </div>
-              </div>
-            ) : credentials.length > 0 ? (
-              <div className="space-y-3">
-                <Select
-                  value=""
-                  onChange={(event) => selectCredential(event.target.value)}
-                  options={[
-                    { value: '', label: 'Select a credential' },
-                    ...credentials.map((credential) => ({
-                      value: credential.id,
-                      label: `${credential.name} (${providerLabels[credential.provider] || credential.provider})`,
-                    })),
-                  ]}
-                />
-                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
-                  Add credential
+                <ModelSummary model={selectedModel} />
+                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedModelId(null)}>
+                  Change model
                 </Button>
               </div>
+            ) : activeModels.length > 0 ? (
+              <Select
+                value=""
+                onChange={(event) => setSelectedModelId(event.target.value)}
+                options={[
+                  { value: '', label: 'Select a model' },
+                  ...activeModels.map((model) => ({
+                    value: model.id,
+                    label: `${model.name} · ${model.model} (${modelProviderLabel(model)})`,
+                  })),
+                ]}
+              />
             ) : (
               <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                <p className="text-sm text-muted">No provider credential available. Add a credential to connect this agent to a model provider.</p>
-                <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setShowAddCredential(true)}>
-                  Add credential
+                <p className="text-sm text-muted">No reusable model available. Create one in the Models page first.</p>
+                <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => navigate(p(projectId!, 'models'))}>
+                  <Boxes className="mr-2 h-4 w-4" />
+                  Open Models
                 </Button>
               </div>
             )}
@@ -360,13 +296,6 @@ export default function AgentsPage() {
           </div>
         </div>
       </Dialog>
-
-      <AddProviderCredentialModal
-        open={showAddCredential}
-        onClose={() => setShowAddCredential(false)}
-        projectId={projectId!}
-        onCredentialCreated={handleCredentialCreated}
-      />
     </MinimalShell>
   )
 }
