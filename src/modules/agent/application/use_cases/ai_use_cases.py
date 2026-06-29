@@ -25,6 +25,12 @@ from modules.agent.application.use_cases.ai_prompt_cases import (
     GetPromptUseCase,
     ListPromptsUseCase,
 )
+from modules.agent.application.use_cases.ai_provider_model_cases import (
+    CreateProviderModelUseCase,
+    GetProviderModelUseCase,
+    ListProviderModelsUseCase,
+    UpdateProviderModelUseCase,
+)
 from modules.agent.application.use_cases.ai_release_cases import (
     CreateReleaseTestUseCase,
     CreateReleaseUseCase,
@@ -42,6 +48,10 @@ __all__ = [
     "CreateProviderCredentialUseCase",
     "UpdateProviderCredentialUseCase",
     "ListProviderCredentialsUseCase",
+    "CreateProviderModelUseCase",
+    "UpdateProviderModelUseCase",
+    "ListProviderModelsUseCase",
+    "GetProviderModelUseCase",
     "CreateAgentUseCase",
     "UpdateAgentUseCase",
     "ListAgentsUseCase",
