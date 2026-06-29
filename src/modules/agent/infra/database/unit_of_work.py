@@ -14,6 +14,7 @@ from modules.agent.infra.database.provider_model_repositories import (
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentInboxRepository,
     SQLAlchemyAgentOutboxRepository,
+    SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentToolRepository,
     SQLAlchemyAgentToolSecretRepository,
     SQLAlchemyAskJobRepository,
@@ -34,6 +35,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._agents: SQLAlchemyAgentRepositoryWithProviderModels | None = None
         self._provider_credentials: SQLAlchemyProviderCredentialRepository | None = None
         self._provider_models: SQLAlchemyProviderModelRepository | None = None
+        self._releases: SQLAlchemyAgentReleaseRepository | None = None
         self._sessions: SQLAlchemySessionRepository | None = None
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
@@ -69,6 +71,12 @@ class AgentUnitOfWork(UnitOfWork):
         if self._provider_models is None:
             self._provider_models = SQLAlchemyProviderModelRepository(self)
         return self._provider_models
+
+    @property
+    def releases(self) -> SQLAlchemyAgentReleaseRepository:
+        if self._releases is None:
+            self._releases = SQLAlchemyAgentReleaseRepository(self)
+        return self._releases
 
     @property
     def sessions(self) -> SQLAlchemySessionRepository:
@@ -163,6 +171,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._agents = None
         self._provider_credentials = None
         self._provider_models = None
+        self._releases = None
         self._sessions = None
         self._messages = None
         self._ask_jobs = None
