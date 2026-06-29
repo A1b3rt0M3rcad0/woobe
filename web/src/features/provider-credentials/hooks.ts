@@ -7,10 +7,8 @@ import type {
   UpdateProviderCredentialRequest,
 } from './types'
 
-const MVP_RUNTIME_PROVIDERS = new Set(['openai', 'custom'])
-
-function supportedRuntimeCredentials(credentials: ProviderCredential[] | undefined) {
-  return (credentials ?? []).filter((credential) => MVP_RUNTIME_PROVIDERS.has(credential.provider))
+function visibleCredentials(credentials: ProviderCredential[] | undefined) {
+  return credentials ?? []
 }
 
 export function useCredentials(projectId?: string) {
@@ -20,12 +18,12 @@ export function useCredentials(projectId?: string) {
     enabled: Boolean(projectId),
   })
   const stableData = useRef<ProviderCredential[]>([])
-  const current = supportedRuntimeCredentials(query.data)
+  const current = visibleCredentials(query.data)
   stableData.current.splice(0, stableData.current.length, ...current)
 
   const refetch = useCallback(async () => {
     const result = await query.refetch()
-    const refreshed = supportedRuntimeCredentials(result.data)
+    const refreshed = visibleCredentials(result.data)
     stableData.current.splice(0, stableData.current.length, ...refreshed)
     return result
   }, [query])
