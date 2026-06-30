@@ -65,6 +65,33 @@ def _fallback_model_binding_payload(agent) -> dict[str, Any]:
     }
 
 
+def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    pricing_ids = []
+    cost_reasons = []
+    cost_statuses = []
+    first_pricing_snapshot = None
+    for call in llm_calls:
+        pricing_id = call.get("pricing_id")
+        if pricing_id and pricing_id not in pricing_ids:
+            pricing_ids.append(pricing_id)
+        reason = call.get("cost_reason")
+        if reason and reason not in cost_reasons:
+            cost_reasons.append(reason)
+        status = call.get("cost_status")
+        if status and status not in cost_statuses:
+            cost_statuses.append(status)
+        if first_pricing_snapshot is None and isinstance(call.get("pricing_snapshot"), dict):
+            first_pricing_snapshot = call.get("pricing_snapshot")
+    return {
+        "pricing_ids": pricing_ids,
+        "cost_reasons": cost_reasons,
+        "cost_statuses": cost_statuses,
+        "pricing_id": pricing_ids[0] if pricing_ids else None,
+        "cost_reason": "; ".join(cost_reasons) if cost_reasons else None,
+        "pricing_snapshot": first_pricing_snapshot,
+    }
+
+
 def _event(
     trace_id: str,
     event_type: str,
@@ -183,8 +210,9 @@ async def finalize_instrumented_execution(owner, **kw):
         for item in execution.timeline
         if item.get("kind") == "tool"
     )
+    cost_details = _cost_diagnostics(execution.llm_calls)
     diagnostics = {
-        "schema_version": 3,
+        "schema_version": 4,
         "total_latency_ms": total_ms,
         "prepare_latency_ms": kw["prepare_latency_ms"],
         "llm_runtime_latency_ms": llm_ms,
@@ -197,6 +225,9 @@ async def finalize_instrumented_execution(owner, **kw):
         "tool_call_count": len(execution.tool_calls),
         "usage_complete": kw["usage_complete"],
         "cost_status": kw["cost_status"],
+        "cost_reason": cost_details["cost_reason"],
+        "cost_statuses": cost_details["cost_statuses"],
+        "pricing_ids": cost_details["pricing_ids"],
         "provider_model_id": binding_payload["provider_model_id"],
         "provider_credential_id": binding_payload["provider_credential_id"],
         "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
@@ -339,6 +370,9 @@ async def finalize_instrumented_execution(owner, **kw):
         "total_tokens": usage.total_tokens,
         "cost_usd": usage.cost_usd,
         "cost_status": kw["cost_status"],
+        "cost_reason": cost_details["cost_reason"],
+        "pricing_id": cost_details["pricing_id"],
+        "pricing_snapshot": cost_details["pricing_snapshot"],
         "usage_complete": kw["usage_complete"],
         **trace_binding_payload,
         "model": kw["response_model"] or agent.model,
