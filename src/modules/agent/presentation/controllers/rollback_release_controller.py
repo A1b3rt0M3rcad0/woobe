@@ -8,6 +8,13 @@ from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
 
+def _release_payload(release):
+    data = release_to_response(release).model_dump()
+    data["provider_model_id"] = getattr(release, "provider_model_id", None)
+    data["fallback_provider_model_id"] = getattr(release, "fallback_provider_model_id", None)
+    return data
+
+
 class RollbackReleaseController(Controller):
     def __init__(self, use_case: RollbackReleaseUseCase) -> None:
         self._use_case = use_case
@@ -19,5 +26,5 @@ class RollbackReleaseController(Controller):
         result = await self._use_case.execute(agent_id, release_id, input_dto)
         return Response(
             status_code=200,
-            body={"success": True, "data": release_to_response(result).model_dump()},
+            body={"success": True, "data": _release_payload(result)},
         )
