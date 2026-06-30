@@ -18,25 +18,27 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
 
         if context == "production":
             if release_repo is None:
-                return agent
+                raise ValidationError("Production runtime requires release repository")
             release = await release_repo.get_active_production(agent.id)
-            if release is not None:
-                return self._apply_release_snapshot_ids(
-                    self._apply_release_to_agent(agent, release),
-                    release,
-                )
-            return agent
+            if release is None:
+                raise ValidationError(f"No production release deployed for agent {input_dto.agent_id}")
+            agent = self._apply_release_snapshot_ids(
+                self._apply_release_to_agent(agent, release),
+                release,
+            )
+            return await self._resolve_provider_model_refs(uow, agent)
 
         if context == "staging":
             if release_repo is None:
-                return agent
+                raise ValidationError("Staging runtime requires release repository")
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
-            if releases:
-                return self._apply_release_snapshot_ids(
-                    self._apply_release_to_agent(agent, releases[0]),
-                    releases[0],
-                )
-            return agent
+            if not releases:
+                raise ValidationError(f"No staging release deployed for agent {input_dto.agent_id}")
+            agent = self._apply_release_snapshot_ids(
+                self._apply_release_to_agent(agent, releases[0]),
+                releases[0],
+            )
+            return await self._resolve_provider_model_refs(uow, agent)
 
         if context != "playground":
             raise ValueError("Unsupported execution context")
@@ -99,6 +101,7 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
     async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
         provider_model_repo = getattr(uow, "provider_models", None)
         if provider_model_repo is None:
+            self._validate_runtime_model(agent)
             return agent
         if agent.provider_model_id:
             provider_model = await provider_model_repo.get_by_id(agent.provider_model_id)
@@ -133,4 +136,12 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
             agent.fallback_credential_id = credential.id
             agent.fallback_provider = credential.provider
             agent.fallback_model = fallback_model.model
+
+        self._validate_runtime_model(agent)
         return agent
+
+    def _validate_runtime_model(self, agent: Agent) -> None:
+        if not getattr(agent, "model", None):
+            raise ValidationError("Agent model is not configured")
+        if getattr(agent, "fallback_provider_model_id", None) and not getattr(agent, "fallback_model", None):
+            raise ValidationError("Fallback provider model is not configured")
