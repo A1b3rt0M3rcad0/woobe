@@ -39,14 +39,21 @@ class AskAgentController(Controller):
                 latency_ms=result.latency_ms,
                 parsed_output=result.parsed_output,
                 output_parse_error=result.output_parse_error,
-            )
+            ).model_dump()
+            data["provider_model_id"] = result.provider_model_id
+            data["provider_credential_id"] = result.provider_credential_id
+            data["fallback_provider_model_id"] = result.fallback_provider_model_id
+            data["fallback_credential_id"] = result.fallback_credential_id
+            data["fallback_info"] = result.fallback_info
+            data["execution_events"] = result.execution_events
+            data["diagnostics"] = result.diagnostics
 
             return Response(
                 status_code=200,
                 body={
                     "success": True,
                     "message": "Agent answered successfully",
-                    "data": data.model_dump(),
+                    "data": data,
                 },
             )
 
