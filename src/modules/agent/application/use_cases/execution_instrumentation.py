@@ -245,7 +245,7 @@ def _sum_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
     return sum(values)
 
 
-def _sum_known_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
+def _sum_available_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
     values: list[int] = []
     for call in calls:
         value = call.get(field)
@@ -267,13 +267,19 @@ def _sum_known_costs(calls: list[dict[str, Any]]) -> float | None:
     return sum(values)
 
 
-def _aggregate_cost_status(successful: list[dict[str, Any]], total_call_count: int) -> str:
-    if not successful or len(successful) != total_call_count:
-        return "partial" if successful else "unknown"
-    statuses = {str(call.get("cost_status") or "unknown") for call in successful}
+def _aggregate_cost_status(calls: list[dict[str, Any]]) -> str:
+    if not calls:
+        return "unknown"
+    statuses = {str(call.get("cost_status") or "unknown") for call in calls}
+    known_cost_count = sum(
+        1
+        for call in calls
+        if isinstance(call.get("cost_usd"), (int, float))
+        and not isinstance(call.get("cost_usd"), bool)
+    )
     if statuses == {"known"}:
         return "known"
-    if "known" in statuses:
+    if known_cost_count > 0 or "known" in statuses:
         return "partial"
     if "unknown_tokens" in statuses:
         return "unknown_tokens"
@@ -289,16 +295,23 @@ def aggregate_usage(
     complete = bool(llm_calls) and len(successful) == len(llm_calls) and all(
         call.get("usage_complete") is True for call in successful
     )
-    if complete:
-        input_tokens = _sum_int_field(successful, "input_tokens")
-        output_tokens = _sum_int_field(successful, "output_tokens")
-        total_tokens = _sum_int_field(successful, "total_tokens")
-    else:
-        input_tokens = _sum_known_int_field(successful, "input_tokens")
-        output_tokens = _sum_known_int_field(successful, "output_tokens")
-        total_tokens = _sum_known_int_field(successful, "total_tokens")
-    cost_usd = _sum_known_costs(successful)
-    cost_status = _aggregate_cost_status(successful, len(llm_calls))
+    input_tokens = (
+        _sum_int_field(successful, "input_tokens")
+        if complete
+        else _sum_available_int_field(successful, "input_tokens")
+    )
+    output_tokens = (
+        _sum_int_field(successful, "output_tokens")
+        if complete
+        else _sum_available_int_field(successful, "output_tokens")
+    )
+    total_tokens = (
+        _sum_int_field(successful, "total_tokens")
+        if complete
+        else _sum_available_int_field(successful, "total_tokens")
+    )
+    cost_usd = _sum_known_costs(llm_calls)
+    cost_status = _aggregate_cost_status(llm_calls)
 
     return (
         UsageInfo(
