@@ -17,6 +17,7 @@ from modules.agent.application.use_cases.runtime_streaming import (
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
+from shared.infra.llm_cost import calculate_llm_cost
 from shared.infra.llm_usage import normalize_llm_usage
 
 
@@ -67,6 +68,22 @@ class InstrumentedExecutionError(RuntimeError):
         self.tool_call_duration_sum_ms = tool_call_duration_sum_ms
 
 
+def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    if not pricing_snapshot:
+        return {
+            "provider_model_id": None,
+            "provider_credential_id": None,
+            "pricing_id": None,
+            "pricing_snapshot": None,
+        }
+    return {
+        "provider_model_id": pricing_snapshot.get("provider_model_id"),
+        "provider_credential_id": pricing_snapshot.get("provider_credential_id"),
+        "pricing_id": pricing_snapshot.get("pricing_id"),
+        "pricing_snapshot": pricing_snapshot,
+    }
+
+
 async def invoke_llm(
     *,
     model: Any,
@@ -75,10 +92,12 @@ async def invoke_llm(
     call_index: int,
     provider: str,
     model_name: str,
+    pricing_snapshot: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     call_id = str(uuid4())
     started_at = utc_iso()
     started = time.monotonic()
+    cost_context = _cost_context(pricing_snapshot)
     try:
         result = await invoke_model_with_optional_streaming(
             model=model,
@@ -103,10 +122,12 @@ async def invoke_llm(
             "output_tokens": None,
             "total_tokens": None,
             "cost_usd": None,
-            "cost_status": "unknown",
+            "cost_status": "unknown_tokens",
+            "cost_reason": "LLM call failed before usage could be measured",
             "usage_complete": False,
             "provider": provider,
             "model": model_name,
+            **cost_context,
         }
         raise InstrumentedExecutionError(
             str(exc),
@@ -119,6 +140,11 @@ async def invoke_llm(
     complete = all(
         usage.get(field) is not None
         for field in ("input_tokens", "output_tokens", "total_tokens")
+    )
+    cost = calculate_llm_cost(
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        pricing_snapshot=pricing_snapshot,
     )
     call = {
         "call_id": call_id,
@@ -133,11 +159,13 @@ async def invoke_llm(
         "input_tokens": usage.get("input_tokens"),
         "output_tokens": usage.get("output_tokens"),
         "total_tokens": usage.get("total_tokens"),
-        "cost_usd": usage.get("cost_usd"),
-        "cost_status": "known" if usage.get("cost_usd") is not None else "unknown",
+        "cost_usd": cost["cost_usd"],
+        "cost_status": cost["cost_status"],
+        "cost_reason": cost["cost_reason"],
         "usage_complete": complete,
         "provider": provider,
         "model": model_name,
+        **cost_context,
     }
     return result, call
 
@@ -217,14 +245,30 @@ def _sum_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
     return sum(values)
 
 
-def _sum_costs(calls: list[dict[str, Any]]) -> float | None:
+def _sum_known_costs(calls: list[dict[str, Any]]) -> float | None:
     values: list[float] = []
     for call in calls:
         value = call.get("cost_usd")
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            return None
-        values.append(float(value))
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values.append(float(value))
+    if not values:
+        return None
     return sum(values)
+
+
+def _aggregate_cost_status(successful: list[dict[str, Any]], total_call_count: int) -> str:
+    if not successful or len(successful) != total_call_count:
+        return "partial" if successful else "unknown"
+    statuses = {str(call.get("cost_status") or "unknown") for call in successful}
+    if statuses == {"known"}:
+        return "known"
+    if "known" in statuses:
+        return "partial"
+    if "unknown_tokens" in statuses:
+        return "unknown_tokens"
+    if "unknown_pricing" in statuses:
+        return "unknown_pricing"
+    return "unknown"
 
 
 def aggregate_usage(
@@ -237,8 +281,8 @@ def aggregate_usage(
     input_tokens = _sum_int_field(successful, "input_tokens") if complete else None
     output_tokens = _sum_int_field(successful, "output_tokens") if complete else None
     total_tokens = _sum_int_field(successful, "total_tokens") if complete else None
-    cost_usd = _sum_costs(successful) if len(successful) == len(llm_calls) else None
-    cost_known = bool(llm_calls) and cost_usd is not None
+    cost_usd = _sum_known_costs(successful)
+    cost_status = _aggregate_cost_status(successful, len(llm_calls))
 
     return (
         UsageInfo(
@@ -248,5 +292,5 @@ def aggregate_usage(
             cost_usd=cost_usd,
         ),
         complete,
-        "known" if cost_known else "unknown",
+        cost_status,
     )
