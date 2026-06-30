@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
@@ -8,11 +10,12 @@ from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENT
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
-from modules.agent.application.use_cases.instrumented_failed_finalizer import (
-    finalize_failed_instrumented_execution,
+from modules.agent.application.use_cases.instrumented_execution_finalizer import (
+    _cost_diagnostics,
+    finalize_instrumented_execution,
 )
-from modules.agent.application.use_cases.instrumented_execution_finalizer import finalize_instrumented_execution
 from modules.agent.application.use_cases.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.application.use_cases.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.application.use_cases.structured_output_contract import (
@@ -55,6 +58,16 @@ def _provider_value(value) -> str | None:
     if value is None:
         return None
     return value.value if hasattr(value, "value") else str(value)
+
+
+def _safe_tool_payloads(tool_calls) -> list[dict]:
+    payloads: list[dict] = []
+    for tool in tool_calls or []:
+        if hasattr(tool, "model_dump"):
+            payloads.append(tool.model_dump())
+        elif isinstance(tool, dict):
+            payloads.append(tool)
+    return payloads
 
 
 class StructuredOutputAskAgentUseCase(
@@ -140,64 +153,121 @@ class StructuredOutputAskAgentUseCase(
         return tuple(updated)
 
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
-        context = current_execution.get()
-        if context and context.execution and context.execution.llm_calls:
-            try:
-                await finalize_failed_instrumented_execution(
-                    self,
-                    session=session,
-                    agent=agent,
-                    input_dto=input_dto,
-                    trace_id=trace_id,
-                    error=error,
-                    execution=context.execution,
-                    started_at=context.started_at,
-                    prepare_latency_ms=context.prepare_latency_ms,
-                )
-                return
-            except Exception as exc:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    "Failed to emit instrumented failed execution telemetry: %s",
-                    exc,
-                )
-
         try:
             async with AgentUnitOfWork(self._session_factory) as uow:
                 outbox = SQLAlchemyAgentOutboxEventWriter(uow)
                 provider = _provider_value(getattr(agent, "provider", None))
                 fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
+                trace_id_text = str(trace_id) if trace_id else None
+                project_id_text = str(input_dto.project_id)
+                agent_id_text = str(agent.id)
+                binding_payload = {
+                    "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                    "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                    "model_binding": {
+                        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                        "provider": provider,
+                        "model": getattr(agent, "model", None),
+                    },
+                }
+                fallback_binding_payload = {
+                    "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                    "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                    "fallback_provider": fallback_provider,
+                    "fallback_model": getattr(agent, "fallback_model", None),
+                    "fallback_model_binding": {
+                        "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                        "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                        "provider": fallback_provider,
+                        "model": getattr(agent, "fallback_model", None),
+                    },
+                }
+                payload = {
+                    "trace_id": trace_id_text,
+                    "project_id": project_id_text,
+                    "agent_id": agent_id_text,
+                    "session_id": str(session.id) if session else None,
+                    "provider": provider,
+                    "model": getattr(agent, "model", None),
+                    **binding_payload,
+                    **fallback_binding_payload,
+                    "error": error,
+                }
+
+                context = current_execution.get()
+                execution = context.execution if context and context.execution else None
+                if execution and execution.llm_calls:
+                    aggregate, complete, cost_status = aggregate_usage(execution.llm_calls)
+                    cost_details = _cost_diagnostics(execution.llm_calls)
+                    total_ms = (
+                        round((time.monotonic() - context.started_at) * 1000)
+                        if context
+                        else None
+                    )
+                    llm_ms = sum(
+                        int(call.get("latency_ms") or 0)
+                        for call in execution.llm_calls
+                    )
+                    payload.update(
+                        {
+                            "input_tokens": aggregate.input_tokens,
+                            "output_tokens": aggregate.output_tokens,
+                            "total_tokens": aggregate.total_tokens,
+                            "cost_usd": aggregate.cost_usd,
+                            "cost_status": cost_status,
+                            "cost_reason": cost_details["cost_reason"],
+                            "cost_statuses": cost_details["cost_statuses"],
+                            "pricing_id": cost_details["pricing_id"],
+                            "pricing_ids": cost_details["pricing_ids"],
+                            "pricing_snapshot": cost_details["pricing_snapshot"],
+                            "usage_complete": complete,
+                            "llm_calls": execution.llm_calls,
+                            "tool_calls": _safe_tool_payloads(execution.tool_calls),
+                            "latency_ms": total_ms,
+                            "total_latency_ms": total_ms,
+                            "llm_runtime_latency_ms": llm_ms,
+                            "tool_wall_latency_ms": execution.tool_wall_latency_ms,
+                            "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
+                            "timeline_complete": True,
+                            "diagnostics": {
+                                "schema_version": 4,
+                                "total_latency_ms": total_ms,
+                                "prepare_latency_ms": context.prepare_latency_ms if context else None,
+                                "llm_runtime_latency_ms": llm_ms,
+                                "tool_wall_latency_ms": execution.tool_wall_latency_ms,
+                                "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
+                                "llm_call_count": len(execution.llm_calls),
+                                "tool_call_count": len(execution.tool_calls),
+                                "usage_complete": complete,
+                                "cost_status": cost_status,
+                                "cost_reason": cost_details["cost_reason"],
+                                "cost_statuses": cost_details["cost_statuses"],
+                                "pricing_ids": cost_details["pricing_ids"],
+                            },
+                        }
+                    )
+                    for item in sorted(
+                        execution.timeline,
+                        key=lambda value: value.get("occurred_at", ""),
+                    ):
+                        event_payload = {
+                            "trace_id": trace_id_text,
+                            "project_id": project_id_text,
+                            "agent_id": agent_id_text,
+                            **binding_payload,
+                            **fallback_binding_payload,
+                            **item["payload"],
+                        }
+                        if item["kind"] == "llm":
+                            await outbox.write(llm_event(agent.id, event_payload))
+                        elif item["kind"] == "tool":
+                            await outbox.write(tool_event(agent.id, event_payload))
+
                 failed_event = AgentExecutionFailedV1.create(
                     agent_id=agent.id,
                     session_id=session.id if session else None,
-                    payload={
-                        "trace_id": str(trace_id) if trace_id else None,
-                        "project_id": str(input_dto.project_id),
-                        "agent_id": str(agent.id),
-                        "session_id": str(session.id) if session else None,
-                        "provider": provider,
-                        "model": getattr(agent, "model", None),
-                        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
-                        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
-                        "fallback_provider": fallback_provider,
-                        "fallback_model": getattr(agent, "fallback_model", None),
-                        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
-                        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
-                        "model_binding": {
-                            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
-                            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
-                            "provider": provider,
-                            "model": getattr(agent, "model", None),
-                        },
-                        "fallback_model_binding": {
-                            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
-                            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
-                            "provider": fallback_provider,
-                            "model": getattr(agent, "fallback_model", None),
-                        },
-                        "error": error,
-                    },
+                    payload=payload,
                 )
                 await outbox.write(failed_event)
         except Exception as exc:
