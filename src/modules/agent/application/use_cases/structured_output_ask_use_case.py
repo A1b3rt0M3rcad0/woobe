@@ -61,6 +61,30 @@ class StructuredOutputAskAgentUseCase(
 ):
     """Agent execution with complete LLM and Tool telemetry."""
 
+    def _resolve_base_url_for_provider(self, provider_val, credential, settings):
+        """Resolve OpenAI-compatible custom gateways without legacy model metadata.
+
+        ProviderModel is now the canonical source for the model slug. The custom
+        provider resolver should only require a base_url; the actual model is
+        passed to the LLM factory through agent.model or agent.fallback_model.
+        This keeps compatibility with older credentials while allowing reusable
+        ProviderModel bindings to drive playground, staging, production, and
+        fallback executions.
+        """
+        if provider_val == "custom":
+            base_url = (
+                (settings or {}).get("base_url")
+                or (credential.metadata or {}).get("base_url")
+            )
+            if not base_url:
+                from shared.infra.errors import ValidationError
+
+                raise ValidationError(
+                    "Custom provider requires base_url in credential metadata or agent settings"
+                )
+            return base_url
+        return super()._resolve_base_url_for_provider(provider_val, credential, settings)
+
     def _build_messages(self, agent, rag_context, history, user_message, response_format=None):
         normalized_response_format = response_format
         if response_format:
