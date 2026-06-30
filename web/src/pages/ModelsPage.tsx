@@ -499,7 +499,7 @@ export default function ModelsPage() {
   return (
     <MinimalShell
       title="Models"
-      description="Create reusable provider models from existing credentials, configure token pricing, then attach those models to multiple agents."
+      description="Create reusable provider models from existing credentials, configure token pricing, then attach those models to multiple agents. Credentials can also be created from this page."
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full max-w-3xl">
