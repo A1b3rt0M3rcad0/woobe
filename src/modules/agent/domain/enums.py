@@ -17,6 +17,7 @@ class CredentialStatus(StrEnum):
     expired = auto()
     revoked = auto()
     invalid = auto()
+    archived = auto()
 
 
 class ProviderModelStatus(StrEnum):

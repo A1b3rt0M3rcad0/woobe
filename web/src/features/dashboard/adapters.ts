@@ -168,9 +168,20 @@ function requestChangeDetail(change: number | null): Pick<DashboardMetric, 'deta
   return { detail: `${prefix}${percentFormatter.format(change)}% vs previous window`, direction }
 }
 
+function runtimeCostDetail(requests: number, unknownCostCount: number, costUsd: number | null): string | null {
+  if (requests === 0) return 'No requests in this period'
+  if (unknownCostCount <= 0) return 'All requests priced'
+  if (costUsd !== null) {
+    const pricedRequests = Math.max(requests - unknownCostCount, 0)
+    return `${formatInteger(pricedRequests)} of ${formatInteger(requests)} requests priced`
+  }
+  return `${formatInteger(unknownCostCount)} request${unknownCostCount === 1 ? '' : 's'} without cost data`
+}
+
 export function adaptProjectOverview(overview: ProjectOverview): DashboardViewModel {
   const requestChange = requestChangeDetail(overview.summary.request_change_percent)
-  const costKnown = overview.summary.cost_usd !== null && overview.summary.unknown_cost_count === 0
+  const unknownCostCount = overview.summary.unknown_cost_count ?? 0
+  const costHasValue = overview.summary.cost_usd !== null
   const metrics: DashboardMetric[] = [
     {
       label: 'Active Agents',
@@ -214,14 +225,16 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       tone: 'bg-emerald-500/10 text-emerald-400',
     },
     {
-      label: 'Estimated Cost',
-      value: formatCost(overview.summary.cost_usd, costKnown),
-      detail: overview.summary.unknown_cost_count > 0
-        ? `${formatInteger(overview.summary.unknown_cost_count)} request(s) with unknown cost`
-        : null,
+      label: 'Runtime Cost',
+      value: formatCost(overview.summary.cost_usd, costHasValue),
+      detail: runtimeCostDetail(
+        overview.summary.requests,
+        unknownCostCount,
+        overview.summary.cost_usd,
+      ),
       direction: 'neutral',
       icon: CircleDollarSign,
-      tone: 'bg-blue-500/10 text-blue-400',
+      tone: unknownCostCount > 0 ? 'bg-amber-500/10 text-amber-300' : 'bg-blue-500/10 text-blue-400',
     },
   ]
 

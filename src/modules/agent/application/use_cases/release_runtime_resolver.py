@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
-from modules.agent.domain.entities import Agent, AgentRelease
+from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus
 from shared.infra.errors import ValidationError
+from shared.infra.llm_cost import provider_model_pricing_snapshot
 
 
 class ReleaseRuntimeResolver(AskAgentUseCase):
@@ -98,6 +100,37 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
             value = snapshot["fallback_provider_model_id"]
             agent.fallback_provider_model_id = UUID(value) if isinstance(value, str) else value
 
+    def _set_pricing_snapshot(
+        self,
+        agent: Agent,
+        *,
+        key: str,
+        provider_model: ProviderModel,
+        provider,
+    ) -> None:
+        settings = dict(agent.settings or {})
+        settings[key] = provider_model_pricing_snapshot(
+            provider_model_id=provider_model.id,
+            provider_credential_id=provider_model.provider_credential_id,
+            provider=provider,
+            model=provider_model.model,
+            metadata=provider_model.metadata,
+        )
+        agent.settings = settings
+
+    def _validate_credential_runtime_status(self, credential) -> None:
+        if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:
+            raise ValidationError("Provider credential must be active")
+        expires_at = (credential.metadata or {}).get("expires_at")
+        if not expires_at:
+            return
+        try:
+            parsed = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        except ValueError:
+            raise ValidationError("Provider credential expiration date is invalid")
+        if parsed <= datetime.now(timezone.utc):
+            raise ValidationError("Provider credential has expired")
+
     async def _resolve_provider_model_refs(self, uow: Any, agent: Agent) -> Agent:
         provider_model_repo = getattr(uow, "provider_models", None)
         if provider_model_repo is None:
@@ -116,11 +149,16 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
                 from modules.agent.domain.errors import CredentialNotFoundError
 
                 raise CredentialNotFoundError(provider_model.provider_credential_id)
-            if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:
-                raise ValidationError("Provider credential must be active")
+            self._validate_credential_runtime_status(credential)
             agent.provider_credential_id = credential.id
             agent.provider = credential.provider
             agent.model = provider_model.model
+            self._set_pricing_snapshot(
+                agent,
+                key="model_pricing",
+                provider_model=provider_model,
+                provider=credential.provider,
+            )
 
         if agent.fallback_provider_model_id:
             fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
@@ -133,9 +171,16 @@ class ReleaseRuntimeResolver(AskAgentUseCase):
                 from modules.agent.domain.errors import CredentialNotFoundError
 
                 raise CredentialNotFoundError(fallback_model.provider_credential_id)
+            self._validate_credential_runtime_status(credential)
             agent.fallback_credential_id = credential.id
             agent.fallback_provider = credential.provider
             agent.fallback_model = fallback_model.model
+            self._set_pricing_snapshot(
+                agent,
+                key="fallback_model_pricing",
+                provider_model=fallback_model,
+                provider=credential.provider,
+            )
 
         self._validate_runtime_model(agent)
         return agent

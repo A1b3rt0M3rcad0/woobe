@@ -16,6 +16,12 @@ from modules.agent.application.use_cases.tool_execution_loop import run_tool_loo
 from modules.agent.domain.entities import Agent
 
 
+def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
+    settings = agent.settings or {}
+    value = settings.get("model_pricing")
+    return value if isinstance(value, dict) else None
+
+
 async def run_instrumented_execution(
     *,
     llm_factory: Any,
@@ -36,6 +42,7 @@ async def run_instrumented_execution(
         if hasattr(agent.provider, "value")
         else str(agent.provider)
     )
+    pricing_snapshot = _primary_pricing_snapshot(agent)
     streaming_enabled = runtime_streaming_enabled()
     base_response_format = (
         {"type": "json_object"}
@@ -87,6 +94,7 @@ async def run_instrumented_execution(
         model_name=agent.model,
         initial_phase="tool_planning" if has_tools else "response_generation",
         final_json_instruction=instruction,
+        pricing_snapshot=pricing_snapshot,
     )
     if not json_enabled:
         return execution
@@ -101,4 +109,5 @@ async def run_instrumented_execution(
         max_tokens=agent.max_output_tokens or 1000,
         schema=response_format.get("schema", {}),
         clean_json_answer=clean_json_answer,
+        pricing_snapshot=pricing_snapshot,
     )
