@@ -9,6 +9,9 @@ from modules.agent.application.tool_converter import agent_tools_to_openai_defin
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
+from modules.agent.application.use_cases.instrumented_failed_finalizer import (
+    finalize_failed_instrumented_execution,
+)
 from modules.agent.application.use_cases.instrumented_execution_finalizer import finalize_instrumented_execution
 from modules.agent.application.use_cases.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.application.use_cases.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
@@ -137,6 +140,29 @@ class StructuredOutputAskAgentUseCase(
         return tuple(updated)
 
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
+        context = current_execution.get()
+        if context and context.execution and context.execution.llm_calls:
+            try:
+                await finalize_failed_instrumented_execution(
+                    self,
+                    session=session,
+                    agent=agent,
+                    input_dto=input_dto,
+                    trace_id=trace_id,
+                    error=error,
+                    execution=context.execution,
+                    started_at=context.started_at,
+                    prepare_latency_ms=context.prepare_latency_ms,
+                )
+                return
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Failed to emit instrumented failed execution telemetry: %s",
+                    exc,
+                )
+
         try:
             async with AgentUnitOfWork(self._session_factory) as uow:
                 outbox = SQLAlchemyAgentOutboxEventWriter(uow)
