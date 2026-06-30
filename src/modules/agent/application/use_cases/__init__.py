@@ -28,6 +28,14 @@ from modules.agent.application.use_cases.ai_use_cases import (
     UpdateProviderCredentialUseCase,
     UpdateProviderModelUseCase,
 )
+from modules.agent.application.use_cases.provider_management_cases import (
+    ArchiveProviderCredentialUseCase,
+    ArchiveProviderModelUseCase,
+    ProviderCredentialUsageUseCase,
+    ProviderModelUsageUseCase,
+    RevokeProviderCredentialUseCase,
+    RotateProviderCredentialUseCase,
+)
 from modules.agent.application.use_cases.release_lifecycle_use_cases import (
     AutoCreateReleaseUseCase as CreateReleaseUseCase,
 )
@@ -76,6 +84,8 @@ from modules.agent.application.use_cases.tools_use_cases import (
 )
 
 __all__ = [
+    "ArchiveProviderCredentialUseCase",
+    "ArchiveProviderModelUseCase",
     "AskAgentStreamService",
     "AskAgentUseCase",
     "AttachCollectionUseCase",
@@ -125,7 +135,11 @@ __all__ = [
     "ListReleaseTestsUseCase",
     "ListReleasesUseCase",
     "PromoteReleaseUseCase",
+    "ProviderCredentialUsageUseCase",
+    "ProviderModelUsageUseCase",
+    "RevokeProviderCredentialUseCase",
     "RollbackReleaseUseCase",
+    "RotateProviderCredentialUseCase",
     "SearchChunksUseCase",
     "SendMessageUseCase",
     "TestToolUseCase",
