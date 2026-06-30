@@ -144,6 +144,26 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [agent, propCollectionIds])
 
   useEffect(() => {
+    if (state.providerModelId || !providerModels?.length) return
+    if (!state.providerCredentialId || !state.model) return
+    const providerModel = providerModels.find((item) => (
+      item.provider_credential_id === state.providerCredentialId && item.model === state.model
+    ))
+    if (!providerModel) return
+    setState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
+  }, [state.providerModelId, state.providerCredentialId, state.model, providerModels])
+
+  useEffect(() => {
+    if (state.fallbackProviderModelId || !providerModels?.length) return
+    if (!state.fallbackProviderCredentialId || !state.fallbackModel) return
+    const providerModel = providerModels.find((item) => (
+      item.provider_credential_id === state.fallbackProviderCredentialId && item.model === state.fallbackModel
+    ))
+    if (!providerModel) return
+    setState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
+  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, state.fallbackModel, providerModels])
+
+  useEffect(() => {
     if (!state.providerModelId || !providerModels?.length) return
     const providerModel = providerModels.find((item) => item.id === state.providerModelId)
     if (!providerModel) return
