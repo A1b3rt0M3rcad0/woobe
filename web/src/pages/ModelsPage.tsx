@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Archive, Cpu, Key, Plus, Search, ServerCog } from 'lucide-react'
+import { Archive, Cpu, DollarSign, Key, Plus, Search, ServerCog } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/common/LoadingState'
@@ -32,6 +32,13 @@ const commonModelSuggestions: Record<string, string[]> = {
   custom: ['my-model-name'],
 }
 
+type PricingInfo = {
+  input: number | null
+  output: number | null
+  currency: string
+  configured: boolean
+}
+
 function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleString() : 'Never'
 }
@@ -39,6 +46,47 @@ function formatDate(value?: string | null) {
 function providerLabel(provider?: string | null) {
   if (!provider) return 'Unknown provider'
   return providerLabels[provider] || provider
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function pricingOf(model?: ProviderModel | null): PricingInfo {
+  const metadata = model?.metadata || {}
+  const raw = typeof metadata.pricing === 'object' && metadata.pricing !== null
+    ? metadata.pricing as Record<string, unknown>
+    : metadata
+  const input = numberOrNull(
+    raw.input_cost_per_1m_tokens
+    ?? raw.input_cost_usd_per_1m_tokens
+    ?? raw.prompt_cost_per_1m_tokens
+    ?? raw.prompt_cost_usd_per_1m_tokens
+    ?? raw.input
+    ?? raw.prompt,
+  )
+  const output = numberOrNull(
+    raw.output_cost_per_1m_tokens
+    ?? raw.output_cost_usd_per_1m_tokens
+    ?? raw.completion_cost_per_1m_tokens
+    ?? raw.completion_cost_usd_per_1m_tokens
+    ?? raw.output
+    ?? raw.completion,
+  )
+  const currency = typeof raw.currency === 'string' && raw.currency.trim()
+    ? raw.currency.trim().toUpperCase()
+    : 'USD'
+  return { input, output, currency, configured: input !== null && output !== null }
+}
+
+function priceText(value: number | null, currency: string) {
+  if (value === null) return 'not set'
+  return `${currency} ${value.toLocaleString(undefined, { maximumFractionDigits: 8 })}`
 }
 
 function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -53,10 +101,12 @@ function MinimalShell({ title, description, children }: { title: string; descrip
   )
 }
 
-function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'primary' }) {
+function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'primary' | 'warning' }) {
   const toneClass = tone === 'primary'
     ? 'border-primary/30 bg-primary/10 text-primary-light'
-    : 'border-border/80 bg-background/70 text-muted'
+    : tone === 'warning'
+      ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
+      : 'border-border/80 bg-background/70 text-muted'
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
 }
 
@@ -70,7 +120,7 @@ function CreateCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group flex min-h-[270px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
         <Plus className="h-6 w-6" />
@@ -103,12 +153,13 @@ function NoResults({ query, hasCredentials, onAddCredential }: { query: string; 
 }
 
 function ModelCard({ model, credential, onClick }: { model: ProviderModel; credential?: ProviderCredential | null; onClick: () => void }) {
+  const pricing = pricingOf(model)
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`Open model settings for ${model.name}`}
-      className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group flex min-h-[270px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <span className="flex items-start justify-between gap-3">
         <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
@@ -129,12 +180,16 @@ function ModelCard({ model, credential, onClick }: { model: ProviderModel; crede
           <Key className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{getCredentialLabel(credential)}</span>
         </span>
+        <span className="flex min-w-0 items-center gap-2">
+          <DollarSign className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">In {priceText(pricing.input, pricing.currency)} / 1M · Out {priceText(pricing.output, pricing.currency)} / 1M</span>
+        </span>
         <span>Created · {formatDate(model.created_at)}</span>
       </span>
 
       <span className="mt-auto flex flex-wrap gap-2 pt-5">
         <Pill tone="primary">{providerLabel(model.provider || credential?.provider)}</Pill>
-        <Pill>reusable</Pill>
+        <Pill tone={pricing.configured ? 'default' : 'warning'}>{pricing.configured ? 'cost configured' : 'cost unknown'}</Pill>
       </span>
     </button>
   )
@@ -145,14 +200,42 @@ interface ModelFormState {
   credentialId: string
   model: string
   status: string
+  inputCostPer1M: string
+  outputCostPer1M: string
+  currency: string
 }
 
 function modelToForm(model: ProviderModel | null, credentials: ProviderCredential[]): ModelFormState {
+  const pricing = pricingOf(model)
   return {
     name: model?.name || '',
     credentialId: model?.provider_credential_id || credentials[0]?.id || '',
     model: model?.model || '',
     status: model?.status || 'active',
+    inputCostPer1M: pricing.input !== null ? String(pricing.input) : '',
+    outputCostPer1M: pricing.output !== null ? String(pricing.output) : '',
+    currency: pricing.currency || 'USD',
+  }
+}
+
+function parsePrice(value: string): number | null {
+  if (!value.trim()) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildMetadata(model: ProviderModel | null, form: ModelFormState) {
+  const input = parsePrice(form.inputCostPer1M)
+  const output = parsePrice(form.outputCostPer1M)
+  return {
+    ...(model?.metadata || {}),
+    pricing: {
+      input_cost_per_1m_tokens: input,
+      output_cost_per_1m_tokens: output,
+      currency: (form.currency || 'USD').trim().toUpperCase(),
+      billing_unit: 'per_1m_tokens',
+      source: 'manual',
+    },
   }
 }
 
@@ -200,6 +283,18 @@ function ModelDialog({
       return
     }
 
+    const inputPrice = parsePrice(form.inputCostPer1M)
+    const outputPrice = parsePrice(form.outputCostPer1M)
+    if ((form.inputCostPer1M.trim() && inputPrice === null) || (form.outputCostPer1M.trim() && outputPrice === null)) {
+      toast.error('Pricing must be a valid number')
+      return
+    }
+    if ((inputPrice !== null && inputPrice < 0) || (outputPrice !== null && outputPrice < 0)) {
+      toast.error('Pricing cannot be negative')
+      return
+    }
+
+    const metadata = buildMetadata(selectedModel, form)
     try {
       if (selectedModel) {
         await updateModel.mutateAsync({
@@ -209,6 +304,7 @@ function ModelDialog({
             provider_credential_id: form.credentialId,
             model: form.model.trim(),
             status: form.status,
+            metadata,
           },
         })
         toast.success('Model updated')
@@ -218,6 +314,7 @@ function ModelDialog({
           provider_credential_id: form.credentialId,
           name: form.name.trim(),
           model: form.model.trim(),
+          metadata,
         })
         toast.success('Model created')
       }
@@ -237,7 +334,7 @@ function ModelDialog({
             </div>
             <div>
               <p className="text-sm font-semibold text-white">Reusable provider model</p>
-              <p className="mt-1 text-xs leading-5 text-muted">The model stores only a credential reference and a model identifier. Runtime settings stay on the agent.</p>
+              <p className="mt-1 text-xs leading-5 text-muted">The model stores a credential reference, model identifier and token pricing. Runtime behavior stays on the agent.</p>
             </div>
           </div>
         </div>
@@ -285,6 +382,32 @@ function ModelDialog({
           )}
         </div>
 
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
+              <DollarSign className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Token pricing</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Used by runtime cost calculation for this ProviderModel. Values are per 1M tokens.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label>
+              <Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.14" inputMode="decimal" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted">Output / 1M</label>
+              <Input value={form.outputCostPer1M} onChange={(event) => setField('outputCostPer1M', event.target.value)} placeholder="0.28" inputMode="decimal" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted">Currency</label>
+              <Input value={form.currency} onChange={(event) => setField('currency', event.target.value.toUpperCase())} placeholder="USD" />
+            </div>
+          </div>
+        </div>
+
         {selectedModel && (
           <div>
             <label className="mb-1 block text-sm font-medium text-muted">Status</label>
@@ -325,18 +448,22 @@ export default function ModelsPage() {
   }, [credentials])
 
   const selectedModel = models.find((model) => model.id === selectedModelId) || null
+  const pricedModels = models.filter((model) => pricingOf(model).configured).length
 
   const visibleModels = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return models
     return models.filter((model) => {
       const credential = credentialsById.get(model.provider_credential_id)
+      const pricing = pricingOf(model)
       return (
         model.name.toLowerCase().includes(normalized)
         || model.model.toLowerCase().includes(normalized)
         || (model.status || '').toLowerCase().includes(normalized)
         || (model.provider || credential?.provider || '').toLowerCase().includes(normalized)
         || (credential?.name || '').toLowerCase().includes(normalized)
+        || pricing.currency.toLowerCase().includes(normalized)
+        || (pricing.configured ? 'cost configured' : 'cost unknown').includes(normalized)
       )
     })
   }, [models, query, credentialsById])
@@ -372,7 +499,7 @@ export default function ModelsPage() {
   return (
     <MinimalShell
       title="Models"
-      description="Create reusable provider models from existing credentials, then attach those models to multiple agents."
+      description="Create reusable provider models from existing credentials, configure token pricing, then attach those models to multiple agents."
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full max-w-3xl">
@@ -380,7 +507,7 @@ export default function ModelsPage() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search models, providers or credentials..."
+            placeholder="Search models, providers, credentials or cost status..."
             className="h-11 pl-9"
           />
         </div>
@@ -408,9 +535,9 @@ export default function ModelsPage() {
           <p className="mt-1 text-xs text-muted">Configured model bindings</p>
         </div>
         <div className="rounded-xl border border-border/80 bg-surface/50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Runtime</p>
-          <p className="mt-3 text-2xl font-semibold text-white">Agent-level</p>
-          <p className="mt-1 text-xs text-muted">Temperature and tokens stay with agents</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Pricing</p>
+          <p className="mt-3 text-2xl font-semibold text-white">{pricedModels}/{models.length}</p>
+          <p className="mt-1 text-xs text-muted">Models with known runtime cost</p>
         </div>
       </div>
 
@@ -434,8 +561,8 @@ export default function ModelsPage() {
             <Archive className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Runtime separation</p>
-            <p className="mt-1 text-sm leading-6 text-muted">Models only bind a model identifier to a credential. Temperature, max output tokens, tools, knowledge and prompts remain configured inside each agent.</p>
+            <p className="text-sm font-semibold text-white">Runtime cost separation</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Credentials hold access. ProviderModels hold model identifiers and token pricing. Agents only reference ProviderModels, and runtime snapshots the pricing used by each LLM call.</p>
           </div>
         </div>
       </div>
