@@ -395,11 +395,11 @@ function ModelDialog({
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label>
-              <Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.14" inputMode="decimal" />
+              <Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.14" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-muted">Output / 1M</label>
-              <Input value={form.outputCostPer1M} onChange={(event) => setField('outputCostPer1M', event.target.value)} placeholder="0.28" inputMode="decimal" />
+              <Input value={form.outputCostPer1M} onChange={(event) => setField('outputCostPer1M', event.target.value)} placeholder="0.28" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-muted">Currency</label>
