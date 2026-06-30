@@ -53,11 +53,17 @@ function normalizeResponse(response: Record<string, unknown>): AskResponse {
     trace_id: (rest.trace_id as string) ?? null,
     model: (rest.model as string) ?? null,
     provider: (rest.provider as string) ?? null,
+    provider_model_id: asString(rest.provider_model_id),
+    provider_credential_id: asString(rest.provider_credential_id),
+    fallback_provider_model_id: asString(rest.fallback_provider_model_id),
+    fallback_credential_id: asString(rest.fallback_credential_id),
     fallback_used: (rest.fallback_used as boolean) ?? false,
     fallback_info: (rest.fallback_info ?? null) as unknown as AskResponse['fallback_info'],
     latency_ms: (rest.latency_ms as number) ?? null,
     parsed_output: (rest.parsed_output as Record<string, unknown>) ?? null,
     output_parse_error: (rest.output_parse_error as string) ?? null,
+    execution_events: (rest.execution_events as AskResponse['execution_events']) ?? [],
+    diagnostics: (rest.diagnostics as AskResponse['diagnostics']) ?? null,
   }
 }
 
