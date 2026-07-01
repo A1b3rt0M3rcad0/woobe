@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Request as FastAPIRequest
+from uuid import UUID
+
+from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
+from fastapi.encoders import jsonable_encoder
 
 from modules.agent.application.composers.create_provider_credential_composer import create_provider_credential_composer
 from modules.agent.application.composers.list_provider_credentials_composer import list_provider_credentials_composer
@@ -62,6 +65,12 @@ from modules.agent.application.composers.tools_composers import (
     update_tool_composer,
     update_tool_status_composer,
 )
+from modules.agent.application.dtos import UploadDocumentFileInput
+from modules.agent.application.use_cases import UploadDocumentFileUseCase
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.storage.factory import create_file_storage
+from modules.agent.presentation.mappers import upload_document_output_to_response
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
@@ -327,6 +336,42 @@ async def upload_document(request: FastAPIRequest):
     handler = upload_document_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+@knowledge_router.post("/documents/upload", status_code=201)
+async def upload_document_file(
+    request: FastAPIRequest,
+    project_id: UUID = Form(...),
+    collection_id: UUID = Form(...),
+    title: str | None = Form(None),
+    file: UploadFile = File(...),
+):
+    settings = request.app.state.settings
+    storage = create_file_storage(settings)
+    async with AgentUnitOfWork(request.app.state.session_factory) as uow:
+        use_case = UploadDocumentFileUseCase(
+            doc_repo=uow.documents,
+            collection_repo=uow.document_collections,
+            outbox=SQLAlchemyAgentOutboxEventWriter(uow),
+            storage=storage,
+            settings=settings,
+        )
+        output = await use_case.execute(
+            UploadDocumentFileInput(
+                project_id=project_id,
+                collection_id=collection_id,
+                title=title,
+            ),
+            file,
+        )
+
+    return jsonable_encoder(
+        {
+            "success": True,
+            "message": "created",
+            "data": upload_document_output_to_response(output).model_dump(),
+        }
+    )
 
 
 @knowledge_router.get("/documents/{document_id}")
