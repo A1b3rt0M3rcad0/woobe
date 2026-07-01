@@ -39,9 +39,11 @@ export interface Document {
   content_type: string
   size_bytes: number
   storage_key?: string
+  parser?: string
   status: string
   page_count?: number
   chunk_count?: number
+  sha256?: string
   indexed_at?: string
   error?: string
   created_at?: string
@@ -56,4 +58,11 @@ export interface UploadDocumentRequest {
   content_type: string
   size_bytes: number
   storage_key?: string
+}
+
+export interface UploadDocumentFileRequest {
+  projectId: string
+  collectionId: string
+  title?: string
+  file: File
 }
