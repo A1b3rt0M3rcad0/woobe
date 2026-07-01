@@ -135,12 +135,12 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
                   disabled={updateAgent.isPending}
                   onClick={() => void updateStatus(isAgentOn ? 'inactive' : 'active')}
                   className={cn(
-                    'relative h-6 w-10 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                    'relative h-5 w-9 shrink-0 overflow-hidden rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                     isAgentOn ? 'border-emerald-400/40 bg-emerald-500/25' : 'border-border/80 bg-surface/70',
                   )}
                   title={isAgentOn ? 'Disable agent execution' : 'Enable agent execution'}
                 >
-                  <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform', isAgentOn ? 'translate-x-4' : 'translate-x-0.5')} />
+                  <span className={cn('absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform', isAgentOn ? 'translate-x-4' : 'translate-x-0')} />
                 </button>
               </div>
             </section>
