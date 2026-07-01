@@ -40,7 +40,7 @@ export function PlaygroundHeader({
   }
 
   return (
-    <header className="h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
+    <header className="relative z-[200] h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={handleBackToProject}
