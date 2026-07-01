@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentSettingsTab } from './AgentSettingsTab'
-import { AgentRuntimeControlTab } from './AgentRuntimeControlTab'
 import { ModelSettingsTab } from './ModelSettingsTab'
 import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
@@ -157,18 +156,13 @@ function EditorTabContent({ projectId, agentId }: { agent: Agent; projectId: str
 }
 
 export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChange }: AgentInspectorProps) {
+  const resolvedActiveTab = activeTab === 'runtime' ? 'editor' : activeTab
   const tabs = [
     {
       id: 'editor',
       label: 'Editor',
       icon: <Edit3 className="h-3.5 w-3.5" />,
       content: <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />,
-    },
-    {
-      id: 'runtime',
-      label: 'Runtime',
-      icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
-      content: <AgentRuntimeControlTab agent={agent} agentId={agentId} />,
     },
     {
       id: 'versions',
@@ -184,7 +178,7 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
         <p className="text-xs font-semibold text-muted uppercase tracking-wider">Inspector</p>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        <InspectorTabs tabs={tabs} defaultTab={activeTab} onTabChange={onTabChange} />
+        <InspectorTabs tabs={tabs} defaultTab={resolvedActiveTab} onTabChange={onTabChange} />
       </div>
     </div>
   )
