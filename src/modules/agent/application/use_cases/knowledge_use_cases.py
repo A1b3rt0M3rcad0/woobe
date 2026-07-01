@@ -12,7 +12,7 @@ from modules.agent.domain.entities import (
     KnowledgeVersion,
 )
 from modules.agent.domain.enums import DocumentStatus, KnowledgeVersionStatus, ParserType
-from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
+from modules.agent.domain.ports.file_storage import FileStorage
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
@@ -260,8 +260,6 @@ class UploadDocumentFileUseCase:
 
         content = await upload.read()
         self._validate_content(content, extension)
-        content_sha256 = compute_sha256(content)
-        await self._ensure_not_duplicate(input_dto.project_id, content_sha256)
 
         document_id = uuid4()
         stored = await self._storage.save_document(
@@ -310,21 +308,6 @@ class UploadDocumentFileUseCase:
             raise
 
         return _document_to_upload_output(created)
-
-    async def _ensure_not_duplicate(self, project_id: UUID, sha256: str) -> None:
-        existing_documents = await self.doc_repo.list_by_project(project_id)
-        duplicate = next(
-            (
-                document
-                for document in existing_documents
-                if document.sha256 == sha256 and not _is_deleted_document(document)
-            ),
-            None,
-        )
-        if duplicate:
-            raise ConflictError(
-                f"Document already exists in this project: {duplicate.file_name}"
-            )
 
     def _validate_file_name(self, file_name: str | None) -> str:
         if not file_name or not file_name.strip():
