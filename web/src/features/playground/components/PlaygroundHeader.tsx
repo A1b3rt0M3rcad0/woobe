@@ -57,7 +57,6 @@ export function PlaygroundHeader({
           </span>
           <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
         </div>
-        <AgentControlsPopover agent={agent} />
         <div className="flex items-center gap-2 min-w-0">
           {releaseVersion && releaseStatus && (
             <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
@@ -83,6 +82,8 @@ export function PlaygroundHeader({
           <Code2 className="mr-1 h-4 w-4" />
           API
         </Button>
+
+        <AgentControlsPopover agent={agent} />
 
         <button
           onClick={onToggleRightPanel}
