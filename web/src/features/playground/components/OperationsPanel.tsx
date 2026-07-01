@@ -18,6 +18,7 @@ interface OperationsPanelProps {
   selectedTraceId: string | null
   sessions: SessionListItem[]
   sessionId: string | null
+  sessionMode?: 'stateful' | 'stateless'
   onSelectTrace: (id: string | null) => void
   onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
@@ -42,6 +43,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
     selectedTraceId,
     sessions,
     sessionId,
+    sessionMode = 'stateful',
     onSelectTrace,
     onNewSession,
     onSelectSession,
@@ -117,6 +119,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
         <SessionsPanel
           sessions={sessions}
           currentSessionId={sessionId}
+          sessionMode={sessionMode}
           onNewSession={onNewSession}
           onSelectSession={onSelectSession}
           onLoadMoreSessions={onLoadMoreSessions}

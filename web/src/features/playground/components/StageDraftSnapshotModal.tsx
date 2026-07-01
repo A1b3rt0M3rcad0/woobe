@@ -91,8 +91,6 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
               </div>
               {row('Name', state.name || 'Untitled agent')}
               {row('Model', modelLabel(state))}
-              {row('Status', state.status)}
-              {row('Mode', state.sessionMode)}
               {row('Temp', state.temperature)}
               {row('Tokens', state.maxOutputTokens)}
               {row('Response', responseFormatLabel(state))}
@@ -112,7 +110,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
             </section>
 
             <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime / knowledge</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
               <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(snapshot.runtime_config ?? state.runtimeConfig)}</pre>
             </section>
           </div>

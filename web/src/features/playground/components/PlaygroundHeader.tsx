@@ -1,8 +1,8 @@
-import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { AgentControlsPopover } from './AgentControlsPopover'
 import type { Agent } from '@/features/agents/types'
 import type { ReleaseStatus } from '@/features/agents/types'
 
@@ -40,7 +40,7 @@ export function PlaygroundHeader({
   }
 
   return (
-    <header className="h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
+    <header className="relative z-[200] h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={handleBackToProject}
@@ -58,7 +58,6 @@ export function PlaygroundHeader({
           <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
         </div>
         <div className="flex items-center gap-2 min-w-0">
-          <StatusBadge status={agent.status} />
           {releaseVersion && releaseStatus && (
             <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
               {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
@@ -83,6 +82,8 @@ export function PlaygroundHeader({
           <Code2 className="mr-1 h-4 w-4" />
           API
         </Button>
+
+        <AgentControlsPopover agent={agent} />
 
         <button
           onClick={onToggleRightPanel}

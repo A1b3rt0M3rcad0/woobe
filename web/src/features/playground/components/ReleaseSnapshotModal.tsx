@@ -64,7 +64,6 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300"><FileText className="h-3.5 w-3.5" />Snapshot</div>
             {row('Name', release.name)}
             {row('Model', `${release.provider ?? '—'}/${release.model ?? '—'}`)}
-            {row('Status', release.agent_status)}
             {row('Temp', release.temperature)}
             {row('Tokens', release.max_output_tokens)}
             {row('Collections', release.collection_ids?.length ? `${release.collection_ids.length}` : '—')}
@@ -83,7 +82,7 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
           </section>}
 
           <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">System prompt</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Instructions</p>
             <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{release.system_prompt || '—'}</pre>
           </section>
 
@@ -93,7 +92,7 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
           </section>
 
           <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime / knowledge</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
             <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(release.runtime_config)}</pre>
           </section>
         </div>

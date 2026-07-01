@@ -78,8 +78,6 @@ function EditorActions({ agentId }: { agentId: string }) {
         fallback_credential_id: state.fallbackProviderCredentialId || null,
         temperature: state.temperature,
         max_output_tokens: state.maxOutputTokens,
-        session_mode: state.sessionMode,
-        status: state.status,
         settings: {
           response_format: rf,
           base_url: state.baseUrl,
@@ -122,7 +120,7 @@ function EditorActions({ agentId }: { agentId: string }) {
   )
 }
 
-function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
+function EditorTabContent({ projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
   const [editorTab, setEditorTab] = useState('agent')
 
   return (
@@ -158,6 +156,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
 }
 
 export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChange }: AgentInspectorProps) {
+  const resolvedActiveTab = activeTab === 'runtime' ? 'editor' : activeTab
   const tabs = [
     {
       id: 'editor',
@@ -179,7 +178,7 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
         <p className="text-xs font-semibold text-muted uppercase tracking-wider">Inspector</p>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        <InspectorTabs tabs={tabs} defaultTab={activeTab} onTabChange={onTabChange} />
+        <InspectorTabs tabs={tabs} defaultTab={resolvedActiveTab} onTabChange={onTabChange} />
       </div>
     </div>
   )
