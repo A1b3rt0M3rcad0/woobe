@@ -24,6 +24,22 @@ class CreateCollectionOutput(BaseModel):
     updated_at: datetime | None = None
 
 
+class UpdateCollectionInput(BaseModel):
+    collection_id: UUID
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+
+
+class UpdateCollectionOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    name: str
+    description: str | None
+    status: CollectionStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class AttachCollectionInput(BaseModel):
     agent_id: UUID
     collection_id: UUID
