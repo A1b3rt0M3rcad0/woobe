@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Database, Plus, Search, Upload } from 'lucide-react'
+import { Database, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -16,7 +16,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { UploadDocumentModal } from '@/features/knowledge/components/UploadDocumentModal'
 import { createCollectionSchema, type CreateCollectionFormData } from '@/features/knowledge/schemas'
-import { useCollections, useCreateCollection, useDocuments } from '@/features/knowledge/hooks'
+import { useCollections, useCreateCollection, useDeleteDocument, useDocuments } from '@/features/knowledge/hooks'
 import { formatBytes } from '@/lib/formatters/bytes'
 import { formatDate } from '@/lib/formatters/date'
 import type { Collection, Document } from '@/features/knowledge/types'
@@ -26,6 +26,7 @@ export default function KnowledgePage() {
   const { data: collections, isLoading: colsLoading, isError: colsError, refetch: refetchCols } = useCollections(projectId)
   const { data: documents, isLoading: docsLoading } = useDocuments(projectId)
   const createCollection = useCreateCollection()
+  const deleteDocument = useDeleteDocument()
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
   const [query, setQuery] = useState('')
@@ -34,6 +35,12 @@ export default function KnowledgePage() {
 
   const collectionItems = collections ?? []
   const documentItems = documents ?? []
+  const collectionNames = useMemo(() => {
+    return collectionItems.reduce<Record<string, string>>((acc, collection) => {
+      acc[collection.id] = collection.name
+      return acc
+    }, {})
+  }, [collectionItems])
 
   const handleCreateCollection = async (data: CreateCollectionFormData) => {
     if (!projectId) return
@@ -51,6 +58,21 @@ export default function KnowledgePage() {
     }
   }
 
+  const handleDeleteDocument = async (document: Document) => {
+    const collectionName = collectionNames[document.collection_id] || document.collection_id.slice(0, 8)
+    const confirmed = window.confirm(
+      `Delete "${document.title}" from collection "${collectionName}"? This removes the uploaded file and its chunks.`,
+    )
+    if (!confirmed) return
+
+    try {
+      await deleteDocument.mutateAsync(document.id)
+      toast.success('Document deleted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete document')
+    }
+  }
+
   const normalizedQuery = query.trim().toLowerCase()
   const visibleCollections = useMemo(() => {
     if (!normalizedQuery) return collectionItems
@@ -62,24 +84,55 @@ export default function KnowledgePage() {
 
   const visibleDocuments = useMemo(() => {
     if (!normalizedQuery) return documentItems
-    return documentItems.filter((document) => (
-      document.title.toLowerCase().includes(normalizedQuery)
-      || document.file_name.toLowerCase().includes(normalizedQuery)
-      || document.content_type.toLowerCase().includes(normalizedQuery)
-      || document.status?.toLowerCase().includes(normalizedQuery)
-    ))
-  }, [documentItems, normalizedQuery])
+    return documentItems.filter((document) => {
+      const collectionName = collectionNames[document.collection_id] || ''
+      return (
+        document.title.toLowerCase().includes(normalizedQuery)
+        || document.file_name.toLowerCase().includes(normalizedQuery)
+        || document.content_type.toLowerCase().includes(normalizedQuery)
+        || document.status?.toLowerCase().includes(normalizedQuery)
+        || collectionName.toLowerCase().includes(normalizedQuery)
+      )
+    })
+  }, [documentItems, collectionNames, normalizedQuery])
 
   if (colsLoading || docsLoading) return <LoadingState />
   if (colsError) return <ErrorState onRetry={refetchCols} />
 
   const docColumns = [
-    { key: 'title', header: 'Title' },
-    { key: 'file_name', header: 'File' },
-    { key: 'content_type', header: 'Type' },
-    { key: 'size_bytes', header: 'Size', render: (d: Document) => formatBytes(d.size_bytes) },
-    { key: 'status', header: 'Status', render: (d: Document) => <StatusBadge status={d.status} /> },
-    { key: 'created_at', header: 'Created', render: (d: Document) => d.created_at ? formatDate(d.created_at) : '-' },
+    { key: 'title', header: 'Title', className: 'min-w-[220px]' },
+    {
+      key: 'collection_id',
+      header: 'Collection',
+      render: (d: Document) => collectionNames[d.collection_id] || d.collection_id.slice(0, 8),
+      className: 'min-w-[160px]',
+    },
+    { key: 'file_name', header: 'File', className: 'min-w-[220px]' },
+    { key: 'content_type', header: 'Type', className: 'min-w-[140px]' },
+    { key: 'size_bytes', header: 'Size', render: (d: Document) => formatBytes(d.size_bytes), className: 'min-w-[100px]' },
+    { key: 'status', header: 'Status', render: (d: Document) => <StatusBadge status={d.status} />, className: 'min-w-[110px]' },
+    { key: 'created_at', header: 'Created', render: (d: Document) => d.created_at ? formatDate(d.created_at) : '-', className: 'min-w-[120px]' },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[72px] text-right',
+      render: (d: Document) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-400 hover:text-red-300"
+          loading={deleteDocument.isPending}
+          onClick={(event) => {
+            event.stopPropagation()
+            handleDeleteDocument(d)
+          }}
+          aria-label={`Delete ${d.title}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    },
   ]
 
   const tabs = [
