@@ -1,5 +1,9 @@
 from __future__ import annotations
-from uuid import UUID
+
+import mimetypes
+from pathlib import Path
+from typing import Protocol
+from uuid import UUID, uuid4
 
 from modules.agent.domain.entities import (
     AgentCollection,
@@ -7,7 +11,8 @@ from modules.agent.domain.entities import (
     DocumentCollection,
     KnowledgeVersion,
 )
-from modules.agent.domain.enums import DocumentStatus, KnowledgeVersionStatus
+from modules.agent.domain.enums import DocumentStatus, KnowledgeVersionStatus, ParserType
+from modules.agent.domain.ports.file_storage import FileStorage
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
@@ -31,13 +36,61 @@ from modules.agent.application.dtos.knowledge_dtos import (
     ListKnowledgeVersionsOutput,
     SearchChunksInput,
     SearchChunksOutput,
+    UploadDocumentFileInput,
     UploadDocumentInput,
     UploadDocumentOutput,
 )
-
 from modules.agent.domain.events import AgentCollectionCreatedV1, AgentDocumentUploadedV1
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.infra.config import Settings
 from shared.infra.config.interface.unit_of_work import UnitOfWork
+from shared.infra.errors import ValidationError
+from shared.messaging.outbox_writer import OutboxEventWriter
+
+
+class ReadableUploadFile(Protocol):
+    filename: str | None
+    content_type: str | None
+
+    async def read(self) -> bytes: ...
+
+
+_EXTENSION_TO_PARSER: dict[str, ParserType] = {
+    ".txt": ParserType.TEXT,
+    ".md": ParserType.MD,
+    ".pdf": ParserType.PDF,
+}
+
+_CONTENT_TYPES_BY_EXTENSION: dict[str, set[str]] = {
+    ".txt": {"text/plain", "application/octet-stream"},
+    ".md": {"text/markdown", "text/plain", "text/x-markdown", "application/octet-stream"},
+    ".pdf": {"application/pdf", "application/octet-stream"},
+}
+
+
+def _as_value(value: object) -> object:
+    return getattr(value, "value", value)
+
+
+def _document_to_upload_output(document: Document) -> UploadDocumentOutput:
+    return UploadDocumentOutput(
+        id=document.id,
+        project_id=document.project_id,
+        collection_id=document.collection_id,
+        title=document.title,
+        file_name=document.file_name,
+        content_type=document.content_type,
+        size_bytes=document.size_bytes,
+        storage_key=document.storage_key,
+        parser=document.parser,
+        status=document.status,
+        page_count=document.page_count,
+        chunk_count=document.chunk_count,
+        error=document.error,
+        sha256=document.sha256,
+        indexed_at=document.indexed_at,
+        created_at=document.created_at,
+        updated_at=document.updated_at,
+    )
 
 
 class ListAgentCollectionsUseCase:
@@ -140,7 +193,7 @@ class UploadDocumentUseCase:
         self,
         doc_repo: DocumentRepository,
         collection_repo: DocumentCollectionRepository,
-        outbox: "OutboxEventWriter",
+        outbox: OutboxEventWriter,
     ) -> None:
         self.doc_repo = doc_repo
         self.collection_repo = collection_repo
@@ -168,28 +221,149 @@ class UploadDocumentUseCase:
             project_id=created.project_id,
             file_name=created.file_name,
             storage_key=created.storage_key,
-            parser=created.parser,
+            parser=str(_as_value(created.parser)),
         )
         await self._outbox.write(event)
 
-        return UploadDocumentOutput(
-            id=created.id,
-            project_id=created.project_id,
-            collection_id=created.collection_id,
-            title=created.title,
-            file_name=created.file_name,
-            content_type=created.content_type,
-            size_bytes=created.size_bytes,
-            storage_key=created.storage_key,
-            parser=created.parser,
-            status=created.status,
-            page_count=created.page_count,
-            chunk_count=created.chunk_count,
-            error=created.error,
-            indexed_at=created.indexed_at,
-            created_at=created.created_at,
-            updated_at=created.updated_at,
+        return _document_to_upload_output(created)
+
+
+class UploadDocumentFileUseCase:
+    def __init__(
+        self,
+        doc_repo: DocumentRepository,
+        collection_repo: DocumentCollectionRepository,
+        outbox: OutboxEventWriter,
+        storage: FileStorage,
+        settings: Settings,
+    ) -> None:
+        self.doc_repo = doc_repo
+        self.collection_repo = collection_repo
+        self._outbox = outbox
+        self._storage = storage
+        self._settings = settings
+
+    async def execute(
+        self,
+        input_dto: UploadDocumentFileInput,
+        upload: ReadableUploadFile,
+    ) -> UploadDocumentOutput:
+        await self.collection_repo.get_by_id(input_dto.collection_id)
+
+        file_name = self._validate_file_name(upload.filename)
+        extension = Path(file_name).suffix.lower()
+        parser = self._validate_extension(extension)
+        content_type = self._resolve_content_type(file_name, upload.content_type, extension)
+
+        content = await upload.read()
+        self._validate_content(content, extension)
+
+        document_id = uuid4()
+        stored = await self._storage.save_document(
+            content=content,
+            project_id=input_dto.project_id,
+            collection_id=input_dto.collection_id,
+            document_id=document_id,
+            file_name=file_name,
+            content_type=content_type,
         )
+
+        title = (input_dto.title or "").strip() or Path(stored.file_name).stem
+        document = Document(
+            id=document_id,
+            project_id=input_dto.project_id,
+            collection_id=input_dto.collection_id,
+            title=title,
+            file_name=stored.file_name,
+            content_type=stored.content_type,
+            size_bytes=stored.size_bytes,
+            storage_key=stored.storage_key,
+            parser=parser,
+            status=DocumentStatus.UPLOADED,
+            sha256=stored.sha256,
+        )
+
+        try:
+            created = await self.doc_repo.create(document)
+            event = AgentDocumentUploadedV1.create(
+                document_id=created.id,
+                collection_id=created.collection_id,
+                project_id=created.project_id,
+                file_name=created.file_name,
+                storage_key=created.storage_key,
+                parser=str(_as_value(created.parser)),
+                payload={
+                    "content_type": created.content_type,
+                    "size_bytes": created.size_bytes,
+                    "sha256": created.sha256,
+                    "storage_driver": self._settings.storage_driver,
+                },
+            )
+            await self._outbox.write(event)
+        except Exception:
+            await self._storage.delete(stored.storage_key)
+            raise
+
+        return _document_to_upload_output(created)
+
+    def _validate_file_name(self, file_name: str | None) -> str:
+        if not file_name or not file_name.strip():
+            raise ValidationError("File name is required")
+        name = Path(file_name.replace("\\", "/")).name.strip()
+        if not name:
+            raise ValidationError("File name is invalid")
+        return name
+
+    def _allowed_extensions(self) -> set[str]:
+        return {
+            item.strip().lower()
+            for item in self._settings.upload_allowed_extensions.split(",")
+            if item.strip()
+        }
+
+    def _validate_extension(self, extension: str) -> ParserType:
+        if extension not in self._allowed_extensions():
+            raise ValidationError("Only .txt, .md and .pdf uploads are supported")
+        parser = _EXTENSION_TO_PARSER.get(extension)
+        if parser is None:
+            raise ValidationError(f"Unsupported document extension: {extension}")
+        return parser
+
+    def _resolve_content_type(
+        self,
+        file_name: str,
+        content_type: str | None,
+        extension: str,
+    ) -> str:
+        guessed = mimetypes.guess_type(file_name)[0]
+        normalized = (content_type or guessed or "application/octet-stream").split(";", 1)[0].strip().lower()
+        allowed = _CONTENT_TYPES_BY_EXTENSION.get(extension, set())
+        if normalized not in allowed:
+            raise ValidationError(
+                f"Invalid content type for {extension}: {normalized or 'unknown'}"
+            )
+        if normalized == "application/octet-stream" and guessed:
+            return guessed
+        return normalized
+
+    def _validate_content(self, content: bytes, extension: str) -> None:
+        if not content:
+            raise ValidationError("Uploaded file is empty")
+
+        max_bytes = self._settings.upload_max_mb * 1024 * 1024
+        if len(content) > max_bytes:
+            raise ValidationError(
+                f"Uploaded file exceeds {self._settings.upload_max_mb} MB"
+            )
+
+        if extension == ".pdf" and not content.startswith(b"%PDF"):
+            raise ValidationError("Uploaded file is not a valid PDF")
+
+        if extension in {".txt", ".md"}:
+            try:
+                content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValidationError("Text and Markdown uploads must be valid UTF-8") from exc
 
 
 class SearchChunksUseCase:
