@@ -11,6 +11,8 @@ interface ChatCanvasProps {
   isSessionLoading?: boolean
   onSend: (content: string) => void
   agentName?: string
+  runtimeBlocked?: boolean
+  runtimeBlockReason?: string
 }
 
 const suggestions = [
@@ -50,7 +52,7 @@ function SessionMessagesLoading() {
   )
 }
 
-export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, agentName }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -110,20 +112,22 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
               Start a conversation with your agent
             </h2>
             <p className="text-sm text-muted max-w-md mb-6">
-              Test behavior, inspect runtime execution, and iterate from the same workspace.
+              {runtimeBlocked ? runtimeBlockReason : 'Test behavior, inspect runtime execution, and iterate from the same workspace.'}
             </p>
-            <div className="flex flex-col gap-2 w-full max-w-sm">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => onSend(suggestion)}
-                  className="group flex items-center justify-between rounded-xl border border-border/80 bg-surface/45 px-4 py-3 text-sm text-muted hover:text-white hover:border-primary/35 hover:bg-primary/5 transition-all text-left shadow-sm shadow-black/5"
-                >
-                  <span>{suggestion}</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 ml-2 transition-transform group-hover:translate-x-0.5" />
-                </button>
-              ))}
-            </div>
+            {!runtimeBlocked && (
+              <div className="flex flex-col gap-2 w-full max-w-sm">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => onSend(suggestion)}
+                    className="group flex items-center justify-between rounded-xl border border-border/80 bg-surface/45 px-4 py-3 text-sm text-muted hover:text-white hover:border-primary/35 hover:bg-primary/5 transition-all text-left shadow-sm shadow-black/5"
+                  >
+                    <span>{suggestion}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 ml-2 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div ref={messagesContentRef} className="relative space-y-4 p-4 pb-2">
@@ -141,7 +145,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} onSend={onSend} />
+      <ChatComposer isSending={isSending} onSend={onSend} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }
