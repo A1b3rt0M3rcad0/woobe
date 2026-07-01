@@ -5,6 +5,7 @@ import type {
   Collection,
   CreateCollectionRequest,
   Document,
+  UploadDocumentFileRequest,
   UploadDocumentRequest,
 } from './types'
 
@@ -46,4 +47,16 @@ export async function getDocument(id: string): Promise<Document> {
 
 export async function uploadDocument(data: UploadDocumentRequest): Promise<Document> {
   return post<Document>('/knowledge/documents', data)
+}
+
+export async function uploadDocumentFile(data: UploadDocumentFileRequest): Promise<Document> {
+  const formData = new FormData()
+  formData.append('project_id', data.projectId)
+  formData.append('collection_id', data.collectionId)
+  if (data.title?.trim()) {
+    formData.append('title', data.title.trim())
+  }
+  formData.append('file', data.file)
+
+  return post<Document>('/knowledge/documents/upload', formData)
 }
