@@ -56,6 +56,12 @@ class UploadDocumentInput(BaseModel):
     parser: ParserType = ParserType.TEXT
 
 
+class UploadDocumentFileInput(BaseModel):
+    project_id: UUID
+    collection_id: UUID
+    title: str | None = Field(default=None, max_length=255)
+
+
 class UploadDocumentOutput(BaseModel):
     id: UUID
     project_id: UUID
@@ -70,6 +76,7 @@ class UploadDocumentOutput(BaseModel):
     page_count: int | None = None
     chunk_count: int | None = None
     error: str | None = None
+    sha256: str | None = None
     indexed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
