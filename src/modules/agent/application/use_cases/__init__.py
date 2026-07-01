@@ -60,6 +60,7 @@ from modules.agent.application.use_cases.knowledge_use_cases import (
     ListDocumentsUseCase,
     ListKnowledgeVersionsUseCase,
     SearchChunksUseCase,
+    UploadDocumentFileUseCase,
     UploadDocumentUseCase,
 )
 from modules.agent.application.use_cases.runtime_use_cases import (
@@ -149,5 +150,6 @@ __all__ = [
     "UpdateProviderModelUseCase",
     "UpdateToolStatusUseCase",
     "UpdateToolUseCase",
+    "UploadDocumentFileUseCase",
     "UploadDocumentUseCase",
 ]
