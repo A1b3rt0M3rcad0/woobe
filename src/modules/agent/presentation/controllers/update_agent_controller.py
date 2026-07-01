@@ -6,6 +6,13 @@ from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
 
+def _agent_payload(agent):
+    data = agent_to_response(agent).model_dump()
+    data["provider_model_id"] = getattr(agent, "provider_model_id", None)
+    data["fallback_provider_model_id"] = getattr(agent, "fallback_provider_model_id", None)
+    return data
+
+
 class UpdateAgentController(Controller):
     def __init__(self, use_case: UpdateAgentUseCase) -> None:
         self._use_case = use_case
@@ -17,5 +24,5 @@ class UpdateAgentController(Controller):
         result = await self._use_case.execute(agent_id, input_dto)
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": agent_to_response(result).model_dump()},
+            body={"success": True, "message": "ok", "data": _agent_payload(result)},
         )

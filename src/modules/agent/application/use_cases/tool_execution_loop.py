@@ -213,6 +213,7 @@ async def run_tool_loop(
     initial_phase: str,
     final_json_instruction: str | None,
     final_model: Any | None = None,
+    pricing_snapshot: dict[str, Any] | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     execution = InstrumentedExecution(result=None)
     base_messages = _sanitize_base_messages(messages)
@@ -229,6 +230,7 @@ async def run_tool_loop(
         call_index=call_index,
         provider=provider,
         model_name=model_name,
+        pricing_snapshot=pricing_snapshot,
     )
     execution.llm_calls.append(call)
     execution.timeline.append(
@@ -282,6 +284,7 @@ async def run_tool_loop(
                 call_index=call_index,
                 provider=provider,
                 model_name=model_name,
+                pricing_snapshot=pricing_snapshot,
             )
         except InstrumentedExecutionError as exc:
             raise InstrumentedExecutionError(
@@ -321,6 +324,7 @@ async def run_tool_loop(
                 call_index=call_index,
                 provider=provider,
                 model_name=model_name,
+                pricing_snapshot=pricing_snapshot,
             )
         except InstrumentedExecutionError as exc:
             raise InstrumentedExecutionError(

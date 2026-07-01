@@ -9,11 +9,17 @@ import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google' },
   { value: 'custom', label: 'Custom (OpenAI-compatible)' },
 ]
 
 const defaultNames: Record<string, string> = {
   openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+  anthropic: 'Anthropic',
+  google: 'Google',
   custom: 'Custom Provider',
 }
 
@@ -34,7 +40,6 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
   const [name, setName] = useState(defaultNames.openai)
   const [secret, setSecret] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
-  const [modelName, setModelName] = useState('')
 
   useEffect(() => {
     if (credential) {
@@ -43,13 +48,11 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       setSecret('')
       const meta = credential.metadata || {}
       setBaseUrl(meta.base_url || '')
-      setModelName(meta.model || meta.model_name || '')
     } else {
       setProvider('openai')
       setName(defaultNames.openai)
       setSecret('')
       setBaseUrl('')
-      setModelName('')
     }
   }, [credential, open])
 
@@ -58,7 +61,6 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     setName(defaultNames[provider] || '')
     if (provider !== 'custom') {
       setBaseUrl('')
-      setModelName('')
     }
   }, [provider, isEditing])
 
@@ -72,16 +74,12 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       toast.error('API key is required')
       return
     }
-    if (provider !== 'openai' && provider !== 'custom') {
-      toast.error('This provider is not supported in the MVP')
+    if (!providers.some((item) => item.value === provider)) {
+      toast.error('Provider is not supported')
       return
     }
     if (provider === 'custom' && !baseUrl.trim()) {
       toast.error('Base URL is required for custom providers')
-      return
-    }
-    if (provider === 'custom' && !modelName.trim()) {
-      toast.error('Model name is required for custom providers')
       return
     }
 
@@ -92,10 +90,9 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
         if (provider !== credential.provider) payload.provider = provider
         if (secret.trim()) payload.secret = secret.trim()
         if (provider === 'custom') {
-          const meta: Record<string, string> = {}
-          if (baseUrl.trim()) meta.base_url = baseUrl.trim()
-          if (modelName.trim()) meta.model = modelName.trim()
-          if (Object.keys(meta).length > 0) payload.metadata = meta
+          payload.metadata = { base_url: baseUrl.trim() }
+        } else if (credential.metadata?.base_url) {
+          payload.metadata = {}
         }
         await updateCredential.mutateAsync({ id: credential.id, data: payload as any })
         toast.success('Credential updated')
@@ -108,10 +105,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
           secret: secret.trim(),
         }
         if (provider === 'custom') {
-          payload.metadata = {
-            base_url: baseUrl.trim(),
-            model: modelName.trim(),
-          }
+          payload.metadata = { base_url: baseUrl.trim() }
         }
         const result = await createCredential.mutateAsync(payload as any)
         toast.success('Credential added')
@@ -127,50 +121,41 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     <Dialog open={open} onClose={onClose} title={isEditing ? 'Edit Provider Credential' : 'Add Provider Credential'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-muted mb-1">Provider</label>
+          <label className="mb-1 block text-sm font-medium text-muted">Provider</label>
           <Select
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
             options={providers}
           />
-          <p className="mt-1 text-xs text-muted">The MVP supports OpenAI and OpenAI-compatible providers only.</p>
+          <p className="mt-1 text-xs text-muted">Credentials only store access. Models are created separately from this credential.</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-muted mb-1">Name</label>
+          <label className="mb-1 block text-sm font-medium text-muted">Name</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="My API Key"
+            placeholder="My provider key"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-muted mb-1">API Key</label>
+          <label className="mb-1 block text-sm font-medium text-muted">API Key</label>
           <Input
             type="password"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            placeholder={isEditing ? 'Leave blank to keep current' : (provider === 'openai' ? 'sk-...' : 'Paste your API key')}
+            placeholder={isEditing ? 'Leave blank to keep current' : 'Paste your API key'}
           />
         </div>
         {provider === 'custom' && (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Base URL</label>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://api.example.com/v1"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Model Name</label>
-              <Input
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                placeholder="e.g. my-model-name"
-              />
-            </div>
-          </>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-muted">Base URL</label>
+            <Input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.example.com/v1"
+            />
+            <p className="mt-1 text-xs text-muted">Use this for OpenAI-compatible gateways. The model slug is configured on the Models page.</p>
+          </div>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

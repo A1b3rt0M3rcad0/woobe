@@ -78,9 +78,12 @@ export interface UsageInfo {
 export interface FallbackInfo {
   primary_model: string | null
   primary_provider: string | null
+  primary_provider_model_id?: string | null
+  primary_credential_id?: string | null
   primary_error: string
   fallback_model: string | null
   fallback_provider: string | null
+  fallback_provider_model_id?: string | null
   fallback_credential_id: string | null
 }
 
@@ -90,6 +93,8 @@ export interface FallbackEventInfo {
   fallback_provider: string
   fallback_model: string
   error: string
+  primary_provider_model_id?: string | null
+  fallback_provider_model_id?: string | null
 }
 
 export type StreamTokenVisibility = 'assistant' | 'internal' | 'debug'
@@ -155,6 +160,10 @@ export interface ExecutionDiagnostics {
   tool_call_count: number
   usage_complete: boolean
   cost_status: 'known' | 'unknown'
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
 }
 
 export interface AskResponse {
@@ -167,6 +176,10 @@ export interface AskResponse {
   trace_id: string | null
   model: string | null
   provider: string | null
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
   fallback_used: boolean
   fallback_info?: FallbackInfo | null
   latency_ms: number | null
@@ -220,6 +233,10 @@ export interface TraceItem {
   latency_ms: number | null
   model: string | null
   provider: string | null
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
   input_tokens: number | null
   output_tokens: number | null
   total_tokens: number | null

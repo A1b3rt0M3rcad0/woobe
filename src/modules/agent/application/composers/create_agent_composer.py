@@ -11,7 +11,8 @@ def create_agent_composer(session_factory: async_sessionmaker[AsyncSession]) -> 
     uow = AgentUnitOfWork(session_factory)
     agent_repo = uow.agents
     credential_repo = uow.provider_credentials
+    provider_model_repo = uow.provider_models
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox)
+    use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox, provider_model_repo)
     controller = CreateAgentController(use_case)
     return TransactionalHandler(uow, controller.handle)

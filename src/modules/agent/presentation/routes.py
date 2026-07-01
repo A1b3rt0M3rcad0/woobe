@@ -3,6 +3,10 @@ from fastapi import APIRouter, Request as FastAPIRequest
 from modules.agent.application.composers.create_provider_credential_composer import create_provider_credential_composer
 from modules.agent.application.composers.list_provider_credentials_composer import list_provider_credentials_composer
 from modules.agent.application.composers.update_provider_credential_composer import update_provider_credential_composer
+from modules.agent.application.composers.create_provider_model_composer import create_provider_model_composer
+from modules.agent.application.composers.list_provider_models_composer import list_provider_models_composer
+from modules.agent.application.composers.get_provider_model_composer import get_provider_model_composer
+from modules.agent.application.composers.update_provider_model_composer import update_provider_model_composer
 from modules.agent.application.composers.create_agent_composer import create_agent_composer
 from modules.agent.application.composers.list_agents_composer import list_agents_composer
 from modules.agent.application.composers.get_agent_composer import get_agent_composer
@@ -63,7 +67,6 @@ from shared.presentation.http.adapter import request_adapter, response_adapter
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
-
 @router.post("/credentials")
 async def create_provider_credential(request: FastAPIRequest):
     handler = create_provider_credential_composer(request.app.state.session_factory)
@@ -81,6 +84,34 @@ async def update_provider_credential(request: FastAPIRequest):
 @router.get("/credentials")
 async def list_provider_credentials(request: FastAPIRequest):
     handler = list_provider_credentials_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/provider-models", status_code=201)
+async def create_provider_model(request: FastAPIRequest):
+    handler = create_provider_model_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/provider-models")
+async def list_provider_models(request: FastAPIRequest):
+    handler = list_provider_models_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/provider-models/{provider_model_id}")
+async def get_provider_model(request: FastAPIRequest):
+    handler = get_provider_model_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.patch("/provider-models/{provider_model_id}")
+async def update_provider_model(request: FastAPIRequest):
+    handler = update_provider_model_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -242,7 +273,6 @@ async def list_release_tests(request: FastAPIRequest):
 knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge", "agent"])
 
 
-
 @knowledge_router.get("/collections")
 async def list_collections(request: FastAPIRequest):
     handler = list_collections_composer(request.app.state.session_factory)
@@ -328,7 +358,6 @@ async def list_knowledge_versions(request: FastAPIRequest):
 
 
 runtime_router = APIRouter(prefix="/runtime", tags=["runtime", "agent"])
-
 
 
 @runtime_router.post("/sessions")

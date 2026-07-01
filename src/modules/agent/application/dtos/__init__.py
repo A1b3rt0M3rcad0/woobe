@@ -1,5 +1,4 @@
 from modules.agent.application.dtos.ai_dtos import (
-    CreateAgentInput,
     CreateAgentOutput,
     CreateContractInput,
     CreateContractOutput,
@@ -9,6 +8,7 @@ from modules.agent.application.dtos.ai_dtos import (
     CreatePromptOutput,
     CreateProviderCredentialInput,
     CreateProviderCredentialOutput,
+    CreateProviderModelInput,
     CreateReleaseInput,
     CreateReleaseOutput,
     CreateReleaseTestInput,
@@ -21,16 +21,22 @@ from modules.agent.application.dtos.ai_dtos import (
     ListPromptsOutput,
     ListProviderCredentialsInput,
     ListProviderCredentialsOutput,
+    ListProviderModelsInput,
     ListReleaseTestsOutput,
     ListReleasesOutput,
     PromoteReleaseInput,
+    ProviderModelOutput,
     RollbackReleaseInput,
-    UpdateAgentInput,
     UpdateAgentOutput,
     UpdateContractInput,
     UpdateContractOutput,
     UpdateProviderCredentialInput,
     UpdateProviderCredentialOutput,
+    UpdateProviderModelInput,
+)
+from modules.agent.application.dtos.agent_binding_dtos import (
+    CreateAgentInput,
+    UpdateAgentInput,
 )
 from modules.agent.application.dtos.knowledge_dtos import (
     AgentCollectionOutput,
@@ -76,6 +82,10 @@ __all__ = [
     "CreateProviderCredentialOutput",
     "UpdateProviderCredentialInput",
     "UpdateProviderCredentialOutput",
+    "CreateProviderModelInput",
+    "UpdateProviderModelInput",
+    "ListProviderModelsInput",
+    "ProviderModelOutput",
     "CreateAgentInput",
     "CreateAgentOutput",
     "UpdateAgentInput",

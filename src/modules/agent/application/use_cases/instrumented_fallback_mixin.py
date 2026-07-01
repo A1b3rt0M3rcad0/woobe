@@ -10,7 +10,30 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     utc_iso,
 )
 from modules.agent.application.use_cases.runtime_streaming import emit_runtime_event
+from shared.infra.llm_cost import calculate_llm_cost
 from shared.infra.llm_usage import normalize_llm_usage
+
+
+def _fallback_pricing_snapshot(agent) -> dict | None:
+    settings = getattr(agent, "settings", None) or {}
+    value = settings.get("fallback_model_pricing")
+    return value if isinstance(value, dict) else None
+
+
+def _cost_context(pricing_snapshot: dict | None) -> dict:
+    if not pricing_snapshot:
+        return {
+            "provider_model_id": None,
+            "provider_credential_id": None,
+            "pricing_id": None,
+            "pricing_snapshot": None,
+        }
+    return {
+        "provider_model_id": pricing_snapshot.get("provider_model_id"),
+        "provider_credential_id": pricing_snapshot.get("provider_credential_id"),
+        "pricing_id": pricing_snapshot.get("pricing_id"),
+        "pricing_snapshot": pricing_snapshot,
+    }
 
 
 class InstrumentedFallbackMixin:
@@ -43,6 +66,12 @@ class InstrumentedFallbackMixin:
         result, provider, _latency, _info = response
         ended_at = utc_iso()
         raw = normalize_llm_usage(result)
+        pricing_snapshot = _fallback_pricing_snapshot(agent)
+        cost = calculate_llm_cost(
+            input_tokens=raw.get("input_tokens"),
+            output_tokens=raw.get("output_tokens"),
+            pricing_snapshot=pricing_snapshot,
+        )
         context = current_execution.get()
         execution = (
             context.execution
@@ -62,16 +91,16 @@ class InstrumentedFallbackMixin:
             "input_tokens": raw.get("input_tokens"),
             "output_tokens": raw.get("output_tokens"),
             "total_tokens": raw.get("total_tokens"),
-            "cost_usd": raw.get("cost_usd"),
-            "cost_status": (
-                "known" if raw.get("cost_usd") is not None else "unknown"
-            ),
+            "cost_usd": cost["cost_usd"],
+            "cost_status": cost["cost_status"],
+            "cost_reason": cost["cost_reason"],
             "usage_complete": all(
                 raw.get(field) is not None
                 for field in ("input_tokens", "output_tokens", "total_tokens")
             ),
             "provider": provider,
             "model": agent.fallback_model,
+            **_cost_context(pricing_snapshot),
         }
         execution.result = result
         execution.llm_calls.append(call)

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
 import { useCredentials } from '@/features/provider-credentials/hooks'
+import { useProviderModels } from '@/features/provider-models/hooks'
 
 export type ResponseFormat = {
   enabled: boolean
@@ -18,9 +19,11 @@ export type AgentEditorState = {
   outputSchema: unknown | null
   provider: string
   model: string
+  providerModelId: string | null
   providerCredentialId: string | null
   fallbackProvider: string
   fallbackModel: string
+  fallbackProviderModelId: string | null
   fallbackProviderCredentialId: string | null
   baseUrl: string | null
   temperature: number
@@ -69,9 +72,11 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
     outputSchema: rf.schema ?? null,
     provider: agent.provider || '',
     model: agent.model || '',
+    providerModelId: agent.provider_model_id || null,
     providerCredentialId: agent.provider_credential_id || null,
     fallbackProvider: agent.fallback_provider || '',
     fallbackModel: agent.fallback_model || '',
+    fallbackProviderModelId: agent.fallback_provider_model_id || null,
     fallbackProviderCredentialId: agent.fallback_credential_id || null,
     baseUrl: (settings.base_url as string) || null,
     temperature: agent.temperature ?? 0.7,
@@ -104,9 +109,11 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
       repair_attempts: state.responseFormat.repair_attempts,
     },
     output_schema: schema,
+    provider_model_id: state.providerModelId,
     provider: state.provider,
     model: state.model,
     provider_credential_id: state.providerCredentialId,
+    fallback_provider_model_id: state.fallbackProviderModelId || undefined,
     fallback_provider: state.fallbackProvider || undefined,
     fallback_model: state.fallbackModel || undefined,
     fallback_credential_id: state.fallbackProviderCredentialId || undefined,
@@ -128,6 +135,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
   const { data: credentials } = useCredentials(projectId || '')
+  const { data: providerModels } = useProviderModels(projectId || '')
 
   useEffect(() => {
     const next = agentToEditorState(agent, propCollectionIds)
@@ -136,6 +144,69 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [agent, propCollectionIds])
 
   useEffect(() => {
+    if (state.providerModelId || !providerModels?.length) return
+    if (!state.providerCredentialId || !state.model) return
+    const providerModel = providerModels.find((item) => (
+      item.provider_credential_id === state.providerCredentialId && item.model === state.model
+    ))
+    if (!providerModel) return
+    setState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
+  }, [state.providerModelId, state.providerCredentialId, state.model, providerModels])
+
+  useEffect(() => {
+    if (state.fallbackProviderModelId || !providerModels?.length) return
+    if (!state.fallbackProviderCredentialId || !state.fallbackModel) return
+    const providerModel = providerModels.find((item) => (
+      item.provider_credential_id === state.fallbackProviderCredentialId && item.model === state.fallbackModel
+    ))
+    if (!providerModel) return
+    setState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
+  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, state.fallbackModel, providerModels])
+
+  useEffect(() => {
+    if (!state.providerModelId || !providerModels?.length) return
+    const providerModel = providerModels.find((item) => item.id === state.providerModelId)
+    if (!providerModel) return
+    const credential = credentials?.find((item) => item.id === providerModel.provider_credential_id)
+    setState((previous) => {
+      const provider = providerModel.provider || credential?.provider || previous.provider
+      const model = providerModel.model || previous.model
+      const providerCredentialId = providerModel.provider_credential_id || previous.providerCredentialId
+      const baseUrl = credential?.metadata?.base_url || previous.baseUrl
+      if (
+        previous.provider === provider
+        && previous.model === model
+        && previous.providerCredentialId === providerCredentialId
+        && previous.baseUrl === baseUrl
+      ) {
+        return previous
+      }
+      return { ...previous, provider, model, providerCredentialId, baseUrl }
+    })
+  }, [state.providerModelId, providerModels, credentials])
+
+  useEffect(() => {
+    if (!state.fallbackProviderModelId || !providerModels?.length) return
+    const providerModel = providerModels.find((item) => item.id === state.fallbackProviderModelId)
+    if (!providerModel) return
+    const credential = credentials?.find((item) => item.id === providerModel.provider_credential_id)
+    setState((previous) => {
+      const fallbackProvider = providerModel.provider || credential?.provider || previous.fallbackProvider
+      const fallbackModel = providerModel.model || previous.fallbackModel
+      const fallbackProviderCredentialId = providerModel.provider_credential_id || previous.fallbackProviderCredentialId
+      if (
+        previous.fallbackProvider === fallbackProvider
+        && previous.fallbackModel === fallbackModel
+        && previous.fallbackProviderCredentialId === fallbackProviderCredentialId
+      ) {
+        return previous
+      }
+      return { ...previous, fallbackProvider, fallbackModel, fallbackProviderCredentialId }
+    })
+  }, [state.fallbackProviderModelId, providerModels, credentials])
+
+  useEffect(() => {
+    if (state.providerModelId) return
     if (!state.providerCredentialId || !credentials?.length) return
     const credential = credentials.find((item: { id: string }) => item.id === state.providerCredentialId)
     if (!credential) return
@@ -148,9 +219,10 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       }
       return { ...previous, provider, model, baseUrl }
     })
-  }, [state.providerCredentialId, credentials])
+  }, [state.providerModelId, state.providerCredentialId, credentials])
 
   useEffect(() => {
+    if (state.fallbackProviderModelId) return
     if (!state.fallbackProviderCredentialId || !credentials?.length) return
     const credential = credentials.find((item: { id: string }) => item.id === state.fallbackProviderCredentialId)
     if (!credential) return
@@ -159,7 +231,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       fallbackProvider: credential.provider,
       fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel,
     }))
-  }, [state.fallbackProviderCredentialId, credentials])
+  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, credentials])
 
   const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
     setState((previous) => ({ ...previous, [key]: value }))

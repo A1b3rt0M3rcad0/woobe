@@ -10,6 +10,7 @@ from modules.agent.application.use_cases.release_runtime_resolver import Release
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
 from modules.agent.application.use_cases.instrumented_execution_finalizer import finalize_instrumented_execution
+from modules.agent.application.use_cases.instrumented_failed_finalizer import finalize_failed_instrumented_execution
 from modules.agent.application.use_cases.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.application.use_cases.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.application.use_cases.structured_output_contract import (
@@ -17,9 +18,11 @@ from modules.agent.application.use_cases.structured_output_contract import (
     normalize_contract_for_prompt,
     validate_output_against_contract,
 )
+from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
@@ -42,12 +45,46 @@ _RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
 )
 
 
+def _id_text(value) -> str | None:
+    return str(value) if value else None
+
+
+def _provider_value(value) -> str | None:
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
+
+
 class StructuredOutputAskAgentUseCase(
     InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
     ReleaseRuntimeResolver,
 ):
     """Agent execution with complete LLM and Tool telemetry."""
+
+    def _resolve_base_url_for_provider(self, provider_val, credential, settings):
+        """Resolve OpenAI-compatible custom gateways without legacy model metadata.
+
+        ProviderModel is now the canonical source for the model slug. The custom
+        provider resolver should only require a base_url; the actual model is
+        passed to the LLM factory through agent.model or agent.fallback_model.
+        This keeps compatibility with older credentials while allowing reusable
+        ProviderModel bindings to drive playground, staging, production, and
+        fallback executions.
+        """
+        if provider_val == "custom":
+            base_url = (
+                (settings or {}).get("base_url")
+                or (credential.metadata or {}).get("base_url")
+            )
+            if not base_url:
+                from shared.infra.errors import ValidationError
+
+                raise ValidationError(
+                    "Custom provider requires base_url in credential metadata or agent settings"
+                )
+            return base_url
+        return super()._resolve_base_url_for_provider(provider_val, credential, settings)
 
     def _build_messages(self, agent, rag_context, history, user_message, response_format=None):
         normalized_response_format = response_format
@@ -99,6 +136,72 @@ class StructuredOutputAskAgentUseCase(
             messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
             updated[11] = messages
         return tuple(updated)
+
+    async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
+        context = current_execution.get()
+        if context and context.execution and context.execution.llm_calls:
+            try:
+                await finalize_failed_instrumented_execution(
+                    self,
+                    session=session,
+                    agent=agent,
+                    input_dto=input_dto,
+                    trace_id=trace_id,
+                    error=error,
+                    execution=context.execution,
+                    started_at=context.started_at,
+                    prepare_latency_ms=context.prepare_latency_ms,
+                )
+                return
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Failed to emit failed execution telemetry, falling back to minimal failure event: %s",
+                    exc,
+                )
+
+        try:
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+                provider = _provider_value(getattr(agent, "provider", None))
+                fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
+                failed_event = AgentExecutionFailedV1.create(
+                    agent_id=agent.id,
+                    session_id=session.id if session else None,
+                    payload={
+                        "trace_id": str(trace_id) if trace_id else None,
+                        "project_id": str(input_dto.project_id),
+                        "agent_id": str(agent.id),
+                        "session_id": str(session.id) if session else None,
+                        "provider": provider,
+                        "model": getattr(agent, "model", None),
+                        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                        "fallback_provider": fallback_provider,
+                        "fallback_model": getattr(agent, "fallback_model", None),
+                        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                        "model_binding": {
+                            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+                            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                            "provider": provider,
+                            "model": getattr(agent, "model", None),
+                        },
+                        "fallback_model_binding": {
+                            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+                            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                            "provider": fallback_provider,
+                            "model": getattr(agent, "fallback_model", None),
+                        },
+                        "error": error,
+                    },
+                )
+                await outbox.write(failed_event)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("Failed to emit instrumented AgentExecutionFailedV1: %s", exc)
 
     async def _finalize(
         self, session, agent, input_dto, trace_id, answer, usage,

@@ -142,6 +142,10 @@ class AskOutput(BaseModel):
     trace_id: UUID | None = None
     model: str | None = None
     provider: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
     fallback_used: bool = False
     fallback_info: dict | None = None
     latency_ms: int | None = None

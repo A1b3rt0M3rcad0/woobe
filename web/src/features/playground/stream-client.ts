@@ -46,6 +46,10 @@ export interface StreamCallbacks {
   onProtocolError?: (message: string, frame?: SseFrame) => void
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -140,6 +144,10 @@ function responseOf(item: Record<string, unknown>): AskResponse {
     trace_id: typeof item.trace_id === 'string' ? item.trace_id : null,
     model: typeof item.model === 'string' ? item.model : null,
     provider: typeof item.provider === 'string' ? item.provider : null,
+    provider_model_id: stringOrNull(item.provider_model_id),
+    provider_credential_id: stringOrNull(item.provider_credential_id),
+    fallback_provider_model_id: stringOrNull(item.fallback_provider_model_id),
+    fallback_credential_id: stringOrNull(item.fallback_credential_id),
     fallback_used: item.fallback_used === true,
     fallback_info: (item.fallback_info ?? null) as AskResponse['fallback_info'],
     latency_ms: numberOrNull(item.latency_ms),

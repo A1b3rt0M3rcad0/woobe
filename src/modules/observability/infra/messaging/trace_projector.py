@@ -25,6 +25,10 @@ _DATA_FIELDS = {
     "output_tokens",
     "total_tokens",
     "cost_usd",
+    "cost_status",
+    "cost_reason",
+    "pricing_id",
+    "pricing_snapshot",
     "latency_ms",
     "sources",
     "tool_calls",
@@ -34,7 +38,14 @@ _DATA_FIELDS = {
     "fallback_info",
     "model",
     "provider",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+    "model_binding",
+    "fallback_model_binding",
     "diagnostics",
+    "llm_calls",
 }
 
 
@@ -80,6 +91,19 @@ def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
             data[field] = payload[field]
     data["last_event_type"] = event_type
     trace.data = data
+
+
+def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
+    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
+    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+
+
+def _apply_cost(trace: Trace, payload: dict[str, Any]) -> None:
+    cost = _number(payload.get("cost_usd"))
+    if cost is not None:
+        trace.total_cost_usd = cost
 
 
 async def _save_event(
@@ -166,7 +190,7 @@ def _build_execution_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
         tool_share = round((tool_runtime_ms / runtime_ms) * 100, 2)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "agent_runtime_latency_ms": _rounded(runtime_ms),
         "tool_runtime_latency_ms": _rounded(tool_runtime_ms),
         "tool_http_latency_ms": _rounded(tool_http_ms),
@@ -179,15 +203,24 @@ def _build_execution_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
         "input_tokens": payload.get("input_tokens"),
         "output_tokens": payload.get("output_tokens"),
         "total_tokens": payload.get("total_tokens"),
+        "cost_usd": payload.get("cost_usd"),
+        "cost_status": payload.get("cost_status"),
+        "cost_reason": payload.get("cost_reason"),
+        "pricing_id": payload.get("pricing_id"),
         "source_count": source_count,
         "answer_length": payload.get("answer_length"),
         "fallback_used": bool(payload.get("fallback_used")),
         "structured_output": payload.get("parsed_output") is not None,
         "provider": payload.get("provider"),
         "model": payload.get("model"),
+        "provider_model_id": payload.get("provider_model_id"),
+        "provider_credential_id": payload.get("provider_credential_id"),
+        "fallback_provider_model_id": payload.get("fallback_provider_model_id"),
+        "fallback_credential_id": payload.get("fallback_credential_id"),
         "notes": [
-            "non_tool_runtime_latency_ms includes all model calls and orchestration outside Tool execution",
-            "token counters reflect the usage reported by the Agent runtime",
+            "cost_usd=null means unknown cost, not zero cost",
+            "cost_status explains whether pricing and token usage were available",
+            "provider_model_id identifies the reusable model binding used by the agent runtime",
         ],
     }
 
@@ -227,6 +260,7 @@ async def project_agent_event(
     trace.session_id = trace.session_id or _uuid(payload.get("session_id"))
     trace.provider = payload.get("provider") or trace.provider
     trace.model = payload.get("model") or trace.model
+    _apply_provider_model_refs(trace, payload)
     _merge_data(trace, payload, event_type)
 
     if event_type == "agent.execution.requested.v1":
@@ -240,10 +274,11 @@ async def project_agent_event(
             payload={"event": event_type, **payload},
         )
         logger.info(
-            "Trace projection created trace_id=%s project_id=%s session_id=%s",
+            "Trace projection created trace_id=%s project_id=%s session_id=%s provider_model_id=%s",
             trace_id,
             project_id,
             trace.session_id,
+            trace.provider_model_id,
         )
         return
 
@@ -262,16 +297,16 @@ async def project_agent_event(
         return
 
     if event_type == "agent.execution.llm_completed.v1":
-        trace.total_cost_usd = float(payload.get("cost_usd") or trace.total_cost_usd or 0)
+        _apply_cost(trace, payload)
         await trace_repo.save(trace)
         await _save_event(
             event_repo,
             trace_id=trace_id,
             project_id=project_id,
-            discriminator="llm_completed",
+            discriminator=f"llm_completed:{payload.get('call_id') or 'latest'}",
             kind=TraceEventType.llm_call,
             latency_ms=payload.get("latency_ms"),
-            cost_usd=payload.get("cost_usd"),
+            cost_usd=_number(payload.get("cost_usd")),
             payload={"event": event_type, **payload},
         )
         return
@@ -285,7 +320,6 @@ async def project_agent_event(
                 payload.get("tool_name"),
             )
             return
-
         discriminator = _tool_discriminator(payload, "tool")
         await _save_event(
             event_repo,
@@ -301,6 +335,7 @@ async def project_agent_event(
     if event_type == "agent.execution.fallback_triggered.v1":
         trace.fallback_used = True
         _merge_data(trace, {**payload, "fallback_used": True}, event_type)
+        _apply_provider_model_refs(trace, payload)
         await trace_repo.save(trace)
         await _save_event(
             event_repo,
@@ -338,12 +373,13 @@ async def project_agent_event(
     trace.started_at = trace.started_at or datetime.now(timezone.utc)
     trace.ended_at = datetime.now(timezone.utc)
     trace.fallback_used = bool(payload.get("fallback_used") or trace.fallback_used)
-    trace.total_cost_usd = float(payload.get("cost_usd") or trace.total_cost_usd or 0)
+    _apply_cost(trace, payload)
     trace.total_latency_ms = (
         payload.get("total_latency_ms")
         or payload.get("latency_ms")
         or trace.total_latency_ms
     )
+    _apply_provider_model_refs(trace, payload)
     _merge_data(trace, payload_with_diagnostics, event_type)
     await trace_repo.save(trace)
 
@@ -393,9 +429,11 @@ async def project_agent_event(
     )
 
     logger.info(
-        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s",
+        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s provider_model_id=%s cost_status=%s",
         trace_id,
         diagnostics["agent_runtime_latency_ms"],
         diagnostics["tool_runtime_latency_ms"],
         diagnostics["tool_call_count"],
+        trace.provider_model_id,
+        diagnostics["cost_status"],
     )

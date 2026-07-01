@@ -57,6 +57,37 @@ function matchesStatus(trace: Trace, statusFilter: StatusFilter) {
   return status === statusFilter || (statusFilter === 'failed' && status === 'error')
 }
 
+function traceData(trace: Trace): Record<string, unknown> {
+  return trace.data ?? {}
+}
+
+function stringField(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return null
+}
+
+function providerModelId(trace: Trace) {
+  const data = traceData(trace)
+  return stringField(trace.provider_model_id, data.provider_model_id)
+}
+
+function providerCredentialId(trace: Trace) {
+  const data = traceData(trace)
+  return stringField(trace.provider_credential_id, data.provider_credential_id)
+}
+
+function fallbackProviderModelId(trace: Trace) {
+  const data = traceData(trace)
+  return stringField(trace.fallback_provider_model_id, data.fallback_provider_model_id)
+}
+
+function fallbackCredentialId(trace: Trace) {
+  const data = traceData(trace)
+  return stringField(trace.fallback_credential_id, data.fallback_credential_id)
+}
+
 function EmptyTraces({ hasFilters }: { hasFilters: boolean }) {
   return (
     <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-8 text-center">
@@ -70,6 +101,7 @@ function EmptyTraces({ hasFilters }: { hasFilters: boolean }) {
 }
 
 function TraceRow({ trace, onClick }: { trace: Trace; onClick: () => void }) {
+  const modelRef = providerModelId(trace)
   return (
     <button
       type="button"
@@ -88,6 +120,7 @@ function TraceRow({ trace, onClick }: { trace: Trace; onClick: () => void }) {
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-white">{trace.model || 'Model not recorded'}</p>
         <p className="mt-1 truncate text-xs text-muted">{trace.provider || 'Provider not recorded'}</p>
+        {modelRef && <p className="mt-1 truncate font-mono text-[11px] text-muted">model ref · {compactId(modelRef)}</p>}
       </div>
 
       <StatusBadge status={trace.status} />
@@ -103,6 +136,16 @@ function TraceRow({ trace, onClick }: { trace: Trace; onClick: () => void }) {
         <p className="mt-1 text-xs text-muted">{trace.created_at ? formatDateTime(trace.created_at) : '—'}</p>
       </div>
     </button>
+  )
+}
+
+function IdCard({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+      <p className="text-xs text-muted">{label}</p>
+      <code className="mt-2 block truncate text-xs font-medium text-white">{value}</code>
+    </div>
   )
 }
 
@@ -125,6 +168,10 @@ export default function TracesPage() {
         || trace.model?.toLowerCase().includes(normalizedQuery)
         || trace.session_id?.toLowerCase().includes(normalizedQuery)
         || trace.agent_id?.toLowerCase().includes(normalizedQuery)
+        || providerModelId(trace)?.toLowerCase().includes(normalizedQuery)
+        || providerCredentialId(trace)?.toLowerCase().includes(normalizedQuery)
+        || fallbackProviderModelId(trace)?.toLowerCase().includes(normalizedQuery)
+        || fallbackCredentialId(trace)?.toLowerCase().includes(normalizedQuery)
       return matchesStatus(trace, statusFilter) && matchesQuery
     })
   }, [items, query, statusFilter])
@@ -142,7 +189,7 @@ export default function TracesPage() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search traces..."
+            placeholder="Search traces, models or bindings..."
             className="h-11 pl-9"
           />
         </div>
@@ -191,6 +238,10 @@ export default function TracesPage() {
                     <p className="text-xs text-muted">Provider</p>
                     <p className="mt-2 text-sm font-medium text-white">{traceDetail.provider || '—'}</p>
                   </div>
+                  <IdCard label="Provider model" value={providerModelId(traceDetail)} />
+                  <IdCard label="Provider credential" value={providerCredentialId(traceDetail)} />
+                  <IdCard label="Fallback model" value={fallbackProviderModelId(traceDetail)} />
+                  <IdCard label="Fallback credential" value={fallbackCredentialId(traceDetail)} />
                   <div className="rounded-xl border border-border/80 bg-background/60 p-3">
                     <p className="text-xs text-muted">Latency</p>
                     <p className="mt-2 text-sm font-medium text-white">{formatLatency(traceDetail.total_latency_ms)}</p>

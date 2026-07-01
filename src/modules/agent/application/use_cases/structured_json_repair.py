@@ -27,6 +27,7 @@ async def repair_json_if_needed(
     max_tokens: int,
     schema: dict,
     clean_json_answer,
+    pricing_snapshot: dict[str, Any] | None = None,
 ) -> InstrumentedExecution:
     result = execution.result
     answer = result.content if hasattr(result, "content") else str(result)
@@ -64,6 +65,7 @@ async def repair_json_if_needed(
             call_index=call_index + 1,
             provider=provider,
             model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
         )
     except InstrumentedExecutionError as exc:
         raise InstrumentedExecutionError(

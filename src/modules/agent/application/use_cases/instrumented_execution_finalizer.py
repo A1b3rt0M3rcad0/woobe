@@ -27,6 +27,71 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _id_text(value) -> str | None:
+    return str(value) if value else None
+
+
+def _provider_value(value) -> str | None:
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
+
+
+def _model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+        "model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "provider", None)),
+            "model": getattr(agent, "model", None),
+        },
+    }
+
+
+def _fallback_model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+        "fallback_provider": _provider_value(getattr(agent, "fallback_provider", None)),
+        "fallback_model": getattr(agent, "fallback_model", None),
+        "fallback_model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "fallback_provider", None)),
+            "model": getattr(agent, "fallback_model", None),
+        },
+    }
+
+
+def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    pricing_ids = []
+    cost_reasons = []
+    cost_statuses = []
+    first_pricing_snapshot = None
+    for call in llm_calls:
+        pricing_id = call.get("pricing_id")
+        if pricing_id and pricing_id not in pricing_ids:
+            pricing_ids.append(pricing_id)
+        reason = call.get("cost_reason")
+        if reason and reason not in cost_reasons:
+            cost_reasons.append(reason)
+        status = call.get("cost_status")
+        if status and status not in cost_statuses:
+            cost_statuses.append(status)
+        if first_pricing_snapshot is None and isinstance(call.get("pricing_snapshot"), dict):
+            first_pricing_snapshot = call.get("pricing_snapshot")
+    return {
+        "pricing_ids": pricing_ids,
+        "cost_reasons": cost_reasons,
+        "cost_statuses": cost_statuses,
+        "pricing_id": pricing_ids[0] if pricing_ids else None,
+        "cost_reason": "; ".join(cost_reasons) if cost_reasons else None,
+        "pricing_snapshot": first_pricing_snapshot,
+    }
+
+
 def _event(
     trace_id: str,
     event_type: str,
@@ -75,6 +140,9 @@ async def finalize_instrumented_execution(owner, **kw):
 
     project_id_text = str(kw["input_dto"].project_id)
     agent_id_text = str(agent.id)
+    binding_payload = _model_binding_payload(agent)
+    fallback_binding_payload = _fallback_model_binding_payload(agent)
+    trace_binding_payload = {**binding_payload, **fallback_binding_payload}
 
     async with AgentUnitOfWork(owner._session_factory) as uow:
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
@@ -98,6 +166,7 @@ async def finalize_instrumented_execution(owner, **kw):
                 "trace_id": trace_id_text,
                 "project_id": project_id_text,
                 "agent_id": agent_id_text,
+                **trace_binding_payload,
                 **item["payload"],
             }
             event = (
@@ -114,6 +183,7 @@ async def finalize_instrumented_execution(owner, **kw):
                         "trace_id": trace_id_text,
                         "project_id": project_id_text,
                         "agent_id": agent_id_text,
+                        **trace_binding_payload,
                         **kw["fallback_info"],
                     },
                 )
@@ -140,8 +210,9 @@ async def finalize_instrumented_execution(owner, **kw):
         for item in execution.timeline
         if item.get("kind") == "tool"
     )
+    cost_details = _cost_diagnostics(execution.llm_calls)
     diagnostics = {
-        "schema_version": 3,
+        "schema_version": 4,
         "total_latency_ms": total_ms,
         "prepare_latency_ms": kw["prepare_latency_ms"],
         "llm_runtime_latency_ms": llm_ms,
@@ -154,6 +225,13 @@ async def finalize_instrumented_execution(owner, **kw):
         "tool_call_count": len(execution.tool_calls),
         "usage_complete": kw["usage_complete"],
         "cost_status": kw["cost_status"],
+        "cost_reason": cost_details["cost_reason"],
+        "cost_statuses": cost_details["cost_statuses"],
+        "pricing_ids": cost_details["pricing_ids"],
+        "provider_model_id": binding_payload["provider_model_id"],
+        "provider_credential_id": binding_payload["provider_credential_id"],
+        "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+        "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
     }
 
     request_received_at = (
@@ -187,6 +265,10 @@ async def finalize_instrumented_execution(owner, **kw):
             started_at=execution_started_at,
             span_id=trace_id_text,
             parent_span_id=None,
+            attributes={
+                **binding_payload["model_binding"],
+                "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+            },
         ),
     ]
     if context and context.prepare_started_at:
@@ -260,7 +342,7 @@ async def finalize_instrumented_execution(owner, **kw):
             started_at=execution_started_at,
             ended_at=execution_completed_at,
             duration_ms=total_ms,
-            attributes={"diagnostics": diagnostics},
+            attributes={"diagnostics": diagnostics, **binding_payload["model_binding"]},
             span_id=trace_id_text,
             parent_span_id=None,
         ),
@@ -288,7 +370,11 @@ async def finalize_instrumented_execution(owner, **kw):
         "total_tokens": usage.total_tokens,
         "cost_usd": usage.cost_usd,
         "cost_status": kw["cost_status"],
+        "cost_reason": cost_details["cost_reason"],
+        "pricing_id": cost_details["pricing_id"],
+        "pricing_snapshot": cost_details["pricing_snapshot"],
         "usage_complete": kw["usage_complete"],
+        **trace_binding_payload,
         "model": kw["response_model"] or agent.model,
         "provider": kw["response_provider"] or "",
         "latency_ms": total_ms,
@@ -305,7 +391,7 @@ async def finalize_instrumented_execution(owner, **kw):
         "timeline_complete": True,
     }
     if kw["fallback_info"]:
-        payload["fallback_info"] = kw["fallback_info"]
+        payload["fallback_info"] = {**kw["fallback_info"], **fallback_binding_payload}
     async with AgentUnitOfWork(owner._session_factory) as uow:
         writer = SQLAlchemyAgentOutboxEventWriter(uow)
         await writer.write(completed_event(agent.id, payload))
@@ -320,8 +406,12 @@ async def finalize_instrumented_execution(owner, **kw):
         trace_id=trace_id,
         model=kw["response_model"],
         provider=kw["response_provider"],
+        provider_model_id=getattr(agent, "provider_model_id", None),
+        provider_credential_id=getattr(agent, "provider_credential_id", None),
+        fallback_provider_model_id=getattr(agent, "fallback_provider_model_id", None),
+        fallback_credential_id=getattr(agent, "fallback_credential_id", None),
         fallback_used=kw["fallback_used"],
-        fallback_info=kw["fallback_info"],
+        fallback_info=payload.get("fallback_info"),
         latency_ms=total_ms,
         parsed_output=kw["parsed_output"],
         output_parse_error=kw["output_parse_error"],
