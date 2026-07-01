@@ -19,6 +19,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     GetAskJobOutput,
     ListAgentSessionsInput,
     ListAgentSessionsOutput,
+    ListAgentSessionsPageOutput,
     ListMessagesInput,
     ListMessagesOutput,
     MessageResponse,
@@ -165,12 +166,23 @@ class ListAgentSessionsUseCase:
         self._session_repo = session_repo
         self._message_repo = message_repo
 
-    async def execute(self, input_dto: ListAgentSessionsInput) -> list[ListAgentSessionsOutput]:
+    async def execute(self, input_dto: ListAgentSessionsInput) -> ListAgentSessionsPageOutput:
         sessions = await self._session_repo.list_by_agent(
             input_dto.project_id, input_dto.agent_id
         )
-        result = []
-        for s in sessions:
+        start_index = 0
+        if input_dto.cursor:
+            for index, session in enumerate(sessions):
+                if str(session.id) == input_dto.cursor:
+                    start_index = index + 1
+                    break
+
+        page_sessions = sessions[start_index:start_index + input_dto.limit + 1]
+        has_next = len(page_sessions) > input_dto.limit
+        visible_sessions = page_sessions[:input_dto.limit]
+
+        result: list[ListAgentSessionsOutput] = []
+        for s in visible_sessions:
             try:
                 count = await self._message_repo.count_by_session(s.id)
             except Exception:
@@ -185,7 +197,12 @@ class ListAgentSessionsUseCase:
                 created_at=s.created_at,
                 message_count=count,
             ))
-        return result
+
+        return ListAgentSessionsPageOutput(
+            items=result,
+            next_cursor=str(result[-1].id) if has_next and result else None,
+            has_next=has_next,
+        )
 
 
 class CreateAskJobUseCase:
