@@ -21,6 +21,7 @@ class ListAgentSessionsController(Controller):
             limit = int(raw_limit)
         except (TypeError, ValueError):
             limit = 20
+        limit = max(1, min(limit, 100))
 
         input_dto = ListAgentSessionsInput(
             project_id=project_id,
