@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Database, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { AlertTriangle, Database, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -29,6 +29,7 @@ export default function KnowledgePage() {
   const deleteDocument = useDeleteDocument()
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
   const [query, setQuery] = useState('')
 
   const colForm = useForm<CreateCollectionFormData>({ resolver: zodResolver(createCollectionSchema) })
@@ -41,6 +42,13 @@ export default function KnowledgePage() {
       return acc
     }, {})
   }, [collectionItems])
+
+  const getDocumentCollectionName = (document: Document) => collectionNames[document.collection_id] || document.collection_id.slice(0, 8)
+
+  const closeDeleteModal = () => {
+    if (deleteDocument.isPending) return
+    setDocumentToDelete(null)
+  }
 
   const handleCreateCollection = async (data: CreateCollectionFormData) => {
     if (!projectId) return
@@ -58,16 +66,13 @@ export default function KnowledgePage() {
     }
   }
 
-  const handleDeleteDocument = async (document: Document) => {
-    const collectionName = collectionNames[document.collection_id] || document.collection_id.slice(0, 8)
-    const confirmed = window.confirm(
-      `Delete "${document.title}" from collection "${collectionName}"? This removes the uploaded file and its chunks.`,
-    )
-    if (!confirmed) return
+  const handleConfirmDeleteDocument = async () => {
+    if (!documentToDelete) return
 
     try {
-      await deleteDocument.mutateAsync(document.id)
+      await deleteDocument.mutateAsync(documentToDelete.id)
       toast.success('Document deleted')
+      setDocumentToDelete(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete document')
     }
@@ -104,7 +109,7 @@ export default function KnowledgePage() {
     {
       key: 'collection_id',
       header: 'Collection',
-      render: (d: Document) => collectionNames[d.collection_id] || d.collection_id.slice(0, 8),
+      render: (d: Document) => getDocumentCollectionName(d),
       className: 'min-w-[160px]',
     },
     { key: 'file_name', header: 'File', className: 'min-w-[220px]' },
@@ -122,10 +127,10 @@ export default function KnowledgePage() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-red-400 hover:text-red-300"
-          loading={deleteDocument.isPending}
+          disabled={deleteDocument.isPending}
           onClick={(event) => {
             event.stopPropagation()
-            handleDeleteDocument(d)
+            setDocumentToDelete(d)
           }}
           aria-label={`Delete ${d.title}`}
         >
@@ -211,6 +216,53 @@ export default function KnowledgePage() {
             <Button type="submit" loading={createCollection.isPending}>Create</Button>
           </div>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(documentToDelete)}
+        onClose={closeDeleteModal}
+        title="Delete document"
+        className="max-w-[460px]"
+      >
+        {documentToDelete && (
+          <div className="space-y-5">
+            <div className="flex gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium text-white">Remove this document?</p>
+                <p className="text-sm leading-6 text-muted">
+                  This action deletes the document record, stored file and generated chunks. It cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background/70 p-3">
+              <p className="truncate text-sm font-medium text-white">{documentToDelete.title}</p>
+              <p className="mt-1 truncate text-xs text-muted">{documentToDelete.file_name}</p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                <span>{getDocumentCollectionName(documentToDelete)}</span>
+                <span>{formatBytes(documentToDelete.size_bytes)}</span>
+                <span>{documentToDelete.content_type}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={closeDeleteModal} disabled={deleteDocument.isPending}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                loading={deleteDocument.isPending}
+                onClick={handleConfirmDeleteDocument}
+              >
+                Delete document
+              </Button>
+            </div>
+          </div>
+        )}
       </Dialog>
 
       <UploadDocumentModal
