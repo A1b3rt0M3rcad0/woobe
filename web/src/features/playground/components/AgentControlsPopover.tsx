@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Check, Database, Power, PowerOff, SlidersHorizontal, X } from 'lucide-react'
-import { Badge } from '@/components/ui/Badge'
+import { Activity, Check, ChevronDown, Database, Power, PowerOff, SlidersHorizontal, X } from 'lucide-react'
 import { useUpdateAgent } from '@/features/agents/hooks'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -24,6 +23,7 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
   const [status, setStatus] = useState<RuntimeStatus>(normalizeStatus(agent.status))
   const [sessionMode, setSessionMode] = useState<RuntimeSessionMode>(normalizeSessionMode(agent.session_mode))
   const isAgentOn = status === 'active'
+  const memoryLabel = sessionMode === 'stateful' ? 'Memory on' : 'Memory off'
 
   useEffect(() => {
     setStatus(normalizeStatus(agent.status))
@@ -77,31 +77,27 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
   }
 
   return (
-    <div ref={rootRef} className="relative flex items-center gap-2">
-      <button type="button" onClick={() => setOpen(true)} className="shrink-0" title="Open global agent controls">
-        <Badge variant={isAgentOn ? 'success' : 'secondary'} className="cursor-pointer">
-          {isAgentOn ? 'Agent on' : 'Agent off'}
-        </Badge>
-      </button>
-      <button type="button" onClick={() => setOpen(true)} className="shrink-0" title="Open global agent controls">
-        <Badge variant={sessionMode === 'stateful' ? 'secondary' : 'default'} className="cursor-pointer">
-          {sessionMode === 'stateful' ? 'Memory on' : 'Memory off'}
-        </Badge>
-      </button>
+    <div ref={rootRef} className="relative flex items-center">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'hidden h-7 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium transition-colors lg:inline-flex',
-          open ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border/80 bg-background/45 text-muted hover:border-primary/30 hover:bg-primary/5 hover:text-white',
+          'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+          open
+            ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
+            : 'border-border/80 bg-background/55 text-muted hover:border-primary/35 hover:bg-primary/5 hover:text-white',
         )}
+        title="Agent controls"
       >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        Agent Controls
+        {isAgentOn ? <Power className="h-3.5 w-3.5 text-emerald-400" /> : <PowerOff className="h-3.5 w-3.5 text-muted" />}
+        <span className="hidden xl:inline">Agent</span>
+        <span className={cn('font-semibold', isAgentOn ? 'text-emerald-300' : 'text-slate-300')}>{isAgentOn ? 'On' : 'Off'}</span>
+        <span className="hidden text-muted/70 2xl:inline">· {memoryLabel}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-9 z-50 w-[390px] overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40 backdrop-blur-md">
+        <div className="absolute right-0 top-10 z-50 w-[390px] overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40 backdrop-blur-md">
           <div className="flex items-start justify-between gap-3 border-b border-border/90 bg-background/25 p-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted">Agent Controls</p>
