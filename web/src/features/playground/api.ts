@@ -1,6 +1,6 @@
 import { post, get } from '@/lib/api/client'
 import { getToken } from '@/lib/auth/token'
-import type { CreateSessionRequest, Session, SessionListItem, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo, FallbackEventInfo } from './types'
+import type { CreateSessionRequest, Session, SessionListItem, SessionListPage, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo, FallbackEventInfo } from './types'
 
 export interface CreateAskJobRequest {
   project_id: string
@@ -90,8 +90,28 @@ export async function ask(data: AskRequest): Promise<AskResponse> {
   return normalizeResponse(response)
 }
 
-export async function getAgentSessions(agentId: string, projectId: string): Promise<SessionListItem[]> {
-  return get<SessionListItem[]>(`/runtime/agents/${agentId}/sessions`, { params: { project_id: projectId } })
+export async function getAgentSessions(
+  agentId: string,
+  projectId: string,
+  params: { limit?: number; cursor?: string | null } = {},
+): Promise<SessionListPage> {
+  const response = await get<SessionListPage | SessionListItem[]>(`/runtime/agents/${agentId}/sessions`, {
+    params: {
+      project_id: projectId,
+      limit: params.limit,
+      cursor: params.cursor ?? undefined,
+    },
+  })
+
+  if (Array.isArray(response)) {
+    return {
+      items: response,
+      next_cursor: null,
+      has_next: false,
+    }
+  }
+
+  return response
 }
 
 export async function getSessionMessages(sessionId: string, params?: { offset?: number; limit?: number }): Promise<Message[]> {
