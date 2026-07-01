@@ -246,11 +246,6 @@ class DocumentRepository(ABC):
     async def get_by_id(self, document_id: UUID) -> Document: ...
 
     @abstractmethod
-    async def get_active_by_project_and_sha256(
-        self, project_id: UUID, sha256: str
-    ) -> Document | None: ...
-
-    @abstractmethod
     async def list_by_collection(
         self, collection_id: UUID, status: str | None = None
     ) -> list[Document]: ...
@@ -451,7 +446,7 @@ class ToolRepository(ABC):
 
     @abstractmethod
     async def paginate_by_agent(
-        self, agent_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Tool]: ...
 
     @abstractmethod
