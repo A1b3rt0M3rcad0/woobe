@@ -92,8 +92,6 @@ function releaseToEditorState(release: AgentRelease, current: AgentEditorState):
     baseUrl: release.base_url ?? current.baseUrl,
     temperature: release.temperature ?? current.temperature,
     maxOutputTokens: release.max_output_tokens ?? current.maxOutputTokens,
-    sessionMode: (release.session_mode as 'stateful' | 'stateless') ?? current.sessionMode,
-    status: (release.agent_status as 'active' | 'inactive') ?? current.status,
     collectionIds: release.collection_ids ?? current.collectionIds,
     runtimeConfig: release.runtime_config ?? current.runtimeConfig,
     responseFormat: {
@@ -294,7 +292,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   async function openViewStaging() {
     const details = await fetchStagingSnapshot()
     if (!details) return
-    setSnapshotModal({ open: true, title: 'Current staging', description: 'This is the staging snapshot used by API/runtime when execution_context=staging.', release: details })
+    setSnapshotModal({ open: true, title: 'Current staging', description: 'This is the active staging snapshot used by staging context.', release: details })
   }
 
   async function openReleaseSnapshot(release: AgentRelease, title = 'Release snapshot') {
@@ -465,7 +463,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <div className="min-w-0 space-y-1.5">
                 <p className="truncate text-xs font-medium text-white">{state.name || 'Untitled agent'}</p>
                 <p className="text-[11px] leading-4 text-muted">Current editor configuration. This has not been staged yet.</p>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted"><span>{editorModelLabel(state)}</span><span className="text-border">·</span><span>{state.sessionMode || '—'}</span><span className="text-border">·</span><span>{state.collectionIds?.length ?? 0} collections</span><span className="text-border">·</span><span>{responseFormatLabel(state)}</span></div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted"><span>{editorModelLabel(state)}</span><span className="text-border">·</span><span>{state.collectionIds?.length ?? 0} collections</span><span className="text-border">·</span><span>{responseFormatLabel(state)}</span></div>
               </div>
             </div>
             <Button size="sm" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => setStageDraftOpen(true)} loading={createRelease.isPending || promoteRelease.isPending}><Upload className="mr-1 h-3 w-3" />Stage draft</Button>
