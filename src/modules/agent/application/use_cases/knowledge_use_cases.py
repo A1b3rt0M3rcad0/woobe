@@ -12,7 +12,7 @@ from modules.agent.domain.entities import (
     KnowledgeVersion,
 )
 from modules.agent.domain.enums import DocumentStatus, KnowledgeVersionStatus, ParserType
-from modules.agent.domain.ports.file_storage import FileStorage
+from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
 from modules.agent.domain.repositories import (
     AgentCollectionRepository,
     DocumentChunkRepository,
@@ -43,7 +43,7 @@ from modules.agent.application.dtos.knowledge_dtos import (
 from modules.agent.domain.events import AgentCollectionCreatedV1, AgentDocumentUploadedV1
 from shared.infra.config import Settings
 from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.infra.errors import ValidationError
+from shared.infra.errors import ConflictError, ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
@@ -69,6 +69,10 @@ _CONTENT_TYPES_BY_EXTENSION: dict[str, set[str]] = {
 
 def _as_value(value: object) -> object:
     return getattr(value, "value", value)
+
+
+def _is_deleted_document(document: Document) -> bool:
+    return _as_value(document.status) == _as_value(DocumentStatus.DELETED)
 
 
 def _document_to_upload_output(document: Document) -> UploadDocumentOutput:
@@ -125,7 +129,6 @@ class AttachCollectionUseCase:
             input_dto.agent_id, input_dto.collection_id
         )
         if existing:
-            from shared.infra.errors import ConflictError
             raise ConflictError("Collection already attached to this agent")
 
         link = AgentCollection(
@@ -257,6 +260,8 @@ class UploadDocumentFileUseCase:
 
         content = await upload.read()
         self._validate_content(content, extension)
+        content_sha256 = compute_sha256(content)
+        await self._ensure_not_duplicate(input_dto.project_id, content_sha256)
 
         document_id = uuid4()
         stored = await self._storage.save_document(
@@ -305,6 +310,21 @@ class UploadDocumentFileUseCase:
             raise
 
         return _document_to_upload_output(created)
+
+    async def _ensure_not_duplicate(self, project_id: UUID, sha256: str) -> None:
+        existing_documents = await self.doc_repo.list_by_project(project_id)
+        duplicate = next(
+            (
+                document
+                for document in existing_documents
+                if document.sha256 == sha256 and not _is_deleted_document(document)
+            ),
+            None,
+        )
+        if duplicate:
+            raise ConflictError(
+                f"Document already exists in this project: {duplicate.file_name}"
+            )
 
     def _validate_file_name(self, file_name: str | None) -> str:
         if not file_name or not file_name.strip():
@@ -364,6 +384,31 @@ class UploadDocumentFileUseCase:
                 content.decode("utf-8")
             except UnicodeDecodeError as exc:
                 raise ValidationError("Text and Markdown uploads must be valid UTF-8") from exc
+
+
+class DeleteDocumentUseCase:
+    def __init__(
+        self,
+        doc_repo: DocumentRepository,
+        chunk_repo: DocumentChunkRepository,
+        storage: FileStorage,
+    ) -> None:
+        self._doc_repo = doc_repo
+        self._chunk_repo = chunk_repo
+        self._storage = storage
+
+    async def execute(self, document_id: UUID) -> None:
+        document = await self._doc_repo.get_by_id(document_id)
+        if _is_deleted_document(document):
+            return
+
+        await self._chunk_repo.delete_by_document(document.id)
+        if document.storage_key:
+            await self._storage.delete(document.storage_key)
+
+        document.status = DocumentStatus.DELETED
+        document.error = None
+        await self._doc_repo.update(document)
 
 
 class SearchChunksUseCase:
@@ -427,9 +472,11 @@ class ListDocumentsUseCase:
 
     async def execute(self, input_dto: ListDocumentsInput) -> list:
         if input_dto.collection_id:
-            return await self._repo.list_by_collection(input_dto.collection_id)
+            documents = await self._repo.list_by_collection(input_dto.collection_id)
+            return [document for document in documents if not _is_deleted_document(document)]
         if input_dto.project_id:
-            return await self._repo.list_by_project(input_dto.project_id)
+            documents = await self._repo.list_by_project(input_dto.project_id)
+            return [document for document in documents if not _is_deleted_document(document)]
         return []
 
 
@@ -439,7 +486,11 @@ class GetDocumentUseCase:
         self._repo = repo
 
     async def execute(self, input_dto: GetDocumentInput) -> Document:
-        return await self._repo.get_by_id(input_dto.document_id)
+        document = await self._repo.get_by_id(input_dto.document_id)
+        if _is_deleted_document(document):
+            from modules.agent.domain.errors import DocumentNotFoundError
+            raise DocumentNotFoundError(input_dto.document_id)
+        return document
 
 
 class CreateKnowledgeVersionUseCase:
