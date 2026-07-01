@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent, useReleases } from '@/features/agents/hooks'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
-import { useAskStream, useAgentSessions, useSessionMessages } from '@/features/playground/hooks'
+import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { orgProjectPath } from '@/lib/constants/routes'
@@ -14,9 +14,9 @@ import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { setPlaygroundSessionId } from '@/features/playground/lib/playground-session-store'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo } from '@/features/playground/types'
+import type { AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
 
 function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolCallInfo): ToolCallInfo[] {
   const items = existing ? [...existing] : []
@@ -142,8 +142,28 @@ function PlaygroundContent() {
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const { stream, cancel: cancelStream } = useAskStream()
   const queryClient = useQueryClient()
+  const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
 
-  const { data: sessions = [], refetch: refetchSessions } = useAgentSessions(agentId, projectId)
+  const {
+    data: sessionPages,
+    refetch: refetchSessions,
+    fetchNextPage: fetchNextSessionsPage,
+    hasNextPage: hasMoreSessions,
+    isLoading: sessionsLoading,
+    isFetchingNextPage: sessionsLoadingMore,
+  } = useAgentSessions(agentId, projectId)
+
+  const sessions = useMemo(() => {
+    const byId = new Map<string, SessionListItem>()
+    for (const page of sessionPages?.pages ?? []) {
+      for (const item of page.items) {
+        if (!byId.has(item.id)) {
+          byId.set(item.id, item)
+        }
+      }
+    }
+    return Array.from(byId.values())
+  }, [sessionPages])
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -210,15 +230,75 @@ function PlaygroundContent() {
     queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
   }, [cancelStream, queryClient])
 
-  const handleNewSession = useCallback(() => {
-    syncedSessionRef.current = null
+  const handleNewSession = useCallback(async () => {
+    if (!projectId || !agentId || creatingSession) return
+
     cancelStream()
-    setSessionId(null)
-    setMessages([])
-    setLastResponse(null)
-    setRawEvents([])
-    setSelectedTraceId(null)
-  }, [cancelStream])
+
+    try {
+      const created = await createRuntimeSession({
+        project_id: projectId,
+        agent_id: agentId,
+        data: {
+          source: 'playground',
+          client_created_at: new Date().toISOString(),
+        },
+      })
+
+      const listItem: SessionListItem = {
+        id: created.id,
+        project_id: created.project_id,
+        agent_id: created.agent_id,
+        status: created.status,
+        mode: created.mode ?? 'chat',
+        last_message_at: created.last_message_at ?? null,
+        created_at: created.created_at ?? null,
+        message_count: 0,
+      }
+
+      queryClient.setQueryData<InfiniteData<SessionListPage>>(
+        ['agent-sessions', agentId, projectId],
+        (old) => {
+          const newPage: SessionListPage = {
+            items: [listItem],
+            next_cursor: null,
+            has_next: false,
+          }
+
+          if (!old || old.pages.length === 0) {
+            return { pages: [newPage], pageParams: [null] }
+          }
+
+          const [firstPage, ...restPages] = old.pages
+          return {
+            ...old,
+            pages: [
+              {
+                ...firstPage,
+                items: [listItem, ...firstPage.items.filter((item) => item.id !== listItem.id)],
+              },
+              ...restPages.map((page) => ({
+                ...page,
+                items: page.items.filter((item) => item.id !== listItem.id),
+              })),
+            ],
+          }
+        },
+      )
+
+      syncedSessionRef.current = created.id
+      setSessionId(created.id)
+      setMessages([])
+      setLastResponse(null)
+      setRawEvents([])
+      rawEventsRef.current = []
+      setSelectedTraceId(null)
+      setIsSending(false)
+      queryClient.invalidateQueries({ queryKey: ['session-messages', created.id] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create session')
+    }
+  }, [agentId, cancelStream, createRuntimeSession, creatingSession, projectId, queryClient])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -437,6 +517,11 @@ function PlaygroundContent() {
     }
   }
 
+  const handleLoadMoreSessions = useCallback(() => {
+    if (!hasMoreSessions || sessionsLoadingMore) return
+    void fetchNextSessionsPage()
+  }, [fetchNextSessionsPage, hasMoreSessions, sessionsLoadingMore])
+
   const traces = useMemo(() => {
     const mapped: TraceItem[] = backendTraces.map((t) => {
       const traceData = (t.data ?? {}) as Record<string, unknown>
@@ -528,6 +613,11 @@ function PlaygroundContent() {
               onSelectTrace={setSelectedTraceId}
               onNewSession={handleNewSession}
               onSelectSession={handleSessionSelect}
+              onLoadMoreSessions={handleLoadMoreSessions}
+              hasMoreSessions={Boolean(hasMoreSessions)}
+              sessionsLoading={sessionsLoading}
+              sessionsLoadingMore={sessionsLoadingMore}
+              creatingSession={creatingSession}
               tracesLoading={tracesLoading}
               tracesError={tracesError}
               tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
