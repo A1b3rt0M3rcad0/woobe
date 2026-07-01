@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Activity, Database, Power, PowerOff } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Select } from '@/components/ui/Select'
 import { useUpdateAgent } from '@/features/agents/hooks'
@@ -32,6 +31,11 @@ export function AgentRuntimeControlTab({ agent, agentId }: { agent: Agent; agent
   const updateAgent = useUpdateAgent(agentId)
   const [status, setStatus] = useState<RuntimeStatus>(normalizeStatus(agent.status))
   const [sessionMode, setSessionMode] = useState<RuntimeSessionMode>(normalizeSessionMode(agent.session_mode))
+
+  useEffect(() => {
+    setStatus(normalizeStatus(agent.status))
+    setSessionMode(normalizeSessionMode(agent.session_mode))
+  }, [agent.status, agent.session_mode])
 
   async function updateStatus(nextStatus: RuntimeStatus) {
     setStatus(nextStatus)
