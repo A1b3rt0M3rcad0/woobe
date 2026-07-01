@@ -14,7 +14,20 @@ class ListAgentSessionsController(Controller):
     async def handle(self, request: Request) -> Response:
         agent_id = UUID(request.path_params["agent_id"])
         project_id = UUID(request.query_params["project_id"])
-        input_dto = ListAgentSessionsInput(project_id=project_id, agent_id=agent_id)
+        raw_limit = request.query_params.get("limit", 20)
+        cursor = request.query_params.get("cursor")
+
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            limit = 20
+
+        input_dto = ListAgentSessionsInput(
+            project_id=project_id,
+            agent_id=agent_id,
+            cursor=cursor,
+            limit=limit,
+        )
         try:
             result = await self._use_case.execute(input_dto)
         except Exception as e:
@@ -24,5 +37,13 @@ class ListAgentSessionsController(Controller):
             )
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": [r.model_dump() for r in result]},
+            body={
+                "success": True,
+                "message": "ok",
+                "data": {
+                    "items": [r.model_dump() for r in result.items],
+                    "next_cursor": result.next_cursor,
+                    "has_next": result.has_next,
+                },
+            },
         )
