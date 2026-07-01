@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
   getAgentSessions,
@@ -10,6 +10,8 @@ import { askStreamV1, type StreamCallbacks } from './stream-client'
 import type { CreateSessionRequest, AskRequest } from './types'
 
 let activeStreamController: AbortController | null = null
+
+const AGENT_SESSIONS_PAGE_SIZE = 20
 
 export function cancelActiveAskStream() {
   activeStreamController?.abort()
@@ -28,9 +30,14 @@ export function useAsk() {
 }
 
 export function useAgentSessions(agentId: string | undefined, projectId: string | undefined) {
-  return useQuery({
-    queryKey: ['agent-sessions', agentId],
-    queryFn: () => getAgentSessions(agentId!, projectId!),
+  return useInfiniteQuery({
+    queryKey: ['agent-sessions', agentId, projectId],
+    queryFn: ({ pageParam }) => getAgentSessions(agentId!, projectId!, {
+      limit: AGENT_SESSIONS_PAGE_SIZE,
+      cursor: pageParam,
+    }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.has_next ? lastPage.next_cursor : undefined,
     enabled: !!agentId && !!projectId,
   })
 }

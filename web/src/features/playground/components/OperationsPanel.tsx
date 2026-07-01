@@ -19,8 +19,13 @@ interface OperationsPanelProps {
   sessions: SessionListItem[]
   sessionId: string | null
   onSelectTrace: (id: string | null) => void
-  onNewSession: () => void
+  onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
+  onLoadMoreSessions?: () => void
+  hasMoreSessions?: boolean
+  sessionsLoading?: boolean
+  sessionsLoadingMore?: boolean
+  creatingSession?: boolean
   tracesLoading?: boolean
   tracesError?: boolean
   tracesErrorMessage?: string
@@ -40,6 +45,11 @@ export function OperationsPanel(props: OperationsPanelProps) {
     onSelectTrace,
     onNewSession,
     onSelectSession,
+    onLoadMoreSessions,
+    hasMoreSessions,
+    sessionsLoading,
+    sessionsLoadingMore,
+    creatingSession,
     tracesLoading,
     tracesError,
     tracesErrorMessage,
@@ -109,6 +119,11 @@ export function OperationsPanel(props: OperationsPanelProps) {
           currentSessionId={sessionId}
           onNewSession={onNewSession}
           onSelectSession={onSelectSession}
+          onLoadMoreSessions={onLoadMoreSessions}
+          hasMoreSessions={hasMoreSessions}
+          isInitialLoading={sessionsLoading}
+          isLoadingMore={sessionsLoadingMore}
+          isCreatingSession={creatingSession}
         />
       )
 

@@ -9,6 +9,12 @@ export interface SessionListItem {
   message_count: number
 }
 
+export interface SessionListPage {
+  items: SessionListItem[]
+  next_cursor: string | null
+  has_next: boolean
+}
+
 export interface Session {
   id: string
   project_id: string
