@@ -11,6 +11,7 @@ import {
   getDocument,
   uploadDocument,
   uploadDocumentFile,
+  deleteDocument,
 } from './api'
 import type {
   AttachCollectionRequest,
@@ -115,6 +116,17 @@ export function useUploadDocumentFile() {
     onSuccess: (_document, variables) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
       queryClient.invalidateQueries({ queryKey: ['documents', 'collection', variables.collectionId] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
       queryClient.invalidateQueries({ queryKey: ['collections'] })
     },
   })
