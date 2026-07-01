@@ -28,8 +28,6 @@ export type AgentEditorState = {
   baseUrl: string | null
   temperature: number
   maxOutputTokens: number
-  sessionMode: 'stateful' | 'stateless'
-  status: 'active' | 'inactive'
   collectionIds: string[]
   runtimeConfig: Record<string, unknown>
 }
@@ -81,8 +79,6 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
     baseUrl: (settings.base_url as string) || null,
     temperature: agent.temperature ?? 0.7,
     maxOutputTokens: agent.max_output_tokens ?? 2048,
-    sessionMode: (agent.session_mode as 'stateful' | 'stateless') || 'stateful',
-    status: (agent.status as 'active' | 'inactive') || 'active',
     collectionIds: collectionIds || [],
     runtimeConfig: {},
   }
@@ -120,7 +116,6 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     base_url: state.baseUrl,
     temperature: state.temperature,
     max_output_tokens: state.maxOutputTokens,
-    agent_status: state.status,
     collection_ids: state.collectionIds,
     runtime_config: state.runtimeConfig,
   }
