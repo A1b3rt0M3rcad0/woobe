@@ -6,6 +6,7 @@ import {
   getAgentCollections,
   attachCollection,
   detachCollection,
+  updateCollection,
   getDocuments,
   getDocumentsByCollection,
   getDocument,
@@ -16,6 +17,7 @@ import {
 import type {
   AttachCollectionRequest,
   CreateCollectionRequest,
+  UpdateCollectionRequest,
   UploadDocumentFileRequest,
   UploadDocumentRequest,
 } from './types'
@@ -42,6 +44,17 @@ export function useCreateCollection() {
     mutationFn: (data: CreateCollectionRequest) => createCollection(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+export function useUpdateCollection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateCollectionRequest }) => updateCollection(id, data),
+    onSuccess: (collection) => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+      queryClient.invalidateQueries({ queryKey: ['collection', collection.id] })
     },
   })
 }
