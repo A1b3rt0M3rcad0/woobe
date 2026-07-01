@@ -10,10 +10,12 @@ import {
   getDocumentsByCollection,
   getDocument,
   uploadDocument,
+  uploadDocumentFile,
 } from './api'
 import type {
   AttachCollectionRequest,
   CreateCollectionRequest,
+  UploadDocumentFileRequest,
   UploadDocumentRequest,
 } from './types'
 
@@ -102,6 +104,18 @@ export function useUploadDocument() {
     mutationFn: (data: UploadDocumentRequest) => uploadDocument(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}
+
+export function useUploadDocumentFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: UploadDocumentFileRequest) => uploadDocumentFile(data),
+    onSuccess: (_document, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', 'collection', variables.collectionId] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
     },
   })
 }
