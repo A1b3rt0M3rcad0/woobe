@@ -11,6 +11,9 @@ web\node_modules
 # Virtual environments
 .venv
 
+# Local upload storage
+/storage/uploads/
+
 # Local and production secrets
 .env*
 !.env.example
