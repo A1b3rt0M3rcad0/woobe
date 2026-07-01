@@ -16,6 +16,10 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python \
+    "python-multipart>=0.0.20" \
+    "boto3>=1.35.0"
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
