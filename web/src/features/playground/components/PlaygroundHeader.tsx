@@ -1,8 +1,8 @@
-import { StatusBadge } from '@/components/common/StatusBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { AgentControlsPopover } from './AgentControlsPopover'
 import type { Agent } from '@/features/agents/types'
 import type { ReleaseStatus } from '@/features/agents/types'
 
@@ -57,8 +57,8 @@ export function PlaygroundHeader({
           </span>
           <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
         </div>
+        <AgentControlsPopover agent={agent} />
         <div className="flex items-center gap-2 min-w-0">
-          <StatusBadge status={agent.status} />
           {releaseVersion && releaseStatus && (
             <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
               {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
