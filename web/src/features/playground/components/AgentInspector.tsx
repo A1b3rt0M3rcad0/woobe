@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw } from 'lucide-react'
+import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentSettingsTab } from './AgentSettingsTab'
+import { AgentRuntimeControlTab } from './AgentRuntimeControlTab'
 import { ModelSettingsTab } from './ModelSettingsTab'
 import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
@@ -78,8 +79,6 @@ function EditorActions({ agentId }: { agentId: string }) {
         fallback_credential_id: state.fallbackProviderCredentialId || null,
         temperature: state.temperature,
         max_output_tokens: state.maxOutputTokens,
-        session_mode: state.sessionMode,
-        status: state.status,
         settings: {
           response_format: rf,
           base_url: state.baseUrl,
@@ -122,7 +121,7 @@ function EditorActions({ agentId }: { agentId: string }) {
   )
 }
 
-function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
+function EditorTabContent({ projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
   const [editorTab, setEditorTab] = useState('agent')
 
   return (
@@ -164,6 +163,12 @@ export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChan
       label: 'Editor',
       icon: <Edit3 className="h-3.5 w-3.5" />,
       content: <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />,
+    },
+    {
+      id: 'runtime',
+      label: 'Runtime',
+      icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
+      content: <AgentRuntimeControlTab agent={agent} agentId={agentId} />,
     },
     {
       id: 'versions',
