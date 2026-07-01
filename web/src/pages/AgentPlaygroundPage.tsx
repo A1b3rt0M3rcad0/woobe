@@ -77,7 +77,6 @@ function PlaygroundContent() {
   const agentSessionMode = normalizeSessionMode(agent?.session_mode)
   const isStateless = agentSessionMode === 'stateless'
   const isAgentInactive = agent?.status === 'inactive'
-  const activeSessionId = isStateless ? null : sessionIdState
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const productionRelease = releases.find(r => r.status === 'production')
@@ -115,6 +114,7 @@ function PlaygroundContent() {
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
+  const activeSessionId = isStateless ? null : sessionIdState
 
   const {
     data: backendTraces = [],
@@ -225,17 +225,8 @@ function PlaygroundContent() {
     setIsSending(true)
 
     try {
-      const requestPayload: Record<string, unknown> = {
-        project_id: projectId!,
-        agent_id: agentId!,
-        message: content,
-        session_id: isStateless ? null : sessionIdState,
-        execution_context: 'playground',
-        metadata: { client_sent_at: new Date().toISOString() },
-        snapshot_override: toSnapshot(),
-      }
+      const requestPayload: Record<string, unknown> = { project_id: projectId!, agent_id: agentId!, message: content, session_id: isStateless ? null : sessionIdState, execution_context: 'playground', metadata: { client_sent_at: new Date().toISOString() }, snapshot_override: toSnapshot() }
       setLastRequestPayload(requestPayload)
-
       await stream(requestPayload as any, {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
@@ -317,11 +308,7 @@ function PlaygroundContent() {
 
   const handleLeftPanelTabChange = (tab: LeftPanelTab) => {
     if (leftPanelTab === tab) setShowLeftPanel(!showLeftPanel)
-    else {
-      setLeftPanelTab(tab)
-      setShowLeftPanel(true)
-      setSelectedTraceId(null)
-    }
+    else { setLeftPanelTab(tab); setShowLeftPanel(true); setSelectedTraceId(null) }
   }
 
   const handleLoadMoreSessions = useCallback(() => {
@@ -357,20 +344,11 @@ function PlaygroundContent() {
     <ErrorBoundary>
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
         <PlaygroundHeader agent={agent} showLeftPanel={showLeftPanel} showRightPanel={showRightPanel} onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)} onToggleRightPanel={() => setShowRightPanel(!showRightPanel)} onApiClick={() => setShowApiModal(true)} onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))} releaseVersion={productionRelease?.version} releaseStatus={productionRelease?.status} />
-        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
-          <span className="text-muted font-medium">{statusLabel}</span>
-          {isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
-          <span className="ml-2 text-muted">· {agentSessionMode}</span>
-          {isAgentInactive && <span className="ml-2 text-red-400 font-medium">· inactive</span>}
-          <span className="ml-auto text-muted">{state.provider}/{state.model}</span>
-        </div>
-
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30"><span className="text-muted font-medium">{statusLabel}</span>{isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}<span className="ml-2 text-muted">· {agentSessionMode}</span>{isAgentInactive && <span className="ml-2 text-red-400 font-medium">· inactive</span>}<span className="ml-auto text-muted">{state.provider}/{state.model}</span></div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} onTabChange={handleLeftPanelTabChange} />
           {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={agentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent?.name} runtimeBlocked={isAgentInactive} runtimeBlockReason={runtimeBlockReason} />
-          </div>
+          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent?.name} runtimeBlocked={isAgentInactive} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
