@@ -170,6 +170,14 @@ class ListAgentSessionsUseCase:
         sessions = await self._session_repo.list_by_agent(
             input_dto.project_id, input_dto.agent_id
         )
+        sessions = sorted(
+            sessions,
+            key=lambda session: (session.last_message_at or session.created_at).timestamp()
+            if session.last_message_at or session.created_at
+            else 0.0,
+            reverse=True,
+        )
+
         start_index = 0
         if input_dto.cursor:
             for index, session in enumerate(sessions):
