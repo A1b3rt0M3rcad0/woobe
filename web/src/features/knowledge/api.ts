@@ -1,4 +1,4 @@
-import { get, post, del } from '@/lib/api/client'
+import { get, post, patch, del } from '@/lib/api/client'
 import type {
   AgentCollection,
   AttachCollectionRequest,
@@ -6,6 +6,7 @@ import type {
   CreateCollectionRequest,
   Document,
   UploadDocumentFileRequest,
+  UpdateCollectionRequest,
   UploadDocumentRequest,
 } from './types'
 
@@ -19,6 +20,10 @@ export async function getCollection(id: string): Promise<Collection> {
 
 export async function createCollection(data: CreateCollectionRequest): Promise<Collection> {
   return post<Collection>('/knowledge/collections', data)
+}
+
+export async function updateCollection(id: string, data: UpdateCollectionRequest): Promise<Collection> {
+  return patch<Collection>(`/knowledge/collections/${id}`, data)
 }
 
 export async function getAgentCollections(agentId: string): Promise<AgentCollection[]> {
