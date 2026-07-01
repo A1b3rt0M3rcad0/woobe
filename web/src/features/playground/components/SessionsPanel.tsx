@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Separator } from '@/components/ui/Separator'
-import { Clock, MessageSquare, Circle, Plus, Loader2 } from 'lucide-react'
+import { Clock, MessageSquare, Circle, Plus, Loader2, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SessionListItem } from '@/features/playground/types'
 
 interface SessionsPanelProps {
   sessions: SessionListItem[]
   currentSessionId: string | null
+  sessionMode: 'stateful' | 'stateless'
   onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
   onLoadMoreSessions?: () => void
@@ -43,6 +44,7 @@ function SessionSkeleton() {
 export function SessionsPanel({
   sessions,
   currentSessionId,
+  sessionMode,
   onNewSession,
   onSelectSession,
   onLoadMoreSessions,
@@ -52,6 +54,7 @@ export function SessionsPanel({
   isCreatingSession = false,
 }: SessionsPanelProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const isStateless = sessionMode === 'stateless'
 
   useEffect(() => {
     const node = sentinelRef.current
@@ -77,7 +80,8 @@ export function SessionsPanel({
         <button
           type="button"
           onClick={() => void onNewSession()}
-          disabled={isCreatingSession}
+          disabled={isCreatingSession || isStateless}
+          title={isStateless ? 'Stateless agents do not create sessions' : undefined}
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-medium text-primary-light transition-colors hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isCreatingSession ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -85,7 +89,14 @@ export function SessionsPanel({
         </button>
       </div>
 
-      {currentSessionId && (
+      {isStateless && (
+        <div className="flex gap-2 rounded-xl border border-border/80 bg-background/45 p-3 text-xs leading-5 text-muted">
+          <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <p>This agent is stateless. New conversations are not persisted as sessions.</p>
+        </div>
+      )}
+
+      {currentSessionId && !isStateless && (
         <>
           <div>
             <p className="mb-1 text-xs font-medium text-muted">Current Session ID</p>
@@ -104,7 +115,7 @@ export function SessionsPanel({
         </div>
       )}
 
-      {!isInitialLoading && sessions.length === 0 && (
+      {!isInitialLoading && sessions.length === 0 && !isStateless && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/45 px-4 py-8 text-center">
           <MessageSquare className="mb-2 h-8 w-8 text-muted" />
           <p className="text-sm text-muted">No sessions yet</p>
@@ -124,13 +135,14 @@ export function SessionsPanel({
       {sessions.length > 0 && (
         <div className="space-y-1.5">
           {sessions.map((s) => {
-            const isCurrent = s.id === currentSessionId
+            const isCurrent = !isStateless && s.id === currentSessionId
             return (
               <button
                 key={s.id}
                 onClick={() => onSelectSession(s.id)}
+                disabled={isStateless}
                 className={cn(
-                  'w-full rounded-xl border p-3 text-left shadow-sm shadow-black/5 transition-colors',
+                  'w-full rounded-xl border p-3 text-left shadow-sm shadow-black/5 transition-colors disabled:cursor-not-allowed disabled:opacity-70',
                   isCurrent
                     ? 'border-primary/35 bg-primary/10'
                     : 'border-border/80 bg-background/45 hover:border-primary/25 hover:bg-background/70',
