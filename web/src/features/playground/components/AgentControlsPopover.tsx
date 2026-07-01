@@ -76,7 +76,7 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
   }
 
   return (
-    <div ref={rootRef} className="relative flex items-center">
+    <div ref={rootRef} className="relative z-[210] flex items-center">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -97,7 +97,7 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-[360px] overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/35 backdrop-blur-md">
+        <div className="absolute right-0 top-10 z-[1000] w-[360px] overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/35 backdrop-blur-md">
           <div className="flex items-start justify-between gap-3 border-b border-border/80 bg-background/20 px-4 py-3.5">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Agent Controls</p>
