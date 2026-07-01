@@ -45,8 +45,8 @@ RUN sed -i 's/\r$//' /usr/local/bin/projectrai-entrypoint \
     && test -x /bin/sh \
     && head -n 1 /usr/local/bin/projectrai-entrypoint | grep -qx '#!/bin/sh' \
     && chmod 0555 /usr/local/bin/projectrai-entrypoint \
-    && mkdir -p /tmp/projectrai \
-    && chown projectrai:projectrai /tmp/projectrai
+    && mkdir -p /tmp/projectrai /app/storage/uploads \
+    && chown -R projectrai:projectrai /tmp/projectrai /app/storage
 
 USER 10001:10001
 EXPOSE 8000
