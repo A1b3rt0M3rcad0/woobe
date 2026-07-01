@@ -16,6 +16,11 @@ export interface CreateCollectionRequest {
   description?: string
 }
 
+export interface UpdateCollectionRequest {
+  name?: string
+  description?: string | null
+}
+
 export interface AgentCollection {
   id: string
   agent_id: string
