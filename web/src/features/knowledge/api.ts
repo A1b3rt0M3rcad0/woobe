@@ -60,3 +60,7 @@ export async function uploadDocumentFile(data: UploadDocumentFileRequest): Promi
 
   return post<Document>('/knowledge/documents/upload', formData)
 }
+
+export async function deleteDocument(id: string): Promise<void> {
+  return del<void>(`/knowledge/documents/${id}`)
+}
