@@ -80,6 +80,8 @@ class ListMessagesOutput(BaseModel):
 class ListAgentSessionsInput(BaseModel):
     project_id: UUID
     agent_id: UUID
+    cursor: str | None = None
+    limit: int = Field(default=20, ge=1, le=100)
 
 
 class ListAgentSessionsOutput(BaseModel):
@@ -91,6 +93,12 @@ class ListAgentSessionsOutput(BaseModel):
     last_message_at: datetime | None = None
     created_at: datetime | None = None
     message_count: int = 0
+
+
+class ListAgentSessionsPageOutput(BaseModel):
+    items: list[ListAgentSessionsOutput]
+    next_cursor: str | None = None
+    has_next: bool = False
 
 
 class AskInput(BaseModel):
