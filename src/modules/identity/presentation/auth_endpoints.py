@@ -58,10 +58,10 @@ def set_csrf_cookie(
     request: FastAPIRequest,
     response: JSONResponse,
     *,
+    csrf_value: str,
     max_age: int,
-) -> str:
+) -> None:
     settings = request.app.state.settings
-    csrf_token = token_urlsafe(32)
     access_secure, access_same_site = browser_cookie_policy(
         request,
         secure=settings.access_cookie_secure,
@@ -69,15 +69,14 @@ def set_csrf_cookie(
     )
     response.set_cookie(
         key=settings.csrf_cookie_name,
-        value=csrf_token,
+        value=csrf_value,
         max_age=max_age,
         httponly=False,
         secure=access_secure,
         samesite=access_same_site,
         path=CSRF_COOKIE_PATH,
     )
-    response.headers[CSRF_RESPONSE_HEADER] = csrf_token
-    return csrf_token
+    response.headers[CSRF_RESPONSE_HEADER] = csrf_value
 
 
 def authentication_response(
@@ -86,6 +85,7 @@ def authentication_response(
     *,
     status_code: int,
 ) -> JSONResponse:
+    csrf_value = token_urlsafe(32)
     response = JSONResponse(
         status_code=status_code,
         content={
@@ -94,6 +94,7 @@ def authentication_response(
             "data": {
                 "token_type": result.token_type,
                 "expires_in": result.expires_in,
+                "csrf": csrf_value,
                 "user": {
                     "id": str(result.user.id),
                     "email": result.user.email,
@@ -125,7 +126,12 @@ def authentication_response(
         samesite=access_same_site,
         path=ACCESS_COOKIE_PATH,
     )
-    set_csrf_cookie(request, response, max_age=refresh_max_age)
+    set_csrf_cookie(
+        request,
+        response,
+        csrf_value=csrf_value,
+        max_age=refresh_max_age,
+    )
 
     refresh_cookie_options = {
         "max_age": refresh_max_age,
@@ -237,12 +243,18 @@ async def csrf_endpoint(request: FastAPIRequest) -> JSONResponse:
     if principal is None:
         raise AuthenticationError("Authentication required")
     settings = request.app.state.settings
+    csrf_value = token_urlsafe(32)
     response = JSONResponse(
-        content={"success": True, "message": "ok", "data": None}
+        content={
+            "success": True,
+            "message": "ok",
+            "data": {"csrf": csrf_value},
+        }
     )
     set_csrf_cookie(
         request,
         response,
+        csrf_value=csrf_value,
         max_age=settings.refresh_token_ttl_days * 86400,
     )
     return response
