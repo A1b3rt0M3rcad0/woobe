@@ -31,23 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    let isMounted = true
-
-    getCurrentUser()
-      .then((u) => {
-        if (isMounted) setUser(u)
-      })
-      .catch(() => {
-        if (isMounted) clearAuthState()
-      })
-      .finally(() => {
-        if (isMounted) setIsInitializing(false)
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [clearAuthState])
+    setIsInitializing(false)
+  }, [])
 
   const login = useCallback(async (data: LoginRequest) => {
     setIsLoading(true)
