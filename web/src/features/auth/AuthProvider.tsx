@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { login as apiLogin, register as apiRegister, getCurrentUser } from './api'
+import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from './api'
 import { getToken, setToken, clearToken } from '@/lib/auth/token'
 import type { User, LoginRequest, RegisterRequest, Organization } from './types'
 
@@ -12,7 +12,7 @@ interface AuthContextValue {
   isInitializing: boolean
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
 
@@ -27,13 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!token
 
+  const clearAuthState = useCallback(() => {
+    clearToken()
+    setTokenState(null)
+    setUser(null)
+    queryClient.clear()
+  }, [queryClient])
+
   useEffect(() => {
     if (token && !user) {
       getCurrentUser()
         .then((u) => setUser(u))
         .catch(() => {
-          clearToken()
-          setTokenState(null)
+          clearAuthState()
         })
         .finally(() => setIsInitializing(false))
     } else {
@@ -65,19 +71,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const logout = useCallback(() => {
-    clearToken()
-    setTokenState(null)
-    setUser(null)
-    queryClient.clear()
-  }, [queryClient])
+  const logout = useCallback(async () => {
+    try {
+      await apiLogout()
+    } catch {
+      // Local state must be cleared even if the server session is already gone.
+    } finally {
+      clearAuthState()
+    }
+  }, [clearAuthState])
 
   const refreshCurrentUser = useCallback(async () => {
     try {
       const u = await getCurrentUser()
       setUser(u)
+      setTokenState(getToken())
     } catch {
-      logout()
+      await logout()
     }
   }, [logout])
 
