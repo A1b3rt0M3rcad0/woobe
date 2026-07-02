@@ -46,6 +46,7 @@ PUBLIC_PATHS = {
 }
 _LOCAL_ENVIRONMENTS = {"development", "dev", "test", "local"}
 _ALLOWED_SAME_SITE = {"lax", "strict", "none"}
+_CSRF_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -56,17 +57,27 @@ def _as_utc(value: datetime) -> datetime:
 
 def _validate_runtime_security_settings(settings: Settings) -> None:
     environment = settings.environment.strip().lower()
-    secure = bool(getattr(settings, "refresh_" + "cookie_" + "secure"))
-    same_site = str(
-        getattr(settings, "refresh_" + "cookie_" + "same_site")
-    ).strip().lower()
+    cookie_settings = (
+        (
+            "access",
+            bool(settings.access_cookie_secure),
+            settings.access_cookie_same_site,
+        ),
+        (
+            "refresh",
+            bool(settings.refresh_cookie_secure),
+            settings.refresh_cookie_same_site,
+        ),
+    )
 
-    if same_site not in _ALLOWED_SAME_SITE:
-        raise ValueError("Invalid session-cookie same-site policy")
-    if environment not in _LOCAL_ENVIRONMENTS and not secure:
-        raise ValueError("Production session cookies require transport security")
-    if same_site == "none" and not secure:
-        raise ValueError("Cross-site session cookies require transport security")
+    for name, secure, same_site_value in cookie_settings:
+        same_site = str(same_site_value).strip().lower()
+        if same_site not in _ALLOWED_SAME_SITE:
+            raise ValueError(f"Invalid {name} cookie same-site policy")
+        if environment not in _LOCAL_ENVIRONMENTS and not secure:
+            raise ValueError(f"Production {name} cookies require transport security")
+        if same_site == "none" and not secure:
+            raise ValueError(f"Cross-site {name} cookies require transport security")
 
 
 def _is_runtime_path(path: str) -> bool:
@@ -168,19 +179,25 @@ class HttpSecurityGuard:
 
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not credentials:
+        if scheme.lower() == "bearer" and credentials:
+            if credentials.startswith("rai_live_"):
+                return await self._authenticate_api_key(
+                    request=request,
+                    credentials=credentials,
+                    body=body,
+                    query_params=query_params,
+                    path_params=path_params,
+                )
+            access_token = credentials
+            token_source = "header"
+        else:
+            access_token = request.cookies.get(self._settings.access_cookie_name)
+            token_source = "cookie"
+
+        if not access_token:
             raise AuthenticationError("Authentication required")
 
-        if credentials.startswith("rai_live_"):
-            return await self._authenticate_api_key(
-                request=request,
-                credentials=credentials,
-                body=body,
-                query_params=query_params,
-                path_params=path_params,
-            )
-
-        principal = self._token_codec.decode(credentials)
+        principal = self._token_codec.decode(access_token)
         async with self._session_factory() as session:
             await self._require_active_session(session, principal)
             await TenantAuthorizer(session).authorize(
@@ -189,6 +206,10 @@ class HttpSecurityGuard:
                 query_params=query_params,
                 body=body,
             )
+
+        if token_source == "cookie":
+            self._validate_csrf(request)
+
         return principal
 
     async def _authenticate_api_key(
@@ -274,6 +295,17 @@ class HttpSecurityGuard:
             )
             await session.commit()
             return principal
+
+    def _validate_csrf(self, request: Request) -> None:
+        if request.method.upper() not in _CSRF_METHODS:
+            return
+
+        csrf_cookie = request.cookies.get(self._settings.csrf_cookie_name)
+        csrf_header = request.headers.get(self._settings.csrf_header_name)
+        if not csrf_cookie or not csrf_header:
+            raise AuthorizationError("CSRF validation failed")
+        if not compare_digest(csrf_cookie, csrf_header):
+            raise AuthorizationError("CSRF validation failed")
 
     def _validate_runtime_payload(self, request: Request, body: Any) -> None:
         content_length = request.headers.get("content-length")
