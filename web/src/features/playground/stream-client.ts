@@ -1,4 +1,4 @@
-import { getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
   AgentActivityInfo,
@@ -219,6 +219,7 @@ async function runStream(
   signal: AbortSignal | undefined,
   hasRetriedAuth: boolean,
 ): Promise<void> {
+  await ensureCsrfToken()
   const response = await fetch(`${BASE_URL}/runtime/ask/stream`, {
     method: 'POST',
     headers: {
