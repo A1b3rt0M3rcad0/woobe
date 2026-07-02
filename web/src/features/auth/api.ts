@@ -9,6 +9,10 @@ export async function register(data: RegisterRequest): Promise<LoginResponse> {
   return post<LoginResponse>('/identity/auth/register', data)
 }
 
+export async function logout(): Promise<void> {
+  await post('/identity/auth/logout', {})
+}
+
 export async function getCurrentUser(): Promise<User> {
   return get<User>('/identity/users/me')
 }

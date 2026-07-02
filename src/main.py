@@ -180,6 +180,7 @@ def create_app() -> FastAPI:
             "Authorization",
             "Content-Type",
             "X-API-Key",
+            "X-CSRF-Token",
             "X-Request-ID",
             "X-Correlation-ID",
         ],

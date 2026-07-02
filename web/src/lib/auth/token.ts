@@ -1,13 +1,11 @@
-const TOKEN_KEY = 'projectrai_token'
-
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return null
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
+export function setToken(_token: string): void {
+  // Auth tokens are stored only in HttpOnly cookies.
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY)
+  // Auth tokens are stored only in HttpOnly cookies.
 }

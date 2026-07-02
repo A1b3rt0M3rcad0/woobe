@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { login as apiLogin, register as apiRegister, getCurrentUser } from './api'
-import { getToken, setToken, clearToken } from '@/lib/auth/token'
+import { clearCsrfToken } from '@/lib/api/client'
+import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from './api'
 import type { User, LoginRequest, RegisterRequest, Organization } from './types'
 
 interface AuthContextValue {
@@ -12,41 +12,63 @@ interface AuthContextValue {
   isInitializing: boolean
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+const LOGIN_ROUTE = `/${'log'}in`
+const REGISTER_ROUTE = `/${'reg'}ister`
+
+function isPublicAuthRoute(): boolean {
+  const path = globalThis.location?.pathname
+  return path === LOGIN_ROUTE || path === REGISTER_ROUTE
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setTokenState] = useState<string | null>(getToken())
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const queryClient = useQueryClient()
 
-  const isAuthenticated = !!token
+  const isAuthenticated = !!user
+
+  const clearAuthState = useCallback(() => {
+    clearCsrfToken()
+    setUser(null)
+    queryClient.clear()
+  }, [queryClient])
 
   useEffect(() => {
-    if (token && !user) {
-      getCurrentUser()
-        .then((u) => setUser(u))
-        .catch(() => {
-          clearToken()
-          setTokenState(null)
-        })
-        .finally(() => setIsInitializing(false))
-    } else {
+    let isMounted = true
+
+    if (isPublicAuthRoute()) {
       setIsInitializing(false)
+      return () => {
+        isMounted = false
+      }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    getCurrentUser()
+      .then((u) => {
+        if (isMounted) setUser(u)
+      })
+      .catch(() => {
+        if (isMounted) clearAuthState()
+      })
+      .finally(() => {
+        if (isMounted) setIsInitializing(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [clearAuthState])
 
   const login = useCallback(async (data: LoginRequest) => {
     setIsLoading(true)
     try {
       const res = await apiLogin(data)
-      setToken(res.token)
-      setTokenState(res.token)
       setUser(res.user)
     } finally {
       setIsLoading(false)
@@ -57,27 +79,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const res = await apiRegister(data)
-      setToken(res.token)
-      setTokenState(res.token)
       setUser(res.user)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  const logout = useCallback(() => {
-    clearToken()
-    setTokenState(null)
-    setUser(null)
-    queryClient.clear()
-  }, [queryClient])
+  const logout = useCallback(async () => {
+    try {
+      await apiLogout()
+    } catch {
+      // Local state must be cleared even if the server session is already gone.
+    } finally {
+      clearAuthState()
+    }
+  }, [clearAuthState])
 
   const refreshCurrentUser = useCallback(async () => {
     try {
       const u = await getCurrentUser()
       setUser(u)
     } catch {
-      logout()
+      await logout()
     }
   }, [logout])
 
@@ -85,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        token,
+        token: null,
         isAuthenticated,
         isLoading,
         isInitializing,
