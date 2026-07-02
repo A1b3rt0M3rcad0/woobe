@@ -1,4 +1,3 @@
-import { getToken, setToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
 function resolveBaseUrl(value: string | undefined): string {
@@ -26,6 +25,9 @@ const AUTH_PUBLIC_PATHS = new Set([
   '/identity/auth/register',
   AUTH_REFRESH_PATH,
 ])
+const CSRF_COOKIE_NAME = 'projectrai_csrf'
+const CSRF_HEADER_NAME = 'X-CSRF-Token'
+const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 interface RequestOptions {
   headers?: Record<string, string>
@@ -38,12 +40,7 @@ interface ApiEnvelope<T> {
   data?: T
 }
 
-interface AuthRefreshPayload {
-  access_token?: string
-  token?: string
-}
-
-let refreshPromise: Promise<string> | null = null
+let refreshPromise: Promise<void> | null = null
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   let url = `${BASE_URL}${path}`
@@ -62,7 +59,33 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
   return url
 }
 
-async function refreshAccessToken(): Promise<string> {
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+
+  const prefix = `${encodeURIComponent(name)}=`
+  const value = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(prefix))
+
+  return value ? decodeURIComponent(value.slice(prefix.length)) : null
+}
+
+export function getCsrfHeaders(method: string): Record<string, string> {
+  if (!CSRF_METHODS.has(method.toUpperCase())) return {}
+
+  const token = readCookie(CSRF_COOKIE_NAME)
+  if (!token) return {}
+
+  return { [CSRF_HEADER_NAME]: token }
+}
+
+function redirectToLogin(): void {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/login'
+  }
+}
+
+export async function refreshAuthSession(): Promise<void> {
   if (refreshPromise) return refreshPromise
 
   refreshPromise = (async () => {
@@ -75,7 +98,7 @@ async function refreshAccessToken(): Promise<string> {
       throw new UnauthorizedError()
     }
 
-    let data: ApiEnvelope<AuthRefreshPayload> | null = null
+    let data: ApiEnvelope<unknown> | null = null
     try {
       data = await res.json()
     } catch {
@@ -85,14 +108,6 @@ async function refreshAccessToken(): Promise<string> {
     if (!res.ok) {
       throw new ApiError(data?.message || 'Unable to refresh authentication session', res.status, data?.data)
     }
-
-    const nextToken = data?.data?.access_token || data?.data?.token
-    if (!nextToken) {
-      throw new UnauthorizedError()
-    }
-
-    setToken(nextToken)
-    return nextToken
   })().finally(() => {
     refreshPromise = null
   })
@@ -107,13 +122,9 @@ async function request<T>(
   options?: RequestOptions,
   hasRetriedAuth = false,
 ): Promise<T> {
-  const token = getToken()
   const headers: Record<string, string> = {
     ...(options?.headers || {}),
-  }
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
+    ...getCsrfHeaders(method),
   }
 
   if (body !== undefined && !(body instanceof FormData)) {
@@ -150,21 +161,19 @@ async function request<T>(
 
   if (res.status === 401 && !hasRetriedAuth && !AUTH_PUBLIC_PATHS.has(path)) {
     try {
-      await refreshAccessToken()
+      await refreshAuthSession()
       return request<T>(method, path, body, options, true)
     } catch {
-      if (import.meta.env.DEV) console.warn('[API] Refresh failed — clearing token and redirecting to login')
-      clearToken()
-      window.location.href = '/login'
+      if (import.meta.env.DEV) console.warn('[API] Refresh failed — redirecting to login')
+      redirectToLogin()
       throw new UnauthorizedError()
     }
   }
 
   if (res.status === 401) {
-    if (import.meta.env.DEV) console.warn('[API] 401 Unauthorized — clearing token and redirecting to login')
-    clearToken()
+    if (import.meta.env.DEV) console.warn('[API] 401 Unauthorized — redirecting to login')
     if (!AUTH_PUBLIC_PATHS.has(path)) {
-      window.location.href = '/login'
+      redirectToLogin()
     }
     throw new UnauthorizedError()
   }
