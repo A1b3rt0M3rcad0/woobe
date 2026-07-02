@@ -1,3 +1,4 @@
+from secrets import token_urlsafe
 from uuid import UUID
 
 from fastapi import Request as FastAPIRequest
@@ -6,6 +7,11 @@ from fastapi.responses import JSONResponse
 from modules.identity.application.authentication_service import AuthenticationService
 from modules.identity.application.dtos import LoginInput, RegisterInput
 from shared.infra.errors import AuthenticationError
+
+
+ACCESS_COOKIE_PATH = "/"
+CSRF_COOKIE_PATH = "/"
+REFRESH_COOKIE_PATH = "/identity/auth"
 
 
 def authentication_service(request: FastAPIRequest) -> AuthenticationService:
@@ -28,8 +34,6 @@ def authentication_response(
             "success": True,
             "message": "ok" if status_code == 200 else "created",
             "data": {
-                "access_token": result.access_token,
-                "token": result.access_token,
                 "token_type": result.token_type,
                 "expires_in": result.expires_in,
                 "user": {
@@ -41,39 +45,75 @@ def authentication_response(
         },
     )
     settings = request.app.state.settings
-    max_age = settings.refresh_token_ttl_days * 86400
-    cookie_options = {
-        "max_age": max_age,
+    refresh_max_age = settings.refresh_token_ttl_days * 86400
+    access_max_age = min(result.expires_in, settings.access_token_ttl_seconds)
+
+    response.set_cookie(
+        key=settings.access_cookie_name,
+        value=result.access_token,
+        max_age=access_max_age,
+        httponly=True,
+        secure=settings.access_cookie_secure,
+        samesite=settings.access_cookie_same_site,
+        path=ACCESS_COOKIE_PATH,
+    )
+    response.set_cookie(
+        key=settings.csrf_cookie_name,
+        value=token_urlsafe(32),
+        max_age=refresh_max_age,
+        httponly=False,
+        secure=settings.access_cookie_secure,
+        samesite=settings.access_cookie_same_site,
+        path=CSRF_COOKIE_PATH,
+    )
+
+    refresh_cookie_options = {
+        "max_age": refresh_max_age,
         "httponly": True,
         "secure": settings.refresh_cookie_secure,
         "samesite": settings.refresh_cookie_same_site,
-        "path": "/identity/auth",
+        "path": REFRESH_COOKIE_PATH,
     }
     response.set_cookie(
         key=settings.refresh_cookie_name,
         value=result.refresh_token,
-        **cookie_options,
+        **refresh_cookie_options,
     )
     response.set_cookie(
         key=f"{settings.refresh_cookie_name}_session",
         value=str(result.session_id),
-        **cookie_options,
+        **refresh_cookie_options,
     )
     return response
 
 
 def clear_auth_cookies(request: FastAPIRequest, response: JSONResponse) -> None:
     settings = request.app.state.settings
-    options = {
-        "path": "/identity/auth",
+    response.delete_cookie(
+        key=settings.access_cookie_name,
+        path=ACCESS_COOKIE_PATH,
+        httponly=True,
+        secure=settings.access_cookie_secure,
+        samesite=settings.access_cookie_same_site,
+    )
+    response.delete_cookie(
+        key=settings.csrf_cookie_name,
+        path=CSRF_COOKIE_PATH,
+        httponly=False,
+        secure=settings.access_cookie_secure,
+        samesite=settings.access_cookie_same_site,
+    )
+
+    refresh_cookie_options = {
+        "path": REFRESH_COOKIE_PATH,
         "httponly": True,
         "secure": settings.refresh_cookie_secure,
         "samesite": settings.refresh_cookie_same_site,
     }
-    response.delete_cookie(key=settings.refresh_cookie_name, **options)
+    response.delete_cookie(key=settings.refresh_cookie_name, **refresh_cookie_options)
     response.delete_cookie(
         key=f"{settings.refresh_cookie_name}_session",
-        **options,
+        **refresh_cookie_options,
     )
 
 
