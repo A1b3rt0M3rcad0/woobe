@@ -1,15 +1,42 @@
+from uuid import UUID
+
 from modules.agent.application.dtos import ListProviderModelsInput
+from modules.agent.application.dtos.model_discovery_dtos import ListAvailableProviderModelsInput
 from modules.agent.application.use_cases import ListProviderModelsUseCase
+from modules.agent.application.use_cases.list_available_provider_models import ListAvailableProviderModelsUseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class ListProviderModelsController(Controller):
-    def __init__(self, use_case: ListProviderModelsUseCase) -> None:
+    def __init__(
+        self,
+        use_case: ListProviderModelsUseCase,
+        discovery_use_case: ListAvailableProviderModelsUseCase | None = None,
+    ) -> None:
         self._use_case = use_case
+        self._discovery_use_case = discovery_use_case
 
     async def handle(self, request: Request) -> Response:
+        available_for_credential_id = request.query_params.get("available_for_credential_id")
+        if available_for_credential_id:
+            if self._discovery_use_case is None:
+                return Response(
+                    status_code=400,
+                    body={"success": False, "message": "Model discovery is not configured", "data": None},
+                )
+            result = await self._discovery_use_case.execute(
+                ListAvailableProviderModelsInput(
+                    credential_id=UUID(available_for_credential_id),
+                    project_id=request.query_params.get("project_id"),
+                )
+            )
+            return Response(
+                status_code=200,
+                body={"success": True, "message": "ok", "data": [item.model_dump() for item in result]},
+            )
+
         input_dto = ListProviderModelsInput(
             project_id=request.query_params.get("project_id"),
             provider_credential_id=request.query_params.get("provider_credential_id"),
