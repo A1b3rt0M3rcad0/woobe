@@ -20,6 +20,7 @@ from modules.identity.application.composers.update_organization_composer import 
     update_organization_composer,
 )
 from modules.identity.presentation.auth_endpoints import (
+    csrf_endpoint,
     get_current_user_endpoint,
     list_organizations_endpoint,
     login_endpoint,
@@ -41,6 +42,11 @@ async def list_organizations(request: FastAPIRequest):
 @router.get("/users/me")
 async def get_current_user(request: FastAPIRequest):
     return await get_current_user_endpoint(request)
+
+
+@router.get("/auth/csrf")
+async def csrf(request: FastAPIRequest):
+    return await csrf_endpoint(request)
 
 
 @router.post("/auth/login")
