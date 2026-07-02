@@ -1,4 +1,5 @@
 from secrets import token_urlsafe
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import Request as FastAPIRequest
@@ -20,6 +21,31 @@ def authentication_service(request: FastAPIRequest) -> AuthenticationService:
         request.app.state.access_token_codec,
         request.app.state.settings,
     )
+
+
+def request_is_https(request: FastAPIRequest) -> bool:
+    forwarded_proto = request.headers.get("x-forwarded-proto", "")
+    return request.url.scheme == "https" or forwarded_proto.split(",")[0].strip() == "https"
+
+
+def request_is_cross_origin(request: FastAPIRequest) -> bool:
+    origin = request.headers.get("origin")
+    if not origin:
+        return False
+    origin_host = urlsplit(origin).netloc
+    request_host = request.headers.get("host", "")
+    return bool(origin_host and request_host and origin_host != request_host)
+
+
+def browser_cookie_policy(
+    request: FastAPIRequest,
+    *,
+    secure: bool,
+    same_site: str,
+) -> tuple[bool, str]:
+    if request_is_cross_origin(request) and request_is_https(request):
+        return True, "none"
+    return secure, same_site
 
 
 def authentication_response(
@@ -47,14 +73,24 @@ def authentication_response(
     settings = request.app.state.settings
     refresh_max_age = settings.refresh_token_ttl_days * 86400
     access_max_age = min(result.expires_in, settings.access_token_ttl_seconds)
+    access_secure, access_same_site = browser_cookie_policy(
+        request,
+        secure=settings.access_cookie_secure,
+        same_site=settings.access_cookie_same_site,
+    )
+    refresh_secure, refresh_same_site = browser_cookie_policy(
+        request,
+        secure=settings.refresh_cookie_secure,
+        same_site=settings.refresh_cookie_same_site,
+    )
 
     response.set_cookie(
         key=settings.access_cookie_name,
         value=result.access_token,
         max_age=access_max_age,
         httponly=True,
-        secure=settings.access_cookie_secure,
-        samesite=settings.access_cookie_same_site,
+        secure=access_secure,
+        samesite=access_same_site,
         path=ACCESS_COOKIE_PATH,
     )
     response.set_cookie(
@@ -62,16 +98,16 @@ def authentication_response(
         value=token_urlsafe(32),
         max_age=refresh_max_age,
         httponly=False,
-        secure=settings.access_cookie_secure,
-        samesite=settings.access_cookie_same_site,
+        secure=access_secure,
+        samesite=access_same_site,
         path=CSRF_COOKIE_PATH,
     )
 
     refresh_cookie_options = {
         "max_age": refresh_max_age,
         "httponly": True,
-        "secure": settings.refresh_cookie_secure,
-        "samesite": settings.refresh_cookie_same_site,
+        "secure": refresh_secure,
+        "samesite": refresh_same_site,
         "path": REFRESH_COOKIE_PATH,
     }
     response.set_cookie(
@@ -89,26 +125,36 @@ def authentication_response(
 
 def clear_auth_cookies(request: FastAPIRequest, response: JSONResponse) -> None:
     settings = request.app.state.settings
+    access_secure, access_same_site = browser_cookie_policy(
+        request,
+        secure=settings.access_cookie_secure,
+        same_site=settings.access_cookie_same_site,
+    )
+    refresh_secure, refresh_same_site = browser_cookie_policy(
+        request,
+        secure=settings.refresh_cookie_secure,
+        same_site=settings.refresh_cookie_same_site,
+    )
     response.delete_cookie(
         key=settings.access_cookie_name,
         path=ACCESS_COOKIE_PATH,
         httponly=True,
-        secure=settings.access_cookie_secure,
-        samesite=settings.access_cookie_same_site,
+        secure=access_secure,
+        samesite=access_same_site,
     )
     response.delete_cookie(
         key=settings.csrf_cookie_name,
         path=CSRF_COOKIE_PATH,
         httponly=False,
-        secure=settings.access_cookie_secure,
-        samesite=settings.access_cookie_same_site,
+        secure=access_secure,
+        samesite=access_same_site,
     )
 
     refresh_cookie_options = {
         "path": REFRESH_COOKIE_PATH,
         "httponly": True,
-        "secure": settings.refresh_cookie_secure,
-        "samesite": settings.refresh_cookie_same_site,
+        "secure": refresh_secure,
+        "samesite": refresh_same_site,
     }
     response.delete_cookie(key=settings.refresh_cookie_name, **refresh_cookie_options)
     response.delete_cookie(
