@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { CollectionDocumentUploadPanel } from '@/features/knowledge/components/CollectionDocumentUploadPanel'
+import { CollectionDocumentUploadModal } from '@/features/knowledge/components/CollectionDocumentUploadModal'
 import { useDeleteDocument, useDocumentsByCollection, useUpdateCollection } from '@/features/knowledge/hooks'
 import { formatBytes } from '@/lib/formatters/bytes'
 import { formatDate } from '@/lib/formatters/date'
@@ -32,7 +32,7 @@ function documentMeta(document: Document) {
 export function CollectionDetailsModal({ open, onClose, collection, projectId }: CollectionDetailsModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
 
   const updateCollection = useUpdateCollection()
@@ -43,7 +43,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
     if (!collection) return
     setName(collection.name)
     setDescription(collection.description || '')
-    setUploading(false)
+    setUploadModalOpen(false)
     setDocumentToDelete(null)
   }, [collection])
 
@@ -54,6 +54,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
 
   const close = () => {
     if (updateCollection.isPending || deleteDocument.isPending) return
+    setUploadModalOpen(false)
     onClose()
   }
 
@@ -82,6 +83,15 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete document')
     }
+  }
+
+  const openUploadModal = () => {
+    setUploadModalOpen(true)
+  }
+
+  const handleUploaded = () => {
+    setUploadModalOpen(false)
+    void refetch()
   }
 
   return (
@@ -130,29 +140,23 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                 <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">{uploading ? 'Upload document' : 'Documents'}</h3>
-                      <p className="mt-1 text-xs leading-5 text-muted">{uploading ? `Upload directly to ${collection.name}.` : `${items.length} files · ${indexedCount} indexed · ${formatBytes(totalSize)} total`}</p>
+                      <h3 className="text-sm font-semibold text-white">Documents</h3>
+                      <p className="mt-1 text-xs leading-5 text-muted">{items.length} files · {indexedCount} indexed · {formatBytes(totalSize)} total</p>
                     </div>
-                    {uploading ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setUploading(false)}>Back to documents</Button>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isLoading}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button>
-                        <Button type="button" size="sm" onClick={() => setUploading(true)}><Upload className="mr-2 h-3.5 w-3.5" />Upload</Button>
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isLoading}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button>
+                      <Button type="button" size="sm" onClick={openUploadModal}><Upload className="mr-2 h-3.5 w-3.5" />Upload</Button>
+                    </div>
                   </div>
 
-                  {uploading ? (
-                    <CollectionDocumentUploadPanel projectId={projectId} collection={{ id: collection.id, name: collection.name }} onCancel={() => setUploading(false)} onUploaded={() => { setUploading(false); void refetch() }} />
-                  ) : isLoading ? (
+                  {isLoading ? (
                     <div className="rounded-xl border border-border/70 bg-background/60 p-8"><LoadingState message="Loading documents..." variant="inline" /></div>
                   ) : items.length === 0 ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center">
                       <FileText className="h-5 w-5 text-muted" />
                       <p className="mt-4 text-sm font-medium text-white">No documents in this collection.</p>
                       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material to make it available for retrieval.</p>
-                      <Button type="button" onClick={() => setUploading(true)} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button>
+                      <Button type="button" onClick={openUploadModal} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -182,6 +186,14 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
           </div>
         )}
       </Dialog>
+
+      <CollectionDocumentUploadModal
+        open={uploadModalOpen}
+        projectId={projectId}
+        collection={collection ? { id: collection.id, name: collection.name } : null}
+        onClose={() => setUploadModalOpen(false)}
+        onUploaded={handleUploaded}
+      />
 
       <Dialog open={Boolean(documentToDelete)} onClose={() => !deleteDocument.isPending && setDocumentToDelete(null)} title="Delete document" className="max-w-[460px]">
         {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400"><AlertTriangle className="h-5 w-5" /></div><div><p className="text-sm font-medium text-white">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="truncate text-sm font-medium text-white">{documentToDelete.title}</p><p className="mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
