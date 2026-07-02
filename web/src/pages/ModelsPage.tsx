@@ -196,6 +196,16 @@ function EmptyCreateCard({ onClick, disabled }: { onClick: () => void; disabled?
   )
 }
 
+function EmptyCredentialCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="group flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/5">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light"><Plus className="h-6 w-6" /></span>
+      <span className="mt-5 text-base font-semibold text-white">Add credential</span>
+      <span className="mt-2 max-w-[260px] text-sm leading-6 text-muted">Connect OpenAI, an OpenAI-compatible endpoint or OpenRouter.</span>
+    </button>
+  )
+}
+
 function ModelDialog({ open, onClose, projectId, credentials, selectedModel }: { open: boolean; onClose: () => void; projectId: string; credentials: ProviderCredential[]; selectedModel: ProviderModel | null }) {
   const createModel = useCreateProviderModel()
   const updateModel = useUpdateProviderModel()
@@ -433,26 +443,26 @@ export default function ModelsPage() {
             {filteredModels.map((model) => <ModelCard key={model.id} model={model} credential={credentialsById.get(model.provider_credential_id)} onClick={() => openExistingModel(model)} />)}
           </div>
         ) : (
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
-            <h2 className="text-sm font-semibold text-white">No models found</h2>
-            <p className="mt-1 text-sm text-muted">{credentials.length > 0 ? 'Create a model from an existing credential.' : 'Create a provider credential first, then attach models to it.'}</p>
-            <div className="mt-4 flex gap-2">
-              {credentials.length === 0 ? <Button variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button> : <Button onClick={openNewModel}>New model</Button>}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <EmptyCreateCard onClick={openNewModel} disabled={credentials.length === 0} />
+            <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
+              <h2 className="text-sm font-semibold text-white">No models found</h2>
+              <p className="mt-1 text-sm text-muted">{credentials.length > 0 ? 'Create a model from an existing credential.' : 'Create a provider credential first, then attach models to it.'}</p>
+              {credentials.length === 0 && <Button className="mt-4" variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button>}
             </div>
           </div>
         )
       ) : (
-        filteredCredentials.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredCredentials.map((credential) => <CredentialCard key={credential.id} credential={credential} modelCount={modelCountByCredential.get(credential.id) || 0} onClick={() => setSelectedCredential(credential)} />)}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
-            <h2 className="text-sm font-semibold text-white">No credentials found</h2>
-            <p className="mt-1 text-sm text-muted">Add an OpenAI, OpenAI-compatible or OpenRouter credential.</p>
-            <Button className="mt-4" variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button>
-          </div>
-        )
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <EmptyCredentialCard onClick={() => setShowAddCredential(true)} />
+          {filteredCredentials.map((credential) => <CredentialCard key={credential.id} credential={credential} modelCount={modelCountByCredential.get(credential.id) || 0} onClick={() => setSelectedCredential(credential)} />)}
+          {filteredCredentials.length === 0 && (
+            <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
+              <h2 className="text-sm font-semibold text-white">No credentials found</h2>
+              <p className="mt-1 text-sm text-muted">Add an OpenAI, OpenAI-compatible or OpenRouter credential.</p>
+            </div>
+          )}
+        </div>
       )}
 
       <ModelDialog open={showModelDialog} onClose={() => setShowModelDialog(false)} projectId={projectId} credentials={credentials} selectedModel={selectedModel} />
