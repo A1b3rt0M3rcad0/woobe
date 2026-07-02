@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { clearCsrfToken } from '@/lib/api/client'
 import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from './api'
 import type { User, LoginRequest, RegisterRequest, Organization } from './types'
 
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user
 
   const clearAuthState = useCallback(() => {
+    clearCsrfToken()
     setUser(null)
     queryClient.clear()
   }, [queryClient])
