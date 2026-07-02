@@ -1,11 +1,21 @@
 import { get, post, patch } from '@/lib/api/client'
-import type { CreateProviderModelRequest, ProviderModel, UpdateProviderModelRequest } from './types'
+import type { AvailableProviderModel, CreateProviderModelRequest, ProviderModel, UpdateProviderModelRequest } from './types'
 
 export async function getProviderModels(projectId?: string, credentialId?: string): Promise<ProviderModel[]> {
   return get<ProviderModel[]>('/ai/provider-models', {
     params: {
       project_id: projectId,
       provider_credential_id: credentialId,
+    },
+  })
+}
+
+export async function getAvailableProviderModels(projectId?: string, credentialId?: string): Promise<AvailableProviderModel[]> {
+  if (!credentialId) return []
+  return get<AvailableProviderModel[]>('/ai/provider-models', {
+    params: {
+      project_id: projectId,
+      available_for_credential_id: credentialId,
     },
   })
 }
