@@ -1,4 +1,4 @@
-import { getToken } from '@/lib/auth/token'
+import { getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
   AgentActivityInfo,
@@ -15,7 +15,7 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
-const COMMITTED_TOKEN_PHASES = new Set(['response_generation', 'final_response_generation'])
+const FINAL_PHASES = new Set(['response_generation', 'final_response_generation'])
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -65,7 +65,7 @@ function usageOf(value: unknown): UsageInfo | null {
   }
 }
 
-function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
+function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
   return {
     content: typeof item.content === 'string' ? item.content : '',
     visibility: item.visibility === 'internal' || item.visibility === 'debug' ? item.visibility : 'assistant',
@@ -77,12 +77,12 @@ function tokenOf(item: Record<string, unknown>): StreamTokenInfo {
   }
 }
 
-function isCommittedToken(token: StreamTokenInfo): boolean {
+function isFinalStreamText(item: StreamTokenInfo): boolean {
   return (
-    token.visibility === 'assistant' &&
-    token.channel === 'final' &&
-    typeof token.phase === 'string' &&
-    COMMITTED_TOKEN_PHASES.has(token.phase)
+    item.visibility === 'assistant' &&
+    item.channel === 'final' &&
+    typeof item.phase === 'string' &&
+    FINAL_PHASES.has(item.phase)
   )
 }
 
@@ -100,50 +100,50 @@ function activityOf(item: Record<string, unknown>): AgentActivityInfo {
   const toolName = typeof item.tool_name === 'string' ? item.tool_name : null
   return {
     status,
-    phase: typeof item.phase === 'string' ? item.phase : null,
+    phase: stringOrNull(item.phase),
     message: activityMessage(status, toolName),
     tool_name: toolName,
-    provider: typeof item.provider === 'string' ? item.provider : null,
-    model: typeof item.model === 'string' ? item.model : null,
+    provider: stringOrNull(item.provider),
+    model: stringOrNull(item.model),
   }
 }
 
-function tokenRetractOf(item: Record<string, unknown>): TokenRetractInfo {
+function retractOf(item: Record<string, unknown>): TokenRetractInfo {
   return {
-    phase: typeof item.phase === 'string' ? item.phase : null,
-    reason: typeof item.reason === 'string' ? item.reason : null,
+    phase: stringOrNull(item.phase),
+    reason: stringOrNull(item.reason),
     content_length: numberOrNull(item.content_length) ?? 0,
     token_count: numberOrNull(item.token_count),
-    provider: typeof item.provider === 'string' ? item.provider : null,
-    model: typeof item.model === 'string' ? item.model : null,
+    provider: stringOrNull(item.provider),
+    model: stringOrNull(item.model),
   }
 }
 
 function toolOf(item: Record<string, unknown>): ToolCallInfo {
   return {
-    tool_call_id: typeof item.tool_call_id === 'string' ? item.tool_call_id : null,
+    tool_call_id: stringOrNull(item.tool_call_id),
     tool_name: typeof item.tool_name === 'string' ? item.tool_name : '',
     input: item.input ?? null,
     output: item.output ?? null,
     duration_ms: numberOrNull(item.duration_ms) ?? undefined,
     success: typeof item.success === 'boolean' ? item.success : undefined,
-    status: typeof item.status === 'string' ? item.status : null,
+    status: stringOrNull(item.status),
     latency_ms: numberOrNull(item.latency_ms),
-    error: typeof item.error === 'string' ? item.error : null,
+    error: stringOrNull(item.error),
   }
 }
 
 function responseOf(item: Record<string, unknown>): AskResponse {
   return {
     answer: typeof item.answer === 'string' ? item.answer : '',
-    session_id: typeof item.session_id === 'string' ? item.session_id : null,
-    message_id: typeof item.message_id === 'string' ? item.message_id : null,
+    session_id: stringOrNull(item.session_id),
+    message_id: stringOrNull(item.message_id),
     usage: usageOf(item.usage),
     sources: Array.isArray(item.sources) ? item.sources as SourceInfo[] : [],
     tool_calls: Array.isArray(item.tool_calls) ? item.tool_calls as ToolCallInfo[] : [],
-    trace_id: typeof item.trace_id === 'string' ? item.trace_id : null,
-    model: typeof item.model === 'string' ? item.model : null,
-    provider: typeof item.provider === 'string' ? item.provider : null,
+    trace_id: stringOrNull(item.trace_id),
+    model: stringOrNull(item.model),
+    provider: stringOrNull(item.provider),
     provider_model_id: stringOrNull(item.provider_model_id),
     provider_credential_id: stringOrNull(item.provider_credential_id),
     fallback_provider_model_id: stringOrNull(item.fallback_provider_model_id),
@@ -153,7 +153,7 @@ function responseOf(item: Record<string, unknown>): AskResponse {
     latency_ms: numberOrNull(item.latency_ms),
     ttft_ms: numberOrNull(item.ttft_ms),
     parsed_output: (item.parsed_output ?? null) as Record<string, unknown> | null,
-    output_parse_error: typeof item.output_parse_error === 'string' ? item.output_parse_error : null,
+    output_parse_error: stringOrNull(item.output_parse_error),
     execution_events: Array.isArray(item.execution_events) ? item.execution_events as ExecutionEvent[] : [],
     diagnostics: (item.diagnostics ?? null) as ExecutionDiagnostics | null,
   }
@@ -168,20 +168,20 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
   if (item.protocol_version != null && item.protocol_version !== PROTOCOL_VERSION) {
     callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
   }
+
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
   if (type === 'token') {
-    const token = tokenOf(item)
-    if (isCommittedToken(token)) callbacks.onToken(token)
-    else callbacks.onInternalToken?.({ ...token, visibility: 'internal', redacted: true })
-  }
-  else if (type === 'token_retract') callbacks.onTokenRetract?.(tokenRetractOf(item))
-  else if (type === 'internal_token') callbacks.onInternalToken?.(tokenOf(item))
+    const text = streamTextOf(item)
+    if (isFinalStreamText(text)) callbacks.onToken(text)
+    else callbacks.onInternalToken?.({ ...text, visibility: 'internal', redacted: true })
+  } else if (type === 'internal_token') callbacks.onInternalToken?.(streamTextOf(item))
+  else if (type === 'token_retract') callbacks.onTokenRetract?.(retractOf(item))
   else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
   else if (type === 'meta') callbacks.onMeta({
-    session_id: typeof item.session_id === 'string' ? item.session_id : null,
-    trace_id: typeof item.trace_id === 'string' ? item.trace_id : null,
-    request_id: typeof item.request_id === 'string' ? item.request_id : null,
+    session_id: stringOrNull(item.session_id),
+    trace_id: stringOrNull(item.trace_id),
+    request_id: stringOrNull(item.request_id),
   })
   else if (type === 'usage') {
     const usage = usageOf(item.usage)
@@ -209,24 +209,32 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
     callbacks.onCancelled?.(item)
     return true
   } else callbacks.onUnknownEvent?.(type, item)
+
   return false
 }
 
-export async function askStreamV1(
+async function runStream(
   data: AskRequest,
   callbacks: StreamCallbacks,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  hasRetriedAuth: boolean,
 ): Promise<void> {
-  const token = getToken()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'text/event-stream',
-  }
-  if (token) headers.Authorization = `Bearer ${token}`
-
   const response = await fetch(`${BASE_URL}/runtime/ask/stream`, {
-    method: 'POST', headers, body: JSON.stringify(data), signal,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...getCsrfHeaders('POST'),
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+    signal,
   })
+
+  if (response.status === 401 && !hasRetriedAuth) {
+    await refreshAuthSession()
+    return runStream(data, callbacks, signal, true)
+  }
   if (!response.ok) throw new Error(`Stream request failed (${response.status})`)
   if (!response.body) throw new Error('Streaming response body is unavailable')
 
@@ -243,6 +251,15 @@ export async function askStreamV1(
     if (done) break
     consume(parser.push(decoder.decode(value, { stream: true })))
   }
+
   consume(parser.finish(decoder.decode()))
   if (!terminal && !signal?.aborted) throw new Error('Stream ended without a terminal event')
+}
+
+export async function askStreamV1(
+  data: AskRequest,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  return runStream(data, callbacks, signal, false)
 }
