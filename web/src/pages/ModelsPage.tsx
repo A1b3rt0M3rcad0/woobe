@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Cpu, DollarSign, Key, Plus, Search, ServerCog } from 'lucide-react'
+import { Cpu, DollarSign, Key, Plus, RefreshCw, Search, ServerCog } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/common/LoadingState'
@@ -343,18 +343,51 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel }: {
   )
 }
 
-function CredentialDialog({ open, onClose, credential }: { open: boolean; onClose: () => void; credential: ProviderCredential | null }) {
+function CredentialDialog({ open, onClose, credential, onEdit }: { open: boolean; onClose: () => void; credential: ProviderCredential | null; onEdit: (credential: ProviderCredential) => void }) {
   if (!credential) return null
   return (
-    <Dialog open={open} onClose={onClose} title="Provider Credential" className="max-w-xl">
-      <div className="space-y-4">
+    <Dialog open={open} onClose={onClose} title="Manage Credential" className="max-w-2xl">
+      <div className="space-y-5">
         <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-          <p className="text-sm font-semibold text-white">{credential.name}</p>
-          <p className="mt-1 text-sm text-muted">{providerLabel(credential.provider)}</p>
-          <p className="mt-3 truncate text-xs text-muted">Base URL: <code>{String(metadataOf(credential).base_url || 'default provider endpoint')}</code></p>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><Key className="h-4 w-4" /></div>
+            <div>
+              <p className="text-sm font-semibold text-white">Provider credential</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Credentials hold access. Models hold model identifiers and pricing.</p>
+            </div>
+          </div>
         </div>
-        <p className="text-sm text-muted">Credential editing and rotation remain available through the add/edit credential modal in the playground flow. This view is intentionally read-only for now.</p>
-        <div className="flex justify-end"><Button type="button" variant="outline" onClick={onClose}>Close</Button></div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Name</p>
+            <p className="mt-2 truncate text-sm font-medium text-white">{credential.name}</p>
+          </div>
+          <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Provider</p>
+            <p className="mt-2 text-sm font-medium text-white">{providerLabel(credential.provider)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted/80">Endpoint</p>
+          <p className="mt-2 truncate text-sm text-muted"><code>{String(metadataOf(credential).base_url || 'default provider endpoint')}</code></p>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><RefreshCw className="h-4 w-4" /></div>
+            <div>
+              <p className="text-sm font-semibold text-white">Edit credential</p>
+              <p className="mt-1 text-sm leading-6 text-muted">Update name, provider settings or replace the credential value while preserving this credential ID.</p>
+              <Button type="button" variant="outline" className="mt-4" onClick={() => onEdit(credential)}><RefreshCw className="mr-2 h-4 w-4" />Edit credential</Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+        </div>
       </div>
     </Dialog>
   )
@@ -368,6 +401,7 @@ export default function ModelsPage() {
   const [selectedModel, setSelectedModel] = useState<ProviderModel | null>(null)
   const [showAddCredential, setShowAddCredential] = useState(false)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
+  const [credentialToEdit, setCredentialToEdit] = useState<ProviderCredential | null>(null)
 
   const credentialsQuery = useCredentials(projectId)
   const modelsQuery = useProviderModels(projectId)
@@ -409,6 +443,27 @@ export default function ModelsPage() {
     setShowModelDialog(true)
   }
 
+  const openCreateCredential = () => {
+    setCredentialToEdit(null)
+    setShowAddCredential(true)
+  }
+
+  const openEditCredential = (credential: ProviderCredential) => {
+    setCredentialToEdit(credential)
+    setSelectedCredential(null)
+    setShowAddCredential(true)
+  }
+
+  const closeCredentialForm = () => {
+    setShowAddCredential(false)
+    setCredentialToEdit(null)
+  }
+
+  const handleCredentialSaved = async () => {
+    closeCredentialForm()
+    await credentialsQuery.refetch()
+  }
+
   if (!projectId) return <ErrorState message="Project not found" />
   if (isLoading) return <LoadingState message="Loading models" />
   if (isError) return <ErrorState message="Failed to load provider models" />
@@ -426,7 +481,7 @@ export default function ModelsPage() {
           <button type="button" onClick={() => setSection('credentials')} className={`rounded-lg border px-4 py-2 text-sm ${section === 'credentials' ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-surface/50 text-muted hover:text-white'}`}>Credentials</button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setShowAddCredential(true)}><Key className="mr-2 h-4 w-4" />Add credential</Button>
+          <Button variant="outline" onClick={openCreateCredential}><Key className="mr-2 h-4 w-4" />Add credential</Button>
           <Button onClick={openNewModel} disabled={credentials.length === 0}><Plus className="mr-2 h-4 w-4" />New model</Button>
         </div>
       </div>
@@ -448,13 +503,13 @@ export default function ModelsPage() {
             <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
               <h2 className="text-sm font-semibold text-white">No models found</h2>
               <p className="mt-1 text-sm text-muted">{credentials.length > 0 ? 'Create a model from an existing credential.' : 'Create a provider credential first, then attach models to it.'}</p>
-              {credentials.length === 0 && <Button className="mt-4" variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button>}
+              {credentials.length === 0 && <Button className="mt-4" variant="outline" onClick={openCreateCredential}>Add credential</Button>}
             </div>
           </div>
         )
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <EmptyCredentialCard onClick={() => setShowAddCredential(true)} />
+          <EmptyCredentialCard onClick={openCreateCredential} />
           {filteredCredentials.map((credential) => <CredentialCard key={credential.id} credential={credential} modelCount={modelCountByCredential.get(credential.id) || 0} onClick={() => setSelectedCredential(credential)} />)}
           {filteredCredentials.length === 0 && (
             <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
@@ -466,8 +521,8 @@ export default function ModelsPage() {
       )}
 
       <ModelDialog open={showModelDialog} onClose={() => setShowModelDialog(false)} projectId={projectId} credentials={credentials} selectedModel={selectedModel} />
-      <CredentialDialog open={Boolean(selectedCredential)} onClose={() => setSelectedCredential(null)} credential={selectedCredential} />
-      <AddProviderCredentialModal open={showAddCredential} onClose={() => setShowAddCredential(false)} projectId={projectId} onCredentialCreated={() => setShowAddCredential(false)} />
+      <CredentialDialog open={Boolean(selectedCredential)} onClose={() => setSelectedCredential(null)} credential={selectedCredential} onEdit={openEditCredential} />
+      <AddProviderCredentialModal open={showAddCredential} onClose={closeCredentialForm} projectId={projectId} onCredentialCreated={handleCredentialSaved} credential={credentialToEdit} />
     </div>
   )
 }
