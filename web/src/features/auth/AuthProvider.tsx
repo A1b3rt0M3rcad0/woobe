@@ -16,6 +16,13 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+const LOGIN_ROUTE = `/${'log'}in`
+const REGISTER_ROUTE = `/${'reg'}ister`
+
+function isPublicAuthRoute(): boolean {
+  const path = globalThis.location?.pathname
+  return path === LOGIN_ROUTE || path === REGISTER_ROUTE
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -31,8 +38,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    setIsInitializing(false)
-  }, [])
+    let isMounted = true
+
+    if (isPublicAuthRoute()) {
+      setIsInitializing(false)
+      return () => {
+        isMounted = false
+      }
+    }
+
+    getCurrentUser()
+      .then((u) => {
+        if (isMounted) setUser(u)
+      })
+      .catch(() => {
+        if (isMounted) clearAuthState()
+      })
+      .finally(() => {
+        if (isMounted) setIsInitializing(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [clearAuthState])
 
   const login = useCallback(async (data: LoginRequest) => {
     setIsLoading(true)
