@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Cpu,
   DollarSign,
+  HelpCircle,
   Key,
   Plus,
   RefreshCw,
@@ -446,15 +447,25 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
   )
 }
 
-function CredentialDialog({ open, onClose, credential, attachedModels, onEdit, onArchive, onRevoke }: {
+function CredentialDialog({ open, onClose, credential, attachedModels, onArchive, onRevoke }: {
   open: boolean
   onClose: () => void
   credential: ProviderCredential | null
   attachedModels: ProviderModel[]
-  onEdit: (credential: ProviderCredential) => void
   onArchive: (credential: ProviderCredential) => void
   onRevoke: (credential: ProviderCredential) => void
 }) {
+  const rotateCredential = useUpdateCredential()
+  const [rotateSecret, setRotateSecret] = useState('')
+  const [showRotateConfirm, setShowRotateConfirm] = useState(false)
+  const credentialId = credential?.id
+
+  useEffect(() => {
+    if (!open) return
+    setRotateSecret('')
+    setShowRotateConfirm(false)
+  }, [open, credentialId])
+
   if (!credential) return null
 
   const metadata = metadataOf(credential)
@@ -462,140 +473,195 @@ function CredentialDialog({ open, onClose, credential, attachedModels, onEdit, o
   const visibleModels = attachedModels.slice(0, 5)
   const hiddenModelCount = Math.max(attachedModels.length - visibleModels.length, 0)
 
+  const handleRotateSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!rotateSecret.trim()) {
+      toast.error('New credential value is required')
+      return
+    }
+    setShowRotateConfirm(true)
+  }
+
+  const confirmRotate = async () => {
+    if (!rotateSecret.trim()) return
+
+    try {
+      await rotateCredential.mutateAsync({
+        id: credential.id,
+        data: {
+          secret: rotateSecret.trim(),
+          metadata: stringMetadata({
+            ...metadata,
+            rotated_at: new Date().toISOString(),
+          }),
+        },
+      })
+      toast.success('Credential rotated')
+      setRotateSecret('')
+      setShowRotateConfirm(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to rotate credential')
+    }
+  }
+
   return (
-    <Dialog open={open} onClose={onClose} title="Manage Credential" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
-      <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-            <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-                <Key className="h-5 w-5" />
-              </div>
-              <div className="mt-5 min-w-0">
-                <h3 className="truncate text-base font-semibold text-white">{credential.name}</h3>
-                <p className="mt-1 truncate text-sm text-muted">{providerLabel(credential.provider)}</p>
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <StatusBadge status={credential.status || 'active'} />
-                <Pill>{attachedModels.length} models</Pill>
-              </div>
-              <div className="mt-5 border-t border-border/70 pt-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Endpoint</p>
-                <code className="mt-2 block truncate text-xs text-muted">{endpoint}</code>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border/90 bg-background/60 p-4">
-              <p className="text-sm font-semibold text-white">Rotate credential</p>
-              <p className="mt-1 text-xs leading-5 text-muted">Replace the secret or provider settings while keeping this credential ID.</p>
-              <Button type="button" className="mt-4 w-full justify-start" variant="outline" size="sm" onClick={() => onEdit(credential)}>
-                <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                Rotate credential
-              </Button>
-            </div>
-
-            <section className="rounded-xl border border-border/90 bg-background/60 p-4">
-              <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Sensitive actions require impact confirmation.</p>
-              <div className="mt-4 grid gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-amber-200 hover:text-amber-100"
-                  onClick={() => onRevoke(credential)}
-                >
-                  <ShieldOff className="mr-2 h-3.5 w-3.5" />
-                  Revoke
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-red-200 hover:text-red-100"
-                  onClick={() => onArchive(credential)}
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Archive
-                </Button>
-              </div>
-            </section>
-          </aside>
-
-          <main className="space-y-5">
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold text-white">Credential details</h3>
-                <p className="mt-1 text-xs leading-5 text-muted">Provider identity and endpoint context used by provider models.</p>
-              </div>
-              <dl className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
-                <InfoRow label="Name"><span className="block truncate">{credential.name}</span></InfoRow>
-                <InfoRow label="Provider"><span>{providerLabel(credential.provider)}</span></InfoRow>
-                <InfoRow label="Endpoint"><code className="block truncate text-xs text-muted">{endpoint}</code></InfoRow>
-              </dl>
-            </section>
-
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">Attached models</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Models currently using this credential.</p>
+    <>
+      <Dialog open={open} onClose={onClose} title="Manage Credential" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
+        <div className="scrollbar-thin max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
+          <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+              <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
+                  <Key className="h-5 w-5" />
                 </div>
-                <Pill>{attachedModels.length} attached</Pill>
+                <div className="mt-5 min-w-0">
+                  <h3 className="truncate text-base font-semibold text-white">{credential.name}</h3>
+                  <p className="mt-1 truncate text-sm text-muted">{providerLabel(credential.provider)}</p>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <StatusBadge status={credential.status || 'active'} />
+                  <Pill>{attachedModels.length} models</Pill>
+                </div>
+                <div className="mt-5 border-t border-border/70 pt-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Endpoint</p>
+                  <code className="mt-2 block truncate text-xs text-muted">{endpoint}</code>
+                </div>
               </div>
 
-              {visibleModels.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
-              ) : (
-                <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
-                  {visibleModels.map((model) => (
-                    <div key={model.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-medium text-white">{model.name}</p>
-                          <StatusBadge status={model.status || 'active'} />
-                        </div>
-                        <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
-                      </div>
-                      <span className="text-xs text-muted">{providerLabel(model.provider || credential.provider)}</span>
+              <form onSubmit={handleRotateSubmit} className="rounded-xl border border-border/90 bg-background/60 p-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-white">Rotate credential</p>
+                  <div className="group relative">
+                    <button
+                      type="button"
+                      aria-label="What does rotate credential mean?"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted transition-colors hover:bg-accent hover:text-white focus:bg-accent focus:text-white focus:outline-none"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-border bg-background px-3 py-2 text-xs leading-5 text-muted shadow-xl group-hover:block group-focus-within:block">
+                      Rotation replaces the stored secret while preserving this credential ID. Models, agents and releases keep using the same reference.
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
-              {hiddenModelCount > 0 && <p className="mt-3 text-xs text-muted">+{hiddenModelCount} more model(s)</p>}
-            </section>
+                <p className="mt-1 text-xs leading-5 text-muted">Paste a new secret and confirm the rotation.</p>
+                <div className="mt-4 space-y-2">
+                  <Input
+                    type="password"
+                    value={rotateSecret}
+                    onChange={(event) => setRotateSecret(event.target.value)}
+                    placeholder="New credential secret"
+                    autoComplete="new-password"
+                  />
+                  <Button type="submit" className="w-full justify-start" variant="outline" size="sm" disabled={!rotateSecret.trim()}>
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Rotate
+                  </Button>
+                </div>
+              </form>
 
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold text-white">Operational behavior</h3>
-                <p className="mt-1 text-xs leading-5 text-muted">Use rotation first when only the secret or endpoint settings changed.</p>
-              </div>
-              <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55 text-sm">
-                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-                  <p className="font-medium text-white">Rotate</p>
-                  <p className="text-xs leading-5 text-muted">Preserves all references and updates the credential value or provider settings.</p>
-                  <Pill tone="primary">safe</Pill>
+              <section className="rounded-xl border border-border/90 bg-background/60 p-4">
+                <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">Sensitive actions require impact confirmation.</p>
+                <div className="mt-4 grid gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="justify-start text-amber-200 hover:text-amber-100"
+                    onClick={() => onRevoke(credential)}
+                  >
+                    <ShieldOff className="mr-2 h-3.5 w-3.5" />
+                    Revoke
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="justify-start text-red-200 hover:text-red-100"
+                    onClick={() => onArchive(credential)}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Archive
+                  </Button>
                 </div>
-                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-                  <p className="font-medium text-white">Revoke</p>
-                  <p className="text-xs leading-5 text-muted">Marks the credential unusable. Runtime calls may fail immediately.</p>
-                  <Pill tone="warning">runtime risk</Pill>
-                </div>
-                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-                  <p className="font-medium text-white">Archive</p>
-                  <p className="text-xs leading-5 text-muted">Removes it from normal selection after active references are cleared.</p>
-                  <Pill tone="danger">blocked if used</Pill>
-                </div>
-              </div>
-            </section>
-          </main>
-        </div>
+              </section>
+            </aside>
 
-        <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur">
-          <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+            <main className="space-y-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-white">Credential details</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Provider identity and endpoint context used by provider models.</p>
+                </div>
+                <dl className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
+                  <InfoRow label="Name"><span className="block truncate">{credential.name}</span></InfoRow>
+                  <InfoRow label="Provider"><span>{providerLabel(credential.provider)}</span></InfoRow>
+                  <InfoRow label="Endpoint"><code className="block truncate text-xs text-muted">{endpoint}</code></InfoRow>
+                </dl>
+              </section>
+
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Attached models</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">Models currently using this credential.</p>
+                  </div>
+                  <Pill>{attachedModels.length} attached</Pill>
+                </div>
+
+                {visibleModels.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
+                ) : (
+                  <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
+                    {visibleModels.map((model) => (
+                      <div key={model.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-medium text-white">{model.name}</p>
+                            <StatusBadge status={model.status || 'active'} />
+                          </div>
+                          <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
+                        </div>
+                        <span className="text-xs text-muted">{providerLabel(model.provider || credential.provider)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {hiddenModelCount > 0 && <p className="mt-3 text-xs text-muted">+{hiddenModelCount} more model(s)</p>}
+              </section>
+            </main>
+          </div>
+
+          <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur">
+            <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+          </div>
         </div>
-      </div>
-    </Dialog>
+      </Dialog>
+
+      <Dialog open={showRotateConfirm} onClose={() => setShowRotateConfirm(false)} title="Rotate credential" className="max-w-md">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
+                <RefreshCw className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Confirm credential rotation</p>
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  This will replace the stored secret for {credential.name}. Existing model references keep using this credential ID.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowRotateConfirm(false)}>Cancel</Button>
+            <Button type="button" onClick={confirmRotate} loading={rotateCredential.isPending}>Confirm rotation</Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
   )
 }
 
@@ -633,7 +699,7 @@ function ImpactDialog({
         {state.blocking.length > 0 && (
           <div className="rounded-xl border border-border/80 bg-surface/50 p-4">
             <p className="text-sm font-semibold text-white">Current usage</p>
-            <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+            <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
               {state.blocking.map((item, index) => (
                 <div
                   key={`${item.type}-${item.id}-${item.field}-${index}`}
@@ -957,12 +1023,6 @@ export default function ModelsPage() {
     setShowAddCredential(true)
   }
 
-  const openEditCredential = (credential: ProviderCredential) => {
-    setCredentialToEdit(credential)
-    setSelectedCredential(null)
-    setShowAddCredential(true)
-  }
-
   const closeCredentialForm = () => {
     setShowAddCredential(false)
     setCredentialToEdit(null)
@@ -1173,7 +1233,6 @@ export default function ModelsPage() {
         onClose={() => setSelectedCredential(null)}
         credential={selectedCredential}
         attachedModels={selectedCredential ? modelsByCredential.get(selectedCredential.id) || [] : []}
-        onEdit={openEditCredential}
         onArchive={prepareArchiveCredential}
         onRevoke={prepareRevokeCredential}
       />
