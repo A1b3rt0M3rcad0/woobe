@@ -15,6 +15,11 @@ function getInitials(email?: string) {
 export function SidebarUserCard() {
   const { user, logout } = useAuth()
 
+  async function handleSignOut() {
+    await logout()
+    window.location.replace('/login')
+  }
+
   return (
     <div className="border-t border-border p-3">
       <div className="group flex items-center gap-3 rounded-xl border border-border/80 bg-background/60 p-2.5 transition-colors hover:border-primary/20 hover:bg-background/75">
@@ -28,7 +33,7 @@ export function SidebarUserCard() {
         <button
           type="button"
           className="rounded-lg p-1.5 text-muted transition-colors hover:bg-accent hover:text-white"
-          onClick={logout}
+          onClick={handleSignOut}
           aria-label="Log out"
         >
           <LogOut className="h-4 w-4" />
