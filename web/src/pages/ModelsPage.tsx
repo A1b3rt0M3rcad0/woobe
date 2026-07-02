@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useParams } from 'react-router-dom'
 import {
   AlertTriangle,
+  Check,
   Cpu,
   DollarSign,
   HelpCircle,
@@ -101,6 +102,10 @@ function providerLabel(provider?: string | null) {
   return provider ? providerLabels[provider] || provider : 'Unknown provider'
 }
 
+function supportsModelCatalog(credential?: ProviderCredential | null) {
+  return credential?.provider === 'openrouter' || credential?.provider === 'openai'
+}
+
 function metadataOf(item?: { metadata?: Record<string, unknown> | Record<string, string> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
 }
@@ -154,12 +159,15 @@ function parsePrice(value: string): number | null {
 
 function modelToForm(model: ProviderModel | null, credentials: ProviderCredential[]): ModelFormState {
   const pricing = pricingOf(model)
+  const credential = model
+    ? credentials.find((item) => item.id === model.provider_credential_id)
+    : credentials[0]
   return {
     name: model?.name || '',
-    credentialId: model?.provider_credential_id || credentials[0]?.id || '',
+    credentialId: model?.provider_credential_id || credential?.id || '',
     model: model?.model || '',
     selectedCatalogModelId: '',
-    manualMode: Boolean(model),
+    manualMode: Boolean(model) || !supportsModelCatalog(credential),
     status: model?.status || 'active',
     inputCostPer1M: pricing.input !== null ? String(pricing.input) : '',
     outputCostPer1M: pricing.output !== null ? String(pricing.output) : '',
@@ -225,6 +233,120 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
     <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4">
       <dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">{label}</dt>
       <dd className="min-w-0 text-sm text-white/90">{children}</dd>
+    </div>
+  )
+}
+
+function ModelCatalogPicker({
+  models,
+  selectedModelId,
+  loading,
+  error,
+  onSelect,
+  onManualMode,
+}: {
+  models: AvailableProviderModel[]
+  selectedModelId: string
+  loading: boolean
+  error: boolean
+  onSelect: (model: AvailableProviderModel) => void
+  onManualMode: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const selectedModel = models.find((item) => item.id === selectedModelId) || null
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredModels = useMemo(() => {
+    if (!normalizedQuery) return models
+    return models.filter((item) => `${item.label} ${item.id} ${item.provider} ${item.owned_by || ''}`.toLowerCase().includes(normalizedQuery))
+  }, [models, normalizedQuery])
+  const visibleModels = filteredModels.slice(0, 80)
+  const hiddenCount = Math.max(filteredModels.length - visibleModels.length, 0)
+
+  const handleSelect = (model: AvailableProviderModel) => {
+    onSelect(model)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+      }}
+    >
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <label className="block text-sm font-medium text-muted">Model catalog</label>
+        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={onManualMode}>Enter manually</Button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full items-center justify-between gap-3 rounded-lg border border-border bg-transparent px-3 py-1 text-left text-sm shadow-sm transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
+      >
+        <span className="min-w-0">
+          {selectedModel ? (
+            <span className="block truncate text-white">{selectedModel.label}</span>
+          ) : (
+            <span className="block truncate text-muted">Search or select provider model</span>
+          )}
+        </span>
+        <Search className="h-4 w-4 shrink-0 text-muted" />
+      </button>
+      {selectedModel && <code className="mt-1 block truncate text-xs text-muted">{selectedModel.id}</code>}
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-border bg-background shadow-2xl">
+          <div className="border-b border-border/70 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setOpen(false)
+                }}
+                placeholder="Search models"
+                className="h-9 w-full rounded-lg border border-border bg-transparent px-9 py-1 text-sm text-white outline-none transition-colors placeholder:text-muted focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="scrollbar-thin max-h-72 overflow-y-auto">
+            {loading ? (
+              <div className="px-4 py-8 text-center text-sm text-muted">Loading provider models...</div>
+            ) : error ? (
+              <div className="px-4 py-8 text-center text-sm text-muted">Could not load provider models. Use manual entry.</div>
+            ) : visibleModels.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted">No models found.</div>
+            ) : visibleModels.map((model) => {
+              const selected = model.id === selectedModelId
+
+              return (
+                <button
+                  key={model.id}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleSelect(model)}
+                  className={`grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 ${selected ? 'bg-primary/5' : 'hover:bg-surface/70'}`}
+                >
+                  <span className="flex min-w-0 items-center justify-between gap-3">
+                    <span className="truncate text-sm font-medium text-white">{model.label}</span>
+                    {selected && <Check className="h-4 w-4 shrink-0 text-primary-light" />}
+                  </span>
+                  <code className="block truncate text-xs text-muted">{model.id}</code>
+                </button>
+              )
+            })}
+          </div>
+
+          {hiddenCount > 0 && <div className="border-t border-border/70 px-4 py-2 text-xs text-muted">+{hiddenCount} more model(s). Refine the search.</div>}
+        </div>
+      )}
     </div>
   )
 }
@@ -305,9 +427,11 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
   const usableCredentials = credentials.filter((item) => !isArchived(item) && item.status !== 'revoked' && ['openai', 'custom', 'openrouter'].includes(item.provider))
   const [form, setForm] = useState<ModelFormState>(() => modelToForm(selectedModel, usableCredentials))
   const credential = usableCredentials.find((item) => item.id === form.credentialId) || null
-  const availableModelsQuery = useAvailableProviderModels(projectId, !form.manualMode ? form.credentialId : undefined)
+  const supportsCatalog = supportsModelCatalog(credential)
+  const shouldUseCatalog = supportsCatalog && !form.manualMode
+  const availableModelsQuery = useAvailableProviderModels(projectId, shouldUseCatalog ? form.credentialId : undefined)
   const availableModels = availableModelsQuery.data ?? []
-  const selectedCatalogModel = availableModels.find((item) => item.id === form.selectedCatalogModelId) || null
+  const selectedCatalogModel = shouldUseCatalog ? availableModels.find((item) => item.id === form.selectedCatalogModelId) || null : null
   const previewPricing = {
     input: parsePrice(form.inputCostPer1M),
     output: parsePrice(form.outputCostPer1M),
@@ -334,11 +458,30 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
   const setField = <K extends keyof ModelFormState>(key: K, value: ModelFormState[K]) => setForm((previous) => ({ ...previous, [key]: value }))
 
   const handleCredentialChange = (credentialId: string) => {
-    setForm((previous) => ({ ...previous, credentialId, selectedCatalogModelId: '', model: selectedModel ? previous.model : '', name: selectedModel ? previous.name : '' }))
+    const nextCredential = usableCredentials.find((item) => item.id === credentialId) || null
+    const nextSupportsCatalog = supportsModelCatalog(nextCredential)
+
+    setForm((previous) => ({
+      ...previous,
+      credentialId,
+      selectedCatalogModelId: '',
+      manualMode: !nextSupportsCatalog ? true : selectedModel ? previous.manualMode : false,
+      model: selectedModel ? previous.model : '',
+      name: selectedModel ? previous.name : '',
+    }))
   }
 
   const handleManualMode = () => {
     setForm((previous) => ({ ...previous, manualMode: true, selectedCatalogModelId: '' }))
+  }
+
+  const handleCatalogSelect = (model: AvailableProviderModel) => {
+    setForm((previous) => ({
+      ...previous,
+      selectedCatalogModelId: model.id,
+      model: model.id,
+      name: previous.name.trim() ? previous.name : model.label || model.id,
+    }))
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -426,26 +569,23 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
                     {credential?.metadata?.base_url && <p className="mt-1 truncate text-xs text-muted">Base URL: <code>{credential.metadata.base_url}</code></p>}
                   </div>
 
-                  {!form.manualMode && (
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-muted">Model catalog</label>
-                      <Select
-                        value={form.selectedCatalogModelId}
-                        onChange={(event) => setField('selectedCatalogModelId', event.target.value)}
-                        options={[{ value: '', label: availableModelsQuery.isLoading ? 'Loading models...' : 'Select a provider model' }, ...availableModels.map((item) => ({ value: item.id, label: `${item.label} · ${item.id}` }))]}
-                        disabled={!form.credentialId || availableModelsQuery.isLoading || availableModels.length === 0}
-                      />
-                      {availableModelsQuery.isError && <p className="mt-2 text-xs text-amber-200">Could not load the model catalog for this credential. Use manual model entry.</p>}
-                      {!availableModelsQuery.isLoading && !availableModelsQuery.isError && form.credentialId && availableModels.length === 0 && <p className="mt-2 text-xs text-muted">No remote models returned for this credential.</p>}
-                      <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={handleManualMode}>Enter model manually</Button>
-                    </div>
+                  {shouldUseCatalog && (
+                    <ModelCatalogPicker
+                      models={availableModels}
+                      selectedModelId={form.selectedCatalogModelId}
+                      loading={availableModelsQuery.isLoading}
+                      error={availableModelsQuery.isError}
+                      onSelect={handleCatalogSelect}
+                      onManualMode={handleManualMode}
+                    />
                   )}
 
-                  {form.manualMode && (
+                  {(form.manualMode || !supportsCatalog) && (
                     <div>
                       <label className="mb-1 block text-sm font-medium text-muted">Model identifier</label>
-                      <Input value={form.model} onChange={(event) => setField('model', event.target.value)} placeholder={credential?.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'} />
-                      {!selectedModel && <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}>Use provider catalog</Button>}
+                      <Input value={form.model} onChange={(event) => setField('model', event.target.value)} placeholder={credential?.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'deepseek-v4-flash'} />
+                      {!selectedModel && supportsCatalog && <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}>Use provider catalog</Button>}
+                      {!supportsCatalog && <p className="mt-1 text-xs text-muted">OpenAI-compatible credentials use manual model identifiers.</p>}
                     </div>
                   )}
                 </div>
