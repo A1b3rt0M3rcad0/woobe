@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Cpu, DollarSign, Key, Plus, RefreshCw, Search, ServerCog } from 'lucide-react'
+import {
+  AlertTriangle,
+  Cpu,
+  DollarSign,
+  Key,
+  Plus,
+  RefreshCw,
+  Search,
+  ServerCog,
+  ShieldOff,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/common/LoadingState'
@@ -11,10 +22,11 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
-import { useCredentials } from '@/features/provider-credentials/hooks'
+import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { useAvailableProviderModels, useCreateProviderModel, useProviderModels, useUpdateProviderModel } from '@/features/provider-models/hooks'
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
+import { get } from '@/lib/api/client'
 
 const providerLabels: Record<string, string> = {
   openai: 'OpenAI',
@@ -23,6 +35,47 @@ const providerLabels: Record<string, string> = {
 }
 
 type Section = 'models' | 'credentials'
+
+type AgentSummary = {
+  id: string
+  name: string
+  status?: string
+  provider_model_id?: string | null
+  fallback_provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_credential_id?: string | null
+}
+
+type ReleaseSummary = {
+  id: string
+  name?: string | null
+  version?: string
+  status?: string
+  provider_model_id?: string | null
+  fallback_provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_credential_id?: string | null
+}
+
+type UsageItem = {
+  type: string
+  id: string
+  name?: string | null
+  field?: string
+  status?: string
+  version?: string
+}
+
+type ConfirmState =
+  | null
+  | {
+      kind: 'archive-model' | 'archive-credential' | 'revoke-credential'
+      targetId: string
+      targetName: string
+      blocking: UsageItem[]
+      allowWithBlocking?: boolean
+      description: string
+    }
 
 type PricingInfo = {
   input: number | null
@@ -49,6 +102,17 @@ function providerLabel(provider?: string | null) {
 
 function metadataOf(item?: { metadata?: Record<string, unknown> | Record<string, string> | null } | null): Record<string, unknown> {
   return (item?.metadata || {}) as Record<string, unknown>
+}
+
+function stringMetadata(value: Record<string, unknown>): Record<string, string> {
+  const output: Record<string, string> = {}
+
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined || item === null || item === '') continue
+    output[key] = String(item)
+  }
+
+  return output
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -206,10 +270,17 @@ function EmptyCredentialCard({ onClick }: { onClick: () => void }) {
   )
 }
 
-function ModelDialog({ open, onClose, projectId, credentials, selectedModel }: { open: boolean; onClose: () => void; projectId: string; credentials: ProviderCredential[]; selectedModel: ProviderModel | null }) {
+function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onArchive }: {
+  open: boolean
+  onClose: () => void
+  projectId: string
+  credentials: ProviderCredential[]
+  selectedModel: ProviderModel | null
+  onArchive: (model: ProviderModel) => void
+}) {
   const createModel = useCreateProviderModel()
   const updateModel = useUpdateProviderModel()
-  const usableCredentials = credentials.filter((item) => !isArchived(item) && ['openai', 'custom', 'openrouter'].includes(item.provider))
+  const usableCredentials = credentials.filter((item) => !isArchived(item) && item.status !== 'revoked' && ['openai', 'custom', 'openrouter'].includes(item.provider))
   const [form, setForm] = useState<ModelFormState>(() => modelToForm(selectedModel, usableCredentials))
   const credential = usableCredentials.find((item) => item.id === form.credentialId) || null
   const availableModelsQuery = useAvailableProviderModels(projectId, !form.manualMode ? form.credentialId : undefined)
@@ -334,16 +405,35 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel }: {
 
         {selectedModel && <div><label className="mb-1 block text-sm font-medium text-muted">Status</label><Select value={form.status} onChange={(event) => setField('status', event.target.value)} options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'archived', label: 'Archived' }]} /></div>}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={createModel.isPending || updateModel.isPending} disabled={usableCredentials.length === 0}>{selectedModel ? 'Save changes' : 'Create model'}</Button>
+        <div className="flex justify-between gap-2 pt-2">
+          <div>
+            {selectedModel && (
+              <Button type="button" variant="outline" onClick={() => onArchive(selectedModel)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Archive model
+              </Button>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={createModel.isPending || updateModel.isPending} disabled={usableCredentials.length === 0}>{selectedModel ? 'Save changes' : 'Create model'}</Button>
+          </div>
         </div>
       </form>
     </Dialog>
   )
 }
 
-function CredentialDialog({ open, onClose, credential, onEdit }: { open: boolean; onClose: () => void; credential: ProviderCredential | null; onEdit: (credential: ProviderCredential) => void }) {
+function CredentialDialog({ open, onClose, credential, modelCount, onEdit, onArchive, onRevoke }: {
+  open: boolean
+  onClose: () => void
+  credential: ProviderCredential | null
+  modelCount: number
+  onEdit: (credential: ProviderCredential) => void
+  onArchive: (credential: ProviderCredential) => void
+  onRevoke: (credential: ProviderCredential) => void
+}) {
   if (!credential) return null
   return (
     <Dialog open={open} onClose={onClose} title="Manage Credential" className="max-w-2xl">
@@ -375,6 +465,13 @@ function CredentialDialog({ open, onClose, credential, onEdit }: { open: boolean
         </div>
 
         <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <p className="text-sm font-semibold text-white">Usage</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {modelCount} model(s) attached. Archive is blocked while this credential is referenced by models, agents or active releases.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><RefreshCw className="h-4 w-4" /></div>
             <div>
@@ -385,12 +482,315 @@ function CredentialDialog({ open, onClose, credential, onEdit }: { open: boolean
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <p className="text-sm font-semibold text-white">Lifecycle</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Archive removes this credential from normal selection. Revoke marks it unusable for runtime calls.
+          </p>
+        </div>
+
+        <div className="flex justify-between gap-2 pt-2">
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => onRevoke(credential)}>
+              <ShieldOff className="mr-2 h-4 w-4" />
+              Revoke
+            </Button>
+
+            <Button type="button" variant="outline" onClick={() => onArchive(credential)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Archive
+            </Button>
+          </div>
+
           <Button type="button" variant="outline" onClick={onClose}>Close</Button>
         </div>
       </div>
     </Dialog>
   )
+}
+
+function ImpactDialog({
+  state,
+  loading,
+  onClose,
+  onConfirm,
+}: {
+  state: ConfirmState
+  loading: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  if (!state) return null
+
+  const blocked = state.blocking.length > 0 && !state.allowWithBlocking
+  const isRevoke = state.kind === 'revoke-credential'
+
+  return (
+    <Dialog open={Boolean(state)} onClose={onClose} title={isRevoke ? 'Revoke credential' : 'Archive'} className="max-w-2xl">
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-200">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">{state.targetName}</p>
+              <p className="mt-1 text-sm leading-6 text-muted">{state.description}</p>
+            </div>
+          </div>
+        </div>
+
+        {state.blocking.length > 0 && (
+          <div className="rounded-xl border border-border/80 bg-surface/50 p-4">
+            <p className="text-sm font-semibold text-white">Current usage</p>
+            <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+              {state.blocking.map((item, index) => (
+                <div
+                  key={`${item.type}-${item.id}-${item.field}-${index}`}
+                  className="rounded-lg border border-border/70 bg-background/60 p-3 text-xs text-muted"
+                >
+                  <p className="font-medium text-white">
+                    {item.type} · {item.name || item.version || item.id}
+                  </p>
+                  <p className="mt-1">
+                    field: {item.field || 'reference'} · status: {item.status || 'unknown'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {blocked && (
+          <p className="text-sm text-amber-200">
+            Archive is blocked. Remove these references first.
+          </p>
+        )}
+
+        {isRevoke && (
+          <p className="text-sm text-red-200">
+            Revoking will stop runtime calls that depend on this credential.
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button
+            onClick={onConfirm}
+            disabled={blocked}
+            loading={loading}
+            variant={isRevoke ? 'destructive' : 'default'}
+          >
+            {isRevoke ? 'Confirm revoke' : 'Confirm archive'}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+async function loadUsage(projectId: string) {
+  const baseAgents = await get<AgentSummary[]>('/ai/agents', {
+    params: { project_id: projectId },
+  })
+
+  const agents = await Promise.all(
+    baseAgents.map(async (agent) =>
+      get<AgentSummary>(`/ai/agents/${agent.id}`).catch(() => agent),
+    ),
+  )
+
+  const releaseGroups = await Promise.all(
+    agents.map(async (agent) =>
+      get<ReleaseSummary[]>(`/ai/agents/${agent.id}/releases`).catch(() => []),
+    ),
+  )
+
+  return {
+    agents,
+    releases: releaseGroups.flat(),
+  }
+}
+
+function blockingForModel(
+  model: ProviderModel,
+  agents: AgentSummary[],
+  releases: ReleaseSummary[],
+): UsageItem[] {
+  const items: UsageItem[] = []
+
+  for (const agent of agents) {
+    if (agent.status === 'archived') continue
+
+    if (agent.provider_model_id === model.id) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'provider_model_id',
+        status: agent.status,
+      })
+    }
+
+    if (agent.fallback_provider_model_id === model.id) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'fallback_provider_model_id',
+        status: agent.status,
+      })
+    }
+  }
+
+  for (const release of releases) {
+    if (!['draft', 'staging', 'production'].includes(release.status || '')) continue
+
+    if (release.provider_model_id === model.id) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'provider_model_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+
+    if (release.fallback_provider_model_id === model.id) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'fallback_provider_model_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+  }
+
+  return items
+}
+
+function blockingForCredential(
+  credential: ProviderCredential,
+  models: ProviderModel[],
+  agents: AgentSummary[],
+  releases: ReleaseSummary[],
+): UsageItem[] {
+  const items: UsageItem[] = []
+
+  const modelIds = new Set(
+    models
+      .filter((model) => model.provider_credential_id === credential.id && !isArchived(model))
+      .map((model) => model.id),
+  )
+
+  for (const model of models) {
+    if (model.provider_credential_id === credential.id && !isArchived(model)) {
+      items.push({
+        type: 'provider_model',
+        id: model.id,
+        name: model.name,
+        field: 'provider_credential_id',
+        status: model.status,
+      })
+    }
+  }
+
+  for (const agent of agents) {
+    if (agent.status === 'archived') continue
+
+    if (agent.provider_credential_id === credential.id) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'provider_credential_id',
+        status: agent.status,
+      })
+    }
+
+    if (agent.fallback_credential_id === credential.id) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'fallback_credential_id',
+        status: agent.status,
+      })
+    }
+
+    if (agent.provider_model_id && modelIds.has(agent.provider_model_id)) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'provider_model_id',
+        status: agent.status,
+      })
+    }
+
+    if (agent.fallback_provider_model_id && modelIds.has(agent.fallback_provider_model_id)) {
+      items.push({
+        type: 'agent',
+        id: agent.id,
+        name: agent.name,
+        field: 'fallback_provider_model_id',
+        status: agent.status,
+      })
+    }
+  }
+
+  for (const release of releases) {
+    if (!['draft', 'staging', 'production'].includes(release.status || '')) continue
+
+    if (release.provider_credential_id === credential.id) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'provider_credential_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+
+    if (release.fallback_credential_id === credential.id) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'fallback_credential_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+
+    if (release.provider_model_id && modelIds.has(release.provider_model_id)) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'provider_model_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+
+    if (release.fallback_provider_model_id && modelIds.has(release.fallback_provider_model_id)) {
+      items.push({
+        type: 'release',
+        id: release.id,
+        name: release.name,
+        field: 'fallback_provider_model_id',
+        status: release.status,
+        version: release.version,
+      })
+    }
+  }
+
+  return items
 }
 
 export default function ModelsPage() {
@@ -402,30 +802,36 @@ export default function ModelsPage() {
   const [showAddCredential, setShowAddCredential] = useState(false)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
   const [credentialToEdit, setCredentialToEdit] = useState<ProviderCredential | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState>(null)
+  const [impactLoading, setImpactLoading] = useState(false)
 
   const credentialsQuery = useCredentials(projectId)
   const modelsQuery = useProviderModels(projectId)
+  const updateModel = useUpdateProviderModel()
+  const updateCredential = useUpdateCredential()
   const credentials = credentialsQuery.data ?? []
   const models = modelsQuery.data ?? []
+  const activeModels = useMemo(() => models.filter((model) => !isArchived(model)), [models])
+  const activeCredentials = useMemo(
+    () => credentials.filter((credential) => !isArchived(credential) && credential.status !== 'revoked' && ['openai', 'custom', 'openrouter'].includes(credential.provider)),
+    [credentials],
+  )
   const credentialsById = useMemo(() => new Map(credentials.map((item) => [item.id, item])), [credentials])
   const modelCountByCredential = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const model of models) {
-      if (isArchived(model)) continue
+    for (const model of activeModels) {
       counts.set(model.provider_credential_id, (counts.get(model.provider_credential_id) || 0) + 1)
     }
     return counts
-  }, [models])
+  }, [activeModels])
 
-  const filteredModels = models.filter((model) => {
-    if (isArchived(model)) return false
+  const filteredModels = activeModels.filter((model) => {
     const credential = credentialsById.get(model.provider_credential_id)
     const search = `${model.name} ${model.model} ${credential?.name || ''} ${providerLabel(model.provider || credential?.provider)}`.toLowerCase()
     return search.includes(query.trim().toLowerCase())
   })
 
-  const filteredCredentials = credentials.filter((credential) => {
-    if (!['openai', 'custom', 'openrouter'].includes(credential.provider)) return false
+  const filteredCredentials = activeCredentials.filter((credential) => {
     const search = `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase()
     return search.includes(query.trim().toLowerCase())
   })
@@ -464,6 +870,144 @@ export default function ModelsPage() {
     await credentialsQuery.refetch()
   }
 
+  const prepareArchiveModel = async (model: ProviderModel) => {
+    if (!projectId) return
+
+    setImpactLoading(true)
+
+    try {
+      const usage = await loadUsage(projectId)
+
+      setConfirm({
+        kind: 'archive-model',
+        targetId: model.id,
+        targetName: model.name,
+        description: 'Archive is blocked while this model is referenced by agents or active releases.',
+        blocking: blockingForModel(model, usage.agents, usage.releases),
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to inspect usage')
+    } finally {
+      setImpactLoading(false)
+    }
+  }
+
+  const prepareArchiveCredential = async (credential: ProviderCredential) => {
+    if (!projectId) return
+
+    setImpactLoading(true)
+
+    try {
+      const usage = await loadUsage(projectId)
+
+      setConfirm({
+        kind: 'archive-credential',
+        targetId: credential.id,
+        targetName: credential.name,
+        description: 'Archive is blocked while this credential is referenced by models, agents or active releases.',
+        blocking: blockingForCredential(credential, activeModels, usage.agents, usage.releases),
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to inspect usage')
+    } finally {
+      setImpactLoading(false)
+    }
+  }
+
+  const prepareRevokeCredential = async (credential: ProviderCredential) => {
+    if (!projectId) return
+
+    setImpactLoading(true)
+
+    try {
+      const usage = await loadUsage(projectId)
+
+      setConfirm({
+        kind: 'revoke-credential',
+        targetId: credential.id,
+        targetName: credential.name,
+        description: 'Revoking is allowed even while in use. Runtime calls using this credential will stop.',
+        blocking: blockingForCredential(credential, activeModels, usage.agents, usage.releases),
+        allowWithBlocking: true,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to inspect usage')
+    } finally {
+      setImpactLoading(false)
+    }
+  }
+
+  const confirmAction = async () => {
+    if (!confirm) return
+
+    try {
+      if (confirm.kind === 'archive-model') {
+        const model = activeModels.find((item) => item.id === confirm.targetId)
+        if (!model) return
+
+        await updateModel.mutateAsync({
+          id: model.id,
+          data: {
+            status: 'archived',
+            metadata: {
+              ...metadataOf(model),
+              archived_at: new Date().toISOString(),
+              archive_mode: 'soft',
+            },
+          },
+        })
+
+        toast.success('Model archived')
+        setShowModelDialog(false)
+        setSelectedModel(null)
+      }
+
+      if (confirm.kind === 'archive-credential') {
+        const credential = credentials.find((item) => item.id === confirm.targetId)
+        if (!credential) return
+
+        await updateCredential.mutateAsync({
+          id: credential.id,
+          data: {
+            status: 'archived',
+            metadata: stringMetadata({
+              ...metadataOf(credential),
+              archived_at: new Date().toISOString(),
+              archive_mode: 'soft',
+            }),
+          },
+        })
+
+        toast.success('Credential archived')
+        setSelectedCredential(null)
+      }
+
+      if (confirm.kind === 'revoke-credential') {
+        const credential = credentials.find((item) => item.id === confirm.targetId)
+        if (!credential) return
+
+        await updateCredential.mutateAsync({
+          id: credential.id,
+          data: {
+            status: 'revoked',
+            metadata: stringMetadata({
+              ...metadataOf(credential),
+              revoked_at: new Date().toISOString(),
+            }),
+          },
+        })
+
+        toast.success('Credential revoked')
+        setSelectedCredential(null)
+      }
+
+      setConfirm(null)
+      await Promise.all([modelsQuery.refetch(), credentialsQuery.refetch()])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed')
+    }
+  }
+
   if (!projectId) return <ErrorState message="Project not found" />
   if (isLoading) return <LoadingState message="Loading models" />
   if (isError) return <ErrorState message="Failed to load provider models" />
@@ -482,7 +1026,7 @@ export default function ModelsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={openCreateCredential}><Key className="mr-2 h-4 w-4" />Add credential</Button>
-          <Button onClick={openNewModel} disabled={credentials.length === 0}><Plus className="mr-2 h-4 w-4" />New model</Button>
+          <Button onClick={openNewModel} disabled={activeCredentials.length === 0}><Plus className="mr-2 h-4 w-4" />New model</Button>
         </div>
       </div>
 
@@ -494,16 +1038,16 @@ export default function ModelsPage() {
       {section === 'models' ? (
         filteredModels.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <EmptyCreateCard onClick={openNewModel} disabled={credentials.length === 0} />
+            <EmptyCreateCard onClick={openNewModel} disabled={activeCredentials.length === 0} />
             {filteredModels.map((model) => <ModelCard key={model.id} model={model} credential={credentialsById.get(model.provider_credential_id)} onClick={() => openExistingModel(model)} />)}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <EmptyCreateCard onClick={openNewModel} disabled={credentials.length === 0} />
+            <EmptyCreateCard onClick={openNewModel} disabled={activeCredentials.length === 0} />
             <div className="rounded-xl border border-border/80 bg-surface/50 p-6">
               <h2 className="text-sm font-semibold text-white">No models found</h2>
-              <p className="mt-1 text-sm text-muted">{credentials.length > 0 ? 'Create a model from an existing credential.' : 'Create a provider credential first, then attach models to it.'}</p>
-              {credentials.length === 0 && <Button className="mt-4" variant="outline" onClick={openCreateCredential}>Add credential</Button>}
+              <p className="mt-1 text-sm text-muted">{activeCredentials.length > 0 ? 'Create a model from an existing credential.' : 'Create a provider credential first, then attach models to it.'}</p>
+              {activeCredentials.length === 0 && <Button className="mt-4" variant="outline" onClick={openCreateCredential}>Add credential</Button>}
             </div>
           </div>
         )
@@ -520,8 +1064,22 @@ export default function ModelsPage() {
         </div>
       )}
 
-      <ModelDialog open={showModelDialog} onClose={() => setShowModelDialog(false)} projectId={projectId} credentials={credentials} selectedModel={selectedModel} />
-      <CredentialDialog open={Boolean(selectedCredential)} onClose={() => setSelectedCredential(null)} credential={selectedCredential} onEdit={openEditCredential} />
+      <ModelDialog open={showModelDialog} onClose={() => setShowModelDialog(false)} projectId={projectId} credentials={credentials} selectedModel={selectedModel} onArchive={prepareArchiveModel} />
+      <CredentialDialog
+        open={Boolean(selectedCredential)}
+        onClose={() => setSelectedCredential(null)}
+        credential={selectedCredential}
+        modelCount={selectedCredential ? modelCountByCredential.get(selectedCredential.id) || 0 : 0}
+        onEdit={openEditCredential}
+        onArchive={prepareArchiveCredential}
+        onRevoke={prepareRevokeCredential}
+      />
+      <ImpactDialog
+        state={confirm}
+        loading={updateModel.isPending || updateCredential.isPending || impactLoading}
+        onClose={() => setConfirm(null)}
+        onConfirm={confirmAction}
+      />
       <AddProviderCredentialModal open={showAddCredential} onClose={closeCredentialForm} projectId={projectId} onCredentialCreated={handleCredentialSaved} credential={credentialToEdit} />
     </div>
   )
