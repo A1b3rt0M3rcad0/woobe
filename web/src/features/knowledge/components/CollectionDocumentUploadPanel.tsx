@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { CheckCircle2, Database, FileText, UploadCloud, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -66,7 +66,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
     fileInputRef.current?.click()
   }
 
-  const clearSelectedFile = (event?: React.MouseEvent) => {
+  const clearSelectedFile = (event?: MouseEvent) => {
     event?.preventDefault()
     event?.stopPropagation()
     setFile(null)
@@ -82,7 +82,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
     onCancel()
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!projectId) {
       toast.error('Project is required')
