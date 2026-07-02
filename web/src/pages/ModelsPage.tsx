@@ -308,6 +308,11 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
   const availableModelsQuery = useAvailableProviderModels(projectId, !form.manualMode ? form.credentialId : undefined)
   const availableModels = availableModelsQuery.data ?? []
   const selectedCatalogModel = availableModels.find((item) => item.id === form.selectedCatalogModelId) || null
+  const previewPricing = {
+    input: parsePrice(form.inputCostPer1M),
+    output: parsePrice(form.outputCostPer1M),
+    currency: (form.currency || 'USD').trim().toUpperCase(),
+  }
 
   useEffect(() => {
     if (open) setForm(modelToForm(selectedModel, usableCredentials))
@@ -364,80 +369,117 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={selectedModel ? 'Edit Model' : 'New Model'} className="max-w-2xl">
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><ServerCog className="h-4 w-4" /></div>
-            <div>
-              <p className="text-sm font-semibold text-white">Reusable provider model</p>
-              <p className="mt-1 text-xs leading-5 text-muted">Choose a credential, load the provider catalog when available, then create a reusable ProviderModel binding.</p>
-            </div>
+    <Dialog open={open} onClose={onClose} title={selectedModel ? 'Edit Model' : 'New Model'} className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
+      <form onSubmit={handleSubmit}>
+        <div className="scrollbar-thin max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
+          <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+              <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
+                  <ServerCog className="h-5 w-5" />
+                </div>
+                <div className="mt-5 min-w-0">
+                  <h3 className="truncate text-base font-semibold text-white">{form.name.trim() || selectedModel?.name || 'New provider model'}</h3>
+                  <code className="mt-1 block truncate text-xs text-muted">{form.model.trim() || selectedModel?.model || 'Select or enter a model identifier'}</code>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <StatusBadge status={form.status || 'active'} />
+                  <Pill>{credential ? providerLabel(credential.provider) : 'No credential'}</Pill>
+                </div>
+                <div className="mt-5 border-t border-border/70 pt-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Credential</p>
+                  <p className="mt-2 truncate text-xs text-muted">{getCredentialLabel(credential)}</p>
+                </div>
+              </div>
+
+              <section className="rounded-xl border border-border/90 bg-background/60 p-4">
+                <h3 className="text-sm font-semibold text-white">Pricing</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">Costs are stored as metadata for estimation and trace analysis.</p>
+                <div className="mt-4 space-y-2 text-xs text-muted">
+                  <div className="flex items-center justify-between gap-3"><span>Input / 1M</span><span className="text-white/90">{priceText(previewPricing.input, previewPricing.currency)}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span>Output / 1M</span><span className="text-white/90">{priceText(previewPricing.output, previewPricing.currency)}</span></div>
+                </div>
+              </section>
+
+              {selectedModel && (
+                <section className="rounded-xl border border-border/90 bg-background/60 p-4">
+                  <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Archive is blocked while agents or active releases reference this model.</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-4 w-full justify-start text-red-200 hover:text-red-100" onClick={() => onArchive(selectedModel)}>
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Archive
+                  </Button>
+                </section>
+              )}
+            </aside>
+
+            <main className="space-y-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-white">Provider binding</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Bind this reusable model to a credential and provider model identifier.</p>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Credential</label>
+                    <Select value={form.credentialId} onChange={(event) => handleCredentialChange(event.target.value)} options={usableCredentials.map((item) => ({ value: item.id, label: `${item.name} (${providerLabel(item.provider)})` }))} disabled={usableCredentials.length === 0 || Boolean(selectedModel)} />
+                    {credential?.metadata?.base_url && <p className="mt-1 truncate text-xs text-muted">Base URL: <code>{credential.metadata.base_url}</code></p>}
+                  </div>
+
+                  {!form.manualMode && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Model catalog</label>
+                      <Select
+                        value={form.selectedCatalogModelId}
+                        onChange={(event) => setField('selectedCatalogModelId', event.target.value)}
+                        options={[{ value: '', label: availableModelsQuery.isLoading ? 'Loading models...' : 'Select a provider model' }, ...availableModels.map((item) => ({ value: item.id, label: `${item.label} · ${item.id}` }))]}
+                        disabled={!form.credentialId || availableModelsQuery.isLoading || availableModels.length === 0}
+                      />
+                      {availableModelsQuery.isError && <p className="mt-2 text-xs text-amber-200">Could not load the model catalog for this credential. Use manual model entry.</p>}
+                      {!availableModelsQuery.isLoading && !availableModelsQuery.isError && form.credentialId && availableModels.length === 0 && <p className="mt-2 text-xs text-muted">No remote models returned for this credential.</p>}
+                      <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={handleManualMode}>Enter model manually</Button>
+                    </div>
+                  )}
+
+                  {form.manualMode && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Model identifier</label>
+                      <Input value={form.model} onChange={(event) => setField('model', event.target.value)} placeholder={credential?.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'} />
+                      {!selectedModel && <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}>Use provider catalog</Button>}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-white">Model details</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Display name, operational status and pricing metadata.</p>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Display name</label>
+                    <Input value={form.name} onChange={(event) => setField('name', event.target.value)} placeholder={selectedCatalogModel?.label || 'GPT-4o Mini'} />
+                  </div>
+
+                  {selectedModel && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Status</label>
+                      <Select value={form.status} onChange={(event) => setField('status', event.target.value)} options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'archived', label: 'Archived' }]} />
+                    </div>
+                  )}
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div><label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label><Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.15" /></div>
+                    <div><label className="mb-1 block text-sm font-medium text-muted">Output / 1M</label><Input value={form.outputCostPer1M} onChange={(event) => setField('outputCostPer1M', event.target.value)} placeholder="0.60" /></div>
+                    <div><label className="mb-1 block text-sm font-medium text-muted">Currency</label><Input value={form.currency} onChange={(event) => setField('currency', event.target.value.toUpperCase())} placeholder="USD" /></div>
+                  </div>
+                </div>
+              </section>
+            </main>
           </div>
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-muted">Credential</label>
-          <Select value={form.credentialId} onChange={(event) => handleCredentialChange(event.target.value)} options={usableCredentials.map((item) => ({ value: item.id, label: `${item.name} (${providerLabel(item.provider)})` }))} disabled={usableCredentials.length === 0 || Boolean(selectedModel)} />
-          {credential?.metadata?.base_url && <p className="mt-1 truncate text-xs text-muted">Base URL: <code>{credential.metadata.base_url}</code></p>}
-        </div>
-
-        {!form.manualMode && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Model catalog</label>
-            <Select
-              value={form.selectedCatalogModelId}
-              onChange={(event) => setField('selectedCatalogModelId', event.target.value)}
-              options={[{ value: '', label: availableModelsQuery.isLoading ? 'Loading models...' : 'Select a provider model' }, ...availableModels.map((item) => ({ value: item.id, label: `${item.label} · ${item.id}` }))]}
-              disabled={!form.credentialId || availableModelsQuery.isLoading || availableModels.length === 0}
-            />
-            {availableModelsQuery.isError && <p className="mt-2 text-xs text-amber-200">Could not load the model catalog for this credential. Use manual model entry.</p>}
-            {!availableModelsQuery.isLoading && !availableModelsQuery.isError && form.credentialId && availableModels.length === 0 && <p className="mt-2 text-xs text-muted">No remote models returned for this credential.</p>}
-            <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={handleManualMode}>Enter model manually</Button>
-          </div>
-        )}
-
-        {form.manualMode && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Model identifier</label>
-            <Input value={form.model} onChange={(event) => setField('model', event.target.value)} placeholder={credential?.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'} />
-            {!selectedModel && <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}>Use provider catalog</Button>}
-          </div>
-        )}
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-muted">Display name</label>
-          <Input value={form.name} onChange={(event) => setField('name', event.target.value)} placeholder={selectedCatalogModel?.label || 'GPT-4o Mini'} />
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><DollarSign className="h-4 w-4" /></div>
-            <div>
-              <p className="text-sm font-semibold text-white">Token pricing</p>
-              <p className="mt-1 text-xs leading-5 text-muted">OpenRouter catalog pricing is prefilled when available. You can override it manually.</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <div><label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label><Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.15" /></div>
-            <div><label className="mb-1 block text-sm font-medium text-muted">Output / 1M</label><Input value={form.outputCostPer1M} onChange={(event) => setField('outputCostPer1M', event.target.value)} placeholder="0.60" /></div>
-            <div><label className="mb-1 block text-sm font-medium text-muted">Currency</label><Input value={form.currency} onChange={(event) => setField('currency', event.target.value.toUpperCase())} placeholder="USD" /></div>
-          </div>
-        </div>
-
-        {selectedModel && <div><label className="mb-1 block text-sm font-medium text-muted">Status</label><Select value={form.status} onChange={(event) => setField('status', event.target.value)} options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'archived', label: 'Archived' }]} /></div>}
-
-        <div className="flex justify-between gap-2 pt-2">
-          <div>
-            {selectedModel && (
-              <Button type="button" variant="outline" onClick={() => onArchive(selectedModel)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Archive model
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
+          <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={createModel.isPending || updateModel.isPending} disabled={usableCredentials.length === 0}>{selectedModel ? 'Save changes' : 'Create model'}</Button>
           </div>
@@ -611,9 +653,9 @@ function CredentialDialog({ open, onClose, credential, attachedModels, onArchive
                 </div>
 
                 {visibleModels.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
+                  <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
                 ) : (
-                  <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
+                  <div className="min-h-[220px] divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
                     {visibleModels.map((model) => (
                       <div key={model.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                         <div className="min-w-0">
