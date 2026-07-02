@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     runtime_max_concurrency_per_key: int = Field(default=4, gt=0, le=100)
     runtime_max_prompt_chars: int = Field(default=32768, gt=0, le=1048576)
     runtime_max_metadata_bytes: int = Field(default=16384, gt=0, le=1048576)
-    runtime_max_snapshot_override_bytes: int = Field(default=16384, gt=0, le=4194304)
+    runtime_max_snapshot_override_bytes: int = Field(default=32768, gt=0, le=4194304)
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     http_tool_timeout_max_ms: int = Field(default=30000, gt=0, le=120000)
