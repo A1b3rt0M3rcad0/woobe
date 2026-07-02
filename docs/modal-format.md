@@ -39,7 +39,7 @@ O shell recomendado é:
   title="Resource details"
   className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden"
 >
-  <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
+  <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1 scrollbar-thin">
     <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
         {/* identity, status and lifecycle actions */}
@@ -56,6 +56,8 @@ O shell recomendado é:
   </div>
 </Dialog>
 ```
+
+Qualquer área interna com `overflow-y-auto` deve usar `scrollbar-thin` para manter o padrão visual do sistema.
 
 ## Layout
 
@@ -94,7 +96,8 @@ O `aside` é para contexto permanente e ações operacionais. Ele deve conter:
 2. Card de ação operacional primária:
    - Ação recomendada e segura, quando existir.
    - Exemplo: `Rotate credential`, `Refresh tools`, `Upload document`.
-   - Deve ter botão visualmente mais forte que ações sensíveis.
+   - Deve ser claro, mas visualmente discreto quando o sistema pedir minimalismo.
+   - Quando a ação precisar de explicação, use um ícone `?`/help junto ao título com tooltip ou popover curto. Não crie uma seção inteira só para explicar a ação.
 
 3. Card de lifecycle ou danger zone:
    - Archive, revoke, delete ou outra ação sensível.
@@ -122,7 +125,6 @@ Seções devem ser agrupadas por intenção, não por campo individual. Exemplos
 - Attached models.
 - Permissions.
 - Documents.
-- Lifecycle rules.
 - Metadata.
 
 Evite empilhar muitos cards soltos sem hierarquia. Isso deixa o modal vertical demais e piora a leitura.
@@ -131,16 +133,16 @@ Evite empilhar muitos cards soltos sem hierarquia. Isso deixa o modal vertical d
 
 Use cor para comunicar risco e prioridade, sem poluir o modal:
 
-- Ação recomendada e segura: botão primário (`default`).
-- Ação de atenção/runtime risk: outline com tom âmbar.
-- Ação destrutiva ou cleanup sensível: outline vermelho no modal principal; vermelho preenchido apenas na confirmação final.
+- Ação recomendada e segura: pode ser `outline` quando o design geral estiver minimalista.
+- Ação de atenção/runtime risk: outline neutro com texto âmbar discreto.
+- Ação destrutiva ou cleanup sensível: outline neutro com texto vermelho discreto no modal principal; vermelho preenchido apenas na confirmação final.
 - Fechamento: outline neutro.
 
 Exemplo para credenciais:
 
-- `Rotate credential`: primário, porque é a ação segura recomendada.
-- `Revoke credential`: âmbar, porque pode quebrar runtime imediatamente.
-- `Archive credential`: vermelho discreto, porque remove da operação normal e pode ser bloqueado por referências.
+- `Rotate`: outline neutro; a explicação fica no ícone de ajuda ao lado do título.
+- `Revoke`: texto âmbar, porque pode quebrar runtime imediatamente.
+- `Archive`: texto vermelho discreto, porque remove da operação normal e pode ser bloqueado por referências.
 - `Close`: neutro.
 
 ## Footer
@@ -165,7 +167,7 @@ Quando precisar de responsividade com botões empilhados no mobile:
 
 ## Confirmações
 
-Confirmações simples devem continuar em modais compactos. Exemplo: delete document, revoke credential, archive model.
+Confirmações simples devem continuar em modais compactos. Exemplo: rotate credential, delete document, revoke credential, archive model.
 
 O modal de confirmação deve:
 
@@ -189,7 +191,7 @@ Para isso, mantenha identidade e ações no `aside`, e conteúdo detalhado no `m
 
 - Tools: usa aside para identidade, runtime status e danger zone; main para general e MCP permissions.
 - Collections: usa aside para identidade, contadores e metadata; main para collection information e documents.
-- Credentials: usa aside para identidade, rotação e lifecycle; main para credential details, attached models e lifecycle rules.
+- Credentials: usa aside para identidade, rotação e lifecycle; main para credential details e attached models.
 
 ## Padrão específico para credenciais
 
@@ -200,16 +202,17 @@ Estrutura recomendada:
 ```text
 Aside:
 - Identity card: name, provider, status, attached model count, endpoint.
-- Rotate credential: ação primária e segura.
-- Lifecycle: revoke e archive com cores de risco.
+- Rotate credential: campo inline para nova secret, botão Rotate e ícone de ajuda no título.
+- Lifecycle: revoke e archive com cor textual discreta.
 
 Main:
 - Credential details: name, provider, endpoint.
 - Attached models: lista compacta dos models ativos que usam a credential.
-- Lifecycle rules: rotate, revoke e archive explicados lado a lado.
 
 Footer:
 - Close.
 ```
 
-Use `Rotate credential` em vez de `Edit credential` quando a ação abrir o fluxo de substituição de segredo/provider settings preservando o mesmo ID da credencial.
+Use `Rotate` com campo inline quando a ação for apenas substituir a secret preservando o mesmo ID da credencial. Ao clicar em `Rotate`, abra um modal compacto de confirmação antes de enviar a alteração.
+
+Use `Rotate credential` em vez de `Edit credential` quando a ação abrir fluxo de substituição de segredo/provider settings preservando o mesmo ID da credencial.
