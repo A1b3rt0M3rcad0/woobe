@@ -1,6 +1,6 @@
 """add reusable provider models
 
-Revision ID: rai_pm_models_20260629
+Revision ID: 0035_provider_models
 Revises: 0034_noop
 """
 from alembic import op
@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "rai_pm_models_20260629"
+revision = "0035_provider_models"
 down_revision = "0034_noop"
 branch_labels = None
 depends_on = None

@@ -16,6 +16,10 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python \
+    "python-multipart>=0.0.20" \
+    "boto3>=1.35.0"
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
@@ -41,8 +45,8 @@ RUN sed -i 's/\r$//' /usr/local/bin/projectrai-entrypoint \
     && test -x /bin/sh \
     && head -n 1 /usr/local/bin/projectrai-entrypoint | grep -qx '#!/bin/sh' \
     && chmod 0555 /usr/local/bin/projectrai-entrypoint \
-    && mkdir -p /tmp/projectrai \
-    && chown projectrai:projectrai /tmp/projectrai
+    && mkdir -p /tmp/projectrai /app/storage/uploads \
+    && chown -R projectrai:projectrai /tmp/projectrai /app/storage
 
 USER 10001:10001
 EXPOSE 8000

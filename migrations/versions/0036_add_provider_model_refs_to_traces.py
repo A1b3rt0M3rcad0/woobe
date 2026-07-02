@@ -1,14 +1,14 @@
 """add provider model refs to traces
 
-Revision ID: rai_pm_trace_refs_20260629
-Revises: rai_pm_models_20260629
+Revision ID: 0036_provider_model_trace_refs
+Revises: 0035_provider_models
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "rai_pm_trace_refs_20260629"
-down_revision = "rai_pm_models_20260629"
+revision = "0036_provider_model_trace_refs"
+down_revision = "0035_provider_models"
 branch_labels = None
 depends_on = None
 

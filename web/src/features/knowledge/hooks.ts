@@ -6,14 +6,19 @@ import {
   getAgentCollections,
   attachCollection,
   detachCollection,
+  updateCollection,
   getDocuments,
   getDocumentsByCollection,
   getDocument,
   uploadDocument,
+  uploadDocumentFile,
+  deleteDocument,
 } from './api'
 import type {
   AttachCollectionRequest,
   CreateCollectionRequest,
+  UpdateCollectionRequest,
+  UploadDocumentFileRequest,
   UploadDocumentRequest,
 } from './types'
 
@@ -39,6 +44,17 @@ export function useCreateCollection() {
     mutationFn: (data: CreateCollectionRequest) => createCollection(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+export function useUpdateCollection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateCollectionRequest }) => updateCollection(id, data),
+    onSuccess: (collection) => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+      queryClient.invalidateQueries({ queryKey: ['collection', collection.id] })
     },
   })
 }
@@ -102,6 +118,29 @@ export function useUploadDocument() {
     mutationFn: (data: UploadDocumentRequest) => uploadDocument(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}
+
+export function useUploadDocumentFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: UploadDocumentFileRequest) => uploadDocumentFile(data),
+    onSuccess: (_document, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', 'collection', variables.collectionId] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
     },
   })
 }

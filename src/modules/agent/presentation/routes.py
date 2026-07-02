@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Request as FastAPIRequest
+from uuid import UUID
+
+from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 from modules.agent.application.composers.create_provider_credential_composer import create_provider_credential_composer
 from modules.agent.application.composers.list_provider_credentials_composer import list_provider_credentials_composer
@@ -11,7 +15,6 @@ from modules.agent.application.composers.create_agent_composer import create_age
 from modules.agent.application.composers.list_agents_composer import list_agents_composer
 from modules.agent.application.composers.get_agent_composer import get_agent_composer
 from modules.agent.application.composers.update_agent_composer import update_agent_composer
-
 from modules.agent.application.composers.create_prompt_version_composer import create_prompt_version_composer
 from modules.agent.application.composers.list_prompt_versions_composer import list_prompt_versions_composer
 from modules.agent.application.composers.get_prompt_version_composer import get_prompt_version_composer
@@ -42,6 +45,7 @@ from modules.agent.application.composers.list_documents_composer import list_doc
 from modules.agent.application.composers.list_knowledge_versions_composer import list_knowledge_versions_composer
 from modules.agent.application.composers.search_chunks_composer import search_chunks_composer
 from modules.agent.application.composers.upload_document_composer import upload_document_composer
+from modules.agent.application.composers.update_collection_composer import update_collection_composer
 from modules.agent.application.composers.ask_agent_composer import ask_agent_composer
 from modules.agent.application.composers.ask_agent_stream_composer import ask_agent_stream_composer
 from modules.agent.application.composers.create_ask_job_composer import create_ask_job_composer
@@ -62,6 +66,14 @@ from modules.agent.application.composers.tools_composers import (
     update_tool_composer,
     update_tool_status_composer,
 )
+from modules.agent.application.dtos import UploadDocumentFileInput
+from modules.agent.application.use_cases import DeleteDocumentUseCase, UploadDocumentFileUseCase
+from modules.agent.domain.errors import DocumentNotFoundError
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.storage.factory import create_file_storage
+from modules.agent.presentation.mappers import upload_document_output_to_response
+from shared.infra.errors import ConflictError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
@@ -294,6 +306,13 @@ async def get_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
+@knowledge_router.patch("/collections/{collection_id}")
+async def update_collection(request: FastAPIRequest):
+    handler = update_collection_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
 @knowledge_router.get("/agent-collections")
 async def list_agent_collections(request: FastAPIRequest):
     handler = list_agent_collections_composer(request.app.state.session_factory)
@@ -327,6 +346,74 @@ async def upload_document(request: FastAPIRequest):
     handler = upload_document_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+@knowledge_router.post("/documents/upload", status_code=201)
+async def upload_document_file(
+    request: FastAPIRequest,
+    project_id: UUID = Form(...),
+    collection_id: UUID = Form(...),
+    title: str | None = Form(None),
+    file: UploadFile = File(...),
+):
+    settings = request.app.state.settings
+    storage = create_file_storage(settings)
+    try:
+        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
+            use_case = UploadDocumentFileUseCase(
+                doc_repo=uow.documents,
+                collection_repo=uow.document_collections,
+                outbox=SQLAlchemyAgentOutboxEventWriter(uow),
+                storage=storage,
+                settings=settings,
+            )
+            output = await use_case.execute(
+                UploadDocumentFileInput(
+                    project_id=project_id,
+                    collection_id=collection_id,
+                    title=title,
+                ),
+                file,
+            )
+    except ConflictError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"success": False, "message": str(exc), "data": None},
+        )
+    except ValidationError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": str(exc), "data": None},
+        )
+
+    return jsonable_encoder(
+        {
+            "success": True,
+            "message": "created",
+            "data": upload_document_output_to_response(output).model_dump(),
+        }
+    )
+
+
+@knowledge_router.delete("/documents/{document_id}")
+async def delete_document(request: FastAPIRequest, document_id: UUID):
+    settings = request.app.state.settings
+    storage = create_file_storage(settings)
+    try:
+        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
+            use_case = DeleteDocumentUseCase(
+                doc_repo=uow.documents,
+                chunk_repo=uow.document_chunks,
+                storage=storage,
+            )
+            await use_case.execute(document_id)
+    except DocumentNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Document not found", "data": None},
+        )
+
+    return {"success": True, "message": "Document deleted", "data": None}
 
 
 @knowledge_router.get("/documents/{document_id}")

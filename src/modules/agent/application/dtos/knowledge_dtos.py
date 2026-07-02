@@ -24,6 +24,22 @@ class CreateCollectionOutput(BaseModel):
     updated_at: datetime | None = None
 
 
+class UpdateCollectionInput(BaseModel):
+    collection_id: UUID
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+
+
+class UpdateCollectionOutput(BaseModel):
+    id: UUID
+    project_id: UUID
+    name: str
+    description: str | None
+    status: CollectionStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class AttachCollectionInput(BaseModel):
     agent_id: UUID
     collection_id: UUID
@@ -56,6 +72,12 @@ class UploadDocumentInput(BaseModel):
     parser: ParserType = ParserType.TEXT
 
 
+class UploadDocumentFileInput(BaseModel):
+    project_id: UUID
+    collection_id: UUID
+    title: str | None = Field(default=None, max_length=255)
+
+
 class UploadDocumentOutput(BaseModel):
     id: UUID
     project_id: UUID
@@ -70,6 +92,7 @@ class UploadDocumentOutput(BaseModel):
     page_count: int | None = None
     chunk_count: int | None = None
     error: str | None = None
+    sha256: str | None = None
     indexed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

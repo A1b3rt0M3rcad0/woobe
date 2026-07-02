@@ -446,7 +446,7 @@ class ToolRepository(ABC):
 
     @abstractmethod
     async def paginate_by_agent(
-        self, agent_id: UUID, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+        self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Tool]: ...
 
     @abstractmethod

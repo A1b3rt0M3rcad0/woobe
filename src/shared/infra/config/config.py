@@ -70,6 +70,16 @@ class Settings(BaseSettings):
     rabbitmq_exchange: str = "domain.events"
     redis_url: str | None = None
     redis_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    storage_driver: str = "local"
+    upload_max_mb: int = Field(default=25, gt=0, le=512)
+    upload_allowed_extensions: str = ".txt,.md,.pdf"
+    upload_local_dir: str = "./storage/uploads"
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_prefix: str = "uploads"
+    s3_endpoint_url: str | None = None
+    s3_force_path_style: bool = False
+    s3_server_side_encryption: str | None = "AES256"
     mcp_session_cache_enabled: bool = True
     mcp_session_key_prefix: str = "projectrai:mcp-session"
     mcp_session_ttl_seconds: int = Field(default=3600, gt=0, le=86400)

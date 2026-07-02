@@ -54,6 +54,7 @@ from modules.agent.application.dtos.knowledge_dtos import (
     ListKnowledgeVersionsOutput,
     SearchChunksInput,
     SearchChunksOutput,
+    UploadDocumentFileInput,
     UploadDocumentInput,
     UploadDocumentOutput,
 )
@@ -121,6 +122,7 @@ __all__ = [
     "AttachCollectionOutput",
     "AgentCollectionOutput",
     "UploadDocumentInput",
+    "UploadDocumentFileInput",
     "UploadDocumentOutput",
     "DocumentChunkOutput",
     "SearchChunksInput",
