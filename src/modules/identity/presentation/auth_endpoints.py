@@ -13,6 +13,7 @@ from shared.infra.errors import AuthenticationError
 ACCESS_COOKIE_PATH = "/"
 CSRF_COOKIE_PATH = "/"
 REFRESH_COOKIE_PATH = "/identity/auth"
+CSRF_RESPONSE_HEADER = "X-CSRF-Token"
 
 
 def authentication_service(request: FastAPIRequest) -> AuthenticationService:
@@ -51,6 +52,32 @@ def browser_cookie_policy(
     if request_is_cross_origin(request) and browser_request_is_secure(request):
         return True, "none"
     return secure, same_site
+
+
+def set_csrf_cookie(
+    request: FastAPIRequest,
+    response: JSONResponse,
+    *,
+    max_age: int,
+) -> str:
+    settings = request.app.state.settings
+    csrf_token = token_urlsafe(32)
+    access_secure, access_same_site = browser_cookie_policy(
+        request,
+        secure=settings.access_cookie_secure,
+        same_site=settings.access_cookie_same_site,
+    )
+    response.set_cookie(
+        key=settings.csrf_cookie_name,
+        value=csrf_token,
+        max_age=max_age,
+        httponly=False,
+        secure=access_secure,
+        samesite=access_same_site,
+        path=CSRF_COOKIE_PATH,
+    )
+    response.headers[CSRF_RESPONSE_HEADER] = csrf_token
+    return csrf_token
 
 
 def authentication_response(
@@ -98,15 +125,7 @@ def authentication_response(
         samesite=access_same_site,
         path=ACCESS_COOKIE_PATH,
     )
-    response.set_cookie(
-        key=settings.csrf_cookie_name,
-        value=token_urlsafe(32),
-        max_age=refresh_max_age,
-        httponly=False,
-        secure=access_secure,
-        samesite=access_same_site,
-        path=CSRF_COOKIE_PATH,
-    )
+    set_csrf_cookie(request, response, max_age=refresh_max_age)
 
     refresh_cookie_options = {
         "max_age": refresh_max_age,
@@ -211,6 +230,22 @@ async def get_current_user_endpoint(request: FastAPIRequest) -> JSONResponse:
             },
         }
     )
+
+
+async def csrf_endpoint(request: FastAPIRequest) -> JSONResponse:
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise AuthenticationError("Authentication required")
+    settings = request.app.state.settings
+    response = JSONResponse(
+        content={"success": True, "message": "ok", "data": None}
+    )
+    set_csrf_cookie(
+        request,
+        response,
+        max_age=settings.refresh_token_ttl_days * 86400,
+    )
+    return response
 
 
 async def login_endpoint(request: FastAPIRequest) -> JSONResponse:
