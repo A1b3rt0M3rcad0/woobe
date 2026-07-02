@@ -23,9 +23,14 @@ def authentication_service(request: FastAPIRequest) -> AuthenticationService:
     )
 
 
-def request_is_https(request: FastAPIRequest) -> bool:
+def browser_request_is_secure(request: FastAPIRequest) -> bool:
     forwarded_proto = request.headers.get("x-forwarded-proto", "")
-    return request.url.scheme == "https" or forwarded_proto.split(",")[0].strip() == "https"
+    origin = request.headers.get("origin", "")
+    return (
+        request.url.scheme == "https"
+        or forwarded_proto.split(",")[0].strip() == "https"
+        or urlsplit(origin).scheme == "https"
+    )
 
 
 def request_is_cross_origin(request: FastAPIRequest) -> bool:
@@ -43,7 +48,7 @@ def browser_cookie_policy(
     secure: bool,
     same_site: str,
 ) -> tuple[bool, str]:
-    if request_is_cross_origin(request) and request_is_https(request):
+    if request_is_cross_origin(request) and browser_request_is_secure(request):
         return True, "none"
     return secure, same_site
 
