@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -207,23 +207,23 @@ function getCredentialLabel(credential?: ProviderCredential | null) {
   return credential ? `${credential.name} · ${providerLabel(credential.provider)}` : 'Credential missing'
 }
 
-function Pill({ children, tone = 'default' }: { children: React.ReactNode; tone?: 'default' | 'primary' | 'warning' | 'danger' }) {
+function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'primary' | 'warning' | 'danger' }) {
   const toneClass = tone === 'primary'
-    ? 'border-primary/30 bg-primary/10 text-primary-light'
+    ? 'border-primary/25 bg-primary/5 text-primary-light'
     : tone === 'warning'
-      ? 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+      ? 'border-amber-500/25 bg-transparent text-amber-200'
       : tone === 'danger'
-        ? 'border-red-500/35 bg-red-500/10 text-red-200'
+        ? 'border-red-500/25 bg-transparent text-red-200'
         : 'border-border/80 bg-background/70 text-muted'
 
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
 }
 
-function DetailCard({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={`rounded-xl border border-border/80 bg-background/60 p-4 ${className}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">{label}</p>
-      <div className="mt-2 text-sm font-medium text-white">{children}</div>
+    <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">{label}</dt>
+      <dd className="min-w-0 text-sm text-white/90">{children}</dd>
     </div>
   )
 }
@@ -335,7 +335,7 @@ function ModelDialog({ open, onClose, projectId, credentials, selectedModel, onA
     setForm((previous) => ({ ...previous, manualMode: true, selectedCatalogModelId: '' }))
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const resolvedModel = form.model.trim()
     const resolvedName = form.name.trim() || selectedCatalogModel?.label || resolvedModel
@@ -465,68 +465,58 @@ function CredentialDialog({ open, onClose, credential, attachedModels, onEdit, o
   return (
     <Dialog open={open} onClose={onClose} title="Manage Credential" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
       <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-        <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-            <div className="rounded-xl border border-border/90 bg-background/70 p-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-primary-light shadow-sm">
+            <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
                 <Key className="h-5 w-5" />
               </div>
-
               <div className="mt-5 min-w-0">
                 <h3 className="truncate text-base font-semibold text-white">{credential.name}</h3>
                 <p className="mt-1 truncate text-sm text-muted">{providerLabel(credential.provider)}</p>
               </div>
-
               <div className="mt-5 flex flex-wrap gap-2">
                 <StatusBadge status={credential.status || 'active'} />
-                <Pill tone="primary">{attachedModels.length} models</Pill>
+                <Pill>{attachedModels.length} models</Pill>
               </div>
-
-              <div className="mt-5 rounded-lg border border-border/70 bg-surface/55 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80">Endpoint</p>
+              <div className="mt-5 border-t border-border/70 pt-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Endpoint</p>
                 <code className="mt-2 block truncate text-xs text-muted">{endpoint}</code>
               </div>
             </div>
 
-            <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary-light">
-                  <RefreshCw className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">Rotate credential</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Replace the secret or provider settings while preserving this credential ID.</p>
-                </div>
-              </div>
-              <Button type="button" className="mt-4 w-full" size="sm" onClick={() => onEdit(credential)}>
+            <div className="rounded-xl border border-border/90 bg-background/60 p-4">
+              <p className="text-sm font-semibold text-white">Rotate credential</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Replace the secret or provider settings while keeping this credential ID.</p>
+              <Button type="button" className="mt-4 w-full justify-start" variant="outline" size="sm" onClick={() => onEdit(credential)}>
                 <RefreshCw className="mr-2 h-3.5 w-3.5" />
                 Rotate credential
               </Button>
             </div>
 
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+            <section className="rounded-xl border border-border/90 bg-background/60 p-4">
               <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Use these actions only when you understand the runtime impact.</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Sensitive actions require impact confirmation.</p>
               <div className="mt-4 grid gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="justify-start border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
+                  className="justify-start text-amber-200 hover:text-amber-100"
                   onClick={() => onRevoke(credential)}
                 >
                   <ShieldOff className="mr-2 h-3.5 w-3.5" />
-                  Revoke credential
+                  Revoke
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="justify-start border-red-500/35 bg-red-500/10 text-red-200 hover:bg-red-500/15 hover:text-red-100"
+                  className="justify-start text-red-200 hover:text-red-100"
                   onClick={() => onArchive(credential)}
                 >
                   <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Archive credential
+                  Archive
                 </Button>
               </div>
             </section>
@@ -534,73 +524,67 @@ function CredentialDialog({ open, onClose, credential, attachedModels, onEdit, o
 
           <main className="space-y-5">
             <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">Credential details</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Provider identity and endpoint context used by reusable provider models.</p>
-                </div>
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-white">Credential details</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">Provider identity and endpoint context used by provider models.</p>
               </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <DetailCard label="Name">
-                  <span className="block truncate">{credential.name}</span>
-                </DetailCard>
-                <DetailCard label="Provider">
-                  <span>{providerLabel(credential.provider)}</span>
-                </DetailCard>
-                <DetailCard label="Endpoint" className="md:col-span-2">
-                  <code className="block truncate rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted">{endpoint}</code>
-                </DetailCard>
-              </div>
+              <dl className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
+                <InfoRow label="Name"><span className="block truncate">{credential.name}</span></InfoRow>
+                <InfoRow label="Provider"><span>{providerLabel(credential.provider)}</span></InfoRow>
+                <InfoRow label="Endpoint"><code className="block truncate text-xs text-muted">{endpoint}</code></InfoRow>
+              </dl>
             </section>
 
             <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-white">Attached models</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">{attachedModels.length} model(s) use this credential. Archive is blocked while active references exist.</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Models currently using this credential.</p>
                 </div>
-                <Pill tone={attachedModels.length > 0 ? 'primary' : 'default'}>{attachedModels.length} attached</Pill>
+                <Pill>{attachedModels.length} attached</Pill>
               </div>
 
-              <div className="mt-4 space-y-2">
-                {visibleModels.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
-                ) : visibleModels.map((model) => (
-                  <div key={model.id} className="grid gap-3 rounded-lg border border-border/70 bg-background/55 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-medium text-white">{model.name}</p>
-                        <StatusBadge status={model.status || 'active'} />
+              {visibleModels.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/80 bg-background/50 p-5 text-sm text-muted">No active models are attached to this credential.</div>
+              ) : (
+                <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
+                  {visibleModels.map((model) => (
+                    <div key={model.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium text-white">{model.name}</p>
+                          <StatusBadge status={model.status || 'active'} />
+                        </div>
+                        <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
                       </div>
-                      <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
+                      <span className="text-xs text-muted">{providerLabel(model.provider || credential.provider)}</span>
                     </div>
-                    <Pill>{providerLabel(model.provider || credential.provider)}</Pill>
-                  </div>
-                ))}
-                {hiddenModelCount > 0 && <p className="pt-1 text-xs text-muted">+{hiddenModelCount} more model(s)</p>}
-              </div>
+                  ))}
+                </div>
+              )}
+              {hiddenModelCount > 0 && <p className="mt-3 text-xs text-muted">+{hiddenModelCount} more model(s)</p>}
             </section>
 
             <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-              <h3 className="text-sm font-semibold text-white">Lifecycle rules</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Credential actions have different operational impact. Use rotation before revoke whenever the provider secret changed.</p>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
-                  <Pill tone="primary">Safe</Pill>
-                  <p className="mt-3 text-sm font-semibold text-white">Rotate</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Replaces the secret or provider settings while preserving all references.</p>
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-white">Operational behavior</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">Use rotation first when only the secret or endpoint settings changed.</p>
+              </div>
+              <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55 text-sm">
+                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                  <p className="font-medium text-white">Rotate</p>
+                  <p className="text-xs leading-5 text-muted">Preserves all references and updates the credential value or provider settings.</p>
+                  <Pill tone="primary">safe</Pill>
                 </div>
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                  <Pill tone="warning">Runtime risk</Pill>
-                  <p className="mt-3 text-sm font-semibold text-white">Revoke</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Marks the credential unusable. Runtime calls using it may fail immediately.</p>
+                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                  <p className="font-medium text-white">Revoke</p>
+                  <p className="text-xs leading-5 text-muted">Marks the credential unusable. Runtime calls may fail immediately.</p>
+                  <Pill tone="warning">runtime risk</Pill>
                 </div>
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-                  <Pill tone="danger">Blocked if used</Pill>
-                  <p className="mt-3 text-sm font-semibold text-white">Archive</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Removes it from normal selection only after references are cleared.</p>
+                <div className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                  <p className="font-medium text-white">Archive</p>
+                  <p className="text-xs leading-5 text-muted">Removes it from normal selection after active references are cleared.</p>
+                  <Pill tone="danger">blocked if used</Pill>
                 </div>
               </div>
             </section>
