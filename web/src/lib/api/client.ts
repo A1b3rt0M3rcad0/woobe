@@ -1,4 +1,4 @@
-import { getToken, clearToken } from '@/lib/auth/token'
+import { getToken, setToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
 function resolveBaseUrl(value: string | undefined): string {
@@ -20,32 +20,37 @@ function resolveBaseUrl(value: string | undefined): string {
 }
 
 const BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
+const AUTH_REFRESH_PATH = '/identity/auth/refresh'
+const AUTH_PUBLIC_PATHS = new Set([
+  '/identity/auth/login',
+  '/identity/auth/register',
+  AUTH_REFRESH_PATH,
+])
 
 interface RequestOptions {
   headers?: Record<string, string>
   params?: Record<string, string | number | undefined>
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  options?: RequestOptions,
-): Promise<T> {
-  const token = getToken()
-  const headers: Record<string, string> = {
-    ...(options?.headers || {}),
-  }
+interface ApiEnvelope<T> {
+  success: boolean
+  message?: string
+  data?: T
+}
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
+interface AuthRefreshPayload {
+  access_token?: string
+  token?: string
+}
 
+let refreshPromise: Promise<string> | null = null
+
+function buildUrl(path: string, params?: RequestOptions['params']): string {
   let url = `${BASE_URL}${path}`
 
-  if (options?.params) {
+  if (params) {
     const searchParams = new URLSearchParams()
-    for (const [key, value] of Object.entries(options.params)) {
+    for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== '') {
         searchParams.set(key, String(value))
       }
@@ -54,15 +59,73 @@ async function request<T>(
     if (qs) url += `?${qs}`
   }
 
+  return url
+}
+
+async function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const res = await fetch(buildUrl(AUTH_REFRESH_PATH), {
+      method: 'POST',
+      credentials: 'include',
+    })
+
+    if (res.status === 401) {
+      throw new UnauthorizedError()
+    }
+
+    let data: ApiEnvelope<AuthRefreshPayload> | null = null
+    try {
+      data = await res.json()
+    } catch {
+      data = null
+    }
+
+    if (!res.ok) {
+      throw new ApiError(data?.message || 'Unable to refresh authentication session', res.status, data?.data)
+    }
+
+    const nextToken = data?.data?.access_token || data?.data?.token
+    if (!nextToken) {
+      throw new UnauthorizedError()
+    }
+
+    setToken(nextToken)
+    return nextToken
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions,
+  hasRetriedAuth = false,
+): Promise<T> {
+  const token = getToken()
+  const headers: Record<string, string> = {
+    ...(options?.headers || {}),
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   if (body !== undefined && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
 
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await fetch(buildUrl(path, options?.params), {
       method,
       headers,
+      credentials: 'include',
       body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     })
   } catch (err) {
@@ -85,14 +148,28 @@ async function request<T>(
     console.log(`[API] ${method} ${path} → ${res.status}${maybeBody ? ` ${maybeBody}` : ''}`)
   }
 
+  if (res.status === 401 && !hasRetriedAuth && !AUTH_PUBLIC_PATHS.has(path)) {
+    try {
+      await refreshAccessToken()
+      return request<T>(method, path, body, options, true)
+    } catch {
+      if (import.meta.env.DEV) console.warn('[API] Refresh failed — clearing token and redirecting to login')
+      clearToken()
+      window.location.href = '/login'
+      throw new UnauthorizedError()
+    }
+  }
+
   if (res.status === 401) {
     if (import.meta.env.DEV) console.warn('[API] 401 Unauthorized — clearing token and redirecting to login')
     clearToken()
-    window.location.href = '/login'
+    if (!AUTH_PUBLIC_PATHS.has(path)) {
+      window.location.href = '/login'
+    }
     throw new UnauthorizedError()
   }
 
-  let data: { success: boolean; message?: string; data?: T } | null = null
+  let data: ApiEnvelope<T> | null = null
   try {
     data = await res.json()
     if (import.meta.env.DEV && res.ok) {
