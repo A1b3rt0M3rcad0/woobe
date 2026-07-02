@@ -1,5 +1,4 @@
-import { post, get } from '@/lib/api/client'
-import { getToken } from '@/lib/auth/token'
+import { post, get, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import type { CreateSessionRequest, Session, SessionListItem, SessionListPage, AskRequest, AskResponse, Message, SourceInfo, ToolCallInfo, FallbackEventInfo } from './types'
 
 export interface CreateAskJobRequest {
@@ -136,25 +135,33 @@ export async function getAskJobResult(jobId: string): Promise<AskJobResult> {
   return get<AskJobResult>(`/runtime/ask/jobs/${jobId}`)
 }
 
-export async function askStream(
+async function askStreamRequest(
   data: AskRequest,
   callbacks: StreamCallbacks,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  hasRetriedAuth: boolean,
 ): Promise<void> {
-  const token = getToken()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    ...getCsrfHeaders('POST'),
   }
 
   const response = await fetch(`${BASE_URL}/runtime/ask/stream`, {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: JSON.stringify(data),
     signal,
   })
+
+  if (response.status === 401 && !hasRetriedAuth) {
+    try {
+      await refreshAuthSession()
+      return askStreamRequest(data, callbacks, signal, true)
+    } catch {
+      throw new Error('Authentication session expired')
+    }
+  }
 
   if (!response.ok) {
     let errorMsg = `Stream request failed (${response.status})`
@@ -229,4 +236,12 @@ export async function askStream(
       }
     }
   }
+}
+
+export async function askStream(
+  data: AskRequest,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  return askStreamRequest(data, callbacks, signal, false)
 }
