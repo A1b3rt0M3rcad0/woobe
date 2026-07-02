@@ -41,6 +41,7 @@ from shared.security.tenancy import TenantAuthorizer
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
+    "/identity/auth/logout",
     "/identity/auth/register",
     "/identity/auth/refresh",
 }
