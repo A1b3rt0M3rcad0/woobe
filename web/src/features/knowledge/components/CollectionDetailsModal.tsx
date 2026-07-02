@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AlertTriangle, Database, FileText, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
-import { LoadingState } from '@/components/common/LoadingState'
+import { LoadingState } from '@i/components/common/LoadingState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
+import { Input } from '@i/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { UploadDocumentModal } from '@/features/knowledge/components/UploadDocumentModal'
+import { CollectionDocumentUploadPanel } from '@/features/knowledge/components/CollectionDocumentUploadPanel'
 import { useDeleteDocument, useDocumentsByCollection, useUpdateCollection } from '@/features/knowledge/hooks'
 import { formatBytes } from '@/lib/formatters/bytes'
 import { formatDate } from '@/lib/formatters/date'
@@ -47,7 +47,7 @@ function isIndexedStatus(status: string | undefined): boolean {
 }
 
 function documentMeta(document: Document): string {
-  return [document.file_name, formatBytes(document.size_bytes), document.content_type].filter(Boolean).join(' · ')
+  return [document.file_name, formatBytes(document.size_bytes), document.content_type].filter(Boolean).join(' × ')
 }
 
 export function CollectionDetailsModal({ open, onClose, collection, projectId }: CollectionDetailsModalProps) {
@@ -91,21 +91,13 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
 
   const handleSave = async () => {
     if (!collection) return
-
     const name = editName.trim()
     if (!name) {
       toast.error('Collection name is required')
       return
     }
-
     try {
-      await updateCollection.mutateAsync({
-        id: collection.id,
-        data: {
-          name,
-          description: editDescription.trim() || null,
-        },
-      })
+      await updateCollection.mutateAsync({id: collection.id, data: { name, description: editDescription.trim() || null }})
       toast.success('Collection updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update collection')
@@ -114,7 +106,6 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
 
   const handleConfirmDeleteDocument = async () => {
     if (!documentToDelete) return
-
     try {
       await deleteDocument.mutateAsync(documentToDelete.id)
       toast.success('Document deleted')
@@ -126,6 +117,11 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
   }
 
   const refreshDocuments = () => {
+    void refetchDocuments()
+  }
+
+  const handleUploaded = () => {
+    setShowUpload(false)
     void refetchDocuments()
   }
 
@@ -142,7 +138,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
             <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
                 <div className="rounded-xl border border-border/80 bg-background/70 p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border bg-surface text-primary-light">
                     <Database className="h-5 w-5" />
                   </div>
                   <div className="mt-4 min-w-0">
@@ -201,34 +197,55 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                 <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">Documents</h3>
+                      <h3 className="text-sm font-semibold text-white">{showUpload ? 'Upload document' : 'Documents'}</h3>
                       <p className="mt-1 text-xs leading-5 text-muted">
-                        {documentItems.length} files · {indexedCount} indexed · {formatBytes(totalSize)} total
+                        {showUpload
+                          ? `Upload directly to ${collection.name}. The collection is already selected.`
+                          : `${documentItems.length} files · ${indexedCount} indexed · ${formatBytes(totalSize)} total`}
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={refreshDocuments} disabled={documentsLoading}>
-                        <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                        Refresh
-                      </Button>
-                      <Button type="button" size="sm" onClick={() => setShowUpload(true)}>
-                        <Upload className="mr-2 h-3.5 w-3.5" />
-                        Upload
-                      </Button>
+                      {showUpload ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowUpload(false)}>
+                          Back to documents
+                        </Button>
+                      ) : (
+                        <>
+                          <Button type="button" variant="outline" size="sm" onClick={refreshDocuments} disabled={documentsLoading}>
+                            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                          Refresh
+                          </Button>
+                          <Button type="button" size="sm" onClick={() => setShowUpload(true)}>
+                          <Upload className="mr-2 h-3.5 w-3.5" />
+                          Upload
+                        </Button>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {documentsLoading ? (
+                  {showUpload ? (
+                    <CollectionDocumentUploadPanel
+                      projectId={projectId}
+                      collection={{ id: collection.id, name: collection.name }}
+                      onCancel={() => setShowUpload(false)}
+                      onUploaded={handleUploaded}
+                    />
+                  ) : documentsLoading ? (
                     <div className="rounded-xl border border-border/70 bg-background/60 p-8">
                       <LoadingState message="Loading documents..." variant="inline" />
                     </div>
                   ) : documentItems.length === 0 ? (
                     <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-muted">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border bg-surface text-muted">
                         <FileText className="h-5 w-5" />
                       </div>
                       <p className="mt-4 text-sm font-medium text-white">No documents in this collection.</p>
                       <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material to make it available for retrieval.</p>
+                      <Button type="button" onClick={() => setShowUpload(true)} className="mt-5">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload document
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -238,13 +255,13 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                           className="grid gap-3 rounded-lg border border-border/70 bg-background/55 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
                         >
                           <div className="flex min-w-0 gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border bg-surface text-primary-light">
                               <FileText className="h-4 w-4" />
                             </div>
                             <div className="min-w-0">
                               <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <p className="truncate text-sm font-medium text-white">{document.title}</p>
-                                <StatusBadge status={document.status} />
+                                {document.status && <StatusBadge status={document.status} />}
                               </div>
                               <p className="mt-1 truncate text-xs text-muted">{documentMeta(document)}</p>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
@@ -262,7 +279,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
                             className="h-8 w-8 justify-self-end text-red-400 hover:text-red-300"
                             disabled={deleteDocument.isPending}
                             onClick={() => setDocumentToDelete(document)}
-                            aria-label={`Delete ${document.title}`}
+                            aria-label={@Delete ${document.title}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -286,17 +303,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
         )}
       </Dialog>
 
-      {collection && (
-        <UploadDocumentModal
-          open={showUpload}
-          onClose={() => setShowUpload(false)}
-          projectId={projectId}
-          collectionIds={[{ id: collection.id, name: collection.name }]}
-          defaultCollectionId={collection.id}
-        />
-      )}
-
-      <Dialog open={Boolean(documentToDelete)} onClose={closeDeleteModal} title="Delete document" className="max-w-[460px]">
+      <Dialog open={Boolean(documentToDelete)} onClose={closeDeleteModal} title="Delete document" className="max-w[[460px]">
         {documentToDelete && (
           <div className="space-y-5">
             <div className="flex gap-3">
