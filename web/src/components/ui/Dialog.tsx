@@ -37,6 +37,7 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div
+        data-dialog-title={title}
         className={cn(
           'relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
           className,
@@ -52,7 +53,7 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div data-dialog-body className="p-6">{children}</div>
       </div>
     </div>,
     document.body,
