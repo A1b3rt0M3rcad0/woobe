@@ -13,6 +13,7 @@ interface DialogProps {
 
 export function Dialog({ open, onClose, children, title, className }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const dialogKind = title === 'Manage Credential' ? 'key-management' : undefined
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -38,6 +39,7 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
     >
       <div
         data-dialog-title={title}
+        data-dialog-kind={dialogKind}
         className={cn(
           'relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
           className,
