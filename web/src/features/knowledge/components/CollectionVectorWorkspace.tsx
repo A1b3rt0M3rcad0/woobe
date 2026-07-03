@@ -3,7 +3,7 @@ import { Cpu, RefreshCw, Upload } from 'lucide-react'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
-import { BuildVectorSnapshotModal } from '@/features/knowledge/components/BuildVectorSnapshotModal'
+import { BuildVectorSnapshotModalV2 } from '@/features/knowledge/components/BuildVectorSnapshotModalV2'
 import { VectorSnapshotDetailsModal } from '@/features/knowledge/components/VectorSnapshotDetailsModal'
 import { useCollectionOverview, useVectorSnapshots } from '@/features/knowledge/vectorHooks'
 import { formatDate } from '@/lib/formatters/date'
@@ -115,7 +115,7 @@ export function CollectionVectorWorkspace({ projectId, collection, documentCount
   return (
     <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
       <Tabs defaultTab="overview" tabs={[{ id: 'overview', label: 'Overview', content: overviewContent }, { id: 'vectors', label: 'Vectors', content: vectorsContent }, { id: 'technology', label: 'Technology', content: technologyContent }]} />
-      <BuildVectorSnapshotModal open={buildOpen} projectId={projectId} collection={{ id: collection.id, name: collection.name }} onClose={() => setBuildOpen(false)} onCreated={() => { setBuildOpen(false); refresh() }} />
+      <BuildVectorSnapshotModalV2 open={buildOpen} projectId={projectId} collection={{ id: collection.id, name: collection.name }} onClose={() => setBuildOpen(false)} onCreated={() => { setBuildOpen(false); refresh() }} />
       <VectorSnapshotDetailsModal snapshot={selectedSnapshot} onClose={() => setSelectedSnapshot(null)} />
     </section>
   )
