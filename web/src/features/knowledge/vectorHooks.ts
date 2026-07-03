@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createVectorSnapshot, getCollectionOverview, getVectorSnapshots } from './vectorApi'
-import { getKnowledgeProviderModels } from './modelApi'
-import type { CreateVectorSnapshotRequest } from './types'
+import { createKnowledgeProviderModel, getKnowledgeProviderModels } from './modelApi'
+import type { CreateKnowledgeProviderModelRequest, CreateVectorSnapshotRequest } from './types'
 
 export function useCollectionOverview(collectionId?: string, projectId?: string) {
   return useQuery({
@@ -26,6 +26,16 @@ export function useKnowledgeProviderModels(projectId?: string) {
     queryKey: ['knowledge-provider-models', projectId],
     queryFn: () => getKnowledgeProviderModels(projectId),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useCreateKnowledgeProviderModel(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateKnowledgeProviderModelRequest) => createKnowledgeProviderModel(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-provider-models', projectId] })
+    },
   })
 }
 
