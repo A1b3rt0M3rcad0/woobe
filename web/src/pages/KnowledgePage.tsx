@@ -66,7 +66,7 @@ export default function KnowledgePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Knowledge</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            Create collections and manage each collection documents directly from its details panel.
+            Create collections and manage the documents in each collection directly from its details panel.
           </p>
         </div>
         <Button type="button" onClick={() => setShowCreateCol(true)} className="lg:mt-1">
