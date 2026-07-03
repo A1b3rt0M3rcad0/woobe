@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_BUILDING,
     VECTOR_SNAPSHOT_FAILED,
     VECTOR_SNAPSHOT_READY,
+    VECTOR_SNAPSHOT_STAGE_FAILED,
+    VECTOR_SNAPSHOT_STAGE_PARSING,
+    VECTOR_SNAPSHOT_STAGE_READY,
     VectorSnapshot,
     VectorSnapshotChunk,
     VectorSnapshotDocument,
@@ -30,6 +33,7 @@ def _snapshot_model_to_entity(model: VectorSnapshotModel) -> VectorSnapshot:
         version=model.version,
         description=model.description,
         status=model.status,
+        build_stage=model.build_stage,
         embedding_provider_model_id=model.embedding_provider_model_id,
         embedding_provider=model.embedding_provider,
         embedding_model=model.embedding_model,
@@ -38,9 +42,22 @@ def _snapshot_model_to_entity(model: VectorSnapshotModel) -> VectorSnapshot:
         chunk_overlap=model.chunk_overlap,
         chunking_strategy=model.chunking_strategy,
         parser_config=model.parser_config,
+        build_config=model.build_config,
+        retrieval_defaults=model.retrieval_defaults,
         snapshot_hash=model.snapshot_hash,
+        build_config_hash=model.build_config_hash,
         document_count=model.document_count,
         chunk_count=model.chunk_count,
+        vector_count=model.vector_count,
+        total_document_count=model.total_document_count,
+        processed_document_count=model.processed_document_count,
+        total_chunk_count=model.total_chunk_count,
+        processed_chunk_count=model.processed_chunk_count,
+        embedded_chunk_count=model.embedded_chunk_count,
+        current_document_id=model.current_document_id,
+        locked_at=model.locked_at,
+        locked_by=model.locked_by,
+        attempt_count=model.attempt_count,
         error_message=model.error_message,
         created_by=model.created_by,
         started_at=model.started_at,
@@ -58,6 +75,7 @@ def _snapshot_entity_to_model(entity: VectorSnapshot) -> VectorSnapshotModel:
         version=entity.version,
         description=entity.description,
         status=entity.status,
+        build_stage=entity.build_stage,
         embedding_provider_model_id=entity.embedding_provider_model_id,
         embedding_provider=entity.embedding_provider,
         embedding_model=entity.embedding_model,
@@ -66,9 +84,22 @@ def _snapshot_entity_to_model(entity: VectorSnapshot) -> VectorSnapshotModel:
         chunk_overlap=entity.chunk_overlap,
         chunking_strategy=entity.chunking_strategy,
         parser_config=entity.parser_config,
+        build_config=entity.build_config,
+        retrieval_defaults=entity.retrieval_defaults,
         snapshot_hash=entity.snapshot_hash,
+        build_config_hash=entity.build_config_hash,
         document_count=entity.document_count,
         chunk_count=entity.chunk_count,
+        vector_count=entity.vector_count,
+        total_document_count=entity.total_document_count,
+        processed_document_count=entity.processed_document_count,
+        total_chunk_count=entity.total_chunk_count,
+        processed_chunk_count=entity.processed_chunk_count,
+        embedded_chunk_count=entity.embedded_chunk_count,
+        current_document_id=entity.current_document_id,
+        locked_at=entity.locked_at,
+        locked_by=entity.locked_by,
+        attempt_count=entity.attempt_count,
         error_message=entity.error_message,
         created_by=entity.created_by,
         started_at=entity.started_at,
@@ -87,6 +118,22 @@ def _snapshot_document_to_model(entity: VectorSnapshotDocument) -> VectorSnapsho
         parser=entity.parser,
         status_at_build=entity.status_at_build,
         chunk_count=entity.chunk_count,
+    )
+
+
+def _snapshot_document_model_to_entity(model: VectorSnapshotDocumentModel) -> VectorSnapshotDocument:
+    return VectorSnapshotDocument(
+        id=model.id,
+        vector_snapshot_id=model.vector_snapshot_id,
+        document_id=model.document_id,
+        document_sha256=model.document_sha256,
+        document_title=model.document_title,
+        file_name=model.file_name,
+        parser=model.parser,
+        status_at_build=model.status_at_build,
+        chunk_count=model.chunk_count,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
     )
 
 
@@ -162,6 +209,22 @@ class SQLAlchemyVectorSnapshotRepository:
         model = result.scalar_one_or_none()
         return _snapshot_model_to_entity(model) if model else None
 
+    async def get_active_building_by_collection(
+        self, project_id: UUID, collection_id: UUID
+    ) -> VectorSnapshot | None:
+        result = await self._session.execute(
+            select(VectorSnapshotModel)
+            .where(
+                VectorSnapshotModel.project_id == project_id,
+                VectorSnapshotModel.collection_id == collection_id,
+                VectorSnapshotModel.status == VECTOR_SNAPSHOT_BUILDING,
+            )
+            .order_by(VectorSnapshotModel.created_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return _snapshot_model_to_entity(model) if model else None
+
     async def list_by_collection(self, project_id: UUID, collection_id: UUID) -> list[VectorSnapshot]:
         result = await self._session.execute(
             select(VectorSnapshotModel)
@@ -187,12 +250,47 @@ class SQLAlchemyVectorSnapshotRepository:
         )
         return [_snapshot_model_to_entity(model) for model in result.scalars().all()]
 
-    async def mark_started(self, snapshot_id: UUID) -> None:
+    async def mark_started(self, snapshot_id: UUID, *, locked_by: str | None = None) -> None:
         model = await self._session.get(VectorSnapshotModel, snapshot_id)
         if model is None:
             return
-        model.started_at = utc_now()
+        now = utc_now()
+        model.started_at = model.started_at or now
+        model.locked_at = now
+        model.locked_by = locked_by
+        model.attempt_count = (model.attempt_count or 0) + 1
+        model.build_stage = VECTOR_SNAPSHOT_STAGE_PARSING
         model.error_message = None
+        await self._session.flush()
+
+    async def update_build_progress(
+        self,
+        snapshot_id: UUID,
+        *,
+        build_stage: str | None = None,
+        total_document_count: int | None = None,
+        processed_document_count: int | None = None,
+        total_chunk_count: int | None = None,
+        processed_chunk_count: int | None = None,
+        embedded_chunk_count: int | None = None,
+        current_document_id: UUID | None = None,
+    ) -> None:
+        model = await self._session.get(VectorSnapshotModel, snapshot_id)
+        if model is None:
+            return
+        if build_stage is not None:
+            model.build_stage = build_stage
+        if total_document_count is not None:
+            model.total_document_count = total_document_count
+        if processed_document_count is not None:
+            model.processed_document_count = processed_document_count
+        if total_chunk_count is not None:
+            model.total_chunk_count = total_chunk_count
+        if processed_chunk_count is not None:
+            model.processed_chunk_count = processed_chunk_count
+        if embedded_chunk_count is not None:
+            model.embedded_chunk_count = embedded_chunk_count
+        model.current_document_id = current_document_id
         await self._session.flush()
 
     async def mark_ready(
@@ -202,15 +300,26 @@ class SQLAlchemyVectorSnapshotRepository:
         snapshot_hash: str,
         document_count: int,
         chunk_count: int,
+        vector_count: int | None = None,
     ) -> VectorSnapshot | None:
         model = await self._session.get(VectorSnapshotModel, snapshot_id)
         if model is None:
             return None
         model.status = VECTOR_SNAPSHOT_READY
+        model.build_stage = VECTOR_SNAPSHOT_STAGE_READY
         model.snapshot_hash = snapshot_hash
         model.document_count = document_count
         model.chunk_count = chunk_count
+        model.vector_count = vector_count if vector_count is not None else chunk_count
+        model.total_document_count = document_count
+        model.processed_document_count = document_count
+        model.total_chunk_count = chunk_count
+        model.processed_chunk_count = chunk_count
+        model.embedded_chunk_count = model.vector_count
         model.completed_at = utc_now()
+        model.locked_at = None
+        model.locked_by = None
+        model.current_document_id = None
         model.error_message = None
         await self._session.flush()
         await self._session.refresh(model)
@@ -221,12 +330,42 @@ class SQLAlchemyVectorSnapshotRepository:
         if model is None:
             return
         model.status = VECTOR_SNAPSHOT_FAILED
+        model.build_stage = VECTOR_SNAPSHOT_STAGE_FAILED
         model.error_message = error[:4000]
         model.completed_at = utc_now()
+        model.locked_at = None
+        model.locked_by = None
         await self._session.flush()
 
     async def add_snapshot_documents(self, documents: list[VectorSnapshotDocument]) -> None:
         self._session.add_all([_snapshot_document_to_model(document) for document in documents])
+        await self._session.flush()
+
+    async def list_snapshot_documents(self, snapshot_id: UUID) -> list[VectorSnapshotDocument]:
+        result = await self._session.execute(
+            select(VectorSnapshotDocumentModel)
+            .where(VectorSnapshotDocumentModel.vector_snapshot_id == snapshot_id)
+            .order_by(VectorSnapshotDocumentModel.created_at.asc())
+        )
+        return [_snapshot_document_model_to_entity(model) for model in result.scalars().all()]
+
+    async def update_snapshot_document_chunk_count(
+        self, snapshot_id: UUID, document_id: UUID, chunk_count: int
+    ) -> None:
+        await self._session.execute(
+            update(VectorSnapshotDocumentModel)
+            .where(
+                VectorSnapshotDocumentModel.vector_snapshot_id == snapshot_id,
+                VectorSnapshotDocumentModel.document_id == document_id,
+            )
+            .values(chunk_count=chunk_count)
+        )
+        await self._session.flush()
+
+    async def delete_snapshot_chunks(self, snapshot_id: UUID) -> None:
+        await self._session.execute(
+            delete(VectorSnapshotChunkModel).where(VectorSnapshotChunkModel.vector_snapshot_id == snapshot_id)
+        )
         await self._session.flush()
 
     async def add_snapshot_chunks(self, chunks: list[VectorSnapshotChunk]) -> None:
