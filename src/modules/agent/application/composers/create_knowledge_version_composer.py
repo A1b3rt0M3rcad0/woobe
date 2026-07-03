@@ -9,6 +9,6 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 def create_knowledge_version_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     repo = uow.knowledge_versions
-    use_case = CreateKnowledgeVersionUseCase(repo)
+    use_case = CreateKnowledgeVersionUseCase(repo, uow.vector_snapshots)
     controller = CreateKnowledgeVersionController(use_case)
     return TransactionalHandler(uow, controller.handle)

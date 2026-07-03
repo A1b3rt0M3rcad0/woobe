@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 from modules.agent.application.dtos.knowledge_dtos import *
@@ -12,9 +12,10 @@ from modules.agent.domain.errors import DocumentNotFoundError
 from modules.agent.domain.events import AgentCollectionCreatedV1, AgentDocumentUploadedV1
 from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
 from modules.agent.domain.repositories import AgentCollectionRepository, DocumentChunkRepository, DocumentCollectionRepository, DocumentRepository, KnowledgeVersionRepository
+from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from shared.infra.config import Settings
 from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.infra.errors import ConflictError, ValidationError
+from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
@@ -180,9 +181,34 @@ class GetDocumentUseCase:
 
 
 class CreateKnowledgeVersionUseCase:
-    def __init__(self, repo: KnowledgeVersionRepository) -> None: self._repo = repo
+    def __init__(self, repo: KnowledgeVersionRepository, vector_snapshot_repo: Any | None = None) -> None:
+        self._repo = repo
+        self._vector_snapshot_repo = vector_snapshot_repo
+
     async def execute(self, input_dto: CreateKnowledgeVersionInput) -> CreateKnowledgeVersionOutput:
-        v = await self._repo.save(KnowledgeVersion(project_id=input_dto.project_id, agent_id=input_dto.agent_id, version=input_dto.version, collection_ids=input_dto.collection_ids, document_ids=input_dto.document_ids, snapshot_metadata=input_dto.snapshot_metadata, status=KnowledgeVersionStatus.DRAFT))
+        snapshot_metadata = dict(input_dto.snapshot_metadata or {})
+        collection_ids = list(input_dto.collection_ids or [])
+        vector_snapshot_id = snapshot_metadata.get("vector_snapshot_id")
+        if vector_snapshot_id and self._vector_snapshot_repo is not None:
+            snapshot = await self._vector_snapshot_repo.get_by_id(UUID(str(vector_snapshot_id)))
+            if snapshot is None or snapshot.project_id != input_dto.project_id:
+                raise NotFoundError("Vector snapshot not found")
+            if snapshot.status != VECTOR_SNAPSHOT_READY:
+                raise ConflictError("Knowledge version requires a READY vector snapshot")
+            collection_ids = [snapshot.collection_id]
+            snapshot_metadata.update(
+                {
+                    "vector_snapshot_id": str(snapshot.id),
+                    "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
+                    "embedding_provider": snapshot.embedding_provider,
+                    "embedding_model": snapshot.embedding_model,
+                    "embedding_dimensions": snapshot.embedding_dimensions,
+                    "snapshot_hash": snapshot.snapshot_hash,
+                    "chunk_count": snapshot.chunk_count,
+                    "document_count": snapshot.document_count,
+                }
+            )
+        v = await self._repo.save(KnowledgeVersion(project_id=input_dto.project_id, agent_id=input_dto.agent_id, version=input_dto.version, collection_ids=collection_ids, document_ids=input_dto.document_ids, snapshot_metadata=snapshot_metadata, status=KnowledgeVersionStatus.DRAFT))
         return CreateKnowledgeVersionOutput(id=v.id, project_id=v.project_id, agent_id=v.agent_id, version=v.version, collection_ids=v.collection_ids or [], document_ids=v.document_ids, snapshot_metadata=v.snapshot_metadata, status=v.status, created_at=v.created_at, updated_at=v.updated_at)
 
 
