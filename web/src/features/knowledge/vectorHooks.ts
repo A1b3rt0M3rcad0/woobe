@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createVectorSnapshot, getCollectionOverview, getVectorSnapshots } from './vectorApi'
+import { getKnowledgeProviderModels } from './modelApi'
 import type { CreateVectorSnapshotRequest } from './types'
 
 export function useCollectionOverview(collectionId?: string, projectId?: string) {
@@ -17,6 +18,14 @@ export function useVectorSnapshots(collectionId?: string, projectId?: string) {
     queryFn: () => getVectorSnapshots(collectionId!, projectId!),
     enabled: Boolean(collectionId) && Boolean(projectId),
     refetchInterval: (query) => query.state.data?.some((snapshot) => snapshot.status === 'BUILDING') ? 3000 : false,
+  })
+}
+
+export function useKnowledgeProviderModels(projectId?: string) {
+  return useQuery({
+    queryKey: ['knowledge-provider-models', projectId],
+    queryFn: () => getKnowledgeProviderModels(projectId),
+    enabled: Boolean(projectId),
   })
 }
 
