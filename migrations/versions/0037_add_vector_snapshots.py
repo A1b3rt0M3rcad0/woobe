@@ -1,7 +1,7 @@
 """add vector snapshots
 
-Revision ID: 0021
-Revises: 0020
+Revision ID: 0037
+Revises: 0036
 Create Date: 2026-07-03
 """
 from __future__ import annotations
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
 
-revision = "0021"
-down_revision = "0020"
+revision = "0037"
+down_revision = "0036_provider_model_trace_refs"
 branch_labels = None
 depends_on = None
 
