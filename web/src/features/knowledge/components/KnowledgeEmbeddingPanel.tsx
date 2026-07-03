@@ -1,0 +1,1 @@
+export { KnowledgeEmbeddingPanel } from './CollectionVectorWorkspace'
