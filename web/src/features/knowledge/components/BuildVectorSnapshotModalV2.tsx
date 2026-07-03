@@ -16,10 +16,16 @@ interface BuildVectorSnapshotModalV2Props {
   onCreated: () => void
 }
 
+function isEmbeddingModel(model: Record<string, any>) {
+  const metadata = model.metadata || {}
+  const capability = String(metadata.capability || metadata.type || '').toLowerCase()
+  return capability === 'embedding' || capability === 'embeddings' || String(model.model || '').toLowerCase().includes('embed')
+}
+
 export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClose, onCreated }: BuildVectorSnapshotModalV2Props) {
   const createSnapshot = useCreateVectorSnapshot(collection?.id, projectId)
   const { data: models, refetch: refetchModels } = useKnowledgeProviderModels(projectId)
-  const availableModels = models ?? []
+  const availableModels = (models ?? []).filter(isEmbeddingModel)
   const [selectedModelId, setSelectedModelId] = useState('')
   const [description, setDescription] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
