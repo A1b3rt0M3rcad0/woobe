@@ -11,6 +11,14 @@ VECTOR_SNAPSHOT_FAILED = "FAILED"
 VECTOR_SNAPSHOT_ARCHIVED = "ARCHIVED"
 VECTOR_SNAPSHOT_DELETED = "DELETED"
 
+VECTOR_SNAPSHOT_STAGE_QUEUED = "QUEUED"
+VECTOR_SNAPSHOT_STAGE_PARSING = "PARSING"
+VECTOR_SNAPSHOT_STAGE_CHUNKING = "CHUNKING"
+VECTOR_SNAPSHOT_STAGE_EMBEDDING = "EMBEDDING"
+VECTOR_SNAPSHOT_STAGE_WRITING = "WRITING"
+VECTOR_SNAPSHOT_STAGE_READY = "READY"
+VECTOR_SNAPSHOT_STAGE_FAILED = "FAILED"
+
 
 @dataclass
 class VectorSnapshot:
@@ -22,14 +30,28 @@ class VectorSnapshot:
     embedding_model: str
     embedding_dimensions: int = 1536
     status: str = VECTOR_SNAPSHOT_BUILDING
+    build_stage: str = VECTOR_SNAPSHOT_STAGE_QUEUED
     description: str | None = None
     chunk_size: int = 800
     chunk_overlap: int = 120
     chunking_strategy: str = "recursive_text"
     parser_config: dict[str, Any] | None = None
+    build_config: dict[str, Any] | None = None
+    retrieval_defaults: dict[str, Any] | None = None
     snapshot_hash: str | None = None
+    build_config_hash: str | None = None
     document_count: int = 0
     chunk_count: int = 0
+    vector_count: int = 0
+    total_document_count: int = 0
+    processed_document_count: int = 0
+    total_chunk_count: int = 0
+    processed_chunk_count: int = 0
+    embedded_chunk_count: int = 0
+    current_document_id: UUID | None = None
+    locked_at: datetime | None = None
+    locked_by: str | None = None
+    attempt_count: int = 0
     error_message: str | None = None
     created_by: UUID | None = None
     started_at: datetime | None = None
