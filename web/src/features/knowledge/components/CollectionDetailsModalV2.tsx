@@ -37,10 +37,6 @@ function numberLabel(value?: number | null) {
   return typeof value === 'number' ? value.toLocaleString() : '0'
 }
 
-function statusText(value?: string) {
-  return (value || 'UNKNOWN').replace(/_/g, ' ')
-}
-
 function TechItem({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div className="rounded-xl border border-border/80 bg-background/60 p-4"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className="mt-1 text-sm font-medium text-white">{value}</p>{detail && <p className="mt-1 text-xs text-muted">{detail}</p>}</div>
 }
@@ -123,22 +119,6 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
   const overviewTab = (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Knowledge status</h3>
-            <p className="mt-1 text-xs text-muted">{overview?.warnings?.[0] || 'Build vectors when these documents should be available for retrieval.'}</p>
-          </div>
-          <StatusBadge status={overview?.rag_status || 'UNKNOWN'} />
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TechItem label="Documents" value={`${overview?.documents.active ?? items.length} active`} detail={`${overview?.documents.ready ?? indexedCount} ready`} />
-          <TechItem label="Vectors" value={overview?.latest_ready_snapshot ? `${overview.latest_ready_snapshot.version} ready` : 'Not built'} detail={`${numberLabel(overview?.latest_ready_snapshot?.chunk_count)} chunks`} />
-          <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} />
-        </div>
-        {overview?.processing.has_running_job && <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 p-3 text-sm text-primary-light">Building vectors · {overview.processing.stage || 'QUEUED'} · {overview.processing.embedded_chunks}/{overview.processing.total_chunks || 0} chunks</div>}
-      </section>
-
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
         <h3 className="text-sm font-semibold text-white">Collection information</h3>
         <p className="mt-1 text-xs text-muted">Edit the collection identity used across Knowledge.</p>
         <div className="mt-4 space-y-4">
@@ -165,7 +145,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
           <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center">
             <FileText className="h-5 w-5 text-muted" />
             <p className="mt-4 text-sm font-medium text-white">No documents in this collection.</p>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material to make it available for retrieval.</p>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material before building vectors.</p>
             <Button type="button" onClick={() => setUploadModalOpen(true)} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button>
           </div>
         ) : (
@@ -190,13 +170,29 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
   )
 
   const vectorsTab = (
-    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div><h3 className="text-sm font-semibold text-white">Vector snapshots</h3><p className="mt-1 text-xs text-muted">Immutable builds generated from this Collection.</p></div>
-        <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}><Cpu className="mr-2 h-3.5 w-3.5" />Build vectors</Button>
-      </div>
-      {vectorSnapshots.length === 0 ? <div className="rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted">No vector snapshot built yet.</div> : <div className="space-y-2">{vectorSnapshots.map((snapshot) => <button key={snapshot.id} type="button" onClick={() => setSnapshotToView(snapshot)} className="grid w-full gap-3 rounded-lg border border-border/70 bg-background/55 p-3 text-left hover:border-primary/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div><p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p></div><p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p></button>)}</div>}
-    </section>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">Vector readiness</h3><StatusBadge status={overview?.rag_status || 'UNKNOWN'} /></div>
+            <p className="mt-1 text-xs text-muted">{overview?.warnings?.[0] || 'Build an immutable vector snapshot from the current documents.'}</p>
+          </div>
+          <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}><Cpu className="mr-2 h-3.5 w-3.5" />{overview?.rag_status === 'OUTDATED' ? 'Rebuild vectors' : 'Build vectors'}</Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <TechItem label="Latest snapshot" value={overview?.latest_ready_snapshot?.version || 'Not built'} detail={`${numberLabel(overview?.latest_ready_snapshot?.chunk_count)} chunks`} />
+          <TechItem label="Documents" value={`${overview?.documents.active ?? items.length} active`} detail={`${overview?.documents.ready ?? indexedCount} ready`} />
+          <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} />
+        </div>
+        {overview?.processing.has_running_job && <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 p-3 text-sm text-primary-light">Building vectors · {overview.processing.stage || 'QUEUED'} · {overview.processing.embedded_chunks}/{overview.processing.total_chunks || 0} chunks</div>}
+      </section>
+
+      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+        <h3 className="text-sm font-semibold text-white">Vector snapshots</h3>
+        <p className="mt-1 text-xs text-muted">Immutable builds generated from this Collection.</p>
+        {vectorSnapshots.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted">No vector snapshot built yet.</div> : <div className="mt-4 space-y-2">{vectorSnapshots.map((snapshot) => <button key={snapshot.id} type="button" onClick={() => setSnapshotToView(snapshot)} className="grid w-full gap-3 rounded-lg border border-border/70 bg-background/55 p-3 text-left hover:border-primary/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div><p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p></div><p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p></button>)}</div>}
+      </section>
+    </div>
   )
 
   const technologyTab = (
@@ -204,9 +200,9 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
       <h3 className="text-sm font-semibold text-white">Technology</h3>
       <p className="mt-1 text-xs text-muted">Configuration captured by the latest vector snapshot.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} detail={overview?.technology.embedding_provider || 'Selected during build'} />
-        <TechItem label="Chunking" value={overview?.technology.chunking_strategy || 'recursive_text'} detail={`${overview?.technology.chunk_size ?? 800} size · ${overview?.technology.chunk_overlap ?? 120} overlap`} />
-        <TechItem label="Retrieval" value={`Top K ${overview?.technology.retrieval_top_k ?? 5}`} detail={`Threshold ${overview?.technology.retrieval_score_threshold ?? 0.7}`} />
+        <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} detail={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
+        <TechItem label="Chunking" value={overview?.technology.chunking_strategy || 'Not configured'} detail={overview?.technology.chunk_size ? `${overview.technology.chunk_size} size · ${overview.technology.chunk_overlap ?? 0} overlap` : undefined} />
+        <TechItem label="Retrieval" value={overview?.technology.retrieval_top_k ? `Top K ${overview.technology.retrieval_top_k}` : 'Not configured'} detail={overview?.technology.retrieval_score_threshold != null ? `Threshold ${overview.technology.retrieval_score_threshold}` : undefined} />
         <TechItem label="Vector store" value={overview?.technology.vector_store || 'pgvector'} detail={overview?.technology.distance_metric || 'cosine'} />
       </div>
     </section>
