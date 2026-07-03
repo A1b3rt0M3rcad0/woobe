@@ -1,113 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Database, FileText, RefreshCw, Upload } from 'lucide-react'
-import { toast } from 'sonner'
-import { LoadingState } from '@/components/common/LoadingState'
+import { useMemo, useState } from 'react'
+import { Database, Upload } from 'lucide-react'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
 import { CollectionDocumentUploadModal } from '@/features/knowledge/components/CollectionDocumentUploadModal'
 import { CollectionVectorWorkspace } from '@/features/knowledge/components/CollectionVectorWorkspace'
-import { useDocumentsByCollection, useUpdateCollection } from '@/features/knowledge/hooks'
+import { useDocumentsByCollection } from '@/features/knowledge/hooks'
 import { formatBytes } from '@/lib/formatters/bytes'
-import { formatDate } from '@/lib/formatters/date'
-import type { Collection, Document } from '@/features/knowledge/types'
+import type { Collection } from '@/features/knowledge/types'
 
-interface CollectionDetailsModalProps {
-  open: boolean
-  onClose: () => void
-  collection: Collection | null
-  projectId: string
-}
-
-function isReady(status?: string) {
-  const normalized = status?.toLowerCase()
-  return normalized === 'indexed' || normalized === 'ready'
-}
-
-function documentMeta(document: Document) {
-  return [document.file_name, formatBytes(document.size_bytes), document.content_type].filter(Boolean).join(' · ')
-}
+interface CollectionDetailsModalProps { open: boolean; onClose: () => void; collection: Collection | null; projectId: string }
+function isReady(status?: string) { return ['indexed', 'ready'].includes(status?.toLowerCase() || '') }
 
 export function CollectionDetailsModal({ open, onClose, collection, projectId }: CollectionDetailsModalProps) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
-  const updateCollection = useUpdateCollection()
-  const { data: documents, isLoading, refetch } = useDocumentsByCollection(collection?.id)
-
-  useEffect(() => {
-    if (!collection) return
-    setName(collection.name)
-    setDescription(collection.description || '')
-    setUploadOpen(false)
-  }, [collection])
-
+  const { data: documents, refetch } = useDocumentsByCollection(collection?.id)
   const items = documents ?? []
   const readyCount = useMemo(() => items.filter((document) => isReady(document.status)).length, [items])
   const totalSize = useMemo(() => items.reduce((sum, document) => sum + document.size_bytes, 0), [items])
-  const hasChanges = collection ? name.trim() !== collection.name || description.trim() !== (collection.description || '') : false
+  const uploaded = () => { setUploadOpen(false); void refetch() }
 
-  const save = async () => {
-    if (!collection) return
-    if (!name.trim()) {
-      toast.error('Collection name is required')
-      return
-    }
-    try {
-      await updateCollection.mutateAsync({ id: collection.id, data: { name: name.trim(), description: description.trim() || null } })
-      toast.success('Collection updated')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update collection')
-    }
-  }
-
-  const handleUploaded = () => {
-    setUploadOpen(false)
-    void refetch()
-  }
-
-  return (
-    <>
-      <Dialog open={open && Boolean(collection)} onClose={onClose} title="Collection details" className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-hidden">
-        {collection && (
-          <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="rounded-xl border border-border/80 bg-background/70 p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><Database className="h-5 w-5" /></div>
-                  <div className="mt-4 flex items-start justify-between gap-3"><h3 className="truncate text-base font-semibold text-white">{collection.name}</h3>{collection.status && <StatusBadge status={collection.status} />}</div>
-                  <p className="mt-2 line-clamp-4 text-sm leading-6 text-muted">{collection.description || 'No description provided'}</p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs"><span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-primary-light">{items.length} documents</span><span className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-muted">{readyCount} ready</span><span className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-muted">{formatBytes(totalSize)}</span></div>
-                </div>
-                <div className="rounded-xl border border-border/80 bg-surface/65 p-4 text-xs">
-                  <h3 className="text-sm font-semibold text-white">Metadata</h3>
-                  <dl className="mt-4 space-y-3"><div><dt className="text-muted">Collection ID</dt><dd className="mt-1 break-all font-mono text-white/80">{collection.id}</dd></div><div><dt className="text-muted">Created</dt><dd className="mt-1 text-white/80">{collection.created_at ? formatDate(collection.created_at) : '-'}</dd></div><div><dt className="text-muted">Updated</dt><dd className="mt-1 text-white/80">{collection.updated_at ? formatDate(collection.updated_at) : '-'}</dd></div></dl>
-                </div>
-              </aside>
-
-              <main className="space-y-5">
-                <CollectionVectorWorkspace projectId={projectId} collection={collection} documentCount={items.length} readyDocumentCount={readyCount} onUploadDocument={() => setUploadOpen(true)} />
-
-                <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                  <h3 className="text-sm font-semibold text-white">Collection information</h3>
-                  <p className="mt-1 text-xs text-muted">Edit the collection identity used across Knowledge.</p>
-                  <div className="mt-4 space-y-4"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Collection name" /><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-[110px]" placeholder="Description" /></div>
-                </section>
-
-                <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="text-sm font-semibold text-white">Documents</h3><p className="mt-1 text-xs leading-5 text-muted">{items.length} files · {readyCount} ready · {formatBytes(totalSize)} total</p></div><div className="flex gap-2"><Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isLoading}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button><Button type="button" size="sm" onClick={() => setUploadOpen(true)}><Upload className="mr-2 h-3.5 w-3.5" />Upload</Button></div></div>
-                  {isLoading ? <div className="rounded-xl border border-border/70 bg-background/60 p-8"><LoadingState message="Loading documents..." variant="inline" /></div> : items.length === 0 ? <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center"><FileText className="h-5 w-5 text-muted" /><p className="mt-4 text-sm font-medium text-white">No documents in this collection.</p><p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material before building vectors.</p><Button type="button" onClick={() => setUploadOpen(true)} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button></div> : <div className="space-y-2">{items.map((document) => <div key={document.id} className="rounded-lg border border-border/70 bg-background/55 p-3"><div className="flex min-w-0 gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><FileText className="h-4 w-4" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-medium text-white">{document.title}</p>{document.status && <StatusBadge status={document.status} />}</div><p className="mt-1 truncate text-xs text-muted">{documentMeta(document)}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Chunks: {document.chunk_count ?? 0}</span><span>Pages: {document.page_count ?? '-'}</span><span>Created: {document.created_at ? formatDate(document.created_at) : '-'}</span></div></div></div></div>)}</div>}
-                </section>
-              </main>
-            </div>
-            <div className="sticky bottom-0 -mx-1 mt-6 flex flex-col-reverse gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose} disabled={updateCollection.isPending}>Close</Button><Button type="button" onClick={save} loading={updateCollection.isPending} disabled={!hasChanges}>Save changes</Button></div>
-          </div>
-        )}
-      </Dialog>
-
-      <CollectionDocumentUploadModal open={uploadOpen} projectId={projectId} collection={collection ? { id: collection.id, name: collection.name } : null} onClose={() => setUploadOpen(false)} onUploaded={handleUploaded} />
-    </>
-  )
+  return <><Dialog open={open && Boolean(collection)} onClose={onClose} title="Collection details" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">{collection && <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1"><div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]"><aside className="rounded-xl border border-border/80 bg-background/70 p-4 lg:self-start"><div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface text-primary-light"><Database className="h-4 w-4" /></div><div className="mt-4 flex items-start justify-between gap-3"><h3 className="truncate text-sm font-semibold text-white">{collection.name}</h3>{collection.status && <StatusBadge status={collection.status} />}</div><p className="mt-2 line-clamp-4 text-sm leading-6 text-muted">{collection.description || 'No description provided'}</p><div className="mt-4 space-y-2 text-xs text-muted"><p>{items.length} documents</p><p>{readyCount} ready</p><p>{formatBytes(totalSize)}</p></div><Button type="button" variant="outline" size="sm" className="mt-4 w-full" onClick={() => setUploadOpen(true)}><Upload className="mr-2 h-3.5 w-3.5" />Upload</Button></aside><main><CollectionVectorWorkspace projectId={projectId} collection={collection} documentCount={items.length} readyDocumentCount={readyCount} onUploadDocument={() => setUploadOpen(true)} /></main></div><div className="mt-5 flex justify-end border-t border-border pt-4"><Button type="button" variant="outline" onClick={onClose}>Close</Button></div></div>}</Dialog><CollectionDocumentUploadModal open={uploadOpen} projectId={projectId} collection={collection ? { id: collection.id, name: collection.name } : null} onClose={() => setUploadOpen(false)} onUploaded={uploaded} /></>
 }
