@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Key, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -33,6 +33,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   const createModel = useCreateProviderModel()
   const updateModel = useUpdateProviderModel()
   const isEditing = Boolean(model)
+  const wasOpen = useRef(false)
 
   const activeCredentials = useMemo(
     () => credentials.filter((credential) => !credential.status || credential.status === 'active'),
@@ -57,7 +58,9 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   )
 
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpen.current
+    wasOpen.current = open
+    if (!justOpened) return
 
     if (model) {
       setCredentialId(model.provider_credential_id)
@@ -68,13 +71,19 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
       return
     }
 
-    const firstCredential = activeCredentials[0]
-    setCredentialId(firstCredential?.id || '')
+    setCredentialId('')
     setName('')
     setModelIdentifier('')
     setCatalogModelId('')
+    setManualMode(false)
+  }, [open, model])
+
+  useEffect(() => {
+    if (!open || model || credentialId || activeCredentials.length === 0) return
+    const firstCredential = activeCredentials[0]
+    setCredentialId(firstCredential.id)
     setManualMode(!supportsModelCatalog(firstCredential))
-  }, [open, model, activeCredentials])
+  }, [open, model, credentialId, activeCredentials])
 
   const selectCredential = (nextCredentialId: string) => {
     const credential = activeCredentials.find((item) => item.id === nextCredentialId) || null
