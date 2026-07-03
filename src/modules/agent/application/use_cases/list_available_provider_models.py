@@ -27,8 +27,8 @@ class ListAvailableProviderModelsUseCase:
         self,
         credential_repo: ProviderCredentialRepository,
         discovery_service: ModelDiscoveryService | None = None,
-        embedding_discovery_service: OpenRouterEmbeddingModelDiscoveryService | None = None,
         encryption_key: str | None = None,
+        embedding_discovery_service: OpenRouterEmbeddingModelDiscoveryService | None = None,
     ) -> None:
         self._credential_repo = credential_repo
         self._discovery_service = discovery_service or ModelDiscoveryService()
