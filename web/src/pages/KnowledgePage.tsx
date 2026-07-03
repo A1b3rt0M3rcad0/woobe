@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -81,15 +82,12 @@ export default function KnowledgePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <button
-          type="button"
+        <CreateResourceCard
+          title="New collection"
+          description="Group documents for retrieval"
+          minHeight="sm"
           onClick={() => setShowCreateCol(true)}
-          className="group flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/5"
-        >
-          <Plus className="h-6 w-6 text-primary-light" />
-          <span className="mt-4 text-base font-semibold text-white">New collection</span>
-          <span className="mt-2 text-sm text-muted">Group documents for retrieval</span>
-        </button>
+        />
 
         {(hasNoCollections || hasSearchMiss) && (
           <div className="flex min-h-[220px] flex-col rounded-xl border border-border/80 bg-surface/50 p-6 text-left">
