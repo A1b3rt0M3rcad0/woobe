@@ -22,7 +22,7 @@ function numberLabel(value?: number | null) {
 }
 
 function statusLabel(status?: string) {
-  return (status || 'UNKNOWN').replaceAll('_', ' ')
+  return (status || 'UNKNOWN').replace(/_/g, ' ')
 }
 
 function StatCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
