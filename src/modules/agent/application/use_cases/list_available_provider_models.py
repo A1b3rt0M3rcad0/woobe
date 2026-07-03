@@ -17,6 +17,11 @@ from shared.infra.crypto import decrypt_secret
 from shared.infra.errors import ValidationError
 
 
+def _is_embedding_model(model: AvailableProviderModelOutput) -> bool:
+    value = f"{model.id} {model.label}".lower()
+    return "embed" in value
+
+
 class ListAvailableProviderModelsUseCase:
     def __init__(
         self,
@@ -63,12 +68,15 @@ class ListAvailableProviderModelsUseCase:
                     metadata=metadata,
                 )
 
-            return await self._discovery_service.list_models(
+            models = await self._discovery_service.list_models(
                 ModelDiscoveryContext(
                     provider=provider,
                     api_key=api_key,
                     metadata=metadata,
                 )
             )
+            if capability == "embedding":
+                return [model for model in models if _is_embedding_model(model)]
+            return models
         except ProviderModelDiscoveryError as exc:
             raise ValidationError(str(exc)) from exc
