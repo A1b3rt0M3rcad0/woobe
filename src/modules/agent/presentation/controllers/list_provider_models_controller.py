@@ -30,6 +30,7 @@ class ListProviderModelsController(Controller):
                 ListAvailableProviderModelsInput(
                     credential_id=UUID(available_for_credential_id),
                     project_id=request.query_params.get("project_id"),
+                    capability=request.query_params.get("capability"),
                 )
             )
             return Response(

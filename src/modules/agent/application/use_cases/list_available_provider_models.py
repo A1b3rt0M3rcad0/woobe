@@ -11,6 +11,7 @@ from modules.agent.infra.adapters.model_discovery import (
     ModelDiscoveryService,
     ProviderModelDiscoveryError,
 )
+from modules.agent.infra.adapters.openrouter_embedding_discovery import OpenRouterEmbeddingModelDiscoveryService
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
 from shared.infra.errors import ValidationError
@@ -21,10 +22,12 @@ class ListAvailableProviderModelsUseCase:
         self,
         credential_repo: ProviderCredentialRepository,
         discovery_service: ModelDiscoveryService | None = None,
+        embedding_discovery_service: OpenRouterEmbeddingModelDiscoveryService | None = None,
         encryption_key: str | None = None,
     ) -> None:
         self._credential_repo = credential_repo
         self._discovery_service = discovery_service or ModelDiscoveryService()
+        self._embedding_discovery_service = embedding_discovery_service or OpenRouterEmbeddingModelDiscoveryService()
         self._encryption_key = encryption_key or Settings().encryption_key
 
     async def execute(self, input_dto: ListAvailableProviderModelsInput) -> list[AvailableProviderModelOutput]:
@@ -42,12 +45,24 @@ class ListAvailableProviderModelsUseCase:
 
         provider = credential.provider.value if hasattr(credential.provider, "value") else str(credential.provider)
         metadata = credential.metadata or {}
+        capability = (input_dto.capability or "").strip().lower()
+        if capability == "embeddings":
+            capability = "embedding"
+        if capability not in {"", "embedding"}:
+            raise ValidationError(f"Unsupported model discovery capability: {capability}")
+
         try:
             api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as exc:
             raise ValidationError("Provider credential secret could not be decrypted. Recreate the credential.") from exc
 
         try:
+            if capability == "embedding" and provider == "openrouter":
+                return await self._embedding_discovery_service.list_models(
+                    api_key=api_key,
+                    metadata=metadata,
+                )
+
             return await self._discovery_service.list_models(
                 ModelDiscoveryContext(
                     provider=provider,

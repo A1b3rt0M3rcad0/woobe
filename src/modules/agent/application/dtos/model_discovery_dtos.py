@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class ListAvailableProviderModelsInput(BaseModel):
     credential_id: UUID
     project_id: UUID | None = None
+    capability: str | None = None
 
 
 class AvailableProviderModelOutput(BaseModel):
