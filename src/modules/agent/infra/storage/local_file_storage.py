@@ -53,6 +53,13 @@ class LocalFileStorage:
             sha256=sha256,
         )
 
+    async def read_document(self, storage_key: str) -> bytes:
+        base_dir = self._base_dir.resolve()
+        target_path = (base_dir / storage_key).resolve()
+        if not target_path.is_relative_to(base_dir):
+            raise ValueError("Resolved read path escapes configured local storage root")
+        return await asyncio.to_thread(target_path.read_bytes)
+
     async def delete(self, storage_key: str) -> None:
         base_dir = self._base_dir.resolve()
         target_path = (base_dir / storage_key).resolve()

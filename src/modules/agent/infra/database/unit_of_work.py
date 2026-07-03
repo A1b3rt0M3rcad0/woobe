@@ -26,6 +26,9 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyProviderCredentialRepository,
     SQLAlchemySessionRepository,
 )
+from modules.agent.infra.database.vector_snapshot_repositories import (
+    SQLAlchemyVectorSnapshotRepository,
+)
 
 
 class AgentUnitOfWork(UnitOfWork):
@@ -43,6 +46,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._documents: SQLAlchemyDocumentRepository | None = None
         self._document_chunks: SQLAlchemyDocumentChunkRepository | None = None
         self._knowledge_versions: SQLAlchemyKnowledgeVersionRepository | None = None
+        self._vector_snapshots: SQLAlchemyVectorSnapshotRepository | None = None
         self._tools: SQLAlchemyAgentToolRepository | None = None
         self._tool_secrets: SQLAlchemyAgentToolSecretRepository | None = None
         self._outbox: SQLAlchemyAgentOutboxRepository | None = None
@@ -121,6 +125,12 @@ class AgentUnitOfWork(UnitOfWork):
         return self._knowledge_versions
 
     @property
+    def vector_snapshots(self) -> SQLAlchemyVectorSnapshotRepository:
+        if self._vector_snapshots is None:
+            self._vector_snapshots = SQLAlchemyVectorSnapshotRepository(self)
+        return self._vector_snapshots
+
+    @property
     def outbox(self) -> SQLAlchemyAgentOutboxRepository:
         if self._outbox is None:
             self._outbox = SQLAlchemyAgentOutboxRepository(self)
@@ -179,6 +189,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._documents = None
         self._document_chunks = None
         self._knowledge_versions = None
+        self._vector_snapshots = None
         self._tools = None
         self._tool_secrets = None
         self._outbox = None
