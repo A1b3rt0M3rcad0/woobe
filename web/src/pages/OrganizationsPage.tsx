@@ -84,6 +84,18 @@ export default function OrganizationsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="group flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
+            <Plus className="h-6 w-6" />
+          </span>
+          <span className="mt-5 text-base font-semibold text-white">New organization</span>
+          <span className="mt-2 max-w-[180px] text-sm leading-6 text-muted">Create a new organization</span>
+        </button>
+
         {visibleOrganizations.map((org) => (
           <button
             key={org.id}
@@ -113,18 +125,6 @@ export default function OrganizationsPage() {
             </span>
           </button>
         ))}
-
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="group flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
-            <Plus className="h-6 w-6" />
-          </span>
-          <span className="mt-5 text-base font-semibold text-white">New organization</span>
-          <span className="mt-2 max-w-[180px] text-sm leading-6 text-muted">Create a new organization</span>
-        </button>
       </div>
 
       <CreateOrganizationDialog
