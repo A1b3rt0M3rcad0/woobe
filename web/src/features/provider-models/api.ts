@@ -10,12 +10,13 @@ export async function getProviderModels(projectId?: string, credentialId?: strin
   })
 }
 
-export async function getAvailableProviderModels(projectId?: string, credentialId?: string): Promise<AvailableProviderModel[]> {
+export async function getAvailableProviderModels(projectId?: string, credentialId?: string, capability?: string): Promise<AvailableProviderModel[]> {
   if (!credentialId) return []
   return get<AvailableProviderModel[]>('/ai/provider-models', {
     params: {
       project_id: projectId,
       available_for_credential_id: credentialId,
+      capability,
     },
   })
 }

@@ -9,7 +9,7 @@ import { AddProviderCredentialModal } from '@/features/provider-credentials/comp
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { useAvailableProviderModels, useCreateProviderModel, useUpdateProviderModel } from '@/features/provider-models/hooks'
-import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
+import type { ProviderModel } from '@/features/provider-models/types'
 
 interface CreateEmbeddingModelModalProps {
   open: boolean
@@ -23,16 +23,10 @@ function supportsModelCatalog(credential?: ProviderCredential | null) {
   return credential?.provider === 'openai' || credential?.provider === 'openrouter'
 }
 
-function isEmbeddingCatalogModel(model: AvailableProviderModel) {
-  const value = `${model.id} ${model.label}`.toLowerCase()
-  return value.includes('embed')
-}
-
 export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated, model = null }: CreateEmbeddingModelModalProps) {
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
   const createModel = useCreateProviderModel()
   const updateModel = useUpdateProviderModel()
-  const isEditing = Boolean(model)
   const wasOpen = useRef(false)
 
   const activeCredentials = useMemo(
@@ -51,11 +45,9 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
   const catalogQuery = useAvailableProviderModels(
     projectId,
     supportsModelCatalog(selectedCredential) ? credentialId : undefined,
+    'embedding',
   )
-  const embeddingCatalog = useMemo(
-    () => (catalogQuery.data ?? []).filter(isEmbeddingCatalogModel),
-    [catalogQuery.data],
-  )
+  const embeddingCatalog = catalogQuery.data ?? []
 
   useEffect(() => {
     const justOpened = open && !wasOpen.current
@@ -150,17 +142,18 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
         })
         toast.success('Embedding model updated')
         onCreated(updated.id)
-      } else {
-        const created = await createModel.mutateAsync({
-          project_id: projectId,
-          provider_credential_id: credentialId,
-          name: name.trim(),
-          model: modelIdentifier.trim(),
-          metadata,
-        })
-        toast.success('Embedding model added')
-        onCreated(created.id)
+        return
       }
+
+      const created = await createModel.mutateAsync({
+        project_id: projectId,
+        provider_credential_id: credentialId,
+        name: name.trim(),
+        model: modelIdentifier.trim(),
+        metadata,
+      })
+      toast.success('Embedding model added')
+      onCreated(created.id)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save embedding model')
     }
@@ -170,7 +163,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} title={isEditing ? 'Edit embedding model' : 'Add embedding model'} className="max-w-lg">
+      <Dialog open={open} onClose={onClose} title={model ? 'Edit embedding model' : 'Add embedding model'} className="max-w-lg">
         <form onSubmit={submit} className="space-y-4">
           {activeCredentials.length === 0 ? (
             <div className="rounded-xl border border-border bg-background/60 p-4">
@@ -178,7 +171,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                 <Key className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
                 <div>
                   <p className="text-sm font-medium text-white">A provider credential is required.</p>
-                  <p className="mt-1 text-sm leading-6 text-muted">Add a BYOK credential, then create the embedding model that will be used to build vectors.</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">Add a BYOK credential, then create the embedding model used to build vectors.</p>
                 </div>
               </div>
               <Button type="button" size="sm" variant="outline" className="mt-4" onClick={() => setCredentialModalOpen(true)}>
@@ -209,11 +202,11 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                     <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={() => { setManualMode(true); setCatalogModelId(''); setModelIdentifier(''); setName('') }}>Enter manually</Button>
                   </div>
                   {catalogQuery.isLoading ? (
-                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">Loading provider models...</div>
+                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">Loading embedding models...</div>
                   ) : catalogQuery.isError ? (
-                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">Could not load the provider catalog. Use manual entry.</div>
+                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">Could not load the embedding catalog. Use manual entry.</div>
                   ) : embeddingCatalog.length === 0 ? (
-                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">No embedding models were found in the provider catalog. Use manual entry.</div>
+                    <div className="rounded-lg border border-border bg-background/50 px-3 py-3 text-sm text-muted">No embedding models were returned by this provider. Use manual entry.</div>
                   ) : (
                     <Select
                       value={catalogModelId}
@@ -227,7 +220,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                 <div>
                   <div className="mb-1.5 flex items-center justify-between gap-3">
                     <label className="block text-sm font-medium text-muted">Model</label>
-                    {supportsModelCatalog(selectedCredential) && !isEditing && (
+                    {supportsModelCatalog(selectedCredential) && !model && (
                       <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={() => { setManualMode(false); setModelIdentifier(''); setName('') }}>Use provider catalog</Button>
                     )}
                   </div>
@@ -247,7 +240,7 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
           <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
             <Button type="submit" loading={pending} disabled={activeCredentials.length === 0 || !credentialId || !name.trim() || !modelIdentifier.trim()}>
-              {isEditing ? 'Save changes' : 'Add model'}
+              {model ? 'Save changes' : 'Add model'}
             </Button>
           </div>
         </form>
