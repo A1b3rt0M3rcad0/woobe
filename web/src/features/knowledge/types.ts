@@ -74,6 +74,14 @@ export interface UploadDocumentFileRequest {
 
 export type KnowledgeProviderModel = Record<string, any>
 
+export interface CreateKnowledgeProviderModelRequest {
+  project_id: string
+  provider_credential_id: string
+  name: string
+  model: string
+  metadata?: Record<string, unknown>
+}
+
 export interface VectorSnapshot {
   id: string
   project_id: string
