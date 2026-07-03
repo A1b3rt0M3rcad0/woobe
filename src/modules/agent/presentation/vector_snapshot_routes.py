@@ -8,11 +8,13 @@ from fastapi.responses import JSONResponse
 
 from modules.agent.application.dtos.vector_snapshot_dtos import (
     CreateVectorSnapshotInput,
+    GetCollectionOverviewInput,
     GetVectorSnapshotInput,
     ListVectorSnapshotsInput,
 )
 from modules.agent.application.use_cases.vector_snapshot_use_cases import (
     CreateVectorSnapshotUseCase,
+    GetCollectionOverviewUseCase,
     GetVectorSnapshotUseCase,
     ListVectorSnapshotsUseCase,
 )
@@ -26,6 +28,24 @@ def _error(status_code: int, message: str) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={"success": False, "message": message, "data": None},
+    )
+
+
+@router.get("/collections/{collection_id}/overview")
+async def get_collection_overview(request: Request, collection_id: UUID, project_id: UUID):
+    try:
+        input_dto = GetCollectionOverviewInput(project_id=project_id, collection_id=collection_id)
+        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
+            use_case = GetCollectionOverviewUseCase(
+                snapshot_repo=uow.vector_snapshots,
+                collection_repo=uow.document_collections,
+                document_repo=uow.documents,
+            )
+            output = await use_case.execute(input_dto)
+    except NotFoundError as exc:
+        return _error(404, str(exc))
+    return jsonable_encoder(
+        {"success": True, "message": "ok", "data": output.model_dump()}
     )
 
 
