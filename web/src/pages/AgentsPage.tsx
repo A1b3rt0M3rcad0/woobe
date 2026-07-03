@@ -186,6 +186,12 @@ export default function AgentsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CreateCard
+          title="New agent"
+          description="Create with name, description and reusable model"
+          onClick={openCreateAgent}
+        />
+
         {visibleAgents.map((agent: Agent) => (
           <button
             key={agent.id}
@@ -218,12 +224,6 @@ export default function AgentsPage() {
             </span>
           </button>
         ))}
-
-        <CreateCard
-          title="New agent"
-          description="Create with name, description and reusable model"
-          onClick={openCreateAgent}
-        />
       </div>
 
       <Dialog open={showCreateAgent} onClose={closeCreateAgent} title="Create agent" className="max-w-2xl">
