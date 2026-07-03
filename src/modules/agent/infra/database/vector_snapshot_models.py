@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,12 @@ class VectorSnapshotModel(BaseModel):
             name="uq_vector_snapshots_project_collection_version",
         ),
         Index("ix_vector_snapshots_project_collection_status", "project_id", "collection_id", "status"),
+        Index(
+            "uq_vector_snapshots_building_per_collection",
+            "collection_id",
+            unique=True,
+            postgresql_where=text("status = 'BUILDING'"),
+        ),
         {"schema": "agent"},
     )
 
@@ -30,6 +36,7 @@ class VectorSnapshotModel(BaseModel):
     version: Mapped[str] = mapped_column(String(64))
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="BUILDING")
+    build_stage: Mapped[str] = mapped_column(String(32), default="QUEUED")
     embedding_provider_model_id: Mapped[UUID] = mapped_column(ForeignKey("agent.provider_models.id"))
     embedding_provider: Mapped[str] = mapped_column(String(64))
     embedding_model: Mapped[str] = mapped_column(String(255))
@@ -38,9 +45,22 @@ class VectorSnapshotModel(BaseModel):
     chunk_overlap: Mapped[int] = mapped_column(Integer, default=120)
     chunking_strategy: Mapped[str] = mapped_column(String(64), default="recursive_text")
     parser_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    build_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    retrieval_defaults: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     snapshot_hash: Mapped[str | None] = mapped_column(String(64))
+    build_config_hash: Mapped[str | None] = mapped_column(String(64))
     document_count: Mapped[int] = mapped_column(Integer, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    vector_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_document_count: Mapped[int] = mapped_column(Integer, default=0)
+    processed_document_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    processed_chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    embedded_chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    current_document_id: Mapped[UUID | None]
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(128))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[UUID | None]
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
