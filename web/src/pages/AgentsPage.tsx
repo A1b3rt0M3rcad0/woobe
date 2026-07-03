@@ -5,11 +5,12 @@ import { useProviderModels } from '@/features/provider-models/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { ArrowRight, Bot, Boxes, Plus, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Bot, Boxes, Search, ShieldCheck } from 'lucide-react'
 import { orgProjectPath } from '@/lib/constants/routes'
 import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
@@ -41,22 +42,6 @@ function MinimalShell({ title, description, children }: { title: string; descrip
       </div>
       {children}
     </div>
-  )
-}
-
-function CreateCard({ title, description, onClick }: { title: string; description: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
-        <Plus className="h-6 w-6" />
-      </span>
-      <span className="mt-5 text-base font-semibold text-white">{title}</span>
-      <span className="mt-2 max-w-[220px] text-sm leading-6 text-muted">{description}</span>
-    </button>
   )
 }
 
@@ -186,6 +171,12 @@ export default function AgentsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CreateResourceCard
+          title="New agent"
+          description="Create with name, description and reusable model"
+          onClick={openCreateAgent}
+        />
+
         {visibleAgents.map((agent: Agent) => (
           <button
             key={agent.id}
@@ -218,12 +209,6 @@ export default function AgentsPage() {
             </span>
           </button>
         ))}
-
-        <CreateCard
-          title="New agent"
-          description="Create with name, description and reusable model"
-          onClick={openCreateAgent}
-        />
       </div>
 
       <Dialog open={showCreateAgent} onClose={closeCreateAgent} title="Create agent" className="max-w-2xl">

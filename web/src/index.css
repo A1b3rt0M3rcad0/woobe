@@ -88,6 +88,24 @@
   flex-shrink: 0;
 }
 
+/* Keep large model catalog pickers visually stable while filtering. */
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl {
+  display: flex;
+  height: 24rem;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
+  min-height: 2rem;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy

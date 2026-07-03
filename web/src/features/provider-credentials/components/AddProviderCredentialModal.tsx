@@ -7,20 +7,42 @@ import { Select } from '@/components/ui/Select'
 import { toast } from 'sonner'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+
 const providers = [
   { value: 'openai', label: 'OpenAI' },
+  { value: 'custom', label: 'OpenAI Compatible' },
   { value: 'openrouter', label: 'OpenRouter' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google' },
-  { value: 'custom', label: 'Custom (OpenAI-compatible)' },
 ]
 
 const defaultNames: Record<string, string> = {
   openai: 'OpenAI',
+  custom: 'OpenAI Compatible Provider',
   openrouter: 'OpenRouter',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  custom: 'Custom Provider',
+}
+
+function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
+  if (provider === 'custom') {
+    return {
+      provider_family: 'openai',
+      compatibility: 'compatible',
+      base_url: baseUrl.trim(),
+      model_discovery_strategy: 'openai_compatible_models',
+    }
+  }
+  if (provider === 'openrouter') {
+    return {
+      provider_family: 'openrouter',
+      compatibility: 'native',
+      base_url: OPENROUTER_BASE_URL,
+      model_discovery_strategy: 'openrouter_models',
+    }
+  }
+  return {
+    provider_family: 'openai',
+    compatibility: 'native',
+    model_discovery_strategy: 'openai_models',
+  }
 }
 
 interface AddProviderCredentialModalProps {
@@ -79,21 +101,18 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       return
     }
     if (provider === 'custom' && !baseUrl.trim()) {
-      toast.error('Base URL is required for custom providers')
+      toast.error('Base URL is required for OpenAI Compatible providers')
       return
     }
 
     try {
+      const metadata = buildCredentialMetadata(provider, baseUrl)
       if (isEditing && credential) {
         const payload: Record<string, unknown> = {}
         if (name.trim() !== credential.name) payload.name = name.trim()
         if (provider !== credential.provider) payload.provider = provider
         if (secret.trim()) payload.secret = secret.trim()
-        if (provider === 'custom') {
-          payload.metadata = { base_url: baseUrl.trim() }
-        } else if (credential.metadata?.base_url) {
-          payload.metadata = {}
-        }
+        payload.metadata = metadata
         await updateCredential.mutateAsync({ id: credential.id, data: payload as any })
         toast.success('Credential updated')
         onCredentialCreated(credential.id)
@@ -103,9 +122,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
           provider,
           name: name.trim(),
           secret: secret.trim(),
-        }
-        if (provider === 'custom') {
-          payload.metadata = { base_url: baseUrl.trim() }
+          metadata,
         }
         const result = await createCredential.mutateAsync(payload as any)
         toast.success('Credential added')
@@ -127,7 +144,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
             onChange={(e) => setProvider(e.target.value)}
             options={providers}
           />
-          <p className="mt-1 text-xs text-muted">Credentials only store access. Models are created separately from this credential.</p>
+          <p className="mt-1 text-xs text-muted">Credentials only store access. Models are selected separately from the provider catalog when possible.</p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-muted">Name</label>
@@ -154,8 +171,11 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://api.example.com/v1"
             />
-            <p className="mt-1 text-xs text-muted">Use this for OpenAI-compatible gateways. The model slug is configured on the Models page.</p>
+            <p className="mt-1 text-xs text-muted">Use this for OpenAI-compatible gateways. Model discovery will try GET /models and fall back to manual model entry if unavailable.</p>
           </div>
+        )}
+        {provider === 'openrouter' && (
+          <p className="rounded-lg border border-border bg-background p-3 text-xs text-muted">OpenRouter uses <code>{OPENROUTER_BASE_URL}</code> automatically. Models are loaded from the OpenRouter catalog.</p>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

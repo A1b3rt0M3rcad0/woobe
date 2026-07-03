@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -57,13 +58,16 @@ export default function KnowledgePage() {
   if (colsLoading) return <LoadingState />
   if (colsError) return <ErrorState onRetry={refetchCols} />
 
+  const hasNoCollections = collectionItems.length === 0
+  const hasSearchMiss = normalizedQuery.length > 0 && visibleCollections.length === 0
+
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Knowledge</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted">
-            Create collections and manage each collection's documents directly from its details panel.
+            Create collections and manage the documents in each collection directly from its details panel.
           </p>
         </div>
         <Button type="button" onClick={() => setShowCreateCol(true)} className="lg:mt-1">
@@ -77,62 +81,54 @@ export default function KnowledgePage() {
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search collections..." className="h-11 pl-9" />
       </div>
 
-      {visibleCollections.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-surface/45 p-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-            <Database className="h-5 w-5" />
-          </div>
-          <p className="mt-4 text-base font-semibold text-white">
-            {normalizedQuery ? 'No collections found' : 'No collections yet'}
-          </p>
-          <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-            {normalizedQuery
-              ? 'Adjust the search term or clear the filter to see all collections.'
-              : 'Create a collection first. Documents are uploaded and managed inside each collection.'}
-          </p>
-          {!normalizedQuery && (
-            <Button type="button" onClick={() => setShowCreateCol(true)} className="mt-5">
-              <Plus className="mr-2 h-4 w-4" />
-              Create collection
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visibleCollections.map((collection: Collection) => (
-            <button
-              key={collection.id}
-              type="button"
-              aria-label={`Open collection ${collection.name}`}
-              onClick={() => setSelectedCollectionId(collection.id)}
-              className="group flex min-h-[220px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <span className="flex items-start justify-between gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
-                  <Database className="h-5 w-5" />
-                </span>
-                {collection.status && <StatusBadge status={collection.status} />}
-              </span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CreateResourceCard
+          title="New collection"
+          description="Group documents for retrieval"
+          minHeight="sm"
+          onClick={() => setShowCreateCol(true)}
+        />
 
-              <span className="mt-6 block min-w-0">
-                <span className="block truncate text-base font-semibold text-white">{collection.name}</span>
-                <span className="mt-2 block line-clamp-3 text-sm leading-6 text-muted">
-                  {collection.description || 'No description provided'}
-                </span>
-              </span>
-            </button>
-          ))}
+        {(hasNoCollections || hasSearchMiss) && (
+          <div className="flex min-h-[220px] flex-col rounded-xl border border-border/80 bg-surface/50 p-6 text-left">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
+              <Database className="h-5 w-5" />
+            </div>
+            <p className="mt-5 text-base font-semibold text-white">
+              {hasSearchMiss ? 'No collections found' : 'No collections yet'}
+            </p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+              {hasSearchMiss
+                ? 'Adjust the search term or clear the filter to see all collections.'
+                : 'Create a collection first. Documents are managed inside each collection.'}
+            </p>
+          </div>
+        )}
+
+        {visibleCollections.map((collection: Collection) => (
           <button
+            key={collection.id}
             type="button"
-            onClick={() => setShowCreateCol(true)}
-            className="group flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/5"
+            aria-label={`Open collection ${collection.name}`}
+            onClick={() => setSelectedCollectionId(collection.id)}
+            className="group flex min-h-[220px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <Plus className="h-6 w-6 text-primary-light" />
-            <span className="mt-4 text-base font-semibold text-white">New collection</span>
-            <span className="mt-2 text-sm text-muted">Group documents for retrieval</span>
+            <span className="flex items-start justify-between gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
+                <Database className="h-5 w-5" />
+              </span>
+              {collection.status && <StatusBadge status={collection.status} />}
+            </span>
+
+            <span className="mt-6 block min-w-0">
+              <span className="block truncate text-base font-semibold text-white">{collection.name}</span>
+              <span className="mt-2 block line-clamp-3 text-sm leading-6 text-muted">
+                {collection.description || 'No description provided'}
+              </span>
+            </span>
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
       <Dialog open={showCreateCol} onClose={() => setShowCreateCol(false)} title="Create Collection">
         <form onSubmit={colForm.handleSubmit(handleCreateCollection)} className="space-y-4">

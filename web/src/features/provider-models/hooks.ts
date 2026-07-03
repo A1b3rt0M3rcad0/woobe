@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createProviderModel, getProviderModel, getProviderModels, updateProviderModel } from './api'
+import { createProviderModel, getAvailableProviderModels, getProviderModel, getProviderModels, updateProviderModel } from './api'
 import type { CreateProviderModelRequest, UpdateProviderModelRequest } from './types'
 
 export function useProviderModels(projectId?: string, credentialId?: string) {
@@ -7,6 +7,15 @@ export function useProviderModels(projectId?: string, credentialId?: string) {
     queryKey: ['provider-models', projectId, credentialId],
     queryFn: () => getProviderModels(projectId, credentialId),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useAvailableProviderModels(projectId?: string, credentialId?: string) {
+  return useQuery({
+    queryKey: ['available-provider-models', projectId, credentialId],
+    queryFn: () => getAvailableProviderModels(projectId, credentialId),
+    enabled: Boolean(projectId && credentialId),
+    retry: false,
   })
 }
 

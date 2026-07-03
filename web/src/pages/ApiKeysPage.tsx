@@ -239,10 +239,10 @@ export default function ApiKeysPage() {
       {(hasNoKeys || hasSearchMiss) && <NoResults query={query} />}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CreateCard onClick={openCreateDialog} />
         {visibleKeys.map((apiKey) => (
           <ApiKeyCard key={apiKey.id} apiKey={apiKey} onClick={() => setSelectedKeyId(apiKey.id)} />
         ))}
-        <CreateCard onClick={openCreateDialog} />
       </div>
 
       <Dialog

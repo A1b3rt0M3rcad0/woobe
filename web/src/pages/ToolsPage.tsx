@@ -287,6 +287,8 @@ export default function ToolsPage() {
       {hasSearchMiss && <NoResults />}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <CreateCard title="New tool" description="Connect an external capability" onClick={() => setShowCreate(true)} />
+
         {visibleTools.map((tool: Tool) => (
           <button key={tool.id} type="button" aria-label={`Open tool settings for ${tool.name}`} onClick={() => openToolModal(tool)} className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
             <span className="flex items-start justify-between gap-3">
@@ -305,8 +307,6 @@ export default function ToolsPage() {
             </span>
           </button>
         ))}
-
-        <CreateCard title="New tool" description="Connect an external capability" onClick={() => setShowCreate(true)} />
       </div>
 
       <ToolsCreateDialog open={showCreate} projectId={projectId!} onClose={() => setShowCreate(false)} onCreated={async () => { await refetch(); setShowCreate(false) }} />

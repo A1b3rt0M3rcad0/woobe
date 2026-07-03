@@ -11,6 +11,21 @@ export interface ProviderModel {
   updated_at?: string
 }
 
+export interface AvailableProviderModel {
+  id: string
+  label: string
+  provider: string
+  source: string
+  owned_by?: string | null
+  context_window?: number | null
+  input_cost_per_1m_tokens?: number | null
+  output_cost_per_1m_tokens?: number | null
+  supports_tools?: boolean | null
+  supports_json?: boolean | null
+  supports_streaming?: boolean | null
+  raw?: Record<string, any>
+}
+
 export interface CreateProviderModelRequest {
   project_id: string
   provider_credential_id: string
