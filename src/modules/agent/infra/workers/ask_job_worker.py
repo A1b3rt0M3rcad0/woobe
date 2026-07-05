@@ -13,7 +13,7 @@ from modules.agent.application.runtime_tool_inventory import (
 )
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -85,7 +85,7 @@ class AskJobWorker:
                 )
                 return result.model_dump()
 
-        use_case = AskAgentUseCase(
+        use_case = StructuredOutputAskAgentUseCase(
             session_factory=session_factory,
             llm_factory=llm_factory,
             encryption_key=settings.encryption_key,
@@ -94,11 +94,16 @@ class AskJobWorker:
 
         started_at = time.monotonic()
         try:
+            params = job.params or {}
             input_dto = AskInput(
                 project_id=job.project_id,
                 agent_id=job.agent_id,
-                message=(job.params or {}).get("message", ""),
+                message=params.get("message", ""),
                 session_id=job_session_id,
+                tenant_id=params.get("tenant_id"),
+                user_id=params.get("user_id"),
+                metadata=params.get("metadata"),
+                execution_context=params.get("execution_context", "production"),
             )
             result = await use_case.execute(input_dto)
 

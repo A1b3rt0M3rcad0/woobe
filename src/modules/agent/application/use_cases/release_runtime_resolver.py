@@ -6,13 +6,14 @@ from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus
 from shared.infra.errors import ValidationError
 from shared.infra.llm_cost import provider_model_pricing_snapshot
 
 
-class ReleaseRuntimeResolver(AskAgentUseCase):
+class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         agent = await self._load_base_agent(uow, input_dto)
         release_repo = getattr(uow, "releases", None)
