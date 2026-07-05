@@ -23,15 +23,12 @@ from modules.agent.application.use_cases.runtime_streaming import (
 
 class _PrimaryExecutionSuper(Protocol):
     async def execute(self, input_dto: Any) -> Any: ...
-
     async def _prepare(self, input_dto: Any) -> Any: ...
 
 
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
-
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
-
     def _clean_json_answer(self, answer: str) -> str: ...
 
 
@@ -134,6 +131,20 @@ class InstrumentedPrimaryExecutionMixin:
             raise
 
         context = current_execution.get()
+        if context and context.rag_metadata:
+            occurred_at = context.prepare_ended_at or utc_now()
+            execution.timeline.append(
+                {
+                    "kind": "rag",
+                    "occurred_at": occurred_at,
+                    "payload": {
+                        "occurred_at": occurred_at,
+                        "started_at": context.prepare_started_at,
+                        "ended_at": context.prepare_ended_at or occurred_at,
+                        **context.rag_metadata,
+                    },
+                }
+            )
         if context:
             context.execution = execution
         usage, _, _ = aggregate_usage(execution.llm_calls)
@@ -142,18 +153,6 @@ class InstrumentedPrimaryExecutionMixin:
             "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
         }
-        repaired = any(
-            call.get("phase") == "json_repair"
-            for call in execution.llm_calls
-        )
-        repair_latency = (
-            execution.llm_calls[-1].get("latency_ms")
-            if repaired
-            else None
-        )
-        return (
-            execution.result,
-            execution.tool_calls,
-            bool(execution.tool_calls),
-            repair_latency,
-        )
+        repaired = any(call.get("phase") == "json_repair" for call in execution.llm_calls)
+        repair_latency = execution.llm_calls[-1].get("latency_ms") if repaired else None
+        return execution.result, execution.tool_calls, bool(execution.tool_calls), repair_latency

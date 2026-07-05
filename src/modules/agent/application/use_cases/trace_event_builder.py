@@ -108,6 +108,24 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                     "error": payload.get("error"),
                 },
             ))
+        elif item.get("kind") == "rag":
+            occurred_at = str(ended_at or started_at or "")
+            attributes = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"started_at", "ended_at", "occurred_at"}
+            }
+            events.append(_event(
+                trace_id,
+                "rag.retrieval.completed",
+                occurred_at,
+                phase="retrieval",
+                status="success",
+                started_at=started_at,
+                ended_at=ended_at,
+                duration_ms=None,
+                attributes=attributes,
+            ))
     events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
     return events
 
