@@ -6,6 +6,7 @@ import { LoadingState } from '@/components/common/LoadingState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { useCreateKnowledgeVersion, useKnowledgeVersions } from '@/features/agents/hooks'
 import { SelectKnowledgeVersionModal } from '@/features/knowledge/components/SelectKnowledgeVersionModal'
+import { useCollections } from '@/features/knowledge/hooks'
 import type { VectorSnapshot } from '@/features/knowledge/types'
 import { useAgentEditor } from '../AgentEditorContext'
 
@@ -14,20 +15,18 @@ interface KnowledgeTabProps {
   agentId: string
 }
 
-function metadataOf(value?: Record<string, unknown> | null) {
-  return value || {}
-}
-
 export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { data: versions = [], isLoading, refetch } = useKnowledgeVersions(agentId)
+  const { data: collections = [] } = useCollections(projectId)
   const createKnowledgeVersion = useCreateKnowledgeVersion(agentId)
   const { state, setField } = useAgentEditor()
   const [selectorOpen, setSelectorOpen] = useState(false)
 
   const activeVersion = versions.find((version) => version.id === state.knowledgeVersionId) || null
-  const metadata = metadataOf(activeVersion?.snapshot_metadata)
+  const metadata = activeVersion?.snapshot_metadata || {}
   const activeSnapshotId = typeof metadata.vector_snapshot_id === 'string' ? metadata.vector_snapshot_id : null
-  const collectionName = typeof metadata.collection_name === 'string' ? metadata.collection_name : 'Versioned knowledge'
+  const collectionId = activeVersion?.collection_ids?.[0] || null
+  const collectionName = collections.find((collection) => collection.id === collectionId)?.name || 'Versioned knowledge'
   const snapshotVersion = typeof metadata.vector_snapshot_version === 'string' ? metadata.vector_snapshot_version : '—'
   const embeddingModel = typeof metadata.embedding_model === 'string' ? metadata.embedding_model : '—'
   const embeddingProvider = typeof metadata.embedding_provider === 'string' ? metadata.embedding_provider : '—'
@@ -98,13 +97,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
         </div>
       )}
 
-      <SelectKnowledgeVersionModal
-        open={selectorOpen}
-        projectId={projectId}
-        currentSnapshotId={activeSnapshotId}
-        onClose={() => setSelectorOpen(false)}
-        onSelect={applySnapshot}
-      />
+      <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={activeSnapshotId} onClose={() => setSelectorOpen(false)} onSelect={applySnapshot} />
     </div>
   )
 }
