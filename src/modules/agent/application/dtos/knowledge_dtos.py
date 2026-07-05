@@ -141,7 +141,7 @@ class GetDocumentInput(BaseModel):
 class CreateKnowledgeVersionInput(BaseModel):
     project_id: UUID
     agent_id: UUID
-    version: str
+    version: str | None = Field(default=None, min_length=1, max_length=64)
     collection_ids: list[UUID] = []
     document_ids: list[UUID] | None = None
     snapshot_metadata: dict | None = None
@@ -162,7 +162,12 @@ class CreateKnowledgeVersionOutput(BaseModel):
 
 class ListKnowledgeVersionsOutput(BaseModel):
     id: UUID
+    project_id: UUID
+    agent_id: UUID
     version: str
     collection_ids: list[UUID]
+    document_ids: list[UUID] | None = None
+    snapshot_metadata: dict | None = None
     status: KnowledgeVersionStatus
     created_at: datetime | None = None
+    updated_at: datetime | None = None

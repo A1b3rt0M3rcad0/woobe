@@ -11,7 +11,7 @@ from modules.agent.domain.enums import DocumentStatus, KnowledgeVersionStatus, P
 from modules.agent.domain.errors import DocumentNotFoundError
 from modules.agent.domain.events import AgentCollectionCreatedV1, AgentDocumentUploadedV1
 from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
-from modules.agent.domain.repositories import AgentCollectionRepository, DocumentChunkRepository, DocumentCollectionRepository, DocumentRepository, KnowledgeVersionRepository
+from modules.agent.domain.repositories import AgentCollectionRepository, AgentRepository, DocumentChunkRepository, DocumentCollectionRepository, DocumentRepository, KnowledgeVersionRepository
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from shared.infra.config import Settings
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -43,6 +43,34 @@ def _is_deleted_document(document: Document) -> bool:
 
 def _document_to_upload_output(document: Document) -> UploadDocumentOutput:
     return UploadDocumentOutput(id=document.id, project_id=document.project_id, collection_id=document.collection_id, title=document.title, file_name=document.file_name, content_type=document.content_type, size_bytes=document.size_bytes, storage_key=document.storage_key, parser=document.parser, status=document.status, page_count=document.page_count, chunk_count=document.chunk_count, error=document.error, sha256=document.sha256, indexed_at=document.indexed_at, created_at=document.created_at, updated_at=document.updated_at)
+
+
+def _knowledge_version_to_output(version: KnowledgeVersion) -> CreateKnowledgeVersionOutput:
+    return CreateKnowledgeVersionOutput(
+        id=version.id,
+        project_id=version.project_id,
+        agent_id=version.agent_id,
+        version=version.version,
+        collection_ids=version.collection_ids or [],
+        document_ids=version.document_ids,
+        snapshot_metadata=version.snapshot_metadata,
+        status=version.status,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+    )
+
+
+def _next_knowledge_version(existing: list[KnowledgeVersion]) -> str:
+    highest = 0
+    for item in existing:
+        raw = (item.version or "").strip().lower()
+        if raw.startswith("v"):
+            raw = raw[1:]
+        try:
+            highest = max(highest, int(raw))
+        except ValueError:
+            continue
+    return f"v{highest + 1}"
 
 
 class ListAgentCollectionsUseCase:
@@ -181,24 +209,48 @@ class GetDocumentUseCase:
 
 
 class CreateKnowledgeVersionUseCase:
-    def __init__(self, repo: KnowledgeVersionRepository, vector_snapshot_repo: Any | None = None) -> None:
+    def __init__(
+        self,
+        repo: KnowledgeVersionRepository,
+        vector_snapshot_repo: Any | None = None,
+        agent_repo: AgentRepository | None = None,
+    ) -> None:
         self._repo = repo
         self._vector_snapshot_repo = vector_snapshot_repo
+        self._agent_repo = agent_repo
 
     async def execute(self, input_dto: CreateKnowledgeVersionInput) -> CreateKnowledgeVersionOutput:
+        if self._agent_repo is not None:
+            agent = await self._agent_repo.get_by_id(input_dto.agent_id)
+            if agent is None or agent.project_id != input_dto.project_id:
+                raise NotFoundError("Agent not found")
+
         snapshot_metadata = dict(input_dto.snapshot_metadata or {})
         collection_ids = list(input_dto.collection_ids or [])
         vector_snapshot_id = snapshot_metadata.get("vector_snapshot_id")
+        existing_versions = await self._repo.list_by_agent(input_dto.agent_id)
+
         if vector_snapshot_id and self._vector_snapshot_repo is not None:
-            snapshot = await self._vector_snapshot_repo.get_by_id(UUID(str(vector_snapshot_id)))
+            snapshot_id = UUID(str(vector_snapshot_id))
+            snapshot = await self._vector_snapshot_repo.get_by_id(snapshot_id)
             if snapshot is None or snapshot.project_id != input_dto.project_id:
                 raise NotFoundError("Vector snapshot not found")
             if snapshot.status != VECTOR_SNAPSHOT_READY:
                 raise ConflictError("Knowledge version requires a READY vector snapshot")
+
+            for existing in existing_versions:
+                existing_metadata = existing.snapshot_metadata or {}
+                if (
+                    str(existing_metadata.get("vector_snapshot_id") or "") == str(snapshot.id)
+                    and _as_value(existing.status) != _as_value(KnowledgeVersionStatus.ARCHIVED)
+                ):
+                    return _knowledge_version_to_output(existing)
+
             collection_ids = [snapshot.collection_id]
             snapshot_metadata.update(
                 {
                     "vector_snapshot_id": str(snapshot.id),
+                    "vector_snapshot_version": snapshot.version,
                     "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
                     "embedding_provider": snapshot.embedding_provider,
                     "embedding_model": snapshot.embedding_model,
@@ -206,13 +258,44 @@ class CreateKnowledgeVersionUseCase:
                     "snapshot_hash": snapshot.snapshot_hash,
                     "chunk_count": snapshot.chunk_count,
                     "document_count": snapshot.document_count,
+                    "retrieval_defaults": dict(snapshot.retrieval_defaults or {}),
                 }
             )
-        v = await self._repo.save(KnowledgeVersion(project_id=input_dto.project_id, agent_id=input_dto.agent_id, version=input_dto.version, collection_ids=collection_ids, document_ids=input_dto.document_ids, snapshot_metadata=snapshot_metadata, status=KnowledgeVersionStatus.DRAFT))
-        return CreateKnowledgeVersionOutput(id=v.id, project_id=v.project_id, agent_id=v.agent_id, version=v.version, collection_ids=v.collection_ids or [], document_ids=v.document_ids, snapshot_metadata=v.snapshot_metadata, status=v.status, created_at=v.created_at, updated_at=v.updated_at)
+
+        version = input_dto.version or _next_knowledge_version(existing_versions)
+        duplicate = await self._repo.get_by_version(input_dto.agent_id, version)
+        if duplicate is not None:
+            raise ConflictError(f"Knowledge version {version} already exists for this agent")
+
+        saved = await self._repo.save(
+            KnowledgeVersion(
+                project_id=input_dto.project_id,
+                agent_id=input_dto.agent_id,
+                version=version,
+                collection_ids=collection_ids,
+                document_ids=input_dto.document_ids,
+                snapshot_metadata=snapshot_metadata,
+                status=KnowledgeVersionStatus.DRAFT,
+            )
+        )
+        return _knowledge_version_to_output(saved)
 
 
 class ListKnowledgeVersionsUseCase:
     def __init__(self, repo: KnowledgeVersionRepository) -> None: self._repo = repo
     async def execute(self, agent_id: UUID) -> list[ListKnowledgeVersionsOutput]:
-        return [ListKnowledgeVersionsOutput(id=v.id, version=v.version, collection_ids=v.collection_ids or [], status=v.status, created_at=v.created_at) for v in await self._repo.list_by_agent(agent_id)]
+        return [
+            ListKnowledgeVersionsOutput(
+                id=v.id,
+                project_id=v.project_id,
+                agent_id=v.agent_id,
+                version=v.version,
+                collection_ids=v.collection_ids or [],
+                document_ids=v.document_ids,
+                snapshot_metadata=v.snapshot_metadata,
+                status=v.status,
+                created_at=v.created_at,
+                updated_at=v.updated_at,
+            )
+            for v in await self._repo.list_by_agent(agent_id)
+        ]
