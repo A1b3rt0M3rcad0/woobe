@@ -5,7 +5,7 @@ from typing import cast
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -43,7 +43,6 @@ from shared.infra.errors import (
 )
 from shared.observability.http import RequestObservabilityMiddleware
 from shared.observability.logging_config import configure_logging
-from shared.observability.metrics import runtime_metrics
 from shared.presentation.errors import (
     authentication_handler,
     authorization_handler,
