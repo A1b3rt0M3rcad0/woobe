@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
+import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
@@ -37,7 +38,7 @@ export type AgentEditorState = {
 export interface EditorContextValue {
   state: AgentEditorState
   setField: <K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => void
-  setState: (s: AgentEditorState) => void
+  setState: (state: AgentEditorState) => void
   toSnapshot: () => Record<string, unknown>
   loadedReleaseId: string | null
   loadedReleaseVersion: string | null
@@ -48,28 +49,21 @@ export interface EditorContextValue {
   updateBaseline: () => void
 }
 
-const defaultResponseFormat: ResponseFormat = {
-  enabled: false,
-  type: 'text',
-  strict: false,
-  schema: null,
-}
-
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null): AgentEditorState {
   const settings = (agent.settings || {}) as Record<string, unknown>
-  const rf = (settings.response_format as Record<string, unknown>) || {}
+  const responseFormat = (settings.response_format as Record<string, unknown>) || {}
   return {
     name: agent.name || '',
     description: agent.description || '',
     systemPrompt: agent.system_prompt || '',
     responseFormat: {
-      enabled: Boolean(rf.enabled && rf.type === 'json'),
-      type: rf.type === 'json' ? 'json' : 'text',
-      strict: Boolean(rf.strict),
-      schema: rf.schema ?? null,
-      repair_attempts: (rf.repair_attempts as number) ?? undefined,
+      enabled: Boolean(responseFormat.enabled && responseFormat.type === 'json'),
+      type: responseFormat.type === 'json' ? 'json' : 'text',
+      strict: Boolean(responseFormat.strict),
+      schema: responseFormat.schema ?? null,
+      repair_attempts: (responseFormat.repair_attempts as number) ?? undefined,
     },
-    outputSchema: rf.schema ?? null,
+    outputSchema: responseFormat.schema ?? null,
     provider: agent.provider || '',
     model: agent.model || '',
     providerModelId: agent.provider_model_id || null,
@@ -90,11 +84,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
 export function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
   let schema = state.responseFormat.schema
   if (typeof schema === 'string') {
-    try {
-      schema = JSON.parse(schema as string)
-    } catch {
-      schema = null
-    }
+    try { schema = JSON.parse(schema) } catch { schema = null }
   }
   return {
     name: state.name,
@@ -149,29 +139,32 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     if (initializedDraftKnowledge.current || !releases) return
     initializedDraftKnowledge.current = true
     const draft = releases.find((release) => release.status === 'draft')
-    const draftKnowledgeVersionId = draft?.knowledge_version_id ?? null
-    setState((previous) => ({ ...previous, knowledgeVersionId: draftKnowledgeVersionId }))
-    setBaselineState((previous) => ({ ...previous, knowledgeVersionId: draftKnowledgeVersionId }))
+    const id = draft?.knowledge_version_id ?? null
+    setState((previous) => ({ ...previous, knowledgeVersionId: id }))
+    setBaselineState((previous) => ({ ...previous, knowledgeVersionId: id }))
   }, [releases])
 
   useEffect(() => {
-    if (state.providerModelId || !providerModels?.length) return
-    if (!state.providerCredentialId || !state.model) return
-    const providerModel = providerModels.find((item) => (
-      item.provider_credential_id === state.providerCredentialId && item.model === state.model
-    ))
-    if (!providerModel) return
-    setState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
+    if (!loadedReleaseId) return
+    let cancelled = false
+    void getRelease(agent.id, loadedReleaseId)
+      .then((release) => {
+        if (!cancelled) setState((previous) => ({ ...previous, knowledgeVersionId: release.knowledge_version_id ?? null }))
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [agent.id, loadedReleaseId])
+
+  useEffect(() => {
+    if (state.providerModelId || !providerModels?.length || !state.providerCredentialId || !state.model) return
+    const providerModel = providerModels.find((item) => item.provider_credential_id === state.providerCredentialId && item.model === state.model)
+    if (providerModel) setState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
   }, [state.providerModelId, state.providerCredentialId, state.model, providerModels])
 
   useEffect(() => {
-    if (state.fallbackProviderModelId || !providerModels?.length) return
-    if (!state.fallbackProviderCredentialId || !state.fallbackModel) return
-    const providerModel = providerModels.find((item) => (
-      item.provider_credential_id === state.fallbackProviderCredentialId && item.model === state.fallbackModel
-    ))
-    if (!providerModel) return
-    setState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
+    if (state.fallbackProviderModelId || !providerModels?.length || !state.fallbackProviderCredentialId || !state.fallbackModel) return
+    const providerModel = providerModels.find((item) => item.provider_credential_id === state.fallbackProviderCredentialId && item.model === state.fallbackModel)
+    if (providerModel) setState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
   }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, state.fallbackModel, providerModels])
 
   useEffect(() => {
@@ -204,9 +197,8 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [state.fallbackProviderModelId, providerModels, credentials])
 
   useEffect(() => {
-    if (state.providerModelId) return
-    if (!state.providerCredentialId || !credentials?.length) return
-    const credential = credentials.find((item: { id: string }) => item.id === state.providerCredentialId)
+    if (state.providerModelId || !state.providerCredentialId || !credentials?.length) return
+    const credential = credentials.find((item) => item.id === state.providerCredentialId)
     if (!credential) return
     setState((previous) => {
       const provider = credential.provider
@@ -218,50 +210,22 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [state.providerModelId, state.providerCredentialId, credentials])
 
   useEffect(() => {
-    if (state.fallbackProviderModelId) return
-    if (!state.fallbackProviderCredentialId || !credentials?.length) return
-    const credential = credentials.find((item: { id: string }) => item.id === state.fallbackProviderCredentialId)
-    if (!credential) return
-    setState((previous) => ({ ...previous, fallbackProvider: credential.provider, fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel }))
+    if (state.fallbackProviderModelId || !state.fallbackProviderCredentialId || !credentials?.length) return
+    const credential = credentials.find((item) => item.id === state.fallbackProviderCredentialId)
+    if (credential) setState((previous) => ({ ...previous, fallbackProvider: credential.provider, fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel }))
   }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, credentials])
 
-  const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
-    setState((previous) => ({ ...previous, [key]: value }))
-  }, [])
-
-  const setLoadedRelease = useCallback((id: string | null, version: string | null) => {
-    setLoadedReleaseId(id)
-    setLoadedReleaseVersion(version)
-  }, [])
-
+  const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => setState((previous) => ({ ...previous, [key]: value })), [])
+  const setLoadedRelease = useCallback((id: string | null, version: string | null) => { setLoadedReleaseId(id); setLoadedReleaseVersion(version) }, [])
   const toSnapshot = useCallback((): Record<string, unknown> => canonicalSnapshot(state), [state])
   const snapshot = useMemo(() => JSON.stringify(canonicalSnapshot(state)), [state])
   const baselineSnapshot = useMemo(() => JSON.stringify(canonicalSnapshot(baselineState)), [baselineState])
   const isDirty = snapshot !== baselineSnapshot
   const activeSource: 'current_draft' | 'draft_unsaved' = isDirty ? 'draft_unsaved' : 'current_draft'
-
-  const resetToBaseline = useCallback(() => {
-    setState(baselineState)
-    setLoadedRelease(null, null)
-  }, [baselineState, setLoadedRelease])
-
+  const resetToBaseline = useCallback(() => { setState(baselineState); setLoadedRelease(null, null) }, [baselineState, setLoadedRelease])
   const updateBaseline = useCallback(() => setBaselineState(state), [state])
 
-  const contextValue: EditorContextValue = {
-    state,
-    setField,
-    setState,
-    toSnapshot,
-    loadedReleaseId,
-    loadedReleaseVersion,
-    setLoadedRelease,
-    isDirty,
-    activeSource,
-    resetToBaseline,
-    updateBaseline,
-  }
-
-  return <EditorContext.Provider value={contextValue}>{children}</EditorContext.Provider>
+  return <EditorContext.Provider value={{ state, setField, setState, toSnapshot, loadedReleaseId, loadedReleaseVersion, setLoadedRelease, isDirty, activeSource, resetToBaseline, updateBaseline }}>{children}</EditorContext.Provider>
 }
 
 export function useAgentEditor(): EditorContextValue {
