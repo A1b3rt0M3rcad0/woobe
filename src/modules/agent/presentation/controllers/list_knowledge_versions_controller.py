@@ -1,4 +1,4 @@
-from modules.agent.presentation.mappers import list_knowledge_versions_to_response
+from modules.agent.presentation.mappers import knowledge_version_to_response
 from modules.agent.application.use_cases.knowledge_use_cases import ListKnowledgeVersionsUseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -17,6 +17,6 @@ class ListKnowledgeVersionsController(Controller):
             body={
                 "success": True,
                 "message": "ok",
-                "data": [list_knowledge_versions_to_response(v).model_dump() for v in results],
+                "data": [knowledge_version_to_response(v).model_dump() for v in results],
             },
         )

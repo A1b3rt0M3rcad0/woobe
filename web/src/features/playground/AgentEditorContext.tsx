@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
+import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 
@@ -29,6 +30,7 @@ export type AgentEditorState = {
   temperature: number
   maxOutputTokens: number
   collectionIds: string[]
+  knowledgeVersionId: string | null
   runtimeConfig: Record<string, unknown>
 }
 
@@ -53,7 +55,7 @@ const defaultResponseFormat: ResponseFormat = {
   schema: null,
 }
 
-export function agentToEditorState(agent: Agent, collectionIds?: string[]): AgentEditorState {
+export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null): AgentEditorState {
   const settings = (agent.settings || {}) as Record<string, unknown>
   const rf = (settings.response_format as Record<string, unknown>) || {}
   return {
@@ -80,6 +82,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[]): Agen
     temperature: agent.temperature ?? 0.7,
     maxOutputTokens: agent.max_output_tokens ?? 2048,
     collectionIds: collectionIds || [],
+    knowledgeVersionId: knowledgeVersionId ?? null,
     runtimeConfig: {},
   }
 }
@@ -117,26 +120,39 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     temperature: state.temperature,
     max_output_tokens: state.maxOutputTokens,
     collection_ids: state.collectionIds,
+    knowledge_version_id: state.knowledgeVersionId,
     runtime_config: state.runtimeConfig,
   }
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
 
-export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; children: ReactNode }) {
-  const initial = () => agentToEditorState(agent, propCollectionIds)
+export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, knowledgeVersionId, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; knowledgeVersionId?: string | null; children: ReactNode }) {
+  const initial = () => agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
   const [state, setState] = useState<AgentEditorState>(initial)
   const [baselineState, setBaselineState] = useState<AgentEditorState>(initial)
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
+  const initializedDraftKnowledge = useRef(knowledgeVersionId !== undefined)
+  const { data: releases } = useReleases(agent.id)
   const { data: credentials } = useCredentials(projectId || '')
   const { data: providerModels } = useProviderModels(projectId || '')
 
   useEffect(() => {
-    const next = agentToEditorState(agent, propCollectionIds)
+    const next = agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
     setState(next)
     setBaselineState(next)
-  }, [agent, propCollectionIds])
+    initializedDraftKnowledge.current = knowledgeVersionId !== undefined
+  }, [agent, propCollectionIds, knowledgeVersionId])
+
+  useEffect(() => {
+    if (initializedDraftKnowledge.current || !releases) return
+    initializedDraftKnowledge.current = true
+    const draft = releases.find((release) => release.status === 'draft')
+    const draftKnowledgeVersionId = draft?.knowledge_version_id ?? null
+    setState((previous) => ({ ...previous, knowledgeVersionId: draftKnowledgeVersionId }))
+    setBaselineState((previous) => ({ ...previous, knowledgeVersionId: draftKnowledgeVersionId }))
+  }, [releases])
 
   useEffect(() => {
     if (state.providerModelId || !providerModels?.length) return
@@ -168,14 +184,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       const model = providerModel.model || previous.model
       const providerCredentialId = providerModel.provider_credential_id || previous.providerCredentialId
       const baseUrl = credential?.metadata?.base_url || previous.baseUrl
-      if (
-        previous.provider === provider
-        && previous.model === model
-        && previous.providerCredentialId === providerCredentialId
-        && previous.baseUrl === baseUrl
-      ) {
-        return previous
-      }
+      if (previous.provider === provider && previous.model === model && previous.providerCredentialId === providerCredentialId && previous.baseUrl === baseUrl) return previous
       return { ...previous, provider, model, providerCredentialId, baseUrl }
     })
   }, [state.providerModelId, providerModels, credentials])
@@ -189,13 +198,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       const fallbackProvider = providerModel.provider || credential?.provider || previous.fallbackProvider
       const fallbackModel = providerModel.model || previous.fallbackModel
       const fallbackProviderCredentialId = providerModel.provider_credential_id || previous.fallbackProviderCredentialId
-      if (
-        previous.fallbackProvider === fallbackProvider
-        && previous.fallbackModel === fallbackModel
-        && previous.fallbackProviderCredentialId === fallbackProviderCredentialId
-      ) {
-        return previous
-      }
+      if (previous.fallbackProvider === fallbackProvider && previous.fallbackModel === fallbackModel && previous.fallbackProviderCredentialId === fallbackProviderCredentialId) return previous
       return { ...previous, fallbackProvider, fallbackModel, fallbackProviderCredentialId }
     })
   }, [state.fallbackProviderModelId, providerModels, credentials])
@@ -209,9 +212,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       const provider = credential.provider
       const model = credential.metadata?.model || credential.metadata?.model_name || previous.model
       const baseUrl = credential.metadata?.base_url || previous.baseUrl
-      if (previous.provider === provider && previous.model === model && previous.baseUrl === baseUrl) {
-        return previous
-      }
+      if (previous.provider === provider && previous.model === model && previous.baseUrl === baseUrl) return previous
       return { ...previous, provider, model, baseUrl }
     })
   }, [state.providerModelId, state.providerCredentialId, credentials])
@@ -221,11 +222,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     if (!state.fallbackProviderCredentialId || !credentials?.length) return
     const credential = credentials.find((item: { id: string }) => item.id === state.fallbackProviderCredentialId)
     if (!credential) return
-    setState((previous) => ({
-      ...previous,
-      fallbackProvider: credential.provider,
-      fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel,
-    }))
+    setState((previous) => ({ ...previous, fallbackProvider: credential.provider, fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel }))
   }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, credentials])
 
   const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
