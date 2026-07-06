@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Agent } from '@/features/agents/types'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
@@ -49,9 +49,13 @@ export interface EditorContextValue {
   updateBaseline: () => void
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null): AgentEditorState {
   const settings = (agent.settings || {}) as Record<string, unknown>
-  const responseFormat = (settings.response_format as Record<string, unknown>) || {}
+  const responseFormat = recordValue(settings.response_format)
   return {
     name: agent.name || '',
     description: agent.description || '',
@@ -77,7 +81,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     maxOutputTokens: agent.max_output_tokens ?? 2048,
     collectionIds: collectionIds || [],
     knowledgeVersionId: knowledgeVersionId ?? null,
-    runtimeConfig: {},
+    runtimeConfig: recordValue(settings.runtime_config),
   }
 }
 
@@ -123,7 +127,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const [baselineState, setBaselineState] = useState<AgentEditorState>(initial)
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
-  const initializedDraftKnowledge = useRef(knowledgeVersionId !== undefined)
+  const initializedDraft = useRef(knowledgeVersionId !== undefined)
   const { data: releases } = useReleases(agent.id)
   const { data: credentials } = useCredentials(projectId || '')
   const { data: providerModels } = useProviderModels(projectId || '')
@@ -132,24 +136,40 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     const next = agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
     setState(next)
     setBaselineState(next)
-    initializedDraftKnowledge.current = knowledgeVersionId !== undefined
+    initializedDraft.current = knowledgeVersionId !== undefined
   }, [agent, propCollectionIds, knowledgeVersionId])
 
   useEffect(() => {
-    if (initializedDraftKnowledge.current || !releases) return
-    initializedDraftKnowledge.current = true
+    if (initializedDraft.current || !releases) return
+    initializedDraft.current = true
     const draft = releases.find((release) => release.status === 'draft')
-    const id = draft?.knowledge_version_id ?? null
-    setState((previous) => ({ ...previous, knowledgeVersionId: id }))
-    setBaselineState((previous) => ({ ...previous, knowledgeVersionId: id }))
-  }, [releases])
+    if (!draft) return
+    let cancelled = false
+    void getRelease(agent.id, draft.id)
+      .then((release) => {
+        if (cancelled) return
+        const patch = {
+          knowledgeVersionId: release.knowledge_version_id ?? null,
+          runtimeConfig: recordValue(release.runtime_config),
+        }
+        setState((previous) => ({ ...previous, ...patch }))
+        setBaselineState((previous) => ({ ...previous, ...patch }))
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [agent.id, releases])
 
   useEffect(() => {
     if (!loadedReleaseId) return
     let cancelled = false
     void getRelease(agent.id, loadedReleaseId)
       .then((release) => {
-        if (!cancelled) setState((previous) => ({ ...previous, knowledgeVersionId: release.knowledge_version_id ?? null }))
+        if (cancelled) return
+        setState((previous) => ({
+          ...previous,
+          knowledgeVersionId: release.knowledge_version_id ?? null,
+          runtimeConfig: recordValue(release.runtime_config),
+        }))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
