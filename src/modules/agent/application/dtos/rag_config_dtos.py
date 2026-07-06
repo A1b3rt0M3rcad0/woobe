@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
+
+
+ChunkingStrategy = Literal["recursive_text", "paragraph", "markdown_headings"]
+ChunkingPreset = Literal["precise", "balanced", "broad", "custom"]
+SearchStrategy = Literal["similarity"]
+QueryMode = Literal["current_message", "conversation_context"]
+GroundingPolicy = Literal["optional", "required"]
+
+
+class RAGParserConfig(BaseModel):
+    normalize_whitespace: bool = True
+    preserve_page_boundaries: bool = True
+
+
+class RAGChunkingConfig(BaseModel):
+    preset: ChunkingPreset = "balanced"
+    strategy: ChunkingStrategy = "recursive_text"
+    chunk_size: int = Field(default=800, ge=200, le=4000)
+    chunk_overlap: int = Field(default=120, ge=0, le=1000)
+    min_chunk_size: int = Field(default=100, ge=20, le=1000)
+    preserve_paragraphs: bool = True
+    preserve_headings: bool = True
+    preserve_page_boundaries: bool = True
+
+    @model_validator(mode="after")
+    def validate_sizes(self) -> "RAGChunkingConfig":
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("chunk_overlap must be lower than chunk_size")
+        if self.min_chunk_size > self.chunk_size:
+            raise ValueError("min_chunk_size cannot be greater than chunk_size")
+        return self
+
+
+class RAGRetrievalConfig(BaseModel):
+    search_strategy: SearchStrategy = "similarity"
+    candidate_k: int = Field(default=20, ge=1, le=100)
+    top_k: int = Field(default=5, ge=1, le=20)
+    min_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_context_chunks: int = Field(default=5, ge=1, le=20)
+    max_chunks_per_document: int = Field(default=2, ge=1, le=20)
+    max_context_chars: int = Field(default=24_000, ge=1000, le=100_000)
+    query_mode: QueryMode = "conversation_context"
+    history_turns: int = Field(default=3, ge=1, le=10)
+    grounding_policy: GroundingPolicy = "optional"
+
+    @model_validator(mode="after")
+    def validate_retrieval_limits(self) -> "RAGRetrievalConfig":
+        if self.top_k > self.candidate_k:
+            raise ValueError("top_k cannot be greater than candidate_k")
+        if self.max_context_chunks > self.top_k:
+            raise ValueError("max_context_chunks cannot be greater than top_k")
+        return self
+
+
+class RAGRuntimeConfig(BaseModel):
+    inherit_snapshot_defaults: bool = True
+    search_strategy: SearchStrategy | None = None
+    candidate_k: int | None = Field(default=None, ge=1, le=100)
+    top_k: int | None = Field(default=None, ge=1, le=20)
+    min_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    min_score_enabled: bool | None = None
+    max_context_chunks: int | None = Field(default=None, ge=1, le=20)
+    max_chunks_per_document: int | None = Field(default=None, ge=1, le=20)
+    max_context_chars: int | None = Field(default=None, ge=1000, le=100_000)
+    query_mode: QueryMode | None = None
+    history_turns: int | None = Field(default=None, ge=1, le=10)
+    grounding_policy: GroundingPolicy | None = None
+
+
+class RAGBuildConfig(BaseModel):
+    parser: RAGParserConfig = RAGParserConfig()
+    chunking: RAGChunkingConfig = RAGChunkingConfig()
+    retrieval: RAGRetrievalConfig = RAGRetrievalConfig()
+
+
+class VectorBuildPreviewSample(BaseModel):
+    document_id: str
+    document_title: str
+    chunk_index: int
+    character_count: int
+    preview: str
+
+
+class VectorBuildPreviewOutput(BaseModel):
+    document_count: int
+    estimated_chunk_count: int
+    estimated_vector_count: int
+    sample_chunks: list[VectorBuildPreviewSample]

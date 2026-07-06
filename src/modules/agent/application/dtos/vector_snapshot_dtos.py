@@ -6,6 +6,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from modules.agent.application.dtos.rag_config_dtos import (
+    RAGBuildConfig,
+    RAGChunkingConfig,
+    RAGParserConfig,
+    RAGRetrievalConfig,
+    VectorBuildPreviewOutput,
+)
+
 
 class CreateVectorSnapshotInput(BaseModel):
     project_id: UUID
@@ -20,6 +28,13 @@ class CreateVectorSnapshotInput(BaseModel):
     build_config: dict[str, Any] | None = None
     retrieval_defaults: dict[str, Any] | None = None
     created_by: UUID | None = None
+
+
+class PreviewVectorSnapshotInput(BaseModel):
+    project_id: UUID
+    collection_id: UUID
+    parser: RAGParserConfig = RAGParserConfig()
+    chunking: RAGChunkingConfig = RAGChunkingConfig()
 
 
 class VectorSnapshotOutput(BaseModel):
@@ -123,4 +138,24 @@ class SearchVectorSnapshotChunksInput(BaseModel):
     vector_snapshot_id: UUID
     embedding: list[float]
     limit: int = Field(default=10, ge=1, le=100)
-    threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+__all__ = [
+    "CollectionOverviewDocumentsOutput",
+    "CollectionOverviewOutput",
+    "CollectionOverviewProcessingOutput",
+    "CollectionOverviewTechnologyOutput",
+    "CreateVectorSnapshotInput",
+    "GetCollectionOverviewInput",
+    "GetVectorSnapshotInput",
+    "ListVectorSnapshotsInput",
+    "PreviewVectorSnapshotInput",
+    "RAGBuildConfig",
+    "RAGChunkingConfig",
+    "RAGParserConfig",
+    "RAGRetrievalConfig",
+    "SearchVectorSnapshotChunksInput",
+    "VectorBuildPreviewOutput",
+    "VectorSnapshotOutput",
+]
