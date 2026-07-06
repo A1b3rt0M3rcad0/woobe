@@ -11,6 +11,10 @@ from modules.agent.application.dtos.vector_snapshot_dtos import (
     GetCollectionOverviewInput,
     GetVectorSnapshotInput,
     ListVectorSnapshotsInput,
+    PreviewVectorSnapshotInput,
+)
+from modules.agent.application.use_cases.vector_snapshot_preview_use_case import (
+    PreviewVectorSnapshotUseCase,
 )
 from modules.agent.application.use_cases.vector_snapshot_use_cases import (
     CreateVectorSnapshotUseCase,
@@ -19,6 +23,8 @@ from modules.agent.application.use_cases.vector_snapshot_use_cases import (
     ListVectorSnapshotsUseCase,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.storage.factory import create_file_storage
+from shared.infra.config import Settings
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/agent/knowledge", tags=["knowledge", "agent"])
@@ -32,9 +38,16 @@ def _error(status_code: int, message: str) -> JSONResponse:
 
 
 @router.get("/collections/{collection_id}/overview")
-async def get_collection_overview(request: Request, collection_id: UUID, project_id: UUID):
+async def get_collection_overview(
+    request: Request,
+    collection_id: UUID,
+    project_id: UUID,
+):
     try:
-        input_dto = GetCollectionOverviewInput(project_id=project_id, collection_id=collection_id)
+        input_dto = GetCollectionOverviewInput(
+            project_id=project_id,
+            collection_id=collection_id,
+        )
         async with AgentUnitOfWork(request.app.state.session_factory) as uow:
             use_case = GetCollectionOverviewUseCase(
                 snapshot_repo=uow.vector_snapshots,
@@ -44,6 +57,36 @@ async def get_collection_overview(request: Request, collection_id: UUID, project
             output = await use_case.execute(input_dto)
     except NotFoundError as exc:
         return _error(404, str(exc))
+    return jsonable_encoder(
+        {"success": True, "message": "ok", "data": output.model_dump()}
+    )
+
+
+@router.post("/collections/{collection_id}/vector-preview")
+async def preview_vector_snapshot(request: Request, collection_id: UUID):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        input_dto = PreviewVectorSnapshotInput(
+            collection_id=collection_id,
+            **body,
+        )
+        storage = create_file_storage(Settings())
+        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
+            use_case = PreviewVectorSnapshotUseCase(
+                collection_repo=uow.document_collections,
+                document_repo=uow.documents,
+                storage=storage,
+            )
+            output = await use_case.execute(input_dto)
+    except ConflictError as exc:
+        return _error(409, str(exc))
+    except NotFoundError as exc:
+        return _error(404, str(exc))
+    except ValidationError as exc:
+        return _error(422, str(exc))
     return jsonable_encoder(
         {"success": True, "message": "ok", "data": output.model_dump()}
     )
@@ -79,13 +122,24 @@ async def create_vector_snapshot(request: Request, collection_id: UUID):
 
 
 @router.get("/collections/{collection_id}/vector-snapshots")
-async def list_vector_snapshots(request: Request, collection_id: UUID, project_id: UUID):
-    input_dto = ListVectorSnapshotsInput(project_id=project_id, collection_id=collection_id)
+async def list_vector_snapshots(
+    request: Request,
+    collection_id: UUID,
+    project_id: UUID,
+):
+    input_dto = ListVectorSnapshotsInput(
+        project_id=project_id,
+        collection_id=collection_id,
+    )
     async with AgentUnitOfWork(request.app.state.session_factory) as uow:
         use_case = ListVectorSnapshotsUseCase(uow.vector_snapshots)
         output = await use_case.execute(input_dto)
     return jsonable_encoder(
-        {"success": True, "message": "ok", "data": [item.model_dump() for item in output]}
+        {
+            "success": True,
+            "message": "ok",
+            "data": [item.model_dump() for item in output],
+        }
     )
 
 
@@ -96,7 +150,10 @@ async def get_vector_snapshot(
     project_id: UUID | None = None,
 ):
     try:
-        input_dto = GetVectorSnapshotInput(snapshot_id=snapshot_id, project_id=project_id)
+        input_dto = GetVectorSnapshotInput(
+            snapshot_id=snapshot_id,
+            project_id=project_id,
+        )
         async with AgentUnitOfWork(request.app.state.session_factory) as uow:
             use_case = GetVectorSnapshotUseCase(uow.vector_snapshots)
             output = await use_case.execute(input_dto)
