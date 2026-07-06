@@ -4,6 +4,12 @@ import json
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.dtos.rag_config_dtos import (
+    RAGBuildConfig,
+    RAGChunkingConfig,
+    RAGParserConfig,
+    RAGRetrievalConfig,
+)
 from modules.agent.application.dtos.vector_snapshot_dtos import (
     CollectionOverviewDocumentsOutput,
     CollectionOverviewOutput,
@@ -22,7 +28,11 @@ from modules.agent.application.services.rag.snapshot_hasher import (
     compute_content_hash,
     compute_snapshot_hash,
 )
-from modules.agent.domain.enums import CredentialStatus, DocumentStatus, ProviderModelStatus
+from modules.agent.domain.enums import (
+    CredentialStatus,
+    DocumentStatus,
+    ProviderModelStatus,
+)
 from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
 from modules.agent.domain.repositories import (
     DocumentCollectionRepository,
@@ -47,16 +57,25 @@ from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 from shared.infra.time import utc_now
 
 EMBEDDING_BATCH_SIZE = 100
-DEFAULT_RETRIEVAL_TOP_K = 5
-DEFAULT_RETRIEVAL_SCORE_THRESHOLD = 0.7
 
 
 def _value(value: object) -> str:
     return str(getattr(value, "value", value))
 
 
+def _document_sha256(document: object) -> str | None:
+    value = getattr(document, "sha256", None)
+    return str(value) if value else None
+
+
 def _json_hash(value: dict[str, Any]) -> str:
-    return compute_content_hash(json.dumps(value, sort_keys=True, default=str, separators=(",", ":")))
+    serialized = json.dumps(
+        value,
+        sort_keys=True,
+        default=str,
+        separators=(",", ":"),
+    )
+    return compute_content_hash(serialized)
 
 
 def _snapshot_to_output(snapshot: VectorSnapshot) -> VectorSnapshotOutput:
@@ -98,46 +117,74 @@ def _snapshot_to_output(snapshot: VectorSnapshot) -> VectorSnapshotOutput:
     )
 
 
-def _normalize_build_config(input_dto: CreateVectorSnapshotInput, *, embedding: dict[str, Any]) -> dict[str, Any]:
+def _dict_value(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _normalize_retrieval(raw: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(raw)
+    if "min_score" not in normalized and "score_threshold" in normalized:
+        normalized["min_score"] = normalized.get("score_threshold")
+    normalized.pop("score_threshold", None)
+    return RAGRetrievalConfig.model_validate(normalized).model_dump()
+
+
+def _normalize_build_config(
+    input_dto: CreateVectorSnapshotInput,
+    *,
+    embedding: dict[str, Any],
+) -> dict[str, Any]:
     raw = input_dto.build_config or {}
-    raw_chunking = raw.get("chunking") if isinstance(raw.get("chunking"), dict) else {}
-    raw_parser = raw.get("parser") if isinstance(raw.get("parser"), dict) else {}
-    raw_retrieval = raw.get("retrieval") if isinstance(raw.get("retrieval"), dict) else {}
+    raw_chunking = _dict_value(raw.get("chunking"))
+    raw_parser = _dict_value(raw.get("parser"))
+    raw_retrieval = _dict_value(raw.get("retrieval"))
 
-    chunk_size = int(raw_chunking.get("chunk_size") or raw_chunking.get("size") or input_dto.chunk_size)
-    chunk_overlap = int(raw_chunking.get("chunk_overlap") or raw_chunking.get("overlap") or input_dto.chunk_overlap)
-    chunking_strategy = str(raw_chunking.get("strategy") or input_dto.chunking_strategy or "recursive_text")
-    parser_config = input_dto.parser_config or raw_parser or {"strategy": "default", "normalize_whitespace": True}
-    retrieval_defaults = input_dto.retrieval_defaults or raw_retrieval or {
-        "top_k": DEFAULT_RETRIEVAL_TOP_K,
-        "score_threshold": DEFAULT_RETRIEVAL_SCORE_THRESHOLD,
+    chunking_payload = {
+        **raw_chunking,
+        "strategy": raw_chunking.get("strategy")
+        or input_dto.chunking_strategy
+        or "recursive_text",
+        "chunk_size": raw_chunking.get("chunk_size")
+        or raw_chunking.get("size")
+        or input_dto.chunk_size,
+        "chunk_overlap": raw_chunking.get("chunk_overlap")
+        or raw_chunking.get("overlap")
+        or input_dto.chunk_overlap,
+        "min_chunk_size": raw_chunking.get("min_chunk_size")
+        or raw_chunking.get("min_chars")
+        or 100,
     }
+    parser_payload = input_dto.parser_config or raw_parser or {}
+    retrieval_payload = input_dto.retrieval_defaults or raw_retrieval or {}
 
-    return {
-        "chunking": {
-            "strategy": chunking_strategy,
-            "chunk_size": chunk_size,
-            "chunk_overlap": chunk_overlap,
-            "min_chars": int(raw_chunking.get("min_chars") or 100),
-            "max_chars": int(raw_chunking.get("max_chars") or max(chunk_size, 1200)),
-        },
-        "parser": parser_config,
-        "retrieval": retrieval_defaults,
-        "embedding": embedding,
+    build = RAGBuildConfig(
+        parser=RAGParserConfig.model_validate(parser_payload),
+        chunking=RAGChunkingConfig.model_validate(chunking_payload),
+        retrieval=RAGRetrievalConfig.model_validate(
+            _normalize_retrieval(retrieval_payload)
+        ),
+    ).model_dump()
+    build["embedding"] = embedding
+    return build
+
+
+def _snapshot_chunking_config(snapshot: VectorSnapshot) -> RAGChunkingConfig:
+    build = snapshot.build_config or {}
+    raw = _dict_value(build.get("chunking"))
+    payload = {
+        **raw,
+        "strategy": raw.get("strategy") or snapshot.chunking_strategy,
+        "chunk_size": raw.get("chunk_size") or snapshot.chunk_size,
+        "chunk_overlap": raw.get("chunk_overlap") or snapshot.chunk_overlap,
+        "min_chunk_size": raw.get("min_chunk_size") or raw.get("min_chars") or 100,
     }
+    return RAGChunkingConfig.model_validate(payload)
 
 
-def _extract_build_settings(build_config: dict[str, Any], fallback: CreateVectorSnapshotInput) -> tuple[int, int, str, dict[str, Any], dict[str, Any]]:
-    chunking = build_config.get("chunking") or {}
-    parser = build_config.get("parser") or fallback.parser_config or {}
-    retrieval = build_config.get("retrieval") or fallback.retrieval_defaults or {}
-    return (
-        int(chunking.get("chunk_size") or fallback.chunk_size),
-        int(chunking.get("chunk_overlap") or fallback.chunk_overlap),
-        str(chunking.get("strategy") or fallback.chunking_strategy),
-        parser,
-        retrieval,
-    )
+def _snapshot_parser_config(snapshot: VectorSnapshot) -> RAGParserConfig:
+    build = snapshot.build_config or {}
+    raw = snapshot.parser_config or _dict_value(build.get("parser"))
+    return RAGParserConfig.model_validate(raw or {})
 
 
 def _next_version(snapshots: list[VectorSnapshot]) -> str:
@@ -165,10 +212,10 @@ class CreateVectorSnapshotUseCase:
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
 
-    async def execute(self, input_dto: CreateVectorSnapshotInput) -> VectorSnapshotOutput:
-        if input_dto.chunk_overlap >= input_dto.chunk_size:
-            raise ValidationError("chunk_overlap must be lower than chunk_size")
-
+    async def execute(
+        self,
+        input_dto: CreateVectorSnapshotInput,
+    ) -> VectorSnapshotOutput:
         collection = await self._collection_repo.get_by_id(input_dto.collection_id)
         if collection is None or collection.project_id != input_dto.project_id:
             raise NotFoundError("Document collection not found")
@@ -178,9 +225,13 @@ class CreateVectorSnapshotUseCase:
             input_dto.collection_id,
         )
         if building is not None:
-            raise ConflictError("A vector snapshot is already being built for this collection")
+            raise ConflictError(
+                "A vector snapshot is already being built for this collection"
+            )
 
-        documents = await self._document_repo.list_by_collection(input_dto.collection_id)
+        documents = await self._document_repo.list_by_collection(
+            input_dto.collection_id
+        )
         active_documents = [
             document
             for document in documents
@@ -189,22 +240,35 @@ class CreateVectorSnapshotUseCase:
         if not active_documents:
             raise ConflictError("Collection has no active documents to snapshot")
 
-        provider_model = await self._provider_model_repo.get_by_id(input_dto.embedding_provider_model_id)
+        provider_model = await self._provider_model_repo.get_by_id(
+            input_dto.embedding_provider_model_id
+        )
         if provider_model is None or provider_model.project_id != input_dto.project_id:
             raise NotFoundError("Embedding provider model not found")
         if _value(provider_model.status) != _value(ProviderModelStatus.active):
             raise ConflictError("Embedding provider model must be active")
 
         metadata = provider_model.metadata or {}
-        capability = str(metadata.get("capability") or metadata.get("type") or "").lower()
-        if capability not in {"embedding", "embeddings"} and "embed" not in provider_model.model.lower():
-            raise ConflictError("Provider model must be configured as an embedding model")
+        capability = str(
+            metadata.get("capability") or metadata.get("type") or ""
+        ).lower()
+        if (
+            capability not in {"embedding", "embeddings"}
+            and "embed" not in provider_model.model.lower()
+        ):
+            raise ConflictError(
+                "Provider model must be configured as an embedding model"
+            )
 
         dimensions = int(metadata.get("dimensions") or 1536)
         if dimensions != 1536:
-            raise ConflictError("Only 1536-dimensional embeddings are supported in the MVP")
+            raise ConflictError(
+                "Only 1536-dimensional embeddings are supported in the MVP"
+            )
 
-        credential = await self._credential_repo.get_by_id(provider_model.provider_credential_id)
+        credential = await self._credential_repo.get_by_id(
+            provider_model.provider_credential_id
+        )
         if credential is None or credential.project_id != input_dto.project_id:
             raise NotFoundError("Embedding provider credential not found")
         if _value(credential.status) != _value(CredentialStatus.active):
@@ -216,10 +280,15 @@ class CreateVectorSnapshotUseCase:
             "model": provider_model.model,
             "dimensions": dimensions,
         }
-        build_config = _normalize_build_config(input_dto, embedding=embedding_config)
-        chunk_size, chunk_overlap, chunking_strategy, parser_config, retrieval_defaults = _extract_build_settings(build_config, input_dto)
-        if chunk_overlap >= chunk_size:
-            raise ValidationError("chunk_overlap must be lower than chunk_size")
+        build_config = _normalize_build_config(
+            input_dto,
+            embedding=embedding_config,
+        )
+        chunking = RAGChunkingConfig.model_validate(build_config["chunking"])
+        parser_config = RAGParserConfig.model_validate(build_config["parser"])
+        retrieval_defaults = RAGRetrievalConfig.model_validate(
+            build_config["retrieval"]
+        )
 
         existing_snapshots = await self._snapshot_repo.list_by_collection(
             input_dto.project_id,
@@ -232,7 +301,9 @@ class CreateVectorSnapshotUseCase:
             version,
         )
         if existing is not None:
-            raise ConflictError("Vector snapshot version already exists for this collection")
+            raise ConflictError(
+                "Vector snapshot version already exists for this collection"
+            )
 
         snapshot = VectorSnapshot(
             project_id=input_dto.project_id,
@@ -243,33 +314,32 @@ class CreateVectorSnapshotUseCase:
             embedding_provider=_value(credential.provider),
             embedding_model=provider_model.model,
             embedding_dimensions=dimensions,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            chunking_strategy=chunking_strategy,
-            parser_config=parser_config,
+            chunk_size=chunking.chunk_size,
+            chunk_overlap=chunking.chunk_overlap,
+            chunking_strategy=chunking.strategy,
+            parser_config=parser_config.model_dump(),
             build_config=build_config,
-            retrieval_defaults=retrieval_defaults,
+            retrieval_defaults=retrieval_defaults.model_dump(),
             build_config_hash=_json_hash(build_config),
             document_count=len(active_documents),
             total_document_count=len(active_documents),
             created_by=input_dto.created_by,
         )
         created = await self._snapshot_repo.create(snapshot)
-        await self._snapshot_repo.add_snapshot_documents(
-            [
-                VectorSnapshotDocument(
-                    vector_snapshot_id=created.id,
-                    document_id=document.id,
-                    document_sha256=document.sha256,
-                    document_title=document.title,
-                    file_name=document.file_name,
-                    parser=_value(document.parser),
-                    status_at_build=_value(document.status),
-                    chunk_count=0,
-                )
-                for document in active_documents
-            ]
-        )
+        frozen_documents = [
+            VectorSnapshotDocument(
+                vector_snapshot_id=created.id,
+                document_id=document.id,
+                document_sha256=_document_sha256(document),
+                document_title=document.title,
+                file_name=document.file_name,
+                parser=_value(document.parser),
+                status_at_build=_value(document.status),
+                chunk_count=0,
+            )
+            for document in active_documents
+        ]
+        await self._snapshot_repo.add_snapshot_documents(frozen_documents)
         return _snapshot_to_output(created)
 
 
@@ -277,7 +347,10 @@ class ListVectorSnapshotsUseCase:
     def __init__(self, snapshot_repo: Any) -> None:
         self._snapshot_repo = snapshot_repo
 
-    async def execute(self, input_dto: ListVectorSnapshotsInput) -> list[VectorSnapshotOutput]:
+    async def execute(
+        self,
+        input_dto: ListVectorSnapshotsInput,
+    ) -> list[VectorSnapshotOutput]:
         snapshots = await self._snapshot_repo.list_by_collection(
             input_dto.project_id,
             input_dto.collection_id,
@@ -289,7 +362,10 @@ class GetVectorSnapshotUseCase:
     def __init__(self, snapshot_repo: Any) -> None:
         self._snapshot_repo = snapshot_repo
 
-    async def execute(self, input_dto: GetVectorSnapshotInput) -> VectorSnapshotOutput:
+    async def execute(
+        self,
+        input_dto: GetVectorSnapshotInput,
+    ) -> VectorSnapshotOutput:
         snapshot = await self._snapshot_repo.get_by_id(input_dto.snapshot_id)
         if snapshot is None:
             raise NotFoundError("Vector snapshot not found")
@@ -310,35 +386,82 @@ class GetCollectionOverviewUseCase:
         self._collection_repo = collection_repo
         self._document_repo = document_repo
 
-    async def execute(self, input_dto: GetCollectionOverviewInput) -> CollectionOverviewOutput:
+    async def execute(
+        self,
+        input_dto: GetCollectionOverviewInput,
+    ) -> CollectionOverviewOutput:
         collection = await self._collection_repo.get_by_id(input_dto.collection_id)
         if collection is None or collection.project_id != input_dto.project_id:
             raise NotFoundError("Document collection not found")
 
-        documents = await self._document_repo.list_by_collection(input_dto.collection_id)
-        active_documents = [document for document in documents if _value(document.status) != _value(DocumentStatus.DELETED)]
+        documents = await self._document_repo.list_by_collection(
+            input_dto.collection_id
+        )
+        active_documents = [
+            document
+            for document in documents
+            if _value(document.status) != _value(DocumentStatus.DELETED)
+        ]
         deleted_count = len(documents) - len(active_documents)
-        ready_count = len([document for document in active_documents if _value(document.status) in {_value(DocumentStatus.READY), "INDEXED"}])
-        failed_count = len([document for document in active_documents if _value(document.status) == "FAILED"])
-        pending_count = max(len(active_documents) - ready_count - failed_count, 0)
-        total_size = sum(int(getattr(document, "size_bytes", 0) or 0) for document in active_documents)
+        ready_count = sum(
+            1
+            for document in active_documents
+            if _value(document.status)
+            in {_value(DocumentStatus.READY), "INDEXED"}
+        )
+        failed_count = sum(
+            1
+            for document in active_documents
+            if _value(document.status) == "FAILED"
+        )
+        pending_count = max(
+            len(active_documents) - ready_count - failed_count,
+            0,
+        )
+        total_size = sum(
+            int(getattr(document, "size_bytes", 0) or 0)
+            for document in active_documents
+        )
 
-        snapshots = await self._snapshot_repo.list_by_collection(input_dto.project_id, input_dto.collection_id)
+        snapshots = await self._snapshot_repo.list_by_collection(
+            input_dto.project_id,
+            input_dto.collection_id,
+        )
         latest_snapshot = snapshots[0] if snapshots else None
-        latest_ready = next((snapshot for snapshot in snapshots if snapshot.status == VECTOR_SNAPSHOT_READY), None)
-        building = next((snapshot for snapshot in snapshots if snapshot.status == VECTOR_SNAPSHOT_BUILDING), None)
+        latest_ready = next(
+            (
+                snapshot
+                for snapshot in snapshots
+                if snapshot.status == VECTOR_SNAPSHOT_READY
+            ),
+            None,
+        )
+        building = next(
+            (
+                snapshot
+                for snapshot in snapshots
+                if snapshot.status == VECTOR_SNAPSHOT_BUILDING
+            ),
+            None,
+        )
 
         warnings: list[str] = []
         if not active_documents:
             rag_status = "EMPTY"
         elif building is not None:
             rag_status = "BUILDING"
-        elif latest_snapshot is not None and latest_snapshot.status == VECTOR_SNAPSHOT_FAILED and latest_ready is None:
+        elif (
+            latest_snapshot is not None
+            and latest_snapshot.status == VECTOR_SNAPSHOT_FAILED
+            and latest_ready is None
+        ):
             rag_status = "FAILED"
         elif latest_ready is None:
             rag_status = "NEEDS_VECTORS"
         else:
-            latest_ready_completed = latest_ready.completed_at or latest_ready.created_at
+            latest_ready_completed = (
+                latest_ready.completed_at or latest_ready.created_at
+            )
             changed_after_snapshot = False
             if latest_ready_completed is not None:
                 for document in active_documents:
@@ -348,32 +471,83 @@ class GetCollectionOverviewUseCase:
                         break
             rag_status = "OUTDATED" if changed_after_snapshot else "READY"
             if changed_after_snapshot:
-                warnings.append("Documents changed after the latest READY vector snapshot.")
+                warnings.append(
+                    "Documents changed after the latest READY vector snapshot."
+                )
 
         source_snapshot = building or latest_ready or latest_snapshot
-        retrieval = (source_snapshot.retrieval_defaults if source_snapshot else None) or {}
+        retrieval = (
+            source_snapshot.retrieval_defaults if source_snapshot else None
+        ) or {}
+        threshold = retrieval.get("min_score")
+        if threshold is None:
+            threshold = retrieval.get("score_threshold")
         technology = CollectionOverviewTechnologyOutput(
-            embedding_provider_model_id=source_snapshot.embedding_provider_model_id if source_snapshot else None,
-            embedding_provider=source_snapshot.embedding_provider if source_snapshot else None,
-            embedding_model=source_snapshot.embedding_model if source_snapshot else None,
-            embedding_dimensions=source_snapshot.embedding_dimensions if source_snapshot else None,
-            chunking_strategy=source_snapshot.chunking_strategy if source_snapshot else None,
-            chunk_size=source_snapshot.chunk_size if source_snapshot else None,
-            chunk_overlap=source_snapshot.chunk_overlap if source_snapshot else None,
-            retrieval_top_k=retrieval.get("top_k") if isinstance(retrieval, dict) else None,
-            retrieval_score_threshold=retrieval.get("score_threshold") if isinstance(retrieval, dict) else None,
+            embedding_provider_model_id=(
+                source_snapshot.embedding_provider_model_id
+                if source_snapshot
+                else None
+            ),
+            embedding_provider=(
+                source_snapshot.embedding_provider if source_snapshot else None
+            ),
+            embedding_model=(
+                source_snapshot.embedding_model if source_snapshot else None
+            ),
+            embedding_dimensions=(
+                source_snapshot.embedding_dimensions if source_snapshot else None
+            ),
+            chunking_strategy=(
+                source_snapshot.chunking_strategy if source_snapshot else None
+            ),
+            chunk_size=(source_snapshot.chunk_size if source_snapshot else None),
+            chunk_overlap=(
+                source_snapshot.chunk_overlap if source_snapshot else None
+            ),
+            retrieval_top_k=(
+                retrieval.get("top_k") if isinstance(retrieval, dict) else None
+            ),
+            retrieval_score_threshold=(
+                threshold if isinstance(threshold, (int, float)) else None
+            ),
         )
-
         processing = CollectionOverviewProcessingOutput(
             has_running_job=building is not None,
             stage=building.build_stage if building else None,
-            processed_documents=building.processed_document_count if building else (latest_ready.document_count if latest_ready else 0),
-            total_documents=building.total_document_count if building else len(active_documents),
-            processed_chunks=building.processed_chunk_count if building else (latest_ready.chunk_count if latest_ready else 0),
-            total_chunks=building.total_chunk_count if building else (latest_ready.chunk_count if latest_ready else 0),
-            embedded_chunks=building.embedded_chunk_count if building else (latest_ready.vector_count if latest_ready else 0),
+            processed_documents=(
+                building.processed_document_count
+                if building
+                else latest_ready.document_count
+                if latest_ready
+                else 0
+            ),
+            total_documents=(
+                building.total_document_count
+                if building
+                else len(active_documents)
+            ),
+            processed_chunks=(
+                building.processed_chunk_count
+                if building
+                else latest_ready.chunk_count
+                if latest_ready
+                else 0
+            ),
+            total_chunks=(
+                building.total_chunk_count
+                if building
+                else latest_ready.chunk_count
+                if latest_ready
+                else 0
+            ),
+            embedded_chunks=(
+                building.embedded_chunk_count
+                if building
+                else latest_ready.vector_count
+                if latest_ready
+                else 0
+            ),
         )
-
         return CollectionOverviewOutput(
             collection_id=input_dto.collection_id,
             project_id=input_dto.project_id,
@@ -386,8 +560,14 @@ class GetCollectionOverviewUseCase:
                 deleted=deleted_count,
                 total_size_bytes=total_size,
             ),
-            latest_snapshot=_snapshot_to_output(latest_snapshot) if latest_snapshot else None,
-            latest_ready_snapshot=_snapshot_to_output(latest_ready) if latest_ready else None,
+            latest_snapshot=(
+                _snapshot_to_output(latest_snapshot)
+                if latest_snapshot
+                else None
+            ),
+            latest_ready_snapshot=(
+                _snapshot_to_output(latest_ready) if latest_ready else None
+            ),
             processing=processing,
             technology=technology,
             warnings=warnings,
@@ -423,27 +603,37 @@ class BuildVectorSnapshotUseCase:
         if snapshot is None:
             raise NotFoundError("Vector snapshot not found")
         if snapshot.status != VECTOR_SNAPSHOT_BUILDING:
-            raise ConflictError("Only BUILDING vector snapshots can be processed")
+            raise ConflictError(
+                "Only BUILDING vector snapshots can be processed"
+            )
 
         await self._snapshot_repo.mark_started(snapshot.id)
         try:
-            output = await self._build(snapshot)
-            return output
+            return await self._build(snapshot)
         except Exception as exc:
             await self._snapshot_repo.mark_failed(snapshot.id, str(exc))
             raise
 
     async def _build(self, snapshot: VectorSnapshot) -> VectorSnapshotOutput:
-        provider_model = await self._provider_model_repo.get_by_id(snapshot.embedding_provider_model_id)
+        provider_model = await self._provider_model_repo.get_by_id(
+            snapshot.embedding_provider_model_id
+        )
         if provider_model is None:
             raise NotFoundError("Embedding provider model not found")
-        credential = await self._credential_repo.get_by_id(provider_model.provider_credential_id)
+        credential = await self._credential_repo.get_by_id(
+            provider_model.provider_credential_id
+        )
         if credential is None:
             raise NotFoundError("Embedding provider credential not found")
 
-        api_key = decrypt_secret(credential.encrypted_secret, self._settings.encryption_key)
+        api_key = decrypt_secret(
+            credential.encrypted_secret,
+            self._settings.encryption_key,
+        )
         metadata = provider_model.metadata or {}
-        base_url = metadata.get("base_url") or (credential.metadata or {}).get("base_url")
+        base_url = metadata.get("base_url") or (
+            credential.metadata or {}
+        ).get("base_url")
         embedding_client = self._embedding_factory.create_embedding_client(
             provider=snapshot.embedding_provider,
             model=snapshot.embedding_model,
@@ -451,16 +641,26 @@ class BuildVectorSnapshotUseCase:
             base_url=base_url,
             dimensions=snapshot.embedding_dimensions,
         )
+        chunking = _snapshot_chunking_config(snapshot)
+        parser_config = _snapshot_parser_config(snapshot)
 
-        snapshot_documents = await self._snapshot_repo.list_snapshot_documents(snapshot.id)
+        snapshot_documents = await self._snapshot_repo.list_snapshot_documents(
+            snapshot.id
+        )
         if not snapshot_documents:
-            documents = await self._document_repo.list_by_collection(snapshot.collection_id)
-            active_documents = [document for document in documents if _value(document.status) != _value(DocumentStatus.DELETED)]
+            documents = await self._document_repo.list_by_collection(
+                snapshot.collection_id
+            )
+            active_documents = [
+                document
+                for document in documents
+                if _value(document.status) != _value(DocumentStatus.DELETED)
+            ]
             snapshot_documents = [
                 VectorSnapshotDocument(
                     vector_snapshot_id=snapshot.id,
                     document_id=document.id,
-                    document_sha256=document.sha256,
+                    document_sha256=_document_sha256(document),
                     document_title=document.title,
                     file_name=document.file_name,
                     parser=_value(document.parser),
@@ -491,11 +691,18 @@ class BuildVectorSnapshotUseCase:
         embedded_chunks = 0
 
         for frozen_document in snapshot_documents:
-            document = await self._document_repo.get_by_id(frozen_document.document_id)
+            document = await self._document_repo.get_by_id(
+                frozen_document.document_id
+            )
             if document is None or document.project_id != snapshot.project_id:
-                raise NotFoundError(f"Frozen snapshot document not found: {frozen_document.document_id}")
+                raise NotFoundError(
+                    "Frozen snapshot document not found: "
+                    f"{frozen_document.document_id}"
+                )
             if not document.storage_key:
-                raise ConflictError(f"Document has no storage key: {document.id}")
+                raise ConflictError(
+                    f"Document has no storage key: {document.id}"
+                )
 
             await self._snapshot_repo.update_build_progress(
                 snapshot.id,
@@ -507,7 +714,12 @@ class BuildVectorSnapshotUseCase:
                 current_document_id=document.id,
             )
             raw = await self._storage.read_document(document.storage_key)
-            parsed = self._parser.parse(content=raw, parser=document.parser, file_name=document.file_name)
+            parsed = self._parser.parse(
+                content=raw,
+                parser=document.parser,
+                file_name=document.file_name,
+                config=parser_config.model_dump(),
+            )
 
             await self._snapshot_repo.update_build_progress(
                 snapshot.id,
@@ -516,8 +728,13 @@ class BuildVectorSnapshotUseCase:
             )
             text_chunks = self._chunker.chunk(
                 parsed.text,
-                chunk_size=snapshot.chunk_size,
-                chunk_overlap=snapshot.chunk_overlap,
+                chunk_size=chunking.chunk_size,
+                chunk_overlap=chunking.chunk_overlap,
+                strategy=chunking.strategy,
+                min_chunk_size=chunking.min_chunk_size,
+                preserve_paragraphs=chunking.preserve_paragraphs,
+                preserve_headings=chunking.preserve_headings,
+                preserve_page_boundaries=chunking.preserve_page_boundaries,
             )
             if not text_chunks:
                 processed_documents += 1
@@ -534,16 +751,31 @@ class BuildVectorSnapshotUseCase:
                 current_document_id=document.id,
             )
 
-            for batch_start in range(0, len(text_chunks), EMBEDDING_BATCH_SIZE):
-                batch_chunks = text_chunks[batch_start : batch_start + EMBEDDING_BATCH_SIZE]
+            for batch_start in range(
+                0,
+                len(text_chunks),
+                EMBEDDING_BATCH_SIZE,
+            ):
+                batch_chunks = text_chunks[
+                    batch_start : batch_start + EMBEDDING_BATCH_SIZE
+                ]
                 texts = [chunk.content for chunk in batch_chunks]
                 embeddings = await embedding_client.aembed_documents(texts)
                 if len(embeddings) != len(batch_chunks):
-                    raise ValidationError("Embedding provider returned an unexpected batch size")
+                    raise ValidationError(
+                        "Embedding provider returned an unexpected batch size"
+                    )
 
-                for chunk, embedding in zip(batch_chunks, embeddings, strict=True):
+                for chunk, embedding in zip(
+                    batch_chunks,
+                    embeddings,
+                    strict=True,
+                ):
                     if len(embedding) != snapshot.embedding_dimensions:
-                        raise ConflictError("Embedding provider returned incompatible vector dimensions")
+                        raise ConflictError(
+                            "Embedding provider returned incompatible "
+                            "vector dimensions"
+                        )
                     snapshot_chunks.append(
                         VectorSnapshotChunk(
                             vector_snapshot_id=snapshot.id,
@@ -570,11 +802,15 @@ class BuildVectorSnapshotUseCase:
                     current_document_id=document.id,
                 )
 
-            await self._snapshot_repo.update_snapshot_document_chunk_count(snapshot.id, document.id, len(text_chunks))
+            await self._snapshot_repo.update_snapshot_document_chunk_count(
+                snapshot.id,
+                document.id,
+                len(text_chunks),
+            )
             hash_documents.append(
                 {
                     "document_id": str(document.id),
-                    "sha256": document.sha256,
+                    "sha256": _document_sha256(document),
                     "file_name": document.file_name,
                     "chunk_count": len(text_chunks),
                 }
@@ -594,12 +830,17 @@ class BuildVectorSnapshotUseCase:
         if not snapshot_chunks:
             raise ConflictError("Vector snapshot build produced no chunks")
 
-        await self._snapshot_repo.update_build_progress(snapshot.id, build_stage=VECTOR_SNAPSHOT_STAGE_WRITING)
+        await self._snapshot_repo.update_build_progress(
+            snapshot.id,
+            build_stage=VECTOR_SNAPSHOT_STAGE_WRITING,
+        )
         await self._snapshot_repo.add_snapshot_chunks(snapshot_chunks)
         snapshot_hash = compute_snapshot_hash(
             documents=hash_documents,
             parameters={
-                "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
+                "embedding_provider_model_id": str(
+                    snapshot.embedding_provider_model_id
+                ),
                 "embedding_provider": snapshot.embedding_provider,
                 "embedding_model": snapshot.embedding_model,
                 "embedding_dimensions": snapshot.embedding_dimensions,
@@ -628,11 +869,15 @@ class SearchVectorSnapshotChunksUseCase:
         self._snapshot_repo = snapshot_repo
 
     async def execute(self, input_dto: SearchVectorSnapshotChunksInput):
-        snapshot = await self._snapshot_repo.get_by_id(input_dto.vector_snapshot_id)
+        snapshot = await self._snapshot_repo.get_by_id(
+            input_dto.vector_snapshot_id
+        )
         if snapshot is None:
             raise NotFoundError("Vector snapshot not found")
         if snapshot.status != VECTOR_SNAPSHOT_READY:
-            raise ConflictError("Vector snapshot must be READY before search")
+            raise ConflictError(
+                "Vector snapshot must be READY before search"
+            )
         return await self._snapshot_repo.search_similar(
             vector_snapshot_id=input_dto.vector_snapshot_id,
             embedding=input_dto.embedding,
