@@ -383,11 +383,11 @@ class SQLAlchemyVectorSnapshotRepository:
         emb_str = "[" + ",".join(str(value) for value in embedding) + "]"
         stmt = text(
             """
-            SELECT id, 1 - (embedding <=> :embedding::vector) AS similarity
+            SELECT id, 1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
             FROM agent.vector_snapshot_chunks
             WHERE vector_snapshot_id = :vector_snapshot_id
               AND embedding IS NOT NULL
-              AND 1 - (embedding <=> :embedding::vector) >= :threshold
+              AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
             ORDER BY similarity DESC
             LIMIT :limit
             """
