@@ -1,3 +1,5 @@
+import type { RagBuildConfig, RagChunkingConfig, RagParserConfig, VectorBuildPreview } from './ragConfigTypes'
+
 export interface Collection {
   id: string
   project_id: string
@@ -129,7 +131,15 @@ export interface CreateVectorSnapshotRequest {
   chunk_size?: number
   chunk_overlap?: number
   chunking_strategy?: string
-  parser_config?: Record<string, unknown>
+  parser_config?: RagParserConfig
   retrieval_defaults?: Record<string, unknown>
-  build_config?: Record<string, unknown>
+  build_config?: RagBuildConfig
 }
+
+export interface PreviewVectorSnapshotRequest {
+  project_id: string
+  parser: RagParserConfig
+  chunking: RagChunkingConfig
+}
+
+export type { VectorBuildPreview }
