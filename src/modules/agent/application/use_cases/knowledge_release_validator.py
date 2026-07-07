@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from modules.agent.application.use_cases.knowledge_use_cases import DeleteDocumentUseCase as BaseDeleteDocumentUseCase
 from modules.agent.domain.enums import KnowledgeVersionStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from shared.infra.errors import ValidationError
+from shared.infra.errors import ConflictError, ValidationError
 
 
 class KnowledgeReleaseValidator:
@@ -44,3 +45,21 @@ class KnowledgeReleaseValidator:
             raise ValidationError("Release requires a READY vector snapshot")
         if not snapshot.snapshot_hash:
             raise ValidationError("Release vector snapshot has no immutable hash")
+
+
+class SafeDeleteDocumentUseCase(BaseDeleteDocumentUseCase):
+    def __init__(self, doc_repo, chunk_repo, storage) -> None:
+        super().__init__(doc_repo, chunk_repo, storage)
+        from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
+
+        self._vector_snapshot_repo = SQLAlchemyVectorSnapshotRepository(doc_repo._session_or_uow)
+
+    async def execute(self, document_id) -> None:
+        document = await self._doc_repo.get_by_id(document_id)
+        active_build = await self._vector_snapshot_repo.get_active_building_by_collection(
+            document.project_id,
+            document.collection_id,
+        )
+        if active_build is not None:
+            raise ConflictError("Document cannot be deleted while a vector snapshot is building")
+        await super().execute(document_id)
