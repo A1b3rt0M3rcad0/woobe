@@ -4,9 +4,8 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Shield, Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/common/EmptyState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { useTools, useUpdateTool } from '@/features/tools/hooks'
+import { useTools } from '@/features/tools/hooks'
 import type { Tool } from '@/features/tools/types'
-import { toast } from 'sonner'
 
 const RISK_DOTS = [0, 1, 2, 3]
 
@@ -48,26 +47,17 @@ interface ImportToolsModalProps {
   open: boolean
   onClose: () => void
   projectId: string
-  agentId: string
   importedToolIds: Set<string>
-  onImport: () => void
+  onImport: (tool: Tool) => void
 }
 
-export function ImportToolsModal({ open, onClose, projectId, agentId, importedToolIds, onImport }: ImportToolsModalProps) {
+export function ImportToolsModal({ open, onClose, projectId, importedToolIds, onImport }: ImportToolsModalProps) {
   const { data: allTools = [], isLoading } = useTools(projectId)
-  const updateTool = useUpdateTool()
-
   const availableTools = allTools.filter(t => !importedToolIds.has(t.id))
 
-  const handleImport = async (tool: Tool) => {
-    try {
-      await updateTool.mutateAsync({ toolId: tool.id, data: { agent_id: agentId } })
-      toast.success(`"${tool.name}" imported`)
-      onImport()
-      onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to import tool')
-    }
+  const handleImport = (tool: Tool) => {
+    onImport(tool)
+    onClose()
   }
 
   return (
@@ -78,7 +68,7 @@ export function ImportToolsModal({ open, onClose, projectId, agentId, importedTo
             <Wrench className="h-4 w-4" />
           </div>
           <h3 className="mt-4 text-sm font-semibold text-white">Available tools</h3>
-          <p className="mt-1 text-xs text-muted">{availableTools.length} tools can be added to this agent.</p>
+          <p className="mt-1 text-xs text-muted">{availableTools.length} tools can be added to this draft.</p>
         </aside>
 
         <section className="flex min-h-0 flex-col">
@@ -87,7 +77,7 @@ export function ImportToolsModal({ open, onClose, projectId, agentId, importedTo
               <LoadingState variant="panel" layout="list" message="Loading tools..." />
             ) : availableTools.length === 0 ? (
               <div className="py-6">
-                <EmptyState icon={<Wrench className="h-10 w-10" />} title="All tools imported" description="All available tools have already been added to this agent." />
+                <EmptyState icon={<Wrench className="h-10 w-10" />} title="All tools imported" description="All available tools have already been added to this draft." />
               </div>
             ) : (
               <ScrollArea className="max-h-[480px] pr-1">
@@ -103,7 +93,7 @@ export function ImportToolsModal({ open, onClose, projectId, agentId, importedTo
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase tracking-wider text-muted">{tool.type}</span>
-                        <Button size="sm" onClick={() => handleImport(tool)} loading={updateTool.isPending}>Import</Button>
+                        <Button size="sm" onClick={() => handleImport(tool)}>Import</Button>
                       </div>
                     </div>
                   ))}
