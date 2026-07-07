@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from modules.agent.presentation.mappers import knowledge_version_to_response
 from modules.agent.application.use_cases.knowledge_use_cases import ListKnowledgeVersionsUseCase
 from shared.presentation.interface.controller import Controller
@@ -10,7 +12,7 @@ class ListKnowledgeVersionsController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        agent_id = request.params.get("agent_id")
+        agent_id = UUID(str(request.params["agent_id"]))
         results = await self._use_case.execute(agent_id)
         return Response(
             status_code=200,
