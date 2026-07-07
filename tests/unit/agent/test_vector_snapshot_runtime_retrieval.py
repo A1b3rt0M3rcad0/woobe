@@ -131,8 +131,8 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
     uow.vector_snapshots.search_similar.assert_awaited_once_with(
         vector_snapshot_id=snapshot.id,
         embedding=[0.1, 0.2, 0.3],
-        limit=7,
-        threshold=0.72,
+        limit=20,
+        threshold=0.0,
     )
     assert "2031-04-17" in context
     assert sources[0].document_title == "Contract A"
