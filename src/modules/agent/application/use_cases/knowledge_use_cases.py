@@ -85,6 +85,10 @@ def _as_value(value: object) -> object:
     return getattr(value, "value", value)
 
 
+def _document_sha256(document: Document) -> str | None:
+    return getattr(document, "sha256", None)
+
+
 def _is_deleted_document(document: Document) -> bool:
     return _as_value(document.status) == _as_value(DocumentStatus.DELETED)
 
@@ -104,7 +108,7 @@ def _document_to_upload_output(document: Document) -> UploadDocumentOutput:
         page_count=document.page_count,
         chunk_count=document.chunk_count,
         error=document.error,
-        sha256=document.sha256,
+        sha256=_document_sha256(document),
         indexed_at=document.indexed_at,
         created_at=document.created_at,
         updated_at=document.updated_at,
@@ -312,7 +316,7 @@ class UploadDocumentFileUseCase:
 
         documents = await self.doc_repo.list_by_collection(input_dto.collection_id)
         if any(
-            document.sha256 == sha256 and not _is_deleted_document(document)
+            _document_sha256(document) == sha256 and not _is_deleted_document(document)
             for document in documents
         ):
             raise ConflictError("Document already exists in this collection")
@@ -352,7 +356,7 @@ class UploadDocumentFileUseCase:
                     payload={
                         "content_type": saved.content_type,
                         "size_bytes": saved.size_bytes,
-                        "sha256": saved.sha256,
+                        "sha256": _document_sha256(saved),
                         "storage_driver": self._settings.storage_driver,
                     },
                 )
