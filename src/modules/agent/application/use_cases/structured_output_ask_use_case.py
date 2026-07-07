@@ -185,7 +185,7 @@ class StructuredOutputAskAgentUseCase(
                 fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
                 failed_event = AgentExecutionFailedV1.create(
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id if session else (trace_id or agent.id),
                     payload={
                         "trace_id": str(trace_id) if trace_id else None,
                         "project_id": str(input_dto.project_id),
