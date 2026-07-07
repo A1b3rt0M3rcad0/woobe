@@ -9,6 +9,7 @@ from modules.agent.application.runtime_tool_inventory import (
     is_runtime_tool_inventory_id,
 )
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
@@ -41,6 +42,11 @@ def ask_agent_composer(
         context = current_execution.get()
         if context and context.session_id:
             runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+        snapshot = (
+            context.tool_snapshots.get(str(tool_id))
+            if context and context.tool_snapshots
+            else None
+        )
 
         async with AgentUnitOfWork(session_factory) as uow:
             resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
@@ -49,6 +55,18 @@ def ask_agent_composer(
                 executor=executor,
                 secret_resolver=resolver,
             )
+            if snapshot is not None:
+                result = await registry.execute(
+                    tool_from_release_snapshot(snapshot),
+                    runtime_input,
+                )
+                return {
+                    "success": result.success,
+                    "output": result.output,
+                    "duration_ms": result.duration_ms,
+                    "error": result.error,
+                }
+
             use_case = RuntimeExecuteToolUseCase(
                 tool_repo=uow.tools,
                 runtime_registry=registry,
