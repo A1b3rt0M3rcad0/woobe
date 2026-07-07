@@ -65,6 +65,18 @@ def _fallback_model_binding_payload(agent) -> dict[str, Any]:
     }
 
 
+def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
+    return {
+        "execution_context": (
+            context.execution_context
+            if context and context.execution_context
+            else input_dto.execution_context
+        ),
+        "agent_release_id": _id_text(context.agent_release_id if context else None),
+        "agent_release_version": context.agent_release_version if context else None,
+    }
+
+
 def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
     pricing_ids = []
     cost_reasons = []
@@ -142,7 +154,12 @@ async def finalize_instrumented_execution(owner, **kw):
     agent_id_text = str(agent.id)
     binding_payload = _model_binding_payload(agent)
     fallback_binding_payload = _fallback_model_binding_payload(agent)
-    trace_binding_payload = {**binding_payload, **fallback_binding_payload}
+    runtime_binding_payload = _runtime_binding_payload(context, kw["input_dto"])
+    trace_binding_payload = {
+        **binding_payload,
+        **fallback_binding_payload,
+        **runtime_binding_payload,
+    }
 
     async with AgentUnitOfWork(owner._session_factory) as uow:
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
@@ -232,6 +249,7 @@ async def finalize_instrumented_execution(owner, **kw):
         "provider_credential_id": binding_payload["provider_credential_id"],
         "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
         "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
+        **runtime_binding_payload,
     }
 
     request_received_at = (
@@ -252,6 +270,7 @@ async def finalize_instrumented_execution(owner, **kw):
             duration_ms=0,
             attributes={
                 "client_sent_at": context.client_sent_at if context else None,
+                **runtime_binding_payload,
             },
             span_id=trace_id_text,
             parent_span_id=None,
@@ -268,6 +287,7 @@ async def finalize_instrumented_execution(owner, **kw):
             attributes={
                 **binding_payload["model_binding"],
                 "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+                **runtime_binding_payload,
             },
         ),
     ]
@@ -342,7 +362,11 @@ async def finalize_instrumented_execution(owner, **kw):
             started_at=execution_started_at,
             ended_at=execution_completed_at,
             duration_ms=total_ms,
-            attributes={"diagnostics": diagnostics, **binding_payload["model_binding"]},
+            attributes={
+                "diagnostics": diagnostics,
+                **binding_payload["model_binding"],
+                **runtime_binding_payload,
+            },
             span_id=trace_id_text,
             parent_span_id=None,
         ),
