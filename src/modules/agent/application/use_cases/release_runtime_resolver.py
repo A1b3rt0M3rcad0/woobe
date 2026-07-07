@@ -5,15 +5,95 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
+from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
-from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus
+from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.errors import ValidationError
 from shared.infra.llm_cost import provider_model_pricing_snapshot
 
 
+def _value(value: object) -> object:
+    return getattr(value, "value", value)
+
+
 class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
+    async def _prepare(self, input_dto: Any) -> Any:
+        prepared = await super()._prepare(input_dto)
+        if not isinstance(prepared, tuple) or len(prepared) < 13:
+            return prepared
+        return await self._apply_runtime_tool_selection(prepared)
+
+    async def _apply_runtime_tool_selection(self, prepared: tuple[Any, ...]) -> tuple[Any, ...]:
+        agent = prepared[0]
+        settings = dict(getattr(agent, "settings", None) or {})
+        runtime_config = settings.get("runtime_config")
+        if not isinstance(runtime_config, dict):
+            return prepared
+        tools_config = runtime_config.get("tools")
+        if not isinstance(tools_config, dict):
+            return prepared
+
+        tools = []
+        snapshot_map: dict[str, dict[str, Any]] = {}
+        source = "draft_live"
+        raw_snapshots = tools_config.get("snapshots")
+        raw_tool_ids = tools_config.get("tool_ids")
+
+        if isinstance(raw_snapshots, list) and raw_snapshots:
+            source = "release_snapshot"
+            for raw_snapshot in raw_snapshots:
+                if not isinstance(raw_snapshot, dict):
+                    raise ValidationError("Release contains an invalid tool snapshot")
+                tool = tool_from_release_snapshot(raw_snapshot)
+                if tool.project_id != agent.project_id:
+                    raise ValidationError("Release tool snapshot does not belong to this Project")
+                if _value(tool.status) != ToolStatus.ACTIVE.value:
+                    raise ValidationError(f"Release tool snapshot is not active: {tool.name}")
+                tools.append(tool)
+                snapshot_map[str(tool.id)] = dict(raw_snapshot)
+        elif isinstance(raw_tool_ids, list):
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                seen: set[UUID] = set()
+                for raw_tool_id in raw_tool_ids:
+                    try:
+                        tool_id = raw_tool_id if isinstance(raw_tool_id, UUID) else UUID(str(raw_tool_id))
+                    except (TypeError, ValueError) as exc:
+                        raise ValidationError("Draft contains an invalid tool id") from exc
+                    if tool_id in seen:
+                        continue
+                    seen.add(tool_id)
+                    tool = await uow.tools.get_by_id(tool_id)
+                    if tool.project_id != agent.project_id:
+                        raise ValidationError("Selected tool does not belong to this Project")
+                    if _value(tool.status) != ToolStatus.ACTIVE.value:
+                        raise ValidationError(f"Selected tool is not active: {tool.name}")
+                    tools.append(tool)
+
+        definitions, name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
+        context = current_execution.get()
+        if context is not None:
+            context.tool_snapshots = snapshot_map or None
+            context.tool_metadata = {
+                "source": source,
+                "tool_ids": [str(tool.id) for tool in tools],
+                "snapshot_hashes": [
+                    snapshot.get("snapshot_hash")
+                    for snapshot in snapshot_map.values()
+                    if snapshot.get("snapshot_hash")
+                ],
+            }
+
+        mutable = list(prepared)
+        mutable[7] = definitions
+        mutable[8] = name_to_id
+        mutable[9] = bool(definitions)
+        return tuple(mutable)
+
     async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         agent = await self._load_base_agent(uow, input_dto)
         release_repo = getattr(uow, "releases", None)
