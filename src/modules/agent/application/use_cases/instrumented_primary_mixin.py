@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Protocol, cast
 
+from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.application.use_cases.execution_context import (
     current_execution,
     new_execution_context,
@@ -131,6 +132,23 @@ class InstrumentedPrimaryExecutionMixin:
             raise
 
         context = current_execution.get()
+        if context and context.tool_metadata:
+            snapshots = context.tool_snapshots or {}
+            for item in execution.timeline:
+                if item.get("kind") != "tool":
+                    continue
+                payload = item.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                tool_name = payload.get("tool_name")
+                route = tool_name_to_id.get(str(tool_name)) if tool_name else None
+                tool_id = route.split(MCP_PROVIDER_ROUTE_SEPARATOR, 1)[0] if route else None
+                snapshot = snapshots.get(tool_id) if tool_id else None
+                payload["tool_id"] = tool_id
+                payload["tool_runtime_source"] = context.tool_metadata.get("source")
+                if snapshot and snapshot.get("snapshot_hash"):
+                    payload["tool_snapshot_hash"] = snapshot["snapshot_hash"]
+
         if context and context.rag_metadata:
             occurred_at = context.prepare_ended_at or utc_now()
             execution.timeline.append(
