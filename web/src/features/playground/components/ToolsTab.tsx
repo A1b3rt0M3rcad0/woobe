@@ -153,12 +153,16 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const tools = state.toolIds.map((toolId) => toolsById.get(toolId)).filter((tool): tool is Tool => Boolean(tool))
   const activeCount = tools.filter(tool => tool.status === 'active').length
 
+  const refreshTools = async (): Promise<void> => {
+    await refetch()
+  }
+
   const handleToggleActive = async (tool: Tool) => {
     try {
       const newStatus = tool.status === 'active' ? 'inactive' : 'active'
       await updateStatus.mutateAsync({ toolId: tool.id, data: { status: newStatus } })
       toast.success(`"${tool.name}" ${newStatus === 'active' ? 'activated' : 'deactivated'}`)
-      await refetch()
+      await refreshTools()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status')
     }
@@ -177,12 +181,12 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
   const handleCreated = (tool?: Tool) => {
     if (tool) addToolToDraft(tool)
-    void refetch()
+    void refreshTools()
   }
 
   const handleEditSaved = () => {
     setEditingTool(null)
-    void refetch()
+    void refreshTools()
   }
 
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
@@ -274,7 +278,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                   <RiskIndicator risk={tool.risk_level} />
                 </div>
 
-                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refetch} /></div> : null}
+                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refreshTools} /></div> : null}
               </article>
             )
           })}
