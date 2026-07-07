@@ -9,6 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, Uniqu
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from modules.agent.infra.database.models import DocumentModel
 from shared.infra.database.base import BaseModel
 
 
@@ -120,3 +121,12 @@ class VectorSnapshotChunkModel(BaseModel):
     section_title: Mapped[str | None] = mapped_column(String(255))
     data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+
+
+Index(
+    "uq_documents_active_collection_sha256",
+    DocumentModel.__table__.c.collection_id,
+    DocumentModel.__table__.c.sha256,
+    unique=True,
+    postgresql_where=text("status <> 'DELETED' AND sha256 IS NOT NULL"),
+)
