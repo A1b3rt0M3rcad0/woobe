@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, UniqueConstraint, select, text
+from sqlalchemy import ForeignKey, Index, String, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
 
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import ProviderModelStatus, ReleaseStatus
+from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentRepository,
@@ -44,6 +45,19 @@ class ProviderModelModel(BaseModel):
     meta: Mapped[dict[str, Any] | None] = mapped_column(
         "metadata", JSONB, nullable=True
     )
+
+
+for _model in (AgentModel, AgentReleaseModel):
+    for _name in ("provider_model_id", "fallback_provider_model_id"):
+        if not hasattr(_model, _name):
+            add_mapped_attribute(  # pyright: ignore[reportArgumentType]
+                _model,
+                _name,
+                mapped_column(
+                    ForeignKey("agent.provider_models.id"),
+                    nullable=True,
+                ),
+            )
 
 
 def provider_model_model_to_entity(model: ProviderModelModel) -> ProviderModel:
@@ -173,34 +187,26 @@ class SQLAlchemyAgentRepositoryWithProviderModels(SQLAlchemyAgentRepository):
     async def _hydrate_provider_model_refs(self, agent: Agent | None) -> Agent | None:
         if agent is None:
             return None
-        result = await self._session.execute(
-            text(
-                "SELECT provider_model_id, fallback_provider_model_id "
-                "FROM agent.agents WHERE id = :agent_id"
-            ),
-            {"agent_id": agent.id},
-        )
-        row = result.mappings().first()
-        if row:
-            agent.provider_model_id = row["provider_model_id"]
-            agent.fallback_provider_model_id = row["fallback_provider_model_id"]
+        model = await self._get_model_by_id(agent.id)
+        if model is not None:
+            agent.provider_model_id = getattr(model, "provider_model_id", None)
+            agent.fallback_provider_model_id = getattr(
+                model,
+                "fallback_provider_model_id",
+                None,
+            )
         return agent
 
     async def _persist_provider_model_refs(self, agent: Agent) -> None:
-        await self._session.execute(
-            text(
-                "UPDATE agent.agents "
-                "SET provider_model_id = :provider_model_id, "
-                "fallback_provider_model_id = :fallback_provider_model_id "
-                "WHERE id = :agent_id"
-            ),
-            {
-                "agent_id": agent.id,
-                "provider_model_id": agent.provider_model_id,
-                "fallback_provider_model_id": agent.fallback_provider_model_id,
-            },
-        )
-        await self._flush()
+        model = await self._get_model_by_id(agent.id)
+        if model is not None:
+            setattr(model, "provider_model_id", agent.provider_model_id)
+            setattr(
+                model,
+                "fallback_provider_model_id",
+                agent.fallback_provider_model_id,
+            )
+            await self._flush()
 
 
 class SQLAlchemyAgentReleaseRepositoryWithProviderModels(SQLAlchemyAgentReleaseRepository):
@@ -227,34 +233,29 @@ class SQLAlchemyAgentReleaseRepositoryWithProviderModels(SQLAlchemyAgentReleaseR
         releases = await super().list_by_status(agent_id, status)
         return [await self._hydrate_provider_model_refs(release) for release in releases]
 
-    async def _hydrate_provider_model_refs(self, release: AgentRelease | None) -> AgentRelease | None:
+    async def _hydrate_provider_model_refs(
+        self,
+        release: AgentRelease | None,
+    ) -> AgentRelease | None:
         if release is None:
             return None
-        result = await self._session.execute(
-            text(
-                "SELECT provider_model_id, fallback_provider_model_id "
-                "FROM agent.agent_releases WHERE id = :release_id"
-            ),
-            {"release_id": release.id},
-        )
-        row = result.mappings().first()
-        if row:
-            release.provider_model_id = row["provider_model_id"]
-            release.fallback_provider_model_id = row["fallback_provider_model_id"]
+        model = await self._get_model_by_id(release.id)
+        if model is not None:
+            release.provider_model_id = getattr(model, "provider_model_id", None)
+            release.fallback_provider_model_id = getattr(
+                model,
+                "fallback_provider_model_id",
+                None,
+            )
         return release
 
     async def _persist_provider_model_refs(self, release: AgentRelease) -> None:
-        await self._session.execute(
-            text(
-                "UPDATE agent.agent_releases "
-                "SET provider_model_id = :provider_model_id, "
-                "fallback_provider_model_id = :fallback_provider_model_id "
-                "WHERE id = :release_id"
-            ),
-            {
-                "release_id": release.id,
-                "provider_model_id": release.provider_model_id,
-                "fallback_provider_model_id": release.fallback_provider_model_id,
-            },
-        )
-        await self._flush()
+        model = await self._get_model_by_id(release.id)
+        if model is not None:
+            setattr(model, "provider_model_id", release.provider_model_id)
+            setattr(
+                model,
+                "fallback_provider_model_id",
+                release.fallback_provider_model_id,
+            )
+            await self._flush()
