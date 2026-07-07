@@ -32,6 +32,8 @@ class RequestExecutionContext:
     strict_json: bool = False
     execution: InstrumentedExecution | None = None
     rag_metadata: dict[str, Any] | None = None
+    tool_snapshots: dict[str, dict[str, Any]] | None = None
+    tool_metadata: dict[str, Any] | None = None
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(
