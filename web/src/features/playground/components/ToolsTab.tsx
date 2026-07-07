@@ -7,8 +7,9 @@ import { ImportToolsModal } from './ImportToolsModal'
 import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
 import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
-import { useAgentTools, useUpdateToolStatus, useUpdateTool, useTools } from '@/features/tools/hooks'
+import { useUpdateToolStatus, useTools } from '@/features/tools/hooks'
 import type { Tool } from '@/features/tools/types'
+import { useAgentEditor } from '../AgentEditorContext'
 import { toast } from 'sonner'
 
 interface ToolsTabProps {
@@ -139,57 +140,49 @@ function ToolIconButton({
 }
 
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
-  const { data: tools = [], isLoading, refetch } = useAgentTools(agentId)
-  const { refetch: refetchProjectTools } = useTools(projectId)
+  const { data: allTools = [], isLoading, refetch } = useTools(projectId)
   const updateStatus = useUpdateToolStatus()
-  const updateTool = useUpdateTool()
+  const { state, setField } = useAgentEditor()
 
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
-  const agentToolIds = new Set(tools.map(t => t.id))
+  const selectedIds = new Set(state.toolIds)
+  const toolsById = new Map(allTools.map((tool) => [tool.id, tool]))
+  const tools = state.toolIds.map((toolId) => toolsById.get(toolId)).filter((tool): tool is Tool => Boolean(tool))
   const activeCount = tools.filter(tool => tool.status === 'active').length
-
-  const refetchAll = async () => {
-    await Promise.all([refetch(), refetchProjectTools()])
-  }
 
   const handleToggleActive = async (tool: Tool) => {
     try {
       const newStatus = tool.status === 'active' ? 'inactive' : 'active'
       await updateStatus.mutateAsync({ toolId: tool.id, data: { status: newStatus } })
       toast.success(`"${tool.name}" ${newStatus === 'active' ? 'activated' : 'deactivated'}`)
-      await refetchAll()
+      await refetch()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status')
     }
   }
 
-  const handleRemove = async (tool: Tool) => {
-    try {
-      await updateTool.mutateAsync({ toolId: tool.id, data: { agent_id: null } })
-      toast.success(`"${tool.name}" removed from agent`)
-      await refetchAll()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove tool from agent')
-    }
+  const handleRemove = (tool: Tool) => {
+    setField('toolIds', state.toolIds.filter((toolId) => toolId !== tool.id))
+    toast.success(`"${tool.name}" removed from draft`)
   }
 
-  const handleCreated = (_tool?: Tool) => {
-    refetch()
-    refetchProjectTools()
+  const addToolToDraft = (tool: Tool) => {
+    if (selectedIds.has(tool.id)) return
+    setField('toolIds', [...state.toolIds, tool.id])
+    toast.success(`"${tool.name}" added to draft`)
   }
 
-  const handleImport = () => {
-    refetch()
-    refetchProjectTools()
+  const handleCreated = (tool?: Tool) => {
+    if (tool) addToolToDraft(tool)
+    void refetch()
   }
 
   const handleEditSaved = () => {
     setEditingTool(null)
-    refetch()
-    refetchProjectTools()
+    void refetch()
   }
 
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
@@ -198,8 +191,8 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">Agent tools</p>
-          <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} active</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted">Draft tools</p>
+          <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} selected tools active</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}>
@@ -217,8 +210,8 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
         <div className="rounded-xl border border-border bg-surface p-6">
           <EmptyState
             icon={<Wrench className="h-10 w-10" />}
-            title="No tools imported"
-            description="Create or import tools to give this agent extra capabilities."
+            title="No tools selected"
+            description="Create or import tools to add them to this Agent draft. Save Draft persists the selection."
             action={
               <div className="mt-2 flex gap-2">
                 <Button size="sm" onClick={() => setShowCreateModal(true)}>
@@ -267,9 +260,8 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                       <Pencil className="h-3.5 w-3.5" />
                     </ToolIconButton>
                     <ToolIconButton
-                      label="Remove tool from agent"
+                      label="Remove tool from draft"
                       tone="danger"
-                      loading={updateTool.isPending}
                       onClick={() => handleRemove(tool)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -282,14 +274,14 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                   <RiskIndicator risk={tool.risk_level} />
                 </div>
 
-                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refetchAll} /></div> : null}
+                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refetch} /></div> : null}
               </article>
             )
           })}
         </div>
       )}
 
-      <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} agentId={agentId} importedToolIds={agentToolIds} onImport={handleImport} />
+      <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addToolToDraft} />
       <CreateToolModal open={showCreateModal} onClose={() => setShowCreateModal(false)} projectId={projectId} agentId={agentId} onCreated={handleCreated} />
       <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={handleEditSaved} />
     </div>
