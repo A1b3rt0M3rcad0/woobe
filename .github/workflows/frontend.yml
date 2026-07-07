@@ -19,6 +19,8 @@ jobs:
     name: build-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      VITE_API_URL: http://localhost:8000
     defaults:
       run:
         working-directory: web
