@@ -20,12 +20,15 @@ from modules.agent.application.use_cases.structured_output_contract import (
     normalize_contract_for_prompt,
     validate_output_against_contract,
 )
-from modules.agent.domain.events import AgentExecutionFailedV1
+from modules.agent.domain.entities import Message
+from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.events import AgentExecutionFailedV1, AgentMessageCreatedV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from shared.infra.time import utc_now
 
 
 _OUTPUT_CONTRACT_RUNTIME_RULES = (
@@ -124,7 +127,9 @@ class StructuredOutputAskAgentUseCase(
                     if tool_source == "draft_live" and tool_metadata:
                         tools = []
                         for raw_tool_id in tool_metadata.get("tool_ids", []):
-                            tools.append(await uow.tools.get_by_id(UUID(str(raw_tool_id))))
+                            tool = await uow.tools.get_by_id(UUID(str(raw_tool_id)))
+                            if tool is not None:
+                                tools.append(tool)
                     else:
                         tools = await uow.tools.list_by_agent(agent.id, status="active")
 
@@ -153,6 +158,61 @@ class StructuredOutputAskAgentUseCase(
             messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
             updated[11] = messages
         return tuple(updated)
+
+    async def _do_save_assistant_message(
+        self,
+        message_repo,
+        session_repo,
+        outbox,
+        session,
+        content,
+        usage,
+        agent,
+        tool_calls=None,
+    ):
+        context = current_execution.get()
+        sources = context.persisted_sources if context else None
+        data = {}
+        if tool_calls:
+            data["tool_calls"] = [tool.model_dump() for tool in tool_calls]
+        if sources:
+            data["sources"] = [
+                source.model_dump() if hasattr(source, "model_dump") else source
+                for source in sources
+            ]
+        message = Message(
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            session_id=session.id,
+            role=MessageRole.ASSISTANT,
+            content=content,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cost_usd=usage.cost_usd,
+            data=data or None,
+        )
+        created = await message_repo.create(message)
+        session.last_message_at = utc_now()
+        try:
+            await session_repo.update(session)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to update session after saving assistant message: %s",
+                exc,
+            )
+
+        await outbox.write(
+            AgentMessageCreatedV1.create(
+                message_id=created.id,
+                session_id=session.id,
+                project_id=session.project_id,
+                agent_id=session.agent_id,
+                role="assistant",
+            )
+        )
+        return created
 
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
         context = current_execution.get()
@@ -211,6 +271,9 @@ class StructuredOutputAskAgentUseCase(
                             "provider": fallback_provider,
                             "model": getattr(agent, "fallback_model", None),
                         },
+                        "execution_context": context.execution_context if context else input_dto.execution_context,
+                        "agent_release_id": _id_text(context.agent_release_id if context else None),
+                        "agent_release_version": context.agent_release_version if context else None,
                         "error": error,
                     },
                 )
@@ -227,6 +290,8 @@ class StructuredOutputAskAgentUseCase(
         fallback_used, fallback_info_result, json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context is not None:
+            context.persisted_sources = list(sources or [])
         response_format = self._get_response_format(agent)
         if (
             response_format.get("enabled", False)
