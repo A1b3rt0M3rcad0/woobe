@@ -68,6 +68,8 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                         continue
                     seen.add(tool_id)
                     tool = await uow.tools.get_by_id(tool_id)
+                    if tool is None:
+                        raise ValidationError(f"Selected tool was not found: {tool_id}")
                     if tool.project_id != agent.project_id:
                         raise ValidationError("Selected tool does not belong to this Project")
                     if _value(tool.status) != ToolStatus.ACTIVE.value:
@@ -97,33 +99,39 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         agent = await self._load_base_agent(uow, input_dto)
         release_repo = getattr(uow, "releases", None)
-        context = (input_dto.execution_context or "playground").lower()
+        execution_context = (input_dto.execution_context or "playground").lower()
+        runtime_context = current_execution.get()
+        if runtime_context is not None:
+            runtime_context.execution_context = execution_context
 
-        if context == "production":
+        if execution_context == "production":
             if release_repo is None:
                 raise ValidationError("Production runtime requires release repository")
             release = await release_repo.get_active_production(agent.id)
             if release is None:
                 raise ValidationError(f"No production release deployed for agent {input_dto.agent_id}")
+            self._bind_release_context(release)
             agent = self._apply_release_snapshot_ids(
                 self._apply_release_to_agent(agent, release),
                 release,
             )
             return await self._resolve_provider_model_refs(uow, agent)
 
-        if context == "staging":
+        if execution_context == "staging":
             if release_repo is None:
                 raise ValidationError("Staging runtime requires release repository")
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
             if not releases:
                 raise ValidationError(f"No staging release deployed for agent {input_dto.agent_id}")
+            release = releases[0]
+            self._bind_release_context(release)
             agent = self._apply_release_snapshot_ids(
-                self._apply_release_to_agent(agent, releases[0]),
-                releases[0],
+                self._apply_release_to_agent(agent, release),
+                release,
             )
             return await self._resolve_provider_model_refs(uow, agent)
 
-        if context != "playground":
+        if execution_context != "playground":
             raise ValueError("Unsupported execution context")
 
         if input_dto.snapshot_override:
@@ -134,6 +142,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if input_dto.loaded_release_id and release_repo is not None:
             release = await release_repo.get_by_id(input_dto.loaded_release_id)
             if release is not None:
+                self._bind_release_context(release)
                 agent = self._apply_release_snapshot_ids(
                     self._apply_release_to_agent(agent, release),
                     release,
@@ -143,13 +152,22 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if release_repo is not None:
             drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)
             if drafts:
+                release = drafts[0]
+                self._bind_release_context(release)
                 agent = self._apply_release_snapshot_ids(
-                    self._apply_release_to_agent(agent, drafts[0]),
-                    drafts[0],
+                    self._apply_release_to_agent(agent, release),
+                    release,
                 )
                 return await self._resolve_provider_model_refs(uow, agent)
 
         return await self._resolve_provider_model_refs(uow, agent)
+
+    def _bind_release_context(self, release: AgentRelease) -> None:
+        context = current_execution.get()
+        if context is None:
+            return
+        context.agent_release_id = release.id
+        context.agent_release_version = release.version
 
     async def _load_base_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         from modules.agent.domain.errors import AgentNotFoundError
