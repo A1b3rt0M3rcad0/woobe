@@ -1,20 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from modules.agent.application.dtos.model_discovery_dtos import (
     AvailableProviderModelOutput,
     ListAvailableProviderModelsInput,
 )
 from modules.agent.domain.enums import CredentialStatus
 from modules.agent.domain.repositories import ProviderCredentialRepository
-from modules.agent.infra.adapters.model_discovery import (
-    ModelDiscoveryContext,
-    ModelDiscoveryService,
-    ProviderModelDiscoveryError,
-)
-from modules.agent.infra.adapters.openrouter_embedding_discovery import OpenRouterEmbeddingModelDiscoveryService
-from shared.infra.config import Settings
-from shared.infra.crypto import decrypt_secret
 from shared.infra.errors import ValidationError
+
+ModelDiscoveryCallable = Callable[[str, str, dict], Awaitable[list[AvailableProviderModelOutput]]]
+SecretResolverCallable = Callable[[str], str]
 
 
 def _is_embedding_model(model: AvailableProviderModelOutput) -> bool:
@@ -26,14 +23,14 @@ class ListAvailableProviderModelsUseCase:
     def __init__(
         self,
         credential_repo: ProviderCredentialRepository,
-        discovery_service: ModelDiscoveryService | None = None,
-        encryption_key: str | None = None,
-        embedding_discovery_service: OpenRouterEmbeddingModelDiscoveryService | None = None,
+        discovery: ModelDiscoveryCallable,
+        embedding_discovery: ModelDiscoveryCallable,
+        resolve_secret: SecretResolverCallable,
     ) -> None:
         self._credential_repo = credential_repo
-        self._discovery_service = discovery_service or ModelDiscoveryService()
-        self._embedding_discovery_service = embedding_discovery_service or OpenRouterEmbeddingModelDiscoveryService()
-        self._encryption_key = encryption_key or Settings().encryption_key
+        self._discovery = discovery
+        self._embedding_discovery = embedding_discovery
+        self._resolve_secret = resolve_secret
 
     async def execute(self, input_dto: ListAvailableProviderModelsInput) -> list[AvailableProviderModelOutput]:
         credential = await self._credential_repo.get_by_id(input_dto.credential_id)
@@ -57,26 +54,17 @@ class ListAvailableProviderModelsUseCase:
             raise ValidationError(f"Unsupported model discovery capability: {capability}")
 
         try:
-            api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
+            api_key = self._resolve_secret(credential.encrypted_secret)
         except Exception as exc:
-            raise ValidationError("Provider credential secret could not be decrypted. Recreate the credential.") from exc
+            raise ValidationError("Provider credential secret could not be resolved. Recreate the credential.") from exc
 
         try:
             if capability == "embedding" and provider == "openrouter":
-                return await self._embedding_discovery_service.list_models(
-                    api_key=api_key,
-                    metadata=metadata,
-                )
-
-            models = await self._discovery_service.list_models(
-                ModelDiscoveryContext(
-                    provider=provider,
-                    api_key=api_key,
-                    metadata=metadata,
-                )
-            )
-            if capability == "embedding":
-                return [model for model in models if _is_embedding_model(model)]
-            return models
-        except ProviderModelDiscoveryError as exc:
+                return await self._embedding_discovery(provider, api_key, metadata)
+            models = await self._discovery(provider, api_key, metadata)
+        except Exception as exc:
             raise ValidationError(str(exc)) from exc
+
+        if capability == "embedding":
+            return [model for model in models if _is_embedding_model(model)]
+        return models
