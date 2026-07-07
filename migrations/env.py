@@ -5,7 +5,8 @@ from logging.config import fileConfig
 from typing import Any
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import Column, ForeignKey, pool
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -16,10 +17,23 @@ from shared.infra.config import Settings
 from modules.identity.infra.database.models import *  # noqa: F401, F403
 from modules.core.infra.database.models import *  # noqa: F401, F403
 from modules.agent.infra.database.models import *  # noqa: F401, F403
+from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
 from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401, F403
 from modules.metering.infra.database.models import *  # noqa: F401, F403
 from modules.billing.infra.database.models import *  # noqa: F401, F403
 from modules.observability.infra.database.models import *  # noqa: F401, F403
+
+for _table in (AgentModel.__table__, AgentReleaseModel.__table__):
+    for _column_name in ("provider_model_id", "fallback_provider_model_id"):
+        if _column_name not in _table.c:
+            _table.append_column(
+                Column(
+                    _column_name,
+                    PG_UUID(as_uuid=True),
+                    ForeignKey("agent.provider_models.id"),
+                    nullable=True,
+                )
+            )
 
 config = context.config
 if config.config_file_name is not None:
