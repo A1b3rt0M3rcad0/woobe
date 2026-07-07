@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
+from modules.agent.infra.database.document_repositories import SQLAlchemyGuardedDocumentRepository
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -20,15 +21,12 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAskJobRepository,
     SQLAlchemyDocumentChunkRepository,
     SQLAlchemyDocumentCollectionRepository,
-    SQLAlchemyDocumentRepository,
     SQLAlchemyKnowledgeVersionRepository,
     SQLAlchemyMessageRepository,
     SQLAlchemyProviderCredentialRepository,
     SQLAlchemySessionRepository,
 )
-from modules.agent.infra.database.vector_snapshot_repositories import (
-    SQLAlchemyVectorSnapshotRepository,
-)
+from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
 
 
 class AgentUnitOfWork(UnitOfWork):
@@ -43,7 +41,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
         self._document_collections: SQLAlchemyDocumentCollectionRepository | None = None
-        self._documents: SQLAlchemyDocumentRepository | None = None
+        self._documents: SQLAlchemyGuardedDocumentRepository | None = None
         self._document_chunks: SQLAlchemyDocumentChunkRepository | None = None
         self._knowledge_versions: SQLAlchemyKnowledgeVersionRepository | None = None
         self._vector_snapshots: SQLAlchemyVectorSnapshotRepository | None = None
@@ -107,9 +105,9 @@ class AgentUnitOfWork(UnitOfWork):
         return self._document_collections
 
     @property
-    def documents(self) -> SQLAlchemyDocumentRepository:
+    def documents(self) -> SQLAlchemyGuardedDocumentRepository:
         if self._documents is None:
-            self._documents = SQLAlchemyDocumentRepository(self)
+            self._documents = SQLAlchemyGuardedDocumentRepository(self)
         return self._documents
 
     @property
