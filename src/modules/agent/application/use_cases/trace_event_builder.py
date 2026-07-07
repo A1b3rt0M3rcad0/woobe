@@ -81,7 +81,10 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                 previous_llm["requested_tool_call_ids"].append(tool_id)
             common = {
                 "tool_call_id": tool_id,
+                "tool_id": payload.get("tool_id"),
                 "tool_name": payload.get("tool_name"),
+                "tool_runtime_source": payload.get("tool_runtime_source"),
+                "tool_snapshot_hash": payload.get("tool_snapshot_hash"),
                 "input": payload.get("input"),
             }
             if started_at:
