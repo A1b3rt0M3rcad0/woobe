@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Agent } from '@/features/agents/types'
+import type { Agent, AgentRelease } from '@/features/agents/types'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
+import { useAgentTools } from '@/features/tools/hooks'
 
 export type ResponseFormat = {
   enabled: boolean
@@ -32,6 +33,7 @@ export type AgentEditorState = {
   maxOutputTokens: number
   collectionIds: string[]
   knowledgeVersionId: string | null
+  toolIds: string[]
   runtimeConfig: Record<string, unknown>
 }
 
@@ -53,9 +55,30 @@ function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
-export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null): AgentEditorState {
+function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unknown>; toolIds: string[]; hasToolsConfig: boolean } {
+  const runtimeConfig = recordValue(value)
+  const tools = recordValue(runtimeConfig.tools)
+  const hasToolsConfig = Object.prototype.hasOwnProperty.call(runtimeConfig, 'tools')
+  const toolIds = Array.isArray(tools.tool_ids)
+    ? tools.tool_ids.filter((item): item is string => typeof item === 'string')
+    : []
+  const { tools: _tools, ...rest } = runtimeConfig
+  return { runtimeConfig: rest, toolIds, hasToolsConfig }
+}
+
+function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown> {
+  return {
+    ...state.runtimeConfig,
+    tools: {
+      tool_ids: state.toolIds,
+    },
+  }
+}
+
+export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null, toolIds?: string[]): AgentEditorState {
   const settings = (agent.settings || {}) as Record<string, unknown>
   const responseFormat = recordValue(settings.response_format)
+  const runtime = splitRuntimeConfig(settings.runtime_config)
   return {
     name: agent.name || '',
     description: agent.description || '',
@@ -81,7 +104,42 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     maxOutputTokens: agent.max_output_tokens ?? 2048,
     collectionIds: collectionIds || [],
     knowledgeVersionId: knowledgeVersionId ?? null,
-    runtimeConfig: recordValue(settings.runtime_config),
+    toolIds: toolIds ?? runtime.toolIds,
+    runtimeConfig: runtime.runtimeConfig,
+  }
+}
+
+export function releaseToEditorState(release: AgentRelease, current: AgentEditorState): AgentEditorState {
+  const rf = recordValue(release.response_format)
+  const runtime = splitRuntimeConfig(release.runtime_config)
+  return {
+    ...current,
+    name: release.name ?? current.name,
+    description: release.description ?? current.description,
+    systemPrompt: release.system_prompt ?? current.systemPrompt,
+    provider: release.provider ?? current.provider,
+    model: release.model ?? current.model,
+    providerModelId: release.provider_model_id ?? current.providerModelId,
+    providerCredentialId: release.provider_credential_id ?? current.providerCredentialId,
+    fallbackProvider: release.fallback_provider ?? current.fallbackProvider,
+    fallbackModel: release.fallback_model ?? current.fallbackModel,
+    fallbackProviderModelId: release.fallback_provider_model_id ?? current.fallbackProviderModelId,
+    fallbackProviderCredentialId: release.fallback_credential_id ?? current.fallbackProviderCredentialId,
+    baseUrl: release.base_url ?? current.baseUrl,
+    temperature: release.temperature ?? current.temperature,
+    maxOutputTokens: release.max_output_tokens ?? current.maxOutputTokens,
+    collectionIds: release.collection_ids ?? current.collectionIds,
+    knowledgeVersionId: release.knowledge_version_id ?? null,
+    toolIds: runtime.hasToolsConfig ? runtime.toolIds : current.toolIds,
+    runtimeConfig: release.runtime_config == null ? current.runtimeConfig : runtime.runtimeConfig,
+    responseFormat: {
+      enabled: Boolean(rf.enabled ?? release.output_schema),
+      type: rf.type === 'json' ? 'json' : 'text',
+      strict: Boolean(rf.strict),
+      schema: rf.schema ?? release.output_schema ?? null,
+      repair_attempts: rf.repair_attempts as number | undefined,
+    },
+    outputSchema: release.output_schema ?? current.outputSchema,
   }
 }
 
@@ -115,7 +173,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     max_output_tokens: state.maxOutputTokens,
     collection_ids: state.collectionIds,
     knowledge_version_id: state.knowledgeVersionId,
-    runtime_config: state.runtimeConfig,
+    runtime_config: runtimeConfigSnapshot(state),
   }
 }
 
@@ -129,6 +187,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
   const initializedDraft = useRef(knowledgeVersionId !== undefined)
   const { data: releases } = useReleases(agent.id)
+  const { data: legacyAgentTools } = useAgentTools(agent.id)
   const { data: credentials } = useCredentials(projectId || '')
   const { data: providerModels } = useProviderModels(projectId || '')
 
@@ -140,24 +199,25 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   }, [agent, propCollectionIds, knowledgeVersionId])
 
   useEffect(() => {
-    if (initializedDraft.current || !releases) return
+    if (initializedDraft.current || !releases || !legacyAgentTools) return
     initializedDraft.current = true
+    const legacyToolIds = legacyAgentTools.map((tool) => tool.id)
     const draft = releases.find((release) => release.status === 'draft')
-    if (!draft) return
+    if (!draft) {
+      setState((previous) => ({ ...previous, toolIds: legacyToolIds }))
+      setBaselineState((previous) => ({ ...previous, toolIds: legacyToolIds }))
+      return
+    }
     let cancelled = false
     void getRelease(agent.id, draft.id)
       .then((release) => {
         if (cancelled) return
-        const patch = {
-          knowledgeVersionId: release.knowledge_version_id ?? null,
-          runtimeConfig: recordValue(release.runtime_config),
-        }
-        setState((previous) => ({ ...previous, ...patch }))
-        setBaselineState((previous) => ({ ...previous, ...patch }))
+        setState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds }))
+        setBaselineState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds }))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [agent.id, releases])
+  }, [agent.id, releases, legacyAgentTools])
 
   useEffect(() => {
     if (!loadedReleaseId) return
@@ -165,11 +225,7 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     void getRelease(agent.id, loadedReleaseId)
       .then((release) => {
         if (cancelled) return
-        setState((previous) => ({
-          ...previous,
-          knowledgeVersionId: release.knowledge_version_id ?? null,
-          runtimeConfig: recordValue(release.runtime_config),
-        }))
+        setState((previous) => releaseToEditorState(release, previous))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
