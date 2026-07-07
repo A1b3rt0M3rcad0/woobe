@@ -15,6 +15,8 @@ _EXECUTION_FIELDS = (
     "contract_version_id",
     "knowledge_version_id",
     "model_config_version_id",
+    "provider_model_id",
+    "fallback_provider_model_id",
     "name",
     "description",
     "system_prompt",
@@ -22,6 +24,10 @@ _EXECUTION_FIELDS = (
     "output_schema",
     "provider",
     "model",
+    "provider_credential_id",
+    "fallback_provider",
+    "fallback_model",
+    "fallback_credential_id",
     "base_url",
     "temperature",
     "max_output_tokens",
@@ -52,9 +58,6 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
         note_text = metadata.get("release_notes")
         current = await self._get_singleton(release.agent_id, ReleaseStatus.production)
         if current is not None and _execution_snapshot_equal(current, release):
-            if note_text is not None and current.release_notes != note_text:
-                current.release_notes = note_text
-                return await self._release_repo.save(current)
             return current
         detected_kind = classify_release_change(current, release)
         await self._archive_current(release.agent_id, ReleaseStatus.production)
