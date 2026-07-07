@@ -52,7 +52,8 @@ class SafeDeleteDocumentUseCase(BaseDeleteDocumentUseCase):
         super().__init__(doc_repo, chunk_repo, storage)
         from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
 
-        self._vector_snapshot_repo = SQLAlchemyVectorSnapshotRepository(doc_repo._session_or_uow)
+        session_source = getattr(doc_repo, "_session_or_uow")
+        self._vector_snapshot_repo = SQLAlchemyVectorSnapshotRepository(session_source)
 
     async def execute(self, document_id) -> None:
         document = await self._doc_repo.get_by_id(document_id)
