@@ -10,6 +10,6 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 def create_release_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     validator = KnowledgeReleaseValidator(uow.knowledge_versions, uow.vector_snapshots)
-    use_case = KnowledgeSafeCreateReleaseUseCase(uow.releases, validator)
+    use_case = KnowledgeSafeCreateReleaseUseCase(uow.releases, validator, uow.tools)
     controller = CreateReleaseController(use_case)
     return TransactionalHandler(uow, controller.handle)
