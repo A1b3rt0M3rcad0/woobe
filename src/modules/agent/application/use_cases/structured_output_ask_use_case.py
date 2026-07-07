@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
@@ -109,27 +111,42 @@ class StructuredOutputAskAgentUseCase(
     async def _prepare(self, input_dto):
         prepared = await super()._prepare(input_dto)
         agent = prepared[0]
-        try:
-            async with AgentUnitOfWork(self._session_factory) as uow:
-                tools = await uow.tools.list_by_agent(agent.id, status="active")
-                cipher = SecretCipherAdapter(self._encryption_key)
-                resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-                auth_provider_cls = getattr(mcp_oauth, "McpOAuthConfig" + "TokenProvider")
-                refreshed_tools = await refresh_stale_mcp_server_tools(
-                    tools=tools,
-                    tool_repo=uow.tools,
-                    executor=get_http_tool_executor(),
-                    secret_resolver=resolver,
-                    auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
-                )
-                agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
-        except Exception:
-            return prepared
+        context = current_execution.get()
+        tool_metadata = context.tool_metadata if context else None
+        tool_source = tool_metadata.get("source") if tool_metadata else None
 
-        updated = list(prepared)
-        updated[7] = agent_tools
-        updated[8] = tool_name_to_id
-        updated[9] = bool(agent_tools)
+        if tool_source == "release_snapshot":
+            updated = list(prepared)
+            tool_name_to_id = updated[8]
+        else:
+            try:
+                async with AgentUnitOfWork(self._session_factory) as uow:
+                    if tool_source == "draft_live" and tool_metadata:
+                        tools = []
+                        for raw_tool_id in tool_metadata.get("tool_ids", []):
+                            tools.append(await uow.tools.get_by_id(UUID(str(raw_tool_id))))
+                    else:
+                        tools = await uow.tools.list_by_agent(agent.id, status="active")
+
+                    cipher = SecretCipherAdapter(self._encryption_key)
+                    resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+                    auth_provider_cls = getattr(mcp_oauth, "McpOAuthConfig" + "TokenProvider")
+                    refreshed_tools = await refresh_stale_mcp_server_tools(
+                        tools=tools,
+                        tool_repo=uow.tools,
+                        executor=get_http_tool_executor(),
+                        secret_resolver=resolver,
+                        auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
+                    )
+                    agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
+            except Exception:
+                return prepared
+
+            updated = list(prepared)
+            updated[7] = agent_tools
+            updated[8] = tool_name_to_id
+            updated[9] = bool(agent_tools)
+
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])
             insert_at = len(messages) - 1 if messages else 0
