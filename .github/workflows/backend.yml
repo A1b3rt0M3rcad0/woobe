@@ -117,8 +117,8 @@ jobs:
           fi
 
           mapfile -t files < <(
-            git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- src migrations \
-              | grep -E '^(src|migrations)/.*\.py$' || true
+            git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- src \
+              | grep -E '^src/.*\.py$' || true
           )
 
           if [[ ${#files[@]} -eq 0 ]]; then
