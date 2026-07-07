@@ -20,6 +20,15 @@ def _snapshot_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _verify_snapshot_hash(snapshot: dict[str, Any]) -> None:
+    expected = snapshot.get("snapshot_hash")
+    if not isinstance(expected, str) or not expected:
+        raise ValidationError("Release tool snapshot hash is missing")
+    payload = {key: deepcopy(value) for key, value in snapshot.items() if key != "snapshot_hash"}
+    if _snapshot_hash(payload) != expected:
+        raise ValidationError("Release tool snapshot hash is invalid")
+
+
 def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": str(tool.id),
@@ -39,6 +48,7 @@ def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
 
 
 def tool_from_release_snapshot(snapshot: dict[str, Any]) -> Tool:
+    _verify_snapshot_hash(snapshot)
     try:
         tool_id = UUID(str(snapshot["id"]))
         project_id_raw = snapshot.get("project_id")
@@ -88,6 +98,8 @@ async def build_release_tool_runtime(
     snapshots: list[dict[str, Any]] = []
     for tool_id in ordered_ids:
         tool = await tool_repo.get_by_id(tool_id)
+        if tool is None:
+            raise ValidationError(f"Selected tool was not found: {tool_id}")
         if tool.project_id != project_id:
             raise ValidationError("Selected tool does not belong to this Project")
         if _value(tool.status) != ToolStatus.ACTIVE.value:
