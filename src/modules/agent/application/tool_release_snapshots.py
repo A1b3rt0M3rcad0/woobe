@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
@@ -26,9 +27,9 @@ def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
         "name": tool.name,
         "description": tool.description,
         "type": str(_value(tool.type)),
-        "config": dict(tool.config or {}),
-        "input_schema": dict(tool.input_schema or {}),
-        "output_schema": dict(tool.output_schema or {}) if tool.output_schema else None,
+        "config": deepcopy(tool.config or {}),
+        "input_schema": deepcopy(tool.input_schema or {}),
+        "output_schema": deepcopy(tool.output_schema) if tool.output_schema is not None else None,
         "risk_level": str(_value(tool.risk_level)),
         "timeout_ms": tool.timeout_ms,
         "status": str(_value(tool.status)),
@@ -54,10 +55,10 @@ def tool_from_release_snapshot(snapshot: dict[str, Any]) -> Tool:
         name=str(snapshot.get("name") or ""),
         description=snapshot.get("description"),
         type=tool_type,
-        config=dict(snapshot.get("config") or {}),
-        input_schema=dict(snapshot.get("input_schema") or {}),
+        config=deepcopy(snapshot.get("config") or {}),
+        input_schema=deepcopy(snapshot.get("input_schema") or {}),
         output_schema=(
-            dict(snapshot.get("output_schema") or {})
+            deepcopy(snapshot.get("output_schema"))
             if snapshot.get("output_schema") is not None
             else None
         ),
