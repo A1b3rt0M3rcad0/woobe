@@ -32,25 +32,11 @@ export interface RagRetrievalConfig {
   grounding_policy: RagGroundingPolicy
 }
 
-export interface RagRuntimeConfig {
-  inherit_snapshot_defaults: boolean
-  search_strategy?: 'similarity'
-  candidate_k?: number
-  top_k?: number
-  min_score?: number | null
-  min_score_enabled?: boolean
-  max_context_chunks?: number
-  max_chunks_per_document?: number
-  max_context_chars?: number
-  query_mode?: RagQueryMode
-  history_turns?: number
-  grounding_policy?: RagGroundingPolicy
-}
+export type RagRuntimeConfig = RagRetrievalConfig
 
 export interface RagBuildConfig {
   parser: RagParserConfig
   chunking: RagChunkingConfig
-  retrieval: RagRetrievalConfig
 }
 
 export interface VectorBuildPreviewSample {
