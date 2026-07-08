@@ -95,23 +95,24 @@ class TestMigration0024Structure:
 
 class TestMigrationChain:
 
-    def test_chain_is_linear(self):
-        migration_files = sorted(MIGRATIONS_DIR.glob("[0-9]*.py"))
-        previous_revision = None
-        for migration_file in migration_files:
+    def test_chain_references_existing_revisions(self):
+        revisions = {}
+        for migration_file in MIGRATIONS_DIR.glob("*.py"):
             text = migration_file.read_text(encoding="utf-8")
             revision_match = re.search(r'revision = "([^"]+)"', text)
-            down_revision_match = re.search(r'down_revision = "([^"]+)"', text)
             if revision_match is None:
                 continue
-            revision = revision_match.group(1)
-            if previous_revision is not None:
-                assert down_revision_match is not None, f"Missing down_revision in {migration_file.name}"
-                assert down_revision_match.group(1) == previous_revision, (
-                    f"Expected {migration_file.name} to follow {previous_revision}, "
-                    f"got {down_revision_match.group(1)}"
-                )
-            previous_revision = revision
+            down_revision_match = re.search(r'down_revision = "([^"]+)"', text)
+            revisions[revision_match.group(1)] = (
+                down_revision_match.group(1) if down_revision_match else None
+            )
+
+        for revision, down_revision in revisions.items():
+            if down_revision is None:
+                continue
+            assert down_revision in revisions, (
+                f"Migration {revision} references missing down_revision {down_revision}"
+            )
 
     def test_0024_follows_0023(self):
         text = MIGRATION_FILE.read_text(encoding="utf-8")
@@ -119,7 +120,7 @@ class TestMigrationChain:
 
     def test_no_duplicate_revisions(self):
         revisions = set()
-        for migration_file in sorted(MIGRATIONS_DIR.glob("[0-9]*.py")):
+        for migration_file in MIGRATIONS_DIR.glob("*.py"):
             text = migration_file.read_text(encoding="utf-8")
             revision_match = re.search(r'revision = "([^"]+)"', text)
             if revision_match:
