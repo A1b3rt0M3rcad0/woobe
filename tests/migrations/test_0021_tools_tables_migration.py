@@ -78,10 +78,16 @@ class TestMigrationChain:
         revisions = {}
         for migration_file in MIGRATIONS_DIR.glob("*.py"):
             text = migration_file.read_text(encoding="utf-8")
-            revision_match = re.search(r"revision\s*=\s*['\"]([^'\"]+)['\"]", text)
+            revision_match = re.search(
+                r"revision(?:\s*:\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]",
+                text,
+            )
             if revision_match is None:
                 continue
-            down_revision_match = re.search(r"down_revision\s*=\s*['\"]([^'\"]+)['\"]", text)
+            down_revision_match = re.search(
+                r"down_revision(?:\s*:\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]",
+                text,
+            )
             revisions[revision_match.group(1)] = (
                 down_revision_match.group(1) if down_revision_match else None
             )
