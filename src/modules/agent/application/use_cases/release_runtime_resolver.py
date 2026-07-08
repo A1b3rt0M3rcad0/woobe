@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -12,9 +13,11 @@ from modules.agent.application.use_cases.execution_context import current_execut
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.errors import ValidationError
 from shared.infra.llm_cost import provider_model_pricing_snapshot
+
+
+RuntimeToolReader = Callable[[list[UUID]], Awaitable[list[Any]]]
 
 
 def _value(value: object) -> object:
@@ -22,6 +25,11 @@ def _value(value: object) -> object:
 
 
 class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
+    _runtime_tool_reader: RuntimeToolReader | None = None
+
+    def configure_runtime_tool_reader(self, reader: RuntimeToolReader) -> None:
+        self._runtime_tool_reader = reader
+
     async def _prepare(self, input_dto: Any) -> Any:
         prepared = await super()._prepare(input_dto)
         if not isinstance(prepared, tuple) or len(prepared) < 13:
@@ -57,17 +65,25 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 tools.append(tool)
                 snapshot_map[str(tool.id)] = dict(raw_snapshot)
         elif isinstance(raw_tool_ids, list):
-            async with AgentUnitOfWork(self._session_factory) as uow:
-                seen: set[UUID] = set()
-                for raw_tool_id in raw_tool_ids:
-                    try:
-                        tool_id = raw_tool_id if isinstance(raw_tool_id, UUID) else UUID(str(raw_tool_id))
-                    except (TypeError, ValueError) as exc:
-                        raise ValidationError("Draft contains an invalid tool id") from exc
-                    if tool_id in seen:
-                        continue
-                    seen.add(tool_id)
-                    tool = await uow.tools.get_by_id(tool_id)
+            seen: set[UUID] = set()
+            selected_ids: list[UUID] = []
+            for raw_tool_id in raw_tool_ids:
+                try:
+                    tool_id = raw_tool_id if isinstance(raw_tool_id, UUID) else UUID(str(raw_tool_id))
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError("Draft contains an invalid tool id") from exc
+                if tool_id in seen:
+                    continue
+                seen.add(tool_id)
+                selected_ids.append(tool_id)
+
+            if selected_ids:
+                if self._runtime_tool_reader is None:
+                    raise ValidationError("Draft Tool runtime reader is not configured")
+                loaded_tools = await self._runtime_tool_reader(selected_ids)
+                tools_by_id = {tool.id: tool for tool in loaded_tools}
+                for tool_id in selected_ids:
+                    tool = tools_by_id.get(tool_id)
                     if tool is None:
                         raise ValidationError(f"Selected tool was not found: {tool_id}")
                     if tool.project_id != agent.project_id:
