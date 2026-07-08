@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from modules.agent.application.use_cases.knowledge_use_cases import DeleteDocumentUseCase as BaseDeleteDocumentUseCase
@@ -53,9 +53,9 @@ class KnowledgeReleaseValidator:
 
 
 class SafeDeleteDocumentUseCase(BaseDeleteDocumentUseCase):
-    def __init__(self, doc_repo: ActiveVectorBuildGuard, chunk_repo, storage) -> None:
+    def __init__(self, doc_repo: Any, chunk_repo, storage) -> None:
         super().__init__(doc_repo, chunk_repo, storage)
-        self._build_guard = doc_repo
+        self._build_guard: ActiveVectorBuildGuard = doc_repo
 
     async def execute(self, document_id) -> None:
         document = await self._doc_repo.get_by_id(document_id)
