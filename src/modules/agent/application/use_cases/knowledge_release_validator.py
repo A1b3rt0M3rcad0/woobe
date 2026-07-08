@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from typing import Protocol
 from uuid import UUID
 
 from modules.agent.application.use_cases.knowledge_use_cases import DeleteDocumentUseCase as BaseDeleteDocumentUseCase
 from modules.agent.domain.enums import KnowledgeVersionStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from shared.infra.errors import ConflictError, ValidationError
+
+
+class ActiveVectorBuildGuard(Protocol):
+    async def has_active_vector_build(self, project_id: UUID, collection_id: UUID) -> bool: ...
 
 
 class KnowledgeReleaseValidator:
@@ -48,19 +53,15 @@ class KnowledgeReleaseValidator:
 
 
 class SafeDeleteDocumentUseCase(BaseDeleteDocumentUseCase):
-    def __init__(self, doc_repo, chunk_repo, storage) -> None:
+    def __init__(self, doc_repo: ActiveVectorBuildGuard, chunk_repo, storage) -> None:
         super().__init__(doc_repo, chunk_repo, storage)
-        from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
-
-        session_source = getattr(doc_repo, "_session_or_uow")
-        self._vector_snapshot_repo = SQLAlchemyVectorSnapshotRepository(session_source)
+        self._build_guard = doc_repo
 
     async def execute(self, document_id) -> None:
         document = await self._doc_repo.get_by_id(document_id)
-        active_build = await self._vector_snapshot_repo.get_active_building_by_collection(
+        if await self._build_guard.has_active_vector_build(
             document.project_id,
             document.collection_id,
-        )
-        if active_build is not None:
+        ):
             raise ConflictError("Document cannot be deleted while a vector snapshot is building")
         await super().execute(document_id)
