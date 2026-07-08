@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import datetime, timezone
 
 from modules.agent.application.use_cases.release_lifecycle_use_cases import ReleaseLifecycleUseCase
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.release_compatibility import classify_release_change
+from shared.infra.errors import ConflictError
 
 
-_VERSIONED_PRODUCTION_SOURCES = {ReleaseStatus.draft, ReleaseStatus.staging}
 _EXECUTION_FIELDS = (
     "prompt_version_id",
     "contract_version_id",
@@ -43,7 +42,9 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
     async def execute(self, agent_id, release_id, input_dto=None, *, target_status: str = "production", user_id=None, copy_snapshot: bool = False, change_kind: str = "change"):
         release = await self._release_repo.get_by_id(release_id)
         if target_status == ReleaseStatus.production.value and release is not None:
-            copy_snapshot = release.status in _VERSIONED_PRODUCTION_SOURCES
+            if release.status == ReleaseStatus.draft:
+                raise ConflictError("Draft must be promoted to Staging before Production")
+            copy_snapshot = release.status == ReleaseStatus.staging
         return await super().execute(
             agent_id,
             release_id,
@@ -62,18 +63,38 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
         detected_kind = classify_release_change(current, release)
         await self._archive_current(release.agent_id, ReleaseStatus.production)
         version = await self._next_version(release.agent_id, detected_kind)
-        clone = replace(
+        clone = _clone_release_snapshot(
             release,
-            id=AgentRelease().id,
             version=version,
             status=ReleaseStatus.production,
             release_notes=note_text,
             promoted_by=user_id,
-            promoted_at=datetime.now(timezone.utc),
-            created_at=None,
-            updated_at=None,
         )
         return await self._release_repo.save(clone)
+
+
+def _clone_release_snapshot(
+    source: AgentRelease,
+    *,
+    version: str,
+    status: ReleaseStatus,
+    release_notes: str | None,
+    promoted_by,
+) -> AgentRelease:
+    clone = AgentRelease()
+    clone.project_id = source.project_id
+    clone.agent_id = source.agent_id
+    for field_name in _EXECUTION_FIELDS:
+        setattr(clone, field_name, getattr(source, field_name))
+    clone.version = version
+    clone.status = status
+    clone.release_notes = release_notes
+    clone.created_by = source.created_by
+    clone.promoted_by = promoted_by
+    clone.promoted_at = datetime.now(timezone.utc)
+    clone.created_at = None
+    clone.updated_at = None
+    return clone
 
 
 def _execution_snapshot_equal(left: AgentRelease, right: AgentRelease) -> bool:
