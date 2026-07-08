@@ -7,7 +7,7 @@ from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
-from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
+from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot, tool_with_permission_overrides
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
@@ -51,6 +51,8 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         source = "draft_live"
         raw_snapshots = tools_config.get("snapshots")
         raw_tool_ids = tools_config.get("tool_ids")
+        raw_permissions = tools_config.get("permissions")
+        permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
 
         if isinstance(raw_snapshots, list) and raw_snapshots:
             source = "release_snapshot"
@@ -90,7 +92,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                         raise ValidationError("Selected tool does not belong to this Project")
                     if _value(tool.status) != ToolStatus.ACTIVE.value:
                         raise ValidationError(f"Selected tool is not active: {tool.name}")
-                    tools.append(tool)
+                    tools.append(tool_with_permission_overrides(tool, permission_map.get(str(tool_id))))
 
         definitions, name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
         context = current_execution.get()
@@ -104,6 +106,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                     for snapshot in snapshot_map.values()
                     if snapshot.get("snapshot_hash")
                 ],
+                "permission_overrides": permission_map or None,
             }
 
         mutable = list(prepared)
