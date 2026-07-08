@@ -8,8 +8,8 @@ import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
 import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
 import { useUpdateToolStatus, useTools } from '@/features/tools/hooks'
-import type { Tool } from '@/features/tools/types'
-import { useAgentEditor } from '../AgentEditorContext'
+import type { McpToolPermission, Tool } from '@/features/tools/types'
+import { toolPermissionsFromTools, useAgentEditor } from '../AgentEditorContext'
 import { toast } from 'sonner'
 
 interface ToolsTabProps {
@@ -142,7 +142,7 @@ function ToolIconButton({
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const { data: allTools = [], isLoading, refetch } = useTools(projectId)
   const updateStatus = useUpdateToolStatus()
-  const { state, setField } = useAgentEditor()
+  const { state, setField, setState } = useAgentEditor()
 
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -169,14 +169,35 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   }
 
   const handleRemove = (tool: Tool) => {
-    setField('toolIds', state.toolIds.filter((toolId) => toolId !== tool.id))
+    const nextPermissions = { ...state.toolPermissions }
+    delete nextPermissions[tool.id]
+    setState({
+      ...state,
+      toolIds: state.toolIds.filter((toolId) => toolId !== tool.id),
+      toolPermissions: nextPermissions,
+    })
     toast.success(`"${tool.name}" removed from draft`)
   }
 
   const addToolToDraft = (tool: Tool) => {
     if (selectedIds.has(tool.id)) return
-    setField('toolIds', [...state.toolIds, tool.id])
+    const initialPermissions = toolPermissionsFromTools([tool])[tool.id] || {}
+    setState({
+      ...state,
+      toolIds: [...state.toolIds, tool.id],
+      toolPermissions: {
+        ...state.toolPermissions,
+        [tool.id]: initialPermissions,
+      },
+    })
     toast.success(`"${tool.name}" added to draft`)
+  }
+
+  const handlePermissionOverridesChange = (toolId: string, permissions: Record<string, McpToolPermission>) => {
+    setField('toolPermissions', {
+      ...state.toolPermissions,
+      [toolId]: permissions,
+    })
   }
 
   const handleCreated = (tool?: Tool) => {
@@ -268,7 +289,16 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
                   <RiskIndicator risk={tool.risk_level} />
                 </div>
 
-                {isMcp ? <div className="mt-3"><McpProviderPanel tool={tool} onChanged={refreshTools} /></div> : null}
+                {isMcp ? (
+                  <div className="mt-3">
+                    <McpProviderPanel
+                      tool={tool}
+                      onChanged={refreshTools}
+                      permissionOverrides={state.toolPermissions[tool.id] || {}}
+                      onPermissionOverridesChange={(permissions) => handlePermissionOverridesChange(tool.id, permissions)}
+                    />
+                  </div>
+                ) : null}
               </article>
             )
           })}
