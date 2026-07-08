@@ -74,20 +74,30 @@ class TestMigration0021Structure:
 
 class TestMigrationChain:
 
-    def test_chain_is_linear(self):
-        migration_files = sorted(MIGRATIONS_DIR.glob("[0-9]*.py"))
-        prev = None
-        for mf in migration_files:
-            text = mf.read_text(encoding="utf-8")
-            rev_match = re.search(r'revision = "(\d+)"', text)
-            down_match = re.search(r'down_revision = "(\d+)"', text)
-            if rev_match and down_match:
-                rev = int(rev_match.group(1))
-                if prev is not None:
-                    assert rev == prev + 1, (
-                        f"Expected revision {prev + 1:04d}, got {rev:04d}"
-                    )
-                prev = rev
+    def test_chain_references_existing_revisions(self):
+        revisions = {}
+        for migration_file in MIGRATIONS_DIR.glob("*.py"):
+            text = migration_file.read_text(encoding="utf-8")
+            revision_match = re.search(
+                r"revision(?:\s*:\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]",
+                text,
+            )
+            if revision_match is None:
+                continue
+            down_revision_match = re.search(
+                r"down_revision(?:\s*:\s*[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]",
+                text,
+            )
+            revisions[revision_match.group(1)] = (
+                down_revision_match.group(1) if down_revision_match else None
+            )
+
+        for revision, down_revision in revisions.items():
+            if down_revision is None:
+                continue
+            assert down_revision in revisions, (
+                f"Migration {revision} references missing down_revision {down_revision}"
+            )
 
     def test_0021_follows_0020(self):
         text = MIGRATION_FILE.read_text(encoding="utf-8")

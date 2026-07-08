@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
@@ -18,12 +20,15 @@ from modules.agent.application.use_cases.structured_output_contract import (
     normalize_contract_for_prompt,
     validate_output_against_contract,
 )
-from modules.agent.domain.events import AgentExecutionFailedV1
+from modules.agent.domain.entities import Message
+from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.events import AgentExecutionFailedV1, AgentMessageCreatedV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from shared.infra.time import utc_now
 
 
 _OUTPUT_CONTRACT_RUNTIME_RULES = (
@@ -109,33 +114,108 @@ class StructuredOutputAskAgentUseCase(
     async def _prepare(self, input_dto):
         prepared = await super()._prepare(input_dto)
         agent = prepared[0]
-        try:
-            async with AgentUnitOfWork(self._session_factory) as uow:
-                tools = await uow.tools.list_by_agent(agent.id, status="active")
-                cipher = SecretCipherAdapter(self._encryption_key)
-                resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
-                auth_provider_cls = getattr(mcp_oauth, "McpOAuthConfig" + "TokenProvider")
-                refreshed_tools = await refresh_stale_mcp_server_tools(
-                    tools=tools,
-                    tool_repo=uow.tools,
-                    executor=get_http_tool_executor(),
-                    secret_resolver=resolver,
-                    auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
-                )
-                agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
-        except Exception:
-            return prepared
+        context = current_execution.get()
+        tool_metadata = context.tool_metadata if context else None
+        tool_source = tool_metadata.get("source") if tool_metadata else None
 
-        updated = list(prepared)
-        updated[7] = agent_tools
-        updated[8] = tool_name_to_id
-        updated[9] = bool(agent_tools)
+        if tool_source == "release_snapshot":
+            updated = list(prepared)
+            tool_name_to_id = updated[8]
+        else:
+            try:
+                session_factory = self._session_factory
+                if session_factory is None:
+                    raise RuntimeError("Agent runtime session factory is not configured")
+                async with AgentUnitOfWork(session_factory) as uow:
+                    if tool_source == "draft_live" and tool_metadata:
+                        tools = []
+                        for raw_tool_id in tool_metadata.get("tool_ids", []):
+                            tool = await uow.tools.get_by_id(UUID(str(raw_tool_id)))
+                            if tool is not None:
+                                tools.append(tool)
+                    else:
+                        tools = await uow.tools.list_by_agent(agent.id, status="active")
+
+                    cipher = SecretCipherAdapter(self._encryption_key)
+                    resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+                    auth_provider_cls = getattr(mcp_oauth, "McpOAuthConfig" + "TokenProvider")
+                    refreshed_tools = await refresh_stale_mcp_server_tools(
+                        tools=tools,
+                        tool_repo=uow.tools,
+                        executor=get_http_tool_executor(),
+                        secret_resolver=resolver,
+                        auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
+                    )
+                    agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
+            except Exception:
+                return prepared
+
+            updated = list(prepared)
+            updated[7] = agent_tools
+            updated[8] = tool_name_to_id
+            updated[9] = bool(agent_tools)
+
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])
             insert_at = len(messages) - 1 if messages else 0
             messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
             updated[11] = messages
         return tuple(updated)
+
+    async def _do_save_assistant_message(
+        self,
+        message_repo,
+        session_repo,
+        outbox,
+        session,
+        content,
+        usage,
+        agent,
+        tool_calls=None,
+    ):
+        context = current_execution.get()
+        sources = context.persisted_sources if context else None
+        data = {}
+        if tool_calls:
+            data["tool_calls"] = [tool.model_dump() for tool in tool_calls]
+        if sources:
+            data["sources"] = [
+                source.model_dump() if hasattr(source, "model_dump") else source
+                for source in sources
+            ]
+        message = Message(
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            session_id=session.id,
+            role=MessageRole.ASSISTANT,
+            content=content,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cost_usd=usage.cost_usd,
+            data=data or None,
+        )
+        created = await message_repo.create(message)
+        session.last_message_at = utc_now()
+        try:
+            await session_repo.update(session)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to update session after saving assistant message: %s",
+                exc,
+            )
+
+        await outbox.write(
+            AgentMessageCreatedV1.create(
+                message_id=created.id,
+                session_id=session.id,
+                project_id=session.project_id,
+                agent_id=session.agent_id,
+                role="assistant",
+            )
+        )
+        return created
 
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
         context = current_execution.get()
@@ -162,13 +242,16 @@ class StructuredOutputAskAgentUseCase(
                 )
 
         try:
-            async with AgentUnitOfWork(self._session_factory) as uow:
+            session_factory = self._session_factory
+            if session_factory is None:
+                raise RuntimeError("Agent runtime session factory is not configured")
+            async with AgentUnitOfWork(session_factory) as uow:
                 outbox = SQLAlchemyAgentOutboxEventWriter(uow)
                 provider = _provider_value(getattr(agent, "provider", None))
                 fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
                 failed_event = AgentExecutionFailedV1.create(
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id if session else (trace_id or agent.id),
                     payload={
                         "trace_id": str(trace_id) if trace_id else None,
                         "project_id": str(input_dto.project_id),
@@ -194,6 +277,9 @@ class StructuredOutputAskAgentUseCase(
                             "provider": fallback_provider,
                             "model": getattr(agent, "fallback_model", None),
                         },
+                        "execution_context": context.execution_context if context else input_dto.execution_context,
+                        "agent_release_id": _id_text(context.agent_release_id if context else None),
+                        "agent_release_version": context.agent_release_version if context else None,
                         "error": error,
                     },
                 )
@@ -210,6 +296,8 @@ class StructuredOutputAskAgentUseCase(
         fallback_used, fallback_info_result, json_format_latency_ms,
     ):
         context = current_execution.get()
+        if context is not None:
+            context.persisted_sources = list(sources or [])
         response_format = self._get_response_format(agent)
         if (
             response_format.get("enabled", False)

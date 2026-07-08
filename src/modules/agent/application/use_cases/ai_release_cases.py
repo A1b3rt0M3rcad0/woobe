@@ -11,7 +11,8 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases import (
     _release_to_output,
 )
 from modules.agent.domain.entities import AgentReleaseTest
-from modules.agent.domain.enums import ReleaseTestStatus
+from modules.agent.domain.enums import ReleaseStatus, ReleaseTestStatus
+from shared.infra.errors import ConflictError
 
 __all__ = [
     "CreateReleaseUseCase",
@@ -65,6 +66,8 @@ class DeleteReleaseUseCase:
             from modules.agent.domain.errors import ReleaseNotFoundError
 
             raise ReleaseNotFoundError
+        if item.status not in {ReleaseStatus.draft, ReleaseStatus.staging}:
+            raise ConflictError("Published and historical releases are immutable and cannot be deleted")
         await self._release_repo.delete(release_id)
 
 

@@ -19,6 +19,8 @@ jobs:
     name: build-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      VITE_API_URL: http://localhost:8000
     defaults:
       run:
         working-directory: web
@@ -34,6 +36,26 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: TypeScript and Vite build
-        run: npm run build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee frontend-build.log
+      - name: Upload frontend build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: web/frontend-build.log
+          if-no-files-found: warn
       - name: Vitest
-        run: npm run test:run
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:run 2>&1 | tee frontend-vitest.log
+      - name: Upload frontend Vitest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-vitest
+          path: web/frontend-vitest.log
+          if-no-files-found: warn

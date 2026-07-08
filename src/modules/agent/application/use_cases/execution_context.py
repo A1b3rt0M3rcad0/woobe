@@ -4,6 +4,7 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from modules.agent.application.use_cases.execution_instrumentation import (
@@ -30,6 +31,13 @@ class RequestExecutionContext:
     prepare_latency_ms: int = 0
     strict_json: bool = False
     execution: InstrumentedExecution | None = None
+    execution_context: str | None = None
+    agent_release_id: UUID | None = None
+    agent_release_version: str | None = None
+    rag_metadata: dict[str, Any] | None = None
+    tool_snapshots: dict[str, dict[str, Any]] | None = None
+    tool_metadata: dict[str, Any] | None = None
+    persisted_sources: list[Any] | None = None
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(

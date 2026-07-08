@@ -5,7 +5,7 @@ from typing import cast
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -22,6 +22,7 @@ from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
 from modules.agent.presentation.routes import runtime_router as agent_runtime_router
 from modules.agent.presentation.routes import tools_router
+from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
@@ -42,7 +43,6 @@ from shared.infra.errors import (
 )
 from shared.observability.http import RequestObservabilityMiddleware
 from shared.observability.logging_config import configure_logging
-from shared.observability.metrics import runtime_metrics
 from shared.presentation.errors import (
     authentication_handler,
     authorization_handler,
@@ -233,6 +233,7 @@ def create_app() -> FastAPI:
         app.include_router(agent_router)
         app.include_router(agent_ai_router)
         app.include_router(agent_knowledge_router)
+        app.include_router(vector_snapshot_router)
         app.include_router(agent_runtime_router)
         app.include_router(tools_router)
         app.include_router(mcp_tools_router)

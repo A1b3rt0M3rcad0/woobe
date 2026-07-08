@@ -81,7 +81,10 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                 previous_llm["requested_tool_call_ids"].append(tool_id)
             common = {
                 "tool_call_id": tool_id,
+                "tool_id": payload.get("tool_id"),
                 "tool_name": payload.get("tool_name"),
+                "tool_runtime_source": payload.get("tool_runtime_source"),
+                "tool_snapshot_hash": payload.get("tool_snapshot_hash"),
                 "input": payload.get("input"),
             }
             if started_at:
@@ -107,6 +110,24 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                     "success": payload.get("success"),
                     "error": payload.get("error"),
                 },
+            ))
+        elif item.get("kind") == "rag":
+            occurred_at = str(ended_at or started_at or "")
+            attributes = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"started_at", "ended_at", "occurred_at"}
+            }
+            events.append(_event(
+                trace_id,
+                "rag.retrieval.completed",
+                occurred_at,
+                phase="retrieval",
+                status="success",
+                started_at=started_at,
+                ended_at=ended_at,
+                duration_ms=None,
+                attributes=attributes,
             ))
     events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
     return events

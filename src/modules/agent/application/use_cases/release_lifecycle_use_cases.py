@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_versioning import calculate_next_release_version
 from modules.agent.domain.repositories import AgentReleaseRepository
+from shared.infra.errors import ConflictError
 
 
 _SINGLETON_STATUSES = {ReleaseStatus.draft, ReleaseStatus.staging, ReleaseStatus.production}
@@ -22,6 +24,15 @@ _SNAPSHOT_FIELDS = (
     "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
     "collection_ids", "runtime_config", "risk_score", "created_by",
 )
+
+
+def _canonical_runtime_config(value) -> dict:
+    runtime_config = deepcopy(value) if isinstance(value, dict) else {}
+    raw_rag = runtime_config.get("rag")
+    runtime_config["rag"] = RAGRuntimeConfig.model_validate(
+        raw_rag if isinstance(raw_rag, dict) else {}
+    ).model_dump()
+    return runtime_config
 
 
 def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
@@ -89,7 +100,12 @@ class AutoCreateReleaseUseCase:
 
     def _copy_input_to_release(self, input_dto: CreateReleaseInput, release: AgentRelease) -> None:
         for field_name in _SNAPSHOT_FIELDS:
-            setattr(release, field_name, getattr(input_dto, field_name))
+            value = getattr(input_dto, field_name)
+            if field_name == "runtime_config":
+                value = _canonical_runtime_config(value)
+            else:
+                value = deepcopy(value)
+            setattr(release, field_name, value)
         release.release_notes = getattr(input_dto, "release_notes", None)
 
 
@@ -107,12 +123,28 @@ class ReleaseLifecycleUseCase:
         target = ReleaseStatus(target_status)
         if target not in _SINGLETON_STATUSES:
             raise ValueError("invalid release lifecycle target")
-        if target in (ReleaseStatus.draft, ReleaseStatus.staging):
+        if target == ReleaseStatus.draft:
+            raise ConflictError("Draft is changed through Save Draft, not promotion")
+        if target == ReleaseStatus.staging:
+            if release.status != ReleaseStatus.draft:
+                raise ConflictError("Staging can only be replaced by promoting the current Draft")
             saved = await self._upsert_singleton_snapshot(release, target, user_id=user_id)
-        elif copy_snapshot:
-            saved = await self._copy_to_production_release(release, user_id=user_id, change_kind=change_kind, release_notes=release_notes)
         else:
-            saved = await self._move_to_status(release, target, user_id=user_id)
+            if release.status == ReleaseStatus.draft:
+                raise ConflictError("Draft must be promoted to Staging before Production")
+            if release.status == ReleaseStatus.staging:
+                copy_snapshot = True
+            elif copy_snapshot:
+                raise ConflictError("New Production releases can only be published from Staging")
+            if copy_snapshot:
+                saved = await self._copy_to_production_release(
+                    release,
+                    user_id=user_id,
+                    change_kind=change_kind,
+                    release_notes=release_notes,
+                )
+            else:
+                saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
     async def _upsert_singleton_snapshot(self, source: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
@@ -122,9 +154,8 @@ class ReleaseLifecycleUseCase:
         self._copy_snapshot(source, current)
         current.version = target.value
         current.status = target
-        if target == ReleaseStatus.staging:
-            current.promoted_by = user_id
-            current.promoted_at = datetime.now(timezone.utc)
+        current.promoted_by = user_id
+        current.promoted_at = datetime.now(timezone.utc)
         return await self._release_repo.save(current)
 
     async def _move_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
@@ -138,7 +169,13 @@ class ReleaseLifecycleUseCase:
     async def _copy_to_production_release(self, release: AgentRelease, *, user_id: UUID | None, change_kind: str, release_notes: str | None = None) -> AgentRelease:
         await self._archive_current(release.agent_id, ReleaseStatus.production)
         version = await self._next_version(release.agent_id, change_kind)
-        cloned = replace(release, id=AgentRelease().id, version=version, status=ReleaseStatus.production, release_notes=release_notes, promoted_by=user_id, promoted_at=datetime.now(timezone.utc), created_at=None, updated_at=None)
+        cloned = self._new_snapshot_copy(
+            release,
+            version=version,
+            status=ReleaseStatus.production,
+            release_notes=release_notes,
+            promoted_by=user_id,
+        )
         return await self._release_repo.save(cloned)
 
     async def _archive_current(self, agent_id: UUID, status: ReleaseStatus, *, exclude_id: UUID | None = None) -> None:
@@ -166,4 +203,29 @@ class ReleaseLifecycleUseCase:
 
     def _copy_snapshot(self, source: AgentRelease, target: AgentRelease) -> None:
         for field_name in _SNAPSHOT_FIELDS:
-            setattr(target, field_name, getattr(source, field_name))
+            value = getattr(source, field_name)
+            if field_name == "runtime_config":
+                value = _canonical_runtime_config(value)
+            else:
+                value = deepcopy(value)
+            setattr(target, field_name, value)
+
+    def _new_snapshot_copy(
+        self,
+        source: AgentRelease,
+        *,
+        version: str,
+        status: ReleaseStatus,
+        release_notes: str | None,
+        promoted_by: UUID | None,
+    ) -> AgentRelease:
+        cloned = AgentRelease()
+        self._copy_snapshot(source, cloned)
+        cloned.version = version
+        cloned.status = status
+        cloned.release_notes = release_notes
+        cloned.promoted_by = promoted_by
+        cloned.promoted_at = datetime.now(timezone.utc)
+        cloned.created_at = None
+        cloned.updated_at = None
+        return cloned

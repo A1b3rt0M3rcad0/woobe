@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
+from modules.agent.infra.database.document_repositories import SQLAlchemyGuardedDocumentRepository
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -20,12 +21,12 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAskJobRepository,
     SQLAlchemyDocumentChunkRepository,
     SQLAlchemyDocumentCollectionRepository,
-    SQLAlchemyDocumentRepository,
     SQLAlchemyKnowledgeVersionRepository,
     SQLAlchemyMessageRepository,
     SQLAlchemyProviderCredentialRepository,
     SQLAlchemySessionRepository,
 )
+from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
 
 
 class AgentUnitOfWork(UnitOfWork):
@@ -40,9 +41,10 @@ class AgentUnitOfWork(UnitOfWork):
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
         self._document_collections: SQLAlchemyDocumentCollectionRepository | None = None
-        self._documents: SQLAlchemyDocumentRepository | None = None
+        self._documents: SQLAlchemyGuardedDocumentRepository | None = None
         self._document_chunks: SQLAlchemyDocumentChunkRepository | None = None
         self._knowledge_versions: SQLAlchemyKnowledgeVersionRepository | None = None
+        self._vector_snapshots: SQLAlchemyVectorSnapshotRepository | None = None
         self._tools: SQLAlchemyAgentToolRepository | None = None
         self._tool_secrets: SQLAlchemyAgentToolSecretRepository | None = None
         self._outbox: SQLAlchemyAgentOutboxRepository | None = None
@@ -103,9 +105,9 @@ class AgentUnitOfWork(UnitOfWork):
         return self._document_collections
 
     @property
-    def documents(self) -> SQLAlchemyDocumentRepository:
+    def documents(self) -> SQLAlchemyGuardedDocumentRepository:
         if self._documents is None:
-            self._documents = SQLAlchemyDocumentRepository(self)
+            self._documents = SQLAlchemyGuardedDocumentRepository(self)
         return self._documents
 
     @property
@@ -119,6 +121,12 @@ class AgentUnitOfWork(UnitOfWork):
         if self._knowledge_versions is None:
             self._knowledge_versions = SQLAlchemyKnowledgeVersionRepository(self)
         return self._knowledge_versions
+
+    @property
+    def vector_snapshots(self) -> SQLAlchemyVectorSnapshotRepository:
+        if self._vector_snapshots is None:
+            self._vector_snapshots = SQLAlchemyVectorSnapshotRepository(self)
+        return self._vector_snapshots
 
     @property
     def outbox(self) -> SQLAlchemyAgentOutboxRepository:
@@ -179,6 +187,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._documents = None
         self._document_chunks = None
         self._knowledge_versions = None
+        self._vector_snapshots = None
         self._tools = None
         self._tool_secrets = None
         self._outbox = None

@@ -10,10 +10,10 @@ export function useProviderModels(projectId?: string, credentialId?: string) {
   })
 }
 
-export function useAvailableProviderModels(projectId?: string, credentialId?: string) {
+export function useAvailableProviderModels(projectId?: string, credentialId?: string, capability?: string) {
   return useQuery({
-    queryKey: ['available-provider-models', projectId, credentialId],
-    queryFn: () => getAvailableProviderModels(projectId, credentialId),
+    queryKey: ['available-provider-models', projectId, credentialId, capability],
+    queryFn: () => getAvailableProviderModels(projectId, credentialId, capability),
     enabled: Boolean(projectId && credentialId),
     retry: false,
   })

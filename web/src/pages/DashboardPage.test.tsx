@@ -28,7 +28,7 @@ describe('DashboardPage states', () => {
     fixture.timeseries = []
     const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} />)
     expect(markup).toContain('No executions in this interval')
-    expect(markup).toContain('Knowledge Base')
+    expect(markup).toContain('Open Knowledge')
   })
 
   it('renders populated data and hides unavailable capability panels', () => {

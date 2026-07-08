@@ -91,6 +91,15 @@ class S3FileStorage:
             sha256=sha256,
         )
 
+    async def read_document(self, storage_key: str) -> bytes:
+        response = await asyncio.to_thread(
+            self._client.get_object,
+            Bucket=self._bucket,
+            Key=storage_key,
+        )
+        body = response["Body"]
+        return await asyncio.to_thread(body.read)
+
     async def delete(self, storage_key: str) -> None:
         await asyncio.to_thread(
             self._client.delete_object,

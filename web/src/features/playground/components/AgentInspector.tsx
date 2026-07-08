@@ -12,7 +12,7 @@ import { useAgentEditor } from '../AgentEditorContext'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { useUpdateAgent } from '@/features/agents/hooks'
+import { useCreateRelease, useUpdateAgent } from '@/features/agents/hooks'
 import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
 
@@ -40,7 +40,7 @@ function EditorHeader() {
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] text-muted font-medium whitespace-nowrap">
           {loadedReleaseVersion ? (
-            <>Editing: <span className="text-primary-light">{loadedReleaseVersion}</span></>
+            <>Draft based on: <span className="text-primary-light">{loadedReleaseVersion}</span></>
           ) : (
             'Current Draft'
           )}
@@ -53,12 +53,21 @@ function EditorHeader() {
   )
 }
 
-function EditorActions({ agentId }: { agentId: string }) {
-  const { state, updateBaseline, resetToBaseline } = useAgentEditor()
-  const updateAgent = useUpdateAgent(agentId)
+function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }) {
+  const { state, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
+  const updateAgent = useUpdateAgent(agent.id)
+  const createRelease = useCreateRelease(agent.id)
 
   const handleSaveDraft = async () => {
     try {
+      const snapshot = toSnapshot()
+      await createRelease.mutateAsync({
+        project_id: projectId,
+        agent_id: agent.id,
+        version: 'draft',
+        ...snapshot,
+      } as any)
+
       const rf = {
         enabled: state.responseFormat.enabled,
         type: state.responseFormat.type,
@@ -70,20 +79,33 @@ function EditorActions({ agentId }: { agentId: string }) {
         name: state.name,
         description: state.description,
         system_prompt: state.systemPrompt,
+        provider_model_id: state.providerModelId,
         provider: state.provider,
         model: state.model,
         provider_credential_id: state.providerCredentialId,
+        fallback_provider_model_id: state.fallbackProviderModelId || null,
         fallback_provider: state.fallbackProvider || null,
         fallback_model: state.fallbackModel || null,
         fallback_credential_id: state.fallbackProviderCredentialId || null,
         temperature: state.temperature,
         max_output_tokens: state.maxOutputTokens,
         settings: {
+          ...(agent.settings || {}),
           response_format: rf,
           base_url: state.baseUrl,
+          knowledge_version_id: state.knowledgeVersionId,
+          runtime_config: snapshot.runtime_config,
         },
       }
-      await updateAgent.mutateAsync(payload as any)
+
+      try {
+        await updateAgent.mutateAsync(payload as any)
+      } catch {
+        updateBaseline()
+        toast.warning('Draft saved, but the Agent summary could not be synchronized')
+        return
+      }
+
       updateBaseline()
       toast.success('Draft saved')
     } catch (err) {
@@ -102,7 +124,7 @@ function EditorActions({ agentId }: { agentId: string }) {
         variant="outline"
         className="text-[11px] flex-1 border-primary/30 bg-primary/10 text-primary-light hover:bg-primary/15 hover:text-white"
         onClick={handleSaveDraft}
-        loading={updateAgent.isPending}
+        loading={updateAgent.isPending || createRelease.isPending}
       >
         <Save className="mr-1 h-3 w-3" />
         Save Draft
@@ -112,7 +134,7 @@ function EditorActions({ agentId }: { agentId: string }) {
         variant="ghost"
         className="text-[11px] border border-border/80 bg-background/45 hover:bg-surface/70"
         onClick={handleReset}
-        title="Reset editor to last saved agent state"
+        title="Reset editor to last saved draft state"
       >
         <RotateCcw className="h-3 w-3" />
       </Button>
@@ -120,13 +142,13 @@ function EditorActions({ agentId }: { agentId: string }) {
   )
 }
 
-function EditorTabContent({ projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
+function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
   const [editorTab, setEditorTab] = useState('agent')
 
   return (
     <div className="flex flex-col h-full">
       <EditorHeader />
-      <EditorActions agentId={agentId} />
+      <EditorActions agent={agent} projectId={projectId} />
       <div className="flex gap-1 border-b border-border/90 bg-surface/70 p-1.5 shrink-0">
         {editorSubTabs.map((sub) => (
           <button

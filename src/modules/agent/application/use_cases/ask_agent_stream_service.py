@@ -16,6 +16,7 @@ from modules.agent.application.runtime_tool_inventory import (
     is_runtime_tool_inventory_id,
 )
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.runtime_streaming import (
@@ -29,6 +30,7 @@ from modules.agent.application.use_cases.structured_output_ask_use_case import (
 )
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -60,6 +62,17 @@ class AskAgentStreamService:
             encryption_key=settings.encryption_key,
             tool_executor_factory=self._execute_tool,
         )
+        self._use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        self._use_case.configure_runtime_tool_reader(self._read_runtime_tools)
+
+    async def _read_runtime_tools(self, tool_ids: list[UUID]):
+        async with AgentUnitOfWork(self._session_factory) as uow:
+            tools = []
+            for tool_id in tool_ids:
+                tool = await uow.tools.get_by_id(tool_id)
+                if tool is not None:
+                    tools.append(tool)
+            return tools
 
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         try:
@@ -70,6 +83,11 @@ class AskAgentStreamService:
             context = current_execution.get()
             if context and context.session_id:
                 runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+            snapshot = (
+                context.tool_snapshots.get(str(tool_id))
+                if context and context.tool_snapshots
+                else None
+            )
 
             async with AgentUnitOfWork(self._session_factory) as uow:
                 resolver = ToolSecretResolverAdapter(uow.tool_secrets, self._cipher)
@@ -79,6 +97,20 @@ class AskAgentStreamService:
                     executor=executor,
                     secret_resolver=resolver,
                 )
+                if snapshot is not None:
+                    result = await registry.execute(
+                        tool_from_release_snapshot(snapshot),
+                        runtime_input,
+                    )
+                    if not result.success:
+                        runtime_metrics.increment_tool_failure(tool=str(tool_id))
+                    return {
+                        "success": result.success,
+                        "output": result.output,
+                        "duration_ms": result.duration_ms,
+                        "error": result.error,
+                    }
+
                 result = await RuntimeExecuteToolUseCase(
                     tool_repo=uow.tools,
                     runtime_registry=registry,
