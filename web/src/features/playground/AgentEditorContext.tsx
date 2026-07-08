@@ -5,6 +5,7 @@ import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import { useAgentTools } from '@/features/tools/hooks'
+import type { McpToolPermission, Tool } from '@/features/tools/types'
 
 export type ResponseFormat = {
   enabled: boolean
@@ -13,6 +14,8 @@ export type ResponseFormat = {
   schema: unknown | null
   repair_attempts?: number
 }
+
+export type AgentToolPermissions = Record<string, Record<string, McpToolPermission>>
 
 export type AgentEditorState = {
   name: string
@@ -34,6 +37,7 @@ export type AgentEditorState = {
   collectionIds: string[]
   knowledgeVersionId: string | null
   toolIds: string[]
+  toolPermissions: AgentToolPermissions
   runtimeConfig: Record<string, unknown>
 }
 
@@ -55,22 +59,96 @@ function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
-function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unknown>; toolIds: string[]; hasToolsConfig: boolean } {
+function normalizePermission(value: unknown): McpToolPermission {
+  const raw = recordValue(value)
+  const mode = raw.mode === 'allow' || raw.mode === 'deny' || raw.mode === 'review' ? raw.mode : 'review'
+  const riskLevel = typeof raw.risk_level === 'string' ? raw.risk_level : undefined
+  return riskLevel ? { mode, risk_level: riskLevel } : { mode }
+}
+
+function normalizeToolPermissions(value: unknown): AgentToolPermissions {
+  const result: AgentToolPermissions = {}
+  for (const [toolId, rawPermissions] of Object.entries(recordValue(value))) {
+    const permissions: Record<string, McpToolPermission> = {}
+    for (const [remoteToolName, rawPermission] of Object.entries(recordValue(rawPermissions))) {
+      permissions[remoteToolName] = normalizePermission(rawPermission)
+    }
+    result[toolId] = permissions
+  }
+  return result
+}
+
+function toolPermissionsFromSnapshots(value: unknown): AgentToolPermissions {
+  if (!Array.isArray(value)) return {}
+  const result: AgentToolPermissions = {}
+  for (const rawSnapshot of value) {
+    const snapshot = recordValue(rawSnapshot)
+    const toolId = typeof snapshot.id === 'string' ? snapshot.id : null
+    if (!toolId) continue
+    const config = recordValue(snapshot.config)
+    const discoveredTools = Array.isArray(config.discovered_tools) ? config.discovered_tools : []
+    const permissions: Record<string, McpToolPermission> = {}
+    for (const rawDiscoveredTool of discoveredTools) {
+      const discoveredTool = recordValue(rawDiscoveredTool)
+      const name = typeof discoveredTool.name === 'string' ? discoveredTool.name : null
+      if (!name) continue
+      permissions[name] = normalizePermission(discoveredTool.permission)
+    }
+    result[toolId] = permissions
+  }
+  return result
+}
+
+export function toolPermissionsFromTools(tools: Tool[]): AgentToolPermissions {
+  const result: AgentToolPermissions = {}
+  for (const tool of tools) {
+    const config = recordValue(tool.config)
+    const discoveredTools = Array.isArray(config.discovered_tools) ? config.discovered_tools : []
+    const permissions: Record<string, McpToolPermission> = {}
+    for (const rawDiscoveredTool of discoveredTools) {
+      const discoveredTool = recordValue(rawDiscoveredTool)
+      const name = typeof discoveredTool.name === 'string' ? discoveredTool.name : null
+      if (!name) continue
+      permissions[name] = normalizePermission(discoveredTool.permission)
+    }
+    result[tool.id] = permissions
+  }
+  return result
+}
+
+function mergeToolPermissions(base: AgentToolPermissions, overrides: AgentToolPermissions): AgentToolPermissions {
+  const merged: AgentToolPermissions = { ...base }
+  for (const [toolId, permissions] of Object.entries(overrides)) {
+    merged[toolId] = { ...(base[toolId] || {}), ...permissions }
+  }
+  return merged
+}
+
+function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unknown>; toolIds: string[]; toolPermissions: AgentToolPermissions; hasToolsConfig: boolean } {
   const runtimeConfig = recordValue(value)
   const tools = recordValue(runtimeConfig.tools)
   const hasToolsConfig = Object.prototype.hasOwnProperty.call(runtimeConfig, 'tools')
   const toolIds = Array.isArray(tools.tool_ids)
     ? tools.tool_ids.filter((item): item is string => typeof item === 'string')
     : []
+  const snapshotPermissions = toolPermissionsFromSnapshots(tools.snapshots)
+  const explicitPermissions = normalizeToolPermissions(tools.permissions)
+  const toolPermissions = mergeToolPermissions(snapshotPermissions, explicitPermissions)
   const { tools: _tools, ...rest } = runtimeConfig
-  return { runtimeConfig: rest, toolIds, hasToolsConfig }
+  return { runtimeConfig: rest, toolIds, toolPermissions, hasToolsConfig }
 }
 
 function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown> {
+  const permissions = Object.fromEntries(
+    state.toolIds
+      .filter((toolId) => state.toolPermissions[toolId])
+      .map((toolId) => [toolId, state.toolPermissions[toolId]]),
+  )
   return {
     ...state.runtimeConfig,
     tools: {
       tool_ids: state.toolIds,
+      permissions,
     },
   }
 }
@@ -79,6 +157,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
   const settings = (agent.settings || {}) as Record<string, unknown>
   const responseFormat = recordValue(settings.response_format)
   const runtime = splitRuntimeConfig(settings.runtime_config)
+  const savedKnowledgeVersionId = typeof settings.knowledge_version_id === 'string' ? settings.knowledge_version_id : null
   return {
     name: agent.name || '',
     description: agent.description || '',
@@ -103,8 +182,9 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     temperature: agent.temperature ?? 0.7,
     maxOutputTokens: agent.max_output_tokens ?? 2048,
     collectionIds: collectionIds || [],
-    knowledgeVersionId: knowledgeVersionId ?? null,
+    knowledgeVersionId: knowledgeVersionId !== undefined ? knowledgeVersionId : savedKnowledgeVersionId,
     toolIds: toolIds ?? runtime.toolIds,
+    toolPermissions: runtime.toolPermissions,
     runtimeConfig: runtime.runtimeConfig,
   }
 }
@@ -131,6 +211,7 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
     collectionIds: release.collection_ids ?? current.collectionIds,
     knowledgeVersionId: release.knowledge_version_id ?? null,
     toolIds: runtime.hasToolsConfig ? runtime.toolIds : current.toolIds,
+    toolPermissions: runtime.hasToolsConfig ? runtime.toolPermissions : current.toolPermissions,
     runtimeConfig: release.runtime_config == null ? current.runtimeConfig : runtime.runtimeConfig,
     responseFormat: {
       enabled: Boolean(rf.enabled ?? release.output_schema),
@@ -186,34 +267,41 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
   const initializedDraft = useRef(knowledgeVersionId !== undefined)
+  const editorResetKey = `${agent.id}|${knowledgeVersionId === undefined ? '__draft__' : knowledgeVersionId ?? ''}|${(propCollectionIds ?? []).join(',')}`
+  const lastEditorResetKey = useRef(editorResetKey)
   const { data: releases } = useReleases(agent.id)
   const { data: legacyAgentTools } = useAgentTools(agent.id)
   const { data: credentials } = useCredentials(projectId || '')
   const { data: providerModels } = useProviderModels(projectId || '')
 
   useEffect(() => {
+    if (lastEditorResetKey.current === editorResetKey) return
+    lastEditorResetKey.current = editorResetKey
     const next = agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
     setState(next)
     setBaselineState(next)
+    setLoadedReleaseId(null)
+    setLoadedReleaseVersion(null)
     initializedDraft.current = knowledgeVersionId !== undefined
-  }, [agent, propCollectionIds, knowledgeVersionId])
+  }, [agent, editorResetKey, propCollectionIds, knowledgeVersionId])
 
   useEffect(() => {
     if (initializedDraft.current || !releases || !legacyAgentTools) return
     initializedDraft.current = true
     const legacyToolIds = legacyAgentTools.map((tool) => tool.id)
+    const legacyToolPermissions = toolPermissionsFromTools(legacyAgentTools)
     const draft = releases.find((release) => release.status === 'draft')
     if (!draft) {
-      setState((previous) => ({ ...previous, toolIds: legacyToolIds }))
-      setBaselineState((previous) => ({ ...previous, toolIds: legacyToolIds }))
+      setState((previous) => ({ ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
+      setBaselineState((previous) => ({ ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
       return
     }
     let cancelled = false
     void getRelease(agent.id, draft.id)
       .then((release) => {
         if (cancelled) return
-        setState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds }))
-        setBaselineState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds }))
+        setState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
+        setBaselineState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
       })
       .catch(() => undefined)
     return () => { cancelled = true }

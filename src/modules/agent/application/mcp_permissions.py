@@ -66,7 +66,8 @@ def default_mcp_permission() -> dict[str, Any]:
 
 def normalize_discovered_tool(raw: dict[str, Any], *, fallback_permission: dict[str, Any] | None = None) -> dict[str, Any]:
     item = dict(raw)
-    item["permission"] = normalize_permission(item.get("permission") or fallback_permission or default_mcp_permission())
+    permission = fallback_permission if fallback_permission is not None else item.get("permission")
+    item["permission"] = normalize_permission(permission or default_mcp_permission())
     return item
 
 

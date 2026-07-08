@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.mcp_permissions import normalize_permission
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from shared.infra.errors import ValidationError
@@ -27,6 +28,33 @@ def _verify_snapshot_hash(snapshot: dict[str, Any]) -> None:
     payload = {key: deepcopy(value) for key, value in snapshot.items() if key != "snapshot_hash"}
     if _snapshot_hash(payload) != expected:
         raise ValidationError("Release tool snapshot hash is invalid")
+
+
+def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
+    if not isinstance(raw_permissions, dict):
+        return tool
+
+    config = deepcopy(tool.config or {})
+    discovered_tools = config.get("discovered_tools")
+    if not isinstance(discovered_tools, list):
+        return tool
+
+    changed = False
+    for item in discovered_tools:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not isinstance(name, str):
+            continue
+        item["permission"] = normalize_permission(raw_permissions.get(name))
+        changed = True
+
+    if not changed:
+        return tool
+
+    cloned = deepcopy(tool)
+    cloned.config = config
+    return cloned
 
 
 def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
@@ -83,6 +111,7 @@ async def build_release_tool_runtime(
     *,
     project_id: UUID,
     raw_tool_ids: list[object] | None,
+    raw_permissions: Any = None,
 ) -> dict[str, Any]:
     ordered_ids: list[UUID] = []
     seen: set[UUID] = set()
@@ -95,6 +124,7 @@ async def build_release_tool_runtime(
             ordered_ids.append(tool_id)
             seen.add(tool_id)
 
+    permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     snapshots: list[dict[str, Any]] = []
     for tool_id in ordered_ids:
         tool = await tool_repo.get_by_id(tool_id)
@@ -104,7 +134,8 @@ async def build_release_tool_runtime(
             raise ValidationError("Selected tool does not belong to this Project")
         if _value(tool.status) != ToolStatus.ACTIVE.value:
             raise ValidationError(f"Selected tool is not active: {tool.name}")
-        snapshots.append(tool_to_release_snapshot(tool))
+        tool_permissions = permission_map.get(str(tool_id))
+        snapshots.append(tool_to_release_snapshot(tool_with_permission_overrides(tool, tool_permissions)))
 
     return {
         "tool_ids": [str(tool_id) for tool_id in ordered_ids],

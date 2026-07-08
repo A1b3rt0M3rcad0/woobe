@@ -28,6 +28,7 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
                 self._tool_repo,
                 project_id=input_dto.project_id,
                 raw_tool_ids=raw_tools.get("tool_ids"),
+                raw_permissions=raw_tools.get("permissions"),
             )
         input_dto.runtime_config = runtime_config or None
 
