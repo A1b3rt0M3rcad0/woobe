@@ -57,25 +57,13 @@ class RAGRetrievalConfig(BaseModel):
         return self
 
 
-class RAGRuntimeConfig(BaseModel):
-    inherit_snapshot_defaults: bool = True
-    search_strategy: SearchStrategy | None = None
-    candidate_k: int | None = Field(default=None, ge=1, le=100)
-    top_k: int | None = Field(default=None, ge=1, le=20)
-    min_score: float | None = Field(default=None, ge=0.0, le=1.0)
-    min_score_enabled: bool | None = None
-    max_context_chunks: int | None = Field(default=None, ge=1, le=20)
-    max_chunks_per_document: int | None = Field(default=None, ge=1, le=20)
-    max_context_chars: int | None = Field(default=None, ge=1000, le=100_000)
-    query_mode: QueryMode | None = None
-    history_turns: int | None = Field(default=None, ge=1, le=10)
-    grounding_policy: GroundingPolicy | None = None
+class RAGRuntimeConfig(RAGRetrievalConfig):
+    """Canonical retrieval configuration persisted in Agent runtime_config.rag."""
 
 
 class RAGBuildConfig(BaseModel):
     parser: RAGParserConfig = RAGParserConfig()
     chunking: RAGChunkingConfig = RAGChunkingConfig()
-    retrieval: RAGRetrievalConfig = RAGRetrievalConfig()
 
 
 class VectorBuildPreviewSample(BaseModel):
