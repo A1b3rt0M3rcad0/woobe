@@ -10,7 +10,6 @@ from modules.agent.application.dtos.rag_config_dtos import (
     RAGBuildConfig,
     RAGChunkingConfig,
     RAGParserConfig,
-    RAGRetrievalConfig,
     VectorBuildPreviewOutput,
 )
 
@@ -26,7 +25,6 @@ class CreateVectorSnapshotInput(BaseModel):
     chunking_strategy: str = Field(default="recursive_text", min_length=1, max_length=64)
     parser_config: dict[str, Any] | None = None
     build_config: dict[str, Any] | None = None
-    retrieval_defaults: dict[str, Any] | None = None
     created_by: UUID | None = None
 
 
@@ -54,7 +52,6 @@ class VectorSnapshotOutput(BaseModel):
     chunking_strategy: str
     parser_config: dict[str, Any] | None = None
     build_config: dict[str, Any] | None = None
-    retrieval_defaults: dict[str, Any] | None = None
     snapshot_hash: str | None = None
     build_config_hash: str | None = None
     document_count: int
@@ -101,8 +98,6 @@ class CollectionOverviewTechnologyOutput(BaseModel):
     chunking_strategy: str | None = None
     chunk_size: int | None = None
     chunk_overlap: int | None = None
-    retrieval_top_k: int | None = None
-    retrieval_score_threshold: float | None = None
     vector_store: str = "pgvector"
     distance_metric: str = "cosine"
 
@@ -154,7 +149,6 @@ __all__ = [
     "RAGBuildConfig",
     "RAGChunkingConfig",
     "RAGParserConfig",
-    "RAGRetrievalConfig",
     "SearchVectorSnapshotChunksInput",
     "VectorBuildPreviewOutput",
     "VectorSnapshotOutput",
