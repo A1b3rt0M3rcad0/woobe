@@ -195,8 +195,10 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">Draft tools</p>
-          <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} selected tools active</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted">Tools</p>
+          {tools.length > 0 && (
+            <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} active</p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}>
@@ -216,18 +218,6 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
             icon={<Wrench className="h-10 w-10" />}
             title="No tools selected"
             description="Create or import tools to add them to this Agent draft. Save Draft persists the selection."
-            action={
-              <div className="mt-2 flex gap-2">
-                <Button size="sm" onClick={() => setShowCreateModal(true)}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  Create
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
-                  <Link2 className="mr-1 h-4 w-4" />
-                  Import
-                </Button>
-              </div>
-            }
           />
         </div>
       ) : (

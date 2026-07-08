@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
 import { JsonEditor } from '@/components/ui/JsonEditor'
-import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgentEditor } from '../AgentEditorContext'
-import { useLivePlaygroundSessionId } from '../lib/playground-session-store'
-import { buildDraftRuntimePreview } from '../lib/build-draft-runtime-preview'
 import { OutputContractHelpModal } from './OutputContractHelpModal'
 
 const DEFAULT_SCHEMA = `{
@@ -12,16 +8,10 @@ const DEFAULT_SCHEMA = `{
   "confidence": "float"
 }`
 
-type HelpSection = 'contract' | 'preview'
-
 function schemaToString(schema: unknown): string {
   if (typeof schema === 'string') return schema
   if (schema && typeof schema === 'object') return JSON.stringify(schema, null, 2)
   return DEFAULT_SCHEMA
-}
-
-function sourceLabel(source: 'current_draft' | 'draft_unsaved') {
-  return source === 'draft_unsaved' ? 'Draft with unsaved changes' : 'Current draft'
 }
 
 function HelpButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -39,11 +29,9 @@ function HelpButton({ label, onClick }: { label: string; onClick: () => void }) 
 }
 
 export function OutputSettingsTab() {
-  const { projectId = '', agentId = '' } = useParams<{ projectId: string; agentId: string }>()
-  const sessionId = useLivePlaygroundSessionId(null)
-  const { state, setField, toSnapshot, activeSource } = useAgentEditor()
+  const { state, setField } = useAgentEditor()
   const { responseFormat } = state
-  const [helpSection, setHelpSection] = useState<HelpSection | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
 
   const handleToggle = (enabled: boolean) => {
     setField('responseFormat', {
@@ -61,16 +49,8 @@ export function OutputSettingsTab() {
     setField('responseFormat', { ...responseFormat, schema: value })
   }
 
-  const draftRuntimePreview = buildDraftRuntimePreview({
-    projectId,
-    agentId,
-    sessionId,
-    activeSource,
-    snapshot: toSnapshot(),
-  })
-
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4">
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">JSON Output</p>
@@ -89,7 +69,7 @@ export function OutputSettingsTab() {
           <div>
             <div className="mb-1 flex items-center gap-1.5">
               <label className="block text-xs font-medium text-muted">Output contract</label>
-              <HelpButton label="Explain output contracts" onClick={() => setHelpSection('contract')} />
+              <HelpButton label="Explain output contracts" onClick={() => setShowHelp(true)} />
             </div>
             <JsonEditor
               value={schemaToString(responseFormat.schema)}
@@ -120,36 +100,7 @@ export function OutputSettingsTab() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface">
-        <div className="p-4 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-semibold text-muted uppercase tracking-wider">Draft Runtime Preview</p>
-                <HelpButton label="Explain draft runtime preview" onClick={() => setHelpSection('preview')} />
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                Exact current draft configuration sent as <code>snapshot_override</code> when this agent runs in the playground.
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted">
-              {sourceLabel(activeSource)}
-            </span>
-          </div>
-          <JsonCodeBlock
-            value={draftRuntimePreview}
-            title="Draft runtime payload"
-            maxHeight={560}
-            actions={['copy', 'format', 'expand']}
-          />
-        </div>
-      </div>
-
-      <OutputContractHelpModal
-        open={helpSection !== null}
-        initialSection={helpSection ?? 'contract'}
-        onClose={() => setHelpSection(null)}
-      />
+      <OutputContractHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   )
 }

@@ -1,16 +1,15 @@
 import { useState } from 'react'
-import { ChevronRight, Plus, X } from 'lucide-react'
+import { ChevronRight, Database, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { LoadingState } from '@/components/common/LoadingState'
 import { useCreateKnowledgeVersion, useKnowledgeVersions } from '@/features/agents/hooks'
-import { CollectionDetailsModal } from '@/features/knowledge/components/CollectionDetailsModalV2'
-import { CreateCollectionModal } from '@/features/knowledge/components/CreateCollectionModal'
 import { SelectKnowledgeVersionModal } from '@/features/knowledge/components/SelectKnowledgeVersionModal'
 import { DEFAULT_RETRIEVAL_CONFIG, type RagRuntimeConfig } from '@/features/knowledge/ragConfigTypes'
 import { useCollections } from '@/features/knowledge/hooks'
-import type { Collection, VectorSnapshot } from '@/features/knowledge/types'
+import type { VectorSnapshot } from '@/features/knowledge/types'
 import { useAgentEditor } from '../AgentEditorContext'
+import { ManageKnowledgeModal } from './ManageKnowledgeModal'
 import { RagRuntimeSettings } from './RagRuntimeSettings'
 
 interface KnowledgeTabProps {
@@ -45,8 +44,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const { state, setField } = useAgentEditor()
   const [selectorOpen, setSelectorOpen] = useState(false)
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false)
-  const [createCollectionOpen, setCreateCollectionOpen] = useState(false)
-  const [createdCollection, setCreatedCollection] = useState<Collection | null>(null)
+  const [manageKnowledgeOpen, setManageKnowledgeOpen] = useState(false)
 
   const activeVersion = versions.find((version) => version.id === state.knowledgeVersionId) || null
   const metadata = activeVersion?.snapshot_metadata || {}
@@ -55,6 +53,8 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   const collectionName = collections.find((collection) => collection.id === collectionId)?.name || 'Versioned knowledge'
   const snapshotVersion = typeof metadata.vector_snapshot_version === 'string' ? metadata.vector_snapshot_version : '—'
   const ragConfig = ragRuntimeConfig(state.runtimeConfig)
+  const queryModeLabel = ragConfig.query_mode === 'current_message' ? 'Current message' : 'Conversation context'
+  const groundingLabel = ragConfig.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'
 
   const applySnapshot = async (snapshot: VectorSnapshot): Promise<boolean> => {
     try {
@@ -73,11 +73,6 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
     }
   }
 
-  const useCreatedSnapshot = async (snapshot: VectorSnapshot) => {
-    const applied = await applySnapshot(snapshot)
-    if (applied) setCreatedCollection(null)
-  }
-
   const applyRuntimeConfig = (value: RagRuntimeConfig) => {
     setField('runtimeConfig', { ...state.runtimeConfig, rag: value })
   }
@@ -85,70 +80,104 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading knowledge..." />
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium text-white">Knowledge</h2>
-          <p className="mt-1 text-[11px] leading-5 text-muted">Knowledge used by this Agent Draft.</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          onClick={() => setCreateCollectionOpen(true)}
-          aria-label="Create knowledge"
-          title="Create knowledge"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="space-y-4 p-4">
+      <section className="rounded-xl border border-border bg-surface">
+        <div className="space-y-3 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Knowledge</p>
 
-      {!activeVersion ? (
-        <div className="rounded-xl border border-border bg-surface/50 p-4">
-          <p className="text-sm font-medium text-white">No Knowledge selected</p>
-          <p className="mt-1 text-[11px] leading-5 text-muted">Choose an immutable version for this Agent Draft.</p>
-          <Button type="button" size="sm" className="mt-3" onClick={() => setSelectorOpen(true)}>Select knowledge</Button>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border bg-surface/50 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">{collectionName}</p>
-              <p className="mt-1 text-[11px] text-muted">Knowledge {activeVersion.version} · Vector {snapshotVersion}</p>
+          {!activeVersion ? (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
+                  <Database className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white">No knowledge selected</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Choose an immutable vector version for this Agent Draft.</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
+                <Button type="button" size="sm" onClick={() => setSelectorOpen(true)}>
+                  Select knowledge
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setManageKnowledgeOpen(true)}>
+                  <Database className="mr-2 h-3.5 w-3.5" />
+                  Manage knowledge
+                </Button>
+              </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 shrink-0 p-0 text-muted hover:text-red-300"
-              onClick={() => setField('knowledgeVersionId', null)}
-              aria-label="Remove knowledge"
-              title="Remove knowledge"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <button type="button" className="mt-3 text-xs font-medium text-primary-light transition-colors hover:text-white" onClick={() => setSelectorOpen(true)}>Change version</button>
+          ) : (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
+                    <Database className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-white">{collectionName}</p>
+                    <p className="mt-1 text-xs text-muted">Knowledge {activeVersion.version} · Vector {snapshotVersion}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wider text-muted/80">Immutable snapshot</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0 p-0 text-muted hover:text-red-300"
+                  onClick={() => setField('knowledgeVersionId', null)}
+                  aria-label="Remove knowledge"
+                  title="Remove knowledge"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
+                <Button type="button" size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
+                  Change version
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setManageKnowledgeOpen(true)}>
+                  <Database className="mr-2 h-3.5 w-3.5" />
+                  Manage knowledge
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </section>
 
-      <button
-        type="button"
-        onClick={() => setRuntimeSettingsOpen(true)}
-        className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-surface/50 p-3 text-left transition-colors hover:border-primary/30 hover:bg-surface/70"
-      >
-        <div>
-          <p className="text-sm font-medium text-white">Runtime retrieval</p>
-          <p className="mt-1 text-[11px] text-muted">Configure search behavior</p>
+      <section className="rounded-xl border border-border bg-surface">
+        <div className="space-y-3 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Runtime Retrieval</p>
+          <button
+            type="button"
+            onClick={() => setRuntimeSettingsOpen(true)}
+            className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/30 hover:bg-background/80"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Search behavior</p>
+              <p className="mt-1 text-xs text-muted">Top {ragConfig.top_k} from {ragConfig.candidate_k} candidates</p>
+              <p className="mt-1 truncate text-[10px] text-muted/80">{queryModeLabel} · {groundingLabel}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
+          </button>
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
-      </button>
+      </section>
 
       <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={activeSnapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => void applySnapshot(snapshot)} />
       <RagRuntimeSettings open={runtimeSettingsOpen} value={ragConfig} onClose={() => setRuntimeSettingsOpen(false)} onApply={applyRuntimeConfig} />
-      <CreateCollectionModal open={createCollectionOpen} projectId={projectId} onClose={() => setCreateCollectionOpen(false)} onCreated={setCreatedCollection} />
-      <CollectionDetailsModal open={Boolean(createdCollection)} projectId={projectId} collection={createdCollection} onClose={() => setCreatedCollection(null)} onUseSnapshot={useCreatedSnapshot} />
+      <ManageKnowledgeModal
+        open={manageKnowledgeOpen}
+        projectId={projectId}
+        activeBinding={activeVersion ? {
+          collectionId,
+          collectionName,
+          knowledgeVersion: activeVersion.version,
+          vectorVersion: snapshotVersion,
+        } : null}
+        currentSnapshotId={activeSnapshotId}
+        onClose={() => setManageKnowledgeOpen(false)}
+        onUseSnapshot={applySnapshot}
+      />
     </div>
   )
 }
