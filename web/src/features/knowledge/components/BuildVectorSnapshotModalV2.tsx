@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { CreateEmbeddingModelModal } from '@/features/knowledge/components/CreateEmbeddingModelModal'
 import { VectorBuildPreview } from '@/features/knowledge/components/VectorBuildPreview'
-import { CHUNKING_PRESETS, DEFAULT_RETRIEVAL_CONFIG, type RagChunkingPreset, type RagChunkingStrategy, type RagGroundingPolicy, type RagQueryMode } from '@/features/knowledge/ragConfigTypes'
+import { CHUNKING_PRESETS, type RagChunkingPreset, type RagChunkingStrategy } from '@/features/knowledge/ragConfigTypes'
 import { useCreateVectorSnapshot, usePreviewVectorSnapshot } from '@/features/knowledge/vectorHooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
@@ -71,17 +71,6 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
   const [preservePageBoundaries, setPreservePageBoundaries] = useState(true)
   const [normalizeWhitespace, setNormalizeWhitespace] = useState(true)
 
-  const [candidateK, setCandidateK] = useState(DEFAULT_RETRIEVAL_CONFIG.candidate_k)
-  const [topK, setTopK] = useState(DEFAULT_RETRIEVAL_CONFIG.top_k)
-  const [minScoreEnabled, setMinScoreEnabled] = useState(false)
-  const [minScore, setMinScore] = useState(0.5)
-  const [maxContextChunks, setMaxContextChunks] = useState(DEFAULT_RETRIEVAL_CONFIG.max_context_chunks)
-  const [maxChunksPerDocument, setMaxChunksPerDocument] = useState(DEFAULT_RETRIEVAL_CONFIG.max_chunks_per_document)
-  const [maxContextChars, setMaxContextChars] = useState(DEFAULT_RETRIEVAL_CONFIG.max_context_chars)
-  const [queryMode, setQueryMode] = useState<RagQueryMode>(DEFAULT_RETRIEVAL_CONFIG.query_mode)
-  const [historyTurns, setHistoryTurns] = useState(DEFAULT_RETRIEVAL_CONFIG.history_turns)
-  const [groundingPolicy, setGroundingPolicy] = useState<RagGroundingPolicy>(DEFAULT_RETRIEVAL_CONFIG.grounding_policy)
-
   const selectedModel = availableModels.find((model) => model.id === selectedModelId) || null
 
   useEffect(() => {
@@ -96,13 +85,10 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
 
   const parserConfig = useMemo(() => ({ normalize_whitespace: normalizeWhitespace, preserve_page_boundaries: preservePageBoundaries }), [normalizeWhitespace, preservePageBoundaries])
   const chunkingConfig = useMemo(() => ({ preset, strategy, chunk_size: chunkSize, chunk_overlap: chunkOverlap, min_chunk_size: minChunkSize, preserve_paragraphs: preserveParagraphs, preserve_headings: preserveHeadings, preserve_page_boundaries: preservePageBoundaries }), [preset, strategy, chunkSize, chunkOverlap, minChunkSize, preserveParagraphs, preserveHeadings, preservePageBoundaries])
-  const retrievalConfig = useMemo(() => ({ search_strategy: 'similarity' as const, candidate_k: candidateK, top_k: topK, min_score: minScoreEnabled ? minScore : null, max_context_chunks: maxContextChunks, max_chunks_per_document: maxChunksPerDocument, max_context_chars: maxContextChars, query_mode: queryMode, history_turns: historyTurns, grounding_policy: groundingPolicy }), [candidateK, topK, minScoreEnabled, minScore, maxContextChunks, maxChunksPerDocument, maxContextChars, queryMode, historyTurns, groundingPolicy])
 
   const validate = () => {
     if (chunkOverlap >= chunkSize) return 'Chunk overlap must be lower than chunk size'
     if (minChunkSize > chunkSize) return 'Minimum chunk size cannot be greater than chunk size'
-    if (topK > candidateK) return 'Top K cannot be greater than Candidates'
-    if (maxContextChunks > topK) return 'Max context chunks cannot be greater than Top K'
     return null
   }
 
@@ -155,8 +141,7 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
         chunk_overlap: chunkOverlap,
         chunking_strategy: strategy,
         parser_config: parserConfig,
-        retrieval_defaults: retrievalConfig,
-        build_config: { parser: parserConfig, chunking: chunkingConfig, retrieval: retrievalConfig },
+        build_config: { parser: parserConfig, chunking: chunkingConfig },
       })
       toast.success('Vector build queued')
       setDescription('')
@@ -228,43 +213,22 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
                     <VectorBuildPreview preview={previewSnapshot.data} loading={previewSnapshot.isPending} error={previewSnapshot.error instanceof Error ? previewSnapshot.error.message : null} onPreview={runPreview} />
                   ) : (
                     <div className="space-y-5">
-                      <div className="grid gap-5 xl:grid-cols-2">
-                        <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                          <h3 className="text-sm font-semibold text-white">Chunking</h3>
-                          <p className="mt-1 text-xs leading-5 text-muted">Controls how source documents are split before embedding.</p>
-                          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Strategy</label><Select value={strategy} onChange={(event) => { setPreset('custom'); setStrategy(event.target.value as RagChunkingStrategy) }} options={[{ value: 'recursive_text', label: 'Recursive text' }, { value: 'paragraph', label: 'Paragraph' }, { value: 'markdown_headings', label: 'Markdown headings' }]} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk size · characters</label><Input type="number" min={200} max={4000} value={chunkSize} onChange={(event) => customNumber(setChunkSize, Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk overlap · characters</label><Input type="number" min={0} max={1000} value={chunkOverlap} onChange={(event) => customNumber(setChunkOverlap, Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Minimum chunk size</label><Input type="number" min={20} max={1000} value={minChunkSize} onChange={(event) => customNumber(setMinChunkSize, Number(event.target.value))} /></div>
-                          </div>
-                          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                            <CheckField checked={preserveParagraphs} label="Preserve paragraphs" onChange={(value) => { setPreset('custom'); setPreserveParagraphs(value) }} />
-                            <CheckField checked={preserveHeadings} label="Preserve headings" onChange={(value) => { setPreset('custom'); setPreserveHeadings(value) }} />
-                            <CheckField checked={preservePageBoundaries} label="Preserve PDF pages" onChange={(value) => { setPreset('custom'); setPreservePageBoundaries(value) }} />
-                            <CheckField checked={normalizeWhitespace} label="Normalize whitespace" onChange={setNormalizeWhitespace} />
-                          </div>
-                        </section>
-
-                        <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                          <h3 className="text-sm font-semibold text-white">Default runtime retrieval</h3>
-                          <p className="mt-1 text-xs leading-5 text-muted">Saved with this Vector Snapshot. Agents can inherit or override these defaults.</p>
-                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Candidates</label><Input type="number" min={1} max={100} value={candidateK} onChange={(event) => setCandidateK(Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Top K</label><Input type="number" min={1} max={20} value={topK} onChange={(event) => setTopK(Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Max context chunks</label><Input type="number" min={1} max={20} value={maxContextChunks} onChange={(event) => setMaxContextChunks(Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Max chunks per document</label><Input type="number" min={1} max={20} value={maxChunksPerDocument} onChange={(event) => setMaxChunksPerDocument(Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Max context · characters</label><Input type="number" min={1000} max={100000} step={1000} value={maxContextChars} onChange={(event) => setMaxContextChars(Number(event.target.value))} /></div>
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Query mode</label><Select value={queryMode} onChange={(event) => setQueryMode(event.target.value as RagQueryMode)} options={[{ value: 'conversation_context', label: 'Conversation aware' }, { value: 'current_message', label: 'Current message only' }]} /></div>
-                            {queryMode === 'conversation_context' && <div><label className="mb-1.5 block text-xs font-medium text-muted">History turns</label><Input type="number" min={1} max={10} value={historyTurns} onChange={(event) => setHistoryTurns(Number(event.target.value))} /></div>}
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Grounding policy</label><Select value={groundingPolicy} onChange={(event) => setGroundingPolicy(event.target.value as RagGroundingPolicy)} options={[{ value: 'optional', label: 'Allow model answer' }, { value: 'required', label: 'Require knowledge' }]} /></div>
-                          </div>
-                          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-end">
-                            <CheckField checked={minScoreEnabled} label="Minimum similarity" detail="Disabled by default so candidates remain observable." onChange={setMinScoreEnabled} />
-                            <div><label className="mb-1.5 block text-xs font-medium text-muted">Minimum score</label><Input type="number" min={0} max={1} step="0.05" disabled={!minScoreEnabled} value={minScore} onChange={(event) => setMinScore(Number(event.target.value))} /></div>
-                          </div>
-                        </section>
-                      </div>
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                        <h3 className="text-sm font-semibold text-white">Chunking</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted">Controls how source documents are split before embedding. Retrieval behavior is configured on the Agent Draft.</p>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Strategy</label><Select value={strategy} onChange={(event) => { setPreset('custom'); setStrategy(event.target.value as RagChunkingStrategy) }} options={[{ value: 'recursive_text', label: 'Recursive text' }, { value: 'paragraph', label: 'Paragraph' }, { value: 'markdown_headings', label: 'Markdown headings' }]} /></div>
+                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk size · characters</label><Input type="number" min={200} max={4000} value={chunkSize} onChange={(event) => customNumber(setChunkSize, Number(event.target.value))} /></div>
+                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk overlap · characters</label><Input type="number" min={0} max={1000} value={chunkOverlap} onChange={(event) => customNumber(setChunkOverlap, Number(event.target.value))} /></div>
+                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Minimum chunk size</label><Input type="number" min={20} max={1000} value={minChunkSize} onChange={(event) => customNumber(setMinChunkSize, Number(event.target.value))} /></div>
+                        </div>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          <CheckField checked={preserveParagraphs} label="Preserve paragraphs" onChange={(value) => { setPreset('custom'); setPreserveParagraphs(value) }} />
+                          <CheckField checked={preserveHeadings} label="Preserve headings" onChange={(value) => { setPreset('custom'); setPreserveHeadings(value) }} />
+                          <CheckField checked={preservePageBoundaries} label="Preserve PDF pages" onChange={(value) => { setPreset('custom'); setPreservePageBoundaries(value) }} />
+                          <CheckField checked={normalizeWhitespace} label="Normalize whitespace" onChange={setNormalizeWhitespace} />
+                        </div>
+                      </section>
 
                       <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                         <label className="mb-1.5 block text-sm font-medium text-muted">Description</label>
