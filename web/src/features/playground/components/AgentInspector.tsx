@@ -40,7 +40,7 @@ function EditorHeader() {
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] text-muted font-medium whitespace-nowrap">
           {loadedReleaseVersion ? (
-            <>Editing: <span className="text-primary-light">{loadedReleaseVersion}</span></>
+            <>Draft based on: <span className="text-primary-light">{loadedReleaseVersion}</span></>
           ) : (
             'Current Draft'
           )}
