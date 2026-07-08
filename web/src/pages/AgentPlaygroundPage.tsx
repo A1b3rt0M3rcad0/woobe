@@ -45,16 +45,65 @@ function AgentPlaygroundSkeleton() {
           </div>
         </div>
       </div>
+      <div className="h-6 shrink-0 border-b border-border bg-surface/30 px-4">
+        <div className="flex h-full items-center gap-2">
+          <SkeletonLine className="h-2.5 w-28" />
+          <SkeletonLine className="h-2.5 w-20" />
+          <SkeletonLine className="ml-auto h-2.5 w-24" />
+        </div>
+      </div>
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <div className="w-9 shrink-0 border-r border-border bg-surface/70" />
-        <div className="flex min-w-0 flex-1 items-center justify-center bg-background">
-          <div className="w-full max-w-sm space-y-4 text-center">
-            <div className="mx-auto h-12 w-12 animate-pulse rounded-full border border-primary/20 bg-primary/10" />
-            <SkeletonLine className="mx-auto h-3.5 w-64" />
-            <SkeletonLine className="mx-auto h-2.5 w-56" />
+        <div className="w-[52px] shrink-0 border-r border-border bg-surface/75 p-2">
+          <div className="space-y-2">
+            <div className="h-10 animate-pulse rounded-lg border border-primary/15 bg-primary/5" />
+            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
+            <div className="h-10 animate-pulse rounded-lg bg-white/[0.035]" />
           </div>
         </div>
-        <div className="hidden w-[268px] shrink-0 border-l border-border bg-surface/65 xl:block" />
+        <div className="w-[400px] shrink-0 border-r border-border bg-surface/70 p-4">
+          <SkeletonLine className="h-3 w-20" />
+          <div className="mt-4 space-y-3">
+            <div className="rounded-xl border border-border/70 bg-background/35 p-3">
+              <SkeletonLine className="h-3 w-24" />
+              <SkeletonLine className="mt-3 h-2.5 w-full" />
+              <SkeletonLine className="mt-2 h-2.5 w-4/5" />
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/35 p-3">
+              <SkeletonLine className="h-3 w-28" />
+              <SkeletonLine className="mt-3 h-2.5 w-full" />
+              <SkeletonLine className="mt-2 h-2.5 w-2/3" />
+            </div>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="w-full max-w-sm space-y-4 text-center">
+              <div className="mx-auto h-12 w-12 animate-pulse rounded-full border border-primary/20 bg-primary/10" />
+              <SkeletonLine className="mx-auto h-3.5 w-64" />
+              <SkeletonLine className="mx-auto h-2.5 w-56" />
+            </div>
+          </div>
+          <div className="shrink-0 border-t border-border/70 p-4">
+            <div className="h-12 animate-pulse rounded-xl border border-border bg-surface/55" />
+          </div>
+        </div>
+        <div className="w-[400px] shrink-0 border-l border-border bg-surface/75">
+          <div className="border-b border-border/90 px-3 py-3">
+            <SkeletonLine className="h-3 w-20" />
+          </div>
+          <div className="space-y-3 p-4">
+            <SkeletonLine className="h-3 w-24" />
+            <div className="rounded-xl border border-border/70 bg-background/35 p-3">
+              <SkeletonLine className="h-3 w-32" />
+              <SkeletonLine className="mt-3 h-2.5 w-full" />
+              <SkeletonLine className="mt-2 h-2.5 w-3/4" />
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/35 p-3">
+              <SkeletonLine className="h-3 w-28" />
+              <SkeletonLine className="mt-3 h-2.5 w-full" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -125,7 +174,7 @@ function PlaygroundContent() {
   } = usePlaygroundTraces(projectId, agentId, activeSessionId)
 
   const { data: historyMessages, isFetching } = useSessionMessages(activeSessionId ?? undefined)
-  const isSessionLoading = Boolean(activeSessionId) && isFetching && syncedSessionRef.current !== activeSessionId
+  const isSessionLoading = messages.length === 0 && Boolean(activeSessionId) && isFetching && syncedSessionRef.current !== activeSessionId
 
   useEffect(() => {
     setPlaygroundSessionId(activeSessionId)
