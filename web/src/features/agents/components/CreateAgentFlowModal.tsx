@@ -519,6 +519,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       })
       setCreatedModel(model)
       setSelectedModelId(model.id)
+      setModelMode('existing')
       setStep('review')
       toast.success('Model created')
     } catch (err) {
@@ -566,6 +567,10 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     }
     if (step === 'model' && modelMode === 'create' && modelView === 'credential' && activeCredentials.length > 0) {
       setModelView('setup')
+      return
+    }
+    if (step === 'model' && modelMode === 'create' && modelView === 'setup' && activeModels.length > 0) {
+      setModelMode('existing')
       return
     }
     if (step === 'model') setStep('details')
