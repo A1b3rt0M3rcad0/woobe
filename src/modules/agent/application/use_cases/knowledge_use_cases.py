@@ -591,9 +591,6 @@ class CreateKnowledgeVersionUseCase:
                     "snapshot_hash": snapshot.snapshot_hash,
                     "chunk_count": snapshot.chunk_count,
                     "document_count": snapshot.document_count,
-                    "retrieval_defaults": dict(
-                        snapshot.retrieval_defaults or {}
-                    ),
                 }
             )
 
