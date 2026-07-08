@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronRight, Database, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -9,8 +8,8 @@ import { SelectKnowledgeVersionModal } from '@/features/knowledge/components/Sel
 import { DEFAULT_RETRIEVAL_CONFIG, type RagRuntimeConfig } from '@/features/knowledge/ragConfigTypes'
 import { useCollections } from '@/features/knowledge/hooks'
 import type { VectorSnapshot } from '@/features/knowledge/types'
-import { orgProjectPath } from '@/lib/constants/routes'
 import { useAgentEditor } from '../AgentEditorContext'
+import { ManageKnowledgeModal } from './ManageKnowledgeModal'
 import { RagRuntimeSettings } from './RagRuntimeSettings'
 
 interface KnowledgeTabProps {
@@ -39,14 +38,13 @@ function ragRuntimeConfig(runtimeConfig: Record<string, unknown>): RagRuntimeCon
 }
 
 export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
-  const navigate = useNavigate()
-  const { organizationId } = useParams<{ organizationId?: string }>()
   const { data: versions = [], isLoading } = useKnowledgeVersions(agentId)
   const { data: collections = [] } = useCollections(projectId)
   const createKnowledgeVersion = useCreateKnowledgeVersion(agentId)
   const { state, setField } = useAgentEditor()
   const [selectorOpen, setSelectorOpen] = useState(false)
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false)
+  const [manageKnowledgeOpen, setManageKnowledgeOpen] = useState(false)
 
   const activeVersion = versions.find((version) => version.id === state.knowledgeVersionId) || null
   const metadata = activeVersion?.snapshot_metadata || {}
@@ -79,10 +77,6 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
     setField('runtimeConfig', { ...state.runtimeConfig, rag: value })
   }
 
-  const goToKnowledgePage = () => {
-    navigate(orgProjectPath(organizationId, projectId, 'knowledge'))
-  }
-
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading knowledge..." />
 
   return (
@@ -106,7 +100,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
                 <Button type="button" size="sm" onClick={() => setSelectorOpen(true)}>
                   Select knowledge
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={goToKnowledgePage}>
+                <Button type="button" size="sm" variant="outline" onClick={() => setManageKnowledgeOpen(true)}>
                   <Database className="mr-2 h-3.5 w-3.5" />
                   Manage knowledge
                 </Button>
@@ -141,7 +135,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
                 <Button type="button" size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
                   Change version
                 </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={goToKnowledgePage}>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setManageKnowledgeOpen(true)}>
                   <Database className="mr-2 h-3.5 w-3.5" />
                   Manage knowledge
                 </Button>
@@ -171,6 +165,19 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
 
       <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={activeSnapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => void applySnapshot(snapshot)} />
       <RagRuntimeSettings open={runtimeSettingsOpen} value={ragConfig} onClose={() => setRuntimeSettingsOpen(false)} onApply={applyRuntimeConfig} />
+      <ManageKnowledgeModal
+        open={manageKnowledgeOpen}
+        projectId={projectId}
+        activeBinding={activeVersion ? {
+          collectionId,
+          collectionName,
+          knowledgeVersion: activeVersion.version,
+          vectorVersion: snapshotVersion,
+        } : null}
+        currentSnapshotId={activeSnapshotId}
+        onClose={() => setManageKnowledgeOpen(false)}
+        onUseSnapshot={applySnapshot}
+      />
     </div>
   )
 }
