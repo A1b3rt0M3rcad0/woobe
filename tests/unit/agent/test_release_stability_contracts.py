@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
@@ -53,6 +54,17 @@ def _release(*, status=ReleaseStatus.draft, version="draft", provider_model_id=N
     )
 
 
+def _runtime(*, top_k=5, tool_ids=None, snapshots=None):
+    rag = RAGRuntimeConfig(top_k=top_k, max_context_chunks=min(5, top_k)).model_dump()
+    return {
+        "rag": rag,
+        "tools": {
+            "tool_ids": tool_ids or [],
+            "snapshots": snapshots or [],
+        },
+    }
+
+
 def _tool():
     return Tool(
         project_id=uuid4(),
@@ -91,28 +103,52 @@ async def test_identical_production_does_not_mutate_release_notes():
 
 
 @pytest.mark.asyncio
-async def test_draft_staging_production_and_rollback_preserve_knowledge_and_tools():
-    knowledge_id = uuid4()
-    runtime = {"tools": {"tool_ids": [str(uuid4())], "snapshots": [{"snapshot_hash": "hash-a"}]}}
-    draft = _release(runtime_config=runtime, knowledge_version_id=knowledge_id)
+async def test_draft_staging_production_and_rollback_preserve_knowledge_tools_and_rag():
+    knowledge_v1 = uuid4()
+    tool_v1 = str(uuid4())
+    runtime_v1 = _runtime(
+        top_k=5,
+        tool_ids=[tool_v1],
+        snapshots=[{"snapshot_hash": "hash-a"}],
+    )
+    draft = _release(runtime_config=runtime_v1, knowledge_version_id=knowledge_v1)
     repo = MemoryReleaseRepository(draft)
     lifecycle = AutoCompatibleReleaseLifecycleUseCase(repo)
 
-    staging = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
-    production_v1 = await lifecycle.execute(staging.agent_id, staging.id, target_status="production")
-    assert production_v1.knowledge_version_id == knowledge_id
-    assert production_v1.runtime_config == runtime
+    staging_v1 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
+    assert staging_v1.runtime_config == runtime_v1
 
-    staging.runtime_config = {"tools": {"tool_ids": [], "snapshots": []}}
-    staging.knowledge_version_id = uuid4()
-    await repo.save(staging)
-    production_v2 = await lifecycle.execute(staging.agent_id, staging.id, target_status="production")
+    knowledge_v2 = uuid4()
+    runtime_v2 = _runtime(top_k=8, tool_ids=[str(uuid4())])
+    draft.runtime_config = runtime_v2
+    draft.knowledge_version_id = knowledge_v2
+    await repo.save(draft)
+
+    stored_staging_v1 = await repo.get_by_id(staging_v1.id)
+    assert stored_staging_v1.runtime_config == runtime_v1
+    assert stored_staging_v1.knowledge_version_id == knowledge_v1
+
+    staging_v2 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
+    assert staging_v2.runtime_config == runtime_v2
+    assert staging_v2.knowledge_version_id == knowledge_v2
+
+    production_v1 = await lifecycle.execute(staging_v2.agent_id, staging_v2.id, target_status="production")
+    assert production_v1.runtime_config == runtime_v2
+    assert production_v1.knowledge_version_id == knowledge_v2
+
+    runtime_v3 = _runtime(top_k=10, tool_ids=[str(uuid4())])
+    draft.runtime_config = runtime_v3
+    draft.knowledge_version_id = uuid4()
+    await repo.save(draft)
+    staging_v3 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
+    production_v2 = await lifecycle.execute(staging_v3.agent_id, staging_v3.id, target_status="production")
     assert production_v2.id != production_v1.id
+    assert production_v2.runtime_config == runtime_v3
 
     restored = await lifecycle.execute(production_v1.agent_id, production_v1.id, target_status="production")
     assert restored.id == production_v1.id
-    assert restored.knowledge_version_id == knowledge_id
-    assert restored.runtime_config == runtime
+    assert restored.knowledge_version_id == knowledge_v2
+    assert restored.runtime_config == runtime_v2
 
 
 @pytest.mark.asyncio
@@ -136,13 +172,11 @@ def test_release_identity_is_bound_to_execution_context():
 
 
 @pytest.mark.asyncio
-async def test_document_delete_is_blocked_while_vector_build_is_active(monkeypatch):
+async def test_document_delete_is_blocked_while_vector_build_is_active():
     document = SimpleNamespace(id=uuid4(), project_id=uuid4(), collection_id=uuid4(), status="READY")
-    doc_repo = SimpleNamespace(_session_or_uow=object(), get_by_id=AsyncMock(return_value=document))
-    snapshot_repo = SimpleNamespace(get_active_building_by_collection=AsyncMock(return_value=object()))
-    monkeypatch.setattr(
-        "modules.agent.infra.database.vector_snapshot_repositories.SQLAlchemyVectorSnapshotRepository",
-        lambda _session: snapshot_repo,
+    doc_repo = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=document),
+        has_active_vector_build=AsyncMock(return_value=True),
     )
     use_case = SafeDeleteDocumentUseCase(doc_repo, AsyncMock(), AsyncMock())
     with pytest.raises(ConflictError, match="building"):
