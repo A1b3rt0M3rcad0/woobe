@@ -300,10 +300,8 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     void getRelease(agent.id, draft.id)
       .then((release) => {
         if (cancelled) return
-        const fallbackState = { ...state, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }
-        const next = releaseToEditorState(release, fallbackState)
-        setState(next)
-        setBaselineState(next)
+        setState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
+        setBaselineState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
