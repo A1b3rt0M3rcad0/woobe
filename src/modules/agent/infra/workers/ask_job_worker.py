@@ -16,13 +16,12 @@ from modules.agent.application.tool_release_snapshots import tool_from_release_s
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAskJobRepository,
-)
+from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
 
@@ -63,6 +62,15 @@ class AskJobWorker:
         cipher = SecretCipherAdapter(settings.encryption_key)
         http_exec = HttpToolExecutor()
         job_session_id = (job.params or {}).get("session_id")
+
+        async def read_runtime_tools(tool_ids: list[UUID]):
+            async with AgentUnitOfWork(session_factory) as uow:
+                tools = []
+                for tool_id in tool_ids:
+                    tool = await uow.tools.get_by_id(tool_id)
+                    if tool is not None:
+                        tools.append(tool)
+                return tools
 
         async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
             if is_runtime_tool_inventory_id(tool_id):
@@ -113,6 +121,8 @@ class AskJobWorker:
             encryption_key=settings.encryption_key,
             tool_executor_factory=execute_tool,
         )
+        use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        use_case.configure_runtime_tool_reader(read_runtime_tools)
 
         started_at = time.monotonic()
         try:
