@@ -91,7 +91,6 @@ export interface VectorSnapshot {
   chunking_strategy: string
   parser_config?: Record<string, unknown> | null
   build_config?: Record<string, unknown> | null
-  retrieval_defaults?: Record<string, unknown> | null
   snapshot_hash?: string | null
   build_config_hash?: string | null
   document_count: number
@@ -119,7 +118,7 @@ export interface CollectionOverview {
   latest_snapshot?: VectorSnapshot | null
   latest_ready_snapshot?: VectorSnapshot | null
   processing: { has_running_job: boolean; stage?: string | null; processed_documents: number; total_documents: number; processed_chunks: number; total_chunks: number; embedded_chunks: number }
-  technology: { embedding_provider_model_id?: string | null; embedding_provider?: string | null; embedding_model?: string | null; embedding_dimensions?: number | null; chunking_strategy?: string | null; chunk_size?: number | null; chunk_overlap?: number | null; retrieval_top_k?: number | null; retrieval_score_threshold?: number | null; vector_store: string; distance_metric: string }
+  technology: { embedding_provider_model_id?: string | null; embedding_provider?: string | null; embedding_model?: string | null; embedding_dimensions?: number | null; chunking_strategy?: string | null; chunk_size?: number | null; chunk_overlap?: number | null; vector_store: string; distance_metric: string }
   warnings: string[]
 }
 
@@ -132,7 +131,6 @@ export interface CreateVectorSnapshotRequest {
   chunk_overlap?: number
   chunking_strategy?: string
   parser_config?: RagParserConfig
-  retrieval_defaults?: Record<string, unknown>
   build_config?: RagBuildConfig
 }
 
