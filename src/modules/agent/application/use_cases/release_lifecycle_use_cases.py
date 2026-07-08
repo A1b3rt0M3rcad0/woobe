@@ -123,16 +123,28 @@ class ReleaseLifecycleUseCase:
         target = ReleaseStatus(target_status)
         if target not in _SINGLETON_STATUSES:
             raise ValueError("invalid release lifecycle target")
-        if target == ReleaseStatus.staging and release.status != ReleaseStatus.draft:
-            raise ConflictError("Staging can only be replaced by promoting the current Draft")
         if target == ReleaseStatus.draft:
             raise ConflictError("Draft is changed through Save Draft, not promotion")
         if target == ReleaseStatus.staging:
+            if release.status != ReleaseStatus.draft:
+                raise ConflictError("Staging can only be replaced by promoting the current Draft")
             saved = await self._upsert_singleton_snapshot(release, target, user_id=user_id)
-        elif copy_snapshot:
-            saved = await self._copy_to_production_release(release, user_id=user_id, change_kind=change_kind, release_notes=release_notes)
         else:
-            saved = await self._move_to_status(release, target, user_id=user_id)
+            if release.status == ReleaseStatus.draft:
+                raise ConflictError("Draft must be promoted to Staging before Production")
+            if release.status == ReleaseStatus.staging:
+                copy_snapshot = True
+            elif copy_snapshot:
+                raise ConflictError("New Production releases can only be published from Staging")
+            if copy_snapshot:
+                saved = await self._copy_to_production_release(
+                    release,
+                    user_id=user_id,
+                    change_kind=change_kind,
+                    release_notes=release_notes,
+                )
+            else:
+                saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
     async def _upsert_singleton_snapshot(self, source: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
