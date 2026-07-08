@@ -2,9 +2,10 @@ import { FileText, X, Package } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Textarea } from '@/components/ui/Textarea'
+import { useKnowledgeVersions } from '@/features/agents/hooks'
 import type { AgentRelease } from '@/features/agents/types'
 
- type ReleaseSnapshotModalProps = {
+type ReleaseSnapshotModalProps = {
   open: boolean
   title: string
   description?: string
@@ -42,10 +43,13 @@ function row(label: string, value: unknown) {
 }
 
 export function ReleaseSnapshotModal({ open, title, description, release, confirmLabel, isConfirming, onConfirm, onClose, releaseDescription, onReleaseDescriptionChange }: ReleaseSnapshotModalProps) {
+  const { data: knowledgeVersions = [] } = useKnowledgeVersions(release?.agent_id)
   if (!open || !release) return null
   const canEditDescription = Boolean(onConfirm && onReleaseDescriptionChange)
   const runtimeConfig = recordValue(release.runtime_config)
   const ragConfig = recordValue(runtimeConfig.rag)
+  const knowledgeVersion = knowledgeVersions.find((item) => item.id === release.knowledge_version_id) || null
+  const knowledgeMetadata = recordValue(knowledgeVersion?.snapshot_metadata)
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
     <div className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40">
@@ -72,7 +76,7 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
             {row('Model', `${release.provider ?? '—'}/${release.model ?? '—'}`)}
             {row('Temp', release.temperature)}
             {row('Tokens', release.max_output_tokens)}
-            {row('Knowledge', release.knowledge_version_id)}
+            {row('Knowledge', knowledgeVersion?.version ?? release.knowledge_version_id)}
             {row('Collections', release.collection_ids?.length ? `${release.collection_ids.length}` : '—')}
           </section>
         </aside>
@@ -89,8 +93,13 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
           </section>}
 
           <section className="space-y-3 rounded-xl border border-border/80 bg-background/45 p-4">
-            <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Knowledge binding</p><p className="mt-1 text-[11px] leading-5 text-muted">Exact immutable Knowledge version used by this snapshot.</p></div>
+            <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Knowledge binding</p><p className="mt-1 text-[11px] leading-5 text-muted">Exact immutable Knowledge and VectorSnapshot used by this Agent snapshot.</p></div>
+            {row('Knowledge', knowledgeVersion?.version)}
             {row('Version ID', release.knowledge_version_id)}
+            {row('Vector', knowledgeMetadata.vector_snapshot_version)}
+            {row('Vector ID', knowledgeMetadata.vector_snapshot_id)}
+            {row('Snapshot hash', knowledgeMetadata.snapshot_hash)}
+            {row('Embedding', knowledgeMetadata.embedding_model)}
           </section>
 
           <section className="space-y-3 rounded-xl border border-border/80 bg-background/45 p-4">
