@@ -97,18 +97,21 @@ class TestMigrationChain:
 
     def test_chain_is_linear(self):
         migration_files = sorted(MIGRATIONS_DIR.glob("[0-9]*.py"))
-        prev = None
-        for mf in migration_files:
-            text = mf.read_text(encoding="utf-8")
-            rev_match = re.search(r'revision = "(\d+)"', text)
-            down_match = re.search(r'down_revision = "(\d+)"', text)
-            if rev_match and down_match:
-                rev = int(rev_match.group(1))
-                if prev is not None:
-                    assert rev == prev + 1, (
-                        f"Expected revision {prev + 1:04d}, got {rev:04d}"
-                    )
-                prev = rev
+        previous_revision = None
+        for migration_file in migration_files:
+            text = migration_file.read_text(encoding="utf-8")
+            revision_match = re.search(r'revision = "([^"]+)"', text)
+            down_revision_match = re.search(r'down_revision = "([^"]+)"', text)
+            if revision_match is None:
+                continue
+            revision = revision_match.group(1)
+            if previous_revision is not None:
+                assert down_revision_match is not None, f"Missing down_revision in {migration_file.name}"
+                assert down_revision_match.group(1) == previous_revision, (
+                    f"Expected {migration_file.name} to follow {previous_revision}, "
+                    f"got {down_revision_match.group(1)}"
+                )
+            previous_revision = revision
 
     def test_0024_follows_0023(self):
         text = MIGRATION_FILE.read_text(encoding="utf-8")
@@ -116,13 +119,13 @@ class TestMigrationChain:
 
     def test_no_duplicate_revisions(self):
         revisions = set()
-        for mf in sorted(MIGRATIONS_DIR.glob("[0-9]*.py")):
-            text = mf.read_text(encoding="utf-8")
-            rev_match = re.search(r'revision = "(\d+)"', text)
-            if rev_match:
-                rev = rev_match.group(1)
-                assert rev not in revisions, f"Duplicate revision {rev}"
-                revisions.add(rev)
+        for migration_file in sorted(MIGRATIONS_DIR.glob("[0-9]*.py")):
+            text = migration_file.read_text(encoding="utf-8")
+            revision_match = re.search(r'revision = "([^"]+)"', text)
+            if revision_match:
+                revision = revision_match.group(1)
+                assert revision not in revisions, f"Duplicate revision {revision}"
+                revisions.add(revision)
 
 
 class TestFreshInstallSchema:
