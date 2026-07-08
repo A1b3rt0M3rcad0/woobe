@@ -3,7 +3,6 @@ import { BookOpen, Database, RefreshCw, SlidersHorizontal, X } from 'lucide-reac
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { LoadingState } from '@/components/common/LoadingState'
-import { StatusBadge } from '@/components/common/StatusBadge'
 import { useCreateKnowledgeVersion, useKnowledgeVersions } from '@/features/agents/hooks'
 import { SelectKnowledgeVersionModal } from '@/features/knowledge/components/SelectKnowledgeVersionModal'
 import { DEFAULT_RETRIEVAL_CONFIG, type RagRuntimeConfig } from '@/features/knowledge/ragConfigTypes'
@@ -99,10 +98,7 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
         <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate text-sm font-medium text-white">{collectionName}</p>
-                <StatusBadge status={activeVersion.status} />
-              </div>
+              <p className="truncate text-sm font-medium text-white">{collectionName}</p>
               <p className="mt-1 text-xs text-muted">Knowledge {activeVersion.version} · Vector {snapshotVersion}</p>
             </div>
             <Button type="button" size="sm" variant="ghost" className="text-muted hover:text-red-300" onClick={() => setField('knowledgeVersionId', null)}><X className="h-3.5 w-3.5" /></Button>
