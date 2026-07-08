@@ -8,6 +8,7 @@ from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUs
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
+from shared.infra.errors import ConflictError
 
 
 class FakeReleaseRepository:
@@ -24,7 +25,7 @@ class FakeReleaseRepository:
 
 
 @pytest.mark.asyncio
-async def test_delete_production_release_is_allowed() -> None:
+async def test_delete_production_release_is_rejected() -> None:
     release = AgentRelease(
         project_id=uuid4(),
         agent_id=uuid4(),
@@ -34,10 +35,11 @@ async def test_delete_production_release_is_allowed() -> None:
     repo = FakeReleaseRepository([release])
     use_case = DeleteReleaseUseCase(repo)
 
-    await use_case.execute(release.id)
+    with pytest.raises(ConflictError, match="immutable"):
+        await use_case.execute(release.id)
 
-    assert repo.deleted == [release.id]
-    assert await repo.get_by_id(release.id) is None
+    assert repo.deleted == []
+    assert await repo.get_by_id(release.id) is release
 
 
 @pytest.mark.asyncio
