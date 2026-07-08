@@ -19,7 +19,6 @@ depends_on = None
 def upgrade() -> None:
     op.add_column("vector_snapshots", sa.Column("build_stage", sa.String(length=32), nullable=False, server_default="QUEUED"), schema="agent")
     op.add_column("vector_snapshots", sa.Column("build_config", postgresql.JSONB(astext_type=sa.Text()), nullable=True), schema="agent")
-    op.add_column("vector_snapshots", sa.Column("retrieval_defaults", postgresql.JSONB(astext_type=sa.Text()), nullable=True), schema="agent")
     op.add_column("vector_snapshots", sa.Column("build_config_hash", sa.String(length=64), nullable=True), schema="agent")
     op.add_column("vector_snapshots", sa.Column("vector_count", sa.Integer(), nullable=False, server_default="0"), schema="agent")
     op.add_column("vector_snapshots", sa.Column("total_document_count", sa.Integer(), nullable=False, server_default="0"), schema="agent")
@@ -54,6 +53,5 @@ def downgrade() -> None:
     op.drop_column("vector_snapshots", "total_document_count", schema="agent")
     op.drop_column("vector_snapshots", "vector_count", schema="agent")
     op.drop_column("vector_snapshots", "build_config_hash", schema="agent")
-    op.drop_column("vector_snapshots", "retrieval_defaults", schema="agent")
     op.drop_column("vector_snapshots", "build_config", schema="agent")
     op.drop_column("vector_snapshots", "build_stage", schema="agent")
