@@ -25,7 +25,6 @@ async def test_create_knowledge_version_binds_ready_snapshot_and_generates_versi
         snapshot_hash="snapshot-hash",
         document_count=2,
         chunk_count=18,
-        retrieval_defaults={"top_k": 5, "score_threshold": 0.7},
     )
 
     repo = AsyncMock()
@@ -51,7 +50,7 @@ async def test_create_knowledge_version_binds_ready_snapshot_and_generates_versi
     assert result.snapshot_metadata["vector_snapshot_id"] == str(snapshot.id)
     assert result.snapshot_metadata["vector_snapshot_version"] == "v3"
     assert result.snapshot_metadata["snapshot_hash"] == "snapshot-hash"
-    assert result.snapshot_metadata["retrieval_defaults"] == {"top_k": 5, "score_threshold": 0.7}
+    assert "retrieval_defaults" not in result.snapshot_metadata
     repo.save.assert_awaited_once()
 
 
