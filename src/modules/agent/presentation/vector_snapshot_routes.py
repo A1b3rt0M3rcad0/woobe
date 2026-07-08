@@ -6,6 +6,13 @@ from fastapi import APIRouter, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
+from modules.agent.application.composers.vector_snapshot_composers import (
+    create_vector_snapshot as compose_create_vector_snapshot,
+    get_collection_overview as compose_get_collection_overview,
+    get_vector_snapshot as compose_get_vector_snapshot,
+    list_vector_snapshots as compose_list_vector_snapshots,
+    preview_vector_snapshot as compose_preview_vector_snapshot,
+)
 from modules.agent.application.dtos.vector_snapshot_dtos import (
     CreateVectorSnapshotInput,
     GetCollectionOverviewInput,
@@ -13,18 +20,6 @@ from modules.agent.application.dtos.vector_snapshot_dtos import (
     ListVectorSnapshotsInput,
     PreviewVectorSnapshotInput,
 )
-from modules.agent.application.use_cases.vector_snapshot_preview_use_case import (
-    PreviewVectorSnapshotUseCase,
-)
-from modules.agent.application.use_cases.vector_snapshot_use_cases import (
-    CreateVectorSnapshotUseCase,
-    GetCollectionOverviewUseCase,
-    GetVectorSnapshotUseCase,
-    ListVectorSnapshotsUseCase,
-)
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.infra.storage.factory import create_file_storage
-from shared.infra.config import Settings
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/agent/knowledge", tags=["knowledge", "agent"])
@@ -44,17 +39,13 @@ async def get_collection_overview(
     project_id: UUID,
 ):
     try:
-        input_dto = GetCollectionOverviewInput(
-            project_id=project_id,
-            collection_id=collection_id,
+        output = await compose_get_collection_overview(
+            request.app.state.session_factory,
+            GetCollectionOverviewInput(
+                project_id=project_id,
+                collection_id=collection_id,
+            ),
         )
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = GetCollectionOverviewUseCase(
-                snapshot_repo=uow.vector_snapshots,
-                collection_repo=uow.document_collections,
-                document_repo=uow.documents,
-            )
-            output = await use_case.execute(input_dto)
     except NotFoundError as exc:
         return _error(404, str(exc))
     return jsonable_encoder(
@@ -69,18 +60,13 @@ async def preview_vector_snapshot(request: Request, collection_id: UUID):
     except Exception:
         body = {}
     try:
-        input_dto = PreviewVectorSnapshotInput(
-            collection_id=collection_id,
-            **body,
+        output = await compose_preview_vector_snapshot(
+            request.app.state.session_factory,
+            PreviewVectorSnapshotInput(
+                collection_id=collection_id,
+                **body,
+            ),
         )
-        storage = create_file_storage(Settings())
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = PreviewVectorSnapshotUseCase(
-                collection_repo=uow.document_collections,
-                document_repo=uow.documents,
-                storage=storage,
-            )
-            output = await use_case.execute(input_dto)
     except ConflictError as exc:
         return _error(409, str(exc))
     except NotFoundError as exc:
@@ -99,16 +85,10 @@ async def create_vector_snapshot(request: Request, collection_id: UUID):
     except Exception:
         body = {}
     try:
-        input_dto = CreateVectorSnapshotInput(collection_id=collection_id, **body)
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = CreateVectorSnapshotUseCase(
-                snapshot_repo=uow.vector_snapshots,
-                collection_repo=uow.document_collections,
-                document_repo=uow.documents,
-                provider_model_repo=uow.provider_models,
-                credential_repo=uow.provider_credentials,
-            )
-            output = await use_case.execute(input_dto)
+        output = await compose_create_vector_snapshot(
+            request.app.state.session_factory,
+            CreateVectorSnapshotInput(collection_id=collection_id, **body),
+        )
     except ConflictError as exc:
         return _error(409, str(exc))
     except NotFoundError as exc:
@@ -127,13 +107,13 @@ async def list_vector_snapshots(
     collection_id: UUID,
     project_id: UUID,
 ):
-    input_dto = ListVectorSnapshotsInput(
-        project_id=project_id,
-        collection_id=collection_id,
+    output = await compose_list_vector_snapshots(
+        request.app.state.session_factory,
+        ListVectorSnapshotsInput(
+            project_id=project_id,
+            collection_id=collection_id,
+        ),
     )
-    async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-        use_case = ListVectorSnapshotsUseCase(uow.vector_snapshots)
-        output = await use_case.execute(input_dto)
     return jsonable_encoder(
         {
             "success": True,
@@ -150,13 +130,13 @@ async def get_vector_snapshot(
     project_id: UUID | None = None,
 ):
     try:
-        input_dto = GetVectorSnapshotInput(
-            snapshot_id=snapshot_id,
-            project_id=project_id,
+        output = await compose_get_vector_snapshot(
+            request.app.state.session_factory,
+            GetVectorSnapshotInput(
+                snapshot_id=snapshot_id,
+                project_id=project_id,
+            ),
         )
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = GetVectorSnapshotUseCase(uow.vector_snapshots)
-            output = await use_case.execute(input_dto)
     except NotFoundError as exc:
         return _error(404, str(exc))
     return jsonable_encoder(
