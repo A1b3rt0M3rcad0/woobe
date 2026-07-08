@@ -30,6 +30,7 @@ from modules.agent.application.use_cases.structured_output_ask_use_case import (
 )
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
@@ -61,6 +62,17 @@ class AskAgentStreamService:
             encryption_key=settings.encryption_key,
             tool_executor_factory=self._execute_tool,
         )
+        self._use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        self._use_case.configure_runtime_tool_reader(self._read_runtime_tools)
+
+    async def _read_runtime_tools(self, tool_ids: list[UUID]):
+        async with AgentUnitOfWork(self._session_factory) as uow:
+            tools = []
+            for tool_id in tool_ids:
+                tool = await uow.tools.get_by_id(tool_id)
+                if tool is not None:
+                    tools.append(tool)
+            return tools
 
     async def _execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         try:
