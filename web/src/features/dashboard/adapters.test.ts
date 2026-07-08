@@ -16,7 +16,7 @@ describe('adaptProjectOverview', () => {
       'Runtime Requests',
       'Avg Latency',
       'Success Rate',
-      'Estimated Cost',
+      'Runtime Cost',
     ])
     expect(model.series).toHaveLength(2)
     expect(model.releases[0]?.environmentLabel).toBe('Production')
@@ -41,7 +41,7 @@ describe('adaptProjectOverview', () => {
     expect(formatLatency(null)).toBe('—')
     expect(formatPercent(null)).toBe('—')
     expect(formatCost(null)).toBe('Unknown')
-    expect(model.metrics.find((metric) => metric.label === 'Estimated Cost')?.value).toBe('Unknown')
+    expect(model.metrics.find((metric) => metric.label === 'Runtime Cost')?.value).toBe('Unknown')
     expect(model.traces[0]?.latencyLabel).toBe('—')
     expect(model.traces[0]?.tokenLabel).toBe('—')
     expect(model.traces[0]?.costLabel).toBe('Unknown')
