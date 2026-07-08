@@ -47,7 +47,6 @@ class VectorSnapshotModel(BaseModel):
     chunking_strategy: Mapped[str] = mapped_column(String(64), default="recursive_text")
     parser_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     build_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    retrieval_defaults: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     snapshot_hash: Mapped[str | None] = mapped_column(String(64))
     build_config_hash: Mapped[str | None] = mapped_column(String(64))
     document_count: Mapped[int] = mapped_column(Integer, default=0)
