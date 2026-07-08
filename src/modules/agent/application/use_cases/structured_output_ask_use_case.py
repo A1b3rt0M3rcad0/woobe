@@ -8,6 +8,7 @@ from modules.agent.application import mcp_oauth
 from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
+from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
@@ -146,6 +147,12 @@ class StructuredOutputAskAgentUseCase(
                         secret_resolver=resolver,
                         auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
                     )
+                    permission_overrides = tool_metadata.get("permission_overrides") if tool_metadata else None
+                    if isinstance(permission_overrides, dict):
+                        refreshed_tools = [
+                            tool_with_permission_overrides(tool, permission_overrides.get(str(tool.id)))
+                            for tool in refreshed_tools
+                        ]
                     agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
             except Exception:
                 return prepared
