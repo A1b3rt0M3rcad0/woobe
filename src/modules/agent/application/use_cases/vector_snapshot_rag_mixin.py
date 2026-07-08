@@ -8,9 +8,8 @@ from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
+from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.crypto import decrypt_secret
 from shared.infra.errors import ValidationError
 
@@ -96,26 +95,24 @@ class VectorSnapshotRAGMixin:
     """Resolve immutable KnowledgeVersion bindings using Agent runtime retrieval config."""
 
     _encryption_key: str
-    _session_factory: Any
+    _embedding_factory: EmbeddingFactory | None = None
+
+    def configure_rag_embedding_factory(self, embedding_factory: EmbeddingFactory) -> None:
+        self._embedding_factory = embedding_factory
 
     async def _prepare(self, input_dto: Any) -> Any:
-        history: list[Any] = []
-        session_id = getattr(input_dto, "session_id", None)
-        if session_id:
-            try:
-                async with AgentUnitOfWork(self._session_factory) as uow:
-                    session = await uow.sessions.get_by_id(session_id)
-                    if session is not None:
-                        parent = cast(_VectorSnapshotRAGSuper, self)
-                        history = await parent._load_history(uow.messages, session)
-            except Exception:
-                history = []
-        token = _rag_history_context.set(history)
+        token = _rag_history_context.set([])
         try:
             parent = cast(_VectorSnapshotRAGSuper, super())
             return await parent._prepare(input_dto)
         finally:
             _rag_history_context.reset(token)
+
+    async def _load_history(self, message_repo: Any, session: Any) -> list[Any]:
+        parent = cast(_VectorSnapshotRAGSuper, super())
+        history = await parent._load_history(message_repo, session)
+        _rag_history_context.set(history)
+        return history
 
     def _apply_release_to_agent(self, agent: Any, release: Any) -> Any:
         parent = cast(_VectorSnapshotRAGSuper, super())
@@ -165,90 +162,56 @@ class VectorSnapshotRAGMixin:
                 context.rag_metadata = None
             return None, []
 
-        knowledge_id = _uuid_value(
-            knowledge_version_id,
-            field_name="knowledge_version_id",
-        )
+        knowledge_id = _uuid_value(knowledge_version_id, field_name="knowledge_version_id")
         knowledge = await uow.knowledge_versions.get_by_id(knowledge_id)
         if knowledge is None:
             raise ValidationError("Configured KnowledgeVersion was not found")
         if knowledge.project_id != agent.project_id or knowledge.agent_id != agent.id:
-            raise ValidationError(
-                "Configured KnowledgeVersion does not belong to this Agent"
-            )
+            raise ValidationError("Configured KnowledgeVersion does not belong to this Agent")
 
         metadata = dict(knowledge.snapshot_metadata or {})
         vector_snapshot_id = metadata.get("vector_snapshot_id")
         if not vector_snapshot_id:
-            raise ValidationError(
-                "Configured KnowledgeVersion has no vector snapshot"
-            )
+            raise ValidationError("Configured KnowledgeVersion has no vector snapshot")
 
-        snapshot_id = _uuid_value(
-            vector_snapshot_id,
-            field_name="vector_snapshot_id",
-        )
+        snapshot_id = _uuid_value(vector_snapshot_id, field_name="vector_snapshot_id")
         snapshot = await uow.vector_snapshots.get_by_id(snapshot_id)
         if snapshot is None or snapshot.project_id != agent.project_id:
             raise ValidationError("Configured vector snapshot was not found")
         if snapshot.status != VECTOR_SNAPSHOT_READY:
             raise ValidationError("Configured vector snapshot is not READY")
         if not snapshot.snapshot_hash:
-            raise ValidationError(
-                "Configured vector snapshot has no immutable hash"
-            )
+            raise ValidationError("Configured vector snapshot has no immutable hash")
 
-        provider_model = await uow.provider_models.get_by_id(
-            snapshot.embedding_provider_model_id
-        )
+        provider_model = await uow.provider_models.get_by_id(snapshot.embedding_provider_model_id)
         if provider_model is None or provider_model.project_id != agent.project_id:
             raise ValidationError("Embedding provider model was not found")
         if _status_value(provider_model.status) != ProviderModelStatus.active.value:
             raise ValidationError("Embedding provider model must be active")
 
-        capability = str(
-            (provider_model.metadata or {}).get("capability") or ""
-        ).lower()
-        if (
-            capability not in {"embedding", "embeddings"}
-            and "embed" not in provider_model.model.lower()
-        ):
-            raise ValidationError(
-                "Configured provider model is not an embedding model"
-            )
+        capability = str((provider_model.metadata or {}).get("capability") or "").lower()
+        if capability not in {"embedding", "embeddings"} and "embed" not in provider_model.model.lower():
+            raise ValidationError("Configured provider model is not an embedding model")
 
-        credential = await uow.provider_credentials.get_by_id(
-            provider_model.provider_credential_id
-        )
+        credential = await uow.provider_credentials.get_by_id(provider_model.provider_credential_id)
         if credential is None or credential.project_id != agent.project_id:
             raise ValidationError("Embedding provider credential was not found")
         if _status_value(credential.status) != CredentialStatus.active.value:
             raise ValidationError("Embedding provider credential must be active")
 
         try:
-            api_key = decrypt_secret(
-                credential.encrypted_secret,
-                self._encryption_key,
-            )
+            api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as exc:
-            raise ValidationError(
-                "Embedding provider credential could not be decrypted"
-            ) from exc
+            raise ValidationError("Embedding provider credential could not be decrypted") from exc
 
         provider = snapshot.embedding_provider
         base_url = None
         if provider == "custom":
-            base_url = (provider_model.metadata or {}).get("base_url") or (
-                credential.metadata or {}
-            ).get("base_url")
+            base_url = (provider_model.metadata or {}).get("base_url") or (credential.metadata or {}).get("base_url")
             if not base_url:
-                raise ValidationError(
-                    "Custom embedding provider requires base_url"
-                )
+                raise ValidationError("Custom embedding provider requires base_url")
         elif provider == "openrouter":
-            base_url = (credential.metadata or {}).get("base_url") or (
-                provider_model.metadata or {}
-            ).get("base_url")
+            base_url = (credential.metadata or {}).get("base_url") or (provider_model.metadata or {}).get("base_url")
 
         effective = _runtime_config(agent)
         retrieval_query = _build_retrieval_query(
@@ -258,7 +221,9 @@ class VectorSnapshotRAGMixin:
             history_turns=effective.history_turns,
         )
 
-        embedding_client = LangchainEmbeddingFactory().create_embedding_client(
+        if self._embedding_factory is None:
+            raise ValidationError("RAG embedding runtime is not configured")
+        embedding_client = self._embedding_factory.create_embedding_client(
             provider=provider,
             model=snapshot.embedding_model,
             api_key=api_key,
@@ -269,8 +234,7 @@ class VectorSnapshotRAGMixin:
         if len(query_embedding) != snapshot.embedding_dimensions:
             raise ValidationError(
                 "Query embedding dimensions do not match snapshot: "
-                f"expected {snapshot.embedding_dimensions}, "
-                f"got {len(query_embedding)}"
+                f"expected {snapshot.embedding_dimensions}, got {len(query_embedding)}"
             )
 
         candidates = await uow.vector_snapshots.search_similar(
@@ -283,11 +247,7 @@ class VectorSnapshotRAGMixin:
         if effective.min_score is None:
             filtered = candidates
         else:
-            filtered = [
-                (chunk, score)
-                for chunk, score in candidates
-                if float(score) >= effective.min_score
-            ]
+            filtered = [(chunk, score) for chunk, score in candidates if float(score) >= effective.min_score]
 
         selected: list[tuple[Any, float]] = []
         per_document: dict[UUID, int] = {}
@@ -301,13 +261,8 @@ class VectorSnapshotRAGMixin:
                 break
 
         context_results = selected[: effective.max_context_chunks]
-        snapshot_documents = (
-            await uow.vector_snapshots.list_snapshot_documents(snapshot.id)
-        )
-        document_titles = {
-            document.document_id: document.document_title
-            for document in snapshot_documents
-        }
+        snapshot_documents = await uow.vector_snapshots.list_snapshot_documents(snapshot.id)
+        document_titles = {document.document_id: document.document_title for document in snapshot_documents}
 
         sources: list[SourceInfo] = []
         context_chunks: list[str] = []
@@ -344,9 +299,7 @@ class VectorSnapshotRAGMixin:
             "vector_snapshot_id": str(snapshot.id),
             "vector_snapshot_version": snapshot.version,
             "snapshot_hash": snapshot.snapshot_hash,
-            "embedding_provider_model_id": str(
-                snapshot.embedding_provider_model_id
-            ),
+            "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
             "embedding_provider": snapshot.embedding_provider,
             "embedding_model": snapshot.embedding_model,
             "embedding_dimensions": snapshot.embedding_dimensions,
@@ -367,8 +320,6 @@ class VectorSnapshotRAGMixin:
 
         if not context_chunks:
             if effective.grounding_policy == "required":
-                raise ValidationError(
-                    "No relevant information was found in the configured knowledge version"
-                )
+                raise ValidationError("No relevant information was found in the configured knowledge version")
             return None, []
         return "\n\n".join(context_chunks), sources
