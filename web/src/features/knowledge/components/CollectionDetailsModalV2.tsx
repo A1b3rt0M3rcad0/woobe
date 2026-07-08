@@ -202,7 +202,6 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} detail={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
         <TechItem label="Chunking" value={overview?.technology.chunking_strategy || 'Not configured'} detail={overview?.technology.chunk_size ? `${overview.technology.chunk_size} size · ${overview.technology.chunk_overlap ?? 0} overlap` : undefined} />
-        <TechItem label="Retrieval" value={overview?.technology.retrieval_top_k ? `Top K ${overview.technology.retrieval_top_k}` : 'Not configured'} detail={overview?.technology.retrieval_score_threshold != null ? `Threshold ${overview.technology.retrieval_score_threshold}` : undefined} />
         <TechItem label="Vector store" value={overview?.technology.vector_store || 'pgvector'} detail={overview?.technology.distance_metric || 'cosine'} />
       </div>
     </section>
@@ -215,7 +214,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
           <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
             <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="rounded-xl border border-border/80 bg-background/70 p-4">
+                <div className="rounded-xl border border-border/90 bg-background/60 p-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><Database className="h-5 w-5" /></div>
                   <div className="mt-4 flex items-start justify-between gap-3"><h3 className="truncate text-base font-semibold text-white">{collection.name}</h3>{collection.status && <StatusBadge status={collection.status} />}</div>
                   <p className="mt-2 line-clamp-4 text-sm leading-6 text-muted">{collection.description || 'No description provided'}</p>
