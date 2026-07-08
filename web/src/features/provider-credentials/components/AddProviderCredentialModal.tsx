@@ -6,12 +6,44 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { toast } from 'sonner'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
-import {
-  OPENROUTER_BASE_URL,
-  buildCredentialMetadata,
-  defaultCredentialNames,
-  providerOptions,
-} from '@/features/provider-credentials/setup'
+
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+
+const providers = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'custom', label: 'OpenAI Compatible' },
+  { value: 'openrouter', label: 'OpenRouter' },
+]
+
+const defaultNames: Record<string, string> = {
+  openai: 'OpenAI',
+  custom: 'OpenAI Compatible Provider',
+  openrouter: 'OpenRouter',
+}
+
+function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
+  if (provider === 'custom') {
+    return {
+      provider_family: 'openai',
+      compatibility: 'compatible',
+      base_url: baseUrl.trim(),
+      model_discovery_strategy: 'openai_compatible_models',
+    }
+  }
+  if (provider === 'openrouter') {
+    return {
+      provider_family: 'openrouter',
+      compatibility: 'native',
+      base_url: OPENROUTER_BASE_URL,
+      model_discovery_strategy: 'openrouter_models',
+    }
+  }
+  return {
+    provider_family: 'openai',
+    compatibility: 'native',
+    model_discovery_strategy: 'openai_models',
+  }
+}
 
 interface AddProviderCredentialModalProps {
   open: boolean
@@ -27,7 +59,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
   const isEditing = Boolean(credential)
 
   const [provider, setProvider] = useState('openai')
-  const [name, setName] = useState(defaultCredentialNames.openai)
+  const [name, setName] = useState(defaultNames.openai)
   const [secret, setSecret] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
 
@@ -40,7 +72,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       setBaseUrl(meta.base_url || '')
     } else {
       setProvider('openai')
-      setName(defaultCredentialNames.openai)
+      setName(defaultNames.openai)
       setSecret('')
       setBaseUrl('')
     }
@@ -48,7 +80,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
 
   useEffect(() => {
     if (isEditing) return
-    setName(defaultCredentialNames[provider] || '')
+    setName(defaultNames[provider] || '')
     if (provider !== 'custom') {
       setBaseUrl('')
     }
@@ -64,7 +96,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       toast.error('API key is required')
       return
     }
-    if (!providerOptions.some((item) => item.value === provider)) {
+    if (!providers.some((item) => item.value === provider)) {
       toast.error('Provider is not supported')
       return
     }
@@ -110,7 +142,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
           <Select
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            options={providerOptions}
+            options={providers}
           />
           <p className="mt-1 text-xs text-muted">Credentials only store access. Models are selected separately from the provider catalog when possible.</p>
         </div>
