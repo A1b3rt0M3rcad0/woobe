@@ -37,7 +37,6 @@ class VectorSnapshot:
     chunking_strategy: str = "recursive_text"
     parser_config: dict[str, Any] | None = None
     build_config: dict[str, Any] | None = None
-    retrieval_defaults: dict[str, Any] | None = None
     snapshot_hash: str | None = None
     build_config_hash: str | None = None
     document_count: int = 0
