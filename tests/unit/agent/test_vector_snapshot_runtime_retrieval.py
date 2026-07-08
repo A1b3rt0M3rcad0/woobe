@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, KnowledgeVersion, ProviderCredential, ProviderModel
@@ -28,19 +29,30 @@ class _RuntimeHost(VectorSnapshotRAGMixin, _BaseRuntime):
 
 
 @pytest.mark.asyncio
-async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot(monkeypatch):
+async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(monkeypatch):
     project_id = uuid4()
     agent_id = uuid4()
     knowledge_id = uuid4()
     credential_id = uuid4()
     provider_model_id = uuid4()
     document_id = uuid4()
+    rag_config = RAGRuntimeConfig(
+        candidate_k=9,
+        top_k=1,
+        min_score=0.72,
+        max_context_chunks=1,
+        max_chunks_per_document=1,
+        query_mode="current_message",
+    )
 
     agent = Agent(
         id=agent_id,
         project_id=project_id,
         name="Contracts agent",
-        settings={"knowledge_version_id": str(knowledge_id)},
+        settings={
+            "knowledge_version_id": str(knowledge_id),
+            "runtime_config": {"rag": rag_config.model_dump()},
+        },
     )
     knowledge = KnowledgeVersion(
         id=knowledge_id,
@@ -60,7 +72,6 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
         embedding_dimensions=3,
         status=VECTOR_SNAPSHOT_READY,
         snapshot_hash="immutable-hash",
-        retrieval_defaults={"top_k": 7, "score_threshold": 0.72},
     )
     knowledge.snapshot_metadata = {"vector_snapshot_id": str(snapshot.id)}
     provider_model = ProviderModel(
@@ -103,13 +114,11 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
 
     embedding_client = MagicMock()
     embedding_client.aembed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
+    embedding_factory = MagicMock()
+    embedding_factory.create_embedding_client.return_value = embedding_client
     monkeypatch.setattr(
         "modules.agent.application.use_cases.vector_snapshot_rag_mixin.decrypt_secret",
         lambda *_args, **_kwargs: "api-key",
-    )
-    monkeypatch.setattr(
-        "modules.agent.application.use_cases.vector_snapshot_rag_mixin.LangchainEmbeddingFactory.create_embedding_client",
-        lambda *_args, **_kwargs: embedding_client,
     )
 
     uow = MagicMock()
@@ -120,9 +129,11 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
     uow.provider_models.get_by_id = AsyncMock(return_value=provider_model)
     uow.provider_credentials.get_by_id = AsyncMock(return_value=credential)
 
+    host = _RuntimeHost()
+    host.configure_rag_embedding_factory(embedding_factory)
     token = current_execution.set(new_execution_context())
     try:
-        context, sources = await _RuntimeHost()._load_rag_context(agent, "When does it renew?", uow)
+        context, sources = await host._load_rag_context(agent, "When does it renew?", uow)
         execution_context = current_execution.get()
     finally:
         current_execution.reset(token)
@@ -131,7 +142,7 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
     uow.vector_snapshots.search_similar.assert_awaited_once_with(
         vector_snapshot_id=snapshot.id,
         embedding=[0.1, 0.2, 0.3],
-        limit=20,
+        limit=9,
         threshold=0.0,
     )
     assert "2031-04-17" in context
@@ -140,6 +151,7 @@ async def test_vector_snapshot_rag_embeds_query_and_searches_only_bound_snapshot
     assert execution_context.rag_metadata["knowledge_version_id"] == str(knowledge.id)
     assert execution_context.rag_metadata["vector_snapshot_id"] == str(snapshot.id)
     assert execution_context.rag_metadata["snapshot_hash"] == "immutable-hash"
+    assert execution_context.rag_metadata["rag_runtime_config"] == rag_config.model_dump()
     assert execution_context.rag_metadata["matched_chunks"] == 1
 
 
