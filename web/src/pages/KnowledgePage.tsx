@@ -1,21 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { Database, Plus, Search } from 'lucide-react'
-import { toast } from 'sonner'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
 import { CollectionDetailsModal } from '@/features/knowledge/components/CollectionDetailsModalV2'
+import { CreateCollectionModal } from '@/features/knowledge/components/CreateCollectionModal'
 import { KnowledgeEmbeddingPanel } from '@/features/knowledge/components/CollectionVectorWorkspace'
-import { createCollectionSchema, type CreateCollectionFormData } from '@/features/knowledge/schemas'
-import { useCollections, useCreateCollection } from '@/features/knowledge/hooks'
+import { useCollections } from '@/features/knowledge/hooks'
 import type { Collection } from '@/features/knowledge/types'
 
 type Section = 'collections' | 'embedding'
@@ -23,32 +18,13 @@ type Section = 'collections' | 'embedding'
 export default function KnowledgePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: collections, isLoading: colsLoading, isError: colsError, refetch: refetchCols } = useCollections(projectId)
-  const createCollection = useCreateCollection()
   const [section, setSection] = useState<Section>('collections')
   const [showCreateCol, setShowCreateCol] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
 
-  const colForm = useForm<CreateCollectionFormData>({ resolver: zodResolver(createCollectionSchema) })
-
   const collectionItems = collections ?? []
   const selectedCollection = collectionItems.find((collection) => collection.id === selectedCollectionId) ?? null
-
-  const handleCreateCollection = async (data: CreateCollectionFormData) => {
-    if (!projectId) return
-    try {
-      await createCollection.mutateAsync({
-        project_id: projectId,
-        name: data.name,
-        description: data.description,
-      })
-      toast.success('Collection created')
-      setShowCreateCol(false)
-      colForm.reset()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create collection')
-    }
-  }
 
   const normalizedQuery = query.trim().toLowerCase()
   const visibleCollections = useMemo(() => {
@@ -150,16 +126,11 @@ export default function KnowledgePage() {
         <KnowledgeEmbeddingPanel projectId={projectId || ''} />
       )}
 
-      <Dialog open={showCreateCol} onClose={() => setShowCreateCol(false)} title="Create Collection">
-        <form onSubmit={colForm.handleSubmit(handleCreateCollection)} className="space-y-4">
-          <Input {...colForm.register('name')} error={colForm.formState.errors.name?.message} placeholder="Collection name" />
-          <Textarea {...colForm.register('description')} placeholder="Description (optional)" />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreateCol(false)}>Cancel</Button>
-            <Button type="submit" loading={createCollection.isPending}>Create</Button>
-          </div>
-        </form>
-      </Dialog>
+      <CreateCollectionModal
+        open={showCreateCol}
+        onClose={() => setShowCreateCol(false)}
+        projectId={projectId || ''}
+      />
 
       <CollectionDetailsModal
         open={Boolean(selectedCollection)}
