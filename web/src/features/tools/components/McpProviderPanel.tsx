@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, refreshMcpTools, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
-import type { DiscoveredMcpTool, McpReadiness, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
+import type { DiscoveredMcpTool, McpReadiness, McpToolConfig, McpToolPermission, McpToolPermissionMode, Tool } from '@/features/tools/types'
 import { PlugZap, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -121,14 +121,26 @@ function ReadinessPill({ state, label }: { state: string; label: string }) {
 interface Props {
   tool: Tool
   onChanged?: () => void | Promise<void>
+  permissionOverrides?: Record<string, McpToolPermission>
+  onPermissionOverridesChange?: (permissions: Record<string, McpToolPermission>) => void
 }
 
-export function McpProviderPanel({ tool, onChanged }: Props) {
+export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermissionOverridesChange }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const [busyKey, setBusyKey] = useState<string | null>(null)
-  const discovered = discoveredTools(tool)
+  const draftPermissionMode = permissionOverrides !== undefined && Boolean(onPermissionOverridesChange)
+  const baseDiscovered = discoveredTools(tool)
+  const discovered = draftPermissionMode
+    ? baseDiscovered.map((item) => ({
+        ...item,
+        permission: permissionOverrides?.[item.name] ?? { mode: 'review', risk_level: 'unknown' },
+      }))
+    : baseDiscovered
+  const effectiveTool = draftPermissionMode
+    ? { ...tool, config: { ...mcpConfig(tool), discovered_tools: discovered } }
+    : tool
   const counts = summary(discovered)
-  const state = readiness(tool)
+  const state = draftPermissionMode ? fallbackReadiness(effectiveTool) : readiness(tool)
   const showConnect = shouldShowConnect(tool, state, discovered)
   const showLoadTools = !showConnect && discovered.length === 0 && state.state !== 'provider_not_supported'
   const visibleLabel = showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label
@@ -174,6 +186,15 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   }
 
   const handleBulk = async (mode: McpToolPermissionMode) => {
+    if (draftPermissionMode && onPermissionOverridesChange) {
+      const next = Object.fromEntries(
+        discovered.map((item) => [item.name, mode === 'review' ? { mode, risk_level: 'unknown' } : { mode }]),
+      ) as Record<string, McpToolPermission>
+      onPermissionOverridesChange(next)
+      toast.success(`Draft MCP tools set to ${mode}`)
+      return
+    }
+
     try {
       setBusyKey(`bulk:${mode}`)
       await bulkUpdateMcpToolPermissions({ tool_id: tool.id, mode })
@@ -187,6 +208,14 @@ export function McpProviderPanel({ tool, onChanged }: Props) {
   }
 
   const handleSingle = async (remoteToolName: string, mode: McpToolPermissionMode) => {
+    if (draftPermissionMode && onPermissionOverridesChange) {
+      onPermissionOverridesChange({
+        ...(permissionOverrides || {}),
+        [remoteToolName]: mode === 'review' ? { mode, risk_level: 'unknown' } : { mode },
+      })
+      return
+    }
+
     try {
       setBusyKey(`${remoteToolName}:${mode}`)
       await updateMcpToolPermissions({ tool_id: tool.id, permissions: [{ remote_tool_name: remoteToolName, mode }] })
