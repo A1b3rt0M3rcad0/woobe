@@ -16,6 +16,7 @@ from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -33,6 +34,15 @@ def ask_agent_composer(
     llm_factory = LangchainLLMFactory()
     cipher = SecretCipherAdapter(settings.encryption_key)
     executor = http_executor or get_http_tool_executor()
+
+    async def read_runtime_tools(tool_ids: list[UUID]):
+        async with AgentUnitOfWork(session_factory) as uow:
+            tools = []
+            for tool_id in tool_ids:
+                tool = await uow.tools.get_by_id(tool_id)
+                if tool is not None:
+                    tools.append(tool)
+            return tools
 
     async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
         if is_runtime_tool_inventory_id(tool_id):
@@ -82,4 +92,6 @@ def ask_agent_composer(
         encryption_key=settings.encryption_key,
         tool_executor_factory=execute_tool,
     )
+    use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+    use_case.configure_runtime_tool_reader(read_runtime_tools)
     return AskAgentController(use_case).handle
