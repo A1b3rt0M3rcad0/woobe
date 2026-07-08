@@ -1,36 +1,18 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAgents, useCreateAgent } from '@/features/agents/hooks'
-import { useProviderModels } from '@/features/provider-models/hooks'
+import { useAgents } from '@/features/agents/hooks'
+import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CreateResourceCard } from '@/components/common/CreateResourceCard'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
-import { ArrowRight, Bot, Boxes, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Bot, Search } from 'lucide-react'
 import { orgProjectPath } from '@/lib/constants/routes'
-import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
-import type { ProviderModel } from '@/features/provider-models/types'
-
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  openrouter: 'OpenRouter',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  custom: 'Custom',
-}
 
 function providerLabel(agent: Agent) {
   return [agent.provider, agent.model].filter(Boolean).join(' / ') || 'Model not configured'
-}
-
-function modelProviderLabel(model: ProviderModel) {
-  const provider = model.provider || ''
-  return providerLabels[provider] || provider || 'Provider'
 }
 
 function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -45,39 +27,15 @@ function MinimalShell({ title, description, children }: { title: string; descrip
   )
 }
 
-function ModelSummary({ model }: { model: ProviderModel }) {
-  return (
-    <div className="rounded-xl border border-border/80 bg-background/60 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{model.name}</p>
-          <p className="mt-1 text-xs text-muted">{modelProviderLabel(model)}</p>
-        </div>
-        <StatusBadge status={model.status || 'active'} />
-      </div>
-      <div className="mt-3 space-y-1 text-xs text-muted">
-        <p>Model · <code className="rounded bg-surface px-1">{model.model}</code></p>
-      </div>
-    </div>
-  )
-}
-
 export default function AgentsPage() {
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
   const navigate = useNavigate()
   const { data: agents, isLoading, isError, error, refetch } = useAgents(projectId)
-  const createAgent = useCreateAgent(projectId)
-  const { data: providerModels = [], isLoading: modelsLoading } = useProviderModels(projectId)
   const [query, setQuery] = useState('')
   const [showCreateAgent, setShowCreateAgent] = useState(false)
-  const [agentName, setAgentName] = useState('')
-  const [agentDescription, setAgentDescription] = useState('')
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
 
-  const p = (projectId: string, ...segments: string[]) => orgProjectPath(organizationId, projectId, ...segments)
+  const p = (currentProjectId: string, ...segments: string[]) => orgProjectPath(organizationId, currentProjectId, ...segments)
   const items = agents ?? []
-  const activeModels = providerModels.filter((model) => model.status !== 'archived')
-  const selectedModel = activeModels.find((model) => model.id === selectedModelId) || null
 
   const visibleAgents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -91,62 +49,11 @@ export default function AgentsPage() {
     ))
   }, [items, query])
 
-  const openCreateAgent = () => {
-    setAgentName('')
-    setAgentDescription('')
-    setSelectedModelId(null)
-    setShowCreateAgent(true)
-  }
-
-  const closeCreateAgent = () => {
-    setShowCreateAgent(false)
-    setSelectedModelId(null)
-    setAgentName('')
-    setAgentDescription('')
-  }
-
-  const getDisabledReason = () => {
-    if (!agentName.trim()) return 'Agent name is required.'
-    if (!selectedModel) return 'Select a reusable model.'
-    if (!projectId) return 'Project ID is missing.'
-    return null
-  }
-
-  const handleCreateAgent = async () => {
-    const reason = getDisabledReason()
-    if (reason) {
-      toast.error(reason)
-      return
-    }
-    if (!selectedModel || !projectId) return
-
-    try {
-      const agent = await createAgent.mutateAsync({
-        project_id: projectId,
-        name: agentName.trim(),
-        description: agentDescription.trim() || '',
-        provider_model_id: selectedModel.id,
-        provider: selectedModel.provider || 'openai',
-        model: selectedModel.model,
-        system_prompt: '',
-        temperature: 0.7,
-        max_output_tokens: 2048,
-        provider_credential_id: selectedModel.provider_credential_id,
-        session_mode: 'stateful',
-      })
-      toast.success('Agent created')
-      closeCreateAgent()
-      navigate(p(projectId, 'agents', agent.id, 'playground'))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create agent')
-    }
-  }
-
-  if (isLoading || modelsLoading) return <LoadingState />
+  if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={refetch} />
+  if (!projectId) return <ErrorState message="Project not found" />
 
   const hasSearchMiss = query.trim().length > 0 && visibleAgents.length === 0
-  const disabledReason = getDisabledReason()
 
   return (
     <MinimalShell
@@ -173,8 +80,8 @@ export default function AgentsPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <CreateResourceCard
           title="New agent"
-          description="Create with name, description and reusable model"
-          onClick={openCreateAgent}
+          description="Set up the provider, model and agent in one guided flow"
+          onClick={() => setShowCreateAgent(true)}
         />
 
         {visibleAgents.map((agent: Agent) => (
@@ -182,7 +89,7 @@ export default function AgentsPage() {
             key={agent.id}
             type="button"
             aria-label={`Open agent playground for ${agent.name}`}
-            onClick={() => navigate(p(projectId!, 'agents', agent.id, 'playground'))}
+            onClick={() => navigate(p(projectId, 'agents', agent.id, 'playground'))}
             className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <span className="flex items-start justify-between gap-3">
@@ -211,76 +118,15 @@ export default function AgentsPage() {
         ))}
       </div>
 
-      <Dialog open={showCreateAgent} onClose={closeCreateAgent} title="Create agent" className="max-w-2xl">
-        <div className="space-y-5">
-          <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-white">Agent details</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Start with the minimum required setup. You can refine prompt, tools and knowledge in the playground.</p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input
-                value={agentName}
-                onChange={(event) => setAgentName(event.target.value)}
-                placeholder="Agent name"
-              />
-              <Input
-                value={agentDescription}
-                onChange={(event) => setAgentDescription(event.target.value)}
-                placeholder="Description (optional)"
-              />
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-white">Model</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">Select a reusable model from the Models page. Runtime settings can be changed after creation.</p>
-            </div>
-
-            {selectedModel ? (
-              <div className="space-y-3">
-                <ModelSummary model={selectedModel} />
-                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedModelId(null)}>
-                  Change model
-                </Button>
-              </div>
-            ) : activeModels.length > 0 ? (
-              <Select
-                value=""
-                onChange={(event) => setSelectedModelId(event.target.value)}
-                options={[
-                  { value: '', label: 'Select a model' },
-                  ...activeModels.map((model) => ({
-                    value: model.id,
-                    label: `${model.name} · ${model.model} (${modelProviderLabel(model)})`,
-                  })),
-                ]}
-              />
-            ) : (
-              <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                <p className="text-sm text-muted">No reusable model available. Create one in the Models page first.</p>
-                <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => navigate(p(projectId!, 'models'))}>
-                  <Boxes className="mr-2 h-4 w-4" />
-                  Open Models
-                </Button>
-              </div>
-            )}
-          </section>
-
-          {disabledReason && (
-            <p className="text-right text-xs text-muted">{disabledReason}</p>
-          )}
-
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={closeCreateAgent}>Cancel</Button>
-            <Button type="button" onClick={handleCreateAgent} loading={createAgent.isPending} disabled={Boolean(disabledReason)}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              Create agent
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      <CreateAgentFlowModal
+        open={showCreateAgent}
+        onClose={() => setShowCreateAgent(false)}
+        projectId={projectId}
+        onCreated={(agent) => {
+          setShowCreateAgent(false)
+          navigate(p(projectId, 'agents', agent.id, 'playground'))
+        }}
+      />
     </MinimalShell>
   )
 }
