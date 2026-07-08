@@ -44,9 +44,9 @@ def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
         if not isinstance(item, dict):
             continue
         name = item.get("name")
-        if not isinstance(name, str) or name not in raw_permissions:
+        if not isinstance(name, str):
             continue
-        item["permission"] = normalize_permission(raw_permissions[name])
+        item["permission"] = normalize_permission(raw_permissions.get(name))
         changed = True
 
     if not changed:
