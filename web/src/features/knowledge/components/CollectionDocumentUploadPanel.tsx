@@ -11,6 +11,7 @@ interface CollectionDocumentUploadPanelProps {
   collection: { id: string; name: string }
   onCancel: () => void
   onUploaded: () => void
+  showDestination?: boolean
 }
 
 const ACCEPTED_EXTENSIONS = ['.txt', '.md', '.pdf']
@@ -26,7 +27,7 @@ function titleFromFileName(fileName: string): string {
   return fileName.replace(/\.[^/.]+$/, '')
 }
 
-export function CollectionDocumentUploadPanel({ projectId, collection, onCancel, onUploaded }: CollectionDocumentUploadPanelProps) {
+export function CollectionDocumentUploadPanel({ projectId, collection, onCancel, onUploaded, showDestination = true }: CollectionDocumentUploadPanelProps) {
   const uploadDocument = useUploadDocumentFile()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState('')
@@ -113,19 +114,21 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-xl border border-border bg-background/70 p-3">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Destination collection</p>
-        <div className="mt-2 flex min-w-0 items-center gap-3 rounded-lg border border-primary/25 bg-primary/10 p-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary-light">
-            <Database className="h-4 w-4" />
+      {showDestination ? (
+        <div className="rounded-xl border border-border bg-background/70 p-3">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Destination collection</p>
+          <div className="mt-2 flex min-w-0 items-center gap-3 rounded-lg border border-primary/25 bg-primary/10 p-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary-light">
+              <Database className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-white">{selectedCollectionName}</p>
+              <p className="truncate text-[11px] text-muted">{collection.id}</p>
+            </div>
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary-light" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">{selectedCollectionName}</p>
-            <p className="truncate text-[11px] text-muted">{collection.id}</p>
-          </div>
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary-light" />
         </div>
-      </div>
+      ) : null}
 
       <div>
         <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-muted">File</label>
