@@ -123,7 +123,10 @@ class StructuredOutputAskAgentUseCase(
             tool_name_to_id = updated[8]
         else:
             try:
-                async with AgentUnitOfWork(self._session_factory) as uow:
+                session_factory = self._session_factory
+                if session_factory is None:
+                    raise RuntimeError("Agent runtime session factory is not configured")
+                async with AgentUnitOfWork(session_factory) as uow:
                     if tool_source == "draft_live" and tool_metadata:
                         tools = []
                         for raw_tool_id in tool_metadata.get("tool_ids", []):
@@ -239,7 +242,10 @@ class StructuredOutputAskAgentUseCase(
                 )
 
         try:
-            async with AgentUnitOfWork(self._session_factory) as uow:
+            session_factory = self._session_factory
+            if session_factory is None:
+                raise RuntimeError("Agent runtime session factory is not configured")
+            async with AgentUnitOfWork(session_factory) as uow:
                 outbox = SQLAlchemyAgentOutboxEventWriter(uow)
                 provider = _provider_value(getattr(agent, "provider", None))
                 fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
