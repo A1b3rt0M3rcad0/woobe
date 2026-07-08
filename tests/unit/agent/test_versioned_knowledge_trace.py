@@ -16,8 +16,12 @@ def test_rag_timeline_item_becomes_versioned_retrieval_event():
                     "vector_snapshot_version": "v3",
                     "snapshot_hash": "immutable-hash",
                     "embedding_model": "openai/text-embedding-3-small",
-                    "retrieval_top_k": 5,
-                    "retrieval_score_threshold": 0.7,
+                    "rag_runtime_config": {
+                        "candidate_k": 20,
+                        "top_k": 5,
+                        "min_score": 0.7,
+                    },
+                    "rag_runtime_config_source": "production",
                     "matched_chunks": 3,
                 },
             }
@@ -31,4 +35,6 @@ def test_rag_timeline_item_becomes_versioned_retrieval_event():
     assert event["attributes"]["knowledge_version_id"] == "knowledge-1"
     assert event["attributes"]["vector_snapshot_id"] == "snapshot-3"
     assert event["attributes"]["snapshot_hash"] == "immutable-hash"
+    assert event["attributes"]["rag_runtime_config"]["top_k"] == 5
+    assert event["attributes"]["rag_runtime_config_source"] == "production"
     assert event["attributes"]["matched_chunks"] == 3
