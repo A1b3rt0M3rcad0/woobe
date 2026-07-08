@@ -22,6 +22,7 @@ interface CollectionDetailsModalProps {
   onClose: () => void
   collection: Collection | null
   projectId: string
+  onUseSnapshot?: (snapshot: VectorSnapshot) => void | Promise<void>
 }
 
 function isIndexed(status?: string) {
@@ -41,7 +42,7 @@ function TechItem({ label, value, detail }: { label: string; value: string; deta
   return <div className="rounded-xl border border-border/80 bg-background/60 p-4"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className="mt-1 text-sm font-medium text-white">{value}</p>{detail && <p className="mt-1 text-xs text-muted">{detail}</p>}</div>
 }
 
-export function CollectionDetailsModal({ open, onClose, collection, projectId }: CollectionDetailsModalProps) {
+export function CollectionDetailsModal({ open, onClose, collection, projectId, onUseSnapshot }: CollectionDetailsModalProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
@@ -189,8 +190,27 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId }:
 
       <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
         <h3 className="text-sm font-semibold text-white">Vector snapshots</h3>
-        <p className="mt-1 text-xs text-muted">Immutable builds generated from this Collection.</p>
-        {vectorSnapshots.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted">No vector snapshot built yet.</div> : <div className="mt-4 space-y-2">{vectorSnapshots.map((snapshot) => <button key={snapshot.id} type="button" onClick={() => setSnapshotToView(snapshot)} className="grid w-full gap-3 rounded-lg border border-border/70 bg-background/55 p-3 text-left hover:border-primary/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div><p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p></div><p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p></button>)}</div>}
+        <p className="mt-1 text-xs text-muted">{onUseSnapshot ? 'Choose a READY version to use in the Agent Draft.' : 'Immutable builds generated from this Collection.'}</p>
+        {vectorSnapshots.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted">No vector snapshot built yet.</div>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {vectorSnapshots.map((snapshot) => (
+              <div key={snapshot.id} className="grid gap-3 rounded-lg border border-border/70 bg-background/55 p-3 transition-colors hover:border-primary/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <button type="button" onClick={() => setSnapshotToView(snapshot)} className="min-w-0 text-left">
+                  <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div>
+                  <p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p>
+                </button>
+                <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+                  <p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p>
+                  {onUseSnapshot && snapshot.status === 'READY' && (
+                    <Button type="button" size="sm" onClick={() => void onUseSnapshot(snapshot)}>Use this version</Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )
