@@ -8,7 +8,6 @@ from modules.agent.application.dtos.rag_config_dtos import (
     RAGBuildConfig,
     RAGChunkingConfig,
     RAGParserConfig,
-    RAGRetrievalConfig,
 )
 from modules.agent.application.dtos.vector_snapshot_dtos import (
     CollectionOverviewDocumentsOutput,
@@ -96,7 +95,6 @@ def _snapshot_to_output(snapshot: VectorSnapshot) -> VectorSnapshotOutput:
         chunking_strategy=snapshot.chunking_strategy,
         parser_config=snapshot.parser_config,
         build_config=snapshot.build_config,
-        retrieval_defaults=snapshot.retrieval_defaults,
         snapshot_hash=snapshot.snapshot_hash,
         build_config_hash=snapshot.build_config_hash,
         document_count=snapshot.document_count,
@@ -121,14 +119,6 @@ def _dict_value(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _normalize_retrieval(raw: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(raw)
-    if "min_score" not in normalized and "score_threshold" in normalized:
-        normalized["min_score"] = normalized.get("score_threshold")
-    normalized.pop("score_threshold", None)
-    return RAGRetrievalConfig.model_validate(normalized).model_dump()
-
-
 def _normalize_build_config(
     input_dto: CreateVectorSnapshotInput,
     *,
@@ -137,7 +127,6 @@ def _normalize_build_config(
     raw = input_dto.build_config or {}
     raw_chunking = _dict_value(raw.get("chunking"))
     raw_parser = _dict_value(raw.get("parser"))
-    raw_retrieval = _dict_value(raw.get("retrieval"))
 
     chunking_payload = {
         **raw_chunking,
@@ -155,14 +144,10 @@ def _normalize_build_config(
         or 100,
     }
     parser_payload = input_dto.parser_config or raw_parser or {}
-    retrieval_payload = input_dto.retrieval_defaults or raw_retrieval or {}
 
     build = RAGBuildConfig(
         parser=RAGParserConfig.model_validate(parser_payload),
         chunking=RAGChunkingConfig.model_validate(chunking_payload),
-        retrieval=RAGRetrievalConfig.model_validate(
-            _normalize_retrieval(retrieval_payload)
-        ),
     ).model_dump()
     build["embedding"] = embedding
     return build
@@ -286,9 +271,6 @@ class CreateVectorSnapshotUseCase:
         )
         chunking = RAGChunkingConfig.model_validate(build_config["chunking"])
         parser_config = RAGParserConfig.model_validate(build_config["parser"])
-        retrieval_defaults = RAGRetrievalConfig.model_validate(
-            build_config["retrieval"]
-        )
 
         existing_snapshots = await self._snapshot_repo.list_by_collection(
             input_dto.project_id,
@@ -319,7 +301,6 @@ class CreateVectorSnapshotUseCase:
             chunking_strategy=chunking.strategy,
             parser_config=parser_config.model_dump(),
             build_config=build_config,
-            retrieval_defaults=retrieval_defaults.model_dump(),
             build_config_hash=_json_hash(build_config),
             document_count=len(active_documents),
             total_document_count=len(active_documents),
@@ -476,12 +457,6 @@ class GetCollectionOverviewUseCase:
                 )
 
         source_snapshot = building or latest_ready or latest_snapshot
-        retrieval = (
-            source_snapshot.retrieval_defaults if source_snapshot else None
-        ) or {}
-        threshold = retrieval.get("min_score")
-        if threshold is None:
-            threshold = retrieval.get("score_threshold")
         technology = CollectionOverviewTechnologyOutput(
             embedding_provider_model_id=(
                 source_snapshot.embedding_provider_model_id
@@ -503,12 +478,6 @@ class GetCollectionOverviewUseCase:
             chunk_size=(source_snapshot.chunk_size if source_snapshot else None),
             chunk_overlap=(
                 source_snapshot.chunk_overlap if source_snapshot else None
-            ),
-            retrieval_top_k=(
-                retrieval.get("top_k") if isinstance(retrieval, dict) else None
-            ),
-            retrieval_score_threshold=(
-                threshold if isinstance(threshold, (int, float)) else None
             ),
         )
         processing = CollectionOverviewProcessingOutput(
@@ -849,7 +818,6 @@ class BuildVectorSnapshotUseCase:
                 "chunking_strategy": snapshot.chunking_strategy,
                 "parser_config": snapshot.parser_config or {},
                 "build_config": snapshot.build_config or {},
-                "retrieval_defaults": snapshot.retrieval_defaults or {},
             },
         )
         ready = await self._snapshot_repo.mark_ready(
