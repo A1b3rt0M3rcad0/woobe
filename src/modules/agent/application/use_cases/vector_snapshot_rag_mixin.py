@@ -4,10 +4,7 @@ from contextvars import ContextVar
 from typing import Any, Protocol, cast
 from uuid import UUID
 
-from modules.agent.application.dtos.rag_config_dtos import (
-    RAGRetrievalConfig,
-    RAGRuntimeConfig,
-)
+from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
@@ -43,47 +40,29 @@ def _dict_value(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _snapshot_defaults(raw: dict[str, Any]) -> RAGRetrievalConfig:
-    normalized = dict(raw)
-    if "min_score" not in normalized and "score_threshold" in normalized:
-        normalized["min_score"] = normalized.get("score_threshold")
-    normalized.pop("score_threshold", None)
-    allowed = set(RAGRetrievalConfig.model_fields)
-    return RAGRetrievalConfig.model_validate(
-        {key: value for key, value in normalized.items() if key in allowed}
-    )
-
-
-def _runtime_overrides(agent: Any) -> tuple[dict[str, Any], RAGRuntimeConfig | None]:
+def _runtime_config(agent: Any) -> RAGRuntimeConfig:
     settings = _dict_value(getattr(agent, "settings", None))
     runtime_config = _dict_value(settings.get("runtime_config"))
     raw_rag = _dict_value(runtime_config.get("rag"))
-    if not raw_rag:
-        return {}, None
     try:
-        return raw_rag, RAGRuntimeConfig.model_validate(raw_rag)
+        return RAGRuntimeConfig.model_validate(raw_rag)
     except Exception as exc:
         raise ValidationError("Agent RAG runtime configuration is invalid") from exc
 
 
-def _effective_config(
-    snapshot_defaults: RAGRetrievalConfig,
-    overrides: RAGRuntimeConfig | None,
-) -> RAGRetrievalConfig:
-    if overrides is None:
-        return snapshot_defaults
-    base = (
-        snapshot_defaults.model_dump()
-        if overrides.inherit_snapshot_defaults
-        else RAGRetrievalConfig().model_dump()
-    )
-    values = overrides.model_dump(exclude_none=True)
-    values.pop("inherit_snapshot_defaults", None)
-    min_score_enabled = values.pop("min_score_enabled", None)
-    if min_score_enabled is False:
-        values["min_score"] = None
-    base.update(values)
-    return RAGRetrievalConfig.model_validate(base)
+def _runtime_config_source() -> str:
+    context = current_execution.get()
+    if context is None:
+        return "draft"
+    execution_context = str(getattr(context, "execution_context", None) or "playground").lower()
+    release_version = str(getattr(context, "agent_release_version", None) or "")
+    if execution_context == "staging":
+        return "staging"
+    if execution_context == "production":
+        return "production"
+    if release_version and release_version != "draft":
+        return "loaded_release"
+    return "draft"
 
 
 def _build_retrieval_query(
@@ -114,7 +93,7 @@ def _build_retrieval_query(
 
 
 class VectorSnapshotRAGMixin:
-    """Resolve immutable KnowledgeVersion bindings into configurable retrieval."""
+    """Resolve immutable KnowledgeVersion bindings using Agent runtime retrieval config."""
 
     _encryption_key: str
     _session_factory: Any
@@ -271,11 +250,7 @@ class VectorSnapshotRAGMixin:
                 provider_model.metadata or {}
             ).get("base_url")
 
-        snapshot_config = _snapshot_defaults(
-            dict(snapshot.retrieval_defaults or {})
-        )
-        raw_overrides, overrides = _runtime_overrides(agent)
-        effective = _effective_config(snapshot_config, overrides)
+        effective = _runtime_config(agent)
         retrieval_query = _build_retrieval_query(
             query,
             _rag_history_context.get(),
@@ -375,9 +350,8 @@ class VectorSnapshotRAGMixin:
             "embedding_provider": snapshot.embedding_provider,
             "embedding_model": snapshot.embedding_model,
             "embedding_dimensions": snapshot.embedding_dimensions,
-            "snapshot_defaults": snapshot_config.model_dump(),
-            "agent_overrides": raw_overrides,
-            "effective_config": effective.model_dump(),
+            "rag_runtime_config": effective.model_dump(),
+            "rag_runtime_config_source": _runtime_config_source(),
             "retrieval_query_mode": effective.query_mode,
             "candidate_count": len(candidates),
             "best_score": candidate_scores[0] if candidate_scores else None,
