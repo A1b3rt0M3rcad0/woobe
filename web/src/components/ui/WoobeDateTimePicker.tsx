@@ -14,6 +14,7 @@ interface WoobeDateTimePickerProps {
   onChange: (value: Date | null) => void
   minDate?: Date
   className?: string
+  autoOpen?: boolean
 }
 
 export interface WoobeCalendarDay {
@@ -61,7 +62,7 @@ export function isWoobeCalendarDayDisabled(date: Date, minDate: Date): boolean {
 }
 
 export function mergeWoobeDateAndTime(date: Date, time: Date): Date {
-  const merged = new Date(
+  return new Date(
     date.getFullYear(),
     date.getMonth(),
     date.getDate(),
@@ -70,7 +71,6 @@ export function mergeWoobeDateAndTime(date: Date, time: Date): Date {
     0,
     0,
   )
-  return merged
 }
 
 export function formatWoobeDateTime(value: Date): string {
@@ -90,16 +90,18 @@ function monthLabel(value: Date): string {
   }).format(value)
 }
 
+function timeZoneOffset(value: Date): string {
+  const totalMinutes = -value.getTimezoneOffset()
+  const sign = totalMinutes >= 0 ? '+' : '-'
+  const absoluteMinutes = Math.abs(totalMinutes)
+  const hours = String(Math.floor(absoluteMinutes / 60)).padStart(2, '0')
+  const minutes = String(absoluteMinutes % 60).padStart(2, '0')
+  return `UTC${sign}${hours}:${minutes}`
+}
+
 function timeZoneLabel(value: Date): string {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time'
-  try {
-    const offset = new Intl.DateTimeFormat(undefined, {
-      timeZoneName: 'shortOffset',
-    }).formatToParts(value).find((part) => part.type === 'timeZoneName')?.value
-    return offset ? `${timeZone} · ${offset}` : timeZone
-  } catch {
-    return timeZone
-  }
+  return `${timeZone} · ${timeZoneOffset(value)}`
 }
 
 function defaultFutureDate(minDate: Date): Date {
@@ -160,6 +162,7 @@ export function WoobeDateTimePicker({
   onChange,
   minDate = new Date(),
   className,
+  autoOpen = false,
 }: WoobeDateTimePickerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -169,8 +172,7 @@ export function WoobeDateTimePicker({
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => new Date(draft.getFullYear(), draft.getMonth(), 1))
 
   const days = useMemo(() => buildWoobeCalendarDays(visibleMonth), [visibleMonth])
-  const now = minDate
-  const isValid = draft.getTime() > now.getTime()
+  const isValid = draft.getTime() > minDate.getTime()
 
   const openPicker = () => {
     const next = value ? cloneDate(value) : defaultFutureDate(minDate)
@@ -182,6 +184,12 @@ export function WoobeDateTimePicker({
     }
     setOpen(true)
   }
+
+  useEffect(() => {
+    if (!autoOpen) return
+    const frame = window.requestAnimationFrame(openPicker)
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -263,7 +271,7 @@ export function WoobeDateTimePicker({
           {value ? formatWoobeDateTime(value) : 'Select date and time'}
         </span>
         <span className="shrink-0 text-[10px] text-muted">
-          {value ? timeZoneLabel(value).split(' · ').at(-1) : 'Local'}
+          {value ? timeZoneOffset(value) : 'Local'}
         </span>
       </button>
 
