@@ -22,8 +22,8 @@ from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
     API_KEY_SCOPE_TRACES_READ,
     API_KEY_SCOPE_USAGE_READ,
-    API_KEY_VERSION,
     hash_api_key,
+    is_api_key_candidate,
     parse_project_api_key,
 )
 from shared.security.principal import (
@@ -210,7 +210,7 @@ class HttpSecurityGuard:
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
-            if credentials.startswith("rai_live_"):
+            if is_api_key_candidate(credentials):
                 return await self._authenticate_api_key(
                     request=request,
                     credentials=credentials,
@@ -275,7 +275,7 @@ class HttpSecurityGuard:
                 ),
                 {
                     "key_prefix": parsed.public_prefix,
-                    "key_version": API_KEY_VERSION,
+                    "key_version": parsed.key_version,
                 },
             )
             matching_row = None
@@ -300,6 +300,17 @@ class HttpSecurityGuard:
                 raise AuthorizationError("API key scope is not sufficient")
 
             key_kind = str(matching_row.kind or "project")
+            key_environment = (
+                str(matching_row.environment)
+                if matching_row.environment is not None
+                else None
+            )
+            if not parsed.matches_binding(
+                kind=key_kind,
+                environment=key_environment,
+            ):
+                raise AuthenticationError("Invalid API key")
+
             interfaces = frozenset(
                 str(interface) for interface in (matching_row.interfaces or [])
             )
@@ -311,7 +322,7 @@ class HttpSecurityGuard:
                     raise AuthorizationError(
                         "A Runtime Key is required for this endpoint"
                     )
-                if matching_row.agent_id is None or matching_row.environment is None:
+                if matching_row.agent_id is None or key_environment is None:
                     raise AuthorizationError("Runtime Key binding is incomplete")
                 if runtime_interface not in interfaces:
                     raise AuthorizationError(
@@ -333,11 +344,7 @@ class HttpSecurityGuard:
                     if matching_row.agent_id is not None
                     else None
                 ),
-                environment=(
-                    str(matching_row.environment)
-                    if matching_row.environment is not None
-                    else None
-                ),
+                environment=key_environment,
                 interfaces=interfaces,
                 authenticated_at=now,
             )
