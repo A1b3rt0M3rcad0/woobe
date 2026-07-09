@@ -39,7 +39,7 @@ export function OutputSettingsTab() {
   const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
-    const needsDefaultSchema = responseFormat.enabled && !hasMaterializedSchema(responseFormat.schema)
+    const needsDefaultSchema = responseFormat.enabled && responseFormat.schema == null
     if (responseFormat.strict && !needsDefaultSchema) return
     setField('responseFormat', {
       ...responseFormat,
