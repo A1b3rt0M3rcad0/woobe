@@ -36,6 +36,8 @@ WOOBE_API_KEY_PATTERN = re.compile(
     r"^woobe_(project|staging|production)_([a-f0-9]{12})_([A-Za-z0-9_-]{40,})$"
 )
 API_KEY_CANDIDATE_PREFIXES = ("rai_live_", "woobe_")
+API_KEY_ENVIRONMENT = LEGACY_API_KEY_ENVIRONMENT
+API_KEY_PATTERN = LEGACY_API_KEY_PATTERN
 
 
 @dataclass(frozen=True)
