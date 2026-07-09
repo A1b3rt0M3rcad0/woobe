@@ -3,7 +3,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from modules.core.domain.enums import PROJECT_API_KEY_SCOPES, ApiKeyStatus
+from modules.core.domain.enums import (
+    PROJECT_API_KEY_SCOPES,
+    ApiKeyKind,
+    ApiKeyStatus,
+    RuntimeEnvironment,
+)
 
 
 class RevokeApiKeyInput(BaseModel):
@@ -70,6 +75,10 @@ class RotateApiKeyOutput(BaseModel):
     key: str
     key_prefix: str
     scopes: list[str]
+    kind: ApiKeyKind = ApiKeyKind.project
+    agent_id: UUID | None = None
+    environment: RuntimeEnvironment | None = None
+    interfaces: list[str] = Field(default_factory=list)
     status: ApiKeyStatus
     expires_at: datetime | None = None
     created_at: datetime | None = None
