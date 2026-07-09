@@ -15,13 +15,16 @@ from shared.infra.errors import AuthenticationError, AuthorizationError
 from shared.security.principal import ProjectApiPrincipal
 
 
-EnvironmentPreflight = Callable[[UUID, str], Awaitable[None]]
+RequestPreparer = Callable[
+    [PublicRunRequest, UUID, UUID, str],
+    Awaitable[PublicRunRequest],
+]
 
 
 async def handle_public_run_stream(
     fastapi_request: FastAPIRequest,
     service: AskAgentStreamService,
-    environment_preflight: EnvironmentPreflight,
+    request_preparer: RequestPreparer,
 ) -> StreamingResponse:
     principal = getattr(fastapi_request.state, "principal", None)
     if not isinstance(principal, ProjectApiPrincipal):
@@ -31,8 +34,13 @@ async def handle_public_run_stream(
     if principal.agent_id is None or principal.environment is None:
         raise AuthorizationError("Runtime Key binding is incomplete")
 
-    await environment_preflight(principal.agent_id, principal.environment)
     payload = PublicRunRequest(**(await fastapi_request.json()))
+    payload = await request_preparer(
+        payload,
+        principal.project_id,
+        principal.agent_id,
+        principal.environment,
+    )
     metadata = dict(payload.metadata or {})
     metadata["server_received_at"] = datetime.now(timezone.utc).isoformat()
     input_dto = AskInput(
