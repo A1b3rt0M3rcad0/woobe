@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.repositories import SQLAlchemyAgentRepository
 from modules.core.application.use_cases.create_runtime_api_key_use_case import (
     CreateRuntimeApiKeyUseCase,
 )
+from modules.core.infra.database.runtime_key_target_reader import RuntimeKeyTargetReader
 from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from modules.core.presentation.controllers.create_runtime_api_key_controller import (
     CreateRuntimeApiKeyController,
@@ -17,7 +17,7 @@ def create_runtime_api_key_composer(
     uow = CoreUnitOfWork(session_factory)
     use_case = CreateRuntimeApiKeyUseCase(
         uow.projects,
-        SQLAlchemyAgentRepository(uow),
+        RuntimeKeyTargetReader(uow),
         uow.api_keys,
         uow.outbox,
     )
