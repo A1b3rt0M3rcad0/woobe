@@ -6,10 +6,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.composers.ask_agent_composer import ask_agent_composer
+from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.use_cases import CreateAskJobUseCase
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.application.use_cases.public_runtime_environment_validator import (
-    PublicRuntimeEnvironmentValidator,
+from modules.agent.application.use_cases.public_runtime_request_preparer import (
+    PublicRuntimeRequestPreparer,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
@@ -26,22 +27,35 @@ from modules.agent.presentation.controllers.public_runtime_stream_controller imp
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def _environment_preflight(
+def _request_preparer(
     session_factory: async_sessionmaker[AsyncSession],
-) -> Callable[[UUID, str], Awaitable[None]]:
-    async def validate(agent_id: UUID, environment: str) -> None:
+) -> Callable[
+    [PublicRunRequest, UUID, UUID, str],
+    Awaitable[PublicRunRequest],
+]:
+    async def prepare(
+        payload: PublicRunRequest,
+        project_id: UUID,
+        agent_id: UUID,
+        environment: str,
+    ) -> PublicRunRequest:
         async with AgentUnitOfWork(session_factory) as uow:
-            validator = PublicRuntimeEnvironmentValidator(uow.releases)
-            await validator.validate(agent_id, environment)
+            preparer = PublicRuntimeRequestPreparer(uow.releases, uow.sessions)
+            return await preparer.prepare(
+                payload,
+                project_id=project_id,
+                agent_id=agent_id,
+                environment=environment,
+            )
 
-    return validate
+    return prepare
 
 
 def public_run_composer(session_factory: async_sessionmaker[AsyncSession]):
     internal_handler = ask_agent_composer(session_factory)
     return PublicRunController(
         internal_handler,
-        _environment_preflight(session_factory),
+        _request_preparer(session_factory),
     ).handle
 
 
@@ -53,13 +67,13 @@ def public_stream_composer(
         LangchainLLMFactory(),
         get_http_tool_executor(),
     )
-    environment_preflight = _environment_preflight(session_factory)
+    request_preparer = _request_preparer(session_factory)
 
     async def handler(request: FastAPIRequest) -> StreamingResponse:
         return await handle_public_run_stream(
             request,
             service,
-            environment_preflight,
+            request_preparer,
         )
 
     return handler
@@ -73,10 +87,8 @@ def public_create_job_composer(
         uow.ask_jobs,
         SQLAlchemyAgentOutboxEventWriter(uow),
     )
-    controller = PublicCreateJobController(
-        use_case,
-        PublicRuntimeEnvironmentValidator(uow.releases).validate,
-    )
+    preparer = PublicRuntimeRequestPreparer(uow.releases, uow.sessions)
+    controller = PublicCreateJobController(use_case, preparer.prepare)
     return TransactionalHandler(uow, controller.handle)
 
 
