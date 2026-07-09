@@ -1,5 +1,10 @@
 from modules.core.domain.entities import ApiKey, Project
-from modules.core.domain.enums import ApiKeyStatus, ProjectStatus
+from modules.core.domain.enums import (
+    ApiKeyKind,
+    ApiKeyStatus,
+    ProjectStatus,
+    RuntimeEnvironment,
+)
 from modules.core.infra.database.models import ApiKeyModel, ProjectModel
 
 
@@ -36,6 +41,10 @@ def api_key_model_to_entity(model: ApiKeyModel) -> ApiKey:
         key_hash=model.key_hash,
         key_version=model.key_version,
         scopes=model.scopes,
+        kind=ApiKeyKind(model.kind),
+        agent_id=model.agent_id,
+        environment=RuntimeEnvironment(model.environment) if model.environment else None,
+        interfaces=list(model.interfaces or []),
         status=ApiKeyStatus(model.status),
         last_used_at=model.last_used_at,
         expires_at=model.expires_at,
@@ -56,6 +65,10 @@ def api_key_entity_to_model(entity: ApiKey) -> ApiKeyModel:
         key_hash=entity.key_hash,
         key_version=entity.key_version,
         scopes=entity.scopes,
+        kind=entity.kind.value,
+        agent_id=entity.agent_id,
+        environment=entity.environment.value if entity.environment else None,
+        interfaces=entity.interfaces,
         status=entity.status.value,
         last_used_at=entity.last_used_at,
         expires_at=entity.expires_at,
