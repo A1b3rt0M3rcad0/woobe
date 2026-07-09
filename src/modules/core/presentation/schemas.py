@@ -37,6 +37,10 @@ class ApiKeyResponse(BaseModel):
     name: str
     key_prefix: str
     scopes: list[str] = Field(default_factory=list)
+    kind: str = "project"
+    agent_id: UUID | None = None
+    environment: str | None = None
+    interfaces: list[str] = Field(default_factory=list)
     status: str
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
