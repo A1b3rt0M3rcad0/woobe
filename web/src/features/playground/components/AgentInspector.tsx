@@ -54,47 +54,62 @@ function EditorHeader() {
 }
 
 function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }) {
-  const { state, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
+  const { toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
   const updateAgent = useUpdateAgent(agent.id)
   const createRelease = useCreateRelease(agent.id)
 
   const handleSaveDraft = async () => {
     try {
       const snapshot = toSnapshot()
+      const rawResponseFormat = snapshot.response_format
+      const responseFormat = rawResponseFormat && typeof rawResponseFormat === 'object' && !Array.isArray(rawResponseFormat)
+        ? rawResponseFormat as Record<string, unknown>
+        : {}
+      const jsonEnabled = responseFormat.enabled === true && responseFormat.type === 'json'
+      const currentSchema = responseFormat.schema
+      const hasSchema = typeof currentSchema === 'string'
+        ? currentSchema.trim().length > 0
+        : Boolean(currentSchema && typeof currentSchema === 'object')
+      const schema = jsonEnabled && !hasSchema
+        ? { message: 'string', confidence: 'float' }
+        : currentSchema
+      const canonicalSnapshot: Record<string, unknown> = {
+        ...snapshot,
+        response_format: {
+          ...responseFormat,
+          strict: true,
+          schema,
+        },
+        output_schema: schema,
+      }
+
       await createRelease.mutateAsync({
         project_id: projectId,
         agent_id: agent.id,
         version: 'draft',
-        ...snapshot,
+        ...canonicalSnapshot,
       } as any)
 
-      const rf = {
-        enabled: state.responseFormat.enabled,
-        type: state.responseFormat.type,
-        strict: state.responseFormat.strict,
-        schema: state.responseFormat.schema,
-        repair_attempts: state.responseFormat.repair_attempts,
-      }
       const payload: Record<string, unknown> = {
-        name: state.name,
-        description: state.description,
-        system_prompt: state.systemPrompt,
-        provider_model_id: state.providerModelId,
-        provider: state.provider,
-        model: state.model,
-        provider_credential_id: state.providerCredentialId,
-        fallback_provider_model_id: state.fallbackProviderModelId || null,
-        fallback_provider: state.fallbackProvider || null,
-        fallback_model: state.fallbackModel || null,
-        fallback_credential_id: state.fallbackProviderCredentialId || null,
-        temperature: state.temperature,
-        max_output_tokens: state.maxOutputTokens,
+        name: canonicalSnapshot.name,
+        description: canonicalSnapshot.description,
+        system_prompt: canonicalSnapshot.system_prompt,
+        provider_model_id: canonicalSnapshot.provider_model_id,
+        provider: canonicalSnapshot.provider,
+        model: canonicalSnapshot.model,
+        provider_credential_id: canonicalSnapshot.provider_credential_id,
+        fallback_provider_model_id: canonicalSnapshot.fallback_provider_model_id ?? null,
+        fallback_provider: canonicalSnapshot.fallback_provider ?? null,
+        fallback_model: canonicalSnapshot.fallback_model ?? null,
+        fallback_credential_id: canonicalSnapshot.fallback_credential_id ?? null,
+        temperature: canonicalSnapshot.temperature,
+        max_output_tokens: canonicalSnapshot.max_output_tokens,
         settings: {
           ...(agent.settings || {}),
-          response_format: rf,
-          base_url: state.baseUrl,
-          knowledge_version_id: state.knowledgeVersionId,
-          runtime_config: snapshot.runtime_config,
+          response_format: canonicalSnapshot.response_format,
+          base_url: canonicalSnapshot.base_url,
+          knowledge_version_id: canonicalSnapshot.knowledge_version_id,
+          runtime_config: canonicalSnapshot.runtime_config,
         },
       }
 
