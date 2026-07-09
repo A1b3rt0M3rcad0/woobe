@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createApiKey, getApiKeys, revokeApiKey, rotateApiKey } from './api'
-import type { CreateApiKeyRequest, RotateApiKeyRequest } from './types'
+import {
+  createApiKey,
+  createRuntimeApiKey,
+  getApiKeys,
+  revokeApiKey,
+  rotateApiKey,
+} from './api'
+import type {
+  CreateApiKeyRequest,
+  CreateRuntimeApiKeyRequest,
+  RotateApiKeyRequest,
+} from './types'
 
 export function useApiKeys(projectId: string | undefined) {
   return useQuery({
@@ -14,6 +24,16 @@ export function useCreateApiKey(projectId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateApiKeyRequest) => createApiKey(projectId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys', projectId] })
+    },
+  })
+}
+
+export function useCreateRuntimeApiKey(projectId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateRuntimeApiKeyRequest) => createRuntimeApiKey(projectId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys', projectId] })
     },
