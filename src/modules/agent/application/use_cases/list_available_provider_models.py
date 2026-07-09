@@ -50,7 +50,7 @@ class ListAvailableProviderModelsUseCase:
         capability = (input_dto.capability or "").strip().lower()
         if capability == "embeddings":
             capability = "embedding"
-        if capability not in {"", "embedding"}:
+        if capability not in {"", "embedding", "generation"}:
             raise ValidationError(f"Unsupported model discovery capability: {capability}")
 
         try:
@@ -67,4 +67,6 @@ class ListAvailableProviderModelsUseCase:
 
         if capability == "embedding":
             return [model for model in models if _is_embedding_model(model)]
+        if capability == "generation":
+            return [model for model in models if not _is_embedding_model(model)]
         return models

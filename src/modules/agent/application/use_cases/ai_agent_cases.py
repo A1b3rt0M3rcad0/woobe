@@ -12,7 +12,7 @@ from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
 from modules.agent.domain.repositories import AgentRepository, ProviderCredentialRepository
-from shared.infra.errors import ValidationError
+from shared.infra.errors import ConflictError, ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
@@ -142,6 +142,20 @@ class GetAgentByIdUseCase:
         return item
 
 
+def _is_embedding_provider_model(provider_model) -> bool:
+    metadata = provider_model.metadata or {}
+    capability = str(metadata.get("capability") or metadata.get("type") or "").strip().lower()
+    if capability:
+        return capability in {"embedding", "embeddings"}
+    value = f"{provider_model.name} {provider_model.model}".lower()
+    return "embed" in value
+
+
+def _ensure_agent_compatible_provider_model(provider_model) -> None:
+    if _is_embedding_provider_model(provider_model):
+        raise ConflictError("Provider model is not compatible with agent runtime")
+
+
 async def _resolve_provider_model_bindings(
     agent: Agent,
     provider_model_repo,
@@ -156,6 +170,7 @@ async def _resolve_provider_model_bindings(
             raise ModelConfigNotFoundError
         if getattr(provider_model.status, "value", provider_model.status) != ProviderModelStatus.active.value:
             raise ValidationError("Provider model must be active")
+        _ensure_agent_compatible_provider_model(provider_model)
         credential = await credential_repo.get_by_id(provider_model.provider_credential_id)
         if credential is None or credential.project_id != agent.project_id:
             from modules.agent.domain.errors import CredentialNotFoundError
@@ -171,6 +186,7 @@ async def _resolve_provider_model_bindings(
         if fallback_model is None or fallback_model.project_id != agent.project_id:
             from modules.agent.domain.errors import ModelConfigNotFoundError
             raise ModelConfigNotFoundError
+        _ensure_agent_compatible_provider_model(fallback_model)
         credential = await credential_repo.get_by_id(fallback_model.provider_credential_id)
         if credential is None or credential.project_id != agent.project_id:
             from modules.agent.domain.errors import CredentialNotFoundError
