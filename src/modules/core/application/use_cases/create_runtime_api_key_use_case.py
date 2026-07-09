@@ -13,8 +13,7 @@ from shared.infra.errors import NotFoundError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
-    API_KEY_VERSION,
-    issue_project_api_key,
+    issue_runtime_api_key,
 )
 
 
@@ -48,14 +47,14 @@ class CreateRuntimeApiKeyUseCase:
         if agent_project_id != input_dto.project_id:
             raise NotFoundError(f"Agent not found: {input_dto.agent_id}")
 
-        issued = issue_project_api_key()
+        issued = issue_runtime_api_key(input_dto.environment.value)
         interfaces = [interface.value for interface in input_dto.interfaces]
         api_key = ApiKey(
             project_id=input_dto.project_id,
             name=input_dto.name,
             key_prefix=issued.public_prefix,
             key_hash=issued.digest,
-            key_version=API_KEY_VERSION,
+            key_version=issued.key_version,
             scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
             kind=ApiKeyKind.runtime,
             agent_id=input_dto.agent_id,
