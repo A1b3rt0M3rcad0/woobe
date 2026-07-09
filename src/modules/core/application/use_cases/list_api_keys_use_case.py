@@ -34,7 +34,12 @@ class ListApiKeysByProjectUseCase:
                 id=key.id,
                 project_id=key.project_id,
                 name=key.name,
-                key_prefix=format_api_key_prefix(key.key_prefix),
+                key_prefix=format_api_key_prefix(
+                    key.key_prefix,
+                    key_version=key.key_version,
+                    kind=key.kind.value,
+                    environment=key.environment.value if key.environment else None,
+                ),
                 scopes=list(key.scopes),
                 kind=key.kind,
                 agent_id=key.agent_id,
