@@ -18,7 +18,7 @@ function resolveBaseUrl(value: string | undefined): string {
   }
 }
 
-const BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
+export const API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
 const AUTH_REFRESH_PATH = '/identity/auth/refresh'
 const AUTH_CSRF_PATH = '/identity/auth/csrf'
 const AUTH_PUBLIC_PATHS = new Set([
@@ -56,7 +56,7 @@ let csrfPromise: Promise<void> | null = null
 let csrfValue: string | null = null
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
-  let url = `${BASE_URL}${path}`
+  let url = `${API_BASE_URL}${path}`
 
   if (params) {
     const searchParams = new URLSearchParams()
