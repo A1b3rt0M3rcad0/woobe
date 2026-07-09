@@ -225,7 +225,7 @@ class CreateAskJobUseCase:
             agent_id=input_dto.agent_id,
             session_id=input_dto.session_id,
             status="pending",
-            params=input_dto.model_dump(exclude={"tenant_id", "user_id", "metadata"}),
+            params=input_dto.model_dump(),
         )
         created = await self._repo.create(job)
 
