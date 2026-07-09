@@ -56,6 +56,39 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def public_runtime_interface(method: str, path: str) -> str | None:
+    normalized_method = method.upper()
+    if normalized_method == "POST" and path == "/v1/run":
+        return "http"
+    if normalized_method == "POST" and path == "/v1/run/stream":
+        return "stream"
+    if normalized_method == "POST" and path == "/v1/jobs":
+        return "jobs"
+    if normalized_method == "GET" and path.startswith("/v1/jobs/"):
+        return "jobs"
+    return None
+
+
+def is_runtime_path(path: str) -> bool:
+    return (
+        path.startswith("/runtime/")
+        or path.startswith("/agent/runtime/")
+        or path == "/v1/run"
+        or path == "/v1/run/stream"
+        or path == "/v1/jobs"
+        or path.startswith("/v1/jobs/")
+    )
+
+
+def is_runtime_execution_request(method: str, path: str) -> bool:
+    if path.startswith("/runtime/") or path.startswith("/agent/runtime/"):
+        return True
+    interface = public_runtime_interface(method, path)
+    return interface in {"http", "stream"} or (
+        interface == "jobs" and method.upper() == "POST"
+    )
+
+
 def _validate_runtime_security_settings(settings: Settings) -> None:
     environment = settings.environment.strip().lower()
     cookie_settings = (
@@ -81,12 +114,8 @@ def _validate_runtime_security_settings(settings: Settings) -> None:
             raise ValueError(f"Cross-site {name} cookies require transport security")
 
 
-def _is_runtime_path(path: str) -> bool:
-    return path.startswith("/runtime/") or path.startswith("/agent/runtime/")
-
-
 def _required_api_key_scope(method: str, path: str) -> str | None:
-    if _is_runtime_path(path):
+    if is_runtime_path(path):
         return API_KEY_SCOPE_RUNTIME_EXECUTE
     if method == "GET" and path.startswith("/observability/traces"):
         return API_KEY_SCOPE_TRACES_READ
@@ -144,8 +173,8 @@ class HttpSecurityGuard:
         request: Request,
         principal: SecurityPrincipal | None,
     ) -> bool:
-        return isinstance(principal, ProjectApiPrincipal) and _is_runtime_path(
-            request.url.path
+        return isinstance(principal, ProjectApiPrincipal) and is_runtime_execution_request(
+            request.method, request.url.path
         )
 
     async def acquire_runtime_permit(self, principal: ProjectApiPrincipal) -> UUID:
@@ -175,7 +204,7 @@ class HttpSecurityGuard:
         if path in PUBLIC_PATHS:
             return None
 
-        if _is_runtime_path(path):
+        if is_runtime_path(path):
             self._validate_runtime_payload(request, body)
 
         authorization = request.headers.get("authorization", "")
@@ -237,7 +266,8 @@ class HttpSecurityGuard:
                 text(
                     """
                     SELECT id, project_id, key_prefix, key_hash, key_version,
-                           scopes, status, revoked_at, expires_at
+                           scopes, kind, agent_id, environment, interfaces,
+                           status, revoked_at, expires_at
                     FROM core.api_keys
                     WHERE key_prefix = :key_prefix
                       AND key_version = :key_version
@@ -269,19 +299,55 @@ class HttpSecurityGuard:
             if required_scope not in scopes:
                 raise AuthorizationError("API key scope is not sufficient")
 
+            key_kind = str(matching_row.kind or "project")
+            interfaces = frozenset(
+                str(interface) for interface in (matching_row.interfaces or [])
+            )
+            runtime_interface = public_runtime_interface(
+                request.method, request.url.path
+            )
+            if runtime_interface is not None:
+                if key_kind != "runtime":
+                    raise AuthorizationError(
+                        "A Runtime Key is required for this endpoint"
+                    )
+                if matching_row.agent_id is None or matching_row.environment is None:
+                    raise AuthorizationError("Runtime Key binding is incomplete")
+                if runtime_interface not in interfaces:
+                    raise AuthorizationError(
+                        "Runtime Key is not allowed to use this interface"
+                    )
+            elif key_kind == "runtime":
+                raise AuthorizationError(
+                    "Runtime Keys can only access the public runtime API"
+                )
+
             principal = ProjectApiPrincipal(
                 api_key_id=UUID(str(matching_row.id)),
                 project_id=UUID(str(matching_row.project_id)),
                 key_prefix=parsed.display_prefix,
                 scopes=scopes,
+                kind=key_kind,
+                agent_id=(
+                    UUID(str(matching_row.agent_id))
+                    if matching_row.agent_id is not None
+                    else None
+                ),
+                environment=(
+                    str(matching_row.environment)
+                    if matching_row.environment is not None
+                    else None
+                ),
+                interfaces=interfaces,
                 authenticated_at=now,
             )
-            await TenantAuthorizer(session).authorize_api_key(
-                project_id=principal.project_id,
-                path_params=path_params,
-                query_params=query_params,
-                body=body,
-            )
+            if key_kind != "runtime":
+                await TenantAuthorizer(session).authorize_api_key(
+                    project_id=principal.project_id,
+                    path_params=path_params,
+                    query_params=query_params,
+                    body=body,
+                )
             await self._api_key_rate_limiter.consume(str(principal.api_key_id))
             await session.execute(
                 text(
@@ -349,21 +415,21 @@ class HttpSecurityGuard:
         result = await session.execute(
             text(
                 """
-                SELECT user_id, revoked_at, expires_at
-                FROM identity.user_sessions
+                SELECT revoked_at, expires_at
+                FROM identity.refresh_sessions
                 WHERE id = :session_id
+                  AND user_id = :user_id
                 """
             ),
-            {"session_id": principal.session_id},
+            {
+                "session_id": principal.session_id,
+                "user_id": principal.user_id,
+            },
         )
-        row = result.one_or_none()
+        row = result.first()
         if row is None:
-            raise AuthenticationError("Authentication session is invalid")
-
-        user_id, revoked_at, expires_at = row
-        if UUID(str(user_id)) != principal.user_id:
-            raise AuthenticationError("Authentication session is invalid")
-        if revoked_at is not None:
-            raise AuthenticationError("Authentication session was revoked")
-        if _as_utc(expires_at) <= datetime.now(UTC):
-            raise AuthenticationError("Authentication session expired")
+            raise AuthenticationError("Session is no longer active")
+        if row.revoked_at is not None:
+            raise AuthenticationError("Session is no longer active")
+        if _as_utc(row.expires_at) <= datetime.now(UTC):
+            raise AuthenticationError("Session has expired")
