@@ -13,6 +13,7 @@ from modules.agent.application.use_cases.execution_context import current_execut
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
+from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
 from shared.infra.errors import ValidationError
 from shared.infra.llm_cost import provider_model_pricing_snapshot
 
@@ -128,7 +129,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 raise ValidationError("Production runtime requires release repository")
             release = await release_repo.get_active_production(agent.id)
             if release is None:
-                raise ValidationError(f"No production release deployed for agent {input_dto.agent_id}")
+                raise RuntimeEnvironmentNotReadyError("production", input_dto.agent_id)
             self._bind_release_context(release)
             agent = self._apply_release_snapshot_ids(
                 self._apply_release_to_agent(agent, release),
@@ -141,7 +142,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 raise ValidationError("Staging runtime requires release repository")
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
             if not releases:
-                raise ValidationError(f"No staging release deployed for agent {input_dto.agent_id}")
+                raise RuntimeEnvironmentNotReadyError("staging", input_dto.agent_id)
             release = releases[0]
             self._bind_release_context(release)
             agent = self._apply_release_snapshot_ids(
