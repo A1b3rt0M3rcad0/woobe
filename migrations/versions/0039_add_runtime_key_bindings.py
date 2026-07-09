@@ -42,16 +42,6 @@ def upgrade() -> None:
         ),
         schema="core",
     )
-    op.create_foreign_key(
-        "fk_core_api_keys_agent_id",
-        "api_keys",
-        "agents",
-        ["agent_id"],
-        ["id"],
-        source_schema="core",
-        referent_schema="agent",
-        ondelete="CASCADE",
-    )
     op.create_check_constraint(
         "ck_core_api_keys_runtime_binding",
         "api_keys",
@@ -121,12 +111,6 @@ def downgrade() -> None:
         "api_keys",
         schema="core",
         type_="check",
-    )
-    op.drop_constraint(
-        "fk_core_api_keys_agent_id",
-        "api_keys",
-        schema="core",
-        type_="foreignkey",
     )
     op.drop_column("api_keys", "interfaces", schema="core")
     op.drop_column("api_keys", "environment", schema="core")
