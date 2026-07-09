@@ -17,6 +17,7 @@ from modules.agent.infra.adapters.http_tool_runtime import (
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
+from modules.agent.presentation.public_runtime_routes import router as public_runtime_router
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -230,6 +231,7 @@ def create_app() -> FastAPI:
     try:
         app.include_router(identity_router)
         app.include_router(core_router)
+        app.include_router(public_runtime_router)
         app.include_router(agent_router)
         app.include_router(agent_ai_router)
         app.include_router(agent_knowledge_router)
