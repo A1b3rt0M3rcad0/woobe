@@ -27,7 +27,7 @@ def _sse_type(chunk: str) -> str | None:
     return None
 
 
-async def _commit_safe_stream(
+async def commit_safe_stream(
     service: Any,
     input_dto: Any,
     fastapi_request: FastAPIRequest | None = None,
@@ -63,7 +63,7 @@ async def handle_ask_stream(
     input_dto = AskInput(**body)
 
     return StreamingResponse(
-        _commit_safe_stream(service, input_dto, fastapi_request),
+        commit_safe_stream(service, input_dto, fastapi_request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
