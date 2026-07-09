@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '../AgentEditorContext'
 import { OutputContractHelpModal } from './OutputContractHelpModal'
@@ -37,16 +37,6 @@ export function OutputSettingsTab() {
   const { state, setField } = useAgentEditor()
   const { responseFormat } = state
   const [showHelp, setShowHelp] = useState(false)
-
-  useEffect(() => {
-    const needsDefaultSchema = responseFormat.enabled && responseFormat.schema == null
-    if (responseFormat.strict && !needsDefaultSchema) return
-    setField('responseFormat', {
-      ...responseFormat,
-      strict: true,
-      schema: needsDefaultSchema ? DEFAULT_SCHEMA : responseFormat.schema,
-    })
-  }, [responseFormat, setField])
 
   const handleToggle = (enabled: boolean) => {
     setField('responseFormat', {
