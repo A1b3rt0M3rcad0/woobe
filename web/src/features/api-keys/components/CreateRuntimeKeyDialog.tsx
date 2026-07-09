@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { KeyRound } from 'lucide-react'
@@ -7,6 +7,10 @@ import { CopyButton } from '@/components/common/CopyButton'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import {
+  formatWoobeDateTime,
+  WoobeDateTimePicker,
+} from '@/components/ui/WoobeDateTimePicker'
 import { useCreateRuntimeApiKey } from '@/features/api-keys/hooks'
 import {
   createRuntimeApiKeySchema,
@@ -45,13 +49,13 @@ const EXPIRATIONS: Array<{ value: ExpirationPreset; label: string }> = [
   { value: 'never', label: 'No expiration' },
 ]
 
-function expirationValue(preset: ExpirationPreset, customValue?: string): string | null {
+function expirationDate(preset: ExpirationPreset, customValue: Date | null): Date | null {
   if (preset === 'never') return null
-  if (preset === 'custom') return customValue ? new Date(customValue).toISOString() : null
+  if (preset === 'custom') return customValue
   const days = preset === '7d' ? 7 : preset === '30d' ? 30 : preset === '90d' ? 90 : 365
   const value = new Date()
   value.setUTCDate(value.getUTCDate() + days)
-  return value.toISOString()
+  return value
 }
 
 export function CreateRuntimeKeyDialog({
@@ -65,36 +69,45 @@ export function CreateRuntimeKeyDialog({
 }: CreateRuntimeKeyDialogProps) {
   const createRuntimeKey = useCreateRuntimeApiKey(projectId)
   const [expiration, setExpiration] = useState<ExpirationPreset>('90d')
+  const [customExpiration, setCustomExpiration] = useState<Date | null>(null)
+  const [customExpirationError, setCustomExpirationError] = useState(false)
   const [createdKey, setCreatedKey] = useState<CreateApiKeyResponse | null>(null)
   const form = useForm<CreateRuntimeApiKeyFormData>({
     resolver: zodResolver(createRuntimeApiKeySchema),
     defaultValues: {
       name: '',
       interfaces: ['http', 'stream', 'jobs'],
-      expires_at: '',
     },
   })
+
+  const selectedExpiration = useMemo(
+    () => expirationDate(expiration, customExpiration),
+    [expiration, customExpiration],
+  )
 
   useEffect(() => {
     if (!open) return
     setCreatedKey(null)
     setExpiration('90d')
+    setCustomExpiration(null)
+    setCustomExpirationError(false)
     form.reset({
       name: `${agentName} · ${environment === 'production' ? 'Production' : 'Staging'}`,
       interfaces: ['http', 'stream', 'jobs'],
-      expires_at: '',
     })
   }, [open, agentName, environment, form])
 
   const close = () => {
     setCreatedKey(null)
+    setCustomExpiration(null)
+    setCustomExpirationError(false)
     form.reset()
     onClose()
   }
 
   const submit = form.handleSubmit(async (data) => {
-    if (expiration === 'custom' && !data.expires_at) {
-      form.setError('expires_at', { message: 'Select an expiration date' })
+    if (expiration === 'custom' && !customExpiration) {
+      setCustomExpirationError(true)
       return
     }
     try {
@@ -103,7 +116,7 @@ export function CreateRuntimeKeyDialog({
         agent_id: agentId,
         environment,
         interfaces: data.interfaces,
-        expires_at: expirationValue(expiration, data.expires_at),
+        expires_at: selectedExpiration?.toISOString() ?? null,
       })
       setCreatedKey(result)
       onCreated(result)
@@ -154,6 +167,7 @@ export function CreateRuntimeKeyDialog({
             <div className="rounded-xl border border-border/80 bg-background/45 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
               <p className="mt-1 text-sm font-medium capitalize text-white">{environment}</p>
+              <code className="mt-1 block text-[10px] text-primary-light">woobe_{environment}_...</code>
             </div>
           </div>
 
@@ -192,19 +206,35 @@ export function CreateRuntimeKeyDialog({
                 <button
                   key={item.value}
                   type="button"
-                  onClick={() => setExpiration(item.value)}
+                  onClick={() => {
+                    setExpiration(item.value)
+                    setCustomExpirationError(false)
+                  }}
                   className={`rounded-lg border px-3 py-2 text-xs transition-colors ${expiration === item.value ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border/80 bg-background/45 text-muted hover:text-white'}`}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
-            {expiration === 'custom' && (
+
+            {expiration === 'custom' ? (
               <div className="mt-3">
-                <Input type="datetime-local" {...form.register('expires_at')} />
-                {form.formState.errors.expires_at && <p className="mt-1 text-xs text-red-300">{form.formState.errors.expires_at.message}</p>}
+                <WoobeDateTimePicker
+                  value={customExpiration}
+                  onChange={(value) => {
+                    setCustomExpiration(value)
+                    if (value) setCustomExpirationError(false)
+                  }}
+                />
+                {customExpirationError && <p className="mt-1.5 text-xs text-red-300">Select a future expiration date and time</p>}
               </div>
-            )}
+            ) : expiration === 'never' ? (
+              <p className="mt-3 text-[11px] text-muted">This key will remain active until it is revoked.</p>
+            ) : selectedExpiration ? (
+              <p className="mt-3 text-[11px] text-muted">
+                Expires <span className="text-white">{formatWoobeDateTime(selectedExpiration)}</span>
+              </p>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-2 border-t border-border/80 pt-4">
