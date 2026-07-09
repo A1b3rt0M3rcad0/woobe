@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Bot, Check, CheckCircle2, Cpu, Key, Search, ServerCog, ShieldCheck } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  Check,
+  CheckCircle2,
+  Key,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
-import { StatusBadge } from '@/components/common/StatusBadge'
 import { useCreateAgent } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useCreateCredential, useCredentials } from '@/features/provider-credentials/hooks'
@@ -19,11 +28,12 @@ import {
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+const SEARCH_THRESHOLD = 6
 
 const providerOptions = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'custom', label: 'OpenAI Compatible' },
-  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'openai', label: 'OpenAI', description: 'Use models available from your OpenAI account.' },
+  { value: 'openrouter', label: 'OpenRouter', description: 'Access generation models through one OpenRouter connection.' },
+  { value: 'custom', label: 'OpenAI Compatible', description: 'Connect a provider or gateway that exposes an OpenAI-compatible API.' },
 ]
 
 const providerLabels: Record<string, string> = {
@@ -34,13 +44,13 @@ const providerLabels: Record<string, string> = {
 
 const defaultCredentialNames: Record<string, string> = {
   openai: 'OpenAI',
-  custom: 'OpenAI Compatible Provider',
+  custom: 'OpenAI Compatible',
   openrouter: 'OpenRouter',
 }
 
-type Step = 'details' | 'model' | 'review'
-type ModelMode = 'existing' | 'create'
-type ModelView = 'setup' | 'credential'
+type Step = 'details' | 'connect-provider' | 'select-model' | 'create-model' | 'review'
+type CredentialEntrySource = 'details' | 'select-model' | 'create-model'
+type ProgressKey = 'details' | 'connect-provider' | 'model' | 'review'
 
 interface CreateAgentFlowModalProps {
   open: boolean
@@ -56,6 +66,17 @@ function providerLabel(provider?: string | null) {
 
 function supportsModelCatalog(credential?: ProviderCredential | null) {
   return credential?.provider === 'openai' || credential?.provider === 'openrouter'
+}
+
+function isCredentialActive(credential: ProviderCredential) {
+  return !credential.status || credential.status === 'active'
+}
+
+function isEmbeddingProviderModel(model: ProviderModel) {
+  const metadata = model.metadata || {}
+  const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
+  if (capability) return capability === 'embedding' || capability === 'embeddings'
+  return `${model.name} ${model.model}`.toLowerCase().includes('embed')
 }
 
 function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
@@ -85,6 +106,7 @@ function buildCredentialMetadata(provider: string, baseUrl: string): Record<stri
 function buildModelMetadata(catalogModel: AvailableProviderModel | null) {
   if (!catalogModel) {
     return {
+      capability: 'generation',
       source: 'manual',
       pricing: {
         input_cost_per_1m_tokens: null,
@@ -97,6 +119,7 @@ function buildModelMetadata(catalogModel: AvailableProviderModel | null) {
   }
 
   return {
+    capability: 'generation',
     source: 'remote',
     catalog: {
       provider: catalogModel.provider,
@@ -119,6 +142,12 @@ function buildModelMetadata(catalogModel: AvailableProviderModel | null) {
     },
     provider_model_raw: catalogModel.raw,
   }
+}
+
+function nextCredentialName(provider: string, credentials: ProviderCredential[]) {
+  const base = defaultCredentialNames[provider] || providerLabel(provider)
+  const count = credentials.filter((item) => item.provider === provider).length
+  return count === 0 ? base : `${base} ${count + 1}`
 }
 
 function StepItem({
@@ -150,16 +179,44 @@ function StepItem({
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function ModelCard({
+  title,
+  subtitle,
+  selected,
+  onClick,
+}: {
+  title: string
+  subtitle: string
+  selected: boolean
+  onClick: () => void
+}) {
   return (
-    <div className="flex items-start justify-between gap-4 text-xs">
-      <span className="text-muted">{label}</span>
-      <span className="min-w-0 truncate text-right text-white/90">{value}</span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`flex w-full items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
+        selected
+          ? 'border-primary/55 bg-primary/8'
+          : 'border-border/85 bg-background/55 hover:border-primary/30 hover:bg-background/80'
+      }`}
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-white">{title}</span>
+        <span className="mt-1 block truncate text-xs text-muted">{subtitle}</span>
+      </span>
+      <span
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+          selected ? 'border-primary bg-primary text-white' : 'border-border bg-background'
+        }`}
+      >
+        {selected && <Check className="h-3 w-3" />}
+      </span>
+    </button>
   )
 }
 
-function ExistingModelPicker({
+function ExistingModelList({
   models,
   selectedModelId,
   onSelect,
@@ -168,96 +225,70 @@ function ExistingModelPicker({
   selectedModelId: string
   onSelect: (modelId: string) => void
 }) {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const selectedModel = models.find((item) => item.id === selectedModelId) || null
   const filteredModels = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return models
     return models.filter((item) => `${item.name} ${item.model} ${providerLabel(item.provider)}`.toLowerCase().includes(normalized))
   }, [models, query])
+  const showSearch = models.length > SEARCH_THRESHOLD
 
   return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-border bg-background/70 px-4 py-3 text-left transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
-      >
-        <span className="min-w-0">
-          {selectedModel ? (
-            <>
-              <span className="block truncate text-sm font-medium text-white">{selectedModel.name}</span>
-              <span className="mt-1 block truncate text-xs text-muted">{providerLabel(selectedModel.provider)} · {selectedModel.model}</span>
-            </>
-          ) : (
-            <span className="text-sm text-muted">Search or select an existing model</span>
-          )}
-        </span>
-        <Search className="h-4 w-4 shrink-0 text-muted" />
-      </button>
-
-      {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
-          <div className="border-b border-border/70 p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setOpen(false)
-                }}
-                placeholder="Search models"
-                className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-sm text-white outline-none placeholder:text-muted focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="scrollbar-thin max-h-72 overflow-y-auto">
-            {filteredModels.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">No active models found.</div>
-            ) : filteredModels.map((model) => {
-              const selected = model.id === selectedModelId
-              return (
-                <button
-                  key={model.id}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    onSelect(model.id)
-                    setOpen(false)
-                    setQuery('')
-                  }}
-                  className={`grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 ${selected ? 'bg-primary/5' : 'hover:bg-surface/70'}`}
-                >
-                  <span className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium text-white">{model.name}</span>
-                    {selected && <Check className="h-4 w-4 shrink-0 text-primary-light" />}
-                  </span>
-                  <span className="truncate text-xs text-muted">{providerLabel(model.provider)} · {model.model}</span>
-                </button>
-              )
-            })}
-          </div>
+    <div className="space-y-3">
+      {showSearch && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" className="pl-9" />
         </div>
       )}
+      <div className="scrollbar-thin max-h-80 space-y-2 overflow-y-auto pr-1">
+        {filteredModels.length === 0 ? (
+          <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-8 text-center text-sm text-muted">No generation models found.</div>
+        ) : filteredModels.map((model) => (
+          <ModelCard
+            key={model.id}
+            title={model.name}
+            subtitle={`${providerLabel(model.provider)} · ${model.model}`}
+            selected={model.id === selectedModelId}
+            onClick={() => onSelect(model.id)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
 
-function CatalogPicker({
+function CredentialList({
+  credentials,
+  selectedCredentialId,
+  onSelect,
+}: {
+  credentials: ProviderCredential[]
+  selectedCredentialId: string
+  onSelect: (credentialId: string) => void
+}) {
+  return (
+    <div className="space-y-2">
+      {credentials.map((credential) => (
+        <ModelCard
+          key={credential.id}
+          title={credential.name}
+          subtitle={providerLabel(credential.provider)}
+          selected={credential.id === selectedCredentialId}
+          onClick={() => onSelect(credential.id)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CatalogModelList({
   models,
   selectedModelId,
   loading,
   error,
   onSelect,
+  onRetry,
   onManualMode,
 }: {
   models: AvailableProviderModel[]
@@ -265,89 +296,66 @@ function CatalogPicker({
   loading: boolean
   error: boolean
   onSelect: (model: AvailableProviderModel) => void
+  onRetry: () => void
   onManualMode: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const selectedModel = models.find((item) => item.id === selectedModelId) || null
   const filteredModels = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return models
     return models.filter((item) => `${item.label} ${item.id} ${item.provider} ${item.owned_by || ''}`.toLowerCase().includes(normalized))
   }, [models, query])
   const visibleModels = filteredModels.slice(0, 80)
+  const showSearch = models.length > SEARCH_THRESHOLD
+
+  if (loading) {
+    return <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-8 text-center text-sm text-muted">Loading generation models...</div>
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-border/80 bg-background/55 p-4">
+        <p className="text-sm font-medium text-white">We couldn't load models from this provider.</p>
+        <p className="mt-1 text-sm leading-6 text-muted">Retry discovery or enter the model identifier manually.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onManualMode}>Enter model ID manually</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <label className="block text-sm font-medium text-muted">Provider model</label>
-        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={onManualMode}>Enter manually</Button>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted">Choose the model this agent will use.</span>
+        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={onManualMode}>Enter model ID manually</Button>
       </div>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-border bg-transparent px-3 text-left text-sm shadow-sm transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
-      >
-        <span className="min-w-0 truncate text-white">{selectedModel?.label || 'Search or select provider model'}</span>
-        <Search className="h-4 w-4 shrink-0 text-muted" />
-      </button>
-      {selectedModel && <code className="mt-1 block truncate text-xs text-muted">{selectedModel.id}</code>}
-
-      {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
-          <div className="border-b border-border/70 p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setOpen(false)
-                }}
-                placeholder="Search provider models"
-                className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-sm text-white outline-none placeholder:text-muted focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="scrollbar-thin max-h-72 overflow-y-auto">
-            {loading ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">Loading provider models...</div>
-            ) : error ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">Could not load provider models. Use manual entry.</div>
-            ) : visibleModels.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">No models found.</div>
-            ) : visibleModels.map((model) => {
-              const selected = model.id === selectedModelId
-              return (
-                <button
-                  key={model.id}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    onSelect(model)
-                    setOpen(false)
-                    setQuery('')
-                  }}
-                  className={`grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 ${selected ? 'bg-primary/5' : 'hover:bg-surface/70'}`}
-                >
-                  <span className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium text-white">{model.label}</span>
-                    {selected && <Check className="h-4 w-4 shrink-0 text-primary-light" />}
-                  </span>
-                  <code className="block truncate text-xs text-muted">{model.id}</code>
-                </button>
-              )
-            })}
-          </div>
+      {showSearch && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" className="pl-9" />
         </div>
       )}
+      <div className="scrollbar-thin max-h-80 space-y-2 overflow-y-auto pr-1">
+        {visibleModels.length === 0 ? (
+          <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-8 text-center">
+            <p className="text-sm text-muted">No generation models found.</p>
+            <Button type="button" size="sm" variant="ghost" className="mt-3" onClick={onManualMode}>Enter model ID manually</Button>
+          </div>
+        ) : visibleModels.map((model) => (
+          <ModelCard
+            key={model.id}
+            title={model.label}
+            subtitle={`${providerLabel(model.provider)} · ${model.id}`}
+            selected={model.id === selectedModelId}
+            onClick={() => onSelect(model)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -363,13 +371,12 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   const [agentName, setAgentName] = useState('')
   const [agentDescription, setAgentDescription] = useState('')
   const [selectedModelId, setSelectedModelId] = useState('')
-  const [modelMode, setModelMode] = useState<ModelMode>('existing')
-  const [modelView, setModelView] = useState<ModelView>('setup')
   const [createdCredential, setCreatedCredential] = useState<ProviderCredential | null>(null)
   const [createdModel, setCreatedModel] = useState<ProviderModel | null>(null)
+  const [credentialStepUsed, setCredentialStepUsed] = useState(false)
+  const [credentialEntrySource, setCredentialEntrySource] = useState<CredentialEntrySource>('details')
 
   const [credentialProvider, setCredentialProvider] = useState('openai')
-  const [credentialName, setCredentialName] = useState(defaultCredentialNames.openai)
   const [credentialSecret, setCredentialSecret] = useState('')
   const [credentialBaseUrl, setCredentialBaseUrl] = useState('')
 
@@ -385,22 +392,36 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     return [...source, createdCredential]
   }, [credentialsQuery.data, createdCredential])
 
+  const activeCredentials = useMemo(
+    () => credentials.filter((credential) => isCredentialActive(credential) && ['openai', 'custom', 'openrouter'].includes(credential.provider)),
+    [credentials],
+  )
+  const activeCredentialIds = useMemo(() => new Set(activeCredentials.map((credential) => credential.id)), [activeCredentials])
+
   const models = useMemo(() => {
     const source = modelsQuery.data ?? []
     if (!createdModel || source.some((item) => item.id === createdModel.id)) return source
     return [...source, createdModel]
   }, [modelsQuery.data, createdModel])
 
-  const activeCredentials = useMemo(
-    () => credentials.filter((credential) => credential.status !== 'archived' && credential.status !== 'revoked' && ['openai', 'custom', 'openrouter'].includes(credential.provider)),
-    [credentials],
+  const usableAgentModels = useMemo(
+    () => models.filter((model) => (
+      model.status === 'active'
+      && activeCredentialIds.has(model.provider_credential_id)
+      && !isEmbeddingProviderModel(model)
+    )),
+    [models, activeCredentialIds],
   )
-  const activeModels = useMemo(() => models.filter((model) => model.status === 'active'), [models])
-  const selectedModel = activeModels.find((model) => model.id === selectedModelId) || createdModel || null
-  const selectedCredential = activeCredentials.find((credential) => credential.id === selectedCredentialId) || createdCredential || null
+
+  const selectedModel = usableAgentModels.find((model) => model.id === selectedModelId) || null
+  const selectedCredential = activeCredentials.find((credential) => credential.id === selectedCredentialId) || null
   const canUseCatalog = supportsModelCatalog(selectedCredential)
   const shouldUseCatalog = canUseCatalog && !manualMode
-  const availableModelsQuery = useAvailableProviderModels(projectId, shouldUseCatalog ? selectedCredentialId : undefined)
+  const availableModelsQuery = useAvailableProviderModels(
+    projectId,
+    shouldUseCatalog ? selectedCredentialId : undefined,
+    'generation',
+  )
   const availableModels = availableModelsQuery.data ?? []
   const selectedCatalogModel = shouldUseCatalog
     ? availableModels.find((item) => item.id === selectedCatalogModelId) || null
@@ -412,12 +433,11 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     setAgentName('')
     setAgentDescription('')
     setSelectedModelId('')
-    setModelMode('existing')
-    setModelView('setup')
     setCreatedCredential(null)
     setCreatedModel(null)
+    setCredentialStepUsed(false)
+    setCredentialEntrySource('details')
     setCredentialProvider('openai')
-    setCredentialName(defaultCredentialNames.openai)
     setCredentialSecret('')
     setCredentialBaseUrl('')
     setSelectedCredentialId('')
@@ -443,38 +463,73 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   useEffect(() => {
     if (!selectedCatalogModel) return
     setModelIdentifier(selectedCatalogModel.id)
-    setModelName((current) => current.trim() ? current : selectedCatalogModel.label || selectedCatalogModel.id)
+    setModelName(selectedCatalogModel.label || selectedCatalogModel.id)
   }, [selectedCatalogModel?.id])
 
   useEffect(() => {
-    setCredentialName(defaultCredentialNames[credentialProvider] || '')
     if (credentialProvider !== 'custom') setCredentialBaseUrl('')
   }, [credentialProvider])
 
-  const stepIndex = step === 'details' ? 1 : step === 'model' ? 2 : 3
+  const progressSteps = useMemo(() => {
+    const items: Array<{ key: ProgressKey; label: string }> = [{ key: 'details', label: 'Agent details' }]
+    if (credentialStepUsed) items.push({ key: 'connect-provider', label: 'Connect provider' })
+    items.push({ key: 'model', label: 'Model' })
+    items.push({ key: 'review', label: 'Review' })
+    return items
+  }, [credentialStepUsed])
+
+  const currentProgressKey: ProgressKey = step === 'details'
+    ? 'details'
+    : step === 'connect-provider'
+      ? 'connect-provider'
+      : step === 'review'
+        ? 'review'
+        : 'model'
+  const currentProgressIndex = progressSteps.findIndex((item) => item.key === currentProgressKey)
+
+  const inventoryLoading = modelsQuery.isLoading || credentialsQuery.isLoading
   const dependenciesError = modelsQuery.isError || credentialsQuery.isError
   const busy = createCredential.isPending || createModel.isPending || createAgent.isPending
 
-  const startModelStep = () => {
+  const startAfterDetails = () => {
     if (!agentName.trim()) {
       toast.error('Agent name is required')
       return
     }
-    setStep('model')
-    if (activeModels.length === 0) {
-      setModelMode('create')
-      setModelView(activeCredentials.length === 0 ? 'credential' : 'setup')
+    if (usableAgentModels.length > 0) {
+      setCredentialStepUsed(false)
+      setStep('select-model')
+      return
     }
+    if (activeCredentials.length === 0) {
+      setCredentialStepUsed(true)
+      setCredentialEntrySource('details')
+      setStep('connect-provider')
+      return
+    }
+    setCredentialStepUsed(false)
+    if (activeCredentials.length === 1) setSelectedCredentialId(activeCredentials[0].id)
+    setStep('create-model')
   }
 
   const startCreateModel = () => {
-    setModelMode('create')
-    setModelView(activeCredentials.length === 0 ? 'credential' : 'setup')
-    if (!selectedCredentialId && activeCredentials[0]) setSelectedCredentialId(activeCredentials[0].id)
+    if (activeCredentials.length === 0) {
+      setCredentialStepUsed(true)
+      setCredentialEntrySource('select-model')
+      setStep('connect-provider')
+      return
+    }
+    if (activeCredentials.length === 1) setSelectedCredentialId(activeCredentials[0].id)
+    setStep('create-model')
+  }
+
+  const startAddCredential = () => {
+    setCredentialStepUsed(true)
+    setCredentialEntrySource('create-model')
+    setStep('connect-provider')
   }
 
   const handleCredentialSubmit = async () => {
-    if (!credentialName.trim()) return toast.error('Credential name is required')
     if (!credentialSecret.trim()) return toast.error('API key is required')
     if (credentialProvider === 'custom' && !credentialBaseUrl.trim()) return toast.error('Base URL is required for OpenAI Compatible providers')
 
@@ -482,32 +537,31 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       const credential = await createCredential.mutateAsync({
         project_id: projectId,
         provider: credentialProvider,
-        name: credentialName.trim(),
+        name: nextCredentialName(credentialProvider, credentials),
         secret: credentialSecret.trim(),
         metadata: buildCredentialMetadata(credentialProvider, credentialBaseUrl),
       })
       setCreatedCredential(credential)
       setSelectedCredentialId(credential.id)
       setCredentialSecret('')
-      setModelView('setup')
-      toast.success('Credential added')
+      setStep('create-model')
+      toast.success('Provider connected')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save credential')
+      toast.error(err instanceof Error ? err.message : 'Failed to connect provider')
     }
   }
 
   const handleCatalogSelect = (model: AvailableProviderModel) => {
     setSelectedCatalogModelId(model.id)
     setModelIdentifier(model.id)
-    setModelName((current) => current.trim() ? current : model.label || model.id)
+    setModelName(model.label || model.id)
   }
 
   const handleCreateModel = async () => {
-    if (!selectedCredential) return toast.error('Select or create a provider credential')
+    if (!selectedCredential) return toast.error('Select or connect a provider first')
     const resolvedModel = modelIdentifier.trim()
     const resolvedName = modelName.trim() || selectedCatalogModel?.label || resolvedModel
-    if (!resolvedModel) return toast.error('Model is required')
-    if (!resolvedName) return toast.error('Model name is required')
+    if (!resolvedModel) return toast.error('Select or enter a model')
 
     try {
       const model = await createModel.mutateAsync({
@@ -519,7 +573,6 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       })
       setCreatedModel(model)
       setSelectedModelId(model.id)
-      setModelMode('existing')
       setStep('review')
       toast.success('Model created')
     } catch (err) {
@@ -529,7 +582,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
   const continueWithExistingModel = () => {
     if (!selectedModel) {
-      toast.error('Select an active model')
+      toast.error('Select a model')
       return
     }
     setStep('review')
@@ -537,7 +590,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
   const handleCreateAgent = async () => {
     if (!agentName.trim()) return toast.error('Agent name is required')
-    if (!selectedModel) return toast.error('Select a reusable model')
+    if (!selectedModel) return toast.error('Select a generation model')
 
     try {
       const agent = await createAgent.mutateAsync({
@@ -562,37 +615,48 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
   const goBack = () => {
     if (step === 'review') {
-      setStep('model')
+      setStep('select-model')
       return
     }
-    if (step === 'model' && modelMode === 'create' && modelView === 'credential' && activeCredentials.length > 0) {
-      setModelView('setup')
+    if (step === 'select-model') {
+      setStep('details')
       return
     }
-    if (step === 'model' && modelMode === 'create' && modelView === 'setup' && activeModels.length > 0) {
-      setModelMode('existing')
+    if (step === 'create-model') {
+      setStep(usableAgentModels.length > 0 ? 'select-model' : 'details')
       return
     }
-    if (step === 'model') setStep('details')
+    if (step === 'connect-provider') {
+      setStep(credentialEntrySource)
+    }
   }
 
   const footerPrimary = () => {
     if (step === 'details') {
       return (
-        <Button type="button" onClick={startModelStep}>
+        <Button type="button" onClick={startAfterDetails} disabled={inventoryLoading}>
           Continue
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       )
     }
-    if (step === 'model' && modelMode === 'existing') {
-      return <Button type="button" onClick={continueWithExistingModel} disabled={!selectedModel}>Continue</Button>
-    }
-    if (step === 'model' && modelView === 'credential') {
+    if (step === 'connect-provider') {
       return <Button type="button" onClick={handleCredentialSubmit} loading={createCredential.isPending}>Connect provider</Button>
     }
-    if (step === 'model') {
-      return <Button type="button" onClick={handleCreateModel} loading={createModel.isPending}>Create model</Button>
+    if (step === 'select-model') {
+      return <Button type="button" onClick={continueWithExistingModel} disabled={!selectedModel}>Continue</Button>
+    }
+    if (step === 'create-model') {
+      return (
+        <Button
+          type="button"
+          onClick={handleCreateModel}
+          loading={createModel.isPending}
+          disabled={!selectedCredential || !modelIdentifier.trim()}
+        >
+          Create model and continue
+        </Button>
+      )
     }
     return (
       <Button type="button" onClick={handleCreateAgent} loading={createAgent.isPending}>
@@ -611,27 +675,24 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
                 <Bot className="h-5 w-5" />
               </div>
-              <div className="mt-5 min-w-0">
-                <h3 className="truncate text-base font-semibold text-white">{agentName.trim() || 'New agent'}</h3>
-                <p className="mt-1 text-xs leading-5 text-muted">Set up the minimum dependencies, then continue configuration in the Playground.</p>
+              <div className="mt-5">
+                <h3 className="text-base font-semibold text-white">New agent</h3>
+                <p className="mt-1 text-xs leading-5 text-muted">Guided setup for the minimum configuration needed to start in the Playground.</p>
               </div>
             </section>
 
             <section className="rounded-xl border border-border/90 bg-background/60 p-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Progress</p>
               <div className="mt-4 space-y-4">
-                <StepItem index={1} label="Agent details" active={step === 'details'} completed={stepIndex > 1} />
-                <StepItem index={2} label="Model setup" active={step === 'model'} completed={stepIndex > 2} />
-                <StepItem index={3} label="Review" active={step === 'review'} completed={false} />
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-border/90 bg-background/60 p-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Current setup</p>
-              <div className="mt-4 space-y-3">
-                <SummaryRow label="Agent" value={agentName.trim() || 'Not named'} />
-                <SummaryRow label="Model" value={selectedModel?.name || 'Not selected'} />
-                <SummaryRow label="Provider" value={selectedModel ? providerLabel(selectedModel.provider) : 'Not selected'} />
+                {progressSteps.map((item, index) => (
+                  <StepItem
+                    key={item.key}
+                    index={index + 1}
+                    label={item.label}
+                    active={index === currentProgressIndex}
+                    completed={index < currentProgressIndex}
+                  />
+                ))}
               </div>
             </section>
           </aside>
@@ -641,7 +702,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
               <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-white">Agent details</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Start with identity only. Prompt, tools, knowledge and output configuration stay in the Playground.</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Give your agent a name. You can configure its behavior, tools and knowledge later in the Playground.</p>
                 </div>
                 <div className="space-y-4">
                   <div>
@@ -656,178 +717,169 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
               </section>
             )}
 
-            {step === 'model' && (modelsQuery.isLoading || credentialsQuery.isLoading) && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-8 text-center text-sm text-muted">Loading project model setup...</section>
-            )}
-
-            {step === 'model' && !modelsQuery.isLoading && !credentialsQuery.isLoading && dependenciesError && (
+            {step !== 'details' && step !== 'connect-provider' && (inventoryLoading || dependenciesError) && (
               <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-                <h3 className="text-sm font-semibold text-white">Could not load project model setup</h3>
-                <p className="mt-1 text-sm text-muted">Retry before selecting or creating the model used by this agent.</p>
-                <Button type="button" size="sm" variant="outline" className="mt-4" onClick={() => { void modelsQuery.refetch(); void credentialsQuery.refetch() }}>Retry</Button>
-              </section>
-            )}
-
-            {step === 'model' && !modelsQuery.isLoading && !credentialsQuery.isLoading && !dependenciesError && modelMode === 'existing' && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-                <div className="mb-5">
-                  <h3 className="text-sm font-semibold text-white">Choose a reusable model</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Agents reference active provider models instead of raw credentials or model strings.</p>
-                </div>
-                {activeModels.length > 0 ? (
-                  <div className="space-y-4">
-                    <ExistingModelPicker models={activeModels} selectedModelId={selectedModelId} onSelect={setSelectedModelId} />
-                    {selectedModel && (
-                      <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{selectedModel.name}</p>
-                            <p className="mt-1 truncate text-xs text-muted">{providerLabel(selectedModel.provider)} · {selectedModel.model}</p>
-                          </div>
-                          <StatusBadge status={selectedModel.status} />
-                        </div>
-                      </div>
-                    )}
-                    <div className="border-t border-border/70 pt-4">
-                      <Button type="button" variant="outline" onClick={startCreateModel}>
-                        <ServerCog className="mr-2 h-4 w-4" />
-                        Create new model
-                      </Button>
-                    </div>
-                  </div>
+                {inventoryLoading ? (
+                  <p className="text-sm text-muted">Loading project setup...</p>
                 ) : (
-                  <div className="rounded-xl border border-border/80 bg-background/60 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
-                        <Cpu className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">No active model is configured yet</p>
-                        <p className="mt-1 text-sm leading-6 text-muted">Set up a provider credential and reusable model without leaving this flow.</p>
-                        <Button type="button" size="sm" className="mt-4" onClick={startCreateModel}>Set up first model</Button>
-                      </div>
-                    </div>
-                  </div>
+                  <>
+                    <h3 className="text-sm font-semibold text-white">Could not load project setup</h3>
+                    <p className="mt-1 text-sm text-muted">Retry before selecting or creating the model used by this agent.</p>
+                    <Button type="button" size="sm" variant="outline" className="mt-4" onClick={() => { void modelsQuery.refetch(); void credentialsQuery.refetch() }}>Retry</Button>
+                  </>
                 )}
               </section>
             )}
 
-            {step === 'model' && !modelsQuery.isLoading && !credentialsQuery.isLoading && !dependenciesError && modelMode === 'create' && modelView === 'credential' && (
+            {step === 'connect-provider' && (
               <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
                 <div className="mb-5">
                   <div className="flex items-center gap-2 text-xs text-primary-light"><Key className="h-3.5 w-3.5" />Provider connection</div>
                   <h3 className="mt-2 text-sm font-semibold text-white">Connect your AI provider</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">The credential is saved to this Project and selected automatically for the new model.</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Choose where the agent model will run, then add the API key for this Project.</p>
                 </div>
+
                 <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Provider</label>
-                    <Select value={credentialProvider} onChange={(event) => setCredentialProvider(event.target.value)} options={providerOptions} />
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {providerOptions.map((option) => {
+                      const selected = credentialProvider === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setCredentialProvider(option.value)}
+                          className={`rounded-xl border p-3 text-left transition-colors ${selected ? 'border-primary/55 bg-primary/8' : 'border-border/85 bg-background/55 hover:border-primary/30'}`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-white">{option.label}</span>
+                            {selected && <Check className="h-4 w-4 text-primary-light" />}
+                          </span>
+                          <span className="mt-2 block text-xs leading-5 text-muted">{option.description}</span>
+                        </button>
+                      )
+                    })}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Credential name</label>
-                    <Input value={credentialName} onChange={(event) => setCredentialName(event.target.value)} placeholder="Production OpenAI" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">API key</label>
-                    <Input type="password" value={credentialSecret} onChange={(event) => setCredentialSecret(event.target.value)} placeholder="Paste your API key" autoComplete="new-password" />
-                  </div>
+
                   {credentialProvider === 'custom' && (
                     <div>
                       <label className="mb-1 block text-sm font-medium text-muted">Base URL</label>
                       <Input value={credentialBaseUrl} onChange={(event) => setCredentialBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" />
-                      <p className="mt-1 text-xs text-muted">OpenAI-compatible providers use a manual model identifier in the next step.</p>
                     </div>
                   )}
-                  {credentialProvider === 'openrouter' && (
-                    <p className="rounded-lg border border-border bg-background p-3 text-xs text-muted">OpenRouter uses <code>{OPENROUTER_BASE_URL}</code> automatically.</p>
-                  )}
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">API key</label>
+                    <Input type="password" value={credentialSecret} onChange={(event) => setCredentialSecret(event.target.value)} placeholder="Paste your API key" autoComplete="new-password" />
+                    <p className="mt-1 text-xs text-muted">The connection is saved to this Project and selected automatically for the next step.</p>
+                  </div>
                 </div>
               </section>
             )}
 
-            {step === 'model' && !modelsQuery.isLoading && !credentialsQuery.isLoading && !dependenciesError && modelMode === 'create' && modelView === 'setup' && (
+            {step === 'select-model' && !inventoryLoading && !dependenciesError && (
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+                <div className="mb-5">
+                  <h3 className="text-sm font-semibold text-white">Choose a model</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Select the generation model this agent will use. Embedding models are not shown here.</p>
+                </div>
+
+                <ExistingModelList models={usableAgentModels} selectedModelId={selectedModelId} onSelect={setSelectedModelId} />
+
+                <div className="mt-5 border-t border-border/70 pt-4">
+                  <p className="text-xs text-muted">Need another model?</p>
+                  <Button type="button" size="sm" variant="outline" className="mt-3" onClick={startCreateModel}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Set up a new model
+                  </Button>
+                </div>
+              </section>
+            )}
+
+            {step === 'create-model' && !inventoryLoading && !dependenciesError && (
               <>
                 <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
                   <div className="mb-5">
-                    <h3 className="text-sm font-semibold text-white">Provider credential</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted">Choose the connection this reusable model will use.</p>
+                    <h3 className="text-sm font-semibold text-white">Provider connection</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">The model must use an active provider connection from this Project.</p>
                   </div>
-                  {activeCredentials.length > 0 ? (
-                    <div className="space-y-3">
-                      <Select
-                        value={selectedCredentialId}
-                        onChange={(event) => setSelectedCredentialId(event.target.value)}
-                        options={activeCredentials.map((credential) => ({ value: credential.id, label: `${credential.name} (${providerLabel(credential.provider)})` }))}
-                        placeholder="Select a credential"
-                      />
-                      <Button type="button" size="sm" variant="outline" onClick={() => setModelView('credential')}>
-                        <Key className="mr-2 h-4 w-4" />
-                        Add another credential
-                      </Button>
+
+                  {activeCredentials.length === 0 ? (
+                    <div className="rounded-xl border border-border/80 bg-background/55 p-4">
+                      <p className="text-sm font-medium text-white">Connect a provider first</p>
+                      <p className="mt-1 text-sm leading-6 text-muted">A provider connection is required before a model can be created.</p>
+                      <Button type="button" size="sm" className="mt-4" onClick={startAddCredential}>Connect provider</Button>
+                    </div>
+                  ) : activeCredentials.length === 1 ? (
+                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border/85 bg-background/55 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted">Connected with</p>
+                        <p className="mt-1 truncate text-sm font-medium text-white">{activeCredentials[0].name}</p>
+                        <p className="mt-1 text-xs text-muted">{providerLabel(activeCredentials[0].provider)}</p>
+                      </div>
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-primary-light" />
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                      <p className="text-sm text-muted">No active provider credential is available.</p>
-                      <Button type="button" size="sm" className="mt-3" onClick={() => setModelView('credential')}>Connect provider</Button>
-                    </div>
+                    <CredentialList credentials={activeCredentials} selectedCredentialId={selectedCredentialId} onSelect={setSelectedCredentialId} />
+                  )}
+
+                  {activeCredentials.length > 0 && (
+                    <Button type="button" size="sm" variant="ghost" className="mt-3 px-0" onClick={startAddCredential}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add another connection
+                    </Button>
                   )}
                 </section>
 
                 {selectedCredential && (
                   <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-                    <div className="mb-5 flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-white">Model</h3>
-                        <p className="mt-1 text-xs leading-5 text-muted">Choose from the provider catalog when available, or enter the identifier manually.</p>
-                      </div>
-                      <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted">{providerLabel(selectedCredential.provider)}</span>
+                    <div className="mb-5">
+                      <h3 className="text-sm font-semibold text-white">Choose a model</h3>
+                      <p className="mt-1 text-xs leading-5 text-muted">{providerLabel(selectedCredential.provider)} will be used for this reusable generation model.</p>
                     </div>
-                    <div className="space-y-4">
-                      {shouldUseCatalog && (
-                        <CatalogPicker
-                          models={availableModels}
-                          selectedModelId={selectedCatalogModelId}
-                          loading={availableModelsQuery.isLoading}
-                          error={availableModelsQuery.isError}
-                          onSelect={handleCatalogSelect}
-                          onManualMode={() => {
-                            setManualMode(true)
-                            setSelectedCatalogModelId('')
-                            setModelIdentifier('')
-                            setModelName('')
-                          }}
-                        />
-                      )}
 
-                      {(manualMode || !canUseCatalog) && (
+                    {shouldUseCatalog ? (
+                      <CatalogModelList
+                        models={availableModels}
+                        selectedModelId={selectedCatalogModelId}
+                        loading={availableModelsQuery.isLoading}
+                        error={availableModelsQuery.isError}
+                        onSelect={handleCatalogSelect}
+                        onRetry={() => { void availableModelsQuery.refetch() }}
+                        onManualMode={() => {
+                          setManualMode(true)
+                          setSelectedCatalogModelId('')
+                          setModelIdentifier('')
+                          setModelName('')
+                        }}
+                      />
+                    ) : (
+                      <div className="space-y-4">
                         <div>
-                          <label className="mb-1 block text-sm font-medium text-muted">Model identifier</label>
-                          <Input value={modelIdentifier} onChange={(event) => setModelIdentifier(event.target.value)} placeholder={selectedCredential.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'deepseek-v4-flash'} />
-                          {canUseCatalog && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="mt-2"
-                              onClick={() => {
-                                setManualMode(false)
-                                setSelectedCatalogModelId('')
-                                setModelIdentifier('')
-                                setModelName('')
-                              }}
-                            >
-                              Use provider catalog
-                            </Button>
-                          )}
+                          <label className="mb-1 block text-sm font-medium text-muted">Model ID</label>
+                          <Input value={modelIdentifier} onChange={(event) => setModelIdentifier(event.target.value)} placeholder={selectedCredential.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'deepseek-chat'} />
                         </div>
-                      )}
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Display name</label>
-                        <Input value={modelName} onChange={(event) => setModelName(event.target.value)} placeholder={selectedCatalogModel?.label || 'GPT-4.1 Mini'} />
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-muted">Display name <span className="font-normal text-muted/70">(optional)</span></label>
+                          <Input value={modelName} onChange={(event) => setModelName(event.target.value)} placeholder="Defaults to the model ID" />
+                        </div>
+                        {canUseCatalog && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="px-0"
+                            onClick={() => {
+                              setManualMode(false)
+                              setSelectedCatalogModelId('')
+                              setModelIdentifier('')
+                              setModelName('')
+                            }}
+                          >
+                            Browse provider models
+                          </Button>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </section>
                 )}
               </>
@@ -837,15 +889,15 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
               <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
                 <div className="mb-5">
                   <div className="flex items-center gap-2 text-xs text-primary-light"><CheckCircle2 className="h-3.5 w-3.5" />Ready to create</div>
-                  <h3 className="mt-2 text-sm font-semibold text-white">Review</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">The agent will be created with a stable reusable model binding and then opened in the Playground.</p>
+                  <h3 className="mt-2 text-sm font-semibold text-white">Review your agent</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Confirm the model binding. The remaining agent configuration continues in the Playground.</p>
                 </div>
                 <dl className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Agent</dt><dd className="text-sm text-white/90">{agentName.trim()}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Description</dt><dd className="text-sm text-white/90">{agentDescription.trim() || 'No description'}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Model</dt><dd className="text-sm text-white/90">{selectedModel.name}</dd></div>
-                  <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Identifier</dt><dd><code className="text-xs text-muted">{selectedModel.model}</code></dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Provider</dt><dd className="text-sm text-white/90">{providerLabel(selectedModel.provider)}</dd></div>
+                  <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Model ID</dt><dd><code className="text-xs text-muted">{selectedModel.model}</code></dd></div>
                 </dl>
                 <div className="mt-5 rounded-xl border border-border/80 bg-background/60 p-4">
                   <p className="text-sm font-medium text-white">Next: Playground</p>
