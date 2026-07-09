@@ -90,7 +90,6 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
       >
         <span className={cn('h-1.5 w-1.5 rounded-full', isAgentOn ? 'bg-emerald-400' : 'bg-slate-500')} />
         <span className="text-slate-200">Agent</span>
-        <span className={cn('font-medium', isAgentOn ? 'text-emerald-300' : 'text-slate-400')}>{isAgentOn ? 'Active' : 'Inactive'}</span>
         <span className="hidden text-muted/60 xl:inline">·</span>
         <span className="hidden text-muted xl:inline">{sessionMode === 'stateful' ? 'Stateful' : 'Stateless'}</span>
         <ChevronDown className={cn('h-3.5 w-3.5 text-muted transition-transform', open && 'rotate-180')} />
@@ -118,12 +117,7 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
                     {isAgentOn ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
                   </span>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white">Execution</p>
-                      <span className={cn('rounded-md border px-1.5 py-0.5 text-[10px] font-medium', isAgentOn ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-border/70 bg-surface/50 text-muted')}>
-                        {isAgentOn ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
+                    <p className="text-sm font-medium text-white">Execution</p>
                     <p className="mt-0.5 text-xs leading-5 text-muted">
                       {isAgentOn ? 'Runtime calls are allowed.' : 'Runtime calls are blocked.'}
                     </p>
