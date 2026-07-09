@@ -156,7 +156,7 @@ def hash_api_key(value: str) -> bytes:
 def normalize_project_api_key_scopes(scopes: Sequence[str]) -> list[str]:
     requested = list(dict.fromkeys(scopes))
     if not requested:
-        return [API_KEY_SCOPE_RUNTIME_EXECUTE]
+        raise ValueError("Project API keys require at least one explicit scope")
 
     normalized: list[str] = []
     for scope in requested:
