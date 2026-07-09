@@ -111,9 +111,7 @@ class ApiKeyModel(BaseModel):
     key_version: Mapped[int] = mapped_column(SmallInteger, default=1)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     kind: Mapped[str] = mapped_column(String(32), default="project")
-    agent_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("agent.agents.id"), nullable=True
-    )
+    agent_id: Mapped[UUID | None] = mapped_column(nullable=True)
     environment: Mapped[str | None] = mapped_column(String(32), nullable=True)
     interfaces: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
