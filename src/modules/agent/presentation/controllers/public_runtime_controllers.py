@@ -9,9 +9,6 @@ from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
     GetAskJobOutput,
 )
-from modules.agent.application.use_cases.public_runtime_environment_validator import (
-    PublicRuntimeEnvironmentValidator,
-)
 from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.domain.repositories import AskJobRepository
@@ -23,6 +20,7 @@ from shared.security.principal import ProjectApiPrincipal
 
 
 InternalHandler = Callable[[Request], Awaitable[Response]]
+EnvironmentPreflight = Callable[[UUID, str], Awaitable[None]]
 
 
 def require_runtime_principal(request: Request) -> ProjectApiPrincipal:
@@ -52,16 +50,14 @@ class PublicRunController(Controller):
     def __init__(
         self,
         internal_handler: InternalHandler,
-        environment_validator: PublicRuntimeEnvironmentValidator,
+        environment_preflight: EnvironmentPreflight,
     ) -> None:
         self._internal_handler = internal_handler
-        self._environment_validator = environment_validator
+        self._environment_preflight = environment_preflight
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
-        await self._environment_validator.validate(
-            principal.agent_id, principal.environment
-        )
+        await self._environment_preflight(principal.agent_id, principal.environment)
         payload = PublicRunRequest(**(request.body or {}))
         internal_request = request.model_copy(
             update={"body": build_internal_runtime_body(payload, principal)}
@@ -73,16 +69,14 @@ class PublicCreateJobController(Controller):
     def __init__(
         self,
         use_case: CreateAskJobUseCase,
-        environment_validator: PublicRuntimeEnvironmentValidator,
+        environment_preflight: EnvironmentPreflight,
     ) -> None:
         self._use_case = use_case
-        self._environment_validator = environment_validator
+        self._environment_preflight = environment_preflight
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
-        await self._environment_validator.validate(
-            principal.agent_id, principal.environment
-        )
+        await self._environment_preflight(principal.agent_id, principal.environment)
         payload = PublicCreateJobRequest(**(request.body or {}))
         input_dto = CreateAskJobInput(
             **build_internal_runtime_body(payload, principal)
