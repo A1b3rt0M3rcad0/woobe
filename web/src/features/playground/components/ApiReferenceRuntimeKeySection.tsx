@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Key, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { CreateApiKeyDialog } from '@/features/api-keys/components/CreateApiKeyDialog'
 import { useApiKeys } from '@/features/api-keys/hooks'
 import type { RuntimeEnvironment } from '@/features/api-keys/types'
-import { CreateRuntimeKeyDialog } from '@/features/api-keys/components/CreateRuntimeKeyDialog'
 
 interface ApiReferenceRuntimeKeySectionProps {
   projectId: string
@@ -78,7 +78,7 @@ export function ApiReferenceRuntimeKeySection({
       ) : (
         <div className="mt-2 rounded-xl border border-dashed border-border/80 bg-background/35 p-3">
           <p className="text-xs font-medium text-white">No Runtime Key for this environment</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted">Create a key bound to this Agent and {environment}.</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">Create a key bound to {agentName} and {environment}.</p>
           <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="mr-2 h-3.5 w-3.5" /> Create Runtime Key
           </Button>
@@ -89,13 +89,14 @@ export function ApiReferenceRuntimeKeySection({
         Manage all keys
       </Link>
 
-      <CreateRuntimeKeyDialog
+      <CreateApiKeyDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
         projectId={projectId}
-        agentId={agentId}
-        agentName={agentName}
-        environment={environment}
+        initialKind="runtime"
+        lockedAgentId={agentId}
+        lockedEnvironment={environment}
+        layer="nestedModal"
         onCreated={(key) => onSelectedKeyId(key.id)}
       />
     </div>
