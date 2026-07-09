@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -5,14 +6,19 @@ from uuid import uuid4
 import pytest
 
 from modules.core.application.dtos.api_key_lifecycle_dtos import RotateApiKeyInput
+from modules.core.application.dtos.list_api_keys_dtos import ListApiKeysInput
 from modules.core.application.dtos.runtime_api_key_dtos import CreateRuntimeApiKeyInput
 from modules.core.application.use_cases.api_key_lifecycle_use_cases import RotateApiKeyUseCase
 from modules.core.application.use_cases.create_runtime_api_key_use_case import (
     CreateRuntimeApiKeyUseCase,
 )
+from modules.core.application.use_cases.list_api_keys_use_case import (
+    ListApiKeysByProjectUseCase,
+)
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import (
     ApiKeyKind,
+    ApiKeyStatus,
     RuntimeEnvironment,
     RuntimeInterface,
 )
@@ -126,3 +132,26 @@ async def test_rotation_preserves_runtime_key_binding() -> None:
     assert result.agent_id == current.agent_id
     assert result.environment == RuntimeEnvironment.production
     assert result.interfaces == ["http", "jobs"]
+
+
+@pytest.mark.asyncio
+async def test_list_api_keys_exposes_expired_status_from_expiration_timestamp() -> None:
+    project_id = uuid4()
+    api_key = ApiKey(
+        project_id=project_id,
+        name="Expired runtime key",
+        kind=ApiKeyKind.runtime,
+        agent_id=uuid4(),
+        environment=RuntimeEnvironment.production,
+        interfaces=["http"],
+        scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
+        status=ApiKeyStatus.active,
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+        created_by_user_id=uuid4(),
+    )
+    repo = SimpleNamespace(list_by_project=AsyncMock(return_value=[api_key]))
+    use_case = ListApiKeysByProjectUseCase(repo)
+
+    result = await use_case.execute(ListApiKeysInput(project_id=project_id))
+
+    assert result[0].status == ApiKeyStatus.expired
