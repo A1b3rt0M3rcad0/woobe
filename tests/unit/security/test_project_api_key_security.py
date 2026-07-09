@@ -76,7 +76,6 @@ def test_project_api_key_parser_rejects_malformed_values() -> None:
 @pytest.mark.parametrize(
     ("requested", "expected"),
     [
-        ([], [API_KEY_SCOPE_RUNTIME_EXECUTE]),
         (["writing"], [API_KEY_SCOPE_RUNTIME_EXECUTE]),
         (["reading"], [API_KEY_SCOPE_TRACES_READ, API_KEY_SCOPE_USAGE_READ]),
         (
@@ -98,6 +97,11 @@ def test_project_api_key_scopes_are_normalized(
     expected: list[str],
 ) -> None:
     assert normalize_project_api_key_scopes(requested) == expected
+
+
+def test_project_api_key_scopes_must_be_explicit() -> None:
+    with pytest.raises(ValueError, match="at least one explicit scope"):
+        normalize_project_api_key_scopes([])
 
 
 def test_legacy_custom_scope_requires_explicit_replacement() -> None:
