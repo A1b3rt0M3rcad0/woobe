@@ -6,6 +6,9 @@ from modules.core.application.composers.create_api_key_composer import (
 from modules.core.application.composers.create_project_composer import (
     create_project_composer,
 )
+from modules.core.application.composers.create_runtime_api_key_composer import (
+    create_runtime_api_key_composer,
+)
 from modules.core.application.composers.get_project_composer import get_project_composer
 from modules.core.application.composers.get_project_overview_composer import (
     get_project_overview_composer,
@@ -68,6 +71,13 @@ async def update_project(request: FastAPIRequest):
 @router.post("/projects/{project_id}/api-keys")
 async def create_api_key(request: FastAPIRequest):
     handler = create_api_key_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.post("/projects/{project_id}/runtime-keys", status_code=201)
+async def create_runtime_api_key(request: FastAPIRequest):
+    handler = create_runtime_api_key_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
