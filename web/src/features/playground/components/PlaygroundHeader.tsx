@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { AgentControlsPopover } from './AgentControlsPopover'
 import type { Agent } from '@/features/agents/types'
 import type { ReleaseStatus } from '@/features/agents/types'
@@ -40,7 +41,7 @@ export function PlaygroundHeader({
   }
 
   return (
-    <header className="relative z-[200] h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm">
+    <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm`}>
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={handleBackToProject}
