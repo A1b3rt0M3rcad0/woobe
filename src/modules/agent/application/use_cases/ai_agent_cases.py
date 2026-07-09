@@ -31,6 +31,8 @@ class CreateAgentUseCase:
 
     async def execute(self, input_dto: CreateAgentInput) -> Agent:
         agent = Agent(**input_dto.model_dump())
+        _force_strict_json_settings(agent)
+        await _resolve_implicit_provider_model_bindings(agent, self._provider_model_repo)
         await _resolve_provider_model_bindings(
             agent,
             self._provider_model_repo,
@@ -70,6 +72,8 @@ class UpdateAgentUseCase:
             raise AgentNotFoundError(agent_id)
         for field, value in input_dto.model_dump(exclude_unset=True).items():
             setattr(existing, field, value)
+        _force_strict_json_settings(existing)
+        await _resolve_implicit_provider_model_bindings(existing, self._provider_model_repo)
         await _resolve_provider_model_bindings(
             existing,
             self._provider_model_repo,
@@ -154,6 +158,48 @@ def _is_embedding_provider_model(provider_model) -> bool:
 def _ensure_agent_compatible_provider_model(provider_model) -> None:
     if _is_embedding_provider_model(provider_model):
         raise ConflictError("Provider model is not compatible with agent runtime")
+
+
+def _force_strict_json_settings(agent: Agent) -> None:
+    settings = dict(agent.settings or {})
+    response_format = settings.get("response_format")
+    if not isinstance(response_format, dict):
+        return
+    if response_format.get("enabled") is not True or response_format.get("type") != "json":
+        return
+    settings["response_format"] = {**response_format, "strict": True}
+    agent.settings = settings
+
+
+async def _resolve_implicit_provider_model_bindings(agent: Agent, provider_model_repo) -> None:
+    if provider_model_repo is None:
+        return
+
+    if not agent.provider_model_id and agent.provider_credential_id and agent.model:
+        candidates = await provider_model_repo.list_by_credential(agent.provider_credential_id)
+        matches = [
+            item
+            for item in candidates
+            if item.project_id == agent.project_id
+            and item.model.strip() == agent.model.strip()
+            and getattr(item.status, "value", item.status) == ProviderModelStatus.active.value
+            and not _is_embedding_provider_model(item)
+        ]
+        if matches:
+            agent.provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
+
+    if not agent.fallback_provider_model_id and agent.fallback_credential_id and agent.fallback_model:
+        candidates = await provider_model_repo.list_by_credential(agent.fallback_credential_id)
+        matches = [
+            item
+            for item in candidates
+            if item.project_id == agent.project_id
+            and item.model.strip() == agent.fallback_model.strip()
+            and getattr(item.status, "value", item.status) == ProviderModelStatus.active.value
+            and not _is_embedding_provider_model(item)
+        ]
+        if matches:
+            agent.fallback_provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
 
 
 async def _resolve_provider_model_bindings(
