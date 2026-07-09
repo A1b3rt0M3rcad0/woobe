@@ -77,7 +77,7 @@ export function CreateApiKeyDialog({
   const [createdKey, setCreatedKey] = useState<CreateApiKeyResponse | null>(null)
 
   const selectedAgent = agents.find((agent) => agent.id === agentId) ?? null
-  const { data: releases = [] } = useReleases(kind === 'runtime' && agentId ? agentId : undefined)
+  const { data: releases = [], isLoading: releasesLoading } = useReleases(kind === 'runtime' && agentId ? agentId : undefined)
   const currentRelease = useMemo(
     () => releases.find((release) => release.status === environment) ?? null,
     [releases, environment],
@@ -305,7 +305,7 @@ export function CreateApiKeyDialog({
                   <p className="mt-1 text-xs leading-5 text-muted">Create an Agent before creating a Runtime Key.</p>
                 </div>
               ) : selectedAgent ? (
-                <div className={`rounded-xl border p-4 ${currentRelease ? 'border-border/80 bg-background/45' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
+                <div className={`rounded-xl border p-4 ${releasesLoading || currentRelease ? 'border-border/80 bg-background/45' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
@@ -319,7 +319,9 @@ export function CreateApiKeyDialog({
                     <span className="rounded-full border border-border/80 bg-background/60 px-2.5 py-1 text-[10px] capitalize text-muted">{environment}</span>
                   </div>
                   <div className="mt-3 border-t border-border/70 pt-3">
-                    {currentRelease ? (
+                    {releasesLoading ? (
+                      <p className="text-xs text-muted">Checking current deployment…</p>
+                    ) : currentRelease ? (
                       <p className="text-xs text-muted">Current {environmentLabel(environment)} release · <span className="font-medium text-white">{currentRelease.version}</span></p>
                     ) : (
                       <p className="text-xs leading-5 text-yellow-200">No {environmentLabel(environment)} release is deployed. The key can be created now, but requests will return 409 until a release is deployed.</p>
