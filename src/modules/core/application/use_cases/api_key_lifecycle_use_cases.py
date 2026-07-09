@@ -7,7 +7,7 @@ from modules.core.application.dtos.api_key_lifecycle_dtos import (
     RotateApiKeyOutput,
 )
 from modules.core.domain.entities import ApiKey
-from modules.core.domain.enums import ApiKeyStatus
+from modules.core.domain.enums import ApiKeyKind, ApiKeyStatus
 from modules.core.domain.errors import ApiKeyNotActiveError, ApiKeyNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository
 from shared.infra.errors import ValidationError
@@ -77,7 +77,9 @@ class RotateApiKeyUseCase:
             raise ApiKeyNotActiveError("Only active API keys can be rotated")
 
         requested_scopes = (
-            input_dto.scopes if input_dto.scopes is not None else current.scopes
+            current.scopes
+            if current.kind == ApiKeyKind.runtime
+            else input_dto.scopes if input_dto.scopes is not None else current.scopes
         )
         try:
             scopes = normalize_project_api_key_scopes(requested_scopes)
@@ -98,6 +100,10 @@ class RotateApiKeyUseCase:
             key_hash=issued.digest,
             key_version=API_KEY_VERSION,
             scopes=scopes,
+            kind=current.kind,
+            agent_id=current.agent_id,
+            environment=current.environment,
+            interfaces=list(current.interfaces),
             expires_at=(
                 input_dto.expires_at
                 if input_dto.expires_at is not None
@@ -118,6 +124,10 @@ class RotateApiKeyUseCase:
                 "rotated_by_user_id": str(input_dto.rotated_by_user_id),
                 "key_prefix": issued.display_prefix,
                 "scopes": list(saved.scopes),
+                "kind": saved.kind.value,
+                "agent_id": str(saved.agent_id) if saved.agent_id else None,
+                "environment": saved.environment.value if saved.environment else None,
+                "interfaces": list(saved.interfaces),
             },
             routing_key="api_key.rotated.v1",
             idempotency_key=f"core:api_key.rotated.v1:{saved.id}",
@@ -130,6 +140,10 @@ class RotateApiKeyUseCase:
             key=issued.value,
             key_prefix=issued.display_prefix,
             scopes=list(saved.scopes),
+            kind=saved.kind,
+            agent_id=saved.agent_id,
+            environment=saved.environment,
+            interfaces=list(saved.interfaces),
             status=saved.status,
             expires_at=saved.expires_at,
             created_at=saved.created_at,
