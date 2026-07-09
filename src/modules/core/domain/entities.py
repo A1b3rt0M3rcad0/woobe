@@ -7,7 +7,12 @@ from uuid import UUID
 
 import uuid6
 
-from modules.core.domain.enums import ApiKeyStatus, ProjectStatus
+from modules.core.domain.enums import (
+    ApiKeyKind,
+    ApiKeyStatus,
+    ProjectStatus,
+    RuntimeEnvironment,
+)
 
 
 @dataclass
@@ -31,6 +36,10 @@ class ApiKey:
     key_hash: bytes = b""
     key_version: int = 1
     scopes: list[str] = field(default_factory=list)
+    kind: ApiKeyKind = ApiKeyKind.project
+    agent_id: UUID | None = None
+    environment: RuntimeEnvironment | None = None
+    interfaces: list[str] = field(default_factory=list)
     status: ApiKeyStatus = ApiKeyStatus.active
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
