@@ -22,7 +22,7 @@ export interface ApiKey {
 
 export interface CreateApiKeyRequest {
   name: string
-  scopes?: ApiKeyScope[]
+  scopes: ApiKeyScope[]
   expires_at?: string | null
 }
 
