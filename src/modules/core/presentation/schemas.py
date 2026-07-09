@@ -27,7 +27,7 @@ class ProjectResponse(BaseModel):
 
 class CreateApiKeyRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    scopes: list[str] = Field(default_factory=list)
+    scopes: list[str] = Field(min_length=1, max_length=16)
     expires_at: datetime | None = None
 
 
