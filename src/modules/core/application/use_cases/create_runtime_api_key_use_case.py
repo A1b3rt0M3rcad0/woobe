@@ -1,5 +1,6 @@
-from modules.agent.domain.errors import AgentNotFoundError
-from modules.agent.domain.repositories import AgentRepository
+from typing import Protocol
+from uuid import UUID
+
 from modules.core.application.dtos.runtime_api_key_dtos import (
     CreateRuntimeApiKeyInput,
     CreateRuntimeApiKeyOutput,
@@ -8,6 +9,7 @@ from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
+from shared.infra.errors import NotFoundError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
@@ -16,16 +18,20 @@ from shared.security.api_keys import (
 )
 
 
+class RuntimeKeyTargetReader(Protocol):
+    async def get_agent_project_id(self, agent_id: UUID) -> UUID | None: ...
+
+
 class CreateRuntimeApiKeyUseCase:
     def __init__(
         self,
         project_repo: ProjectRepository,
-        agent_repo: AgentRepository,
+        target_reader: RuntimeKeyTargetReader,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
     ) -> None:
         self._project_repo = project_repo
-        self._agent_repo = agent_repo
+        self._target_reader = target_reader
         self._api_key_repo = api_key_repo
         self._outbox = outbox
 
@@ -36,9 +42,11 @@ class CreateRuntimeApiKeyUseCase:
         if project is None:
             raise ProjectNotFoundError(input_dto.project_id)
 
-        agent = await self._agent_repo.get_by_id(input_dto.agent_id)
-        if agent is None or agent.project_id != input_dto.project_id:
-            raise AgentNotFoundError(input_dto.agent_id)
+        agent_project_id = await self._target_reader.get_agent_project_id(
+            input_dto.agent_id
+        )
+        if agent_project_id != input_dto.project_id:
+            raise NotFoundError(f"Agent not found: {input_dto.agent_id}")
 
         issued = issue_project_api_key()
         interfaces = [interface.value for interface in input_dto.interfaces]
