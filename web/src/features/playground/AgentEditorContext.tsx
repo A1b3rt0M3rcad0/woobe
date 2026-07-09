@@ -165,7 +165,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     responseFormat: {
       enabled: Boolean(responseFormat.enabled && responseFormat.type === 'json'),
       type: responseFormat.type === 'json' ? 'json' : 'text',
-      strict: Boolean(responseFormat.strict),
+      strict: true,
       schema: responseFormat.schema ?? null,
       repair_attempts: (responseFormat.repair_attempts as number) ?? undefined,
     },
@@ -216,7 +216,7 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
     responseFormat: {
       enabled: Boolean(rf.enabled ?? release.output_schema),
       type: rf.type === 'json' ? 'json' : 'text',
-      strict: Boolean(rf.strict),
+      strict: true,
       schema: rf.schema ?? release.output_schema ?? null,
       repair_attempts: rf.repair_attempts as number | undefined,
     },
@@ -236,7 +236,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     response_format: {
       enabled: state.responseFormat.enabled,
       type: state.responseFormat.type,
-      strict: state.responseFormat.strict,
+      strict: true,
       schema,
       repair_attempts: state.responseFormat.repair_attempts,
     },
@@ -258,14 +258,28 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
   }
 }
 
+function mergeHydratedState(
+  previous: AgentEditorState,
+  next: AgentEditorState,
+  editedFields: ReadonlySet<keyof AgentEditorState>,
+): AgentEditorState {
+  const merged = { ...previous }
+  for (const key of Object.keys(next) as Array<keyof AgentEditorState>) {
+    if (editedFields.has(key)) continue
+    ;(merged as Record<keyof AgentEditorState, AgentEditorState[keyof AgentEditorState]>)[key] = next[key]
+  }
+  return merged
+}
+
 const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function AgentEditorProvider({ agent, projectId, collectionIds: propCollectionIds, knowledgeVersionId, children }: { agent: Agent; projectId?: string; collectionIds?: string[]; knowledgeVersionId?: string | null; children: ReactNode }) {
   const initial = () => agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
-  const [state, setState] = useState<AgentEditorState>(initial)
+  const [state, setEditorState] = useState<AgentEditorState>(initial)
   const [baselineState, setBaselineState] = useState<AgentEditorState>(initial)
   const [loadedReleaseId, setLoadedReleaseId] = useState<string | null>(null)
   const [loadedReleaseVersion, setLoadedReleaseVersion] = useState<string | null>(null)
+  const editedFields = useRef<Set<keyof AgentEditorState>>(new Set())
   const initializedDraft = useRef(knowledgeVersionId !== undefined)
   const editorResetKey = `${agent.id}|${knowledgeVersionId === undefined ? '__draft__' : knowledgeVersionId ?? ''}|${(propCollectionIds ?? []).join(',')}`
   const lastEditorResetKey = useRef(editorResetKey)
@@ -274,11 +288,17 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
   const { data: credentials } = useCredentials(projectId || '')
   const { data: providerModels } = useProviderModels(projectId || '')
 
+  const hydrateState = useCallback((buildNext: (previous: AgentEditorState) => AgentEditorState) => {
+    setEditorState((previous) => mergeHydratedState(previous, buildNext(previous), editedFields.current))
+    setBaselineState((previous) => mergeHydratedState(previous, buildNext(previous), editedFields.current))
+  }, [])
+
   useEffect(() => {
     if (lastEditorResetKey.current === editorResetKey) return
     lastEditorResetKey.current = editorResetKey
     const next = agentToEditorState(agent, propCollectionIds, knowledgeVersionId)
-    setState(next)
+    editedFields.current.clear()
+    setEditorState(next)
     setBaselineState(next)
     setLoadedReleaseId(null)
     setLoadedReleaseVersion(null)
@@ -292,20 +312,18 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     const legacyToolPermissions = toolPermissionsFromTools(legacyAgentTools)
     const draft = releases.find((release) => release.status === 'draft')
     if (!draft) {
-      setState((previous) => ({ ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
-      setBaselineState((previous) => ({ ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
+      hydrateState((previous) => ({ ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
       return
     }
     let cancelled = false
     void getRelease(agent.id, draft.id)
       .then((release) => {
         if (cancelled) return
-        setState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
-        setBaselineState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
+        hydrateState((previous) => releaseToEditorState(release, { ...previous, toolIds: legacyToolIds, toolPermissions: legacyToolPermissions }))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [agent.id, releases, legacyAgentTools])
+  }, [agent.id, releases, legacyAgentTools, hydrateState])
 
   useEffect(() => {
     if (!loadedReleaseId) return
@@ -313,30 +331,30 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     void getRelease(agent.id, loadedReleaseId)
       .then((release) => {
         if (cancelled) return
-        setState((previous) => releaseToEditorState(release, previous))
+        hydrateState((previous) => releaseToEditorState(release, previous))
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [agent.id, loadedReleaseId])
+  }, [agent.id, loadedReleaseId, hydrateState])
 
   useEffect(() => {
     if (state.providerModelId || !providerModels?.length || !state.providerCredentialId || !state.model) return
     const providerModel = providerModels.find((item) => item.provider_credential_id === state.providerCredentialId && item.model === state.model)
-    if (providerModel) setState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
-  }, [state.providerModelId, state.providerCredentialId, state.model, providerModels])
+    if (providerModel) hydrateState((previous) => previous.providerModelId ? previous : { ...previous, providerModelId: providerModel.id })
+  }, [state.providerModelId, state.providerCredentialId, state.model, providerModels, hydrateState])
 
   useEffect(() => {
     if (state.fallbackProviderModelId || !providerModels?.length || !state.fallbackProviderCredentialId || !state.fallbackModel) return
     const providerModel = providerModels.find((item) => item.provider_credential_id === state.fallbackProviderCredentialId && item.model === state.fallbackModel)
-    if (providerModel) setState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
-  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, state.fallbackModel, providerModels])
+    if (providerModel) hydrateState((previous) => previous.fallbackProviderModelId ? previous : { ...previous, fallbackProviderModelId: providerModel.id })
+  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, state.fallbackModel, providerModels, hydrateState])
 
   useEffect(() => {
     if (!state.providerModelId || !providerModels?.length) return
     const providerModel = providerModels.find((item) => item.id === state.providerModelId)
     if (!providerModel) return
     const credential = credentials?.find((item) => item.id === providerModel.provider_credential_id)
-    setState((previous) => {
+    hydrateState((previous) => {
       const provider = providerModel.provider || credential?.provider || previous.provider
       const model = providerModel.model || previous.model
       const providerCredentialId = providerModel.provider_credential_id || previous.providerCredentialId
@@ -344,50 +362,67 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
       if (previous.provider === provider && previous.model === model && previous.providerCredentialId === providerCredentialId && previous.baseUrl === baseUrl) return previous
       return { ...previous, provider, model, providerCredentialId, baseUrl }
     })
-  }, [state.providerModelId, providerModels, credentials])
+  }, [state.providerModelId, providerModels, credentials, hydrateState])
 
   useEffect(() => {
     if (!state.fallbackProviderModelId || !providerModels?.length) return
     const providerModel = providerModels.find((item) => item.id === state.fallbackProviderModelId)
     if (!providerModel) return
     const credential = credentials?.find((item) => item.id === providerModel.provider_credential_id)
-    setState((previous) => {
+    hydrateState((previous) => {
       const fallbackProvider = providerModel.provider || credential?.provider || previous.fallbackProvider
       const fallbackModel = providerModel.model || previous.fallbackModel
       const fallbackProviderCredentialId = providerModel.provider_credential_id || previous.fallbackProviderCredentialId
       if (previous.fallbackProvider === fallbackProvider && previous.fallbackModel === fallbackModel && previous.fallbackProviderCredentialId === fallbackProviderCredentialId) return previous
       return { ...previous, fallbackProvider, fallbackModel, fallbackProviderCredentialId }
     })
-  }, [state.fallbackProviderModelId, providerModels, credentials])
+  }, [state.fallbackProviderModelId, providerModels, credentials, hydrateState])
 
   useEffect(() => {
     if (state.providerModelId || !state.providerCredentialId || !credentials?.length) return
     const credential = credentials.find((item) => item.id === state.providerCredentialId)
     if (!credential) return
-    setState((previous) => {
+    hydrateState((previous) => {
       const provider = credential.provider
       const model = credential.metadata?.model || credential.metadata?.model_name || previous.model
       const baseUrl = credential.metadata?.base_url || previous.baseUrl
       if (previous.provider === provider && previous.model === model && previous.baseUrl === baseUrl) return previous
       return { ...previous, provider, model, baseUrl }
     })
-  }, [state.providerModelId, state.providerCredentialId, credentials])
+  }, [state.providerModelId, state.providerCredentialId, credentials, hydrateState])
 
   useEffect(() => {
     if (state.fallbackProviderModelId || !state.fallbackProviderCredentialId || !credentials?.length) return
     const credential = credentials.find((item) => item.id === state.fallbackProviderCredentialId)
-    if (credential) setState((previous) => ({ ...previous, fallbackProvider: credential.provider, fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel }))
-  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, credentials])
+    if (!credential) return
+    hydrateState((previous) => ({ ...previous, fallbackProvider: credential.provider, fallbackModel: credential.metadata?.model || credential.metadata?.model_name || previous.fallbackModel }))
+  }, [state.fallbackProviderModelId, state.fallbackProviderCredentialId, credentials, hydrateState])
 
-  const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => setState((previous) => ({ ...previous, [key]: value })), [])
+  const setField = useCallback(<K extends keyof AgentEditorState>(key: K, value: AgentEditorState[K]) => {
+    editedFields.current.add(key)
+    setEditorState((previous) => ({ ...previous, [key]: value }))
+  }, [])
+
+  const setState = useCallback((next: AgentEditorState) => {
+    for (const key of Object.keys(next) as Array<keyof AgentEditorState>) editedFields.current.add(key)
+    setEditorState(next)
+  }, [])
+
   const setLoadedRelease = useCallback((id: string | null, version: string | null) => { setLoadedReleaseId(id); setLoadedReleaseVersion(version) }, [])
   const toSnapshot = useCallback((): Record<string, unknown> => canonicalSnapshot(state), [state])
   const snapshot = useMemo(() => JSON.stringify(canonicalSnapshot(state)), [state])
   const baselineSnapshot = useMemo(() => JSON.stringify(canonicalSnapshot(baselineState)), [baselineState])
   const isDirty = snapshot !== baselineSnapshot
   const activeSource: 'current_draft' | 'draft_unsaved' = isDirty ? 'draft_unsaved' : 'current_draft'
-  const resetToBaseline = useCallback(() => { setState(baselineState); setLoadedRelease(null, null) }, [baselineState, setLoadedRelease])
-  const updateBaseline = useCallback(() => setBaselineState(state), [state])
+  const resetToBaseline = useCallback(() => {
+    editedFields.current.clear()
+    setEditorState(baselineState)
+    setLoadedRelease(null, null)
+  }, [baselineState, setLoadedRelease])
+  const updateBaseline = useCallback(() => {
+    editedFields.current.clear()
+    setBaselineState(state)
+  }, [state])
 
   return <EditorContext.Provider value={{ state, setField, setState, toSnapshot, loadedReleaseId, loadedReleaseVersion, setLoadedRelease, isDirty, activeSource, resetToBaseline, updateBaseline }}>{children}</EditorContext.Provider>
 }
