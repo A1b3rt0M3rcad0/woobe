@@ -13,8 +13,8 @@ from modules.core.domain.repositories import ApiKeyRepository
 from shared.infra.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
-    API_KEY_VERSION,
     issue_project_api_key,
+    issue_runtime_api_key,
     normalize_project_api_key_scopes,
 )
 
@@ -86,19 +86,25 @@ class RotateApiKeyUseCase:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        if current.kind == ApiKeyKind.runtime:
+            if current.environment is None:
+                raise ValidationError("Runtime API key environment is missing")
+            issued = issue_runtime_api_key(current.environment.value)
+        else:
+            issued = issue_project_api_key()
+
         now = datetime.now(UTC)
         current.status = ApiKeyStatus.revoked
         current.revoked_at = now
         current.updated_at = now
         await self._api_key_repo.update(current)
 
-        issued = issue_project_api_key()
         replacement = ApiKey(
             project_id=current.project_id,
             name=input_dto.name or current.name,
             key_prefix=issued.public_prefix,
             key_hash=issued.digest,
-            key_version=API_KEY_VERSION,
+            key_version=issued.key_version,
             scopes=scopes,
             kind=current.kind,
             agent_id=current.agent_id,
