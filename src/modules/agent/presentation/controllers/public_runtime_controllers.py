@@ -113,9 +113,11 @@ class PublicGetJobController(Controller):
         principal = require_runtime_principal(request)
         job_id = UUID(request.path_params["job_id"])
         job = await self._repo.get_by_id(job_id)
+        job_environment = (job.params or {}).get("execution_context")
         if (
             job.project_id != principal.project_id
             or job.agent_id != principal.agent_id
+            or job_environment != principal.environment
         ):
             raise AskJobNotFoundError(job_id)
 
