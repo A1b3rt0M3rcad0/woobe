@@ -17,7 +17,6 @@ export const createApiKeySchema = z.object({
 export const createRuntimeApiKeySchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),
   interfaces: z.array(runtimeInterfaceSchema).min(1, 'Select at least one interface'),
-  expires_at: z.string().optional(),
 })
 
 export type CreateApiKeyFormData = z.infer<typeof createApiKeySchema>
