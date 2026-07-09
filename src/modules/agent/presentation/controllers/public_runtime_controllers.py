@@ -9,6 +9,9 @@ from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
     GetAskJobOutput,
 )
+from modules.agent.application.use_cases.public_runtime_environment_validator import (
+    PublicRuntimeEnvironmentValidator,
+)
 from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.domain.repositories import AskJobRepository
@@ -46,11 +49,19 @@ def build_internal_runtime_body(
 
 
 class PublicRunController(Controller):
-    def __init__(self, internal_handler: InternalHandler) -> None:
+    def __init__(
+        self,
+        internal_handler: InternalHandler,
+        environment_validator: PublicRuntimeEnvironmentValidator,
+    ) -> None:
         self._internal_handler = internal_handler
+        self._environment_validator = environment_validator
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
+        await self._environment_validator.validate(
+            principal.agent_id, principal.environment
+        )
         payload = PublicRunRequest(**(request.body or {}))
         internal_request = request.model_copy(
             update={"body": build_internal_runtime_body(payload, principal)}
@@ -59,11 +70,19 @@ class PublicRunController(Controller):
 
 
 class PublicCreateJobController(Controller):
-    def __init__(self, use_case: CreateAskJobUseCase) -> None:
+    def __init__(
+        self,
+        use_case: CreateAskJobUseCase,
+        environment_validator: PublicRuntimeEnvironmentValidator,
+    ) -> None:
         self._use_case = use_case
+        self._environment_validator = environment_validator
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
+        await self._environment_validator.validate(
+            principal.agent_id, principal.environment
+        )
         payload = PublicCreateJobRequest(**(request.body or {}))
         input_dto = CreateAskJobInput(
             **build_internal_runtime_body(payload, principal)
