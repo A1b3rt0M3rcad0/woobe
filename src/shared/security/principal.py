@@ -21,10 +21,17 @@ class ProjectApiPrincipal(BaseModel):
     project_id: UUID
     key_prefix: str
     scopes: frozenset[str] = Field(default_factory=frozenset)
+    kind: str = "project"
+    agent_id: UUID | None = None
+    environment: str | None = None
+    interfaces: frozenset[str] = Field(default_factory=frozenset)
     authenticated_at: datetime
 
     def has_scope(self, scope: str) -> bool:
         return scope in self.scopes
+
+    def allows_interface(self, interface: str) -> bool:
+        return interface in self.interfaces
 
 
 SecurityPrincipal: TypeAlias = AuthenticatedPrincipal | ProjectApiPrincipal
