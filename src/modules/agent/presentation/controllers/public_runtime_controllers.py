@@ -20,7 +20,10 @@ from shared.security.principal import ProjectApiPrincipal
 
 
 InternalHandler = Callable[[Request], Awaitable[Response]]
-EnvironmentPreflight = Callable[[UUID, str], Awaitable[None]]
+RequestPreparer = Callable[
+    [PublicRunRequest, UUID, UUID, str],
+    Awaitable[PublicRunRequest],
+]
 
 
 def require_runtime_principal(request: Request) -> ProjectApiPrincipal:
@@ -50,15 +53,20 @@ class PublicRunController(Controller):
     def __init__(
         self,
         internal_handler: InternalHandler,
-        environment_preflight: EnvironmentPreflight,
+        request_preparer: RequestPreparer,
     ) -> None:
         self._internal_handler = internal_handler
-        self._environment_preflight = environment_preflight
+        self._request_preparer = request_preparer
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
-        await self._environment_preflight(principal.agent_id, principal.environment)
         payload = PublicRunRequest(**(request.body or {}))
+        payload = await self._request_preparer(
+            payload,
+            principal.project_id,
+            principal.agent_id,
+            principal.environment,
+        )
         internal_request = request.model_copy(
             update={"body": build_internal_runtime_body(payload, principal)}
         )
@@ -69,15 +77,20 @@ class PublicCreateJobController(Controller):
     def __init__(
         self,
         use_case: CreateAskJobUseCase,
-        environment_preflight: EnvironmentPreflight,
+        request_preparer: RequestPreparer,
     ) -> None:
         self._use_case = use_case
-        self._environment_preflight = environment_preflight
+        self._request_preparer = request_preparer
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
-        await self._environment_preflight(principal.agent_id, principal.environment)
         payload = PublicCreateJobRequest(**(request.body or {}))
+        payload = await self._request_preparer(
+            payload,
+            principal.project_id,
+            principal.agent_id,
+            principal.environment,
+        )
         input_dto = CreateAskJobInput(
             **build_internal_runtime_body(payload, principal)
         )
