@@ -24,7 +24,7 @@ import { toast } from 'sonner'
 import type { ApiKey, ApiKeyScope } from '@/features/api-keys/types'
 
 const SCOPE_OPTIONS: Array<{ value: ApiKeyScope; label: string; description: string }> = [
-  { value: 'runtime:execute', label: 'Runtime execute', description: 'Execute runtime requests' },
+  { value: 'runtime:execute', label: 'Runtime execute', description: 'Execute legacy project runtime requests' },
   { value: 'traces:read', label: 'Traces read', description: 'Read execution traces' },
   { value: 'usage:read', label: 'Usage read', description: 'Read usage and cost data' },
 ]
@@ -64,8 +64,8 @@ function CreateCard({ onClick }: { onClick: () => void }) {
       <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
         <Plus className="h-6 w-6" />
       </span>
-      <span className="mt-5 text-base font-semibold text-white">New API key</span>
-      <span className="mt-2 max-w-[220px] text-sm leading-6 text-muted">Create a project-scoped credential</span>
+      <span className="mt-5 text-base font-semibold text-white">New Project API key</span>
+      <span className="mt-2 max-w-[240px] text-sm leading-6 text-muted">Create a project-scoped credential for operational APIs.</span>
     </button>
   )
 }
@@ -75,13 +75,14 @@ function NoResults({ query }: { query: string }) {
     <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-4">
       <h2 className="text-sm font-semibold text-white">No API keys found</h2>
       <p className="mt-1 text-sm text-muted">
-        {query.trim() ? 'Adjust the search term or create a new key.' : 'Create a project-scoped key to connect to the runtime.'}
+        {query.trim() ? 'Adjust the search term.' : 'Create a Project API key or create a Runtime Key from an Agent API Reference.'}
       </p>
     </div>
   )
 }
 
 function ApiKeyCard({ apiKey, onClick }: { apiKey: ApiKey; onClick: () => void }) {
+  const runtime = apiKey.kind === 'runtime'
   return (
     <button
       type="button"
@@ -104,12 +105,15 @@ function ApiKeyCard({ apiKey, onClick }: { apiKey: ApiKey; onClick: () => void }
       <span className="my-5 block h-px bg-border/80" />
 
       <span className="grid gap-2 text-xs text-muted">
-        <span>Last used · {formatDate(apiKey.last_used_at)}</span>
+        <span>Type · {runtime ? 'Runtime Key' : 'Project Key'}</span>
+        {runtime && <span>Environment · <span className="capitalize">{apiKey.environment}</span></span>}
         <span>Expires · {apiKey.expires_at ? formatDate(apiKey.expires_at) : 'Never'}</span>
       </span>
 
       <span className="mt-auto flex flex-wrap gap-2 pt-5">
-        {apiKey.scopes.map((scope) => <Pill key={scope}>{scope}</Pill>)}
+        {runtime
+          ? apiKey.interfaces.map((item) => <Pill key={item} tone="primary">{item}</Pill>)
+          : apiKey.scopes.map((scope) => <Pill key={scope}>{scope}</Pill>)}
       </span>
     </button>
   )
@@ -130,6 +134,27 @@ function ScopeList({ scopes }: { scopes: ApiKeyScope[] }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function RuntimeBinding({ apiKey }: { apiKey: ApiKey }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Agent ID</p>
+        <code className="mt-2 block break-all text-xs text-white">{apiKey.agent_id}</code>
+      </div>
+      <div className="rounded-xl border border-border/80 bg-background/60 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
+        <p className="mt-2 text-sm font-medium capitalize text-white">{apiKey.environment}</p>
+      </div>
+      <div className="rounded-xl border border-border/80 bg-background/60 p-4 md:col-span-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Allowed interfaces</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {apiKey.interfaces.map((item) => <Pill key={item} tone="primary">{item}</Pill>)}
+        </div>
+      </div>
     </div>
   )
 }
@@ -165,7 +190,10 @@ export default function ApiKeysPage() {
       key.name.toLowerCase().includes(normalizedQuery)
       || key.key_prefix.toLowerCase().includes(normalizedQuery)
       || key.status.toLowerCase().includes(normalizedQuery)
+      || key.kind.toLowerCase().includes(normalizedQuery)
+      || (key.environment ?? '').toLowerCase().includes(normalizedQuery)
       || key.scopes.some((scope) => scope.toLowerCase().includes(normalizedQuery))
+      || key.interfaces.some((item) => item.toLowerCase().includes(normalizedQuery))
     ))
   }, [items, query])
 
@@ -224,7 +252,7 @@ export default function ApiKeysPage() {
   return (
     <MinimalShell
       title="API Keys"
-      description="Create and operate project-scoped credentials for runtime, traces and usage APIs."
+      description="Operate project-scoped credentials and Agent-bound Runtime Keys. Runtime Keys are created from an Agent API Reference so target and environment stay explicit."
     >
       <div className="relative max-w-3xl">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -265,7 +293,7 @@ export default function ApiKeysPage() {
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
                     <StatusBadge status={selectedKey.status} />
-                    {selectedKey.scopes.map((scope) => <Pill key={scope}>{scope}</Pill>)}
+                    <Pill tone={selectedKey.kind === 'runtime' ? 'primary' : 'default'}>{selectedKey.kind === 'runtime' ? 'Runtime Key' : 'Project Key'}</Pill>
                   </div>
                 </div>
 
@@ -291,10 +319,16 @@ export default function ApiKeysPage() {
               <main className="space-y-5">
                 <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                   <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-white">Scopes</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted">Permissions granted to requests signed with this key.</p>
+                    <h3 className="text-sm font-semibold text-white">{selectedKey.kind === 'runtime' ? 'Runtime binding' : 'Scopes'}</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {selectedKey.kind === 'runtime'
+                        ? 'Target, environment and interfaces are preserved when this key is rotated.'
+                        : 'Permissions granted to requests signed with this key.'}
+                    </p>
                   </div>
-                  <ScopeList scopes={selectedKey.scopes} />
+                  {selectedKey.kind === 'runtime'
+                    ? <RuntimeBinding apiKey={selectedKey} />
+                    : <ScopeList scopes={selectedKey.scopes} />}
                 </section>
 
                 <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
@@ -318,7 +352,7 @@ export default function ApiKeysPage() {
       <Dialog
         open={showCreate}
         onClose={() => { setShowCreate(false); setNewKey(null) }}
-        title={newKey ? 'API Key Ready' : 'Create API Key'}
+        title={newKey ? 'API Key Ready' : 'Create Project API Key'}
         className="max-w-2xl"
       >
         {newKey ? (
