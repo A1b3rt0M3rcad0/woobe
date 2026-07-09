@@ -57,7 +57,7 @@ export default function KnowledgePage() {
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant={section === 'collections' ? 'default' : 'outline'} onClick={() => setSection('collections')}>Collections</Button>
-        <Button type="button" variant={section === 'embedding' ? 'default' : 'outline'} onClick={() => setSection('embedding')}>Embedding</Button>
+        <Button type="button" variant={section === 'embedding' ? 'default' : 'outline'} onClick={() => setSection('embedding')}>Embedding models</Button>
       </div>
 
       {section === 'collections' ? (
