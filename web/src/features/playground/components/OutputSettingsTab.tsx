@@ -14,6 +14,11 @@ function schemaToString(schema: unknown): string {
   return DEFAULT_SCHEMA
 }
 
+function hasMaterializedSchema(schema: unknown): boolean {
+  if (typeof schema === 'string') return schema.trim().length > 0
+  return Boolean(schema && typeof schema === 'object')
+}
+
 function HelpButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
@@ -38,15 +43,15 @@ export function OutputSettingsTab() {
       ...responseFormat,
       enabled,
       type: enabled ? 'json' : 'text',
+      strict: true,
+      schema: enabled && !hasMaterializedSchema(responseFormat.schema)
+        ? DEFAULT_SCHEMA
+        : responseFormat.schema,
     })
   }
 
-  const handleStrictToggle = (strict: boolean) => {
-    setField('responseFormat', { ...responseFormat, strict })
-  }
-
   const handleSchemaChange = (value: string) => {
-    setField('responseFormat', { ...responseFormat, schema: value })
+    setField('responseFormat', { ...responseFormat, strict: true, schema: value })
   }
 
   return (
@@ -83,19 +88,6 @@ export function OutputSettingsTab() {
             <p className="mt-2 text-[11px] leading-relaxed text-muted">
               Type names such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> define expected output types. They are not literal values.
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="json-strict"
-              checked={responseFormat.strict}
-              onChange={(e) => handleStrictToggle(e.target.checked)}
-              disabled={!responseFormat.enabled}
-              className="h-4 w-4 rounded border-border bg-background"
-            />
-            <label htmlFor="json-strict" className="text-sm font-medium text-muted">
-              Strict mode
-            </label>
           </div>
         </div>
       </div>

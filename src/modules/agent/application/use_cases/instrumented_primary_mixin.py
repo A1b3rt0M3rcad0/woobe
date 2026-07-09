@@ -59,7 +59,10 @@ class InstrumentedPrimaryExecutionMixin:
             context.prepare_ended_at = utc_now()
             context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
             response_format = prepared[5]
-            context.strict_json = bool(response_format.get("strict", False))
+            context.strict_json = bool(
+                response_format.get("enabled", False)
+                and response_format.get("type") == "json"
+            )
             agent, session, trace_id = prepared[0], prepared[1], prepared[2]
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
