@@ -23,7 +23,11 @@ from modules.core.domain.enums import (
     RuntimeInterface,
 )
 from shared.infra.errors import NotFoundError
-from shared.security.api_keys import API_KEY_SCOPE_RUNTIME_EXECUTE
+from shared.security.api_keys import (
+    API_KEY_SCOPE_RUNTIME_EXECUTE,
+    API_KEY_VERSION,
+    LEGACY_API_KEY_VERSION,
+)
 
 
 @pytest.mark.asyncio
@@ -61,6 +65,9 @@ async def test_create_runtime_key_binds_agent_environment_and_interfaces() -> No
     assert saved.environment == RuntimeEnvironment.production
     assert saved.interfaces == ["http", "stream"]
     assert saved.scopes == [API_KEY_SCOPE_RUNTIME_EXECUTE]
+    assert saved.key_version == API_KEY_VERSION
+    assert result.key.startswith("woobe_production_")
+    assert result.key_prefix.startswith("woobe_production_")
     assert result.agent_id == agent_id
     assert result.environment == RuntimeEnvironment.production
     assert result.interfaces == ["http", "stream"]
@@ -96,10 +103,11 @@ async def test_create_runtime_key_rejects_agent_from_another_project() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rotation_preserves_runtime_key_binding() -> None:
+async def test_rotation_preserves_binding_and_upgrades_legacy_runtime_key_format() -> None:
     current = ApiKey(
         project_id=uuid4(),
         name="Production integration",
+        key_version=LEGACY_API_KEY_VERSION,
         scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
         kind=ApiKeyKind.runtime,
         agent_id=uuid4(),
@@ -129,6 +137,9 @@ async def test_rotation_preserves_runtime_key_binding() -> None:
     assert replacement.environment == RuntimeEnvironment.production
     assert replacement.interfaces == ["http", "jobs"]
     assert replacement.scopes == [API_KEY_SCOPE_RUNTIME_EXECUTE]
+    assert replacement.key_version == API_KEY_VERSION
+    assert result.key.startswith("woobe_production_")
+    assert result.key_prefix.startswith("woobe_production_")
     assert result.agent_id == current.agent_id
     assert result.environment == RuntimeEnvironment.production
     assert result.interfaces == ["http", "jobs"]
@@ -155,3 +166,26 @@ async def test_list_api_keys_exposes_expired_status_from_expiration_timestamp() 
     result = await use_case.execute(ListApiKeysInput(project_id=project_id))
 
     assert result[0].status == ApiKeyStatus.expired
+
+
+@pytest.mark.asyncio
+async def test_list_api_keys_preserves_legacy_display_prefix() -> None:
+    project_id = uuid4()
+    api_key = ApiKey(
+        project_id=project_id,
+        name="Legacy runtime key",
+        key_prefix="a" * 12,
+        key_version=LEGACY_API_KEY_VERSION,
+        kind=ApiKeyKind.runtime,
+        agent_id=uuid4(),
+        environment=RuntimeEnvironment.staging,
+        interfaces=["http"],
+        scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
+        created_by_user_id=uuid4(),
+    )
+    repo = SimpleNamespace(list_by_project=AsyncMock(return_value=[api_key]))
+    use_case = ListApiKeysByProjectUseCase(repo)
+
+    result = await use_case.execute(ListApiKeysInput(project_id=project_id))
+
+    assert result[0].key_prefix == f"rai_live_{'a' * 12}"
