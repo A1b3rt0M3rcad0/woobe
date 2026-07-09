@@ -222,7 +222,7 @@ export function WoobeDateTimePicker({
   const changeHour = (delta: number) => {
     setDraft((current) => {
       const next = cloneDate(current)
-      next.setHours((next.getHours() + delta + 24) % 24)
+      next.setHours(next.getHours() + delta)
       return next
     })
   }
@@ -230,7 +230,7 @@ export function WoobeDateTimePicker({
   const changeMinute = (delta: number) => {
     setDraft((current) => {
       const next = cloneDate(current)
-      next.setMinutes((next.getMinutes() + delta + 60) % 60)
+      next.setMinutes(next.getMinutes() + delta)
       return next
     })
   }
