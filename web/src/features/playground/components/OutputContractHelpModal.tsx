@@ -138,24 +138,10 @@ export function OutputContractHelpModal({ open, onClose }: OutputContractHelpMod
           </section>
 
           <section className="rounded-lg border border-border bg-background p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-white">Strict mode</h3>
+            <h3 className="text-sm font-semibold text-white">Strict validation</h3>
             <p className="text-xs leading-relaxed text-muted">
-              Strict mode controls how the runtime behaves when the model output cannot be parsed or does not match the contract.
+              Strict validation is always active when JSON output is enabled. Invalid JSON or a response that does not match the output contract fails the request, preventing downstream code from receiving an unreliable JSON shape.
             </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-md border border-border bg-surface p-3">
-                <p className="text-xs font-semibold text-white">Strict mode ON</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  Invalid JSON or a type mismatch fails the request. This is useful when downstream code depends on a reliable JSON shape.
-                </p>
-              </div>
-              <div className="rounded-md border border-border bg-surface p-3">
-                <p className="text-xs font-semibold text-white">Strict mode OFF</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  The request can still complete, but <code>output_parse_error</code> is filled so you can see exactly what failed.
-                </p>
-              </div>
-            </div>
           </section>
 
           <section className="rounded-lg border border-border bg-background p-4 space-y-3">
