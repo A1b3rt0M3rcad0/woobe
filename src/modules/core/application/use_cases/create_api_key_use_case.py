@@ -7,11 +7,7 @@ from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
 from shared.infra.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.security.api_keys import (
-    API_KEY_VERSION,
-    issue_project_api_key,
-    normalize_project_api_key_scopes,
-)
+from shared.security.api_keys import issue_project_api_key, normalize_project_api_key_scopes
 
 
 class CreateApiKeyUseCase:
@@ -41,7 +37,7 @@ class CreateApiKeyUseCase:
             name=input_dto.name,
             key_prefix=issued.public_prefix,
             key_hash=issued.digest,
-            key_version=API_KEY_VERSION,
+            key_version=issued.key_version,
             scopes=scopes,
             expires_at=input_dto.expires_at,
             created_by_user_id=input_dto.created_by_user_id,
