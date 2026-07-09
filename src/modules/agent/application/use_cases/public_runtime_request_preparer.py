@@ -25,7 +25,6 @@ class PublicRuntimeRequestPreparer:
     async def prepare(
         self,
         payload: PublicRunRequest,
-        *,
         project_id: UUID,
         agent_id: UUID,
         environment: str,
