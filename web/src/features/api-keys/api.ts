@@ -3,6 +3,7 @@ import type {
   ApiKey,
   CreateApiKeyRequest,
   CreateApiKeyResponse,
+  CreateRuntimeApiKeyRequest,
   RotateApiKeyRequest,
 } from './types'
 
@@ -15,6 +16,13 @@ export async function createApiKey(
   data: CreateApiKeyRequest,
 ): Promise<CreateApiKeyResponse> {
   return post<CreateApiKeyResponse>(`/core/projects/${projectId}/api-keys`, data)
+}
+
+export async function createRuntimeApiKey(
+  projectId: string,
+  data: CreateRuntimeApiKeyRequest,
+): Promise<CreateApiKeyResponse> {
+  return post<CreateApiKeyResponse>(`/core/projects/${projectId}/runtime-keys`, data)
 }
 
 export async function revokeApiKey(projectId: string, apiKeyId: string): Promise<ApiKey> {
