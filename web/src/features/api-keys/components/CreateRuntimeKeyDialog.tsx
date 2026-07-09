@@ -221,6 +221,7 @@ export function CreateRuntimeKeyDialog({
               <div className="mt-3">
                 <WoobeDateTimePicker
                   value={customExpiration}
+                  autoOpen
                   onChange={(value) => {
                     setCustomExpiration(value)
                     if (value) setCustomExpirationError(false)
