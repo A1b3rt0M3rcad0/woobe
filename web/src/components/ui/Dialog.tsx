@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
+import { UI_LAYER_CLASS, type DialogLayer } from '@/lib/ui-layers'
 import { X } from 'lucide-react'
 
 interface DialogProps {
@@ -9,9 +10,17 @@ interface DialogProps {
   children: ReactNode
   title?: string
   className?: string
+  layer?: DialogLayer
 }
 
-export function Dialog({ open, onClose, children, title, className }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  children,
+  title,
+  className,
+  layer = 'modal',
+}: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,7 +42,10 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex min-h-svh w-screen items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md"
+      className={cn(
+        'fixed inset-0 flex min-h-svh w-screen items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md',
+        UI_LAYER_CLASS[layer],
+      )}
       onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div
