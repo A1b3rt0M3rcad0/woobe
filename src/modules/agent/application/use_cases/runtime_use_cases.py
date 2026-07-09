@@ -232,7 +232,7 @@ class CreateAskJobUseCase:
         if self._outbox:
             event = AgentExecutionRequestedV1.create(
                 agent_id=input_dto.agent_id,
-                session_id=cast(UUID, input_dto.session_id),
+                session_id=input_dto.session_id or created.id,
                 payload={
                     "job_id": str(created.id),
                     "project_id": str(input_dto.project_id),
