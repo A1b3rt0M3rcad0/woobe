@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Boxes, Key, Plus } from 'lucide-react'
 
@@ -79,7 +79,7 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
   const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId?: string }>()
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
-  const { data: providerModels = [], refetch: refetchProviderModels } = useProviderModels(projectId)
+  const { data: providerModels = [] } = useProviderModels(projectId)
   const { state, setField } = useAgentEditor()
 
   const [showAddCredential, setShowAddCredential] = useState(false)
@@ -93,25 +93,6 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
   const selectedCredential = selectedModel ? credentialsById.get(selectedModel.provider_credential_id) : null
   const fallbackModel = providerModels.find((model) => model.id === state.fallbackProviderModelId) || null
   const fallbackCredential = fallbackModel ? credentialsById.get(fallbackModel.provider_credential_id) : null
-
-  useEffect(() => {
-    if (!selectedModel) return
-    const credential = credentialsById.get(selectedModel.provider_credential_id)
-    setField('providerCredentialId', selectedModel.provider_credential_id)
-    setField('provider', selectedModel.provider || credential?.provider || state.provider)
-    setField('model', selectedModel.model)
-    setField('baseUrl', credential?.metadata?.base_url || null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedModel?.id, credentialsById])
-
-  useEffect(() => {
-    if (!fallbackModel) return
-    const credential = credentialsById.get(fallbackModel.provider_credential_id)
-    setField('fallbackProviderCredentialId', fallbackModel.provider_credential_id)
-    setField('fallbackProvider', fallbackModel.provider || credential?.provider || state.fallbackProvider)
-    setField('fallbackModel', fallbackModel.model)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fallbackModel?.id, credentialsById])
 
   const handleSelectPrimaryModel = (id: string) => {
     const model = providerModels.find((item) => item.id === id)
