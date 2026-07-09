@@ -12,6 +12,7 @@ import type { CreateSessionRequest, AskRequest } from './types'
 let activeStreamController: AbortController | null = null
 
 const AGENT_SESSIONS_PAGE_SIZE = 20
+const DEFAULT_OUTPUT_CONTRACT = { message: 'string', confidence: 'float' }
 const sessionOutputContractFingerprints = new Map<string, string>()
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -20,11 +21,20 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function hasMaterializedSchema(schema: unknown): boolean {
+  if (typeof schema === 'string') return schema.trim().length > 0
+  return Boolean(schema && typeof schema === 'object')
+}
+
 function withStrictOutputContract(data: AskRequest): AskRequest {
   const snapshot = data.snapshot_override
   if (!snapshot) return data
   const responseFormat = recordValue(snapshot.response_format)
   if (Object.keys(responseFormat).length === 0) return data
+  const jsonEnabled = responseFormat.enabled === true && responseFormat.type === 'json'
+  const schema = jsonEnabled && !hasMaterializedSchema(responseFormat.schema)
+    ? DEFAULT_OUTPUT_CONTRACT
+    : responseFormat.schema
   return {
     ...data,
     snapshot_override: {
@@ -32,7 +42,9 @@ function withStrictOutputContract(data: AskRequest): AskRequest {
       response_format: {
         ...responseFormat,
         strict: true,
+        schema,
       },
+      output_schema: schema,
     },
   }
 }
