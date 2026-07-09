@@ -415,21 +415,21 @@ class HttpSecurityGuard:
         result = await session.execute(
             text(
                 """
-                SELECT revoked_at, expires_at
-                FROM identity.refresh_sessions
+                SELECT user_id, revoked_at, expires_at
+                FROM identity.user_sessions
                 WHERE id = :session_id
-                  AND user_id = :user_id
                 """
             ),
-            {
-                "session_id": principal.session_id,
-                "user_id": principal.user_id,
-            },
+            {"session_id": principal.session_id},
         )
-        row = result.first()
+        row = result.one_or_none()
         if row is None:
-            raise AuthenticationError("Session is no longer active")
-        if row.revoked_at is not None:
-            raise AuthenticationError("Session is no longer active")
-        if _as_utc(row.expires_at) <= datetime.now(UTC):
-            raise AuthenticationError("Session has expired")
+            raise AuthenticationError("Authentication session is invalid")
+
+        user_id, revoked_at, expires_at = row
+        if UUID(str(user_id)) != principal.user_id:
+            raise AuthenticationError("Authentication session is invalid")
+        if revoked_at is not None:
+            raise AuthenticationError("Authentication session was revoked")
+        if _as_utc(expires_at) <= datetime.now(UTC):
+            raise AuthenticationError("Authentication session expired")
