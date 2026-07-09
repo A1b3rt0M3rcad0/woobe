@@ -254,7 +254,7 @@ function ProjectKeyDetails({ apiKey }: { apiKey: ApiKey }) {
 }
 
 function RuntimeKeyDetails({ apiKey, agentName }: { apiKey: ApiKey; agentName?: string | null }) {
-  const { data: releases = [] } = useReleases(apiKey.agent_id ?? undefined)
+  const { data: releases = [], isLoading: releasesLoading } = useReleases(apiKey.agent_id ?? undefined)
   const currentRelease = releases.find((release) => release.status === apiKey.environment) ?? null
 
   return (
@@ -275,9 +275,11 @@ function RuntimeKeyDetails({ apiKey, agentName }: { apiKey: ApiKey; agentName?: 
           <p className="mt-2 text-sm font-medium capitalize text-white">{apiKey.environment}</p>
           <code className="mt-1 block text-[10px] text-primary-light">woobe_{apiKey.environment}_...</code>
         </div>
-        <div className={`rounded-xl border p-4 sm:col-span-2 ${currentRelease ? 'border-border/80 bg-background/55' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
+        <div className={`rounded-xl border p-4 sm:col-span-2 ${releasesLoading || currentRelease ? 'border-border/80 bg-background/55' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Current release</p>
-          {currentRelease ? (
+          {releasesLoading ? (
+            <p className="mt-2 text-xs text-muted">Checking current deployment…</p>
+          ) : currentRelease ? (
             <p className="mt-2 text-sm text-white">{currentRelease.version}</p>
           ) : (
             <p className="mt-2 text-xs leading-5 text-yellow-200">No {apiKey.environment} release is deployed. Requests currently return 409.</p>
