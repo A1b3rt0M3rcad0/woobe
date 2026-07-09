@@ -127,7 +127,13 @@ export function CreateRuntimeKeyDialog({
   })
 
   return (
-    <Dialog open={open} onClose={close} title={createdKey ? 'Runtime Key created' : 'Create Runtime Key'} className="max-w-2xl">
+    <Dialog
+      open={open}
+      onClose={close}
+      title={createdKey ? 'Runtime Key created' : 'Create Runtime Key'}
+      className="max-w-2xl"
+      layer="nestedModal"
+    >
       {createdKey ? (
         <div className="space-y-5">
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
