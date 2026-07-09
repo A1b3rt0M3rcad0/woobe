@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Badge } from '@/components/ui/Badge'
@@ -7,6 +8,7 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { API_BASE_URL } from '@/lib/api/client'
+import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { ApiReferenceRuntimeKeySection } from './ApiReferenceRuntimeKeySection'
 import {
   PUBLIC_RUNTIME_ENDPOINTS,
@@ -105,10 +107,10 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
   ]
   const manageKeysPath = orgProjectPathFn(projectId, 'api-keys')
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+      className={`fixed inset-0 ${UI_LAYER_CLASS.modal} flex items-center justify-center bg-black/70 p-4 backdrop-blur-md`}
       onClick={(event) => { if (event.target === overlayRef.current) onClose() }}
     >
       <div className="flex h-[86vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40">
@@ -285,6 +287,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
           </section>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
