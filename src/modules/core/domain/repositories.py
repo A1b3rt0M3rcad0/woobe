@@ -42,9 +42,6 @@ class ApiKeyRepository(ABC):
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None: ...
 
     @abstractmethod
-    async def list_by_credential_id(self, credential_id: UUID) -> list[ApiKey]: ...
-
-    @abstractmethod
     async def update_credential_metadata(
         self,
         credential_id: UUID,
