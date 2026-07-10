@@ -39,6 +39,7 @@ class RotateProviderCredentialController(Controller):
                     "provider": getattr(result.provider, "value", result.provider),
                     "name": result.name,
                     "status": getattr(result.status, "value", result.status),
+                    "created_at": result.created_at,
                     "last_validated_at": result.last_validated_at,
                     "updated_at": result.updated_at,
                     "metadata": result.metadata,
