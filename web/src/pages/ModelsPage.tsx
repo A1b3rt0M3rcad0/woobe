@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
-import { AlertTriangle, Check, Cpu, DollarSign, Plus, RefreshCw, Search, ServerCog, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Cpu, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -24,6 +32,7 @@ import type { AvailableProviderModel, ProviderModel } from '@/features/provider-
 import { get } from '@/lib/api/client'
 
 const SEARCH_THRESHOLD = 6
+type ModelStatusFilter = 'all' | 'active' | 'inactive'
 
 const providerLabels: Record<string, string> = {
   openai: 'OpenAI',
@@ -185,26 +194,23 @@ function ModelCard({
 }) {
   const pricing = pricingOf(model)
   return (
-    <button
-      type="button"
+    <ResourceCard
       onClick={onClick}
-      className="group flex min-h-[250px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <span className="flex items-start justify-between gap-3">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light"><Cpu className="h-5 w-5" /></span>
-        <StatusBadge status={model.status || 'active'} />
-      </span>
-      <span className="mt-6 block min-w-0">
-        <span className="block truncate text-base font-semibold text-white">{model.name}</span>
-        <code className="mt-2 block truncate text-xs text-muted">{model.model}</code>
-      </span>
-      <span className="my-5 block h-px bg-border/80" />
-      <span className="grid gap-2 text-xs text-muted">
-        <span className="truncate">{credential ? `${credential.name} · ${providerLabel(credential.provider)}` : 'Credential missing'}</span>
-        <span className="flex min-w-0 items-center gap-2"><DollarSign className="h-3.5 w-3.5 shrink-0" /><span className="truncate">In {priceText(pricing.input, pricing.currency)} / 1M · Out {priceText(pricing.output, pricing.currency)} / 1M</span></span>
-        <span>Created · {formatDate(model.created_at)}</span>
-      </span>
-    </button>
+      aria-label={`Open Model ${model.name}`}
+      icon={<Cpu className="h-4 w-4" />}
+      title={model.name}
+      subtitle={model.model}
+      status={<StatusBadge status={model.status || 'active'} size="compact" />}
+      metadata={(
+        <>
+          <ResourcePill tone="primary">{providerLabel(model.provider || credential?.provider)}</ResourcePill>
+          {credential?.name && <ResourcePill>{credential.name}</ResourcePill>}
+          <ResourcePill>In · {priceText(pricing.input, pricing.currency)}</ResourcePill>
+          <ResourcePill>Out · {priceText(pricing.output, pricing.currency)}</ResourcePill>
+        </>
+      )}
+      footer={`Updated · ${formatDate(model.updated_at || model.created_at)}`}
+    />
   )
 }
 
@@ -455,7 +461,7 @@ function ModelSetupDialog({
       ) : (
         <form onSubmit={handleSubmit}>
           <div className="scrollbar-thin max-h-[calc(100svh-8rem)] space-y-5 overflow-y-auto pr-1">
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+            <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
               <div className="mb-5">
                 <h3 className="text-sm font-semibold text-white">Provider connection</h3>
                 <p className="mt-1 text-xs leading-5 text-muted">Choose the Project connection this generation model will use.</p>
@@ -498,7 +504,7 @@ function ModelSetupDialog({
             </section>
 
             {credential && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-white">Model</h3>
                   <p className="mt-1 text-xs leading-5 text-muted">{selectedModel ? 'Edit the reusable generation model binding.' : `Choose a generation model from ${providerLabel(credential.provider)}.`}</p>
@@ -542,7 +548,7 @@ function ModelSetupDialog({
             )}
 
             {credential && modelId.trim() && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-white">Pricing metadata</h3>
                   <p className="mt-1 text-xs leading-5 text-muted">Optional costs used for estimation and trace analysis.</p>
@@ -571,7 +577,7 @@ function ModelSetupDialog({
             )}
 
             {selectedModel && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
                 <p className="mt-1 text-xs leading-5 text-muted">Archive is blocked while agents or active releases reference this model.</p>
                 <Button type="button" variant="outline" size="sm" className="mt-4 text-red-200 hover:text-red-100" onClick={() => onArchive(selectedModel)}>
@@ -652,6 +658,8 @@ export default function ModelsPage() {
   const updateModel = useUpdateProviderModel()
 
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ModelStatusFilter>('all')
+  const [providerFilter, setProviderFilter] = useState('all')
   const [showModelDialog, setShowModelDialog] = useState(false)
   const [selectedModel, setSelectedModel] = useState<ProviderModel | null>(null)
   const [archiveModel, setArchiveModel] = useState<ProviderModel | null>(null)
@@ -665,14 +673,26 @@ export default function ModelsPage() {
     () => models.filter((model) => model.status !== 'archived' && !isEmbeddingModel(model)),
     [models],
   )
+  const statusCounts = useMemo(() => ({
+    all: generationModels.length,
+    active: generationModels.filter((model) => model.status?.toLowerCase() === 'active').length,
+    inactive: generationModels.filter((model) => model.status?.toLowerCase() === 'inactive').length,
+  }), [generationModels])
+  const providerOptions = useMemo(() => Array.from(new Set(generationModels.map((model) => {
+    const credential = credentialsById.get(model.provider_credential_id)
+    return model.provider || credential?.provider
+  }).filter((value): value is string => Boolean(value)))).sort(), [credentialsById, generationModels])
   const normalizedQuery = query.trim().toLowerCase()
   const visibleModels = useMemo(() => {
-    if (!normalizedQuery) return generationModels
     return generationModels.filter((model) => {
       const credential = credentialsById.get(model.provider_credential_id)
-      return `${model.name} ${model.model} ${providerLabel(model.provider || credential?.provider)} ${credential?.name || ''}`.toLowerCase().includes(normalizedQuery)
+      const provider = model.provider || credential?.provider || ''
+      const matchesStatus = statusFilter === 'all' || model.status?.toLowerCase() === statusFilter
+      const matchesProvider = providerFilter === 'all' || provider === providerFilter
+      const matchesQuery = !normalizedQuery || `${model.name} ${model.model} ${providerLabel(provider)} ${credential?.name || ''}`.toLowerCase().includes(normalizedQuery)
+      return matchesStatus && matchesProvider && matchesQuery
     })
-  }, [generationModels, credentialsById, normalizedQuery])
+  }, [generationModels, credentialsById, normalizedQuery, providerFilter, statusFilter])
 
   const openNewModel = () => {
     setSelectedModel(null)
@@ -723,47 +743,88 @@ export default function ModelsPage() {
   }
 
   if (!projectId) return <ErrorState message="Project not found" />
-  if (credentialsQuery.isLoading || modelsQuery.isLoading) return <LoadingState message="Loading models" />
-  if (credentialsQuery.isError || modelsQuery.isError) return <ErrorState message="Failed to load provider models" onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }} />
+  const isLoading = credentialsQuery.isLoading || modelsQuery.isLoading
+  const isError = credentialsQuery.isError || modelsQuery.isError
+  const hasFilters = Boolean(normalizedQuery) || statusFilter !== 'all' || providerFilter !== 'all'
+  const resultCount = hasFilters ? `${visibleModels.length} of ${generationModels.length}` : generationModels.length
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Models</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted">Create and manage reusable generation models. Provider connections are managed centrally in Credentials.</p>
-        </div>
+    <ResourcePage
+      title="Models"
+      description="Create and manage reusable generation models bound to provider connections."
+      action={(
         <Button type="button" onClick={openNewModel}>
           <Plus className="mr-2 h-4 w-4" />
-          New model
+          New Model
         </Button>
-      </div>
-
-      <div className="relative max-w-3xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models..." className="h-11 pl-9" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CreateResourceCard title="New model" description="Create a reusable generation model" onClick={openNewModel} />
-
-        {visibleModels.map((model) => (
-          <ModelCard
-            key={model.id}
-            model={model}
-            credential={credentialsById.get(model.provider_credential_id)}
-            onClick={() => openExistingModel(model)}
+      )}
+    >
+      <ResourceToolbar>
+        <ResourceTabs
+          value={statusFilter}
+          onChange={setStatusFilter}
+          label="Filter Models by status"
+          tabs={[
+            { value: 'all', label: 'All', count: statusCounts.all },
+            { value: 'active', label: 'Active', count: statusCounts.active },
+            { value: 'inactive', label: 'Inactive', count: statusCounts.inactive },
+          ]}
+        />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <ResourceSearch value={query} onChange={setQuery} placeholder="Search Models, providers or credentials..." label="Search Models" />
+          <Select
+            value={providerFilter}
+            onChange={(event) => setProviderFilter(event.target.value)}
+            className="h-10"
+            options={[
+              { value: 'all', label: 'All providers' },
+              ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) })),
+            ]}
           />
-        ))}
+        </div>
+      </ResourceToolbar>
 
-        {visibleModels.length === 0 && (
-          <div className="flex min-h-[240px] flex-col rounded-xl border border-border/80 bg-surface/50 p-6">
-            <ServerCog className="h-5 w-5 text-primary-light" />
-            <p className="mt-5 text-base font-semibold text-white">{normalizedQuery ? 'No models found' : 'No generation models yet'}</p>
-            <p className="mt-2 text-sm leading-6 text-muted">{normalizedQuery ? 'Adjust the search term.' : 'Create a model. If no provider connection exists, the creation flow will ask for one.'}</p>
+      <section>
+        <ResourceSectionHeader
+          title="Generation models"
+          description="Open a Model to review its binding, pricing and lifecycle."
+          count={resultCount}
+        />
+
+        {isLoading ? (
+          <LoadingState message="Loading Models" variant="panel" layout="compact-cards" />
+        ) : isError ? (
+          <ErrorState
+            message="Failed to load provider Models"
+            onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }}
+            className="rounded-xl border border-border/80 bg-surface/40 py-10"
+          />
+        ) : visibleModels.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleModels.map((model) => (
+              <ModelCard
+                key={model.id}
+                model={model}
+                credential={credentialsById.get(model.provider_credential_id)}
+                onClick={() => openExistingModel(model)}
+              />
+            ))}
           </div>
+        ) : (
+          <ResourceEmptyState
+            icon={<Cpu className="h-4 w-4" />}
+            title={generationModels.length === 0 ? 'No Generation models yet' : 'No Models found'}
+            description={generationModels.length === 0
+              ? 'Create a Model. The flow will request a provider connection when necessary.'
+              : 'Adjust the search or clear the active filters.'}
+            action={hasFilters ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all'); setProviderFilter('all') }}>
+                Clear filters
+              </Button>
+            ) : undefined}
+          />
         )}
-      </div>
+      </section>
 
       <ModelSetupDialog
         open={showModelDialog}
@@ -785,6 +846,6 @@ export default function ModelsPage() {
         onClose={() => setArchiveModel(null)}
         onConfirm={confirmArchive}
       />
-    </div>
+    </ResourcePage>
   )
 }
