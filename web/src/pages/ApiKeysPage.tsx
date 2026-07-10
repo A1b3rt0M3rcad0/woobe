@@ -467,11 +467,6 @@ export default function ApiKeysPage() {
           <Key className="mx-auto h-5 w-5 text-muted" />
           <h2 className="mt-3 text-sm font-semibold text-white">{items.length === 0 ? 'No API keys yet' : 'No API keys found'}</h2>
           <p className="mt-1 text-sm text-muted">{hasFilters ? 'Adjust the search or filters.' : 'Create a Runtime Key or Project Key for this Project.'}</p>
-          {items.length === 0 && (
-            <Button className="mt-4" size="sm" onClick={() => setShowCreate(true)}>
-              <Plus className="mr-2 h-4 w-4" /> Create key
-            </Button>
-          )}
         </div>
       ) : activeTab === 'all' ? (
         <div className="space-y-8">
