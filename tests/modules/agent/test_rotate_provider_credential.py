@@ -38,7 +38,11 @@ class FakeOutbox:
         self.events.append(event)
 
 
-def build_credential(*, encryption_key: str, status: CredentialStatus = CredentialStatus.active) -> ProviderCredential:
+def build_credential(
+    *,
+    encryption_key: str,
+    status: CredentialStatus = CredentialStatus.active,
+) -> ProviderCredential:
     return ProviderCredential(
         id=uuid4(),
         project_id=uuid4(),
@@ -71,7 +75,6 @@ async def test_rotates_secret_in_place_after_successful_verification() -> None:
     result = await use_case.execute(
         credential.id,
         RotateProviderCredentialInput(
-            project_id=credential.project_id,
             secret="new-secret",
             rotated_by_user_id=uuid4(),
         ),
@@ -109,7 +112,6 @@ async def test_keeps_current_secret_when_verification_fails() -> None:
         await use_case.execute(
             credential.id,
             RotateProviderCredentialInput(
-                project_id=credential.project_id,
                 secret="invalid-secret",
                 rotated_by_user_id=uuid4(),
             ),
@@ -144,7 +146,6 @@ async def test_rejects_rotation_for_non_active_credential() -> None:
         await use_case.execute(
             credential.id,
             RotateProviderCredentialInput(
-                project_id=credential.project_id,
                 secret="new-secret",
                 rotated_by_user_id=uuid4(),
             ),
