@@ -91,7 +91,7 @@ class RotateApiKeyOutput(BaseModel):
 
 class UpdateApiKeyCredentialInput(BaseModel):
     project_id: UUID
-    credential_id: UUID
+    api_key_id: UUID
     updated_by_user_id: UUID
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
