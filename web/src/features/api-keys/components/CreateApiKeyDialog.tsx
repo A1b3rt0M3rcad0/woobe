@@ -195,7 +195,7 @@ export function CreateApiKeyDialog({
     : 'Create API Key'
 
   return (
-    <Dialog open={open} onClose={close} title={title} className="max-w-3xl" layer={layer}>
+    <Dialog open={open} onClose={close} title={title} className="max-w-[720px]" layer={layer}>
       {createdKey ? (
         <div>
           <ApiKeySecretReveal apiKey={createdKey} agentName={selectedAgent?.name} />
@@ -204,64 +204,63 @@ export function CreateApiKeyDialog({
           </div>
         </div>
       ) : (
-        <form className="space-y-5" onSubmit={handleSubmit}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {!kindLocked && (
-            <div>
+            <section>
               <p className="text-xs font-medium text-muted">What will this key be used for?</p>
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="mt-2 grid items-stretch gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => { setKind('runtime'); setError(null) }}
-                  className={`rounded-xl border p-4 text-left transition-colors ${kind === 'runtime' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                  className={`flex min-h-[118px] flex-col rounded-xl border p-4 text-left transition-colors ${kind === 'runtime' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
                       <Zap className="h-4 w-4" />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-white">Runtime Key</p>
                       <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-primary-light">Agent + Environment</p>
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-muted">Execute a deployed Agent from your application through HTTP, Streaming or Jobs.</p>
+                  <p className="mt-auto pt-3 text-xs leading-5 text-muted">Execute a deployed Agent from your application through HTTP, Streaming or Jobs.</p>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => { setKind('project'); setError(null) }}
-                  className={`rounded-xl border p-4 text-left transition-colors ${kind === 'project' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                  className={`flex min-h-[118px] flex-col rounded-xl border p-4 text-left transition-colors ${kind === 'project' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
                       <ShieldCheck className="h-4 w-4" />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-white">Project Key</p>
                       <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Project operations</p>
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-muted">Read operational data across the Project, such as traces, usage and cost.</p>
+                  <p className="mt-auto pt-3 text-xs leading-5 text-muted">Read operational data across the Project, such as traces, usage and cost.</p>
                 </button>
               </div>
-            </div>
+            </section>
           )}
 
-          <div>
-            <label className="text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
-            <Input
-              id="api-key-name"
-              className="mt-2"
-              value={name}
-              onChange={(event) => { setName(event.target.value); setError(null) }}
-              placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
-            />
-          </div>
+          <section className="grid gap-4 sm:grid-cols-12">
+            <div className="sm:col-span-12">
+              <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
+              <Input
+                id="api-key-name"
+                value={name}
+                onChange={(event) => { setName(event.target.value); setError(null) }}
+                placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
+              />
+            </div>
 
-          {kind === 'runtime' ? (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-muted" htmlFor="runtime-key-agent">Agent</label>
+            {kind === 'runtime' && (
+              <>
+                <div className="sm:col-span-7">
+                  <label className="mb-2 block text-xs font-medium text-muted" htmlFor="runtime-key-agent">Agent</label>
                   <select
                     id="runtime-key-agent"
                     value={agentId}
@@ -272,7 +271,7 @@ export function CreateApiKeyDialog({
                       setName('')
                       setError(null)
                     }}
-                    className="mt-2 h-10 w-full rounded-lg border border-border bg-background/45 px-3 text-xs text-white outline-none transition-colors focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="h-10 w-full rounded-lg border border-border bg-background/45 px-3 text-xs text-white outline-none transition-colors focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <option value="">Select an Agent</option>
                     {agents.map((agent) => (
@@ -281,9 +280,9 @@ export function CreateApiKeyDialog({
                   </select>
                 </div>
 
-                <div>
-                  <p className="text-xs font-medium text-muted">Environment</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="sm:col-span-5">
+                  <p className="mb-2 text-xs font-medium text-muted">Environment</p>
+                  <div className="grid h-10 grid-cols-2 gap-2">
                     {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
                       <button
                         key={item}
@@ -297,8 +296,12 @@ export function CreateApiKeyDialog({
                     ))}
                   </div>
                 </div>
-              </div>
+              </>
+            )}
+          </section>
 
+          {kind === 'runtime' ? (
+            <>
               {agents.length === 0 && !agentsLoading ? (
                 <div className="rounded-xl border border-dashed border-border/80 bg-background/35 p-4">
                   <p className="text-sm font-medium text-white">No Agents available</p>
@@ -307,7 +310,7 @@ export function CreateApiKeyDialog({
               ) : selectedAgent ? (
                 <div className={`rounded-xl border p-4 ${releasesLoading || currentRelease ? 'border-border/80 bg-background/45' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
                         <Bot className="h-4 w-4" />
                       </span>
@@ -330,9 +333,9 @@ export function CreateApiKeyDialog({
                 </div>
               ) : null}
 
-              <div>
+              <section>
                 <p className="text-xs font-medium text-muted">Allowed interfaces</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-3">
                   {RUNTIME_INTERFACES.map((item) => {
                     const selected = interfaces.includes(item.value)
                     return (
@@ -340,7 +343,7 @@ export function CreateApiKeyDialog({
                         key={item.value}
                         type="button"
                         onClick={() => toggleInterface(item.value)}
-                        className={`rounded-xl border p-3 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                        className={`min-h-[88px] rounded-xl border p-3 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
                       >
                         <p className="text-sm font-medium text-white">{item.label}</p>
                         <p className="mt-1 text-[11px] leading-4 text-muted">{item.description}</p>
@@ -348,12 +351,12 @@ export function CreateApiKeyDialog({
                     )
                   })}
                 </div>
-              </div>
+              </section>
             </>
           ) : (
-            <div>
+            <section>
               <p className="text-xs font-medium text-muted">Permissions</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-2">
                 {PROJECT_PERMISSIONS.map((item) => {
                   const selected = permissions.includes(item.value)
                   return (
@@ -361,7 +364,7 @@ export function CreateApiKeyDialog({
                       key={item.value}
                       type="button"
                       onClick={() => togglePermission(item.value)}
-                      className={`rounded-xl border p-4 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                      className={`min-h-[104px] rounded-xl border p-4 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
                     >
                       <div className="flex items-center gap-2">
                         <Activity className={`h-4 w-4 ${selected ? 'text-primary-light' : 'text-muted'}`} />
@@ -372,7 +375,7 @@ export function CreateApiKeyDialog({
                   )
                 })}
               </div>
-            </div>
+            </section>
           )}
 
           <ApiKeyExpirationField
@@ -381,7 +384,7 @@ export function CreateApiKeyDialog({
             error={expirationError}
           />
 
-          <div className="rounded-xl border border-border/80 bg-background/35 p-4">
+          <div className="rounded-xl border border-border/80 bg-background/35 px-4 py-3.5">
             <div className="flex items-start gap-3">
               <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
               <div className="min-w-0">
@@ -404,13 +407,16 @@ export function CreateApiKeyDialog({
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-300">{error}</p>}
-
-          <div className="flex justify-end gap-2 border-t border-border/80 pt-4">
-            <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
-            <Button type="submit" loading={isPending} disabled={kind === 'runtime' && agents.length === 0 && !agentsLoading}>
-              Create {kind === 'runtime' ? 'Runtime' : 'Project'} Key
-            </Button>
+          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/80 pt-4">
+            <div className="min-w-0 flex-1">
+              {error && <p className="text-xs text-red-300">{error}</p>}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
+              <Button type="submit" loading={isPending} disabled={kind === 'runtime' && agents.length === 0 && !agentsLoading}>
+                Create {kind === 'runtime' ? 'Runtime' : 'Project'} Key
+              </Button>
+            </div>
           </div>
         </form>
       )}
