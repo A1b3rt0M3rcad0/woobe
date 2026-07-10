@@ -96,7 +96,7 @@ export function ApiReferenceRuntimeKeySection({
         projectId={projectId}
         initialKind="runtime"
         lockedAgentId={agentId}
-        lockedEnvironment={environment}
+        initialEnvironment={environment}
         layer="nestedModal"
         onCreated={(key) => onSelectedKeyId(key.id)}
       />
