@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { useAgents, useReleases } from '@/features/agents/hooks'
 import { useCreateApiKey, useCreateRuntimeApiKey } from '@/features/api-keys/hooks'
 import type {
@@ -261,23 +262,22 @@ export function CreateApiKeyDialog({
               <>
                 <div className="sm:col-span-7">
                   <label className="mb-2 block text-xs font-medium text-muted" htmlFor="runtime-key-agent">Agent</label>
-                  <select
+                  <Select
                     id="runtime-key-agent"
                     value={agentId}
                     disabled={agentLocked || agentsLoading}
                     onChange={(event) => {
-                      const nextAgentId = event.target.value
-                      setAgentId(nextAgentId)
+                      setAgentId(event.target.value)
                       setName('')
                       setError(null)
                     }}
-                    className="h-10 w-full rounded-lg border border-border bg-background/45 px-3 text-xs text-white outline-none transition-colors focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <option value="">Select an Agent</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>{agent.name} · {agent.provider}/{agent.model}</option>
-                    ))}
-                  </select>
+                    options={agents.map((agent) => ({
+                      value: agent.id,
+                      label: `${agent.name} · ${agent.provider}/${agent.model}`,
+                    }))}
+                    placeholder="Select an Agent"
+                    className="h-10 bg-background/45 text-xs text-white"
+                  />
                 </div>
 
                 <div className="sm:col-span-5">
