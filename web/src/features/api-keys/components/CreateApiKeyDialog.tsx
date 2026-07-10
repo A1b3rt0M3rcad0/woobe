@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Activity, Bot, KeyRound, ShieldCheck, Zap } from 'lucide-react'
+import { Activity, Bot, Check, KeyRound, Search, ShieldCheck, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
 import { useAgents, useReleases } from '@/features/agents/hooks'
+import type { Agent } from '@/features/agents/types'
 import { useCreateApiKey, useCreateRuntimeApiKey } from '@/features/api-keys/hooks'
 import type {
   ApiKeyKind,
@@ -34,6 +34,8 @@ interface CreateApiKeyDialogProps {
   onCreated?: (apiKey: CreateApiKeyResponse) => void
 }
 
+const AGENT_SEARCH_THRESHOLD = 5
+
 const PROJECT_PERMISSIONS: Array<{ value: ApiKeyScope; label: string; description: string }> = [
   { value: 'traces:read', label: 'Traces', description: 'Read execution traces across this Project.' },
   { value: 'usage:read', label: 'Usage & cost', description: 'Read metering, usage and cost data.' },
@@ -51,6 +53,103 @@ function environmentLabel(environment: RuntimeEnvironment): string {
 
 function defaultRuntimeName(agentName: string, environment: RuntimeEnvironment): string {
   return `${agentName} · ${environmentLabel(environment)}`
+}
+
+function AgentSelectionList({
+  agents,
+  selectedAgentId,
+  loading,
+  locked,
+  onSelect,
+}: {
+  agents: Agent[]
+  selectedAgentId: string
+  loading: boolean
+  locked: boolean
+  onSelect: (agentId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const candidates = useMemo(
+    () => locked && selectedAgentId
+      ? agents.filter((agent) => agent.id === selectedAgentId)
+      : agents,
+    [agents, locked, selectedAgentId],
+  )
+  const visibleAgents = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return candidates
+    return candidates.filter((agent) => (
+      `${agent.name} ${agent.provider} ${agent.model}`.toLowerCase().includes(normalized)
+    ))
+  }, [candidates, query])
+  const showSearch = !locked && agents.length > AGENT_SEARCH_THRESHOLD
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-6 text-center text-sm text-muted">
+        Loading Agents...
+      </div>
+    )
+  }
+
+  if (agents.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/80 bg-background/35 px-4 py-6 text-center">
+        <p className="text-sm font-medium text-white">No Agents available</p>
+        <p className="mt-1 text-xs leading-5 text-muted">Create an Agent before creating a Runtime Key.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {showSearch && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search Agents"
+            className="pl-9"
+          />
+        </div>
+      )}
+
+      <div className="scrollbar-thin max-h-52 space-y-2 overflow-y-auto pr-1">
+        {visibleAgents.length === 0 ? (
+          <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-6 text-center text-sm text-muted">
+            No Agents found.
+          </div>
+        ) : visibleAgents.map((agent) => {
+          const selected = agent.id === selectedAgentId
+          return (
+            <button
+              key={agent.id}
+              type="button"
+              aria-pressed={selected}
+              aria-disabled={locked}
+              onClick={() => { if (!locked) onSelect(agent.id) }}
+              className={`flex w-full items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
+                selected
+                  ? 'border-primary/55 bg-primary/8'
+                  : 'border-border/85 bg-background/55 hover:border-primary/30 hover:bg-background/80'
+              } ${locked ? 'cursor-default' : ''}`}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-white">{agent.name}</span>
+                <span className="mt-1 block truncate text-xs text-muted">{agent.provider} · {agent.model}</span>
+              </span>
+              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                selected ? 'border-primary bg-primary text-white' : 'border-border bg-background'
+              }`}>
+                {selected && <Check className="h-3 w-3" />}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function CreateApiKeyDialog({
@@ -247,67 +346,51 @@ export function CreateApiKeyDialog({
             </section>
           )}
 
-          <section className="grid gap-4 sm:grid-cols-12">
-            <div className="sm:col-span-12">
-              <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
-              <Input
-                id="api-key-name"
-                value={name}
-                onChange={(event) => { setName(event.target.value); setError(null) }}
-                placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
-              />
-            </div>
-
-            {kind === 'runtime' && (
-              <>
-                <div className="sm:col-span-7">
-                  <label className="mb-2 block text-xs font-medium text-muted" htmlFor="runtime-key-agent">Agent</label>
-                  <Select
-                    id="runtime-key-agent"
-                    value={agentId}
-                    disabled={agentLocked || agentsLoading}
-                    onChange={(event) => {
-                      setAgentId(event.target.value)
-                      setName('')
-                      setError(null)
-                    }}
-                    options={agents.map((agent) => ({
-                      value: agent.id,
-                      label: `${agent.name} · ${agent.provider}/${agent.model}`,
-                    }))}
-                    placeholder="Select an Agent"
-                    className="h-10 bg-background/45 text-xs text-white"
-                  />
-                </div>
-
-                <div className="sm:col-span-5">
-                  <p className="mb-2 text-xs font-medium text-muted">Environment</p>
-                  <div className="grid h-10 grid-cols-2 gap-2">
-                    {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        disabled={environmentLocked}
-                        onClick={() => { setEnvironment(item); setName(''); setError(null) }}
-                        className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
-                      >
-                        {environmentLabel(item)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+          <section>
+            <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
+            <Input
+              id="api-key-name"
+              value={name}
+              onChange={(event) => { setName(event.target.value); setError(null) }}
+              placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
+            />
           </section>
 
           {kind === 'runtime' ? (
             <>
-              {agents.length === 0 && !agentsLoading ? (
-                <div className="rounded-xl border border-dashed border-border/80 bg-background/35 p-4">
-                  <p className="text-sm font-medium text-white">No Agents available</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Create an Agent before creating a Runtime Key.</p>
+              <section>
+                <p className="mb-2 text-xs font-medium text-muted">Agent</p>
+                <AgentSelectionList
+                  agents={agents}
+                  selectedAgentId={agentId}
+                  loading={agentsLoading}
+                  locked={agentLocked}
+                  onSelect={(nextAgentId) => {
+                    setAgentId(nextAgentId)
+                    setName('')
+                    setError(null)
+                  }}
+                />
+              </section>
+
+              <section>
+                <p className="mb-2 text-xs font-medium text-muted">Environment</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      disabled={environmentLocked}
+                      onClick={() => { setEnvironment(item); setName(''); setError(null) }}
+                      className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
+                    >
+                      {environmentLabel(item)}
+                    </button>
+                  ))}
                 </div>
-              ) : selectedAgent ? (
+              </section>
+
+              {selectedAgent && (
                 <div className={`rounded-xl border p-4 ${releasesLoading || currentRelease ? 'border-border/80 bg-background/45' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
@@ -331,7 +414,7 @@ export function CreateApiKeyDialog({
                     )}
                   </div>
                 </div>
-              ) : null}
+              )}
 
               <section>
                 <p className="text-xs font-medium text-muted">Allowed interfaces</p>
