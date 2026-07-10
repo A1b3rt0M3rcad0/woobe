@@ -184,7 +184,7 @@ class TestToolOutput(BaseModel):
     success: bool
     status_code: int | None = None
     headers: dict | None = None
-    body: dict | None = None
+    body: str | None = None
     output: dict | None = None
     duration_ms: float | None = None
     error: str | None = None
