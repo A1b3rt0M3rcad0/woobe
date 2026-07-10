@@ -686,7 +686,7 @@ export default function ApiKeysPage() {
         projectId={projectId!}
         initialKind={activeTab}
         lockedAgentId={createAgentId}
-        lockedEnvironment={createEnvironment}
+        initialEnvironment={createEnvironment}
         layer={modalOpen ? 'nestedModal' : 'modal'}
       />
 
