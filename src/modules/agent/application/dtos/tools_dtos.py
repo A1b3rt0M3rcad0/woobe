@@ -160,6 +160,19 @@ class DeleteToolInput(BaseModel):
     tool_id: UUID
 
 
+class ToolUsageImpactOutput(BaseModel):
+    tool_id: UUID
+    status: ToolStatus
+    in_use: bool
+    can_delete: bool
+    can_retire: bool
+    draft_agents: int = 0
+    staging_agents: int = 0
+    production_agents: int = 0
+    historical_releases: int = 0
+    total_references: int = 0
+
+
 class TestToolInput(BaseModel):
     type: ToolType | None = None
     config: dict[str, Any]
@@ -171,7 +184,7 @@ class TestToolOutput(BaseModel):
     success: bool
     status_code: int | None = None
     headers: dict | None = None
-    body: str | None = None
+    body: dict | None = None
     output: dict | None = None
     duration_ms: float | None = None
     error: str | None = None
