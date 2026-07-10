@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from shared.infra.errors import ConflictError, NotFoundError
@@ -95,6 +96,16 @@ class ToolNotFoundError(NotFoundError):
     def __init__(self, tool_id: UUID) -> None:
         self.tool_id = tool_id
         super().__init__(f"Tool not found: {tool_id}")
+
+
+class ToolInUseError(ConflictError):
+    def __init__(self, tool_id: UUID, impact: Any) -> None:
+        self.tool_id = tool_id
+        self.impact = impact
+        super().__init__(
+            "Tool cannot be permanently deleted because it is referenced by "
+            "Agent versions. Retire the Tool instead."
+        )
 
 
 class SecretNotFoundError(NotFoundError):
