@@ -4,7 +4,23 @@ from modules.agent.application.tool_release_snapshots import build_release_tool_
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase
 from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
+
+
+def _tool_snapshots(runtime_config):
+    if not isinstance(runtime_config, dict):
+        return None
+    tools = runtime_config.get("tools")
+    if not isinstance(tools, dict):
+        return None
+    snapshots = tools.get("snapshots")
+    return snapshots if isinstance(snapshots, list) else None
+
+
+def _release_sort_key(release: AgentRelease) -> float:
+    value = release.updated_at or release.created_at
+    return value.timestamp() if value is not None else 0.0
 
 
 class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
@@ -21,6 +37,15 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         )
         await self._knowledge_validator.validate(candidate)
 
+        previous_snapshots = None
+        drafts = await self._release_repo.list_by_status(
+            input_dto.agent_id,
+            ReleaseStatus.draft,
+        )
+        if drafts:
+            current_draft = max(drafts, key=_release_sort_key)
+            previous_snapshots = _tool_snapshots(current_draft.runtime_config)
+
         runtime_config = dict(input_dto.runtime_config or {})
         raw_tools = runtime_config.get("tools")
         if isinstance(raw_tools, dict):
@@ -29,6 +54,7 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
                 project_id=input_dto.project_id,
                 raw_tool_ids=raw_tools.get("tool_ids"),
                 raw_permissions=raw_tools.get("permissions"),
+                previous_snapshots=previous_snapshots,
             )
         input_dto.runtime_config = runtime_config or None
 
