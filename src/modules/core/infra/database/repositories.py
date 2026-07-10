@@ -15,7 +15,11 @@ from modules.core.infra.database.mappers import (
     project_entity_to_model,
     project_model_to_entity,
 )
-from modules.core.infra.database.models import ApiKeyModel, OutboxEventModel, ProjectModel
+from modules.core.infra.database.models import (
+    ApiKeyModel,
+    OutboxEventModel,
+    ProjectModel,
+)
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
@@ -25,7 +29,6 @@ from shared.messaging.outbox_writer import OutboxEventWriter
 class SQLAlchemyProjectRepository(
     BaseSQLAlchemyRepository[ProjectModel], ProjectRepositoryInterface
 ):
-
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         super().__init__(session, ProjectModel)
 
@@ -52,13 +55,9 @@ class SQLAlchemyProjectRepository(
         model = result.scalar_one_or_none()
         return project_model_to_entity(model) if model else None
 
-    async def list_by_organization(
-        self, organization_id: UUID
-    ) -> list[Project]:
+    async def list_by_organization(self, organization_id: UUID) -> list[Project]:
         result = await self._session.execute(
-            select(ProjectModel).where(
-                ProjectModel.organization_id == organization_id
-            )
+            select(ProjectModel).where(ProjectModel.organization_id == organization_id)
         )
         return [project_model_to_entity(p) for p in result.scalars().all()]
 
@@ -88,7 +87,6 @@ class SQLAlchemyProjectRepository(
 class SQLAlchemyApiKeyRepository(
     BaseSQLAlchemyRepository[ApiKeyModel], ApiKeyRepositoryInterface
 ):
-
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         super().__init__(session, ApiKeyModel)
 
@@ -104,6 +102,7 @@ class SQLAlchemyApiKeyRepository(
         if model is None:
             raise LookupError(f"API key {api_key.id} does not exist")
         model.name = api_key.name
+        model.description = api_key.description
         model.scopes = list(api_key.scopes)
         model.kind = api_key.kind.value
         model.agent_id = api_key.agent_id
@@ -121,6 +120,36 @@ class SQLAlchemyApiKeyRepository(
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None:
         model = await self._get_model_by_id(api_key_id)
         return api_key_model_to_entity(model) if model else None
+
+    async def list_by_credential_id(self, credential_id: UUID) -> list[ApiKey]:
+        result = await self._session.execute(
+            select(ApiKeyModel)
+            .where(ApiKeyModel.credential_id == credential_id)
+            .order_by(ApiKeyModel.created_at.desc(), ApiKeyModel.id.desc())
+        )
+        return [api_key_model_to_entity(key) for key in result.scalars().all()]
+
+    async def update_credential_metadata(
+        self,
+        credential_id: UUID,
+        *,
+        name: str,
+        description: str | None,
+    ) -> ApiKey:
+        result = await self._session.execute(
+            select(ApiKeyModel)
+            .where(ApiKeyModel.credential_id == credential_id)
+            .order_by(ApiKeyModel.created_at.desc(), ApiKeyModel.id.desc())
+        )
+        models = list(result.scalars().all())
+        if not models:
+            raise LookupError(f"API key credential {credential_id} does not exist")
+        for model in models:
+            model.name = name
+            model.description = description
+        await self._flush()
+        await self._refresh_model(models[0])
+        return api_key_model_to_entity(models[0])
 
     async def get_by_key_hash(self, key_hash: bytes) -> ApiKey | None:
         result = await self._session.execute(
@@ -168,7 +197,6 @@ class SQLAlchemyApiKeyRepository(
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
