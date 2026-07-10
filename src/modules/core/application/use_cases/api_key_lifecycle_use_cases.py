@@ -180,24 +180,21 @@ class UpdateApiKeyCredentialUseCase:
         self,
         input_dto: UpdateApiKeyCredentialInput,
     ) -> UpdateApiKeyCredentialOutput:
-        revisions = await self._api_key_repo.list_by_credential_id(
-            input_dto.credential_id
-        )
-        if not revisions or any(
-            revision.project_id != input_dto.project_id for revision in revisions
-        ):
+        current = await self._api_key_repo.get_by_id(input_dto.api_key_id)
+        if current is None or current.project_id != input_dto.project_id:
             raise ApiKeyNotFoundError("API key credential not found")
 
+        credential_id = current.credential_id or current.id
         now = datetime.now(UTC)
         saved = await self._api_key_repo.update_credential_metadata(
-            input_dto.credential_id,
+            credential_id,
             name=input_dto.name,
             description=input_dto.description,
         )
 
         await self._outbox.write(
             aggregate_type="api_key_credential",
-            aggregate_id=input_dto.credential_id,
+            aggregate_id=credential_id,
             event_type="api_key_credential.updated.v1",
             payload={
                 "project_id": str(saved.project_id),
@@ -208,8 +205,7 @@ class UpdateApiKeyCredentialUseCase:
             },
             routing_key="api_key_credential.updated.v1",
             idempotency_key=(
-                f"core:api_key_credential.updated.v1:"
-                f"{input_dto.credential_id}:{now.isoformat()}"
+                f"core:api_key_credential.updated.v1:{credential_id}:{now.isoformat()}"
             ),
         )
 
