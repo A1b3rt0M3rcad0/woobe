@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -7,7 +8,11 @@ from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
-from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot, tool_with_permission_overrides
+from modules.agent.application.tool_release_snapshots import (
+    tool_from_release_snapshot,
+    tool_to_release_snapshot,
+    tool_with_permission_overrides,
+)
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
@@ -30,6 +35,17 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
     def configure_runtime_tool_reader(self, reader: RuntimeToolReader) -> None:
         self._runtime_tool_reader = reader
+
+    @staticmethod
+    def _apply_runtime_config_snapshot(agent: Agent, runtime_config: Any) -> Agent:
+        if runtime_config is None:
+            return agent
+        if not isinstance(runtime_config, dict):
+            raise ValidationError("Agent runtime_config snapshot is invalid")
+        settings = dict(agent.settings or {})
+        settings["runtime_config"] = deepcopy(runtime_config)
+        agent.settings = settings
+        return agent
 
     async def _prepare(self, input_dto: Any) -> Any:
         prepared = await super()._prepare(input_dto)
@@ -93,7 +109,12 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                         raise ValidationError("Selected tool does not belong to this Project")
                     if _value(tool.status) != ToolStatus.ACTIVE.value:
                         raise ValidationError(f"Selected tool is not active: {tool.name}")
-                    tools.append(tool_with_permission_overrides(tool, permission_map.get(str(tool_id))))
+                    effective_tool = tool_with_permission_overrides(
+                        tool,
+                        permission_map.get(str(tool_id)),
+                    )
+                    tools.append(effective_tool)
+                    snapshot_map[str(tool_id)] = tool_to_release_snapshot(effective_tool)
 
         definitions, name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
         context = current_execution.get()
@@ -131,10 +152,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             if release is None:
                 raise RuntimeEnvironmentNotReadyError("production", input_dto.agent_id)
             self._bind_release_context(release)
-            agent = self._apply_release_snapshot_ids(
-                self._apply_release_to_agent(agent, release),
-                release,
-            )
+            agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
+            agent = self._apply_release_snapshot_ids(agent, release)
             return await self._resolve_provider_model_refs(uow, agent)
 
         if execution_context == "staging":
@@ -145,10 +165,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 raise RuntimeEnvironmentNotReadyError("staging", input_dto.agent_id)
             release = releases[0]
             self._bind_release_context(release)
-            agent = self._apply_release_snapshot_ids(
-                self._apply_release_to_agent(agent, release),
-                release,
-            )
+            agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
+            agent = self._apply_release_snapshot_ids(agent, release)
             return await self._resolve_provider_model_refs(uow, agent)
 
         if execution_context != "playground":
@@ -156,6 +175,10 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
         if input_dto.snapshot_override:
             agent = self._apply_snapshot_override(agent, input_dto.snapshot_override)
+            agent = self._apply_runtime_config_snapshot(
+                agent,
+                input_dto.snapshot_override.get("runtime_config"),
+            )
             self._apply_snapshot_provider_model_ids(agent, input_dto.snapshot_override)
             return await self._resolve_provider_model_refs(uow, agent)
 
@@ -163,10 +186,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             release = await release_repo.get_by_id(input_dto.loaded_release_id)
             if release is not None:
                 self._bind_release_context(release)
-                agent = self._apply_release_snapshot_ids(
-                    self._apply_release_to_agent(agent, release),
-                    release,
-                )
+                agent = self._apply_release_to_agent(agent, release)
+                agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
+                agent = self._apply_release_snapshot_ids(agent, release)
                 return await self._resolve_provider_model_refs(uow, agent)
 
         if release_repo is not None:
@@ -174,10 +196,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             if drafts:
                 release = drafts[0]
                 self._bind_release_context(release)
-                agent = self._apply_release_snapshot_ids(
-                    self._apply_release_to_agent(agent, release),
-                    release,
-                )
+                agent = self._apply_release_to_agent(agent, release)
+                agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
+                agent = self._apply_release_snapshot_ids(agent, release)
                 return await self._resolve_provider_model_refs(uow, agent)
 
         return await self._resolve_provider_model_refs(uow, agent)
