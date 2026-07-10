@@ -29,7 +29,7 @@ interface CreateApiKeyDialogProps {
   projectId: string
   initialKind?: ApiKeyKind
   lockedAgentId?: string
-  lockedEnvironment?: RuntimeEnvironment
+  initialEnvironment?: RuntimeEnvironment
   layer?: DialogLayer
   onCreated?: (apiKey: CreateApiKeyResponse) => void
 }
@@ -111,7 +111,7 @@ function AgentSelectionList({
         </div>
       )}
 
-      <div className="scrollbar-thin max-h-[320px] space-y-2 overflow-y-auto pr-1">
+      <div className="scrollbar-thin max-h-[240px] space-y-2 overflow-y-auto pr-1">
         {visibleAgents.length === 0 ? (
           <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-6 text-center text-sm text-muted">
             No Agents found.
@@ -154,7 +154,7 @@ export function CreateApiKeyDialog({
   projectId,
   initialKind,
   lockedAgentId,
-  lockedEnvironment,
+  initialEnvironment,
   layer = 'modal',
   onCreated,
 }: CreateApiKeyDialogProps) {
@@ -165,7 +165,8 @@ export function CreateApiKeyDialog({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [agentId, setAgentId] = useState(lockedAgentId ?? '')
-  const [environment, setEnvironment] = useState<RuntimeEnvironment>(lockedEnvironment ?? 'production')
+  const [environment, setEnvironment] = useState<RuntimeEnvironment>(initialEnvironment ?? 'production')
+  const [environmentTouched, setEnvironmentTouched] = useState(false)
   const [interfaces, setInterfaces] = useState<RuntimeInterface[]>(['http', 'stream', 'jobs'])
   const [permissions, setPermissions] = useState<ApiKeyScope[]>(['traces:read', 'usage:read'])
   const [expiration, setExpiration] = useState<ApiKeyExpirationValue>(DEFAULT_API_KEY_EXPIRATION)
@@ -181,26 +182,36 @@ export function CreateApiKeyDialog({
   )
   const kindLocked = initialKind !== undefined
   const agentLocked = Boolean(lockedAgentId)
-  const environmentLocked = Boolean(lockedEnvironment)
   const isPending = createProjectKey.isPending || createRuntimeKey.isPending
   const visibleKeyTypes: ApiKeyKind[] = kindLocked ? [kind] : ['runtime', 'project']
 
   useEffect(() => {
     if (!open) return
     const nextKind = initialKind ?? 'runtime'
-    const nextEnvironment = lockedEnvironment ?? 'production'
+    const nextEnvironment = initialEnvironment ?? 'production'
     setKind(nextKind)
     setName('')
     setDescription('')
     setAgentId(lockedAgentId ?? '')
     setEnvironment(nextEnvironment)
+    setEnvironmentTouched(false)
     setInterfaces(['http', 'stream', 'jobs'])
     setPermissions(['traces:read', 'usage:read'])
     setExpiration(DEFAULT_API_KEY_EXPIRATION)
     setError(null)
     setExpirationError(null)
     setCreatedKey(null)
-  }, [open, initialKind, lockedAgentId, lockedEnvironment])
+  }, [open, initialKind, lockedAgentId, initialEnvironment])
+
+  useEffect(() => {
+    if (!open || kind !== 'runtime' || !selectedAgent || releasesLoading || environmentTouched) return
+    if (releases.some((release) => release.status === environment)) return
+    if (releases.some((release) => release.status === 'staging')) {
+      setEnvironment('staging')
+    } else if (releases.some((release) => release.status === 'production')) {
+      setEnvironment('production')
+    }
+  }, [open, kind, selectedAgent, releases, releasesLoading, environment, environmentTouched])
 
   const close = () => {
     setCreatedKey(null)
@@ -288,12 +299,52 @@ export function CreateApiKeyDialog({
     ? `${createdKey.kind === 'runtime' ? 'Runtime' : 'Project'} Key created`
     : 'Create API Key'
 
+  const identitySection = (
+    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Key identity</h3>
+          <p className="mt-1 text-xs leading-5 text-muted">Name the integration and document its purpose.</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary-light">
+          {kind === 'runtime' ? 'Runtime Key' : 'Project Key'}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <label className="grid gap-1.5 text-xs font-medium text-muted">
+          Name
+          <Input
+            value={name}
+            onChange={(event) => { setName(event.target.value); setError(null) }}
+            placeholder={kind === 'runtime' ? 'Checkout backend' : 'Operations dashboard'}
+            maxLength={255}
+            autoFocus
+          />
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-muted">
+          <span className="flex items-center justify-between gap-3">
+            <span>Description <span className="font-normal text-muted/70">Optional</span></span>
+            <span className="text-[10px] font-normal text-muted/70">{description.length}/500</span>
+          </span>
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Which service or integration uses this key?"
+            maxLength={500}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-border/80 bg-background/70 px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-muted/60 focus:border-primary/40"
+          />
+        </label>
+      </div>
+    </section>
+  )
+
   return (
     <Dialog
       open={open}
       onClose={close}
       title={title}
-      className={createdKey ? 'max-w-2xl' : 'max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden'}
+      className={createdKey ? 'max-w-2xl' : 'max-h-[calc(100svh-2rem)] max-w-[1120px] overflow-hidden'}
       layer={layer}
     >
       {createdKey ? (
@@ -306,8 +357,8 @@ export function CreateApiKeyDialog({
       ) : (
         <form className="flex max-h-[calc(100svh-10rem)] min-h-0 flex-col" onSubmit={handleSubmit}>
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-              <aside className="space-y-3 lg:sticky lg:top-0 lg:self-start">
+            <div className={kindLocked ? '' : 'grid gap-4 lg:grid-cols-[190px_minmax(0,1fr)]'}>
+              {!kindLocked && <aside className="space-y-3 lg:sticky lg:top-0 lg:self-start">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/75">Key type</p>
                 {visibleKeyTypes.map((keyType) => {
                   const runtime = keyType === 'runtime'
@@ -348,43 +399,14 @@ export function CreateApiKeyDialog({
                       : 'Use a Project Key for operational APIs such as traces, usage and cost.'}
                   </p>
                 </div>
-              </aside>
+              </aside>}
 
               <main className="min-w-0">
-                <section className="mb-5 rounded-xl border border-border/80 bg-surface/65 p-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Key identity</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted">Use a stable name and purpose. Agent and environment are displayed separately.</p>
-                  </div>
-                  <div className="mt-4 grid gap-4">
-                    <label className="grid gap-2 text-xs font-medium text-muted">
-                      Name
-                      <Input
-                        value={name}
-                        onChange={(event) => { setName(event.target.value); setError(null) }}
-                        placeholder={kind === 'runtime' ? 'Checkout backend' : 'Operations dashboard'}
-                        maxLength={255}
-                        autoFocus
-                      />
-                    </label>
-                    <label className="grid gap-2 text-xs font-medium text-muted">
-                      Description <span className="font-normal text-muted/70">Optional</span>
-                      <textarea
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        placeholder="Describe which service or integration uses this key."
-                        maxLength={500}
-                        rows={3}
-                        className="w-full resize-none rounded-lg border border-border/80 bg-background/70 px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-muted/60 focus:border-primary/40"
-                      />
-                    </label>
-                    <p className="text-right text-[10px] text-muted">{description.length}/500</p>
-                  </div>
-                </section>
-
                 {kind === 'runtime' ? (
-                  <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
-                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                  <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]">
+                    <div className="space-y-4">
+                      {identitySection}
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                       <div className="mb-4">
                         <h3 className="text-sm font-semibold text-white">Agent</h3>
                         <p className="mt-1 text-xs leading-5 text-muted">Choose which Agent deployment this credential can execute.</p>
@@ -396,10 +418,12 @@ export function CreateApiKeyDialog({
                         locked={agentLocked}
                         onSelect={(nextAgentId) => {
                           setAgentId(nextAgentId)
+                          setEnvironmentTouched(false)
                           setError(null)
                         }}
                       />
-                    </section>
+                      </section>
+                    </div>
 
                     <div className="space-y-4">
                       <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
@@ -409,9 +433,8 @@ export function CreateApiKeyDialog({
                             <button
                               key={item}
                               type="button"
-                              disabled={environmentLocked}
-                              onClick={() => { setEnvironment(item); setError(null) }}
-                              className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
+                              onClick={() => { setEnvironment(item); setEnvironmentTouched(true); setError(null) }}
+                              className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'}`}
                             >
                               {environmentLabel(item)}
                             </button>
@@ -466,8 +489,10 @@ export function CreateApiKeyDialog({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]">
-                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                  <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]">
+                    <div className="space-y-4">
+                      {identitySection}
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                       <div className="mb-4">
                         <h3 className="text-sm font-semibold text-white">Permissions</h3>
                         <p className="mt-1 text-xs leading-5 text-muted">Choose which Project operations this key can access.</p>
@@ -491,7 +516,8 @@ export function CreateApiKeyDialog({
                           )
                         })}
                       </div>
-                    </section>
+                      </section>
+                    </div>
 
                     <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                       <ApiKeyExpirationField
