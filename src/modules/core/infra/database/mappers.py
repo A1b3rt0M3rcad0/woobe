@@ -36,14 +36,18 @@ def api_key_model_to_entity(model: ApiKeyModel) -> ApiKey:
     return ApiKey(
         id=model.id,
         project_id=model.project_id,
+        credential_id=model.credential_id,
         name=model.name,
+        description=model.description,
         key_prefix=model.key_prefix,
         key_hash=model.key_hash,
         key_version=model.key_version,
         scopes=model.scopes,
         kind=ApiKeyKind(model.kind),
         agent_id=model.agent_id,
-        environment=RuntimeEnvironment(model.environment) if model.environment else None,
+        environment=RuntimeEnvironment(model.environment)
+        if model.environment
+        else None,
         interfaces=list(model.interfaces or []),
         status=ApiKeyStatus(model.status),
         last_used_at=model.last_used_at,
@@ -60,7 +64,9 @@ def api_key_entity_to_model(entity: ApiKey) -> ApiKeyModel:
     return ApiKeyModel(
         id=entity.id,
         project_id=entity.project_id,
+        credential_id=entity.credential_id or entity.id,
         name=entity.name,
+        description=entity.description,
         key_prefix=entity.key_prefix,
         key_hash=entity.key_hash,
         key_version=entity.key_version,
