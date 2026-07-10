@@ -189,7 +189,7 @@ def complete_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession
 def start_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
-    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthDeviceStartUseCase")
+    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDeviceStartUseCase")
     use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
     controller = StartMcpDeviceConnectController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -198,7 +198,7 @@ def start_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSes
 def poll_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
-    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthDevicePollUseCase")
+    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDevicePollUseCase")
     use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
     controller = PollMcpDeviceConnectController(use_case)
     return TransactionalHandler(uow, controller.handle)
