@@ -20,6 +20,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
     CreateSecretUseCase,
     CreateToolUseCase,
     DeleteToolUseCase,
+    GetToolUsageImpactUseCase,
     ListSecretsUseCase,
     ListToolsByAgentUseCase,
     ListToolsUseCase,
@@ -37,6 +38,7 @@ from modules.agent.presentation.controllers.create_tool_controller import Create
 from modules.agent.presentation.controllers.delete_tool_controller import DeleteToolController
 from modules.agent.presentation.controllers.discover_mcp_tools_controller import DiscoverMcpToolsController
 from modules.agent.presentation.controllers.execute_tool_controller import ExecuteToolController
+from modules.agent.presentation.controllers.get_tool_usage_impact_controller import GetToolUsageImpactController
 from modules.agent.presentation.controllers.list_secrets_controller import ListSecretsController
 from modules.agent.presentation.controllers.list_tools_by_agent_controller import (
     ListToolsByAgentController,
@@ -86,8 +88,15 @@ def update_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> T
 
 def delete_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = DeleteToolUseCase(uow.tools)
+    use_case = DeleteToolUseCase(uow.tools, uow.agents, uow.releases)
     controller = DeleteToolController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def get_tool_usage_impact_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = GetToolUsageImpactUseCase(uow.tools, uow.agents, uow.releases)
+    controller = GetToolUsageImpactController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 
@@ -180,7 +189,7 @@ def complete_mcp_oauth_composer(session_factory: async_sessionmaker[AsyncSession
 def start_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDeviceStartUseCase")
+    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthDeviceStartUseCase")
     use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
     controller = StartMcpDeviceConnectController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -189,7 +198,7 @@ def start_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSes
 def poll_mcp_oauth_device_composer(session_factory: async_sessionmaker[AsyncSession], executor: HttpToolExecutor | None = None) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     settings = Settings.model_validate({})
-    use_case_cls = getattr(mcp_oauth_flows, "McpOAuthDevicePollUseCase")
+    use_case_cls = getattr(mcp_oauth_flows, "ProviderAwareMcpOAuthDevicePollUseCase")
     use_case = use_case_cls(tool_repo=uow.tools, executor=executor or get_http_tool_executor(), cipher=SecretCipherAdapter(settings.encryption_key))
     controller = PollMcpDeviceConnectController(use_case)
     return TransactionalHandler(uow, controller.handle)
