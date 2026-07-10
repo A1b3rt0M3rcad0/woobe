@@ -17,6 +17,7 @@ from modules.agent.application.dtos.tools_dtos import (
     ListToolsInput,
     TestToolInput,
     TestToolOutput,
+    ToolUsageImpactOutput,
     UpdateToolInput,
     UpdateToolStatusInput,
 )
@@ -27,15 +28,48 @@ from modules.agent.application.ports import (
     ToolSecretResolverPort,
 )
 from modules.agent.domain.entities import Secret, Tool
-from modules.agent.domain.enums import ToolStatus
-from modules.agent.domain.errors import ToolNotFoundError
+from modules.agent.domain.enums import ReleaseStatus, ToolStatus
+from modules.agent.domain.errors import ToolInUseError, ToolNotFoundError
 from modules.agent.domain.events import (
     AgentSecretCreatedV1,
     AgentToolCreatedV1,
     AgentToolStatusChangedV1,
     AgentToolUpdatedV1,
 )
-from modules.agent.domain.repositories import SecretRepository, ToolRepository
+from modules.agent.domain.repositories import (
+    AgentReleaseRepository,
+    AgentRepository,
+    SecretRepository,
+    ToolRepository,
+)
+
+
+def _value(value: object) -> object:
+    return getattr(value, "value", value)
+
+
+def _release_references_tool(release, tool_id: UUID) -> bool:
+    runtime_config = getattr(release, "runtime_config", None)
+    if not isinstance(runtime_config, dict):
+        return False
+    tools_config = runtime_config.get("tools")
+    if not isinstance(tools_config, dict):
+        return False
+
+    target = str(tool_id)
+    raw_tool_ids = tools_config.get("tool_ids")
+    if isinstance(raw_tool_ids, list):
+        for raw_tool_id in raw_tool_ids:
+            if str(raw_tool_id) == target:
+                return True
+
+    raw_snapshots = tools_config.get("snapshots")
+    if isinstance(raw_snapshots, list):
+        for snapshot in raw_snapshots:
+            if isinstance(snapshot, dict) and str(snapshot.get("id")) == target:
+                return True
+
+    return False
 
 
 class CreateToolUseCase:
@@ -236,12 +270,75 @@ class UpdateToolStatusUseCase:
         )
 
 
+class GetToolUsageImpactUseCase:
+
+    def __init__(
+        self,
+        tool_repo: ToolRepository,
+        agent_repo: AgentRepository,
+        release_repo: AgentReleaseRepository,
+    ) -> None:
+        self._tool_repo = tool_repo
+        self._agent_repo = agent_repo
+        self._release_repo = release_repo
+
+    async def execute(self, tool_id: UUID) -> ToolUsageImpactOutput:
+        tool = await self._tool_repo.get_by_id(tool_id)
+        agents = await self._agent_repo.list_by_project(tool.project_id)
+
+        draft_agents: set[UUID] = set()
+        staging_agents: set[UUID] = set()
+        production_agents: set[UUID] = set()
+        historical_releases = 0
+        total_references = 0
+
+        for agent in agents:
+            releases = await self._release_repo.list_by_agent(agent.id)
+            for release in releases:
+                if not _release_references_tool(release, tool_id):
+                    continue
+
+                total_references += 1
+                status = _value(release.status)
+                if status == ReleaseStatus.draft.value:
+                    draft_agents.add(agent.id)
+                elif status == ReleaseStatus.staging.value:
+                    staging_agents.add(agent.id)
+                elif status == ReleaseStatus.production.value:
+                    production_agents.add(agent.id)
+                else:
+                    historical_releases += 1
+
+        in_use = total_references > 0
+        return ToolUsageImpactOutput(
+            tool_id=tool.id,
+            status=tool.status,
+            in_use=in_use,
+            can_delete=not in_use,
+            can_retire=_value(tool.status) != ToolStatus.DEPRECATED.value,
+            draft_agents=len(draft_agents),
+            staging_agents=len(staging_agents),
+            production_agents=len(production_agents),
+            historical_releases=historical_releases,
+            total_references=total_references,
+        )
+
+
 class DeleteToolUseCase:
 
-    def __init__(self, repo: ToolRepository) -> None:
+    def __init__(
+        self,
+        repo: ToolRepository,
+        agent_repo: AgentRepository,
+        release_repo: AgentReleaseRepository,
+    ) -> None:
         self._repo = repo
+        self._usage = GetToolUsageImpactUseCase(repo, agent_repo, release_repo)
 
     async def execute(self, input_dto: DeleteToolInput) -> None:
+        impact = await self._usage.execute(input_dto.tool_id)
+        if impact.in_use:
+            raise ToolInUseError(input_dto.tool_id, impact)
         await self._repo.delete(input_dto.tool_id)
 
 
