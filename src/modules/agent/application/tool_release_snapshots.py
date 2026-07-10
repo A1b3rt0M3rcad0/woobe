@@ -9,6 +9,7 @@ from uuid import UUID
 from modules.agent.application.mcp_permissions import normalize_permission
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
+from modules.agent.domain.errors import ToolNotFoundError
 from shared.infra.errors import ValidationError
 
 
@@ -28,6 +29,20 @@ def _verify_snapshot_hash(snapshot: dict[str, Any]) -> None:
     payload = {key: deepcopy(value) for key, value in snapshot.items() if key != "snapshot_hash"}
     if _snapshot_hash(payload) != expected:
         raise ValidationError("Release tool snapshot hash is invalid")
+
+
+def _snapshot_index(raw_snapshots: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw_snapshots, list):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for raw_snapshot in raw_snapshots:
+        if not isinstance(raw_snapshot, dict):
+            continue
+        raw_id = raw_snapshot.get("id")
+        if raw_id is None:
+            continue
+        result[str(raw_id)] = raw_snapshot
+    return result
 
 
 def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
@@ -112,6 +127,7 @@ async def build_release_tool_runtime(
     project_id: UUID,
     raw_tool_ids: list[object] | None,
     raw_permissions: Any = None,
+    previous_snapshots: Any = None,
 ) -> dict[str, Any]:
     ordered_ids: list[UUID] = []
     seen: set[UUID] = set()
@@ -125,17 +141,36 @@ async def build_release_tool_runtime(
             seen.add(tool_id)
 
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
+    previous_snapshot_map = _snapshot_index(previous_snapshots)
     snapshots: list[dict[str, Any]] = []
+
     for tool_id in ordered_ids:
-        tool = await tool_repo.get_by_id(tool_id)
-        if tool is None:
-            raise ValidationError(f"Selected tool was not found: {tool_id}")
-        if tool.project_id != project_id:
+        try:
+            live_tool = await tool_repo.get_by_id(tool_id)
+        except ToolNotFoundError:
+            live_tool = None
+
+        if live_tool is not None and live_tool.project_id != project_id:
             raise ValidationError("Selected tool does not belong to this Project")
-        if _value(tool.status) != ToolStatus.ACTIVE.value:
-            raise ValidationError(f"Selected tool is not active: {tool.name}")
+
+        if live_tool is not None and _value(live_tool.status) == ToolStatus.ACTIVE.value:
+            source_tool = live_tool
+        else:
+            previous_snapshot = previous_snapshot_map.get(str(tool_id))
+            if previous_snapshot is None:
+                if live_tool is None:
+                    raise ValidationError(f"Selected tool was not found: {tool_id}")
+                raise ValidationError(f"Selected tool is not active: {live_tool.name}")
+
+            source_tool = tool_from_release_snapshot(previous_snapshot)
+            if source_tool.id != tool_id:
+                raise ValidationError("Draft contains a mismatched tool snapshot")
+            if source_tool.project_id != project_id:
+                raise ValidationError("Draft tool snapshot does not belong to this Project")
+
         tool_permissions = permission_map.get(str(tool_id))
-        snapshots.append(tool_to_release_snapshot(tool_with_permission_overrides(tool, tool_permissions)))
+        effective_tool = tool_with_permission_overrides(source_tool, tool_permissions)
+        snapshots.append(tool_to_release_snapshot(effective_tool))
 
     return {
         "tool_ids": [str(tool_id) for tool_id in ordered_ids],
