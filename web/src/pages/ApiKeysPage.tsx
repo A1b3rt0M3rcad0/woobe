@@ -23,6 +23,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { useAgents, useReleases } from '@/features/agents/hooks'
 import { CreateApiKeyDialog } from '@/features/api-keys/components/CreateApiKeyDialog'
 import { ApiKeySecretReveal } from '@/features/api-keys/components/ApiKeySecretReveal'
+import { RotateApiKeyDialog } from '@/features/api-keys/components/RotateApiKeyDialog'
 import {
   useApiKeys,
   useRevokeApiKey,
@@ -341,6 +342,7 @@ export default function ApiKeysPage() {
   const rotateKey = useRotateApiKey(projectId)
   const [showCreate, setShowCreate] = useState(false)
   const [revealedKey, setRevealedKey] = useState<CreateApiKeyResponse | null>(null)
+  const [rotateTarget, setRotateTarget] = useState<ApiKey | null>(null)
   const [query, setQuery] = useState('')
   const [activeTab, setActiveTab] = useState<KeyTab>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -386,6 +388,7 @@ export default function ApiKeysPage() {
   const runtimeKeys = visibleKeys.filter((key) => key.kind === 'runtime')
   const projectKeys = visibleKeys.filter((key) => key.kind === 'project')
   const selectedAgentName = selectedKey?.agent_id ? agentNames.get(selectedKey.agent_id) : null
+  const rotateTargetAgentName = rotateTarget?.agent_id ? agentNames.get(rotateTarget.agent_id) : null
   const revealedAgentName = revealedKey?.agent_id ? agentNames.get(revealedKey.agent_id) : null
 
   const handleRevoke = async (apiKey: ApiKey) => {
@@ -400,12 +403,22 @@ export default function ApiKeysPage() {
     }
   }
 
-  const handleRotate = async (apiKey: ApiKey) => {
-    if (!window.confirm(`Rotate API key “${apiKey.name}”? The current key will stop working immediately.`)) return
+  const openRotate = (apiKey: ApiKey) => {
+    setRotateTarget(apiKey)
+    setSelectedKeyId(null)
+  }
+
+  const closeRotate = () => {
+    if (rotateTarget) setSelectedKeyId(rotateTarget.id)
+    setRotateTarget(null)
+  }
+
+  const handleRotate = async () => {
+    if (!rotateTarget) return
     try {
-      const result = await rotateKey.mutateAsync({ apiKeyId: apiKey.id })
+      const result = await rotateKey.mutateAsync({ apiKeyId: rotateTarget.id })
+      setRotateTarget(null)
       await refetch()
-      setSelectedKeyId(null)
       setRevealedKey(result)
       toast.success('API key rotated')
     } catch (rotateError) {
@@ -552,7 +565,7 @@ export default function ApiKeysPage() {
                       <h3 className="text-sm font-semibold text-white">Rotate key</h3>
                       <p className="mt-1 text-xs leading-5 text-muted">Generate a replacement secret. The current key stops working immediately.</p>
                     </div>
-                    <Button variant="outline" onClick={() => void handleRotate(selectedKey)} loading={rotateKey.isPending} disabled={selectedKey.status !== 'active'}>
+                    <Button variant="outline" onClick={() => openRotate(selectedKey)} disabled={selectedKey.status !== 'active'}>
                       <RotateCcw className="mr-2 h-4 w-4" />
                       Rotate
                     </Button>
@@ -563,6 +576,15 @@ export default function ApiKeysPage() {
           </div>
         )}
       </Dialog>
+
+      <RotateApiKeyDialog
+        open={Boolean(rotateTarget)}
+        apiKey={rotateTarget}
+        agentName={rotateTargetAgentName}
+        loading={rotateKey.isPending}
+        onClose={closeRotate}
+        onConfirm={() => { void handleRotate() }}
+      />
 
       <CreateApiKeyDialog
         open={showCreate}
