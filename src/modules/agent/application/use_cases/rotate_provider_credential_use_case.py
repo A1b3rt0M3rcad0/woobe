@@ -42,7 +42,7 @@ class RotateProviderCredentialUseCase:
         input_dto: RotateProviderCredentialInput,
     ) -> RotateProviderCredentialOutput:
         credential = await self._credential_repo.get_by_id(credential_id)
-        if credential is None or credential.project_id != input_dto.project_id:
+        if credential is None:
             from modules.agent.domain.errors import CredentialNotFoundError
 
             raise CredentialNotFoundError(credential_id)
@@ -81,6 +81,7 @@ class RotateProviderCredentialUseCase:
             provider=saved.provider,
             name=saved.name,
             status=saved.status,
+            created_at=saved.created_at,
             last_validated_at=saved.last_validated_at,
             updated_at=saved.updated_at,
             metadata=saved.metadata,
