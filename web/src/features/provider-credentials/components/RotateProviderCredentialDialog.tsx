@@ -11,6 +11,7 @@ import type { ProviderCredential } from '@/features/provider-credentials/types'
 interface RotateProviderCredentialDialogProps {
   open: boolean
   credential: ProviderCredential | null
+  projectId?: string
   generationCount: number
   embeddingCount: number
   onClose: () => void
