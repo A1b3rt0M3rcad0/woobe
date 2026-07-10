@@ -51,12 +51,6 @@ function environmentLabel(environment: RuntimeEnvironment): string {
   return environment === 'production' ? 'Production' : 'Staging'
 }
 
-function projectPermissionName(scope: ApiKeyScope): string {
-  if (scope === 'traces:read') return 'Traces'
-  if (scope === 'usage:read') return 'Usage'
-  return 'Runtime'
-}
-
 function AgentSelectionList({
   agents,
   selectedAgentId,
@@ -168,6 +162,8 @@ export function CreateApiKeyDialog({
   const createProjectKey = useCreateApiKey(projectId)
   const createRuntimeKey = useCreateRuntimeApiKey(projectId)
   const [kind, setKind] = useState<ApiKeyKind>(initialKind ?? 'runtime')
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [agentId, setAgentId] = useState(lockedAgentId ?? '')
   const [environment, setEnvironment] = useState<RuntimeEnvironment>(lockedEnvironment ?? 'production')
   const [interfaces, setInterfaces] = useState<RuntimeInterface[]>(['http', 'stream', 'jobs'])
@@ -194,6 +190,8 @@ export function CreateApiKeyDialog({
     const nextKind = initialKind ?? 'runtime'
     const nextEnvironment = lockedEnvironment ?? 'production'
     setKind(nextKind)
+    setName('')
+    setDescription('')
     setAgentId(lockedAgentId ?? '')
     setEnvironment(nextEnvironment)
     setInterfaces(['http', 'stream', 'jobs'])
@@ -201,6 +199,12 @@ export function CreateApiKeyDialog({
     setExpiration(DEFAULT_API_KEY_EXPIRATION)
     setError(null)
     setExpirationError(null)
+
+    const normalizedName = name.trim()
+    if (!normalizedName) {
+      setError('Enter a name that identifies what this key is used for')
+      return
+    }
     setCreatedKey(null)
   }, [open, initialKind, lockedAgentId, lockedEnvironment])
 
@@ -252,7 +256,8 @@ export function CreateApiKeyDialog({
           return
         }
         result = await createRuntimeKey.mutateAsync({
-          name: `${selectedAgent.name} · ${environmentLabel(environment)}`,
+          name: normalizedName,
+          description: description.trim() || null,
           agent_id: selectedAgent.id,
           environment,
           interfaces,
@@ -264,7 +269,8 @@ export function CreateApiKeyDialog({
           return
         }
         result = await createProjectKey.mutateAsync({
-          name: `Project · ${permissions.map(projectPermissionName).join(' + ')}`,
+          name: normalizedName,
+          description: description.trim() || null,
           scopes: permissions,
           expires_at: expiresAt?.toISOString() ?? null,
         })
@@ -345,6 +351,37 @@ export function CreateApiKeyDialog({
               </aside>
 
               <main className="min-w-0">
+                <section className="mb-5 rounded-xl border border-border/80 bg-surface/65 p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Key identity</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">Use a stable name and purpose. Agent and environment are displayed separately.</p>
+                  </div>
+                  <div className="mt-4 grid gap-4">
+                    <label className="grid gap-2 text-xs font-medium text-muted">
+                      Name
+                      <Input
+                        value={name}
+                        onChange={(event) => { setName(event.target.value); setError(null) }}
+                        placeholder={kind === 'runtime' ? 'Checkout backend' : 'Operations dashboard'}
+                        maxLength={255}
+                        autoFocus
+                      />
+                    </label>
+                    <label className="grid gap-2 text-xs font-medium text-muted">
+                      Description <span className="font-normal text-muted/70">Optional</span>
+                      <textarea
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder="Describe which service or integration uses this key."
+                        maxLength={500}
+                        rows={3}
+                        className="w-full resize-none rounded-lg border border-border/80 bg-background/70 px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-muted/60 focus:border-primary/40"
+                      />
+                    </label>
+                    <p className="text-right text-[10px] text-muted">{description.length}/500</p>
+                  </div>
+                </section>
+
                 {kind === 'runtime' ? (
                   <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
                     <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
