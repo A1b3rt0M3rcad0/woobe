@@ -13,6 +13,7 @@ from modules.core.domain.enums import (
 class CreateRuntimeApiKeyInput(BaseModel):
     project_id: UUID
     name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=500)
     agent_id: UUID
     environment: RuntimeEnvironment
     interfaces: list[RuntimeInterface] = Field(min_length=1, max_length=3)
@@ -26,6 +27,14 @@ class CreateRuntimeApiKeyInput(BaseModel):
         if not normalized:
             raise ValueError("Runtime key name cannot be blank")
         return normalized
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
     @field_validator("interfaces")
     @classmethod
@@ -49,8 +58,10 @@ class CreateRuntimeApiKeyInput(BaseModel):
 
 class CreateRuntimeApiKeyOutput(BaseModel):
     id: UUID
+    credential_id: UUID
     project_id: UUID
     name: str
+    description: str | None = None
     key: str
     key_prefix: str
     scopes: list[str]
