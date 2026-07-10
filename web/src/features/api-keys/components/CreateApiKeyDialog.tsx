@@ -51,8 +51,10 @@ function environmentLabel(environment: RuntimeEnvironment): string {
   return environment === 'production' ? 'Production' : 'Staging'
 }
 
-function defaultRuntimeName(agentName: string, environment: RuntimeEnvironment): string {
-  return `${agentName} · ${environmentLabel(environment)}`
+function projectPermissionName(scope: ApiKeyScope): string {
+  if (scope === 'traces:read') return 'Traces'
+  if (scope === 'usage:read') return 'Usage'
+  return 'Runtime'
 }
 
 function AgentSelectionList({
@@ -166,7 +168,6 @@ export function CreateApiKeyDialog({
   const createProjectKey = useCreateApiKey(projectId)
   const createRuntimeKey = useCreateRuntimeApiKey(projectId)
   const [kind, setKind] = useState<ApiKeyKind>(initialKind ?? 'runtime')
-  const [name, setName] = useState('')
   const [agentId, setAgentId] = useState(lockedAgentId ?? '')
   const [environment, setEnvironment] = useState<RuntimeEnvironment>(lockedEnvironment ?? 'production')
   const [interfaces, setInterfaces] = useState<RuntimeInterface[]>(['http', 'stream', 'jobs'])
@@ -201,15 +202,7 @@ export function CreateApiKeyDialog({
     setError(null)
     setExpirationError(null)
     setCreatedKey(null)
-    setName('')
   }, [open, initialKind, lockedAgentId, lockedEnvironment])
-
-  useEffect(() => {
-    if (!open || kind !== 'runtime' || !selectedAgent || name) return
-    if (agentLocked || environmentLocked) {
-      setName(defaultRuntimeName(selectedAgent.name, environment))
-    }
-  }, [open, kind, selectedAgent, name, agentLocked, environmentLocked, environment])
 
   const close = () => {
     setCreatedKey(null)
@@ -241,12 +234,6 @@ export function CreateApiKeyDialog({
     setError(null)
     setExpirationError(null)
 
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      setError('Name is required')
-      return
-    }
-
     const expiresAt = resolveApiKeyExpiration(expiration)
     if (expiration.preset === 'custom' && !expiresAt) {
       setExpirationError('Select a future expiration date and time')
@@ -256,7 +243,7 @@ export function CreateApiKeyDialog({
     try {
       let result: CreateApiKeyResponse
       if (kind === 'runtime') {
-        if (!agentId) {
+        if (!selectedAgent) {
           setError('Select an Agent')
           return
         }
@@ -265,8 +252,8 @@ export function CreateApiKeyDialog({
           return
         }
         result = await createRuntimeKey.mutateAsync({
-          name: trimmedName,
-          agent_id: agentId,
+          name: `${selectedAgent.name} · ${environmentLabel(environment)}`,
+          agent_id: selectedAgent.id,
           environment,
           interfaces,
           expires_at: expiresAt?.toISOString() ?? null,
@@ -277,7 +264,7 @@ export function CreateApiKeyDialog({
           return
         }
         result = await createProjectKey.mutateAsync({
-          name: trimmedName,
+          name: `Project · ${permissions.map(projectPermissionName).join(' + ')}`,
           scopes: permissions,
           expires_at: expiresAt?.toISOString() ?? null,
         })
@@ -357,17 +344,7 @@ export function CreateApiKeyDialog({
                 </div>
               </aside>
 
-              <main className="min-w-0 space-y-5">
-                <section>
-                  <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
-                  <Input
-                    id="api-key-name"
-                    value={name}
-                    onChange={(event) => { setName(event.target.value); setError(null) }}
-                    placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
-                  />
-                </section>
-
+              <main className="min-w-0">
                 {kind === 'runtime' ? (
                   <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
                     <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
@@ -382,7 +359,6 @@ export function CreateApiKeyDialog({
                         locked={agentLocked}
                         onSelect={(nextAgentId) => {
                           setAgentId(nextAgentId)
-                          setName('')
                           setError(null)
                         }}
                       />
@@ -397,7 +373,7 @@ export function CreateApiKeyDialog({
                               key={item}
                               type="button"
                               disabled={environmentLocked}
-                              onClick={() => { setEnvironment(item); setName(''); setError(null) }}
+                              onClick={() => { setEnvironment(item); setError(null) }}
                               className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
                             >
                               {environmentLabel(item)}
@@ -490,7 +466,7 @@ export function CreateApiKeyDialog({
                   </div>
                 )}
 
-                <div className="rounded-xl border border-border/80 bg-background/35 px-4 py-3">
+                <div className="mt-5 rounded-xl border border-border/80 bg-background/35 px-4 py-3">
                   <div className="flex items-start gap-3">
                     <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
                     <div className="min-w-0 flex-1 lg:flex lg:items-start lg:justify-between lg:gap-4">
