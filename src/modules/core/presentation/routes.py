@@ -106,7 +106,7 @@ async def rotate_api_key(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.patch("/projects/{project_id}/api-key-credentials/{credential_id}")
+@router.patch("/projects/{project_id}/api-keys/{api_key_id}")
 async def update_api_key_credential(request: FastAPIRequest):
     handler = update_api_key_credential_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
