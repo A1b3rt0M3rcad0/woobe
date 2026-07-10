@@ -44,11 +44,11 @@ export async function rotateApiKey(
 
 export async function updateApiKeyCredential(
   projectId: string,
-  credentialId: string,
+  apiKeyId: string,
   data: UpdateApiKeyCredentialRequest,
 ): Promise<ApiKeyCredentialResponse> {
   return patch<ApiKeyCredentialResponse>(
-    `/core/projects/${projectId}/api-key-credentials/${credentialId}`,
+    `/core/projects/${projectId}/api-keys/${apiKeyId}`,
     data,
   )
 }
