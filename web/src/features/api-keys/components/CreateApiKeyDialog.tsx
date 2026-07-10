@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Activity, Bot, Check, KeyRound, Search, ShieldCheck, Zap } from 'lucide-react'
+import { Activity, Check, KeyRound, Search, ShieldCheck, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -42,9 +42,9 @@ const PROJECT_PERMISSIONS: Array<{ value: ApiKeyScope; label: string; descriptio
 ]
 
 const RUNTIME_INTERFACES: Array<{ value: RuntimeInterface; label: string; description: string }> = [
-  { value: 'http', label: 'HTTP', description: 'Synchronous execution through POST /v1/run.' },
-  { value: 'stream', label: 'Streaming', description: 'Server-Sent Events through POST /v1/run/stream.' },
-  { value: 'jobs', label: 'Jobs', description: 'Asynchronous execution and job polling.' },
+  { value: 'http', label: 'HTTP', description: 'Sync requests' },
+  { value: 'stream', label: 'Streaming', description: 'Server-Sent Events' },
+  { value: 'jobs', label: 'Jobs', description: 'Async execution' },
 ]
 
 function environmentLabel(environment: RuntimeEnvironment): string {
@@ -115,7 +115,7 @@ function AgentSelectionList({
         </div>
       )}
 
-      <div className="scrollbar-thin max-h-52 space-y-2 overflow-y-auto pr-1">
+      <div className="scrollbar-thin max-h-[320px] space-y-2 overflow-y-auto pr-1">
         {visibleAgents.length === 0 ? (
           <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-6 text-center text-sm text-muted">
             No Agents found.
@@ -186,6 +186,7 @@ export function CreateApiKeyDialog({
   const agentLocked = Boolean(lockedAgentId)
   const environmentLocked = Boolean(lockedEnvironment)
   const isPending = createProjectKey.isPending || createRuntimeKey.isPending
+  const visibleKeyTypes: ApiKeyKind[] = kindLocked ? [kind] : ['runtime', 'project']
 
   useEffect(() => {
     if (!open) return
@@ -295,7 +296,13 @@ export function CreateApiKeyDialog({
     : 'Create API Key'
 
   return (
-    <Dialog open={open} onClose={close} title={title} className="max-w-[720px]" layer={layer}>
+    <Dialog
+      open={open}
+      onClose={close}
+      title={title}
+      className={createdKey ? 'max-w-2xl' : 'max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden'}
+      layer={layer}
+    >
       {createdKey ? (
         <div>
           <ApiKeySecretReveal apiKey={createdKey} agentName={selectedAgent?.name} />
@@ -304,193 +311,213 @@ export function CreateApiKeyDialog({
           </div>
         </div>
       ) : (
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {!kindLocked && (
-            <section>
-              <p className="text-xs font-medium text-muted">What will this key be used for?</p>
-              <div className="mt-2 grid items-stretch gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => { setKind('runtime'); setError(null) }}
-                  className={`flex min-h-[118px] flex-col rounded-xl border p-4 text-left transition-colors ${kind === 'runtime' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
-                      <Zap className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">Runtime Key</p>
-                      <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-primary-light">Agent + Environment</p>
-                    </div>
-                  </div>
-                  <p className="mt-auto pt-3 text-xs leading-5 text-muted">Execute a deployed Agent from your application through HTTP, Streaming or Jobs.</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setKind('project'); setError(null) }}
-                  className={`flex min-h-[118px] flex-col rounded-xl border p-4 text-left transition-colors ${kind === 'project' ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
-                      <ShieldCheck className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">Project Key</p>
-                      <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Project operations</p>
-                    </div>
-                  </div>
-                  <p className="mt-auto pt-3 text-xs leading-5 text-muted">Read operational data across the Project, such as traces, usage and cost.</p>
-                </button>
-              </div>
-            </section>
-          )}
-
-          <section>
-            <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
-            <Input
-              id="api-key-name"
-              value={name}
-              onChange={(event) => { setName(event.target.value); setError(null) }}
-              placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
-            />
-          </section>
-
-          {kind === 'runtime' ? (
-            <>
-              <section>
-                <p className="mb-2 text-xs font-medium text-muted">Agent</p>
-                <AgentSelectionList
-                  agents={agents}
-                  selectedAgentId={agentId}
-                  loading={agentsLoading}
-                  locked={agentLocked}
-                  onSelect={(nextAgentId) => {
-                    setAgentId(nextAgentId)
-                    setName('')
-                    setError(null)
-                  }}
-                />
-              </section>
-
-              <section>
-                <p className="mb-2 text-xs font-medium text-muted">Environment</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      disabled={environmentLocked}
-                      onClick={() => { setEnvironment(item); setName(''); setError(null) }}
-                      className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
-                    >
-                      {environmentLabel(item)}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {selectedAgent && (
-                <div className={`rounded-xl border p-4 ${releasesLoading || currentRelease ? 'border-border/80 bg-background/45' : 'border-yellow-500/25 bg-yellow-500/5'}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-primary-light">
-                        <Bot className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">{selectedAgent.name}</p>
-                        <p className="mt-0.5 truncate text-[11px] text-muted">{selectedAgent.provider}/{selectedAgent.model}</p>
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-border/80 bg-background/60 px-2.5 py-1 text-[10px] capitalize text-muted">{environment}</span>
-                  </div>
-                  <div className="mt-3 border-t border-border/70 pt-3">
-                    {releasesLoading ? (
-                      <p className="text-xs text-muted">Checking current deployment…</p>
-                    ) : currentRelease ? (
-                      <p className="text-xs text-muted">Current {environmentLabel(environment)} release · <span className="font-medium text-white">{currentRelease.version}</span></p>
-                    ) : (
-                      <p className="text-xs leading-5 text-yellow-200">No {environmentLabel(environment)} release is deployed. The key can be created now, but requests will return 409 until a release is deployed.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <section>
-                <p className="text-xs font-medium text-muted">Allowed interfaces</p>
-                <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-3">
-                  {RUNTIME_INTERFACES.map((item) => {
-                    const selected = interfaces.includes(item.value)
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => toggleInterface(item.value)}
-                        className={`min-h-[88px] rounded-xl border p-3 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
-                      >
-                        <p className="text-sm font-medium text-white">{item.label}</p>
-                        <p className="mt-1 text-[11px] leading-4 text-muted">{item.description}</p>
-                      </button>
-                    )
-                  })}
-                </div>
-              </section>
-            </>
-          ) : (
-            <section>
-              <p className="text-xs font-medium text-muted">Permissions</p>
-              <div className="mt-2 grid auto-rows-fr gap-2 sm:grid-cols-2">
-                {PROJECT_PERMISSIONS.map((item) => {
-                  const selected = permissions.includes(item.value)
+        <form className="flex max-h-[calc(100svh-10rem)] min-h-0 flex-col" onSubmit={handleSubmit}>
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <aside className="space-y-3 lg:sticky lg:top-0 lg:self-start">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/75">Key type</p>
+                {visibleKeyTypes.map((keyType) => {
+                  const runtime = keyType === 'runtime'
+                  const selected = kind === keyType
+                  const Icon = runtime ? Zap : ShieldCheck
                   return (
                     <button
-                      key={item.value}
+                      key={keyType}
                       type="button"
-                      onClick={() => togglePermission(item.value)}
-                      className={`min-h-[104px] rounded-xl border p-4 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                      disabled={kindLocked}
+                      onClick={() => { setKind(keyType); setError(null) }}
+                      className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                        selected
+                          ? 'border-primary/45 bg-primary/10'
+                          : 'border-border/85 bg-background/50 hover:border-primary/30'
+                      } disabled:cursor-default`}
                     >
-                      <div className="flex items-center gap-2">
-                        <Activity className={`h-4 w-4 ${selected ? 'text-primary-light' : 'text-muted'}`} />
-                        <p className="text-sm font-medium text-white">{item.label}</p>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-muted">{item.description}</p>
+                      <span className="flex items-center gap-3">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                          selected ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border bg-background text-muted'
+                        }`}>
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-white">{runtime ? 'Runtime Key' : 'Project Key'}</span>
+                          <span className={`mt-0.5 block text-[10px] font-medium uppercase tracking-[0.12em] ${selected ? 'text-primary-light' : 'text-muted'}`}>
+                            {runtime ? 'Agent + Environment' : 'Project operations'}
+                          </span>
+                        </span>
+                      </span>
                     </button>
                   )
                 })}
-              </div>
-            </section>
-          )}
+                <div className="rounded-xl border border-border/80 bg-background/35 p-4">
+                  <p className="text-xs leading-5 text-muted">
+                    {kind === 'runtime'
+                      ? 'Use a Runtime Key to call one Agent deployment from your application.'
+                      : 'Use a Project Key for operational APIs such as traces, usage and cost.'}
+                  </p>
+                </div>
+              </aside>
 
-          <ApiKeyExpirationField
-            value={expiration}
-            onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }}
-            error={expirationError}
-          />
+              <main className="min-w-0 space-y-5">
+                <section>
+                  <label className="mb-2 block text-xs font-medium text-muted" htmlFor="api-key-name">Name</label>
+                  <Input
+                    id="api-key-name"
+                    value={name}
+                    onChange={(event) => { setName(event.target.value); setError(null) }}
+                    placeholder={kind === 'runtime' ? 'Customer support production' : 'Analytics backend'}
+                  />
+                </section>
 
-          <div className="rounded-xl border border-border/80 bg-background/35 px-4 py-3.5">
-            <div className="flex items-start gap-3">
-              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
-              <div className="min-w-0">
                 {kind === 'runtime' ? (
-                  <>
-                    <p className="text-xs leading-5 text-white">
-                      This key will execute <span className="font-medium">{selectedAgent?.name || 'the selected Agent'}</span> in <span className="font-medium">{environmentLabel(environment)}</span> through {interfaces.length ? interfaces.join(', ') : 'no interfaces'}.
-                    </p>
-                    <p className="mt-1 text-[11px] leading-5 text-muted">It always resolves the current {environmentLabel(environment)} release. Deploys and rollbacks do not require changing the key.</p>
-                    <code className="mt-2 block text-[10px] text-primary-light">woobe_{environment}_...</code>
-                  </>
+                  <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-white">Agent</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted">Choose which Agent deployment this credential can execute.</p>
+                      </div>
+                      <AgentSelectionList
+                        agents={agents}
+                        selectedAgentId={agentId}
+                        loading={agentsLoading}
+                        locked={agentLocked}
+                        onSelect={(nextAgentId) => {
+                          setAgentId(nextAgentId)
+                          setName('')
+                          setError(null)
+                        }}
+                      />
+                    </section>
+
+                    <div className="space-y-4">
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                        <p className="text-xs font-medium text-muted">Environment</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
+                            <button
+                              key={item}
+                              type="button"
+                              disabled={environmentLocked}
+                              onClick={() => { setEnvironment(item); setName(''); setError(null) }}
+                              className={`h-10 rounded-lg border text-xs font-medium transition-colors ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted hover:text-white'} disabled:cursor-not-allowed`}
+                            >
+                              {environmentLabel(item)}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className={`mt-3 rounded-lg border px-3 py-2.5 ${
+                          releasesLoading || currentRelease || !selectedAgent
+                            ? 'border-border/75 bg-background/45'
+                            : 'border-yellow-500/25 bg-yellow-500/5'
+                        }`}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Current deployment</p>
+                          {!selectedAgent ? (
+                            <p className="mt-1.5 text-xs text-muted">Select an Agent to inspect this environment.</p>
+                          ) : releasesLoading ? (
+                            <p className="mt-1.5 text-xs text-muted">Checking current deployment…</p>
+                          ) : currentRelease ? (
+                            <p className="mt-1.5 text-xs text-white">{environmentLabel(environment)} · <span className="font-medium">{currentRelease.version}</span></p>
+                          ) : (
+                            <p className="mt-1.5 text-xs leading-5 text-yellow-200">{environmentLabel(environment)} · Not deployed. Requests return 409 until deployment.</p>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                        <p className="text-xs font-medium text-muted">Allowed interfaces</p>
+                        <div className="mt-2 grid auto-rows-fr grid-cols-3 gap-2">
+                          {RUNTIME_INTERFACES.map((item) => {
+                            const selected = interfaces.includes(item.value)
+                            return (
+                              <button
+                                key={item.value}
+                                type="button"
+                                onClick={() => toggleInterface(item.value)}
+                                className={`min-h-[64px] rounded-lg border p-2.5 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                              >
+                                <p className="text-xs font-medium text-white">{item.label}</p>
+                                <p className="mt-1 text-[10px] leading-4 text-muted">{item.description}</p>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                        <ApiKeyExpirationField
+                          value={expiration}
+                          onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }}
+                          error={expirationError}
+                        />
+                      </section>
+                    </div>
+                  </div>
                 ) : (
-                  <>
-                    <p className="text-xs leading-5 text-white">This key can access {permissions.length ? permissions.map((scope) => scope === 'traces:read' ? 'traces' : 'usage and cost data').join(' and ') : 'no Project APIs'}.</p>
-                    <p className="mt-1 text-[11px] leading-5 text-muted">It cannot execute Agents. New runtime integrations should use a Runtime Key.</p>
-                    <code className="mt-2 block text-[10px] text-primary-light">woobe_project_...</code>
-                  </>
+                  <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]">
+                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-white">Permissions</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted">Choose which Project operations this key can access.</p>
+                      </div>
+                      <div className="grid auto-rows-fr gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                        {PROJECT_PERMISSIONS.map((item) => {
+                          const selected = permissions.includes(item.value)
+                          return (
+                            <button
+                              key={item.value}
+                              type="button"
+                              onClick={() => togglePermission(item.value)}
+                              className={`min-h-[88px] rounded-xl border p-4 text-left transition-colors ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Activity className={`h-4 w-4 ${selected ? 'text-primary-light' : 'text-muted'}`} />
+                                <p className="text-sm font-medium text-white">{item.label}</p>
+                              </div>
+                              <p className="mt-2 text-xs leading-5 text-muted">{item.description}</p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                      <ApiKeyExpirationField
+                        value={expiration}
+                        onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }}
+                        error={expirationError}
+                      />
+                    </section>
+                  </div>
                 )}
-              </div>
+
+                <div className="rounded-xl border border-border/80 bg-background/35 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+                    <div className="min-w-0 flex-1 lg:flex lg:items-start lg:justify-between lg:gap-4">
+                      {kind === 'runtime' ? (
+                        <div>
+                          <p className="text-xs leading-5 text-white">
+                            <span className="font-medium">{selectedAgent?.name || 'Selected Agent'}</span> · {environmentLabel(environment)} · {interfaces.length ? interfaces.join(', ') : 'No interfaces'}
+                          </p>
+                          <p className="mt-0.5 text-[11px] leading-5 text-muted">Always resolves the current {environmentLabel(environment)} release. Deploys and rollbacks keep the same key.</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs leading-5 text-white">Project operations · {permissions.length ? permissions.map((scope) => scope === 'traces:read' ? 'Traces' : 'Usage & cost').join(', ') : 'No permissions'}</p>
+                          <p className="mt-0.5 text-[11px] leading-5 text-muted">Project Keys cannot execute Agents. Use a Runtime Key for runtime integrations.</p>
+                        </div>
+                      )}
+                      <code className="mt-2 block shrink-0 text-[10px] text-primary-light lg:mt-0">
+                        {kind === 'runtime' ? `woobe_${environment}_...` : 'woobe_project_...'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              </main>
             </div>
           </div>
 
-          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/80 pt-4">
+          <div className="mt-5 flex min-h-12 shrink-0 items-center justify-between gap-4 border-t border-border/80 pt-4">
             <div className="min-w-0 flex-1">
               {error && <p className="text-xs text-red-300">{error}</p>}
             </div>
