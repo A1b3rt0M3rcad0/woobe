@@ -166,7 +166,7 @@ class TestUpdateApiKeyCredentialUseCase:
             description="Production checkout integration",
         )
         repo = AsyncMock()
-        repo.list_by_credential_id = AsyncMock(return_value=[revision])
+        repo.get_by_id = AsyncMock(return_value=revision)
         repo.update_credential_metadata = AsyncMock(return_value=saved)
         outbox = AsyncMock()
         outbox.write = AsyncMock()
@@ -175,7 +175,7 @@ class TestUpdateApiKeyCredentialUseCase:
         result = await use_case.execute(
             UpdateApiKeyCredentialInput(
                 project_id=project_id,
-                credential_id=credential_id,
+                api_key_id=revision.id,
                 updated_by_user_id=UUID(int=0),
                 name=" Checkout backend ",
                 description=" Production checkout integration ",
@@ -185,6 +185,7 @@ class TestUpdateApiKeyCredentialUseCase:
         assert result.credential_id == credential_id
         assert result.name == "Checkout backend"
         assert result.description == "Production checkout integration"
+        repo.get_by_id.assert_awaited_once_with(revision.id)
         repo.update_credential_metadata.assert_awaited_once_with(
             credential_id,
             name="Checkout backend",
