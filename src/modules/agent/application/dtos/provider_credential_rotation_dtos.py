@@ -8,7 +8,6 @@ from modules.agent.domain.enums import CredentialStatus, Provider
 
 
 class RotateProviderCredentialInput(BaseModel):
-    project_id: UUID
     secret: str = Field(min_length=1)
     rotated_by_user_id: UUID
 
@@ -19,6 +18,7 @@ class RotateProviderCredentialOutput(BaseModel):
     provider: Provider
     name: str
     status: CredentialStatus
+    created_at: datetime | None = None
     last_validated_at: datetime | None = None
     updated_at: datetime | None = None
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
