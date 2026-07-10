@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { AlertTriangle, Cable, Cpu, Database, Pencil, Search, ShieldOff, Trash2 } from 'lucide-react'
+import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, Search, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { CreateResourceCard } from '@/components/common/CreateResourceCard'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
+import { RotateProviderCredentialDialog } from '@/features/provider-credentials/components/RotateProviderCredentialDialog'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { useProviderModels } from '@/features/provider-models/hooks'
@@ -199,6 +200,7 @@ function CredentialDetailsDialog({
   open,
   onClose,
   onEdit,
+  onRotate,
   onArchive,
   onRevoke,
 }: {
@@ -207,6 +209,7 @@ function CredentialDetailsDialog({
   open: boolean
   onClose: () => void
   onEdit: () => void
+  onRotate: () => void
   onArchive: () => void
   onRevoke: () => void
 }) {
@@ -262,6 +265,10 @@ function CredentialDetailsDialog({
             <Button type="button" variant="outline" onClick={onEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit connection
+            </Button>
+            <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Rotate key
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -350,6 +357,7 @@ export default function CredentialsPage() {
   const [query, setQuery] = useState('')
   const [showCredentialForm, setShowCredentialForm] = useState(false)
   const [credentialToEdit, setCredentialToEdit] = useState<ProviderCredential | null>(null)
+  const [credentialToRotate, setCredentialToRotate] = useState<ProviderCredential | null>(null)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>(null)
   const [impactLoading, setImpactLoading] = useState(false)
@@ -373,6 +381,12 @@ export default function CredentialsPage() {
     return grouped
   }, [models])
 
+  const rotatingModels = credentialToRotate
+    ? (modelsByCredential.get(credentialToRotate.id) || []).filter((model) => !isArchived(model))
+    : []
+  const rotatingGenerationCount = rotatingModels.filter((model) => !isEmbeddingModel(model)).length
+  const rotatingEmbeddingCount = rotatingModels.filter((model) => isEmbeddingModel(model)).length
+
   const closeCredentialForm = () => {
     setShowCredentialForm(false)
     setCredentialToEdit(null)
@@ -388,6 +402,17 @@ export default function CredentialsPage() {
     setCredentialToEdit(selectedCredential)
     setSelectedCredential(null)
     setShowCredentialForm(true)
+  }
+
+  const openRotateCredential = () => {
+    if (!selectedCredential || selectedCredential.status !== 'active') return
+    setCredentialToRotate(selectedCredential)
+    setSelectedCredential(null)
+  }
+
+  const closeRotateCredential = () => {
+    if (credentialToRotate) setSelectedCredential(credentialToRotate)
+    setCredentialToRotate(null)
   }
 
   const prepareAction = async (kind: 'archive' | 'revoke') => {
@@ -493,8 +518,23 @@ export default function CredentialsPage() {
         open={Boolean(selectedCredential)}
         onClose={() => setSelectedCredential(null)}
         onEdit={openEditCredential}
+        onRotate={openRotateCredential}
         onArchive={() => { void prepareAction('archive') }}
         onRevoke={() => { void prepareAction('revoke') }}
+      />
+
+      <RotateProviderCredentialDialog
+        open={Boolean(credentialToRotate)}
+        credential={credentialToRotate}
+        projectId={projectId}
+        generationCount={rotatingGenerationCount}
+        embeddingCount={rotatingEmbeddingCount}
+        onClose={closeRotateCredential}
+        onRotated={async (rotated) => {
+          setCredentialToRotate(null)
+          setSelectedCredential(rotated)
+          await Promise.all([credentialsQuery.refetch(), modelsQuery.refetch()])
+        }}
       />
 
       <ImpactDialog

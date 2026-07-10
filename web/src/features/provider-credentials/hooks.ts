@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCredentials, createCredential, updateCredential } from './api'
+import { createCredential, getCredentials, rotateCredential, updateCredential } from './api'
 import type {
   CreateProviderCredentialRequest,
+  RotateProviderCredentialRequest,
   UpdateProviderCredentialRequest,
 } from './types'
 
@@ -32,6 +33,16 @@ export function useUpdateCredential() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateProviderCredentialRequest }) => updateCredential(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credentials'] })
+    },
+  })
+}
+
+export function useRotateCredential() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: RotateProviderCredentialRequest }) => rotateCredential(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credentials'] })
     },

@@ -6,7 +6,6 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
-import { ProviderSecretInput } from '@/features/provider-credentials/components/ProviderSecretInput'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
@@ -57,14 +56,12 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
 
   const [provider, setProvider] = useState('openai')
   const [name, setName] = useState('')
-  const [secret, setSecret] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
 
   useEffect(() => {
     if (!credential) return
     setProvider(credential.provider)
     setName(credential.name)
-    setSecret('')
     setBaseUrl(String(credential.metadata?.base_url || ''))
   }, [credential, open])
 
@@ -75,14 +72,14 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     if (provider === 'custom' && !baseUrl.trim()) return toast.error('Base URL is required for OpenAI Compatible providers')
 
     try {
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        provider,
-        metadata: buildCredentialMetadata(provider, baseUrl),
-      }
-      if (secret.trim()) payload.secret = secret.trim()
-
-      await updateCredential.mutateAsync({ id: credential.id, data: payload as any })
+      await updateCredential.mutateAsync({
+        id: credential.id,
+        data: {
+          name: name.trim(),
+          provider,
+          metadata: buildCredentialMetadata(provider, baseUrl),
+        },
+      })
       toast.success('Credential updated')
       onCredentialCreated(credential.id)
       onClose()
@@ -116,9 +113,8 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
               />
             </div>
           )}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Replace API key <span className="font-normal text-muted/70">(optional)</span></label>
-            <ProviderSecretInput value={secret} onChange={setSecret} placeholder="Leave blank to keep current" />
+          <div className="rounded-lg border border-border/80 bg-background/55 p-3 text-xs leading-5 text-muted">
+            API keys are rotated from the credential details view so the replacement can be verified before the stored secret changes.
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={updateCredential.isPending}>Cancel</Button>
