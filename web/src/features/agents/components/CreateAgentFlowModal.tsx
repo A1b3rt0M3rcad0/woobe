@@ -669,7 +669,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   return (
     <Dialog open={open} onClose={busy ? () => undefined : onClose} title="Create agent" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
       <div className="scrollbar-thin max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
             <section className="rounded-xl border border-border/90 bg-surface/70 p-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
@@ -699,7 +699,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
           <main className="space-y-5">
             {step === 'details' && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-white">Agent details</h3>
                   <p className="mt-1 text-xs leading-5 text-muted">Give your agent a name. You can configure its behavior, tools and knowledge later in the Playground.</p>
@@ -718,7 +718,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             )}
 
             {step !== 'details' && step !== 'connect-provider' && (inventoryLoading || dependenciesError) && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 {inventoryLoading ? (
                   <p className="text-sm text-muted">Loading project setup...</p>
                 ) : (
@@ -732,7 +732,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             )}
 
             {step === 'connect-provider' && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <div className="flex items-center gap-2 text-xs text-primary-light"><Key className="h-3.5 w-3.5" />Provider connection</div>
                   <h3 className="mt-2 text-sm font-semibold text-white">Connect your AI provider</h3>
@@ -777,7 +777,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             )}
 
             {step === 'select-model' && !inventoryLoading && !dependenciesError && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-white">Choose a model</h3>
                   <p className="mt-1 text-xs leading-5 text-muted">Select the generation model this agent will use. Embedding models are not shown here.</p>
@@ -797,7 +797,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
             {step === 'create-model' && !inventoryLoading && !dependenciesError && (
               <>
-                <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+                <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                   <div className="mb-5">
                     <h3 className="text-sm font-semibold text-white">Provider connection</h3>
                     <p className="mt-1 text-xs leading-5 text-muted">The model must use an active provider connection from this Project.</p>
@@ -831,7 +831,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                 </section>
 
                 {selectedCredential && (
-                  <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+                  <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                     <div className="mb-5">
                       <h3 className="text-sm font-semibold text-white">Choose a model</h3>
                       <p className="mt-1 text-xs leading-5 text-muted">{providerLabel(selectedCredential.provider)} will be used for this reusable generation model.</p>
@@ -886,7 +886,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             )}
 
             {step === 'review' && selectedModel && (
-              <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
                   <div className="flex items-center gap-2 text-xs text-primary-light"><CheckCircle2 className="h-3.5 w-3.5" />Ready to create</div>
                   <h3 className="mt-2 text-sm font-semibold text-white">Review your agent</h3>
