@@ -28,8 +28,12 @@ export function RotateApiKeyDialog({
   onClose,
   onConfirm,
 }: RotateApiKeyDialogProps) {
+  const handleClose = () => {
+    if (!loading) onClose()
+  }
+
   return (
-    <Dialog open={open} onClose={onClose} title="Rotate API key" className="max-w-2xl">
+    <Dialog open={open} onClose={handleClose} title="Rotate API key" className="max-w-2xl">
       {apiKey && (
         <div className="space-y-5">
           <section className="rounded-xl border border-border/80 bg-surface/60 p-4">
@@ -79,7 +83,7 @@ export function RotateApiKeyDialog({
           <p className="text-xs leading-5 text-muted">The replacement secret is shown only once after rotation. Copy it before closing the next dialog.</p>
 
           <div className="flex justify-end gap-2 border-t border-border/80 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button>
             <Button type="button" onClick={onConfirm} loading={loading}>Rotate key</Button>
           </div>
         </div>
