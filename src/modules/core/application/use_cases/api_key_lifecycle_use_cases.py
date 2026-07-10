@@ -5,6 +5,8 @@ from modules.core.application.dtos.api_key_lifecycle_dtos import (
     RevokeApiKeyOutput,
     RotateApiKeyInput,
     RotateApiKeyOutput,
+    UpdateApiKeyCredentialInput,
+    UpdateApiKeyCredentialOutput,
 )
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind, ApiKeyStatus
@@ -45,6 +47,7 @@ class RevokeApiKeyUseCase:
                 event_type="api_key.revoked.v1",
                 payload={
                     "project_id": str(api_key.project_id),
+                    "credential_id": str(api_key.credential_id or api_key.id),
                     "revoked_by_user_id": str(input_dto.revoked_by_user_id),
                     "revoked_at": now.isoformat(),
                 },
@@ -79,7 +82,9 @@ class RotateApiKeyUseCase:
         requested_scopes = (
             current.scopes
             if current.kind == ApiKeyKind.runtime
-            else input_dto.scopes if input_dto.scopes is not None else current.scopes
+            else input_dto.scopes
+            if input_dto.scopes is not None
+            else current.scopes
         )
         try:
             scopes = normalize_project_api_key_scopes(requested_scopes)
@@ -101,7 +106,9 @@ class RotateApiKeyUseCase:
 
         replacement = ApiKey(
             project_id=current.project_id,
+            credential_id=current.credential_id or current.id,
             name=input_dto.name or current.name,
+            description=current.description,
             key_prefix=issued.public_prefix,
             key_hash=issued.digest,
             key_version=issued.key_version,
@@ -126,6 +133,7 @@ class RotateApiKeyUseCase:
             event_type="api_key.rotated.v1",
             payload={
                 "project_id": str(saved.project_id),
+                "credential_id": str(saved.credential_id or saved.id),
                 "rotated_from_id": str(current.id),
                 "rotated_by_user_id": str(input_dto.rotated_by_user_id),
                 "key_prefix": issued.display_prefix,
@@ -141,8 +149,10 @@ class RotateApiKeyUseCase:
 
         return RotateApiKeyOutput(
             id=saved.id,
+            credential_id=saved.credential_id or saved.id,
             project_id=saved.project_id,
             name=saved.name,
+            description=saved.description,
             key=issued.value,
             key_prefix=issued.display_prefix,
             scopes=list(saved.scopes),
@@ -154,4 +164,63 @@ class RotateApiKeyUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
             rotated_from_id=current.id,
+        )
+
+
+class UpdateApiKeyCredentialUseCase:
+    def __init__(
+        self,
+        api_key_repo: ApiKeyRepository,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        self._api_key_repo = api_key_repo
+        self._outbox = outbox
+
+    async def execute(
+        self,
+        input_dto: UpdateApiKeyCredentialInput,
+    ) -> UpdateApiKeyCredentialOutput:
+        revisions = await self._api_key_repo.list_by_credential_id(
+            input_dto.credential_id
+        )
+        if not revisions or any(
+            revision.project_id != input_dto.project_id for revision in revisions
+        ):
+            raise ApiKeyNotFoundError("API key credential not found")
+
+        now = datetime.now(UTC)
+        saved = await self._api_key_repo.update_credential_metadata(
+            input_dto.credential_id,
+            name=input_dto.name,
+            description=input_dto.description,
+        )
+
+        await self._outbox.write(
+            aggregate_type="api_key_credential",
+            aggregate_id=input_dto.credential_id,
+            event_type="api_key_credential.updated.v1",
+            payload={
+                "project_id": str(saved.project_id),
+                "name": saved.name,
+                "description": saved.description,
+                "updated_by_user_id": str(input_dto.updated_by_user_id),
+                "updated_at": now.isoformat(),
+            },
+            routing_key="api_key_credential.updated.v1",
+            idempotency_key=(
+                f"core:api_key_credential.updated.v1:"
+                f"{input_dto.credential_id}:{now.isoformat()}"
+            ),
+        )
+
+        return UpdateApiKeyCredentialOutput(
+            id=saved.id,
+            credential_id=saved.credential_id or saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            description=saved.description,
+            kind=saved.kind,
+            agent_id=saved.agent_id,
+            environment=saved.environment,
+            updated_at=now,
         )
