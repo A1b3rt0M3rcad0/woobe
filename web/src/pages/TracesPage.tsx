@@ -1,51 +1,30 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTraces, useTraceDetail } from '@/features/traces/hooks'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/Button'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatDateTime } from '@/lib/formatters/date'
 import { formatMoney } from '@/lib/formatters/money'
 import { formatLatency } from '@/lib/formatters/number'
-import { Activity, Search } from 'lucide-react'
+import { Activity, ChevronRight } from 'lucide-react'
 import type { Trace } from '@/features/traces/types'
 
 type StatusFilter = 'all' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'running', label: 'Running' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'cancelled', label: 'Cancelled' },
-]
-
 const panelScrollClass = 'scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-muted [scrollbar-color:rgb(51_65_85)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-border/70 [&::-webkit-scrollbar-thumb]:bg-clip-padding hover:[&::-webkit-scrollbar-thumb]:bg-muted'
-
-function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'primary' | 'danger' }) {
-  const toneClass = tone === 'primary'
-    ? 'border-primary/30 bg-primary/10 text-primary-light'
-    : tone === 'danger'
-      ? 'border-red-500/30 bg-red-500/10 text-red-200'
-      : 'border-border/80 bg-background/70 text-muted'
-  return <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
-}
 
 function compactId(id: string) {
   return `${id.slice(0, 8)}...`
@@ -54,6 +33,7 @@ function compactId(id: string) {
 function matchesStatus(trace: Trace, statusFilter: StatusFilter) {
   if (statusFilter === 'all') return true
   const status = trace.status.toLowerCase()
+  if (statusFilter === 'cancelled') return status === 'cancelled' || status === 'canceled'
   return status === statusFilter || (statusFilter === 'failed' && status === 'error')
 }
 
@@ -88,31 +68,19 @@ function fallbackCredentialId(trace: Trace) {
   return stringField(trace.fallback_credential_id, data.fallback_credential_id)
 }
 
-function EmptyTraces({ hasFilters }: { hasFilters: boolean }) {
-  return (
-    <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-8 text-center">
-      <Activity className="mx-auto h-10 w-10 text-muted" />
-      <h2 className="mt-4 text-sm font-semibold text-white">No traces found</h2>
-      <p className="mt-1 text-sm text-muted">
-        {hasFilters ? 'Adjust the search or status filter.' : 'Traces appear when agents are invoked.'}
-      </p>
-    </div>
-  )
-}
-
 function TraceRow({ trace, onClick }: { trace: Trace; onClick: () => void }) {
   const modelRef = providerModelId(trace)
   return (
     <button
       type="button"
       onClick={onClick}
-      className="grid w-full gap-4 border-b border-border/80 px-5 py-4 text-left transition-colors hover:bg-background/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_120px_120px_170px] md:items-center"
+      className="group grid w-full gap-4 border-b border-border/80 px-4 py-4 text-left transition-colors last:border-b-0 hover:bg-background/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_110px_110px_160px_20px] xl:items-center"
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <code className="font-mono text-xs text-white">{compactId(trace.id)}</code>
-          {trace.fallback_used && <Pill tone="primary">Fallback</Pill>}
-          {trace.error && <Pill tone="danger">Error</Pill>}
+          {trace.fallback_used && <ResourcePill tone="primary">Fallback</ResourcePill>}
+          {trace.error && <ResourcePill tone="danger">Error</ResourcePill>}
         </div>
         <p className="mt-1 truncate text-xs text-muted">{trace.session_id || trace.agent_id || 'Project trace'}</p>
       </div>
@@ -123,18 +91,20 @@ function TraceRow({ trace, onClick }: { trace: Trace; onClick: () => void }) {
         {modelRef && <p className="mt-1 truncate font-mono text-[11px] text-muted">model ref · {compactId(modelRef)}</p>}
       </div>
 
-      <StatusBadge status={trace.status} />
+      <StatusBadge status={trace.status} size="compact" />
 
       <div>
         <p className="text-xs text-muted">Latency</p>
         <p className="mt-1 text-sm font-medium text-white">{formatLatency(trace.total_latency_ms)}</p>
       </div>
 
-      <div className="md:text-right">
+      <div className="xl:text-right">
         <p className="text-xs text-muted">Cost · Time</p>
         <p className="mt-1 text-sm font-medium text-white">{trace.total_cost_usd ? formatMoney(trace.total_cost_usd) : '—'}</p>
         <p className="mt-1 text-xs text-muted">{trace.created_at ? formatDateTime(trace.created_at) : '—'}</p>
       </div>
+
+      <ChevronRight className="hidden h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light xl:block" aria-hidden="true" />
     </button>
   )
 }
@@ -158,6 +128,13 @@ export default function TracesPage() {
   const { data: traceDetail } = useTraceDetail(selectedTraceId || undefined)
 
   const items = traces ?? []
+  const statusCounts = useMemo(() => ({
+    all: items.length,
+    running: items.filter((trace) => matchesStatus(trace, 'running')).length,
+    completed: items.filter((trace) => matchesStatus(trace, 'completed')).length,
+    failed: items.filter((trace) => matchesStatus(trace, 'failed')).length,
+    cancelled: items.filter((trace) => matchesStatus(trace, 'cancelled')).length,
+  }), [items])
   const visibleTraces = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return items.filter((trace) => {
@@ -176,42 +153,61 @@ export default function TracesPage() {
     })
   }, [items, query, statusFilter])
 
-  if (isLoading) return <LoadingState />
-  if (isError) return <ErrorState error={error} onRetry={refetch} />
-
+  if (!projectId) return <ErrorState message="Project not found" />
   const hasFilters = query.trim().length > 0 || statusFilter !== 'all'
+  const resultCount = hasFilters ? `${visibleTraces.length} of ${items.length}` : items.length
 
   return (
-    <MinimalShell title="Traces" description="Request-level observability for agent executions.">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search traces, models or bindings..."
-            className="h-11 pl-9"
-          />
-        </div>
-        <Select
+    <ResourcePage title="Traces" description="Request-level observability for Agent executions.">
+      <ResourceToolbar>
+        <ResourceTabs
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-          options={STATUS_OPTIONS}
-          className="h-11"
+          onChange={setStatusFilter}
+          label="Filter Traces by status"
+          tabs={[
+            { value: 'all', label: 'All', count: statusCounts.all },
+            { value: 'running', label: 'Running', count: statusCounts.running },
+            { value: 'completed', label: 'Completed', count: statusCounts.completed },
+            { value: 'failed', label: 'Failed', count: statusCounts.failed },
+            { value: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled },
+          ]}
         />
-      </div>
+        <ResourceSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search Traces, sessions, models or bindings..."
+          label="Search Traces"
+        />
+      </ResourceToolbar>
 
-      {visibleTraces.length > 0 ? (
-        <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-semibold text-white">Trace stream</h2>
-            <p className="mt-1 text-xs text-muted">Auto-refreshing execution records for this project.</p>
+      <section>
+        <ResourceSectionHeader
+          title="Trace stream"
+          description="Auto-refreshing execution records for this Project."
+          count={resultCount}
+        />
+
+        {isLoading ? (
+          <LoadingState message="Loading Traces" variant="panel" layout="resource-list" />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : visibleTraces.length > 0 ? (
+          <div className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
+            {visibleTraces.map((trace) => <TraceRow key={trace.id} trace={trace} onClick={() => setSelectedTraceId(trace.id)} />)}
           </div>
-          {visibleTraces.map((trace) => <TraceRow key={trace.id} trace={trace} onClick={() => setSelectedTraceId(trace.id)} />)}
-        </section>
-      ) : (
-        <EmptyTraces hasFilters={hasFilters} />
-      )}
+        ) : (
+          <ResourceEmptyState
+            icon={<Activity className="h-4 w-4" />}
+            title="No Traces found"
+            description={hasFilters ? 'Adjust the search or clear the active status filter.' : 'Traces appear when Agents are invoked.'}
+            action={hasFilters ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all') }}>
+                Clear filters
+              </Button>
+            ) : undefined}
+          />
+        )}
+      </section>
 
       <Dialog open={!!selectedTraceId} onClose={() => setSelectedTraceId(null)} title="Trace detail" className="max-h-[90vh] max-w-5xl overflow-hidden">
         {traceDetail ? (
@@ -227,9 +223,9 @@ export default function TracesPage() {
                     <p className="mt-2 truncate text-sm text-muted">{traceDetail.model || 'Model not recorded'}</p>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <StatusBadge status={traceDetail.status} />
-                    {traceDetail.fallback_used && <Pill tone="primary">Fallback</Pill>}
-                    {traceDetail.error && <Pill tone="danger">Error</Pill>}
+                    <StatusBadge status={traceDetail.status} size="compact" />
+                    {traceDetail.fallback_used && <ResourcePill tone="primary">Fallback</ResourcePill>}
+                    {traceDetail.error && <ResourcePill tone="danger">Error</ResourcePill>}
                   </div>
                 </div>
 
@@ -271,7 +267,7 @@ export default function TracesPage() {
                       <h3 className="text-sm font-semibold text-white">Events</h3>
                       <p className="mt-1 text-xs text-muted">Timeline of recorded trace events.</p>
                     </div>
-                    <Pill>{traceDetail.events.length} events</Pill>
+                    <ResourcePill>{traceDetail.events.length} events</ResourcePill>
                   </div>
                   <div className="space-y-3">
                     {traceDetail.events.length === 0 ? (
@@ -283,7 +279,7 @@ export default function TracesPage() {
                             <p className="text-sm font-medium text-white">{event.event_type}</p>
                             <p className="mt-1 text-xs text-muted">{event.created_at ? formatDateTime(event.created_at) : 'Time not recorded'}</p>
                           </div>
-                          {event.latency_ms != null && <Pill>{formatLatency(event.latency_ms)}</Pill>}
+                          {event.latency_ms != null && <ResourcePill>{formatLatency(event.latency_ms)}</ResourcePill>}
                         </div>
                         {event.payload && <JsonCodeBlock value={event.payload} maxHeight={140} className="mt-3" />}
                       </div>
@@ -297,6 +293,6 @@ export default function TracesPage() {
           <LoadingState />
         )}
       </Dialog>
-    </MinimalShell>
+    </ResourcePage>
   )
 }
