@@ -27,6 +27,5 @@ export interface UpdateProviderCredentialRequest {
 }
 
 export interface RotateProviderCredentialRequest {
-  project_id: string
   secret: string
 }
