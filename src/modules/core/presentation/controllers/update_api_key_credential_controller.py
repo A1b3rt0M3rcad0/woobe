@@ -21,7 +21,7 @@ class UpdateApiKeyCredentialController(Controller):
         body.update(
             {
                 "project_id": request.path_params["project_id"],
-                "credential_id": request.path_params["credential_id"],
+                "api_key_id": request.path_params["api_key_id"],
                 "updated_by_user_id": principal.user_id,
             }
         )
