@@ -67,12 +67,12 @@ export function useUpdateApiKeyCredential(projectId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
-      credentialId,
+      apiKeyId,
       data,
     }: {
-      credentialId: string
+      apiKeyId: string
       data: UpdateApiKeyCredentialRequest
-    }) => updateApiKeyCredential(projectId!, credentialId, data),
+    }) => updateApiKeyCredential(projectId!, apiKeyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys', projectId] })
     },
