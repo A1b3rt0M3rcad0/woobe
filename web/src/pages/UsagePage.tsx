@@ -1,55 +1,58 @@
-import { type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useProjectUsage } from '@/features/usage/hooks'
-import { LoadingState } from '@/components/common/LoadingState'
-import { ErrorState } from '@/components/common/ErrorState'
-import { formatMoney } from '@/lib/formatters/money'
 import { BarChart3, FileText, MessageSquare } from 'lucide-react'
-import type { DailyUsage } from '@/features/usage/types'
 
-function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
-      </div>
-      {children}
-    </div>
-  )
-}
+import { ErrorState } from '@/components/common/ErrorState'
+import { LoadingState } from '@/components/common/LoadingState'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
+import { useProjectUsage } from '@/features/usage/hooks'
+import type { DailyUsage } from '@/features/usage/types'
+import { formatMoney } from '@/lib/formatters/money'
+
+type UsageRange = '7d' | '30d' | '90d' | 'all'
 
 function formatNumber(value: number) {
   return value.toLocaleString()
 }
 
 function formatDay(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString()
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString()
+}
+
+function dateOnly(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function filterByRange(items: DailyUsage[], range: UsageRange) {
+  if (range === 'all') return items
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90
+  const cutoff = new Date()
+  cutoff.setHours(0, 0, 0, 0)
+  cutoff.setDate(cutoff.getDate() - (days - 1))
+  return items.filter((item) => dateOnly(item.day) >= cutoff)
 }
 
 function MetricCard({ label, value, description, icon: Icon }: { label: string; value: string; description: string; icon: typeof MessageSquare }) {
   return (
-    <div className="rounded-xl border border-border/90 bg-surface/70 p-5">
+    <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">{label}</p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-white">{value}</p>
-          <p className="mt-2 text-xs leading-5 text-muted">{description}</p>
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
+          <p className="mt-2 truncate text-2xl font-semibold tracking-tight text-white">{value}</p>
+          <p className="mt-1 truncate text-xs text-muted" title={description}>{description}</p>
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-          <Icon className="h-5 w-5" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
+          <Icon className="h-4 w-4" />
         </div>
       </div>
-    </div>
-  )
-}
-
-function EmptyUsage() {
-  return (
-    <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-8 text-center">
-      <BarChart3 className="mx-auto h-10 w-10 text-muted" />
-      <h2 className="mt-4 text-sm font-semibold text-white">No usage data</h2>
-      <p className="mt-1 text-sm text-muted">Usage appears once agents start receiving runtime requests.</p>
     </div>
   )
 }
@@ -58,12 +61,10 @@ function DailyUsageTrend({ usage }: { usage: DailyUsage[] }) {
   const maxRequests = Math.max(...usage.map((item) => item.requests), 1)
 
   return (
-    <section className="rounded-xl border border-border/90 bg-surface/70 p-5">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-white">Daily usage trend</h2>
-          <p className="mt-1 text-xs text-muted">Request volume by day.</p>
-        </div>
+    <section className="rounded-xl border border-border/90 bg-surface/70 p-4">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-white">Daily usage trend</h2>
+        <p className="mt-1 text-xs text-muted">Request volume by day.</p>
       </div>
 
       <div className="space-y-3">
@@ -75,7 +76,7 @@ function DailyUsageTrend({ usage }: { usage: DailyUsage[] }) {
               <div className="h-2 overflow-hidden rounded-full bg-background">
                 <div className="h-full rounded-full bg-primary/70" style={{ width }} />
               </div>
-              <span className="text-right text-xs font-medium text-white">{formatNumber(item.requests)}</span>
+              <span className="text-left text-xs font-medium text-white md:text-right">{formatNumber(item.requests)}</span>
             </div>
           )
         })}
@@ -86,8 +87,8 @@ function DailyUsageTrend({ usage }: { usage: DailyUsage[] }) {
 
 function DailyUsageRows({ usage }: { usage: DailyUsage[] }) {
   return (
-    <section className="rounded-xl border border-border/90 bg-surface/70">
-      <div className="border-b border-border px-5 py-4">
+    <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
+      <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Daily usage</h2>
         <p className="mt-1 text-xs text-muted">Requests, token volume and estimated cost.</p>
       </div>
@@ -95,26 +96,28 @@ function DailyUsageRows({ usage }: { usage: DailyUsage[] }) {
         {usage.map((item) => {
           const totalTokens = item.input_tokens + item.output_tokens
           return (
-            <div key={item.day} className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[1fr_repeat(4,minmax(110px,auto))] md:items-center">
+            <div key={item.day} className="grid gap-3 px-4 py-3 text-sm xl:grid-cols-[1fr_repeat(4,minmax(110px,auto))] xl:items-center">
               <div>
                 <p className="font-medium text-white">{formatDay(item.day)}</p>
                 <p className="mt-1 text-xs text-muted">{totalTokens.toLocaleString()} total tokens</p>
               </div>
-              <div>
-                <p className="text-xs text-muted">Requests</p>
-                <p className="mt-1 font-medium text-white">{formatNumber(item.requests)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted">Input</p>
-                <p className="mt-1 font-medium text-white">{formatNumber(item.input_tokens)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted">Output</p>
-                <p className="mt-1 font-medium text-white">{formatNumber(item.output_tokens)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted">Cost</p>
-                <p className="mt-1 font-medium text-white">{formatMoney(item.cost_usd)}</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:contents">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">Requests</p>
+                  <p className="mt-1 font-medium text-white">{formatNumber(item.requests)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">Input</p>
+                  <p className="mt-1 font-medium text-white">{formatNumber(item.input_tokens)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">Output</p>
+                  <p className="mt-1 font-medium text-white">{formatNumber(item.output_tokens)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">Cost</p>
+                  <p className="mt-1 font-medium text-white">{formatMoney(item.cost_usd)}</p>
+                </div>
               </div>
             </div>
           )
@@ -127,39 +130,71 @@ function DailyUsageRows({ usage }: { usage: DailyUsage[] }) {
 export default function UsagePage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: usage, isLoading, isError, error, refetch } = useProjectUsage(projectId)
-
-  if (isLoading) return <LoadingState />
-  if (isError) return <ErrorState error={error} onRetry={refetch} />
+  const [range, setRange] = useState<UsageRange>('30d')
 
   const items = usage ?? []
-  const totalRequests = items.reduce((sum: number, item: DailyUsage) => sum + item.requests, 0)
-  const totalInput = items.reduce((sum: number, item: DailyUsage) => sum + item.input_tokens, 0)
-  const totalOutput = items.reduce((sum: number, item: DailyUsage) => sum + item.output_tokens, 0)
-  const totalCost = items.reduce((sum: number, item: DailyUsage) => sum + item.cost_usd, 0)
+  const visibleUsage = useMemo(() => filterByRange(items, range), [items, range])
+  const totalRequests = visibleUsage.reduce((sum: number, item: DailyUsage) => sum + item.requests, 0)
+  const totalInput = visibleUsage.reduce((sum: number, item: DailyUsage) => sum + item.input_tokens, 0)
+  const totalOutput = visibleUsage.reduce((sum: number, item: DailyUsage) => sum + item.output_tokens, 0)
+  const totalCost = visibleUsage.reduce((sum: number, item: DailyUsage) => sum + item.cost_usd, 0)
   const totalTokens = totalInput + totalOutput
   const averageTokensPerRequest = totalRequests > 0 ? Math.round(totalTokens / totalRequests) : 0
   const averageCostPerRequest = totalRequests > 0 ? totalCost / totalRequests : 0
 
   return (
-    <MinimalShell
+    <ResourcePage
       title="Usage"
-      description="Track runtime volume, token usage and estimated cost for this project."
+      description="Track runtime volume, token usage and estimated cost for this Project."
     >
-      {items.length === 0 ? (
-        <EmptyUsage />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard icon={MessageSquare} label="Requests" value={formatNumber(totalRequests)} description="Total runtime requests in the current dataset." />
-            <MetricCard icon={FileText} label="Tokens" value={formatNumber(totalTokens)} description={`${formatNumber(totalInput)} input · ${formatNumber(totalOutput)} output`} />
-            <MetricCard icon={BarChart3} label="Cost" value={formatMoney(totalCost)} description="Estimated total cost across recorded usage." />
-            <MetricCard icon={BarChart3} label="Efficiency" value={formatNumber(averageTokensPerRequest)} description={`${formatMoney(averageCostPerRequest)} average cost per request`} />
-          </div>
+      <ResourceToolbar>
+        <ResourceTabs
+          value={range}
+          onChange={setRange}
+          label="Usage period"
+          tabs={[
+            { value: '7d', label: 'Last 7 days' },
+            { value: '30d', label: 'Last 30 days' },
+            { value: '90d', label: 'Last 90 days' },
+            { value: 'all', label: 'All time' },
+          ]}
+        />
+      </ResourceToolbar>
 
-          <DailyUsageTrend usage={items} />
-          <DailyUsageRows usage={items} />
-        </>
-      )}
-    </MinimalShell>
+      <section>
+        <ResourceSectionHeader
+          title="Usage overview"
+          description="Aggregated runtime consumption for the selected period."
+          count={`${visibleUsage.length} day${visibleUsage.length === 1 ? '' : 's'}`}
+        />
+
+        {isLoading ? (
+          <LoadingState message="Loading Usage" variant="panel" layout="metrics" />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : visibleUsage.length === 0 ? (
+          <ResourceEmptyState
+            icon={<BarChart3 className="h-4 w-4" />}
+            title={items.length === 0 ? 'No Usage data' : 'No Usage in this period'}
+            description={items.length === 0
+              ? 'Usage appears after Agents begin receiving runtime requests.'
+              : 'Choose a wider period to inspect earlier runtime activity.'}
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard icon={MessageSquare} label="Requests" value={formatNumber(totalRequests)} description="Runtime requests" />
+              <MetricCard icon={FileText} label="Tokens" value={formatNumber(totalTokens)} description={`${formatNumber(totalInput)} input · ${formatNumber(totalOutput)} output`} />
+              <MetricCard icon={BarChart3} label="Cost" value={formatMoney(totalCost)} description="Estimated total cost" />
+              <MetricCard icon={BarChart3} label="Efficiency" value={formatNumber(averageTokensPerRequest)} description={`${formatMoney(averageCostPerRequest)} per request`} />
+            </div>
+
+            <DailyUsageTrend usage={visibleUsage} />
+            <DailyUsageRows usage={visibleUsage} />
+          </div>
+        )}
+      </section>
+    </ResourcePage>
   )
 }
+
