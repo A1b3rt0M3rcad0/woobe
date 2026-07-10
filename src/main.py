@@ -24,6 +24,7 @@ from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
 from modules.agent.presentation.routes import runtime_router as agent_runtime_router
 from modules.agent.presentation.routes import tools_router
+from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
@@ -240,6 +241,7 @@ def create_app() -> FastAPI:
         app.include_router(vector_snapshot_router)
         app.include_router(agent_runtime_router)
         app.include_router(tools_router)
+        app.include_router(tool_lifecycle_router)
         app.include_router(mcp_tools_router)
         app.include_router(metering_router)
         app.include_router(billing_router)
