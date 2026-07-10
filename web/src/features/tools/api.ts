@@ -26,6 +26,19 @@ import type {
   RefreshMcpToolsResponse,
 } from './types'
 
+export interface ToolUsageImpact {
+  tool_id: string
+  status: string
+  in_use: boolean
+  can_delete: boolean
+  can_retire: boolean
+  draft_agents: number
+  staging_agents: number
+  production_agents: number
+  historical_releases: number
+  total_references: number
+}
+
 export async function getTools(projectId?: string): Promise<Tool[]> {
   return get<Tool[]>('/tools/tools', { params: { project_id: projectId } })
 }
@@ -44,6 +57,10 @@ export async function updateTool(toolId: string, data: Partial<CreateToolRequest
 
 export async function updateToolStatus(toolId: string, data: UpdateToolStatusRequest): Promise<Tool> {
   return patch<Tool>(`/tools/tools/${toolId}/status`, data)
+}
+
+export async function getToolUsageImpact(toolId: string): Promise<ToolUsageImpact> {
+  return get<ToolUsageImpact>(`/tools/tools/${toolId}/usage-impact`)
 }
 
 export async function deleteTool(toolId: string): Promise<void> {
