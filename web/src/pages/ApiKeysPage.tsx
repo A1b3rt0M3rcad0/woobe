@@ -239,7 +239,7 @@ function CredentialDetail({
     }
     try {
       await updateCredential.mutateAsync({
-        credentialId: group.id,
+        apiKeyId: group.current.id,
         data: { name: normalizedName, description: description.trim() || null },
       })
       setEditing(false)
