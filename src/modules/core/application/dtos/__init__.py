@@ -3,6 +3,8 @@ from modules.core.application.dtos.api_key_lifecycle_dtos import (
     RevokeApiKeyOutput,
     RotateApiKeyInput,
     RotateApiKeyOutput,
+    UpdateApiKeyCredentialInput,
+    UpdateApiKeyCredentialOutput,
 )
 from modules.core.application.dtos.create_api_key_dtos import (
     CreateApiKeyInput,
@@ -12,7 +14,10 @@ from modules.core.application.dtos.create_project_dtos import (
     CreateProjectInput,
     CreateProjectOutput,
 )
-from modules.core.application.dtos.get_project_dtos import GetProjectInput, GetProjectOutput
+from modules.core.application.dtos.get_project_dtos import (
+    GetProjectInput,
+    GetProjectOutput,
+)
 from modules.core.application.dtos.list_api_keys_dtos import (
     ListApiKeysInput,
     ListApiKeysOutput,
@@ -35,6 +40,8 @@ __all__ = [
     "RevokeApiKeyOutput",
     "RotateApiKeyInput",
     "RotateApiKeyOutput",
+    "UpdateApiKeyCredentialInput",
+    "UpdateApiKeyCredentialOutput",
     "ListProjectsInput",
     "ListProjectsOutput",
     "GetProjectInput",

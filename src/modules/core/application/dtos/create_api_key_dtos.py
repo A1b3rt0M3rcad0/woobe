@@ -12,6 +12,7 @@ from modules.core.domain.enums import (
 class CreateApiKeyInput(BaseModel):
     project_id: UUID
     name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=500)
     scopes: list[str] = Field(min_length=1, max_length=16)
     created_by_user_id: UUID
     expires_at: datetime | None = None
@@ -24,13 +25,23 @@ class CreateApiKeyInput(BaseModel):
             raise ValueError("API key name cannot be blank")
         return normalized
 
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @field_validator("scopes")
     @classmethod
     def validate_scopes(cls, value: list[str]) -> list[str]:
         normalized = list(dict.fromkeys(value))
         unknown = set(normalized) - PROJECT_API_KEY_ACCEPTED_SCOPES
         if unknown:
-            raise ValueError(f"Unsupported API key scopes: {', '.join(sorted(unknown))}")
+            raise ValueError(
+                f"Unsupported API key scopes: {', '.join(sorted(unknown))}"
+            )
         return normalized
 
     @model_validator(mode="after")
@@ -48,8 +59,10 @@ class CreateApiKeyInput(BaseModel):
 
 class CreateApiKeyOutput(BaseModel):
     id: UUID
+    credential_id: UUID
     project_id: UUID
     name: str
+    description: str | None = None
     key_prefix: str
     key_hash: bytes | None = None
     key: str = ""

@@ -44,6 +44,7 @@ export function ApiReferenceRuntimeKeySection({
   }, [compatibleKeys, selectedKeyId, onSelectedKeyId])
 
   const selectedKey = compatibleKeys.find((key) => key.id === selectedKeyId) ?? null
+  const manageKeyPath = `${manageKeysPath}?type=runtime&agent=${encodeURIComponent(agentId)}&environment=${environment}${selectedKey ? `&credential=${encodeURIComponent(selectedKey.credential_id)}` : ''}`
 
   return (
     <div>
@@ -85,8 +86,8 @@ export function ApiReferenceRuntimeKeySection({
         </div>
       )}
 
-      <Link to={manageKeysPath} className="mt-2 inline-flex text-[11px] text-muted hover:text-white">
-        Manage all keys
+      <Link to={manageKeyPath} className="mt-2 inline-flex text-[11px] text-muted hover:text-white">
+        Manage this Agent&apos;s keys
       </Link>
 
       <CreateApiKeyDialog
@@ -95,7 +96,7 @@ export function ApiReferenceRuntimeKeySection({
         projectId={projectId}
         initialKind="runtime"
         lockedAgentId={agentId}
-        lockedEnvironment={environment}
+        initialEnvironment={environment}
         layer="nestedModal"
         onCreated={(key) => onSelectedKeyId(key.id)}
       />

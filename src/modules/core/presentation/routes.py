@@ -28,6 +28,9 @@ from modules.core.application.composers.rotate_api_key_composer import (
 from modules.core.application.composers.update_project_composer import (
     update_project_composer,
 )
+from modules.core.application.composers.update_api_key_credential_composer import (
+    update_api_key_credential_composer,
+)
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/core", tags=["core"])
@@ -99,5 +102,12 @@ async def revoke_api_key(request: FastAPIRequest):
 @router.post("/projects/{project_id}/api-keys/{api_key_id}/rotate", status_code=201)
 async def rotate_api_key(request: FastAPIRequest):
     handler = rotate_api_key_composer(request.app.state.session_factory)
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.patch("/projects/{project_id}/api-keys/{api_key_id}")
+async def update_api_key_credential(request: FastAPIRequest):
+    handler = update_api_key_credential_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)

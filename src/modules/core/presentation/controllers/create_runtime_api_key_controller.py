@@ -26,8 +26,10 @@ class CreateRuntimeApiKeyController(Controller):
         result = await self._use_case.execute(input_dto)
         response_data = CreatedApiKeyResponse(
             id=result.id,
+            credential_id=result.credential_id,
             project_id=result.project_id,
             name=result.name,
+            description=result.description,
             key=result.key,
             key_prefix=result.key_prefix,
             scopes=result.scopes,
@@ -38,6 +40,7 @@ class CreateRuntimeApiKeyController(Controller):
             status=result.status.value,
             expires_at=result.expires_at,
             created_at=result.created_at,
+            rotated_from_id=None,
         )
         return Response(
             status_code=201,

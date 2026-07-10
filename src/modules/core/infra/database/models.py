@@ -93,6 +93,7 @@ class ApiKeyModel(BaseModel):
     __tablename__ = "api_keys"
     __table_args__ = (
         Index("ix_core_api_keys_prefix_status", "key_prefix", "status"),
+        Index("ix_core_api_keys_credential_created", "credential_id", "created_at"),
         Index(
             "ix_core_api_keys_runtime_binding",
             "project_id",
@@ -105,7 +106,9 @@ class ApiKeyModel(BaseModel):
     )
 
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
+    credential_id: Mapped[UUID] = mapped_column(nullable=False)
     name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     key_prefix: Mapped[str] = mapped_column(String(16))
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
     key_version: Mapped[int] = mapped_column(SmallInteger, default=1)

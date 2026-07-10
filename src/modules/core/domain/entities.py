@@ -31,7 +31,9 @@ class Project:
 class ApiKey:
     id: UUID = field(default_factory=uuid6.uuid7)
     project_id: UUID = field(default_factory=uuid6.uuid7)
+    credential_id: UUID | None = None
     name: str = ""
+    description: str | None = None
     key_prefix: str = ""
     key_hash: bytes = b""
     key_version: int = 1

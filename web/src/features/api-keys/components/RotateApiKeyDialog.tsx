@@ -33,7 +33,7 @@ export function RotateApiKeyDialog({
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} title="Rotate API key" className="max-w-2xl">
+    <Dialog open={open} onClose={handleClose} title="Rotate API key" className="max-w-2xl" layer="nestedModal">
       {apiKey && (
         <div className="space-y-5">
           <section className="rounded-xl border border-border/80 bg-surface/60 p-4">
@@ -75,7 +75,7 @@ export function RotateApiKeyDialog({
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" />
               <div>
                 <p className="text-sm font-semibold text-yellow-100">The current key stops working immediately</p>
-                <p className="mt-1 text-xs leading-5 text-yellow-100/70">The Agent binding, environment, interfaces and deployments remain unchanged. Only the secret changes.</p>
+                <p className="mt-1 text-xs leading-5 text-yellow-100/70">Name, purpose, Agent binding, environment and interfaces remain unchanged. Only the secret changes.</p>
               </div>
             </div>
           </section>

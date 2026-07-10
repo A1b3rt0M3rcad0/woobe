@@ -52,7 +52,9 @@ class RotateApiKeyInput(BaseModel):
             raise ValueError("Rotated API key requires at least one scope")
         unknown = set(normalized) - PROJECT_API_KEY_SCOPES
         if unknown:
-            raise ValueError(f"Unsupported API key scopes: {', '.join(sorted(unknown))}")
+            raise ValueError(
+                f"Unsupported API key scopes: {', '.join(sorted(unknown))}"
+            )
         return normalized
 
     @model_validator(mode="after")
@@ -70,8 +72,10 @@ class RotateApiKeyInput(BaseModel):
 
 class RotateApiKeyOutput(BaseModel):
     id: UUID
+    credential_id: UUID
     project_id: UUID
     name: str
+    description: str | None = None
     key: str
     key_prefix: str
     scopes: list[str]
@@ -83,3 +87,39 @@ class RotateApiKeyOutput(BaseModel):
     expires_at: datetime | None = None
     created_at: datetime | None = None
     rotated_from_id: UUID
+
+
+class UpdateApiKeyCredentialInput(BaseModel):
+    project_id: UUID
+    api_key_id: UUID
+    updated_by_user_id: UUID
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=500)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_credential_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("API key name cannot be blank")
+        return normalized
+
+    @field_validator("description")
+    @classmethod
+    def normalize_credential_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class UpdateApiKeyCredentialOutput(BaseModel):
+    id: UUID
+    credential_id: UUID
+    project_id: UUID
+    name: str
+    description: str | None = None
+    kind: ApiKeyKind
+    agent_id: UUID | None = None
+    environment: RuntimeEnvironment | None = None
+    updated_at: datetime | None = None

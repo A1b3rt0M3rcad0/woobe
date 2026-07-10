@@ -38,6 +38,10 @@ export function ApiKeySecretReveal({ apiKey, agentName }: ApiKeySecretRevealProp
           <code className="min-w-0 flex-1 break-all text-xs text-white">{apiKey.key}</code>
           <CopyButton text={apiKey.key} />
         </div>
+        <div className="mt-3">
+          <p className="text-sm font-medium text-white">{apiKey.name}</p>
+          {apiKey.description && <p className="mt-1 text-xs leading-5 text-muted">{apiKey.description}</p>}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

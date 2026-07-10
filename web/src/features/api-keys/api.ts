@@ -1,10 +1,12 @@
-import { get, post } from '@/lib/api/client'
+import { get, patch, post } from '@/lib/api/client'
 import type {
   ApiKey,
   CreateApiKeyRequest,
   CreateApiKeyResponse,
   CreateRuntimeApiKeyRequest,
   RotateApiKeyRequest,
+  UpdateApiKeyCredentialRequest,
+  ApiKeyCredentialResponse,
 } from './types'
 
 export async function getApiKeys(projectId: string): Promise<ApiKey[]> {
@@ -36,6 +38,17 @@ export async function rotateApiKey(
 ): Promise<CreateApiKeyResponse> {
   return post<CreateApiKeyResponse>(
     `/core/projects/${projectId}/api-keys/${apiKeyId}/rotate`,
+    data,
+  )
+}
+
+export async function updateApiKeyCredential(
+  projectId: string,
+  apiKeyId: string,
+  data: UpdateApiKeyCredentialRequest,
+): Promise<ApiKeyCredentialResponse> {
+  return patch<ApiKeyCredentialResponse>(
+    `/core/projects/${projectId}/api-keys/${apiKeyId}`,
     data,
   )
 }

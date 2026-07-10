@@ -32,8 +32,10 @@ class ListApiKeysByProjectUseCase:
         return [
             ListApiKeysOutput(
                 id=key.id,
+                credential_id=key.credential_id or key.id,
                 project_id=key.project_id,
                 name=key.name,
+                description=key.description,
                 key_prefix=format_api_key_prefix(
                     key.key_prefix,
                     key_version=key.key_version,
@@ -49,6 +51,7 @@ class ListApiKeysByProjectUseCase:
                 last_used_at=key.last_used_at,
                 expires_at=key.expires_at,
                 revoked_at=key.revoked_at,
+                rotated_from_id=key.rotated_from_id,
                 created_at=key.created_at,
             )
             for key in keys
