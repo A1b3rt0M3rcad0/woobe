@@ -121,14 +121,6 @@ class SQLAlchemyApiKeyRepository(
         model = await self._get_model_by_id(api_key_id)
         return api_key_model_to_entity(model) if model else None
 
-    async def list_by_credential_id(self, credential_id: UUID) -> list[ApiKey]:
-        result = await self._session.execute(
-            select(ApiKeyModel)
-            .where(ApiKeyModel.credential_id == credential_id)
-            .order_by(ApiKeyModel.created_at.desc(), ApiKeyModel.id.desc())
-        )
-        return [api_key_model_to_entity(key) for key in result.scalars().all()]
-
     async def update_credential_metadata(
         self,
         credential_id: UUID,
