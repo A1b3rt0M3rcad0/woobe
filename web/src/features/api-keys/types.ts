@@ -1,4 +1,7 @@
 export type ApiKeyScope = 'runtime:execute' | 'traces:read' | 'usage:read'
+export type ApiKeyKind = 'project' | 'runtime'
+export type RuntimeEnvironment = 'staging' | 'production'
+export type RuntimeInterface = 'http' | 'stream' | 'jobs'
 
 export interface ApiKey {
   id: string
@@ -6,6 +9,10 @@ export interface ApiKey {
   name: string
   key_prefix: string
   scopes: ApiKeyScope[]
+  kind: ApiKeyKind
+  agent_id?: string | null
+  environment?: RuntimeEnvironment | null
+  interfaces: RuntimeInterface[]
   status: 'active' | 'revoked' | 'expired'
   last_used_at?: string | null
   expires_at?: string | null
@@ -15,7 +22,15 @@ export interface ApiKey {
 
 export interface CreateApiKeyRequest {
   name: string
-  scopes?: ApiKeyScope[]
+  scopes: ApiKeyScope[]
+  expires_at?: string | null
+}
+
+export interface CreateRuntimeApiKeyRequest {
+  name: string
+  agent_id: string
+  environment: RuntimeEnvironment
+  interfaces: RuntimeInterface[]
   expires_at?: string | null
 }
 

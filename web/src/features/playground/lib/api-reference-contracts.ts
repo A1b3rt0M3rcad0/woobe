@@ -2,6 +2,12 @@ import type { AgentRelease } from '@/features/agents/types'
 
 export type RuntimeSlot = 'production' | 'staging'
 
+export const PUBLIC_RUNTIME_ENDPOINTS = {
+  http: '/v1/run',
+  stream: '/v1/run/stream',
+  jobs: '/v1/jobs',
+} as const
+
 type ResponseFormat = {
   enabled?: boolean
   type?: string
@@ -12,8 +18,6 @@ type ResponseFormat = {
 interface BuildApiReferenceInput {
   slot: RuntimeSlot
   release: AgentRelease | null | undefined
-  projectId: string
-  agentId: string
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -54,39 +58,25 @@ function normalizeType(value: string): string {
 
 function contractValueFromType(type: string): unknown {
   switch (normalizeType(type)) {
-    case 'string':
-      return '<string>'
-    case 'number':
-      return '<number>'
-    case 'integer':
-      return '<integer>'
-    case 'boolean':
-      return '<boolean>'
-    case 'array':
-      return []
-    case 'object':
-      return {}
-    default:
-      return `<${type}>`
+    case 'string': return '<string>'
+    case 'number': return '<number>'
+    case 'integer': return '<integer>'
+    case 'boolean': return '<boolean>'
+    case 'array': return []
+    case 'object': return {}
+    default: return `<${type}>`
   }
 }
 
 function exampleValueFromType(type: string): unknown {
   switch (normalizeType(type)) {
-    case 'string':
-      return 'ok'
-    case 'number':
-      return 0.87
-    case 'integer':
-      return 1
-    case 'boolean':
-      return true
-    case 'array':
-      return []
-    case 'object':
-      return {}
-    default:
-      return null
+    case 'string': return 'ok'
+    case 'number': return 0.87
+    case 'integer': return 1
+    case 'boolean': return true
+    case 'array': return []
+    case 'object': return {}
+    default: return null
   }
 }
 
@@ -94,15 +84,12 @@ function buildFromSchema(schema: unknown, mode: 'contract' | 'example'): unknown
   if (typeof schema === 'string') {
     return mode === 'contract' ? contractValueFromType(schema) : exampleValueFromType(schema)
   }
-
   if (Array.isArray(schema)) {
     if (schema.length === 0) return []
     return [buildFromSchema(schema[0], mode)]
   }
-
   const record = asRecord(schema)
   if (!record) return mode === 'contract' ? '<value>' : null
-
   if (typeof record.type === 'string') {
     const type = normalizeType(record.type)
     if (type === 'object') {
@@ -123,7 +110,6 @@ function buildFromSchema(schema: unknown, mode: 'contract' | 'example'): unknown
     }
     return mode === 'contract' ? contractValueFromType(type) : exampleValueFromType(type)
   }
-
   return Object.entries(record).reduce<Record<string, unknown>>((acc, [key, value]) => {
     acc[key] = buildFromSchema(value, mode)
     return acc
@@ -178,7 +164,7 @@ function buildToolCallContract() {
   }
 }
 
-export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: BuildApiReferenceInput) {
+export function buildApiReferenceForSlot({ slot, release }: BuildApiReferenceInput) {
   const responseFormat = getResponseFormat(release)
   const jsonEnabled = Boolean(responseFormat.enabled && responseFormat.type === 'json')
   const strict = Boolean(responseFormat.strict)
@@ -189,24 +175,13 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
   const model = release?.model ?? '<model | null>'
   const warnings: string[] = []
 
-  if (!release) {
-    warnings.push(`No ${slot} release is deployed for this agent.`)
-  }
+  if (!release) warnings.push(`No ${slot} release is deployed for this agent.`)
   if (jsonEnabled && !schema) {
     warnings.push('Structured output is enabled, but no valid output schema was found on this release snapshot.')
   }
 
-  const request = {
-    project_id: projectId,
-    agent_id: agentId,
-    message: 'Hello!',
-    session_id: null,
-    tenant_id: null,
-    user_id: null,
-    metadata: {},
-    execution_context: slot,
-  }
-
+  const request = { message: 'Hello!' }
+  const requestWithSession = { message: 'Hello!', session_id: '<uuid>' }
   const dataContract = {
     answer: '<string>',
     session_id: '<uuid | null>',
@@ -222,7 +197,6 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
     parsed_output: parsedOutputContract,
     output_parse_error: '<string | null>',
   }
-
   const dataExample = {
     answer: buildAnswerExample(parsedOutputExample, jsonEnabled),
     session_id: '<uuid | null>',
@@ -256,14 +230,9 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
     } : null,
     warnings,
     request,
-    sync_response_contract: {
-      success: true,
-      data: dataContract,
-    },
-    sync_response_example: {
-      success: true,
-      data: dataExample,
-    },
+    request_with_session: requestWithSession,
+    sync_response_contract: { success: true, data: dataContract },
+    sync_response_example: { success: true, data: dataExample },
     stream_events: {
       token: {
         event: 'token',
@@ -278,33 +247,23 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
           model,
         },
       },
-      done: {
-        event: 'done',
-        data: {
-          type: 'done',
-          ...dataExample,
-        },
-      },
-      error: {
-        event: 'error',
-        data: {
-          type: 'error',
-          message: '<error message>',
-        },
-      },
-      heartbeat: {
-        event: 'heartbeat',
-        data: {
-          type: 'heartbeat',
-          ts: '<iso datetime>',
-        },
-      },
-      cancelled: {
-        event: 'cancelled',
-        data: {
-          type: 'cancelled',
-          reason: '<reason>',
-        },
+      done: { event: 'done', data: { type: 'done', ...dataExample } },
+      error: { event: 'error', data: { type: 'error', message: '<error message>' } },
+      heartbeat: { event: 'heartbeat', data: { type: 'heartbeat', ts: '<iso datetime>' } },
+      cancelled: { event: 'cancelled', data: { type: 'cancelled', reason: '<reason>' } },
+    },
+    job_create_response: {
+      success: true,
+      data: { job_id: '<uuid>', status: 'pending' },
+    },
+    job_status_response: {
+      success: true,
+      data: {
+        job_id: '<uuid>',
+        status: '<pending | processing | completed | failed>',
+        result: dataExample,
+        error: '<string | null>',
+        trace_id: '<uuid | null>',
       },
     },
     structured_output: {
@@ -318,14 +277,27 @@ export function buildApiReferenceForSlot({ slot, release, projectId, agentId }: 
   }
 }
 
-export function runtimeCurl(projectId: string, agentId: string, slot: RuntimeSlot, stream = false) {
-  return `curl ${stream ? '-N ' : ''}-X POST http://localhost:8000${stream ? '/runtime/ask/stream' : '/runtime/ask'} \\
+function publicCurl(baseUrl: string, path: string, body: Record<string, unknown>, stream = false) {
+  return `curl ${stream ? '-N ' : ''}-X POST ${baseUrl}${path} \\
+  -H "Authorization: Bearer $WOOBE_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{
-  "project_id": "${projectId}",
-  "agent_id": "${agentId}",
-  "execution_context": "${slot}",
-  "message": "Hello!",
-  "session_id": null
-}'`
+  -d '${JSON.stringify(body, null, 2)}'`
+}
+
+export function runtimeCurl(baseUrl: string, stream = false) {
+  return publicCurl(
+    baseUrl,
+    stream ? PUBLIC_RUNTIME_ENDPOINTS.stream : PUBLIC_RUNTIME_ENDPOINTS.http,
+    { message: 'Hello!' },
+    stream,
+  )
+}
+
+export function createJobCurl(baseUrl: string) {
+  return publicCurl(baseUrl, PUBLIC_RUNTIME_ENDPOINTS.jobs, { message: 'Hello!' })
+}
+
+export function getJobCurl(baseUrl: string) {
+  return `curl -X GET ${baseUrl}${PUBLIC_RUNTIME_ENDPOINTS.jobs}/$JOB_ID \\
+  -H "Authorization: Bearer $WOOBE_API_KEY"`
 }

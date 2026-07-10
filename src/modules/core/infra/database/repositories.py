@@ -105,6 +105,10 @@ class SQLAlchemyApiKeyRepository(
             raise LookupError(f"API key {api_key.id} does not exist")
         model.name = api_key.name
         model.scopes = list(api_key.scopes)
+        model.kind = api_key.kind.value
+        model.agent_id = api_key.agent_id
+        model.environment = api_key.environment.value if api_key.environment else None
+        model.interfaces = list(api_key.interfaces)
         model.status = api_key.status.value
         model.last_used_at = api_key.last_used_at
         model.expires_at = api_key.expires_at

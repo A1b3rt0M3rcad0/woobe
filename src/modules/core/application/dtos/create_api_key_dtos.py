@@ -12,7 +12,7 @@ from modules.core.domain.enums import (
 class CreateApiKeyInput(BaseModel):
     project_id: UUID
     name: str = Field(min_length=1, max_length=255)
-    scopes: list[str] = Field(default_factory=list, max_length=16)
+    scopes: list[str] = Field(min_length=1, max_length=16)
     created_by_user_id: UUID
     expires_at: datetime | None = None
 

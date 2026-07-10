@@ -6,11 +6,8 @@ from uuid import UUID
 from fastapi import Request
 
 from shared.infra.errors import RuntimeTimeoutError
+from shared.security.http_guard import is_runtime_execution_request
 from shared.security.principal import ProjectApiPrincipal
-
-
-def _is_runtime_path(path: str) -> bool:
-    return path.startswith("/runtime/") or path.startswith("/agent/runtime/")
 
 
 async def enforce_request_security(request: Request) -> AsyncIterator[None]:
@@ -36,7 +33,7 @@ async def enforce_request_security(request: Request) -> AsyncIterator[None]:
         lease_id = await guard.acquire_runtime_permit(principal)
 
     try:
-        if _is_runtime_path(request.url.path):
+        if is_runtime_execution_request(request.method, request.url.path):
             try:
                 async with asyncio.timeout(guard.runtime_timeout_seconds):
                     yield

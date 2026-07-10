@@ -25,7 +25,9 @@ SENSITIVE_KEYS = {
 }
 SENSITIVE_KEY_FRAGMENTS = ("secret", "token", "password", "authorization", "api_key")
 BEARER_PATTERN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+\-/=]+")
-PROJECT_API_KEY_PATTERN = re.compile(r"\brai_live_[a-f0-9]{12}_[A-Za-z0-9_-]{40,}\b")
+PROJECT_API_KEY_PATTERN = re.compile(
+    r"\b(?:rai_live_|woobe_(?:project|staging|production)_)[a-f0-9]{12}_[A-Za-z0-9_-]{40,}\b"
+)
 COMMON_PROVIDER_KEY_PATTERN = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b"
 )

@@ -3,7 +3,7 @@ import logging
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos import AskInput
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -60,6 +60,11 @@ class AskAgentController(Controller):
         except NotFoundError as e:
             return Response(
                 status_code=404,
+                body={"success": False, "message": str(e), "data": None},
+            )
+        except ConflictError as e:
+            return Response(
+                status_code=409,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ValidationError as e:

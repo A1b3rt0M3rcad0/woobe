@@ -93,6 +93,14 @@ class ApiKeyModel(BaseModel):
     __tablename__ = "api_keys"
     __table_args__ = (
         Index("ix_core_api_keys_prefix_status", "key_prefix", "status"),
+        Index(
+            "ix_core_api_keys_runtime_binding",
+            "project_id",
+            "kind",
+            "agent_id",
+            "environment",
+            "status",
+        ),
         {"schema": "core"},
     )
 
@@ -102,6 +110,10 @@ class ApiKeyModel(BaseModel):
     key_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
     key_version: Mapped[int] = mapped_column(SmallInteger, default=1)
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    kind: Mapped[str] = mapped_column(String(32), default="project")
+    agent_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    environment: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    interfaces: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

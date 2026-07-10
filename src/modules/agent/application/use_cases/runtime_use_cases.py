@@ -225,14 +225,14 @@ class CreateAskJobUseCase:
             agent_id=input_dto.agent_id,
             session_id=input_dto.session_id,
             status="pending",
-            params=input_dto.model_dump(exclude={"tenant_id", "user_id", "metadata"}),
+            params=input_dto.model_dump(mode="json"),
         )
         created = await self._repo.create(job)
 
         if self._outbox:
             event = AgentExecutionRequestedV1.create(
                 agent_id=input_dto.agent_id,
-                session_id=cast(UUID, input_dto.session_id),
+                session_id=input_dto.session_id or created.id,
                 payload={
                     "job_id": str(created.id),
                     "project_id": str(input_dto.project_id),

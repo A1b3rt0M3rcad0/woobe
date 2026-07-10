@@ -29,6 +29,15 @@ class ReleaseNotFoundError(NotFoundError):
     pass
 
 
+class RuntimeEnvironmentNotReadyError(ConflictError):
+    def __init__(self, environment: str, agent_id: UUID) -> None:
+        self.environment = environment
+        self.agent_id = agent_id
+        super().__init__(
+            f"No {environment} release is deployed for agent {agent_id}."
+        )
+
+
 class ReleaseTestNotFoundError(NotFoundError):
     pass
 
