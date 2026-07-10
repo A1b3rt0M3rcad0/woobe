@@ -1,5 +1,7 @@
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
 
 import uuid6
 
@@ -15,7 +17,10 @@ from shared.infra.errors import ConflictError, ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 
 
-ProviderCredentialValidator = Callable[[str, str, dict], Awaitable[None]]
+ProviderCredentialValidator = Callable[
+    [str, str, dict[str, Any]],
+    Awaitable[None],
+]
 
 
 class RotateProviderCredentialUseCase:
@@ -33,7 +38,7 @@ class RotateProviderCredentialUseCase:
 
     async def execute(
         self,
-        credential_id,
+        credential_id: UUID,
         input_dto: RotateProviderCredentialInput,
     ) -> RotateProviderCredentialOutput:
         credential = await self._credential_repo.get_by_id(credential_id)
@@ -50,7 +55,7 @@ class RotateProviderCredentialUseCase:
         if not secret:
             raise ValidationError("New provider API key is required")
 
-        provider = getattr(credential.provider, "value", credential.provider)
+        provider = str(getattr(credential.provider, "value", credential.provider))
         await self._validate_secret(provider, secret, credential.metadata or {})
 
         rotated_at = datetime.now(UTC)
@@ -63,7 +68,7 @@ class RotateProviderCredentialUseCase:
             AgentProviderCredentialRotatedV1.create(
                 credential_id=saved.id,
                 project_id=saved.project_id,
-                provider=str(provider),
+                provider=provider,
                 rotated_by_user_id=input_dto.rotated_by_user_id,
                 rotated_at=rotated_at,
                 operation_id=operation_id,
