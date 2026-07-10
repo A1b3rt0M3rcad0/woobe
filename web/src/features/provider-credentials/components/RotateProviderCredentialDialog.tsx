@@ -11,7 +11,6 @@ import type { ProviderCredential } from '@/features/provider-credentials/types'
 interface RotateProviderCredentialDialogProps {
   open: boolean
   credential: ProviderCredential | null
-  projectId: string
   generationCount: number
   embeddingCount: number
   onClose: () => void
@@ -21,7 +20,6 @@ interface RotateProviderCredentialDialogProps {
 export function RotateProviderCredentialDialog({
   open,
   credential,
-  projectId,
   generationCount,
   embeddingCount,
   onClose,
@@ -47,7 +45,6 @@ export function RotateProviderCredentialDialog({
       const rotated = await rotateCredential.mutateAsync({
         id: credential.id,
         data: {
-          project_id: projectId,
           secret: secret.trim(),
         },
       })
