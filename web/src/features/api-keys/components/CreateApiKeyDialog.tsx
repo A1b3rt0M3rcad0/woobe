@@ -199,12 +199,6 @@ export function CreateApiKeyDialog({
     setExpiration(DEFAULT_API_KEY_EXPIRATION)
     setError(null)
     setExpirationError(null)
-
-    const normalizedName = name.trim()
-    if (!normalizedName) {
-      setError('Enter a name that identifies what this key is used for')
-      return
-    }
     setCreatedKey(null)
   }, [open, initialKind, lockedAgentId, lockedEnvironment])
 
@@ -237,6 +231,12 @@ export function CreateApiKeyDialog({
     event.preventDefault()
     setError(null)
     setExpirationError(null)
+
+    const normalizedName = name.trim()
+    if (!normalizedName) {
+      setError('Enter a name that identifies what this key is used for')
+      return
+    }
 
     const expiresAt = resolveApiKeyExpiration(expiration)
     if (expiration.preset === 'custom' && !expiresAt) {
