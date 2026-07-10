@@ -20,6 +20,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
     CreateSecretUseCase,
     CreateToolUseCase,
     DeleteToolUseCase,
+    GetToolUsageImpactUseCase,
     ListSecretsUseCase,
     ListToolsByAgentUseCase,
     ListToolsUseCase,
@@ -37,6 +38,7 @@ from modules.agent.presentation.controllers.create_tool_controller import Create
 from modules.agent.presentation.controllers.delete_tool_controller import DeleteToolController
 from modules.agent.presentation.controllers.discover_mcp_tools_controller import DiscoverMcpToolsController
 from modules.agent.presentation.controllers.execute_tool_controller import ExecuteToolController
+from modules.agent.presentation.controllers.get_tool_usage_impact_controller import GetToolUsageImpactController
 from modules.agent.presentation.controllers.list_secrets_controller import ListSecretsController
 from modules.agent.presentation.controllers.list_tools_by_agent_controller import (
     ListToolsByAgentController,
@@ -86,8 +88,15 @@ def update_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> T
 
 def delete_tool_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = DeleteToolUseCase(uow.tools)
+    use_case = DeleteToolUseCase(uow.tools, uow.agents, uow.releases)
     controller = DeleteToolController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def get_tool_usage_impact_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = GetToolUsageImpactUseCase(uow.tools, uow.agents, uow.releases)
+    controller = GetToolUsageImpactController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
 

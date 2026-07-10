@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Plus, RefreshCw, Search, ShieldCheck, Trash2, Wrench } from 'lucide-react'
+import { Archive, Plus, RefreshCw, Search, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { bulkUpdateMcpToolPermissions, refreshMcpTools, updateMcpToolPermissions } from '@/features/tools/api'
+import {
+  bulkUpdateMcpToolPermissions,
+  getToolUsageImpact,
+  refreshMcpTools,
+  updateMcpToolPermissions,
+  type ToolUsageImpact,
+} from '@/features/tools/api'
 import { useDeleteTool, useTools, useUpdateTool, useUpdateToolStatus } from '@/features/tools/hooks'
 import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
 import { ToolsCreateDialog } from '@/pages/ToolsCreateDialog'
@@ -110,6 +116,15 @@ function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'def
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
 }
 
+function ImpactStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border/80 bg-background/60 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
+  )
+}
+
 export default function ToolsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { data: tools, isLoading, isError, error, refetch } = useTools(projectId)
@@ -125,9 +140,13 @@ export default function ToolsPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editRiskLevel, setEditRiskLevel] = useState('')
   const [editTimeoutMs, setEditTimeoutMs] = useState('')
+  const [usageImpact, setUsageImpact] = useState<ToolUsageImpact | null>(null)
+  const [showLifecycleDialog, setShowLifecycleDialog] = useState(false)
+  const [lifecycleBusy, setLifecycleBusy] = useState(false)
 
   const items = tools ?? []
   const selectedTool = items.find((tool) => tool.id === selectedToolId) ?? null
+  const selectedToolRetired = selectedTool?.status === 'deprecated'
   const discoveredTools = selectedTool ? getDiscoveredTools(selectedTool) : []
   const counts = permissionCounts(discoveredTools)
 
@@ -152,14 +171,20 @@ export default function ToolsPage() {
     setEditTimeoutMs(tool.timeout_ms ? String(tool.timeout_ms) : '')
   }
 
+  const closeLifecycleDialog = () => {
+    setShowLifecycleDialog(false)
+    setUsageImpact(null)
+  }
+
   const closeToolModal = () => {
     setSelectedToolId(null)
     setBusyToolId(null)
     setPermissionSavingKey(null)
+    closeLifecycleDialog()
   }
 
   const handleSaveTool = async () => {
-    if (!selectedTool) return
+    if (!selectedTool || selectedToolRetired) return
 
     if (!editName.trim()) {
       toast.error('Tool name is required')
@@ -191,7 +216,11 @@ export default function ToolsPage() {
 
   const handleToggleStatus = async () => {
     if (!selectedTool) return
-    const nextStatus = selectedTool.status === 'active' ? 'inactive' : 'active'
+    const nextStatus = selectedTool.status === 'deprecated'
+      ? 'active'
+      : selectedTool.status === 'active'
+        ? 'inactive'
+        : 'active'
 
     try {
       setBusyToolId(selectedTool.id)
@@ -200,7 +229,13 @@ export default function ToolsPage() {
         data: { status: nextStatus },
       })
       await refetch()
-      toast.success(nextStatus === 'active' ? 'Tool enabled' : 'Tool disabled')
+      toast.success(
+        selectedTool.status === 'deprecated'
+          ? 'Tool reactivated'
+          : nextStatus === 'active'
+            ? 'Tool enabled'
+            : 'Tool disabled',
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update tool status')
     } finally {
@@ -209,7 +244,7 @@ export default function ToolsPage() {
   }
 
   const handleRefreshMcp = async () => {
-    if (!selectedTool) return
+    if (!selectedTool || selectedToolRetired) return
 
     try {
       setBusyToolId(selectedTool.id)
@@ -224,7 +259,7 @@ export default function ToolsPage() {
   }
 
   const handleBulkPermission = async (mode: McpToolPermissionMode) => {
-    if (!selectedTool) return
+    if (!selectedTool || selectedToolRetired) return
 
     try {
       setPermissionSavingKey(`bulk:${mode}`)
@@ -239,7 +274,7 @@ export default function ToolsPage() {
   }
 
   const handleSinglePermission = async (remoteToolName: string, mode: McpToolPermissionMode) => {
-    if (!selectedTool) return
+    if (!selectedTool || selectedToolRetired) return
 
     try {
       setPermissionSavingKey(`${remoteToolName}:${mode}`)
@@ -255,20 +290,51 @@ export default function ToolsPage() {
     }
   }
 
-  const handleDeleteTool = async () => {
+  const handleReviewRemoval = async () => {
     if (!selectedTool) return
-    if (!window.confirm(`Delete tool "${selectedTool.name}"? This action cannot be undone.`)) return
 
     try {
       setBusyToolId(selectedTool.id)
-      await deleteToolMutation.mutateAsync(selectedTool.id)
-      await refetch()
-      toast.success('Tool deleted')
-      closeToolModal()
+      const impact = await getToolUsageImpact(selectedTool.id)
+      setUsageImpact(impact)
+      setShowLifecycleDialog(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete tool')
+      toast.error(err instanceof Error ? err.message : 'Failed to inspect Tool usage')
     } finally {
       setBusyToolId(null)
+    }
+  }
+
+  const handleConfirmLifecycle = async () => {
+    if (!selectedTool || !usageImpact) return
+
+    try {
+      setLifecycleBusy(true)
+      if (usageImpact.can_delete) {
+        await deleteToolMutation.mutateAsync(selectedTool.id)
+        await refetch()
+        toast.success('Tool deleted permanently')
+      } else if (usageImpact.can_retire) {
+        await updateToolStatusMutation.mutateAsync({
+          toolId: selectedTool.id,
+          data: { status: 'deprecated' },
+        })
+        await refetch()
+        toast.success('Tool retired. Existing Agent versions were preserved.')
+      } else {
+        return
+      }
+      closeToolModal()
+    } catch (err) {
+      try {
+        const latestImpact = await getToolUsageImpact(selectedTool.id)
+        setUsageImpact(latestImpact)
+      } catch {
+        // Preserve the original lifecycle error if impact refresh also fails.
+      }
+      toast.error(err instanceof Error ? err.message : 'Failed to update Tool lifecycle')
+    } finally {
+      setLifecycleBusy(false)
     }
   }
 
@@ -276,6 +342,11 @@ export default function ToolsPage() {
   if (isError) return <ErrorState error={error} onRetry={refetch} />
 
   const hasSearchMiss = query.trim().length > 0 && visibleTools.length === 0
+  const lifecycleTitle = usageImpact?.can_delete
+    ? 'Delete Tool permanently'
+    : usageImpact?.can_retire
+      ? 'Retire Tool'
+      : 'Tool is still in use'
 
   return (
     <MinimalShell title="Tools" description="Connect and review external capabilities available to agents in this project.">
@@ -322,27 +393,92 @@ export default function ToolsPage() {
                   <div className="mt-5 flex flex-wrap gap-2"><StatusBadge status={selectedTool.status} /><Pill tone={editRiskLevel === 'critical' || editRiskLevel === 'high' ? 'danger' : 'default'}>Risk · {editRiskLevel || 'unset'}</Pill>{isMcpTool(selectedTool) && <Pill tone="primary">MCP</Pill>}</div>
                 </div>
 
-                <div className="rounded-xl border border-border/90 bg-background/60 p-4"><p className="text-sm font-semibold text-white">Runtime status</p><p className="mt-1 text-xs leading-5 text-muted">Control whether this tool can be used by agents.</p><Button className="mt-4 w-full" size="sm" variant="outline" onClick={handleToggleStatus} loading={busyToolId === selectedTool.id || updateToolStatusMutation.isPending}>{selectedTool.status === 'active' ? 'Disable tool' : 'Enable tool'}</Button></div>
+                <div className="rounded-xl border border-border/90 bg-background/60 p-4">
+                  <p className="text-sm font-semibold text-white">Runtime status</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {selectedToolRetired
+                      ? 'This Tool is retired globally and unavailable for new Agent bindings. Existing versioned usage remains preserved.'
+                      : 'Control whether this tool can be used by agents.'}
+                  </p>
+                  <Button className="mt-4 w-full" size="sm" variant="outline" onClick={handleToggleStatus} loading={busyToolId === selectedTool.id || updateToolStatusMutation.isPending}>
+                    {selectedToolRetired ? 'Reactivate tool' : selectedTool.status === 'active' ? 'Disable tool' : 'Enable tool'}
+                  </Button>
+                </div>
 
-                <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-4"><h3 className="text-sm font-semibold text-red-100">Danger zone</h3><p className="mt-1 text-xs leading-5 text-red-200/80">Delete this tool permanently.</p><Button className="mt-4 w-full" variant="destructive" size="sm" onClick={handleDeleteTool} loading={busyToolId === selectedTool.id || deleteToolMutation.isPending}><Trash2 className="mr-2 h-4 w-4" />Delete tool</Button></section>
+                <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-4">
+                  <h3 className="text-sm font-semibold text-red-100">Danger zone</h3>
+                  <p className="mt-1 text-xs leading-5 text-red-200/80">Review Agent references before retiring or permanently deleting this Tool.</p>
+                  <Button className="mt-4 w-full" variant="destructive" size="sm" onClick={handleReviewRemoval} loading={busyToolId === selectedTool.id}>
+                    <Trash2 className="mr-2 h-4 w-4" />Review removal
+                  </Button>
+                </section>
               </aside>
 
               <main className="space-y-5">
-                <Section title="General" description="Edit customer-safe tool metadata. Structural configuration stays managed by the platform."><div className="grid gap-3 md:grid-cols-2"><Input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Tool name" /><Select value={editRiskLevel} onChange={(event) => setEditRiskLevel(event.target.value)} options={[{ value: 'low', label: 'Low risk' }, { value: 'medium', label: 'Medium risk' }, { value: 'high', label: 'High risk' }, { value: 'critical', label: 'Critical risk' }]} /><Input value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Description" /><Input value={editTimeoutMs} onChange={(event) => setEditTimeoutMs(event.target.value)} placeholder="Timeout ms" inputMode="numeric" /></div></Section>
+                <Section title="General" description={selectedToolRetired ? 'Retired Tools are read-only until reactivated.' : 'Edit customer-safe tool metadata. Structural configuration stays managed by the platform.'}>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input disabled={selectedToolRetired} value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Tool name" />
+                    <Select disabled={selectedToolRetired} value={editRiskLevel} onChange={(event) => setEditRiskLevel(event.target.value)} options={[{ value: 'low', label: 'Low risk' }, { value: 'medium', label: 'Medium risk' }, { value: 'high', label: 'High risk' }, { value: 'critical', label: 'Critical risk' }]} />
+                    <Input disabled={selectedToolRetired} value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Description" />
+                    <Input disabled={selectedToolRetired} value={editTimeoutMs} onChange={(event) => setEditTimeoutMs(event.target.value)} placeholder="Timeout ms" inputMode="numeric" />
+                  </div>
+                </Section>
 
                 {isMcpTool(selectedTool) && (
-                  <Section title="MCP permissions" description="Choose which discovered MCP tools are exposed to agents.">
+                  <Section title="MCP permissions" description={selectedToolRetired ? 'Global defaults are read-only while the Tool is retired. Agent-scoped permissions remain versioned inside each Agent.' : 'Choose which discovered MCP tools are exposed to agents.'}>
                     <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-medium text-white">Discovered tools</p><p className="mt-1 text-xs text-muted">{discoveredTools.length} found · {counts.allow} allow · {counts.review} review · {counts.deny} deny</p></div><Button size="sm" variant="outline" onClick={handleRefreshMcp} loading={busyToolId === selectedTool.id}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button></div>
-                      <div className="mt-4 flex flex-wrap gap-2"><Button size="sm" onClick={() => handleBulkPermission('allow')} loading={permissionSavingKey === 'bulk:allow'}>Allow all</Button><Button size="sm" variant="outline" onClick={() => handleBulkPermission('review')} loading={permissionSavingKey === 'bulk:review'}>Review all</Button><Button size="sm" variant="outline" onClick={() => handleBulkPermission('deny')} loading={permissionSavingKey === 'bulk:deny'}>Deny all</Button></div>
-                      <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">{discoveredTools.length === 0 ? <p className="rounded-lg border border-border/70 bg-surface/50 p-3 text-sm text-muted">No discovered MCP tools yet. Refresh to load available tools.</p> : discoveredTools.map((item) => { const mode = getPermissionMode(item); return <div key={item.name} className="grid gap-3 rounded-lg border border-border/70 bg-surface/60 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="break-words text-sm font-medium text-white">{item.title || item.name}</p><PermissionBadge mode={mode} /></div><p className="mt-1 break-all font-mono text-[10px] text-muted">{item.name}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><Button size="sm" variant={mode === 'allow' ? 'default' : 'outline'} onClick={() => handleSinglePermission(item.name, 'allow')} loading={permissionSavingKey === `${item.name}:allow`}>Allow</Button><Button size="sm" variant={mode === 'review' ? 'secondary' : 'outline'} onClick={() => handleSinglePermission(item.name, 'review')} loading={permissionSavingKey === `${item.name}:review`}>Review</Button><Button size="sm" variant={mode === 'deny' ? 'destructive' : 'outline'} onClick={() => handleSinglePermission(item.name, 'deny')} loading={permissionSavingKey === `${item.name}:deny`}>Deny</Button></div></div> })}</div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-medium text-white">Discovered tools</p><p className="mt-1 text-xs text-muted">{discoveredTools.length} found · {counts.allow} allow · {counts.review} review · {counts.deny} deny</p></div><Button disabled={selectedToolRetired} size="sm" variant="outline" onClick={handleRefreshMcp} loading={busyToolId === selectedTool.id}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button></div>
+                      <div className="mt-4 flex flex-wrap gap-2"><Button disabled={selectedToolRetired} size="sm" onClick={() => handleBulkPermission('allow')} loading={permissionSavingKey === 'bulk:allow'}>Allow all</Button><Button disabled={selectedToolRetired} size="sm" variant="outline" onClick={() => handleBulkPermission('review')} loading={permissionSavingKey === 'bulk:review'}>Review all</Button><Button disabled={selectedToolRetired} size="sm" variant="outline" onClick={() => handleBulkPermission('deny')} loading={permissionSavingKey === 'bulk:deny'}>Deny all</Button></div>
+                      <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">{discoveredTools.length === 0 ? <p className="rounded-lg border border-border/70 bg-surface/50 p-3 text-sm text-muted">No discovered MCP tools yet. Refresh to load available tools.</p> : discoveredTools.map((item) => { const mode = getPermissionMode(item); return <div key={item.name} className="grid gap-3 rounded-lg border border-border/70 bg-surface/60 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="break-words text-sm font-medium text-white">{item.title || item.name}</p><PermissionBadge mode={mode} /></div><p className="mt-1 break-all font-mono text-[10px] text-muted">{item.name}</p></div><div className="flex flex-wrap gap-2 lg:justify-end"><Button disabled={selectedToolRetired} size="sm" variant={mode === 'allow' ? 'default' : 'outline'} onClick={() => handleSinglePermission(item.name, 'allow')} loading={permissionSavingKey === `${item.name}:allow`}>Allow</Button><Button disabled={selectedToolRetired} size="sm" variant={mode === 'review' ? 'secondary' : 'outline'} onClick={() => handleSinglePermission(item.name, 'review')} loading={permissionSavingKey === `${item.name}:review`}>Review</Button><Button disabled={selectedToolRetired} size="sm" variant={mode === 'deny' ? 'destructive' : 'outline'} onClick={() => handleSinglePermission(item.name, 'deny')} loading={permissionSavingKey === `${item.name}:deny`}>Deny</Button></div></div> })}</div>
                     </div>
                   </Section>
                 )}
               </main>
             </div>
 
-            <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur"><Button variant="outline" onClick={closeToolModal}>Cancel</Button><Button onClick={handleSaveTool} loading={updateToolMutation.isPending}><ShieldCheck className="mr-2 h-4 w-4" />Save changes</Button></div>
+            <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur"><Button variant="outline" onClick={closeToolModal}>Cancel</Button><Button disabled={selectedToolRetired} onClick={handleSaveTool} loading={updateToolMutation.isPending}><ShieldCheck className="mr-2 h-4 w-4" />Save changes</Button></div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog open={showLifecycleDialog && Boolean(usageImpact)} onClose={closeLifecycleDialog} title={lifecycleTitle} className="max-w-2xl">
+        {usageImpact && selectedTool && (
+          <div className="space-y-5">
+            <div>
+              <p className="text-sm font-medium text-white">{selectedTool.name}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {usageImpact.can_delete
+                  ? 'No Agent version references this Tool. Permanent deletion is available and cannot be undone.'
+                  : usageImpact.can_retire
+                    ? 'This Tool is referenced by Agent versions. Retiring it prevents new Agent bindings while preserving existing Draft, Staging, Production and historical Release snapshots.'
+                    : 'This Tool is already retired and still referenced. Remove it from every Agent version before permanent deletion becomes available.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <ImpactStat label="Draft Agents" value={usageImpact.draft_agents} />
+              <ImpactStat label="Staging Agents" value={usageImpact.staging_agents} />
+              <ImpactStat label="Production Agents" value={usageImpact.production_agents} />
+              <ImpactStat label="Historical Releases" value={usageImpact.historical_releases} />
+            </div>
+
+            <div className="rounded-lg border border-border/80 bg-background/50 p-3 text-xs leading-5 text-muted">
+              Total version references: <span className="font-medium text-white">{usageImpact.total_references}</span>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Button variant="outline" onClick={closeLifecycleDialog}>Cancel</Button>
+              {usageImpact.can_delete && (
+                <Button variant="destructive" onClick={handleConfirmLifecycle} loading={lifecycleBusy || deleteToolMutation.isPending}>
+                  <Trash2 className="mr-2 h-4 w-4" />Delete permanently
+                </Button>
+              )}
+              {!usageImpact.can_delete && usageImpact.can_retire && (
+                <Button onClick={handleConfirmLifecycle} loading={lifecycleBusy || updateToolStatusMutation.isPending}>
+                  <Archive className="mr-2 h-4 w-4" />Retire tool
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </Dialog>

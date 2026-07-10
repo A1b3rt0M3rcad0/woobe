@@ -53,7 +53,7 @@ interface ImportToolsModalProps {
 
 export function ImportToolsModal({ open, onClose, projectId, importedToolIds, onImport }: ImportToolsModalProps) {
   const { data: allTools = [], isLoading } = useTools(projectId)
-  const availableTools = allTools.filter(t => !importedToolIds.has(t.id))
+  const availableTools = allTools.filter(tool => tool.status === 'active' && !importedToolIds.has(tool.id))
 
   const handleImport = (tool: Tool) => {
     onImport(tool)
@@ -68,7 +68,7 @@ export function ImportToolsModal({ open, onClose, projectId, importedToolIds, on
             <Wrench className="h-4 w-4" />
           </div>
           <h3 className="mt-4 text-sm font-semibold text-white">Available tools</h3>
-          <p className="mt-1 text-xs text-muted">{availableTools.length} tools can be added to this draft.</p>
+          <p className="mt-1 text-xs text-muted">{availableTools.length} active tools can be added to this draft.</p>
         </aside>
 
         <section className="flex min-h-0 flex-col">
@@ -77,7 +77,7 @@ export function ImportToolsModal({ open, onClose, projectId, importedToolIds, on
               <LoadingState variant="panel" layout="list" message="Loading tools..." />
             ) : availableTools.length === 0 ? (
               <div className="py-6">
-                <EmptyState icon={<Wrench className="h-10 w-10" />} title="All tools imported" description="All available tools have already been added to this draft." />
+                <EmptyState icon={<Wrench className="h-10 w-10" />} title="No active tools available" description="Only active Tools can be added to a new Agent draft binding." />
               </div>
             ) : (
               <ScrollArea className="max-h-[480px] pr-1">

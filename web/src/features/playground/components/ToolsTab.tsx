@@ -158,6 +158,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   }
 
   const handleToggleActive = async (tool: Tool) => {
+    if (tool.status === 'deprecated') return
     try {
       const newStatus = tool.status === 'active' ? 'inactive' : 'active'
       await updateStatus.mutateAsync({ toolId: tool.id, data: { status: newStatus } })
@@ -245,35 +246,54 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
         <div className="space-y-3">
           {tools.map((tool) => {
             const isActive = tool.status === 'active'
+            const isRetired = tool.status === 'deprecated'
             const isMcp = isMcpProviderTool(tool)
             return (
               <article
                 key={tool.id}
                 className={`rounded-xl border p-3 shadow-sm transition-all ${
-                  isActive
-                    ? 'border-border bg-background'
-                    : 'border-border/50 bg-background/50 opacity-70'
+                  isRetired
+                    ? 'border-amber-500/30 bg-amber-500/5'
+                    : isActive
+                      ? 'border-border bg-background'
+                      : 'border-border/50 bg-background/50 opacity-70'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <h3 className="truncate text-sm font-semibold text-white">
-                      {tool.name}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold text-white">
+                        {tool.name}
+                      </h3>
+                      {isRetired && (
+                        <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
+                          Retired globally
+                        </span>
+                      )}
+                    </div>
                     <p className="line-clamp-2 text-xs leading-relaxed text-muted">
                       {tool.description || 'No description'}
                     </p>
+                    {isRetired && (
+                      <p className="pt-1 text-[11px] leading-5 text-amber-200/80">
+                        Existing Agent snapshots remain valid. This Tool cannot be added to new Agent bindings.
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <ToolStatusToggle
-                      active={isActive}
-                      loading={updateStatus.isPending}
-                      onClick={() => handleToggleActive(tool)}
-                    />
-                    <ToolIconButton label="Edit tool" onClick={() => setEditingTool(tool)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </ToolIconButton>
+                    {!isRetired && (
+                      <ToolStatusToggle
+                        active={isActive}
+                        loading={updateStatus.isPending}
+                        onClick={() => handleToggleActive(tool)}
+                      />
+                    )}
+                    {!isRetired && (
+                      <ToolIconButton label="Edit tool" onClick={() => setEditingTool(tool)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </ToolIconButton>
+                    )}
                     <ToolIconButton
                       label="Remove tool from draft"
                       tone="danger"

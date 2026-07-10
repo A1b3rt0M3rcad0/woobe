@@ -273,7 +273,7 @@ export interface McpToolPermissionsResponse {
 }
 
 export interface UpdateToolStatusRequest {
-  status: 'active' | 'inactive'
+  status: 'active' | 'inactive' | 'deprecated'
 }
 
 export interface Secret {
