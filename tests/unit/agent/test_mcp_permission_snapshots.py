@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -8,8 +9,10 @@ from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
     tool_with_permission_overrides,
 )
-from modules.agent.domain.entities import Tool
-from modules.agent.domain.enums import ToolStatus, ToolType
+from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.domain.entities import Agent, AgentRelease, Tool
+from modules.agent.domain.enums import ReleaseStatus, ToolStatus, ToolType
 
 
 class FakeToolRepository:
@@ -18,6 +21,24 @@ class FakeToolRepository:
 
     async def get_by_id(self, tool_id):
         return self.tool if tool_id == self.tool.id else None
+
+
+class FakeAgentRepository:
+    def __init__(self, agent: Agent) -> None:
+        self.agent = agent
+
+    async def get_by_id(self, agent_id):
+        return self.agent if agent_id == self.agent.id else None
+
+
+class FakeReleaseRepository:
+    def __init__(self, production: AgentRelease | None = None) -> None:
+        self.production = production
+
+    async def get_active_production(self, agent_id):
+        if self.production is not None and self.production.agent_id == agent_id:
+            return self.production
+        return None
 
 
 def make_mcp_tool() -> Tool:
@@ -91,3 +112,144 @@ async def test_release_tool_snapshot_materializes_draft_permissions_without_muta
     assert restored_tools[0]["permission"]["mode"] == "allow"
     assert restored_tools[1]["permission"]["mode"] == "review"
     assert tool.config["discovered_tools"][1]["permission"]["mode"] == "deny"
+
+
+@pytest.mark.asyncio
+async def test_draft_runtime_materializes_agent_permission_snapshot_for_execution():
+    tool = make_mcp_tool()
+    tool.config["discovered_tools"][0]["permission"] = {
+        "mode": "review",
+        "risk_level": "unknown",
+    }
+    agent = Agent(
+        project_id=tool.project_id,
+        model="test-model",
+        settings={
+            "runtime_config": {
+                "tools": {
+                    "tool_ids": [str(tool.id)],
+                    "permissions": {
+                        str(tool.id): {
+                            "search": {"mode": "allow"},
+                            "admin": {"mode": "deny"},
+                        }
+                    },
+                }
+            }
+        },
+    )
+
+    async def read_runtime_tools(tool_ids):
+        assert tool_ids == [tool.id]
+        return [tool]
+
+    resolver = object.__new__(ReleaseRuntimeResolver)
+    resolver._runtime_tool_reader = read_runtime_tools
+    prepared = [None] * 13
+    prepared[0] = agent
+    prepared[7] = []
+    prepared[8] = {}
+    prepared[9] = False
+
+    context = new_execution_context()
+    token = current_execution.set(context)
+    try:
+        updated = await resolver._apply_runtime_tool_selection(tuple(prepared))
+    finally:
+        current_execution.reset(token)
+
+    assert context.tool_metadata is not None
+    assert context.tool_metadata["source"] == "draft_live"
+    assert context.tool_snapshots is not None
+    effective_snapshot = context.tool_snapshots[str(tool.id)]
+    effective_tool = tool_from_release_snapshot(effective_snapshot)
+    effective_permissions = {
+        item["name"]: item["permission"]["mode"]
+        for item in effective_tool.config["discovered_tools"]
+    }
+
+    assert effective_permissions == {"search": "allow", "admin": "deny"}
+    assert tool.config["discovered_tools"][0]["permission"]["mode"] == "review"
+    assert updated[9] is True
+
+
+@pytest.mark.asyncio
+async def test_playground_snapshot_override_uses_unsaved_agent_runtime_config():
+    project_id = uuid4()
+    agent = Agent(
+        project_id=project_id,
+        model="test-model",
+        settings={
+            "preserved": "value",
+            "runtime_config": {"tools": {"tool_ids": ["saved"]}},
+        },
+    )
+    unsaved_runtime_config = {
+        "tools": {
+            "tool_ids": ["unsaved"],
+            "permissions": {"unsaved": {"remote": {"mode": "allow"}}},
+        }
+    }
+    uow = SimpleNamespace(
+        agents=FakeAgentRepository(agent),
+        releases=None,
+        provider_models=None,
+    )
+    input_dto = SimpleNamespace(
+        agent_id=agent.id,
+        project_id=project_id,
+        execution_context="playground",
+        snapshot_override={"runtime_config": unsaved_runtime_config},
+        loaded_release_id=None,
+    )
+    resolver = object.__new__(ReleaseRuntimeResolver)
+
+    resolved = await resolver._load_agent(uow, input_dto)
+
+    assert resolved.settings["preserved"] == "value"
+    assert resolved.settings["runtime_config"] == unsaved_runtime_config
+    assert resolved.settings["runtime_config"] is not unsaved_runtime_config
+
+
+@pytest.mark.asyncio
+async def test_production_runtime_uses_release_tool_snapshot_config_not_live_agent_config():
+    project_id = uuid4()
+    agent = Agent(
+        project_id=project_id,
+        model="test-model",
+        settings={
+            "preserved": "value",
+            "runtime_config": {"tools": {"tool_ids": ["live-agent-tool"]}},
+        },
+    )
+    release_runtime_config = {
+        "tools": {
+            "tool_ids": ["release-tool"],
+            "snapshots": [],
+        }
+    }
+    release = AgentRelease(
+        project_id=project_id,
+        agent_id=agent.id,
+        status=ReleaseStatus.production,
+        runtime_config=release_runtime_config,
+    )
+    uow = SimpleNamespace(
+        agents=FakeAgentRepository(agent),
+        releases=FakeReleaseRepository(production=release),
+        provider_models=None,
+    )
+    input_dto = SimpleNamespace(
+        agent_id=agent.id,
+        project_id=project_id,
+        execution_context="production",
+        snapshot_override=None,
+        loaded_release_id=None,
+    )
+    resolver = object.__new__(ReleaseRuntimeResolver)
+
+    resolved = await resolver._load_agent(uow, input_dto)
+
+    assert resolved.settings["preserved"] == "value"
+    assert resolved.settings["runtime_config"] == release_runtime_config
+    assert resolved.settings["runtime_config"] is not release_runtime_config
