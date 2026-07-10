@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -30,6 +30,11 @@ def _value(value: object) -> object:
     return getattr(value, "value", value)
 
 
+def _release_sort_key(release: AgentRelease) -> float:
+    value = release.updated_at or release.created_at
+    return value.timestamp() if value is not None else 0.0
+
+
 class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     _runtime_tool_reader: RuntimeToolReader | None = None
 
@@ -47,6 +52,51 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         agent.settings = settings
         return agent
 
+    @staticmethod
+    def _snapshot_index(raw_snapshots: Any) -> dict[str, dict[str, Any]]:
+        if raw_snapshots is None:
+            return {}
+        if not isinstance(raw_snapshots, list):
+            raise ValidationError("Release contains invalid tool snapshots")
+
+        result: dict[str, dict[str, Any]] = {}
+        for raw_snapshot in raw_snapshots:
+            if not isinstance(raw_snapshot, dict):
+                raise ValidationError("Release contains an invalid tool snapshot")
+            raw_id = raw_snapshot.get("id")
+            if raw_id is None:
+                raise ValidationError("Release tool snapshot id is missing")
+            result[str(raw_id)] = raw_snapshot
+        return result
+
+    @staticmethod
+    def _selected_tool_ids(raw_tool_ids: Any, raw_snapshots: Any) -> list[UUID]:
+        ordered_ids: list[UUID] = []
+        seen: set[UUID] = set()
+
+        source_ids: list[Any]
+        if isinstance(raw_tool_ids, list):
+            source_ids = raw_tool_ids
+        elif isinstance(raw_snapshots, list):
+            source_ids = [
+                snapshot.get("id")
+                for snapshot in raw_snapshots
+                if isinstance(snapshot, dict)
+            ]
+        else:
+            source_ids = []
+
+        for raw_tool_id in source_ids:
+            try:
+                tool_id = raw_tool_id if isinstance(raw_tool_id, UUID) else UUID(str(raw_tool_id))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("Draft contains an invalid tool id") from exc
+            if tool_id in seen:
+                continue
+            seen.add(tool_id)
+            ordered_ids.append(tool_id)
+        return ordered_ids
+
     async def _prepare(self, input_dto: Any) -> Any:
         prepared = await super()._prepare(input_dto)
         if not isinstance(prepared, tuple) or len(prepared) < 13:
@@ -63,58 +113,65 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if not isinstance(tools_config, dict):
             return prepared
 
-        tools = []
-        snapshot_map: dict[str, dict[str, Any]] = {}
-        source = "draft_live"
         raw_snapshots = tools_config.get("snapshots")
         raw_tool_ids = tools_config.get("tool_ids")
         raw_permissions = tools_config.get("permissions")
         permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
+        snapshot_index = self._snapshot_index(raw_snapshots)
+        selected_ids = self._selected_tool_ids(raw_tool_ids, raw_snapshots)
 
-        if isinstance(raw_snapshots, list) and raw_snapshots:
-            source = "release_snapshot"
-            for raw_snapshot in raw_snapshots:
-                if not isinstance(raw_snapshot, dict):
-                    raise ValidationError("Release contains an invalid tool snapshot")
-                tool = tool_from_release_snapshot(raw_snapshot)
+        snapshot_tools: dict[UUID, Any] = {}
+        for tool_id in selected_ids:
+            raw_snapshot = snapshot_index.get(str(tool_id))
+            if raw_snapshot is None:
+                continue
+            tool = tool_from_release_snapshot(raw_snapshot)
+            if tool.project_id != agent.project_id:
+                raise ValidationError("Release tool snapshot does not belong to this Project")
+            if _value(tool.status) != ToolStatus.ACTIVE.value:
+                raise ValidationError(f"Release tool snapshot is not active: {tool.name}")
+            snapshot_tools[tool_id] = tool
+
+        live_ids = [tool_id for tool_id in selected_ids if tool_id not in snapshot_tools]
+        live_tools: dict[UUID, Any] = {}
+        if live_ids:
+            if self._runtime_tool_reader is None:
+                raise ValidationError("Draft Tool runtime reader is not configured")
+            loaded_tools = await self._runtime_tool_reader(live_ids)
+            live_tools = {tool.id: tool for tool in loaded_tools}
+
+        tools = []
+        snapshot_map: dict[str, dict[str, Any]] = {}
+        snapshot_count = 0
+        live_count = 0
+
+        for tool_id in selected_ids:
+            tool = snapshot_tools.get(tool_id)
+            if tool is not None:
+                snapshot_count += 1
+            else:
+                tool = live_tools.get(tool_id)
+                if tool is None:
+                    raise ValidationError(f"Selected tool was not found: {tool_id}")
                 if tool.project_id != agent.project_id:
-                    raise ValidationError("Release tool snapshot does not belong to this Project")
+                    raise ValidationError("Selected tool does not belong to this Project")
                 if _value(tool.status) != ToolStatus.ACTIVE.value:
-                    raise ValidationError(f"Release tool snapshot is not active: {tool.name}")
-                tools.append(tool)
-                snapshot_map[str(tool.id)] = dict(raw_snapshot)
-        elif isinstance(raw_tool_ids, list):
-            seen: set[UUID] = set()
-            selected_ids: list[UUID] = []
-            for raw_tool_id in raw_tool_ids:
-                try:
-                    tool_id = raw_tool_id if isinstance(raw_tool_id, UUID) else UUID(str(raw_tool_id))
-                except (TypeError, ValueError) as exc:
-                    raise ValidationError("Draft contains an invalid tool id") from exc
-                if tool_id in seen:
-                    continue
-                seen.add(tool_id)
-                selected_ids.append(tool_id)
+                    raise ValidationError(f"Selected tool is not active: {tool.name}")
+                live_count += 1
 
-            if selected_ids:
-                if self._runtime_tool_reader is None:
-                    raise ValidationError("Draft Tool runtime reader is not configured")
-                loaded_tools = await self._runtime_tool_reader(selected_ids)
-                tools_by_id = {tool.id: tool for tool in loaded_tools}
-                for tool_id in selected_ids:
-                    tool = tools_by_id.get(tool_id)
-                    if tool is None:
-                        raise ValidationError(f"Selected tool was not found: {tool_id}")
-                    if tool.project_id != agent.project_id:
-                        raise ValidationError("Selected tool does not belong to this Project")
-                    if _value(tool.status) != ToolStatus.ACTIVE.value:
-                        raise ValidationError(f"Selected tool is not active: {tool.name}")
-                    effective_tool = tool_with_permission_overrides(
-                        tool,
-                        permission_map.get(str(tool_id)),
-                    )
-                    tools.append(effective_tool)
-                    snapshot_map[str(tool_id)] = tool_to_release_snapshot(effective_tool)
+            effective_tool = tool_with_permission_overrides(
+                tool,
+                permission_map.get(str(tool_id)),
+            )
+            tools.append(effective_tool)
+            snapshot_map[str(tool_id)] = tool_to_release_snapshot(effective_tool)
+
+        if snapshot_count and live_count:
+            source = "hybrid_snapshot"
+        elif snapshot_count:
+            source = "release_snapshot"
+        else:
+            source = "draft_live"
 
         definitions, name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
         context = current_execution.get()
@@ -136,6 +193,67 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         mutable[8] = name_to_id
         mutable[9] = bool(definitions)
         return tuple(mutable)
+
+    async def _merge_playground_runtime_config(
+        self,
+        release_repo: Any,
+        agent_id: UUID,
+        runtime_config: Any,
+    ) -> Any:
+        if not isinstance(runtime_config, dict) or release_repo is None:
+            return runtime_config
+
+        merged_runtime = deepcopy(runtime_config)
+        tools_config = merged_runtime.get("tools")
+        if not isinstance(tools_config, dict):
+            return merged_runtime
+
+        raw_tool_ids = tools_config.get("tool_ids")
+        if not isinstance(raw_tool_ids, list):
+            return merged_runtime
+
+        selected_ids = [str(raw_tool_id) for raw_tool_id in raw_tool_ids]
+        if not selected_ids:
+            tools_config.pop("snapshots", None)
+            return merged_runtime
+
+        saved_snapshots: list[dict[str, Any]] = []
+        drafts = await release_repo.list_by_status(agent_id, ReleaseStatus.draft)
+        if drafts:
+            current_draft = max(drafts, key=_release_sort_key)
+            current_runtime = current_draft.runtime_config
+            if isinstance(current_runtime, dict):
+                current_tools = current_runtime.get("tools")
+                if isinstance(current_tools, dict):
+                    raw_saved_snapshots = current_tools.get("snapshots")
+                    if isinstance(raw_saved_snapshots, list):
+                        saved_snapshots = [
+                            snapshot
+                            for snapshot in raw_saved_snapshots
+                            if isinstance(snapshot, dict)
+                        ]
+
+        snapshot_map: dict[str, dict[str, Any]] = {
+            str(snapshot.get("id")): snapshot
+            for snapshot in saved_snapshots
+            if snapshot.get("id") is not None
+        }
+        explicit_snapshots = tools_config.get("snapshots")
+        if isinstance(explicit_snapshots, list):
+            for snapshot in explicit_snapshots:
+                if isinstance(snapshot, dict) and snapshot.get("id") is not None:
+                    snapshot_map[str(snapshot.get("id"))] = snapshot
+
+        merged_snapshots = [
+            deepcopy(snapshot_map[tool_id])
+            for tool_id in selected_ids
+            if tool_id in snapshot_map
+        ]
+        if merged_snapshots:
+            tools_config["snapshots"] = merged_snapshots
+        else:
+            tools_config.pop("snapshots", None)
+        return merged_runtime
 
     async def _load_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         agent = await self._load_base_agent(uow, input_dto)
@@ -163,7 +281,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             releases = await release_repo.list_by_status(agent.id, ReleaseStatus.staging)
             if not releases:
                 raise RuntimeEnvironmentNotReadyError("staging", input_dto.agent_id)
-            release = releases[0]
+            release = max(releases, key=_release_sort_key)
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
@@ -174,12 +292,17 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ValueError("Unsupported execution context")
 
         if input_dto.snapshot_override:
-            agent = self._apply_snapshot_override(agent, input_dto.snapshot_override)
-            agent = self._apply_runtime_config_snapshot(
-                agent,
-                input_dto.snapshot_override.get("runtime_config"),
+            snapshot_override = deepcopy(input_dto.snapshot_override)
+            merged_runtime_config = await self._merge_playground_runtime_config(
+                release_repo,
+                agent.id,
+                snapshot_override.get("runtime_config"),
             )
-            self._apply_snapshot_provider_model_ids(agent, input_dto.snapshot_override)
+            if "runtime_config" in snapshot_override:
+                snapshot_override["runtime_config"] = merged_runtime_config
+            agent = self._apply_snapshot_override(agent, snapshot_override)
+            agent = self._apply_runtime_config_snapshot(agent, merged_runtime_config)
+            self._apply_snapshot_provider_model_ids(agent, snapshot_override)
             return await self._resolve_provider_model_refs(uow, agent)
 
         if input_dto.loaded_release_id and release_repo is not None:
@@ -194,7 +317,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if release_repo is not None:
             drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)
             if drafts:
-                release = drafts[0]
+                release = max(drafts, key=_release_sort_key)
                 self._bind_release_context(release)
                 agent = self._apply_release_to_agent(agent, release)
                 agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
