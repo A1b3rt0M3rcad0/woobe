@@ -4,6 +4,7 @@ import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute, PublicRoute } from '@/features/auth/ProtectedRoute'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useAgents } from '@/features/agents/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { LoadingState } from '@/components/common/LoadingState'
 
@@ -56,6 +57,7 @@ function DashboardRedirect() {
     isLoadingOrganizations,
     isLoadingProjects,
   } = useWorkspace()
+  const agentsQuery = useAgents(currentProject?.id)
 
   useEffect(() => {
     if (!currentOrganization && !isLoadingOrganizations && organizations.length === 1) {
@@ -81,6 +83,12 @@ function DashboardRedirect() {
   if (!currentProject) {
     if (projects.length === 1) return <LoadingState message="Opening Project" />
     return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  }
+
+  if (agentsQuery.isLoading) return <LoadingState message="Opening Project" />
+
+  if (agentsQuery.isSuccess && (agentsQuery.data?.length ?? 0) === 0) {
+    return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}/agents?create=1`} replace />
   }
 
   return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
