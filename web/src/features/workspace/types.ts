@@ -22,5 +22,6 @@ export interface WorkspaceContextValue {
   clearCurrentOrganization: () => void
   isLoadingOrganizations: boolean
   isLoadingProjects: boolean
+  isFetchingProjects: boolean
   workspaceError: Error | null
 }
