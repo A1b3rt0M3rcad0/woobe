@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProjects, getProject, createProject, updateProject } from './api'
-import type { CreateProjectRequest, UpdateProjectRequest } from './types'
+import type { Project, CreateProjectRequest, UpdateProjectRequest } from './types'
+
+export function upsertProject(current: Project[] | undefined, project: Project): Project[] {
+  const projects = current ?? []
+  const existingIndex = projects.findIndex((item) => item.id === project.id)
+
+  if (existingIndex === -1) return [...projects, project]
+
+  return projects.map((item, index) => index === existingIndex ? project : item)
+}
 
 export function useProjects(organizationId?: string) {
   return useQuery({
@@ -22,8 +31,13 @@ export function useCreateProject(organizationId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateProjectRequest) => createProject(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects', organizationId] })
+    onSuccess: (project) => {
+      queryClient.setQueryData<Project[]>(
+        ['projects', organizationId],
+        (current) => upsertProject(current, project),
+      )
+      queryClient.setQueryData(['project', project.id], project)
+      void queryClient.invalidateQueries({ queryKey: ['projects', organizationId] })
     },
   })
 }
