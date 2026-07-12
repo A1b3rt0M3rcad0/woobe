@@ -12,9 +12,9 @@ describe('first-run setup paths', () => {
       .toBe('/organizations/org-1/projects/project-1/setup')
   })
 
-  it('opens the created Agent directly in the Playground', () => {
+  it('opens the created Agent directly in the explicit first-run Playground', () => {
     expect(firstRunPlaygroundPath('org-1', 'project-1', 'agent-1'))
-      .toBe('/organizations/org-1/projects/project-1/agents/agent-1/playground')
+      .toBe('/organizations/org-1/projects/project-1/agents/agent-1/playground?firstRun=1')
   })
 
   it('uses the correct exit destination before and after Project creation', () => {
