@@ -1,14 +1,16 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, Building2, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { registerSchema, type RegisterFormData } from '@/features/auth/schemas'
+import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 export default function RegisterPage() {
   const { register: registerUser } = useAuth()
+  const { selectOrganization } = useWorkspace()
   const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -16,8 +18,9 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await registerUser(data)
-      navigate('/dashboard')
+      const result = await registerUser(data)
+      selectOrganization(result.organization)
+      navigate(`/organizations/${result.organization.id}/projects?create=1`, { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed'
       setError('root', { message })
@@ -28,25 +31,14 @@ export default function RegisterPage() {
     <div>
       <div className="mb-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/60 px-2.5 py-1 text-[11px] font-medium text-muted">
-          <Building2 className="h-3 w-3 text-primary-light" />
-          Organization workspace
+          <ShieldCheck className="h-3 w-3 text-primary-light" />
+          Secure workspace provisioning
         </div>
-        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white">Create your workspace</h2>
-        <p className="mt-1.5 text-sm leading-5 text-muted">Start with one organization and deploy agents from a controlled project surface.</p>
+        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white">Create your account</h2>
+        <p className="mt-1.5 text-sm leading-5 text-muted">Start building, testing and operating AI Agents from one controlled workspace.</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-300">Organization</label>
-          <Input
-            {...register('organization_name')}
-            error={errors.organization_name?.message}
-            placeholder="Your company or workspace name"
-            className="bg-background/60 text-white"
-          />
-          <p className="mt-1.5 text-[11px] leading-4 text-muted">This becomes the owner workspace for projects, releases and billing.</p>
-        </div>
-
         <div>
           <label className="mb-1.5 block text-xs font-medium text-slate-300">Email</label>
           <Input
@@ -73,7 +65,7 @@ export default function RegisterPage() {
 
         <div className="flex items-start gap-2 rounded-xl border border-border/80 bg-background/45 p-3 text-xs leading-5 text-muted">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-light" />
-          <p>Your first organization becomes the control boundary for projects, agents, tools and runtime access.</p>
+          <p>A private Organization is provisioned automatically. You can rename it and invite members later.</p>
         </div>
 
         {errors.root && (
