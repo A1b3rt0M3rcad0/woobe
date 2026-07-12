@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, NavLink } from 'react-router-dom'
+import { useLocation, useNavigate, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Bot,
@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { orgProjectPath } from '@/lib/constants/routes'
-import { Button } from '@/components/ui/Button'
 import type { OrgShape, ProjectShape } from '@/features/workspace/types'
 import { SidebarUserCard } from './SidebarUserCard'
 
@@ -268,6 +267,23 @@ function ProjectContextCard({
   )
 }
 
+function ProjectContextSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Loading workspace">
+      <div className="animate-pulse rounded-xl border border-border/80 bg-background/45 p-3">
+        <div className="h-3.5 w-28 rounded bg-border/80" />
+        <div className="mt-2 h-3 w-20 rounded bg-border/50" />
+      </div>
+      <div className="space-y-2 px-2">
+        <div className="h-2.5 w-12 animate-pulse rounded bg-border/50" />
+        <div className="h-9 animate-pulse rounded-xl bg-background/55" />
+        <div className="h-9 animate-pulse rounded-xl bg-background/55" />
+        <div className="h-9 animate-pulse rounded-xl bg-background/55" />
+      </div>
+    </div>
+  )
+}
+
 function NoOrganizationState() {
   return (
     <div className="rounded-xl border border-border/80 bg-background/45 p-4 text-center">
@@ -277,28 +293,8 @@ function NoOrganizationState() {
   )
 }
 
-function NoProjectState({ orgId }: { orgId: string }) {
-  const navigate = useNavigate()
-  return (
-    <div className="rounded-xl border border-border/80 bg-background/45 p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
-        <FolderKanban className="h-4 w-4" />
-      </div>
-      <p className="mt-4 text-sm font-semibold text-white">Project required</p>
-      <p className="mt-1 text-xs leading-5 text-muted">Select a project to access agents, knowledge, tools and runtime operations.</p>
-      <Button
-        size="sm"
-        className="mt-4 w-full"
-        onClick={() => navigate(`/organizations/${orgId}/projects`)}
-      >
-        <FolderKanban className="mr-1.5 h-3.5 w-3.5" />
-        Select project
-      </Button>
-    </div>
-  )
-}
-
 export function Sidebar() {
+  const { pathname } = useLocation()
   const {
     organizations,
     currentOrganization,
@@ -306,9 +302,18 @@ export function Sidebar() {
     currentProject,
     selectOrganization,
     selectProject,
+    isLoadingOrganizations,
+    isLoadingProjects,
   } = useWorkspace()
   const orgId = currentOrganization?.id
   const projId = currentProject?.id
+  const isProjectRoute = /^\/organizations\/[^/]+\/projects\/[^/]+(?:\/|$)/.test(pathname)
+  const isResolvingProjectContext = isProjectRoute && (
+    isLoadingOrganizations
+    || isLoadingProjects
+    || !currentOrganization
+    || !currentProject
+  )
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
@@ -326,11 +331,11 @@ export function Sidebar() {
 
       <ScrollArea className="flex-1">
         <nav className="space-y-5 p-3">
-          {!orgId || !currentOrganization ? (
+          {isResolvingProjectContext ? (
+            <ProjectContextSkeleton />
+          ) : !orgId || !currentOrganization ? (
             <NoOrganizationState />
-          ) : !projId || !currentProject ? (
-            <NoProjectState orgId={orgId} />
-          ) : (
+          ) : projId && currentProject ? (
             <>
               <section className="space-y-2">
                 <SidebarSectionTitle>Project</SidebarSectionTitle>
@@ -347,7 +352,7 @@ export function Sidebar() {
               <ProjectNavGroup title="Build" items={buildNavItems} orgId={orgId} projId={projId} />
               <ProjectNavGroup title="Operate" items={operateNavItems} orgId={orgId} projId={projId} />
             </>
-          )}
+          ) : null}
         </nav>
       </ScrollArea>
 
