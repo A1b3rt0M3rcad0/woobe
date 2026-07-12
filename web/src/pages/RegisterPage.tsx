@@ -1,26 +1,21 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { registerSchema, type RegisterFormData } from '@/features/auth/schemas'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 export default function RegisterPage() {
   const { register: registerUser } = useAuth()
-  const { selectOrganization } = useWorkspace()
-  const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   })
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      const result = await registerUser(data)
-      selectOrganization(result.organization)
-      navigate(`/organizations/${result.organization.id}/projects?create=1`, { replace: true })
+      await registerUser(data)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed'
       setError('root', { message })
