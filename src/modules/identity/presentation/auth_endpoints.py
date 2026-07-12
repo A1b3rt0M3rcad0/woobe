@@ -6,7 +6,7 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import JSONResponse
 
 from modules.identity.application.authentication_service import AuthenticationService
-from modules.identity.application.dtos import LoginInput, RegisterInput
+from modules.identity.application.dtos import CreateOrganizationInput, LoginInput, RegisterInput
 from shared.infra.errors import AuthenticationError
 
 
@@ -79,6 +79,20 @@ def set_csrf_cookie(
     response.headers[CSRF_RESPONSE_HEADER] = csrf_value
 
 
+def organization_payload(organization) -> dict:
+    return {
+        "id": str(organization.id),
+        "name": organization.name,
+        "slug": organization.slug,
+        "status": organization.status.value
+        if hasattr(organization.status, "value")
+        else organization.status,
+        "created_at": organization.created_at.isoformat()
+        if getattr(organization, "created_at", None)
+        else None,
+    }
+
+
 def authentication_response(
     request: FastAPIRequest,
     result,
@@ -86,21 +100,25 @@ def authentication_response(
     status_code: int,
 ) -> JSONResponse:
     csrf_value = token_urlsafe(32)
+    response_data = {
+        "token_type": result.token_type,
+        "expires_in": result.expires_in,
+        "csrf": csrf_value,
+        "user": {
+            "id": str(result.user.id),
+            "email": result.user.email,
+            "status": result.user.status,
+        },
+    }
+    if result.organization is not None:
+        response_data["organization"] = organization_payload(result.organization)
+
     response = JSONResponse(
         status_code=status_code,
         content={
             "success": True,
             "message": "ok" if status_code == 200 else "created",
-            "data": {
-                "token_type": result.token_type,
-                "expires_in": result.expires_in,
-                "csrf": csrf_value,
-                "user": {
-                    "id": str(result.user.id),
-                    "email": result.user.email,
-                    "status": result.user.status,
-                },
-            },
+            "data": response_data,
         },
     )
     settings = request.app.state.settings
@@ -204,19 +222,28 @@ async def list_organizations_endpoint(request: FastAPIRequest) -> JSONResponse:
         content={
             "success": True,
             "message": "ok",
-            "data": [
-                {
-                    "id": str(organization.id),
-                    "name": organization.name,
-                    "slug": organization.slug,
-                    "status": organization.status.value,
-                    "created_at": organization.created_at.isoformat()
-                    if organization.created_at
-                    else None,
-                }
-                for organization in organizations
-            ],
+            "data": [organization_payload(organization) for organization in organizations],
         }
+    )
+
+
+async def create_organization_endpoint(request: FastAPIRequest) -> JSONResponse:
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise AuthenticationError("Authentication required")
+    data = CreateOrganizationInput(**(await request.json()))
+    organization = await authentication_service(request).create_organization(
+        user_id=principal.user_id,
+        name=data.name,
+        slug=data.slug,
+    )
+    return JSONResponse(
+        status_code=201,
+        content={
+            "success": True,
+            "message": "created",
+            "data": organization_payload(organization),
+        },
     )
 
 
@@ -276,7 +303,6 @@ async def register_endpoint(request: FastAPIRequest) -> JSONResponse:
     result = await authentication_service(request).register(
         email=data.email,
         password=data.password,
-        organization_name=data.organization_name,
         user_agent=request.headers.get("user-agent"),
         ip_address=request.client.host if request.client else None,
     )
