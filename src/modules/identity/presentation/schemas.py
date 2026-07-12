@@ -75,4 +75,3 @@ class LoginResponse(BaseModel):
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    organization_name: str
