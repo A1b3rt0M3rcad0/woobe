@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute, PublicRoute } from '@/features/auth/ProtectedRoute'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+import { LoadingState } from '@/components/common/LoadingState'
 
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -44,9 +46,43 @@ function LegacyProjectRedirect() {
 }
 
 function DashboardRedirect() {
-  const { currentOrganization, currentProject } = useWorkspace()
-  if (!currentOrganization) return <Navigate to="/organizations" replace />
-  if (!currentProject) return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  const {
+    organizations,
+    projects,
+    currentOrganization,
+    currentProject,
+    selectOrganization,
+    selectProject,
+    isLoadingOrganizations,
+    isLoadingProjects,
+  } = useWorkspace()
+
+  useEffect(() => {
+    if (!currentOrganization && !isLoadingOrganizations && organizations.length === 1) {
+      selectOrganization(organizations[0])
+    }
+  }, [currentOrganization, isLoadingOrganizations, organizations, selectOrganization])
+
+  useEffect(() => {
+    if (currentOrganization && !currentProject && !isLoadingProjects && projects.length === 1) {
+      selectProject(projects[0])
+    }
+  }, [currentOrganization, currentProject, isLoadingProjects, projects, selectProject])
+
+  if (isLoadingOrganizations) return <LoadingState message="Opening workspace" />
+
+  if (!currentOrganization) {
+    if (organizations.length === 1) return <LoadingState message="Opening Organization" />
+    return <Navigate to="/organizations" replace />
+  }
+
+  if (isLoadingProjects) return <LoadingState message="Opening Projects" />
+
+  if (!currentProject) {
+    if (projects.length === 1) return <LoadingState message="Opening Project" />
+    return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  }
+
   return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
 }
 
