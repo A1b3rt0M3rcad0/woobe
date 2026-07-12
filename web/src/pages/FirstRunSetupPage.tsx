@@ -39,7 +39,7 @@ export function firstRunProjectSetupPath(organizationId: string, projectId: stri
 }
 
 export function firstRunPlaygroundPath(organizationId: string, projectId: string, agentId: string) {
-  return `/organizations/${organizationId}/projects/${projectId}/agents/${agentId}/playground`
+  return `/organizations/${organizationId}/projects/${projectId}/agents/${agentId}/playground?firstRun=1`
 }
 
 export function firstRunExitPath(organizationId: string, projectId?: string) {
