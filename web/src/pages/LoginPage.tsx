@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, LockKeyhole } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas'
@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/Input'
 
 export default function LoginPage() {
   const { login } = useAuth()
-  const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     try {
       await login(data)
-      navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError('root', { message })
