@@ -10,10 +10,12 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   isInitializing: boolean
+  postAuthTarget: string | null
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<RegisterResponse>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
+  clearPostAuthTarget: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -29,13 +31,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const isAuthenticated = !!user
 
+  const clearPostAuthTarget = useCallback(() => {
+    setPostAuthTarget(null)
+  }, [])
+
   const clearAuthState = useCallback(() => {
     clearCsrfToken()
     setUser(null)
+    setPostAuthTarget(null)
     queryClient.clear()
   }, [queryClient])
 
@@ -69,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const res = await apiLogin(data)
+      setPostAuthTarget('/dashboard')
       setUser(res.user)
     } finally {
       setIsLoading(false)
@@ -80,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRegister(data)
       queryClient.setQueryData(['organizations'], [res.organization])
+      setPostAuthTarget(`/organizations/${res.organization.id}/projects?create=1`)
       setUser(res.user)
       return res
     } finally {
@@ -114,10 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isLoading,
         isInitializing,
+        postAuthTarget,
         login,
         register,
         logout,
         refreshCurrentUser,
+        clearPostAuthTarget,
       }}
     >
       {children}
