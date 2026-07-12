@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { getOrganizations } from '@/features/auth/api'
@@ -55,6 +55,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const {
     data: projects = [],
     isLoading: isLoadingProjects,
+    isFetching: isFetchingProjects,
     error: projError,
   } = useQuery({
     queryKey: ['projects', validatedOrg?.id],
@@ -101,6 +102,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     writeStored(STORED_PROJECT_KEY, null)
   }, [])
 
+  useEffect(() => {
+    if (
+      isAuthenticated
+      && !isLoadingOrganizations
+      && !validatedOrg
+      && orgs.length === 1
+    ) {
+      selectOrganization(orgs[0])
+    }
+  }, [isAuthenticated, isLoadingOrganizations, orgs, selectOrganization, validatedOrg])
+
   const workspaceError = (orgError || projError) as Error | null
 
   const value = useMemo(() => ({
@@ -114,8 +126,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     clearCurrentOrganization,
     isLoadingOrganizations,
     isLoadingProjects,
+    isFetchingProjects,
     workspaceError,
-  }), [orgs, validatedOrg, projs, validatedProject, selectOrganization, selectProject, clearCurrentProject, clearCurrentOrganization, isLoadingOrganizations, isLoadingProjects, workspaceError])
+  }), [orgs, validatedOrg, projs, validatedProject, selectOrganization, selectProject, clearCurrentProject, clearCurrentOrganization, isLoadingOrganizations, isLoadingProjects, isFetchingProjects, workspaceError])
 
   return (
     <WorkspaceContext.Provider value={value}>
