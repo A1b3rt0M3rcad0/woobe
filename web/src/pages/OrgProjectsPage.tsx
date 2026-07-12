@@ -43,7 +43,11 @@ export default function OrgProjectsPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { selectProject } = useWorkspace()
+  const {
+    currentOrganization,
+    selectOrganization,
+    selectProject,
+  } = useWorkspace()
 
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
   const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
@@ -54,6 +58,11 @@ export default function OrgProjectsPage() {
 
   const items = projects ?? []
   const isFirstProject = items.length === 0
+
+  useEffect(() => {
+    if (!org || currentOrganization?.id === org.id) return
+    selectOrganization({ id: org.id, name: org.name, slug: org.slug })
+  }, [currentOrganization, org, selectOrganization])
 
   useEffect(() => {
     if (searchParams.get('create') !== '1' || orgLoading || projectsLoading) return
@@ -81,7 +90,6 @@ export default function OrgProjectsPage() {
     if (!organizationId) return
 
     try {
-      const firstProject = items.length === 0
       const project = await createProject.mutateAsync({
         organization_id: organizationId,
         ...data,
@@ -94,11 +102,7 @@ export default function OrgProjectsPage() {
         name: project.name,
         slug: project.slug,
       })
-      navigate(
-        firstProject
-          ? `/organizations/${organizationId}/projects/${project.id}/agents?create=1`
-          : `/organizations/${organizationId}/projects/${project.id}`,
-      )
+      navigate(`/organizations/${organizationId}/projects/${project.id}/agents?create=1`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create project')
     }
