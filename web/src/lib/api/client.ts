@@ -52,6 +52,7 @@ interface CsrfPayload {
 }
 
 let refreshPromise: Promise<void> | null = null
+let authGeneration = 0
 let csrfPromise: Promise<void> | null = null
 let csrfValue: string | null = null
 
@@ -162,6 +163,7 @@ export async function refreshAuthSession(): Promise<void> {
     }
 
     rememberCsrf(data?.data)
+    authGeneration += 1
   })().finally(() => {
     refreshPromise = null
   })
@@ -189,6 +191,7 @@ async function request<T>(
     headers['Content-Type'] = 'application/json'
   }
 
+  const requestAuthGeneration = authGeneration
   let res: Response
   try {
     res = await fetch(buildUrl(path, options?.params), {
@@ -219,8 +222,10 @@ async function request<T>(
 
   if (res.status === 401 && !hasRetriedAuth && !AUTH_PUBLIC_PATHS.has(path)) {
     try {
-      clearCsrfToken()
-      await refreshAuthSession()
+      if (requestAuthGeneration === authGeneration) {
+        clearCsrfToken()
+        await refreshAuthSession()
+      }
       return request<T>(method, path, body, options, true)
     } catch {
       if (import.meta.env.DEV) console.warn('[API] Refresh failed — redirecting to login')
