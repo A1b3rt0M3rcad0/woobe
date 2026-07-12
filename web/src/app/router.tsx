@@ -15,6 +15,7 @@ import OrganizationsPage from '@/pages/OrganizationsPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 import OrgProjectsPage from '@/pages/OrgProjectsPage'
 import OrgProjectDetailPage from '@/pages/OrgProjectDetailPage'
+import FirstRunSetupPage from '@/pages/FirstRunSetupPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
@@ -202,9 +203,11 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
           <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
           <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
+          <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
 
           <Route element={<ProjectWorkspaceGuard />}>
             <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/setup" element={<FirstRunSetupPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
