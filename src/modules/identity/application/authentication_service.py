@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.identity.application.auth_types import (
+    AuthenticatedOrganization,
     AuthenticatedUser,
     IssuedAuthentication,
 )
@@ -17,8 +17,11 @@ from modules.identity.domain.errors import EmailAlreadyExistsError, InvalidCrede
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 from shared.infra.config import Settings
 from shared.infra.crypto import hash_password, verify_password
-from shared.infra.errors import AuthenticationError
+from shared.infra.errors import AuthenticationError, ConflictError
 from shared.security.access_tokens import AccessTokenCodec
+
+
+DEFAULT_ORGANIZATION_NAME = "My Organization"
 
 
 class AuthenticationService:
@@ -61,7 +64,6 @@ class AuthenticationService:
         *,
         email: str,
         password: str,
-        organization_name: str,
         user_agent: str | None,
         ip_address: str | None,
     ) -> IssuedAuthentication:
@@ -82,36 +84,11 @@ class AuthenticationService:
                 idempotency_key=f"identity:user.created.v1:{user.id}",
             )
 
-            slug_base = re.sub(
-                r"[^a-z0-9]+",
-                "-",
-                organization_name.lower(),
-            ).strip("-")
-            organization = await uow.organizations.save(
-                Organization(
-                    name=organization_name.strip(),
-                    slug=f"{slug_base or 'organization'}-{str(user.id)[:8]}",
-                )
-            )
-            member = await uow.members.save(
-                OrganizationMember(
-                    user_id=user.id,
-                    organization_id=organization.id,
-                    role=MemberRole.owner,
-                    joined_at=datetime.now(UTC),
-                )
-            )
-            await uow.outbox.write(
-                aggregate_type="organization_member",
-                aggregate_id=member.id,
-                event_type="organization.member_added.v1",
-                payload={
-                    "user_id": str(user.id),
-                    "organization_id": str(organization.id),
-                    "role": member.role.value,
-                },
-                routing_key="organization.member_added.v1",
-                idempotency_key=f"identity:organization.member_added.v1:{member.id}",
+            organization = await self._create_owned_organization(
+                uow,
+                user_id=user.id,
+                name=DEFAULT_ORGANIZATION_NAME,
+                slug=f"org-{str(user.id)[:8]}",
             )
 
             session = await self._sessions.issue(
@@ -120,7 +97,30 @@ class AuthenticationService:
                 user_agent=user_agent,
                 ip_address=ip_address,
             )
-            return self._authentication_result(user, session.id, session.secret)
+            return self._authentication_result(
+                user,
+                session.id,
+                session.secret,
+                organization=organization,
+            )
+
+    async def create_organization(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        slug: str,
+    ) -> Organization:
+        async with IdentityUnitOfWork(self._session_factory) as uow:
+            user = await uow.users.get_by_id(user_id)
+            if user is None or user.status != UserStatus.active:
+                raise AuthenticationError("Authentication required")
+            return await self._create_owned_organization(
+                uow,
+                user_id=user.id,
+                name=name.strip(),
+                slug=slug.strip().lower(),
+            )
 
     async def refresh(
         self,
@@ -182,11 +182,58 @@ class AuthenticationService:
                     organizations.append(organization)
             return organizations
 
+    async def _create_owned_organization(
+        self,
+        uow: IdentityUnitOfWork,
+        *,
+        user_id: UUID,
+        name: str,
+        slug: str,
+    ) -> Organization:
+        if await uow.organizations.get_by_slug(slug):
+            raise ConflictError(f"Organization with slug '{slug}' already exists")
+
+        organization = await uow.organizations.save(
+            Organization(name=name, slug=slug)
+        )
+        await uow.outbox.write(
+            aggregate_type="organization",
+            aggregate_id=organization.id,
+            event_type="organization.created.v1",
+            payload={"name": organization.name, "slug": organization.slug},
+            routing_key="organization.created.v1",
+            idempotency_key=f"identity:organization.created.v1:{organization.id}",
+        )
+
+        member = await uow.members.save(
+            OrganizationMember(
+                user_id=user_id,
+                organization_id=organization.id,
+                role=MemberRole.owner,
+                joined_at=datetime.now(UTC),
+            )
+        )
+        await uow.outbox.write(
+            aggregate_type="organization_member",
+            aggregate_id=member.id,
+            event_type="organization.member_added.v1",
+            payload={
+                "user_id": str(user_id),
+                "organization_id": str(organization.id),
+                "role": member.role.value,
+            },
+            routing_key="organization.member_added.v1",
+            idempotency_key=f"identity:organization.member_added.v1:{member.id}",
+        )
+        return organization
+
     def _authentication_result(
         self,
         user: User,
         session_id: UUID,
         refresh_secret: str,
+        *,
+        organization: Organization | None = None,
     ) -> IssuedAuthentication:
         return IssuedAuthentication(
             access_token=self._token_codec.issue(
@@ -201,5 +248,15 @@ class AuthenticationService:
                 id=user.id,
                 email=user.email,
                 status=user.status.value,
+            ),
+            organization=(
+                AuthenticatedOrganization(
+                    id=organization.id,
+                    name=organization.name,
+                    slug=organization.slug,
+                    status=organization.status.value,
+                )
+                if organization is not None
+                else None
             ),
         )

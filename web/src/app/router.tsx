@@ -1,9 +1,12 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute, PublicRoute } from '@/features/auth/ProtectedRoute'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useAgents } from '@/features/agents/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+import { LoadingState } from '@/components/common/LoadingState'
 
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -12,8 +15,7 @@ import OrganizationsPage from '@/pages/OrganizationsPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 import OrgProjectsPage from '@/pages/OrgProjectsPage'
 import OrgProjectDetailPage from '@/pages/OrgProjectDetailPage'
-import ProjectsPage from '@/pages/ProjectsPage'
-import ProjectDetailPage from '@/pages/ProjectDetailPage'
+import FirstRunSetupPage from '@/pages/FirstRunSetupPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
@@ -44,10 +46,134 @@ function LegacyProjectRedirect() {
 }
 
 function DashboardRedirect() {
-  const { currentOrganization, currentProject } = useWorkspace()
-  if (!currentOrganization) return <Navigate to="/organizations" replace />
-  if (!currentProject) return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  const {
+    organizations,
+    projects,
+    currentOrganization,
+    currentProject,
+    selectOrganization,
+    selectProject,
+    isLoadingOrganizations,
+    isLoadingProjects,
+  } = useWorkspace()
+  const agentsQuery = useAgents(currentProject?.id)
+
+  useEffect(() => {
+    if (!currentOrganization && !isLoadingOrganizations && organizations.length === 1) {
+      selectOrganization(organizations[0])
+    }
+  }, [currentOrganization, isLoadingOrganizations, organizations, selectOrganization])
+
+  useEffect(() => {
+    if (currentOrganization && !currentProject && !isLoadingProjects && projects.length === 1) {
+      selectProject(projects[0])
+    }
+  }, [currentOrganization, currentProject, isLoadingProjects, projects, selectProject])
+
+  if (isLoadingOrganizations) return <LoadingState message="Opening workspace" />
+
+  if (!currentOrganization) {
+    if (organizations.length === 1) return <LoadingState message="Opening Organization" />
+    return <Navigate to="/organizations" replace />
+  }
+
+  if (isLoadingProjects) return <LoadingState message="Opening Projects" />
+
+  if (!currentProject) {
+    if (projects.length === 1) return <LoadingState message="Opening Project" />
+    return <Navigate to={`/organizations/${currentOrganization.id}/projects`} replace />
+  }
+
+  if (agentsQuery.isLoading) return <LoadingState message="Opening Project" />
+
+  if (agentsQuery.isSuccess && (agentsQuery.data?.length ?? 0) === 0) {
+    return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}/agents`} replace />
+  }
+
   return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
+}
+
+function ProjectWorkspaceGuard() {
+  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const {
+    organizations,
+    projects,
+    currentOrganization,
+    currentProject,
+    selectOrganization,
+    selectProject,
+    clearCurrentProject,
+    isLoadingOrganizations,
+    isLoadingProjects,
+    isFetchingProjects,
+  } = useWorkspace()
+
+  const routeOrganization = organizations.find((organization) => organization.id === organizationId)
+  const routeProject = projects.find((project) => (
+    project.id === projectId && project.organization_id === organizationId
+  ))
+
+  useEffect(() => {
+    if (
+      routeOrganization
+      && currentOrganization?.id !== routeOrganization.id
+      && !isLoadingOrganizations
+    ) {
+      selectOrganization(routeOrganization)
+    }
+  }, [currentOrganization, isLoadingOrganizations, routeOrganization, selectOrganization])
+
+  useEffect(() => {
+    if (
+      routeProject
+      && currentOrganization?.id === organizationId
+      && currentProject?.id !== routeProject.id
+      && !isLoadingProjects
+    ) {
+      selectProject(routeProject)
+    }
+  }, [currentOrganization, currentProject, isLoadingProjects, organizationId, routeProject, selectProject])
+
+  useEffect(() => {
+    if (
+      currentOrganization?.id === organizationId
+      && !isLoadingProjects
+      && !isFetchingProjects
+      && !routeProject
+    ) {
+      clearCurrentProject()
+    }
+  }, [clearCurrentProject, currentOrganization, isFetchingProjects, isLoadingProjects, organizationId, routeProject])
+
+  if (!organizationId || !projectId) {
+    return <Navigate to="/organizations" replace />
+  }
+
+  if (isLoadingOrganizations) {
+    return <LoadingState message="Opening workspace" />
+  }
+
+  if (!routeOrganization) {
+    return <Navigate to="/organizations" replace />
+  }
+
+  if (currentOrganization?.id !== routeOrganization.id) {
+    return <LoadingState message="Opening Organization" />
+  }
+
+  if (isLoadingProjects || (!routeProject && isFetchingProjects)) {
+    return <LoadingState message="Opening Project" />
+  }
+
+  if (!routeProject) {
+    return <Navigate to={`/organizations/${organizationId}/projects`} replace />
+  }
+
+  if (currentProject?.id !== routeProject.id) {
+    return <LoadingState message="Opening Project" />
+  }
+
+  return <Outlet />
 }
 
 function AgentListRedirect() {
@@ -77,20 +203,25 @@ export function AppRouter() {
           <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
           <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
           <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentPlaygroundRedirect />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/edit" element={<AgentPlaygroundRedirect />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/knowledge" element={<KnowledgePage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/tools" element={<ToolsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/models" element={<ModelsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/credentials" element={<CredentialsPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
-          <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
+          <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
+
+          <Route element={<ProjectWorkspaceGuard />}>
+            <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/setup" element={<FirstRunSetupPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentPlaygroundRedirect />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/edit" element={<AgentPlaygroundRedirect />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/knowledge" element={<KnowledgePage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/tools" element={<ToolsPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/models" element={<ModelsPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/credentials" element={<CredentialsPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
+          </Route>
 
           <Route path="/mcp/oauth/callback" element={<McpConnectCallbackPage />} />
 

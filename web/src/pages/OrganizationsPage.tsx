@@ -1,14 +1,24 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useCreateOrganization } from '@/features/organizations/hooks'
-import { LoadingState } from '@/components/common/LoadingState'
-import { ErrorState } from '@/components/common/ErrorState'
-import { CreateResourceCard } from '@/components/common/CreateResourceCard'
-import { Input } from '@/components/ui/Input'
-import { CreateOrganizationDialog } from '@/components/forms/CreateOrganizationDialog'
-import { ArrowRight, Search } from 'lucide-react'
+import { Building2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { ErrorState } from '@/components/common/ErrorState'
+import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
+import { Button } from '@/components/ui/Button'
+import { CreateOrganizationDialog } from '@/components/forms/CreateOrganizationDialog'
+import { useCreateOrganization } from '@/features/organizations/hooks'
+import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+
+const SEARCH_THRESHOLD = 5
 
 function getInitials(name: string) {
   return name
@@ -53,75 +63,81 @@ export default function OrganizationsPage() {
     navigate(`/organizations/${org.id}/projects`)
   }
 
-  if (isLoadingOrganizations) return <LoadingState />
-  if (workspaceError) return <ErrorState error={workspaceError} />
-
-  const hasSearchMiss = query.trim().length > 0 && visibleOrganizations.length === 0
+  const showSearch = organizations.length >= SEARCH_THRESHOLD
+  const hasSearchMiss = Boolean(query.trim()) && visibleOrganizations.length === 0
+  const resultCount = query.trim() ? `${visibleOrganizations.length} of ${organizations.length}` : organizations.length
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Select your organization</h1>
-          <p className="mt-2 text-sm text-muted">Organizations group projects, members and runtime settings.</p>
-        </div>
-
-        <div className="relative max-w-3xl">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <Input
+    <ResourcePage
+      title="Organizations"
+      description="Select the commercial workspace you want to operate."
+      action={(
+        <Button type="button" onClick={() => setShowCreate(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Organization
+        </Button>
+      )}
+    >
+      {showSearch && (
+        <ResourceToolbar>
+          <ResourceSearch
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search organizations..."
-            className="h-11 pl-9"
+            onChange={setQuery}
+            placeholder="Search Organizations..."
+            label="Search Organizations"
           />
-        </div>
-      </div>
-
-      {hasSearchMiss && (
-        <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-4">
-          <h2 className="text-sm font-semibold text-white">No organizations found</h2>
-          <p className="mt-1 text-sm text-muted">Create a new organization or adjust the search term.</p>
-        </div>
+        </ResourceToolbar>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <CreateResourceCard
-          title="New organization"
-          description="Create a new organization"
-          minHeight="lg"
-          onClick={() => setShowCreate(true)}
+      <section>
+        <ResourceSectionHeader
+          title="Organizations"
+          description="Organizations own Projects, members, plans and usage."
+          count={resultCount}
         />
 
-        {visibleOrganizations.map((org) => (
-          <button
-            key={org.id}
-            type="button"
-            aria-label={`Open projects for ${org.name}`}
-            onClick={() => handleSelect(org)}
-            className="group flex min-h-[260px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-sm font-semibold text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
-              {getInitials(org.name)}
-            </span>
-
-            <span className="mt-6 block min-w-0">
-              <span className="block truncate text-base font-semibold text-white">{org.name}</span>
-              <span className="mt-1 block truncate font-mono text-sm text-muted">/{org.slug}</span>
-            </span>
-
-            <span className="my-5 block h-px bg-border/80" />
-
-            <span className="block min-h-[48px] text-sm leading-6 text-muted">
-              Projects, agents and settings linked to this organization.
-            </span>
-
-            <span className="mt-auto flex w-full items-center justify-between pt-5 text-sm font-medium text-primary-light transition-colors duration-200 group-hover:text-white">
-              Open projects
-              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-            </span>
-          </button>
-        ))}
-      </div>
+        {isLoadingOrganizations ? (
+          <LoadingState message="Loading Organizations" variant="panel" layout="compact-cards" />
+        ) : workspaceError ? (
+          <ErrorState error={workspaceError} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : organizations.length === 0 ? (
+          <ResourceEmptyState
+            icon={<Building2 className="h-4 w-4" />}
+            title="Create your first Organization"
+            description="Organizations are the commercial workspace for Projects, members, plans and usage."
+            action={(
+              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
+                Create Organization
+              </Button>
+            )}
+          />
+        ) : hasSearchMiss ? (
+          <ResourceEmptyState
+            icon={<Building2 className="h-4 w-4" />}
+            title="No Organizations found"
+            description="Adjust your search or clear the current term."
+            action={(
+              <Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>
+                Clear search
+              </Button>
+            )}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleOrganizations.map((org) => (
+              <ResourceCard
+                key={org.id}
+                aria-label={`Open Projects for ${org.name}`}
+                onClick={() => handleSelect(org)}
+                icon={<span className="text-xs font-semibold">{getInitials(org.name)}</span>}
+                title={org.name}
+                subtitle={`/${org.slug}`}
+                footer="Open Projects"
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       <CreateOrganizationDialog
         open={showCreate}
@@ -129,6 +145,6 @@ export default function OrganizationsPage() {
         onSubmit={handleCreate}
         loading={createOrg.isPending}
       />
-    </div>
+    </ResourcePage>
   )
 }

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { useQueryClient } from '@tanstack/react-query'
 import { clearCsrfToken } from '@/lib/api/client'
 import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from './api'
-import type { User, LoginRequest, RegisterRequest, Organization } from './types'
+import type { User, LoginRequest, RegisterRequest, RegisterResponse } from './types'
 
 interface AuthContextValue {
   user: User | null
@@ -10,10 +10,12 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   isInitializing: boolean
+  postAuthTarget: string | null
   login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
+  register: (data: RegisterRequest) => Promise<RegisterResponse>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
+  clearPostAuthTarget: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -29,13 +31,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const isAuthenticated = !!user
 
+  const clearPostAuthTarget = useCallback(() => {
+    setPostAuthTarget(null)
+  }, [])
+
   const clearAuthState = useCallback(() => {
     clearCsrfToken()
     setUser(null)
+    setPostAuthTarget(null)
     queryClient.clear()
   }, [queryClient])
 
@@ -79,11 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const res = await apiRegister(data)
+      queryClient.setQueryData(['organizations'], [res.organization])
+      setPostAuthTarget(`/organizations/${res.organization.id}/setup`)
       setUser(res.user)
+      return res
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [queryClient])
 
   const logout = useCallback(async () => {
     try {
@@ -112,10 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isLoading,
         isInitializing,
+        postAuthTarget,
         login,
         register,
         logout,
         refreshCurrentUser,
+        clearPostAuthTarget,
       }}
     >
       {children}

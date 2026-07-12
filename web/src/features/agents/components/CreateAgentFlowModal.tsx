@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Textarea'
 import { useCreateAgent } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useCreateCredential, useCredentials } from '@/features/provider-credentials/hooks'
@@ -370,6 +371,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   const [step, setStep] = useState<Step>('details')
   const [agentName, setAgentName] = useState('')
   const [agentDescription, setAgentDescription] = useState('')
+  const [agentInstructions, setAgentInstructions] = useState('')
   const [selectedModelId, setSelectedModelId] = useState('')
   const [createdCredential, setCreatedCredential] = useState<ProviderCredential | null>(null)
   const [createdModel, setCreatedModel] = useState<ProviderModel | null>(null)
@@ -432,6 +434,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     setStep('details')
     setAgentName('')
     setAgentDescription('')
+    setAgentInstructions('')
     setSelectedModelId('')
     setCreatedCredential(null)
     setCreatedModel(null)
@@ -494,6 +497,10 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   const startAfterDetails = () => {
     if (!agentName.trim()) {
       toast.error('Agent name is required')
+      return
+    }
+    if (!agentInstructions.trim()) {
+      toast.error('Agent instructions are required')
       return
     }
     if (usableAgentModels.length > 0) {
@@ -590,6 +597,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
   const handleCreateAgent = async () => {
     if (!agentName.trim()) return toast.error('Agent name is required')
+    if (!agentInstructions.trim()) return toast.error('Agent instructions are required')
     if (!selectedModel) return toast.error('Select a generation model')
 
     try {
@@ -600,7 +608,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
         provider_model_id: selectedModel.id,
         provider: selectedModel.provider || 'openai',
         model: selectedModel.model,
-        system_prompt: '',
+        system_prompt: agentInstructions.trim(),
         temperature: 0.7,
         max_output_tokens: 2048,
         provider_credential_id: selectedModel.provider_credential_id,
@@ -701,8 +709,8 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             {step === 'details' && (
               <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
                 <div className="mb-5">
-                  <h3 className="text-sm font-semibold text-white">Agent details</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Give your agent a name. You can configure its behavior, tools and knowledge later in the Playground.</p>
+                  <h3 className="text-sm font-semibold text-white">Agent details and instructions</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted">Define the Agent identity and its initial behavior before choosing the model.</p>
                 </div>
                 <div className="space-y-4">
                   <div>
@@ -710,8 +718,18 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                     <Input value={agentName} onChange={(event) => setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Description</label>
-                    <Input value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} placeholder="Optional description" />
+                    <label className="mb-1 block text-sm font-medium text-muted">Description <span className="font-normal text-muted/70">(optional)</span></label>
+                    <Input value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Instructions</label>
+                    <Textarea
+                      value={agentInstructions}
+                      onChange={(event) => setAgentInstructions(event.target.value)}
+                      rows={7}
+                      placeholder="You are a customer support Agent. Answer clearly, use the available knowledge and do not invent information."
+                    />
+                    <p className="mt-1 text-xs leading-5 text-muted">These instructions initialize the Agent Draft and remain editable in the Playground.</p>
                   </div>
                 </div>
               </section>
@@ -890,18 +908,19 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                 <div className="mb-5">
                   <div className="flex items-center gap-2 text-xs text-primary-light"><CheckCircle2 className="h-3.5 w-3.5" />Ready to create</div>
                   <h3 className="mt-2 text-sm font-semibold text-white">Review your agent</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Confirm the model binding. The remaining agent configuration continues in the Playground.</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Confirm the initial instructions and model binding before creating the Agent Draft.</p>
                 </div>
                 <dl className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/55">
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Agent</dt><dd className="text-sm text-white/90">{agentName.trim()}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Description</dt><dd className="text-sm text-white/90">{agentDescription.trim() || 'No description'}</dd></div>
+                  <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Instructions</dt><dd className="whitespace-pre-wrap text-sm text-white/90">{agentInstructions.trim()}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Model</dt><dd className="text-sm text-white/90">{selectedModel.name}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Provider</dt><dd className="text-sm text-white/90">{providerLabel(selectedModel.provider)}</dd></div>
                   <div className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4"><dt className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Model ID</dt><dd><code className="text-xs text-muted">{selectedModel.model}</code></dd></div>
                 </dl>
                 <div className="mt-5 rounded-xl border border-border/80 bg-background/60 p-4">
                   <p className="text-sm font-medium text-white">Next: Playground</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Configure prompt, tools, knowledge, output contract and runtime settings after creation.</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">The Agent opens with its Draft instructions ready for the first test. Tools, Knowledge, output contracts and runtime settings remain available there.</p>
                 </div>
               </section>
             )}

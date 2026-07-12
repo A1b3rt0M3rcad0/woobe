@@ -1,8 +1,13 @@
-import { useCallback, useLayoutEffect, useRef } from 'react'
-import { Bot, ArrowRight } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowRight, Bot, CheckCircle2 } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
 import { ChatComposer } from './ChatComposer'
 import { ScrollArea } from '@/components/ui/ScrollArea'
+import {
+  didCompleteFirstRun,
+  isFirstRunSearch,
+  removeFirstRunFromLocation,
+} from '@/features/playground/lib/first-run'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatCanvasProps {
@@ -16,9 +21,9 @@ interface ChatCanvasProps {
 }
 
 const suggestions = [
-  'Summarize the latest user activity',
-  'Explain the authentication flow',
-  'Show me an example API response',
+  'Introduce yourself and explain what you can help with.',
+  'Respond to a typical user request.',
+  'Explain your current role in one sentence.',
 ]
 
 const BOTTOM_THRESHOLD_PX = 48
@@ -56,7 +61,45 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
+  const wasSendingRef = useRef(isSending)
+  const firstRunPendingRef = useRef(
+    typeof window !== 'undefined' && isFirstRunSearch(window.location.search),
+  )
+  const [showFirstRunSuccess, setShowFirstRunSuccess] = useState(false)
   const lastMessageContent = messages[messages.length - 1]?.content ?? ''
+  const currentFirstRun = typeof window !== 'undefined'
+    && isFirstRunSearch(window.location.search)
+
+  useEffect(() => {
+    if (currentFirstRun) firstRunPendingRef.current = true
+  }, [currentFirstRun])
+
+  useEffect(() => {
+    const wasSending = wasSendingRef.current
+    wasSendingRef.current = isSending
+
+    if (messages.length === 0) {
+      setShowFirstRunSuccess(false)
+      return
+    }
+
+    if (
+      !firstRunPendingRef.current
+      || !didCompleteFirstRun(wasSending, isSending, messages)
+    ) return
+
+    firstRunPendingRef.current = false
+    setShowFirstRunSuccess(true)
+
+    if (typeof window !== 'undefined') {
+      const nextLocation = removeFirstRunFromLocation(
+        window.location.pathname,
+        window.location.search,
+        window.location.hash,
+      )
+      window.history.replaceState(window.history.state, '', nextLocation)
+    }
+  }, [isSending, messages])
 
   const scrollToBottomIfPinned = useCallback(() => {
     const el = messagesContainerRef.current
@@ -69,6 +112,11 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
     if (!el) return
     shouldStickToBottomRef.current = isNearBottom(el)
   }, [])
+
+  const handleSend = useCallback((content: string) => {
+    setShowFirstRunSuccess(false)
+    onSend(content)
+  }, [onSend])
 
   useLayoutEffect(() => {
     scrollToBottomIfPinned()
@@ -109,17 +157,17 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
               <Bot className="h-8 w-8 text-primary-light" />
             </div>
             <h2 className="text-lg font-semibold tracking-tight text-white mb-1">
-              Start a conversation with your agent
+              Test your Agent
             </h2>
             <p className="text-sm text-muted max-w-md mb-6">
-              {runtimeBlocked ? runtimeBlockReason : 'Test behavior, inspect runtime execution, and iterate from the same workspace.'}
+              {runtimeBlocked ? runtimeBlockReason : 'Your model and provider are ready. Send a message to validate the current Draft.'}
             </p>
             {!runtimeBlocked && (
               <div className="flex flex-col gap-2 w-full max-w-sm">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
-                    onClick={() => onSend(suggestion)}
+                    onClick={() => handleSend(suggestion)}
                     className="group flex items-center justify-between rounded-xl border border-border/80 bg-surface/45 px-4 py-3 text-sm text-muted hover:text-white hover:border-primary/35 hover:bg-primary/5 transition-all text-left shadow-sm shadow-black/5"
                   >
                     <span>{suggestion}</span>
@@ -140,12 +188,21 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
                 agentName={agentName}
               />
             ))}
+            {showFirstRunSuccess && (
+              <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] p-4 text-left">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+                <div>
+                  <p className="text-sm font-medium text-white">First test completed</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Your Agent Draft responded successfully. Continue testing or configure Versions when you are ready.</p>
+                </div>
+              </div>
+            )}
             <div />
           </div>
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} onSend={onSend} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
+      <ChatComposer isSending={isSending} onSend={handleSend} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }

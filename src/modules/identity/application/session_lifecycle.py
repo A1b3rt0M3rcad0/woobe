@@ -63,7 +63,7 @@ class SessionLifecycle:
         ):
             raise AuthenticationError("Invalid refresh session")
 
-        if model.revoked_at is not None:
+        if model.revoked_at is not None or model.replaced_by_session_id is not None:
             await self.revoke_all(uow, model.user_id)
             await uow.commit()
             raise AuthenticationError("Refresh session reuse detected")
@@ -79,7 +79,6 @@ class SessionLifecycle:
             user_agent=user_agent,
             ip_address=ip_address,
         )
-        model.revoked_at = now
         model.replaced_by_session_id = replacement.id
         model.last_used_at = now
         model.updated_at = now

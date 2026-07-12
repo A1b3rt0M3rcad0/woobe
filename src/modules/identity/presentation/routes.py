@@ -4,9 +4,6 @@ from modules.identity.application.composers.add_member_composer import add_membe
 from modules.identity.application.composers.create_invite_composer import (
     create_invite_composer,
 )
-from modules.identity.application.composers.create_organization_composer import (
-    create_organization_composer,
-)
 from modules.identity.application.composers.create_user_composer import create_user_composer
 from modules.identity.application.composers.get_organization_composer import (
     get_organization_composer,
@@ -20,6 +17,7 @@ from modules.identity.application.composers.update_organization_composer import 
     update_organization_composer,
 )
 from modules.identity.presentation.auth_endpoints import (
+    create_organization_endpoint,
     csrf_endpoint,
     get_current_user_endpoint,
     list_organizations_endpoint,
@@ -30,6 +28,7 @@ from modules.identity.presentation.auth_endpoints import (
 )
 from shared.infra.errors import AuthenticationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
+
 
 router = APIRouter(prefix="/identity", tags=["identity"])
 
@@ -78,9 +77,7 @@ async def create_user(request: FastAPIRequest):
 
 @router.post("/organizations")
 async def create_organization(request: FastAPIRequest):
-    handler = create_organization_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    return await create_organization_endpoint(request)
 
 
 @router.post("/organizations/{org_id}/members")
