@@ -6,11 +6,14 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 export function DashboardLayout() {
   const { pathname } = useLocation()
   const isWorkspaceSelection = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname)
-  const hideSidebar = pathname.includes('/playground')
+  const isSetupFlow = /\/setup\/?$/.test(pathname)
+  const hideSidebar = pathname.includes('/playground') || isSetupFlow
   const isProjectOverview = /^\/organizations\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
-  const mainClassName = isProjectOverview
-    ? 'project-overview-main scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
-    : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
+  const mainClassName = isSetupFlow
+    ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden'
+    : isProjectOverview
+      ? 'project-overview-main scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
+      : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
 
   return (
     <div className="flex h-screen min-w-0 overflow-hidden bg-background">
