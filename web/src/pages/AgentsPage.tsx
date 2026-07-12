@@ -79,7 +79,7 @@ export default function AgentsPage() {
   const hasFilters = Boolean(query.trim()) || statusFilter !== 'all'
   const resultCount = hasFilters ? `${visibleAgents.length} of ${items.length}` : items.length
   const openPlayground = (agent: Agent) => {
-    navigate(p(projectId, 'agents', agent.id, 'playground'))
+    navigate(`${p(projectId, 'agents', agent.id, 'playground')}?firstRun=1`)
   }
 
   return (
