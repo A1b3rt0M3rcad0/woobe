@@ -108,12 +108,12 @@ class LoginOutput(BaseModel):
 class RegisterInput(BaseModel):
     email: str
     password: str
-    organization_name: str
 
 
 class RegisterOutput(BaseModel):
     token: str
     user: dict
+    organization: dict
 
 
 class GetOrganizationInput(BaseModel):
