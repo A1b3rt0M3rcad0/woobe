@@ -104,6 +104,7 @@ function ProjectWorkspaceGuard() {
     clearCurrentProject,
     isLoadingOrganizations,
     isLoadingProjects,
+    isFetchingProjects,
   } = useWorkspace()
 
   const routeOrganization = organizations.find((organization) => organization.id === organizationId)
@@ -136,11 +137,12 @@ function ProjectWorkspaceGuard() {
     if (
       currentOrganization?.id === organizationId
       && !isLoadingProjects
+      && !isFetchingProjects
       && !routeProject
     ) {
       clearCurrentProject()
     }
-  }, [clearCurrentProject, currentOrganization, isLoadingProjects, organizationId, routeProject])
+  }, [clearCurrentProject, currentOrganization, isFetchingProjects, isLoadingProjects, organizationId, routeProject])
 
   if (!organizationId || !projectId) {
     return <Navigate to="/organizations" replace />
@@ -158,7 +160,7 @@ function ProjectWorkspaceGuard() {
     return <LoadingState message="Opening Organization" />
   }
 
-  if (isLoadingProjects) {
+  if (isLoadingProjects || (!routeProject && isFetchingProjects)) {
     return <LoadingState message="Opening Project" />
   }
 
