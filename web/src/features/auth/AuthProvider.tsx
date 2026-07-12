@@ -77,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const res = await apiLogin(data)
-      setPostAuthTarget('/dashboard')
       setUser(res.user)
     } finally {
       setIsLoading(false)
