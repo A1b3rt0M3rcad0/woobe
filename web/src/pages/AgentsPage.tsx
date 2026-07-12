@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Bot, Plus } from 'lucide-react'
 
 import { ErrorState } from '@/components/common/ErrorState'
@@ -33,6 +33,7 @@ function formatDate(value?: string | null) {
 export default function AgentsPage() {
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: agents, isLoading, isError, error, refetch } = useAgents(projectId)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<AgentStatusFilter>('all')
@@ -40,6 +41,15 @@ export default function AgentsPage() {
 
   const p = (currentProjectId: string, ...segments: string[]) => orgProjectPath(organizationId, currentProjectId, ...segments)
   const items = agents ?? []
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return
+
+    setShowCreateAgent(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('create')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const statusCounts = useMemo(() => ({
     all: items.length,
@@ -72,7 +82,7 @@ export default function AgentsPage() {
   return (
     <ResourcePage
       title="Agents"
-      description="Create and operate model-backed agents for this Project."
+      description="Create and operate model-backed Agents for this Project."
       action={(
         <Button type="button" onClick={() => setShowCreateAgent(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -130,11 +140,15 @@ export default function AgentsPage() {
         ) : (
           <ResourceEmptyState
             icon={<Bot className="h-4 w-4" />}
-            title={items.length === 0 ? 'No Agents yet' : 'No Agents found'}
+            title={items.length === 0 ? 'Create your first Agent' : 'No Agents found'}
             description={items.length === 0
-              ? 'Create the first Agent for this Project.'
+              ? 'Create an Agent with instructions, a provider connection and a reusable generation model.'
               : 'Adjust the search or clear the active status filter.'}
-            action={hasFilters ? (
+            action={items.length === 0 ? (
+              <Button type="button" size="sm" onClick={() => setShowCreateAgent(true)}>
+                Create Agent
+              </Button>
+            ) : hasFilters ? (
               <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all') }}>
                 Clear filters
               </Button>
