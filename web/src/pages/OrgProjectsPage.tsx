@@ -1,24 +1,32 @@
 import { useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useProjects, useCreateProject } from '@/features/projects/hooks'
-import { useOrganization } from '@/features/organizations/hooks'
-import { LoadingState } from '@/components/common/LoadingState'
-import { ErrorState } from '@/components/common/ErrorState'
-import { CreateResourceCard } from '@/components/common/CreateResourceCard'
-import { Card, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { CreateProjectDialog } from '@/components/forms/CreateProjectDialog'
-import { ArrowLeft, ArrowRight, Building2, Search } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, FolderKanban, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { ErrorState } from '@/components/common/ErrorState'
+import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
+import { Button } from '@/components/ui/Button'
+import { CreateProjectDialog } from '@/components/forms/CreateProjectDialog'
+import { useOrganization } from '@/features/organizations/hooks'
+import { useCreateProject, useProjects } from '@/features/projects/hooks'
+import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+
+const SEARCH_THRESHOLD = 5
 
 function getProjectInitial(name: string) {
   return name.trim()[0]?.toUpperCase() || 'P'
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return 'No recent date'
+  if (!value) return 'Not recorded'
 
   try {
     return new Intl.DateTimeFormat('en-US', {
@@ -29,24 +37,6 @@ function formatDate(value?: string | null) {
   } catch {
     return 'Invalid date'
   }
-}
-
-function getStatusClass(status?: string) {
-  const normalized = status?.toLowerCase() || ''
-
-  if (normalized.includes('concl') || normalized.includes('done') || normalized.includes('complete')) {
-    return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-  }
-
-  if (normalized.includes('planej') || normalized.includes('plan')) {
-    return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-  }
-
-  if (normalized.includes('revis') || normalized.includes('review')) {
-    return 'border-violet-500/30 bg-violet-500/10 text-violet-300'
-  }
-
-  return 'border-primary/35 bg-primary/10 text-primary-light'
 }
 
 export default function OrgProjectsPage() {
@@ -61,22 +51,22 @@ export default function OrgProjectsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
 
+  const items = projects ?? []
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    const items = projects ?? []
-
     if (!normalizedQuery) return items
 
     return items.filter((project) => (
       project.name.toLowerCase().includes(normalizedQuery)
       || project.slug.toLowerCase().includes(normalizedQuery)
-      || project.status?.toLowerCase().includes(normalizedQuery)
     ))
-  }, [projects, query])
+  }, [items, query])
 
   const handleCreate = async (data: { name: string; slug: string }) => {
     if (!organizationId) return
+
     try {
+      const isFirstProject = items.length === 0
       const project = await createProject.mutateAsync({
         organization_id: organizationId,
         ...data,
@@ -89,126 +79,105 @@ export default function OrgProjectsPage() {
         name: project.name,
         slug: project.slug,
       })
-      navigate(`/organizations/${organizationId}/projects/${project.id}`)
+      navigate(
+        isFirstProject
+          ? `/organizations/${organizationId}/projects/${project.id}/agents?create=1`
+          : `/organizations/${organizationId}/projects/${project.id}`,
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create project')
     }
   }
 
-  const handleSelect = (p: { id: string; organization_id: string; name: string; slug: string }) => {
-    selectProject(p)
-    navigate(`/organizations/${organizationId}/projects/${p.id}`)
+  const handleSelect = (project: { id: string; organization_id: string; name: string; slug: string }) => {
+    selectProject(project)
+    navigate(`/organizations/${organizationId}/projects/${project.id}`)
   }
 
-  if (orgLoading || projectsLoading) return <LoadingState />
-  if (isError) return <ErrorState error={error} onRetry={refetch} />
-  if (!org) return <ErrorState message="Organization not found" />
+  if (!organizationId) return <ErrorState message="Organization not found" />
+  if (!org && !orgLoading) return <ErrorState message="Organization not found" />
 
-  const hasSearchMiss = query.trim().length > 0 && visibleProjects.length === 0
+  const showSearch = items.length >= SEARCH_THRESHOLD
+  const hasSearchMiss = Boolean(query.trim()) && visibleProjects.length === 0
+  const resultCount = query.trim() ? `${visibleProjects.length} of ${items.length}` : items.length
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Select your project</h1>
-        <p className="mt-2 text-sm text-muted">Projects contain agents, knowledge, tools and runtime configurations.</p>
-      </div>
-
-      <Card className="border-primary/25 bg-primary/10">
-        <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/35 bg-background text-primary-light">
-              <Building2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary-light">Organization</p>
-              <h2 className="mt-1 text-base font-semibold text-white">{org.name}</h2>
-              <p className="mt-1 font-mono text-sm text-muted">/{org.slug}</p>
-            </div>
-          </div>
-          <Button
-            className="w-full md:w-auto"
-            size="sm"
-            variant="outline"
-            onClick={() => navigate('/organizations')}
-          >
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-            Change organization
+    <ResourcePage
+      title="Projects"
+      description={org ? `Projects in ${org.name}.` : 'Select and operate a Project.'}
+      action={(
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => navigate('/organizations')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Change Organization
           </Button>
-        </CardContent>
-      </Card>
-
-      <div className="relative max-w-3xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search projects..."
-          className="h-11 pl-9"
-        />
-      </div>
-
-      {hasSearchMiss && (
-        <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-4">
-          <h2 className="text-sm font-semibold text-white">No projects found</h2>
-          <p className="mt-1 text-sm text-muted">Create a new project or adjust the search term.</p>
+          <Button type="button" onClick={() => setShowCreate(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Project
+          </Button>
         </div>
       )}
+    >
+      {showSearch && (
+        <ResourceToolbar>
+          <ResourceSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Search Projects..."
+            label="Search Projects"
+          />
+        </ResourceToolbar>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CreateResourceCard
-          title="New project"
-          description={`Create a project in ${org.name}`}
-          minHeight="lg"
-          onClick={() => setShowCreate(true)}
+      <section>
+        <ResourceSectionHeader
+          title="Projects"
+          description="Projects isolate Agents, Knowledge, Tools, credentials, runtime and observability."
+          count={resultCount}
         />
 
-        {visibleProjects.map((p) => {
-          const status = p.status || 'Active'
-          const recentDate = p.updated_at || p.created_at
-
-          return (
-            <button
-              key={p.id}
-              type="button"
-              aria-label={`Open project ${p.name}`}
-              onClick={() => handleSelect(p)}
-              className="group flex min-h-[260px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <span className="flex items-start justify-between gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-sm font-semibold text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10">
-                  {getProjectInitial(p.name)}
-                </span>
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusClass(p.status)}`}>
-                  {status}
-                </span>
-              </span>
-
-              <span className="mt-6 block min-w-0">
-                <span className="block truncate text-base font-semibold text-white">{p.name}</span>
-                <span className="mt-1 block truncate font-mono text-sm text-muted">/{p.slug}</span>
-              </span>
-
-              <span className="my-5 block h-px bg-border/80" />
-
-              <span className="block space-y-3 text-sm">
-                <span className="block">
-                  <span className="block text-xs text-muted">Organization</span>
-                  <span className="mt-1 block truncate font-medium text-white">{org.name}</span>
-                </span>
-                <span className="block">
-                  <span className="block text-xs text-muted">Updated</span>
-                  <span className="mt-1 block truncate font-medium text-white">{formatDate(recentDate)}</span>
-                </span>
-              </span>
-
-              <span className="mt-auto flex w-full items-center justify-between pt-5 text-sm font-medium text-primary-light transition-colors duration-200 group-hover:text-white">
-                Open project
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </span>
-            </button>
-          )
-        })}
-      </div>
+        {orgLoading || projectsLoading ? (
+          <LoadingState message="Loading Projects" variant="panel" layout="compact-cards" />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : items.length === 0 ? (
+          <ResourceEmptyState
+            icon={<FolderKanban className="h-4 w-4" />}
+            title="Create your first Project"
+            description="A Project isolates Agents, Knowledge, Tools, credentials, runtime and observability."
+            action={(
+              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
+                Create Project
+              </Button>
+            )}
+          />
+        ) : hasSearchMiss ? (
+          <ResourceEmptyState
+            icon={<FolderKanban className="h-4 w-4" />}
+            title="No Projects found"
+            description="Adjust your search or clear the current term."
+            action={(
+              <Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>
+                Clear search
+              </Button>
+            )}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleProjects.map((project) => (
+              <ResourceCard
+                key={project.id}
+                aria-label={`Open Project ${project.name}`}
+                onClick={() => handleSelect(project)}
+                icon={<span className="text-xs font-semibold">{getProjectInitial(project.name)}</span>}
+                title={project.name}
+                subtitle={`/${project.slug}`}
+                footer={`Updated · ${formatDate(project.updated_at || project.created_at)}`}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       <CreateProjectDialog
         open={showCreate}
@@ -216,6 +185,6 @@ export default function OrgProjectsPage() {
         onSubmit={handleCreate}
         loading={createProject.isPending}
       />
-    </div>
+    </ResourcePage>
   )
 }
