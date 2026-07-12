@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { useQueryClient } from '@tanstack/react-query'
 import { clearCsrfToken } from '@/lib/api/client'
 import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from './api'
-import type { User, LoginRequest, RegisterRequest, Organization } from './types'
+import type { User, LoginRequest, RegisterRequest, RegisterResponse } from './types'
 
 interface AuthContextValue {
   user: User | null
@@ -11,7 +11,7 @@ interface AuthContextValue {
   isLoading: boolean
   isInitializing: boolean
   login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
+  register: (data: RegisterRequest) => Promise<RegisterResponse>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
@@ -79,11 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const res = await apiRegister(data)
+      queryClient.setQueryData(['organizations'], [res.organization])
       setUser(res.user)
+      return res
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [queryClient])
 
   const logout = useCallback(async () => {
     try {
