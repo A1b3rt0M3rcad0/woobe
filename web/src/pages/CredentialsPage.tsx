@@ -1,15 +1,23 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, Search, ShieldOff, Trash2 } from 'lucide-react'
+import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
 import { RotateProviderCredentialDialog } from '@/features/provider-credentials/components/RotateProviderCredentialDialog'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
@@ -23,6 +31,8 @@ const providerLabels: Record<string, string> = {
   custom: 'OpenAI Compatible',
   openrouter: 'OpenRouter',
 }
+
+type CredentialStatusFilter = 'all' | 'active' | 'revoked'
 
 type AgentSummary = {
   id: string
@@ -166,31 +176,21 @@ function CredentialCard({
 }) {
   const baseUrl = String(metadataOf(credential).base_url || '')
   return (
-    <button
-      type="button"
+    <ResourceCard
       onClick={onClick}
-      className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <span className="flex items-start justify-between gap-3">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm">
-          <Cable className="h-5 w-5" />
-        </span>
-        <StatusBadge status={credential.status || 'active'} />
-      </span>
-
-      <span className="mt-6 block min-w-0">
-        <span className="block truncate text-base font-semibold text-white">{credential.name}</span>
-        <span className="mt-2 block truncate text-xs text-muted">{providerLabel(credential.provider)}</span>
-        {baseUrl && <span className="mt-1 block truncate text-xs text-muted/75">{baseUrl}</span>}
-      </span>
-
-      <span className="my-5 block h-px bg-border/80" />
-
-      <span className="grid gap-2 text-xs text-muted">
-        <span className="flex items-center gap-2"><Cpu className="h-3.5 w-3.5" />{generationCount} generation {generationCount === 1 ? 'model' : 'models'}</span>
-        <span className="flex items-center gap-2"><Database className="h-3.5 w-3.5" />{embeddingCount} embedding {embeddingCount === 1 ? 'model' : 'models'}</span>
-      </span>
-    </button>
+      aria-label={`Open provider connection ${credential.name}`}
+      icon={<Cable className="h-4 w-4" />}
+      title={credential.name}
+      subtitle={`${providerLabel(credential.provider)}${baseUrl ? ` · ${baseUrl}` : ''}`}
+      status={<StatusBadge status={credential.status || 'active'} size="compact" />}
+      metadata={(
+        <>
+          <ResourcePill tone="primary"><Cpu className="mr-1 inline h-3 w-3" />{generationCount} generation</ResourcePill>
+          <ResourcePill><Database className="mr-1 inline h-3 w-3" />{embeddingCount} embedding</ResourcePill>
+        </>
+      )}
+      footer={`Last validated · ${formatDate(credential.last_validated_at || credential.updated_at || credential.created_at)}`}
+    />
   )
 }
 
@@ -355,6 +355,8 @@ export default function CredentialsPage() {
   const updateCredential = useUpdateCredential()
 
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<CredentialStatusFilter>('all')
+  const [providerFilter, setProviderFilter] = useState('all')
   const [showCredentialForm, setShowCredentialForm] = useState(false)
   const [credentialToEdit, setCredentialToEdit] = useState<ProviderCredential | null>(null)
   const [credentialToRotate, setCredentialToRotate] = useState<ProviderCredential | null>(null)
@@ -365,11 +367,25 @@ export default function CredentialsPage() {
   const credentials = credentialsQuery.data ?? []
   const models = modelsQuery.data ?? []
   const visibleCredentialBase = useMemo(() => credentials.filter((credential) => credential.status !== 'archived'), [credentials])
+  const statusCounts = useMemo(() => ({
+    all: visibleCredentialBase.length,
+    active: visibleCredentialBase.filter((credential) => !credential.status || credential.status.toLowerCase() === 'active').length,
+    revoked: visibleCredentialBase.filter((credential) => credential.status?.toLowerCase() === 'revoked').length,
+  }), [visibleCredentialBase])
+  const providerOptions = useMemo(
+    () => Array.from(new Set(visibleCredentialBase.map((credential) => credential.provider).filter(Boolean))).sort(),
+    [visibleCredentialBase],
+  )
   const normalizedQuery = query.trim().toLowerCase()
   const visibleCredentials = useMemo(() => {
-    if (!normalizedQuery) return visibleCredentialBase
-    return visibleCredentialBase.filter((credential) => `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery))
-  }, [visibleCredentialBase, normalizedQuery])
+    return visibleCredentialBase.filter((credential) => {
+      const normalizedStatus = credential.status?.toLowerCase() || 'active'
+      const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter
+      const matchesProvider = providerFilter === 'all' || credential.provider === providerFilter
+      const matchesQuery = !normalizedQuery || `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery)
+      return matchesStatus && matchesProvider && matchesQuery
+    })
+  }, [visibleCredentialBase, normalizedQuery, providerFilter, statusFilter])
 
   const modelsByCredential = useMemo(() => {
     const grouped = new Map<string, ProviderModel[]>()
@@ -464,53 +480,94 @@ export default function CredentialsPage() {
   }
 
   if (!projectId) return <ErrorState message="Project not found" />
-  if (credentialsQuery.isLoading || modelsQuery.isLoading) return <LoadingState message="Loading credentials" />
-  if (credentialsQuery.isError || modelsQuery.isError) return <ErrorState message="Failed to load credentials" onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }} />
+  const isLoading = credentialsQuery.isLoading || modelsQuery.isLoading
+  const isError = credentialsQuery.isError || modelsQuery.isError
+  const hasFilters = Boolean(normalizedQuery) || statusFilter !== 'all' || providerFilter !== 'all'
+  const resultCount = hasFilters ? `${visibleCredentials.length} of ${visibleCredentialBase.length}` : visibleCredentialBase.length
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Credentials</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted">Manage provider connections shared by generation models, embedding models and agent runtime bindings in this Project.</p>
-        </div>
+    <ResourcePage
+      title="Credentials"
+      description="Manage provider connections shared by Models, Knowledge and Agent runtime bindings."
+      action={(
         <Button type="button" onClick={openCreateCredential}>
           <Cable className="mr-2 h-4 w-4" />
-          Connect provider
+          Connect Provider
         </Button>
-      </div>
+      )}
+    >
+      <ResourceToolbar>
+        <ResourceTabs
+          value={statusFilter}
+          onChange={setStatusFilter}
+          label="Filter Credentials by status"
+          tabs={[
+            { value: 'all', label: 'All', count: statusCounts.all },
+            { value: 'active', label: 'Active', count: statusCounts.active },
+            { value: 'revoked', label: 'Revoked', count: statusCounts.revoked },
+          ]}
+        />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <ResourceSearch value={query} onChange={setQuery} placeholder="Search Credentials, providers or endpoints..." label="Search Credentials" />
+          <Select
+            value={providerFilter}
+            onChange={(event) => setProviderFilter(event.target.value)}
+            className="h-10"
+            options={[
+              { value: 'all', label: 'All providers' },
+              ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) })),
+            ]}
+          />
+        </div>
+      </ResourceToolbar>
 
-      <div className="relative max-w-3xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search credentials..." className="h-11 pl-9" />
-      </div>
+      <section>
+        <ResourceSectionHeader
+          title="Provider connections"
+          description="Open a connection to inspect Models, rotate its key or manage lifecycle."
+          count={resultCount}
+        />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CreateResourceCard title="Connect provider" description="Add a provider connection for models and knowledge" minHeight="sm" onClick={openCreateCredential} />
-
-        {visibleCredentials.map((credential) => {
-          const attachedModels = (modelsByCredential.get(credential.id) || []).filter((model) => !isArchived(model))
-          const generationCount = attachedModels.filter((model) => !isEmbeddingModel(model)).length
-          const embeddingCount = attachedModels.filter((model) => isEmbeddingModel(model)).length
-          return (
-            <CredentialCard
-              key={credential.id}
-              credential={credential}
-              generationCount={generationCount}
-              embeddingCount={embeddingCount}
-              onClick={() => setSelectedCredential(credential)}
-            />
-          )
-        })}
-
-        {visibleCredentials.length === 0 && (
-          <div className="flex min-h-[220px] flex-col rounded-xl border border-border/80 bg-surface/50 p-6">
-            <Cable className="h-5 w-5 text-primary-light" />
-            <p className="mt-5 text-base font-semibold text-white">{normalizedQuery ? 'No credentials found' : 'No provider connections yet'}</p>
-            <p className="mt-2 text-sm leading-6 text-muted">{normalizedQuery ? 'Adjust the search term.' : 'Connect OpenAI, OpenRouter or an OpenAI-compatible provider.'}</p>
+        {isLoading ? (
+          <LoadingState message="Loading Credentials" variant="panel" layout="compact-cards" />
+        ) : isError ? (
+          <ErrorState
+            message="Failed to load Credentials"
+            onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }}
+            className="rounded-xl border border-border/80 bg-surface/40 py-10"
+          />
+        ) : visibleCredentials.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleCredentials.map((credential) => {
+              const attachedModels = (modelsByCredential.get(credential.id) || []).filter((model) => !isArchived(model))
+              const generationCount = attachedModels.filter((model) => !isEmbeddingModel(model)).length
+              const embeddingCount = attachedModels.filter((model) => isEmbeddingModel(model)).length
+              return (
+                <CredentialCard
+                  key={credential.id}
+                  credential={credential}
+                  generationCount={generationCount}
+                  embeddingCount={embeddingCount}
+                  onClick={() => setSelectedCredential(credential)}
+                />
+              )
+            })}
           </div>
+        ) : (
+          <ResourceEmptyState
+            icon={<Cable className="h-4 w-4" />}
+            title={visibleCredentialBase.length === 0 ? 'No Provider connections yet' : 'No Credentials found'}
+            description={visibleCredentialBase.length === 0
+              ? 'Connect OpenAI, OpenRouter or an OpenAI-compatible provider.'
+              : 'Adjust the search or clear the active filters.'}
+            action={hasFilters ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all'); setProviderFilter('all') }}>
+                Clear filters
+              </Button>
+            ) : undefined}
+          />
         )}
-      </div>
+      </section>
 
       <CredentialDetailsDialog
         credential={selectedCredential}
@@ -554,6 +611,6 @@ export default function CredentialsPage() {
           await Promise.all([credentialsQuery.refetch(), modelsQuery.refetch()])
         }}
       />
-    </div>
+    </ResourcePage>
   )
 }

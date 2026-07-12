@@ -3,7 +3,7 @@ import { Loader2, Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type LoadingVariant = 'page' | 'workspace' | 'panel' | 'inline' | 'fullscreen'
-type LoadingLayout = 'cards' | 'list' | 'table' | 'metrics' | 'playground' | 'auth'
+type LoadingLayout = 'cards' | 'compact-cards' | 'list' | 'resource-list' | 'table' | 'metrics' | 'playground' | 'auth'
 
 interface LoadingStateProps {
   message?: string
@@ -90,6 +90,32 @@ function CardsSkeleton({ count = 3, tall = false }: { count?: number; tall?: boo
             <SkeletonLine className="w-24" />
             <div className="h-4 w-4 rounded bg-white/[0.06]" />
           </div>
+        </SkeletonBox>
+      ))}
+    </div>
+  )
+}
+
+function CompactCardsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: count }).map((_, index) => (
+        <SkeletonBox key={index} className="p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-white/[0.07]" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <SkeletonLine className="h-3 w-2/3" />
+                <SkeletonLine className="w-1/2" />
+              </div>
+            </div>
+            <div className="h-4 w-4 rounded bg-white/[0.06]" />
+          </div>
+          <div className="mt-4 flex gap-2">
+            <div className="h-5 w-20 rounded-full bg-white/[0.06]" />
+            <div className="h-5 w-16 rounded-full bg-white/[0.06]" />
+          </div>
+          <SkeletonLine className="mt-4 w-32" />
         </SkeletonBox>
       ))}
     </div>
@@ -241,6 +267,8 @@ function AuthSkeleton({ message, description }: { message: string; description?:
 
 function renderLayout(layout: LoadingLayout, variant: LoadingVariant, message: string) {
   if (layout === 'metrics') return <MetricsSkeleton />
+  if (layout === 'compact-cards') return <CompactCardsSkeleton />
+  if (layout === 'resource-list') return <ListSkeleton count={5} />
   if (layout === 'list') return <ListSkeleton />
   if (layout === 'table') return <TableSkeleton />
   if (layout === 'playground') return <PlaygroundSkeleton message={message} />

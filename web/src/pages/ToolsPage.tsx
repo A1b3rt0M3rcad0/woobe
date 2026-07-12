@@ -1,9 +1,18 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Archive, Plus, RefreshCw, Search, ShieldCheck, Trash2, Wrench } from 'lucide-react'
+import { Archive, Plus, RefreshCw, ShieldCheck, Trash2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -20,42 +29,9 @@ import { useDeleteTool, useTools, useUpdateTool, useUpdateToolStatus } from '@/f
 import type { DiscoveredMcpTool, McpToolConfig, McpToolPermissionMode, Tool } from '@/features/tools/types'
 import { ToolsCreateDialog } from '@/pages/ToolsCreateDialog'
 
-function MinimalShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function CreateCard({ title, description, onClick }: { title: string; description: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
-        <Plus className="h-6 w-6" />
-      </span>
-      <span className="mt-5 text-base font-semibold text-white">{title}</span>
-      <span className="mt-2 max-w-[220px] text-sm leading-6 text-muted">{description}</span>
-    </button>
-  )
-}
-
-function NoResults() {
-  return (
-    <div className="rounded-xl border border-border/80 bg-surface/50 px-5 py-4">
-      <h2 className="text-sm font-semibold text-white">No tools found</h2>
-      <p className="mt-1 text-sm text-muted">Create a new tool or adjust the search term.</p>
-    </div>
-  )
-}
+type ToolStatusFilter = 'all' | 'active' | 'inactive' | 'deprecated'
+type ToolProtocolFilter = 'all' | 'mcp' | 'http' | 'other'
+type ToolRiskFilter = 'all' | 'low' | 'medium' | 'high' | 'critical'
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -76,6 +52,17 @@ function getMcpConfig(tool: Tool): McpToolConfig {
 function isMcpTool(tool: Tool) {
   const config = (tool.config || {}) as Record<string, unknown>
   return String(tool.type).toLowerCase().includes('mcp') || config.protocol === 'mcp'
+}
+
+function protocolGroup(tool: Tool): Exclude<ToolProtocolFilter, 'all'> {
+  if (isMcpTool(tool)) return 'mcp'
+  const protocol = String(tool.type).toLowerCase()
+  if (protocol.includes('http') || protocol === 'api' || protocol === 'webhook') return 'http'
+  return 'other'
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : 'Not recorded'
 }
 
 function getDiscoveredTools(tool: Tool): DiscoveredMcpTool[] {
@@ -107,15 +94,6 @@ function PermissionBadge({ mode }: { mode: McpToolPermissionMode }) {
   return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase ${tone}`}>{mode}</span>
 }
 
-function Pill({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'primary' | 'danger' }) {
-  const toneClass = tone === 'primary'
-    ? 'border-primary/30 bg-primary/10 text-primary-light'
-    : tone === 'danger'
-      ? 'border-red-500/30 bg-red-500/10 text-red-200'
-      : 'border-border/80 bg-background/70 text-muted'
-  return <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
-}
-
 function ImpactStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-border/80 bg-background/60 p-3">
@@ -133,6 +111,9 @@ export default function ToolsPage() {
   const deleteToolMutation = useDeleteTool()
   const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ToolStatusFilter>('all')
+  const [protocolFilter, setProtocolFilter] = useState<ToolProtocolFilter>('all')
+  const [riskFilter, setRiskFilter] = useState<ToolRiskFilter>('all')
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null)
   const [busyToolId, setBusyToolId] = useState<string | null>(null)
   const [permissionSavingKey, setPermissionSavingKey] = useState<string | null>(null)
@@ -152,16 +133,26 @@ export default function ToolsPage() {
 
   const visibleTools = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return items
-
     return items.filter((tool) => (
-      tool.name.toLowerCase().includes(normalizedQuery)
-      || tool.description?.toLowerCase().includes(normalizedQuery)
-      || String(tool.type).toLowerCase().includes(normalizedQuery)
-      || tool.status?.toLowerCase().includes(normalizedQuery)
-      || tool.risk_level?.toLowerCase().includes(normalizedQuery)
+      (statusFilter === 'all' || tool.status?.toLowerCase() === statusFilter)
+      && (protocolFilter === 'all' || protocolGroup(tool) === protocolFilter)
+      && (riskFilter === 'all' || tool.risk_level?.toLowerCase() === riskFilter)
+      && (!normalizedQuery || [
+        tool.name,
+        tool.description ?? '',
+        String(tool.type),
+        tool.status ?? '',
+        tool.risk_level ?? '',
+      ].some((value) => value.toLowerCase().includes(normalizedQuery)))
     ))
-  }, [items, query])
+  }, [items, protocolFilter, query, riskFilter, statusFilter])
+
+  const statusCounts = useMemo(() => ({
+    all: items.length,
+    active: items.filter((tool) => tool.status?.toLowerCase() === 'active').length,
+    inactive: items.filter((tool) => tool.status?.toLowerCase() === 'inactive').length,
+    deprecated: items.filter((tool) => tool.status?.toLowerCase() === 'deprecated').length,
+  }), [items])
 
   const openToolModal = (tool: Tool) => {
     setSelectedToolId(tool.id)
@@ -338,10 +329,10 @@ export default function ToolsPage() {
     }
   }
 
-  if (isLoading) return <LoadingState />
-  if (isError) return <ErrorState error={error} onRetry={refetch} />
+  if (!projectId) return <ErrorState message="Project not found" />
 
-  const hasSearchMiss = query.trim().length > 0 && visibleTools.length === 0
+  const hasFilters = Boolean(query.trim()) || statusFilter !== 'all' || protocolFilter !== 'all' || riskFilter !== 'all'
+  const resultCount = hasFilters ? `${visibleTools.length} of ${items.length}` : items.length
   const lifecycleTitle = usageImpact?.can_delete
     ? 'Delete Tool permanently'
     : usageImpact?.can_retire
@@ -349,48 +340,123 @@ export default function ToolsPage() {
       : 'Tool is still in use'
 
   return (
-    <MinimalShell title="Tools" description="Connect and review external capabilities available to agents in this project.">
-      <div className="relative max-w-3xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tools..." className="h-11 pl-9" />
-      </div>
+    <ResourcePage
+      title="Tools"
+      description="Connect and govern external capabilities available to Agents in this Project."
+      action={(
+        <Button type="button" onClick={() => setShowCreate(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Tool
+        </Button>
+      )}
+    >
+      <ResourceToolbar>
+        <ResourceTabs
+          value={statusFilter}
+          onChange={setStatusFilter}
+          label="Filter Tools by status"
+          tabs={[
+            { value: 'all', label: 'All', count: statusCounts.all },
+            { value: 'active', label: 'Active', count: statusCounts.active },
+            { value: 'inactive', label: 'Inactive', count: statusCounts.inactive },
+            { value: 'deprecated', label: 'Retired', count: statusCounts.deprecated },
+          ]}
+        />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
+          <ResourceSearch value={query} onChange={setQuery} placeholder="Search Tools, protocols or risk..." label="Search Tools" />
+          <Select
+            value={protocolFilter}
+            onChange={(event) => setProtocolFilter(event.target.value as ToolProtocolFilter)}
+            className="h-10"
+            options={[
+              { value: 'all', label: 'All protocols' },
+              { value: 'mcp', label: 'MCP' },
+              { value: 'http', label: 'HTTP / API' },
+              { value: 'other', label: 'Other' },
+            ]}
+          />
+          <Select
+            value={riskFilter}
+            onChange={(event) => setRiskFilter(event.target.value as ToolRiskFilter)}
+            className="h-10"
+            options={[
+              { value: 'all', label: 'All risks' },
+              { value: 'low', label: 'Low risk' },
+              { value: 'medium', label: 'Medium risk' },
+              { value: 'high', label: 'High risk' },
+              { value: 'critical', label: 'Critical risk' },
+            ]}
+          />
+        </div>
+      </ResourceToolbar>
 
-      {hasSearchMiss && <NoResults />}
+      <section>
+        <ResourceSectionHeader
+          title="Tools"
+          description="Open a Tool to review its runtime status, configuration and permissions."
+          count={resultCount}
+        />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CreateCard title="New tool" description="Connect an external capability" onClick={() => setShowCreate(true)} />
+        {isLoading ? (
+          <LoadingState message="Loading Tools" variant="panel" layout="compact-cards" />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : visibleTools.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleTools.map((tool: Tool) => {
+              const discoveredCount = isMcpTool(tool) ? getDiscoveredTools(tool).length : 0
+              return (
+                <ResourceCard
+                  key={tool.id}
+                  aria-label={`Open Tool settings for ${tool.name}`}
+                  onClick={() => openToolModal(tool)}
+                  icon={<Wrench className="h-4 w-4" />}
+                  title={tool.name}
+                  subtitle={tool.description || String(tool.type)}
+                  status={<StatusBadge status={tool.status} size="compact" />}
+                  metadata={(
+                    <>
+                      <ResourcePill>{String(tool.type)}</ResourcePill>
+                      {tool.risk_level && (
+                        <ResourcePill tone={tool.risk_level === 'critical' || tool.risk_level === 'high' ? 'danger' : 'default'}>
+                          Risk · {tool.risk_level}
+                        </ResourcePill>
+                      )}
+                      {isMcpTool(tool) && <ResourcePill tone="primary">MCP · {discoveredCount} discovered</ResourcePill>}
+                    </>
+                  )}
+                  footer={`Updated · ${formatDate(tool.updated_at || tool.created_at)}`}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <ResourceEmptyState
+            icon={<Wrench className="h-4 w-4" />}
+            title={items.length === 0 ? 'No Tools yet' : 'No Tools found'}
+            description={items.length === 0
+              ? 'Connect the first external capability for this Project.'
+              : 'Adjust the search or clear the active filters.'}
+            action={hasFilters ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all'); setProtocolFilter('all'); setRiskFilter('all') }}>
+                Clear filters
+              </Button>
+            ) : undefined}
+          />
+        )}
+      </section>
 
-        {visibleTools.map((tool: Tool) => (
-          <button key={tool.id} type="button" aria-label={`Open tool settings for ${tool.name}`} onClick={() => openToolModal(tool)} className="group flex min-h-[240px] flex-col rounded-xl border border-border/90 bg-surface/70 p-6 text-left transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/35 hover:bg-surface/85 hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-            <span className="flex items-start justify-between gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-primary-light shadow-sm transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-primary/10"><Wrench className="h-5 w-5" /></span>
-              <StatusBadge status={tool.status} />
-            </span>
-            <span className="mt-6 block min-w-0">
-              <span className="block truncate text-base font-semibold text-white">{tool.name}</span>
-              <span className="mt-2 block line-clamp-2 text-sm leading-6 text-muted">{tool.description || tool.type}</span>
-            </span>
-            <span className="my-5 block h-px bg-border/80" />
-            <span className="mt-auto flex flex-wrap gap-2 text-xs text-muted">
-              <Pill>{String(tool.type)}</Pill>
-              {tool.risk_level && <Pill tone={tool.risk_level === 'critical' || tool.risk_level === 'high' ? 'danger' : 'default'}>Risk · {tool.risk_level}</Pill>}
-              {isMcpTool(tool) && <Pill tone="primary">MCP</Pill>}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <ToolsCreateDialog open={showCreate} projectId={projectId!} onClose={() => setShowCreate(false)} onCreated={async () => { await refetch(); setShowCreate(false) }} />
+      <ToolsCreateDialog open={showCreate} projectId={projectId} onClose={() => setShowCreate(false)} onCreated={async () => { await refetch(); setShowCreate(false) }} />
 
       <Dialog open={Boolean(selectedTool)} onClose={closeToolModal} title="Tool settings" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
         {selectedTool && (
           <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
                 <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light"><Wrench className="h-5 w-5" /></div>
                   <div className="mt-5 min-w-0"><h2 className="truncate text-base font-semibold text-white">{selectedTool.name}</h2><p className="mt-1 truncate text-sm text-muted">{String(selectedTool.type)}</p></div>
-                  <div className="mt-5 flex flex-wrap gap-2"><StatusBadge status={selectedTool.status} /><Pill tone={editRiskLevel === 'critical' || editRiskLevel === 'high' ? 'danger' : 'default'}>Risk · {editRiskLevel || 'unset'}</Pill>{isMcpTool(selectedTool) && <Pill tone="primary">MCP</Pill>}</div>
+                  <div className="mt-5 flex flex-wrap gap-2"><StatusBadge status={selectedTool.status} /><ResourcePill tone={editRiskLevel === 'critical' || editRiskLevel === 'high' ? 'danger' : 'default'}>Risk · {editRiskLevel || 'unset'}</ResourcePill>{isMcpTool(selectedTool) && <ResourcePill tone="primary">MCP</ResourcePill>}</div>
                 </div>
 
                 <div className="rounded-xl border border-border/90 bg-background/60 p-4">
@@ -482,6 +548,6 @@ export default function ToolsPage() {
           </div>
         )}
       </Dialog>
-    </MinimalShell>
+    </ResourcePage>
   )
 }

@@ -1,19 +1,23 @@
-import { useMemo, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Cpu } from 'lucide-react'
 
-import { CreateResourceCard } from '@/components/common/CreateResourceCard'
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceEmptyState, ResourceSectionHeader } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { CreateEmbeddingModelModal } from '@/features/knowledge/components/CreateEmbeddingModelModal'
+import { EmbeddingModelCard } from '@/features/knowledge/components/EmbeddingModelCard'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
-import { CreateEmbeddingModelModal } from '@/features/knowledge/components/CreateEmbeddingModelModal'
-import { EmbeddingModelCard } from '@/features/knowledge/components/EmbeddingModelCard'
 
 interface KnowledgeEmbeddingPanelProps {
   projectId: string
+  query: string
+  onQueryChange: (value: string) => void
+  createOpen: boolean
+  onCreateOpenChange: (open: boolean) => void
+  onCountChange?: (count: number) => void
 }
 
 function isEmbeddingModel(model: ProviderModel) {
@@ -22,14 +26,18 @@ function isEmbeddingModel(model: ProviderModel) {
   return capability === 'embedding' || capability === 'embeddings' || model.model.toLowerCase().includes('embed')
 }
 
-export function KnowledgeEmbeddingPanel({ projectId }: KnowledgeEmbeddingPanelProps) {
+export function KnowledgeEmbeddingPanel({
+  projectId,
+  query,
+  onQueryChange,
+  createOpen,
+  onCreateOpenChange,
+  onCountChange,
+}: KnowledgeEmbeddingPanelProps) {
   const credentialsQuery = useCredentials(projectId)
   const modelsQuery = useProviderModels(projectId)
   const credentials = credentialsQuery.data ?? []
   const models = modelsQuery.data ?? []
-
-  const [query, setQuery] = useState('')
-  const [modelModalOpen, setModelModalOpen] = useState(false)
   const [selectedModel, setSelectedModel] = useState<ProviderModel | null>(null)
 
   const embeddingModels = useMemo(
@@ -39,78 +47,82 @@ export function KnowledgeEmbeddingPanel({ projectId }: KnowledgeEmbeddingPanelPr
   const normalizedQuery = query.trim().toLowerCase()
   const visibleModels = useMemo(() => {
     if (!normalizedQuery) return embeddingModels
-    return embeddingModels.filter((model) => `${model.name} ${model.model} ${model.provider || ''}`.toLowerCase().includes(normalizedQuery))
-  }, [embeddingModels, normalizedQuery])
+    return embeddingModels.filter((model) => {
+      const credential = credentials.find((item) => item.id === model.provider_credential_id)
+      return [
+        model.name,
+        model.model,
+        model.provider ?? '',
+        model.status ?? '',
+        credential?.name ?? '',
+        credential?.provider ?? '',
+      ].some((value) => value.toLowerCase().includes(normalizedQuery))
+    })
+  }, [credentials, embeddingModels, normalizedQuery])
 
-  const openNewModel = () => {
+  useEffect(() => {
+    onCountChange?.(embeddingModels.length)
+  }, [embeddingModels.length, onCountChange])
+
+  const closeModal = () => {
     setSelectedModel(null)
-    setModelModalOpen(true)
+    onCreateOpenChange(false)
   }
-
-  if (credentialsQuery.isLoading || modelsQuery.isLoading) return <LoadingState />
-  if (credentialsQuery.isError || modelsQuery.isError) {
-    return <ErrorState onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }} />
-  }
+  const resultCount = normalizedQuery ? `${visibleModels.length} of ${embeddingModels.length}` : embeddingModels.length
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-white">Embedding models</h2>
-          <p className="mt-1 max-w-3xl text-sm text-muted">Create and manage reusable embedding models for vector snapshots and retrieval.</p>
-        </div>
-        <Button type="button" onClick={openNewModel}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add embedding model
-        </Button>
-      </div>
+    <section>
+      <ResourceSectionHeader
+        title="Embedding models"
+        description="Reusable embedding bindings for vector snapshots and retrieval."
+        count={resultCount}
+      />
 
-      <div className="relative max-w-3xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search embedding models..." className="h-11 pl-9" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CreateResourceCard
-          title="Add embedding model"
-          description="Create a reusable embedding model from a provider connection"
-          minHeight="sm"
-          onClick={openNewModel}
+      {credentialsQuery.isLoading || modelsQuery.isLoading ? (
+        <LoadingState message="Loading Embedding models" variant="panel" layout="compact-cards" />
+      ) : credentialsQuery.isError || modelsQuery.isError ? (
+        <ErrorState
+          message="Failed to load Embedding models"
+          onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }}
+          className="rounded-xl border border-border/80 bg-surface/40 py-10"
         />
-
-        {visibleModels.map((model) => (
-          <EmbeddingModelCard
-            key={model.id}
-            model={model}
-            credential={credentials.find((credential) => credential.id === model.provider_credential_id)}
-            onClick={() => {
-              setSelectedModel(model)
-              setModelModalOpen(true)
-            }}
-          />
-        ))}
-
-        {visibleModels.length === 0 && (
-          <div className="flex min-h-[220px] flex-col rounded-xl border border-border/80 bg-surface/50 p-6">
-            <p className="text-base font-semibold text-white">{normalizedQuery ? 'No embedding models found' : 'No embedding models yet'}</p>
-            <p className="mt-2 text-sm leading-6 text-muted">{normalizedQuery ? 'Adjust the search term.' : 'Add an embedding model. If no provider connection exists, the creation flow will ask for one.'}</p>
-          </div>
-        )}
-      </div>
+      ) : visibleModels.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleModels.map((model) => (
+            <EmbeddingModelCard
+              key={model.id}
+              model={model}
+              credential={credentials.find((credential) => credential.id === model.provider_credential_id)}
+              onClick={() => setSelectedModel(model)}
+            />
+          ))}
+        </div>
+      ) : (
+        <ResourceEmptyState
+          icon={<Cpu className="h-4 w-4" />}
+          title={embeddingModels.length === 0 ? 'No Embedding models yet' : 'No Embedding models found'}
+          description={embeddingModels.length === 0
+            ? 'Add an Embedding model from a provider connection.'
+            : 'Adjust the search or clear it to see every Embedding model.'}
+          action={query ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => onQueryChange('')}>
+              Clear search
+            </Button>
+          ) : undefined}
+        />
+      )}
 
       <CreateEmbeddingModelModal
-        open={modelModalOpen}
+        open={createOpen || Boolean(selectedModel)}
         projectId={projectId}
         model={selectedModel}
-        onClose={() => {
-          setModelModalOpen(false)
-          setSelectedModel(null)
-        }}
+        onClose={closeModal}
         onCreated={() => {
-          setModelModalOpen(false)
-          setSelectedModel(null)
+          closeModal()
+          void modelsQuery.refetch()
         }}
       />
-    </div>
+    </section>
   )
 }
+
