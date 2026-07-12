@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
-import { Bot, ArrowRight } from 'lucide-react'
+import { ArrowRight, Bot, CheckCircle2 } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
 import { ChatComposer } from './ChatComposer'
 import { ScrollArea } from '@/components/ui/ScrollArea'
@@ -86,6 +86,11 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
   }, [scrollToBottomIfPinned])
 
   const isEmpty = messages.length === 0
+  const firstAssistantMessage = messages.find((message) => message.role === 'assistant')
+  const showFirstSuccess = messages.length <= 2
+    && !isSending
+    && Boolean(firstAssistantMessage?.content.trim())
+    && !firstAssistantMessage?.output_parse_error
 
   return (
     <section className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-background">
@@ -140,6 +145,15 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
                 agentName={agentName}
               />
             ))}
+            {showFirstSuccess && (
+              <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] p-4 text-left">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+                <div>
+                  <p className="text-sm font-medium text-white">Agent responded successfully</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">The current Draft is working. Continue testing or open Versions in the Inspector to create a Staging snapshot.</p>
+                </div>
+              </div>
+            )}
             <div />
           </div>
         )}
