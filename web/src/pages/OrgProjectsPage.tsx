@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, FolderKanban, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -42,6 +42,7 @@ function formatDate(value?: string | null) {
 export default function OrgProjectsPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { selectProject } = useWorkspace()
 
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
@@ -52,6 +53,20 @@ export default function OrgProjectsPage() {
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
+  const isFirstProject = items.length === 0
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1' || orgLoading || projectsLoading) return
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('create')
+    setSearchParams(next, { replace: true })
+
+    if (items.length === 0) {
+      setShowCreate(true)
+    }
+  }, [items.length, orgLoading, projectsLoading, searchParams, setSearchParams])
+
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return items
@@ -66,7 +81,7 @@ export default function OrgProjectsPage() {
     if (!organizationId) return
 
     try {
-      const isFirstProject = items.length === 0
+      const firstProject = items.length === 0
       const project = await createProject.mutateAsync({
         organization_id: organizationId,
         ...data,
@@ -80,7 +95,7 @@ export default function OrgProjectsPage() {
         slug: project.slug,
       })
       navigate(
-        isFirstProject
+        firstProject
           ? `/organizations/${organizationId}/projects/${project.id}/agents?create=1`
           : `/organizations/${organizationId}/projects/${project.id}`,
       )
@@ -184,6 +199,7 @@ export default function OrgProjectsPage() {
         onClose={() => setShowCreate(false)}
         onSubmit={handleCreate}
         loading={createProject.isPending}
+        firstProject={isFirstProject}
       />
     </ResourcePage>
   )
