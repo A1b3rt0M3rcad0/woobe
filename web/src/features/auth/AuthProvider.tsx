@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiRegister(data)
       queryClient.setQueryData(['organizations'], [res.organization])
-      setPostAuthTarget(`/organizations/${res.organization.id}/projects?create=1`)
+      setPostAuthTarget(`/organizations/${res.organization.id}/setup`)
       setUser(res.user)
       return res
     } finally {
