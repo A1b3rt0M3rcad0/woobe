@@ -5,9 +5,9 @@ import { resolvePublicRouteTarget } from './ProtectedRoute'
 describe('resolvePublicRouteTarget', () => {
   it('prioritizes the explicit authentication transition target', () => {
     expect(resolvePublicRouteTarget(
-      '/organizations/org-1/projects?create=1',
+      '/organizations/org-1/setup',
       { pathname: '/organizations' },
-    )).toBe('/organizations/org-1/projects?create=1')
+    )).toBe('/organizations/org-1/setup')
   })
 
   it('preserves the protected route that originally requested authentication', () => {
