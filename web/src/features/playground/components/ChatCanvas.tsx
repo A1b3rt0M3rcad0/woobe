@@ -16,9 +16,9 @@ interface ChatCanvasProps {
 }
 
 const suggestions = [
-  'Summarize the latest user activity',
-  'Explain the authentication flow',
-  'Show me an example API response',
+  'Introduce yourself and explain what you can help with.',
+  'Respond to a typical user request.',
+  'Explain your current role in one sentence.',
 ]
 
 const BOTTOM_THRESHOLD_PX = 48
@@ -109,10 +109,10 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
               <Bot className="h-8 w-8 text-primary-light" />
             </div>
             <h2 className="text-lg font-semibold tracking-tight text-white mb-1">
-              Start a conversation with your agent
+              Test your Agent
             </h2>
             <p className="text-sm text-muted max-w-md mb-6">
-              {runtimeBlocked ? runtimeBlockReason : 'Test behavior, inspect runtime execution, and iterate from the same workspace.'}
+              {runtimeBlocked ? runtimeBlockReason : 'Your model and provider are ready. Send a message to validate the current Draft.'}
             </p>
             {!runtimeBlocked && (
               <div className="flex flex-col gap-2 w-full max-w-sm">
