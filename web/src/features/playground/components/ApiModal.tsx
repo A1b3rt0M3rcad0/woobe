@@ -82,6 +82,13 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
     () => releases.find((release) => release.status === 'staging') ?? null,
     [releases],
   )
+
+  useEffect(() => {
+    if (!open) return
+    setActiveSection('http')
+    setActiveSlot(productionRelease ? 'production' : stagingRelease ? 'staging' : 'production')
+  }, [open, productionRelease, stagingRelease])
+
   const activeRelease = activeSlot === 'production' ? productionRelease : stagingRelease
   const reference = useMemo(
     () => buildApiReferenceForSlot({ slot: activeSlot, release: activeRelease }),
