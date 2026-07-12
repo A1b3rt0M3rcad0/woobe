@@ -86,7 +86,7 @@ function DashboardRedirect() {
   if (agentsQuery.isLoading) return <LoadingState message="Opening Project" />
 
   if (agentsQuery.isSuccess && (agentsQuery.data?.length ?? 0) === 0) {
-    return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}/agents?create=1`} replace />
+    return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}/agents`} replace />
   }
 
   return <Navigate to={`/organizations/${currentOrganization.id}/projects/${currentProject.id}`} replace />
