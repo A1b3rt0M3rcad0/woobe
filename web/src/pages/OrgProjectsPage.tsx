@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, FolderKanban, Plus } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,9 +13,8 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
-import { CreateProjectDialog } from '@/components/forms/CreateProjectDialog'
 import { useOrganization } from '@/features/organizations/hooks'
-import { useCreateProject, useProjects } from '@/features/projects/hooks'
+import { useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
 const SEARCH_THRESHOLD = 5
@@ -42,7 +40,6 @@ function formatDate(value?: string | null) {
 export default function OrgProjectsPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const {
     currentOrganization,
     selectOrganization,
@@ -51,30 +48,14 @@ export default function OrgProjectsPage() {
 
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
   const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
-  const createProject = useCreateProject(organizationId)
-
-  const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
-  const isFirstProject = items.length === 0
 
   useEffect(() => {
     if (!org || currentOrganization?.id === org.id) return
     selectOrganization({ id: org.id, name: org.name, slug: org.slug })
   }, [currentOrganization, org, selectOrganization])
-
-  useEffect(() => {
-    if (searchParams.get('create') !== '1' || orgLoading || projectsLoading) return
-
-    const next = new URLSearchParams(searchParams)
-    next.delete('create')
-    setSearchParams(next, { replace: true })
-
-    if (items.length === 0) {
-      setShowCreate(true)
-    }
-  }, [items.length, orgLoading, projectsLoading, searchParams, setSearchParams])
 
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -86,26 +67,9 @@ export default function OrgProjectsPage() {
     ))
   }, [items, query])
 
-  const handleCreate = async (data: { name: string; slug: string }) => {
+  const startProjectSetup = () => {
     if (!organizationId) return
-
-    try {
-      const project = await createProject.mutateAsync({
-        organization_id: organizationId,
-        ...data,
-      })
-      toast.success('Project created')
-      setShowCreate(false)
-      selectProject({
-        id: project.id,
-        organization_id: project.organization_id,
-        name: project.name,
-        slug: project.slug,
-      })
-      navigate(`/organizations/${organizationId}/projects/${project.id}/agents?create=1`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create project')
-    }
+    navigate(`/organizations/${organizationId}/setup`)
   }
 
   const handleSelect = (project: { id: string; organization_id: string; name: string; slug: string }) => {
@@ -130,7 +94,7 @@ export default function OrgProjectsPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Change Organization
           </Button>
-          <Button type="button" onClick={() => setShowCreate(true)}>
+          <Button type="button" onClick={startProjectSetup}>
             <Plus className="mr-2 h-4 w-4" />
             Create Project
           </Button>
@@ -162,11 +126,11 @@ export default function OrgProjectsPage() {
         ) : items.length === 0 ? (
           <ResourceEmptyState
             icon={<FolderKanban className="h-4 w-4" />}
-            title="Create your first Project"
-            description="A Project isolates Agents, Knowledge, Tools, credentials, runtime and observability."
+            title="Launch your first Agent"
+            description="Create the Project boundary, configure its first Agent and continue directly to the Playground."
             action={(
-              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
-                Create Project
+              <Button type="button" size="sm" onClick={startProjectSetup}>
+                Start setup
               </Button>
             )}
           />
@@ -197,14 +161,6 @@ export default function OrgProjectsPage() {
           </div>
         )}
       </section>
-
-      <CreateProjectDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={handleCreate}
-        loading={createProject.isPending}
-        firstProject={isFirstProject}
-      />
     </ResourcePage>
   )
 }
