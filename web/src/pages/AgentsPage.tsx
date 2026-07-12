@@ -16,6 +16,7 @@ import {
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
+import { FirstAgentInstructionsDialog } from '@/features/agents/components/FirstAgentInstructionsDialog'
 import { useAgents } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { orgProjectPath } from '@/lib/constants/routes'
@@ -38,6 +39,7 @@ export default function AgentsPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<AgentStatusFilter>('all')
   const [showCreateAgent, setShowCreateAgent] = useState(false)
+  const [pendingAgent, setPendingAgent] = useState<Agent | null>(null)
 
   const p = (currentProjectId: string, ...segments: string[]) => orgProjectPath(organizationId, currentProjectId, ...segments)
   const items = agents ?? []
@@ -78,6 +80,10 @@ export default function AgentsPage() {
 
   const hasFilters = Boolean(query.trim()) || statusFilter !== 'all'
   const resultCount = hasFilters ? `${visibleAgents.length} of ${items.length}` : items.length
+  const openPlayground = (agent: Agent) => {
+    setPendingAgent(null)
+    navigate(p(projectId, 'agents', agent.id, 'playground'))
+  }
 
   return (
     <ResourcePage
@@ -163,8 +169,18 @@ export default function AgentsPage() {
         projectId={projectId}
         onCreated={(agent) => {
           setShowCreateAgent(false)
-          navigate(p(projectId, 'agents', agent.id, 'playground'))
+          if (items.length === 0 && !agent.system_prompt?.trim()) {
+            setPendingAgent(agent)
+            return
+          }
+          openPlayground(agent)
         }}
+      />
+
+      <FirstAgentInstructionsDialog
+        open={Boolean(pendingAgent)}
+        agent={pendingAgent}
+        onComplete={openPlayground}
       />
     </ResourcePage>
   )
