@@ -2,6 +2,7 @@ import { AlertTriangle, FileText, Package } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import type { AgentRelease } from '@/features/agents/types'
+import { ENVIRONMENT_APPEARANCE } from '@/lib/environment-appearance'
 import type { AgentEditorState } from '../AgentEditorContext'
 
 type StageDraftSnapshotModalProps = {
@@ -78,8 +79,8 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
             </div>
 
             {currentStaging && (
-              <div className="mt-4 flex gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] p-3 text-xs leading-5 text-yellow-100">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-400" />
+              <div className={`mt-4 flex gap-2 rounded-xl border p-3 text-xs leading-5 ${ENVIRONMENT_APPEARANCE.staging.card} ${ENVIRONMENT_APPEARANCE.staging.text}`}>
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <p>This will replace the current staging snapshot: {currentStaging.version}.</p>
               </div>
             )}
