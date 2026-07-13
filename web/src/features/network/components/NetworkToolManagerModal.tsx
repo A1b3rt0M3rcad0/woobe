@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Pencil, Plus, Search, Shield, Wrench } from 'lucide-react'
+import { ArrowLeft, Check, Pencil, Plus, Search, Shield, Wrench, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -10,10 +10,14 @@ import { Textarea } from '@/components/ui/Textarea'
 import type { AgentToolPermissions } from '@/features/playground/AgentEditorContext'
 import { toolPermissionsFromTools } from '@/features/playground/AgentEditorContext'
 import { useCreateTool, useTools, useUpdateTool, useUpdateToolStatus } from '@/features/tools/hooks'
-import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
+import type { HttpHeader, HttpToolConfig, McpToolConfig, McpToolPermission, Tool, ToolConfig } from '@/features/tools/types'
 import { cn } from '@/lib/utils'
 
 type Screen = 'tools' | 'create' | 'edit' | 'permissions'
+type Protocol = 'http' | 'mcp'
+type HeaderDraft = { id: string; key: string; value: string }
+let headerCounter = 0
+function newHeader(): HeaderDraft { headerCounter += 1; return { id: `network_header_${headerCounter}`, key: '', value: '' } }
 
 interface Props {
   open: boolean
@@ -49,11 +53,14 @@ export function NetworkToolManagerModal({ open, projectId, agentId, selectedTool
   const [screen, setScreen] = useState<Screen>('tools')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [protocol, setProtocol] = useState<Protocol>('http')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [method, setMethod] = useState('GET')
   const [url, setUrl] = useState('')
   const [body, setBody] = useState('')
+  const [headers, setHeaders] = useState<HeaderDraft[]>([])
+  const [mcpUrl, setMcpUrl] = useState('')
   const [risk, setRisk] = useState('low')
   const [timeoutMs, setTimeoutMs] = useState(30000)
   const [permissions, setPermissions] = useState<Record<string, McpToolPermission>>({})
@@ -74,16 +81,19 @@ export function NetworkToolManagerModal({ open, projectId, agentId, selectedTool
   useEffect(() => {
     if (!selectedTool) {
       if (screen === 'create') {
-        setName(''); setDescription(''); setMethod('GET'); setUrl(''); setBody(''); setRisk('low'); setTimeoutMs(30000)
+        setProtocol('http'); setName(''); setDescription(''); setMethod('GET'); setUrl(''); setBody(''); setHeaders([]); setMcpUrl(''); setRisk('low'); setTimeoutMs(30000)
       }
       return
     }
     const config = httpConfig(selectedTool)
+    setProtocol(isMcp(selectedTool) ? 'mcp' : 'http')
     setName(selectedTool.name)
     setDescription(selectedTool.description || '')
     setMethod(config.method || 'GET')
     setUrl(config.url || '')
     setBody(typeof config.body === 'string' ? config.body : config.body ? JSON.stringify(config.body, null, 2) : '')
+    setHeaders(Array.isArray(config.headers) ? config.headers.map((header) => ({ ...newHeader(), key: header.key, value: header.value })) : [])
+    setMcpUrl(isMcp(selectedTool) ? String(recordValue(recordValue(selectedTool.config).server).url || '') : '')
     setRisk(selectedTool.risk_level || 'low')
     setTimeoutMs(selectedTool.timeout_ms || 30000)
     setPermissions(toolPermissions[selectedTool.id] || toolPermissionsFromTools([selectedTool])[selectedTool.id] || {})
@@ -103,13 +113,17 @@ export function NetworkToolManagerModal({ open, projectId, agentId, selectedTool
   }
 
   const saveTool = async () => {
-    if (!name.trim()) return toast.error('Tool name is required')
-    if (!url.trim()) return toast.error('URL is required')
-    const config: HttpToolConfig = { protocol: 'http', method, url: url.trim(), headers: [], ...(body.trim() ? { body: body.trim() } : {}), timeout_ms: timeoutMs }
+    if (protocol === 'http' && !url.trim()) return toast.error('URL is required')
+    if (protocol === 'mcp' && !mcpUrl.trim()) return toast.error('MCP server URL is required')
+    const normalizedHeaders: HttpHeader[] = headers.map((header) => ({ key: header.key.trim(), value: header.value })).filter((header) => header.key)
+    const config: ToolConfig = protocol === 'mcp'
+      ? { protocol: 'mcp', mode: 'server', exposure: 'all_discovered', server: { transport: 'streamable_http', url: mcpUrl.trim(), headers: normalizedHeaders }, discovered_tools: [], discovery_cache_ttl_seconds: 3600, timeout_ms: timeoutMs } satisfies McpToolConfig
+      : { protocol: 'http', method, url: url.trim(), headers: normalizedHeaders, ...(body.trim() && ['POST', 'PUT', 'PATCH'].includes(method) ? { body: body.trim() } : {}), timeout_ms: timeoutMs } satisfies HttpToolConfig
+    const resolvedName = name.trim() || (protocol === 'mcp' ? 'MCP Server' : 'HTTP Tool')
     try {
       const saved = selectedTool
-        ? await updateTool.mutateAsync({ toolId: selectedTool.id, data: { name: name.trim(), description: description.trim() || undefined, type: 'http', config, risk_level: risk, timeout_ms: timeoutMs } })
-        : await createTool.mutateAsync({ project_id: projectId, agent_id: agentId, name: name.trim(), description: description.trim() || undefined, type: 'http', config, risk_level: risk, timeout_ms: timeoutMs })
+        ? await updateTool.mutateAsync({ toolId: selectedTool.id, data: { name: resolvedName, description: description.trim() || undefined, type: protocol, config, risk_level: risk, timeout_ms: timeoutMs } })
+        : await createTool.mutateAsync({ project_id: projectId, agent_id: agentId, name: resolvedName, description: description.trim() || undefined, type: protocol, config, risk_level: risk, timeout_ms: timeoutMs })
       await toolsQuery.refetch()
       if (!selectedTool) bind(saved)
       toast.success(selectedTool ? 'Tool updated' : 'Tool created and added to Draft')
@@ -151,8 +165,8 @@ export function NetworkToolManagerModal({ open, projectId, agentId, selectedTool
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5">{discovered.length === 0 ? <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">No discovered MCP Tools.</div> : <div className="space-y-2">{discovered.map((remote) => { const remoteName = String(remote.name || 'tool'); const permission = permissions[remoteName]?.mode || 'review'; return <div key={remoteName} className="flex items-start gap-3 rounded-xl border border-border/80 bg-background/50 p-3"><div className="min-w-0 flex-1"><p className="text-xs font-medium text-white">{String(remote.title || remoteName)}</p><p className="mt-1 text-[10px] text-muted">{String(remote.description || remoteName)}</p></div><Select className="w-32" value={permission} onChange={(event) => setPermissions((previous) => ({ ...previous, [remoteName]: { ...previous[remoteName], mode: event.target.value as McpToolPermission['mode'] } }))} options={[{ value: 'allow', label: 'Allow' }, { value: 'review', label: 'Review' }, { value: 'deny', label: 'Deny' }]} /></div> })}</div>}</div>
           <div className="flex shrink-0 justify-end gap-2 border-t border-border/80 p-4"><Button variant="outline" onClick={() => setScreen('tools')}>Cancel</Button><Button onClick={savePermissions}>Save permissions</Button></div>
         </> : <>
-          <div className="flex shrink-0 items-center gap-3 border-b border-border/80 p-4"><Button size="sm" variant="ghost" onClick={() => setScreen('tools')}><ArrowLeft className="mr-2 h-3.5 w-3.5" />Tools</Button><div><p className="text-sm font-medium text-white">{screen === 'edit' ? 'Edit HTTP Tool' : 'Create HTTP Tool'}</p><p className="text-xs text-muted">The Tool remains a Project resource; the binding belongs to this Draft.</p></div></div>
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5"><div className="mx-auto max-w-3xl space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-medium text-muted">Name<Input className="mt-1.5" value={name} onChange={(event) => setName(event.target.value)} /></label><label className="text-xs font-medium text-muted">Risk<Select className="mt-1.5" value={risk} onChange={(event) => setRisk(event.target.value)} options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'critical', label: 'Critical' }]} /></label></div><label className="block text-xs font-medium text-muted">Description<Input className="mt-1.5" value={description} onChange={(event) => setDescription(event.target.value)} /></label><div className="grid gap-4 sm:grid-cols-[140px_1fr]"><label className="text-xs font-medium text-muted">Method<Select className="mt-1.5" value={method} onChange={(event) => setMethod(event.target.value)} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} /></label><label className="text-xs font-medium text-muted">URL<Input className="mt-1.5 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.example.com/resource" /></label></div>{['POST', 'PUT', 'PATCH'].includes(method) ? <label className="block text-xs font-medium text-muted">Body<Textarea className="mt-1.5 min-h-[150px] font-mono text-xs" value={body} onChange={(event) => setBody(event.target.value)} placeholder='{ "query": "{{query}}" }' /></label> : null}<label className="block max-w-xs text-xs font-medium text-muted">Timeout (ms)<Input type="number" min="100" className="mt-1.5" value={timeoutMs} onChange={(event) => setTimeoutMs(Number(event.target.value) || 30000)} /></label></div></div>
+          <div className="flex shrink-0 items-center gap-3 border-b border-border/80 p-4"><Button size="sm" variant="ghost" onClick={() => setScreen('tools')}><ArrowLeft className="mr-2 h-3.5 w-3.5" />Tools</Button><div><p className="text-sm font-medium text-white">{screen === 'edit' ? 'Edit HTTP Tool' : 'Create Tool'}</p><p className="text-xs text-muted">The Tool remains a Project resource; the binding belongs to this Draft.</p></div></div>
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5"><div className="mx-auto max-w-3xl space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-medium text-muted">Runtime<Select className="mt-1.5" value={protocol} disabled={screen === 'edit'} onChange={(event) => setProtocol(event.target.value as Protocol)} options={[{ value: 'http', label: 'HTTP API' }, { value: 'mcp', label: 'MCP Server' }]} /></label><label className="text-xs font-medium text-muted">Risk<Select className="mt-1.5" value={risk} onChange={(event) => setRisk(event.target.value)} options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'critical', label: 'Critical' }]} /></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-medium text-muted">Name<Input className="mt-1.5" value={name} onChange={(event) => setName(event.target.value)} placeholder={protocol === 'mcp' ? 'Auto-filled when omitted' : 'Fetch Customer'} /></label><label className="text-xs font-medium text-muted">Timeout (ms)<Input type="number" min="1000" max="120000" className="mt-1.5" value={timeoutMs} onChange={(event) => setTimeoutMs(Number(event.target.value) || 30000)} /></label></div><label className="block text-xs font-medium text-muted">Description<Input className="mt-1.5" value={description} onChange={(event) => setDescription(event.target.value)} /></label>{protocol === 'http' ? <><div className="grid gap-4 sm:grid-cols-[140px_1fr]"><label className="text-xs font-medium text-muted">Method<Select className="mt-1.5" value={method} onChange={(event) => setMethod(event.target.value)} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} /></label><label className="text-xs font-medium text-muted">URL<Input className="mt-1.5 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.example.com/resource" /></label></div>{['POST', 'PUT', 'PATCH'].includes(method) ? <label className="block text-xs font-medium text-muted">Body<Textarea className="mt-1.5 min-h-[130px] font-mono text-xs" value={body} onChange={(event) => setBody(event.target.value)} placeholder='{ "query": "{{query}}" }' /></label> : null}</> : <div className="rounded-xl border border-primary/20 bg-primary/[0.045] p-4"><label className="block text-xs font-medium text-muted">MCP Server URL<Input className="mt-1.5 font-mono" value={mcpUrl} onChange={(event) => setMcpUrl(event.target.value)} placeholder="https://mcp.example.com" /></label><p className="mt-2 text-xs leading-5 text-muted">Public Tools are discovered after creation. Protected providers can be connected from the Tool details in this same modal.</p></div>}<div className="rounded-xl border border-border/80 bg-background/45 p-3"><div className="flex items-center justify-between"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Headers</p><Button type="button" size="sm" variant="ghost" onClick={() => setHeaders((items) => [...items, newHeader()])}><Plus className="mr-1 h-3 w-3" />Add</Button></div>{headers.length === 0 ? <p className="mt-2 text-xs italic text-muted">No headers configured.</p> : <div className="mt-2 space-y-2">{headers.map((header) => <div key={header.id} className="flex gap-2"><Input value={header.key} onChange={(event) => setHeaders((items) => items.map((item) => item.id === header.id ? { ...item, key: event.target.value } : item))} placeholder="Name" /><Input value={header.value} onChange={(event) => setHeaders((items) => items.map((item) => item.id === header.id ? { ...item, value: event.target.value } : item))} placeholder="Value" /><Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-300" onClick={() => setHeaders((items) => items.filter((item) => item.id !== header.id))}><X className="h-3.5 w-3.5" /></Button></div>)}</div>}</div></div></div>
           <div className="flex shrink-0 justify-end gap-2 border-t border-border/80 p-4"><Button variant="outline" onClick={() => setScreen('tools')}>Cancel</Button><Button onClick={() => void saveTool()} loading={createTool.isPending || updateTool.isPending}>{screen === 'edit' ? 'Save Tool' : 'Create and add to Draft'}</Button></div>
         </>}
       </div>
