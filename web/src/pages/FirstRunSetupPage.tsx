@@ -74,7 +74,7 @@ export default function FirstRunSetupPage() {
   if (organizationQuery.isError) return <ErrorState error={organizationQuery.error} onRetry={organizationQuery.refetch} />
   if (!organization) return <ErrorState message="Organization not found" />
   if (projectId && projectQuery.isLoading && !project) return <LoadingState message="Opening Project setup" />
-  if (projectId && projectQuery.isError) return <ErrorState error={projectQuery.error} onRetry={projectQuery.refetch} />
+  if (projectId && projectQuery.isError && !project) return <ErrorState error={projectQuery.error} onRetry={projectQuery.refetch} />
 
   const exitSetup = () => {
     navigate(firstRunExitPath(organizationId, projectId), { replace: true })
