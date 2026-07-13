@@ -1,0 +1,40 @@
+import type { Agent } from '@/features/agents/types'
+
+export type Environment = 'draft' | 'staging' | 'production'
+export type ChatTarget = Environment | 'history'
+export type BindingSource = 'draft' | 'staging' | 'release'
+export type NodeId = 'entry' | 'coordinator' | 'billing' | 'technical' | 'end'
+export type AgentNodeId = Exclude<NodeId, 'entry' | 'end'>
+
+export type NetworkSelection = {
+  source: BindingSource
+  ref: string
+  version: string
+  draftVersion: string
+  draftBase?: string
+  dirty: boolean
+}
+
+export type NetworkBinding = NetworkSelection & {
+  nodeId: AgentNodeId
+  agent: Agent
+}
+
+export type NetworkVersionOption = {
+  source: BindingSource
+  ref: string
+  version: string
+  note: string
+  created: string
+}
+
+export type NetworkRun = {
+  id: string
+  title: string
+  environment: Environment
+  status: 'success' | 'error' | 'running'
+  duration: string
+  cost: string
+  path: NodeId[]
+  traceId?: string
+}
