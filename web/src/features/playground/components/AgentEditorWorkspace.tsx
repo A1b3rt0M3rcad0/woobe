@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot, BookOpen, Cpu, FileJson, RotateCcw, Save, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -48,6 +48,11 @@ export function AgentEditorWorkspace({
   const { loadedReleaseVersion, isDirty, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
   const updateAgent = useUpdateAgent(agent.id)
   const createRelease = useCreateRelease(agent.id)
+  const dirtyChangeRef = useRef(onDirtyChange)
+
+  useEffect(() => {
+    dirtyChangeRef.current = onDirtyChange
+  }, [onDirtyChange])
 
   const saveDraft = useCallback(async (): Promise<boolean> => {
     try {
@@ -123,7 +128,7 @@ export function AgentEditorWorkspace({
     }
   }, [agent, createRelease, onSaved, projectId, toSnapshot, updateAgent, updateBaseline])
 
-  useEffect(() => onDirtyChange?.(isDirty), [isDirty, onDirtyChange])
+  useEffect(() => dirtyChangeRef.current?.(isDirty), [isDirty])
   useEffect(() => {
     onRegisterSaveAction?.(saveDraft)
     return () => onRegisterSaveAction?.(null)
