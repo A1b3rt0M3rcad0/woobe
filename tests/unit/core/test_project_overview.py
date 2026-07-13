@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import inspect
 from typing import Any
 from uuid import uuid4
-import inspect
 
 import pytest
 from pydantic import ValidationError
 
-from modules.core.application.dtos.project_overview import ProjectOverviewQuery
+from modules.core.application.dtos.project_overview import (
+    ProjectOverviewQuery,
+    ProjectOverviewTrace,
+)
 from modules.core.application.use_cases.get_project_overview import (
     GetProjectOverviewUseCase,
 )
@@ -119,6 +122,17 @@ def test_query_uses_day_bucket_for_seven_day_window() -> None:
 def test_query_rejects_invalid_windows(payload: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         ProjectOverviewQuery(project_id=uuid4(), **payload)
+
+
+def test_recent_trace_accepts_playground_execution_context() -> None:
+    trace = ProjectOverviewTrace(
+        id=uuid4(),
+        environment="playground",
+        status="completed",
+        cost_known=False,
+    )
+
+    assert trace.environment == "playground"
 
 
 def test_overview_environment_cte_ignores_archived_releases() -> None:
