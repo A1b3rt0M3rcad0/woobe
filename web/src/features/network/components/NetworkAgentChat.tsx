@@ -10,23 +10,21 @@ import {
   RotateCcw,
   Send,
   Square,
-  User,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
+import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
 import type {
   AskResponse,
   ChatMessage as ChatMessageType,
   Message as PersistedMessage,
   SessionListItem,
-  SourceInfo,
   ToolCallInfo,
   UsageInfo,
 } from '@/features/playground/types'
-import { formatLatency, formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
 interface NetworkAgentChatProps {
@@ -51,9 +49,16 @@ function suggestionsForAgent(agent: Agent): string[] {
 
 function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolCallInfo): ToolCallInfo[] {
   const items = existing ? [...existing] : []
-  const index = next.tool_call_id ? items.findIndex((item) => item.tool_call_id === next.tool_call_id) : -1
+  const index = next.tool_call_id
+    ? items.findIndex((item) => item.tool_call_id === next.tool_call_id)
+    : -1
   if (index === -1) return [...items, next]
-  items[index] = { ...items[index], ...next, input: next.input ?? items[index].input, output: next.output ?? items[index].output }
+  items[index] = {
+    ...items[index],
+    ...next,
+    input: next.input ?? items[index].input,
+    output: next.output ?? items[index].output,
+  }
   return items
 }
 
@@ -93,63 +98,6 @@ function persistedMessageToChat(message: PersistedMessage): ChatMessageType {
     output_parse_error: typeof data.output_parse_error === 'string' ? data.output_parse_error : null,
     created_at: message.created_at,
   }
-}
-
-function ChatDetails({ message }: { message: ChatMessageType }) {
-  const hasDetails = Boolean(
-    message.tool_calls?.length
-    || message.sources?.length
-    || message.usage
-    || message.trace_id
-    || message.latency_ms != null
-    || message.parsed_output,
-  )
-  if (!hasDetails) return null
-
-  return (
-    <details className="mt-1.5 rounded-md border border-border/70 bg-background/35 px-2 py-1.5">
-      <summary className="cursor-pointer select-none text-[8px] font-medium text-muted hover:text-white">Execution details</summary>
-      <div className="mt-2 space-y-2 text-[9px] text-muted">
-        {message.parsed_output && <pre className="scrollbar-thin max-h-52 overflow-auto rounded-md border border-border/70 bg-black/15 p-2 font-mono text-[9px] leading-4 text-slate-300">{JSON.stringify(message.parsed_output, null, 2)}</pre>}
-        {message.tool_calls && message.tool_calls.length > 0 && (
-          <div><p className="mb-1 font-medium text-slate-300">Tools</p>{message.tool_calls.map((tool, index) => <div key={tool.tool_call_id || `${tool.tool_name}-${index}`} className="mb-1 rounded-md border border-border/70 bg-background/45 p-2"><div className="flex items-center justify-between gap-2"><span className="truncate text-white">{tool.tool_name}</span><span className={tool.success === false ? 'text-red-300' : tool.status === 'running' ? 'text-amber-300' : 'text-emerald-300'}>{tool.status || (tool.success === false ? 'failed' : 'completed')}</span></div>{tool.error && <p className="mt-1 text-red-300">{tool.error}</p>}</div>)}</div>
-        )}
-        {message.sources && message.sources.length > 0 && (
-          <div><p className="mb-1 font-medium text-slate-300">Sources</p>{message.sources.map((source: SourceInfo, index: number) => <div key={source.chunk_id || `${source.document_id}-${index}`} className="mb-1 rounded-md border border-border/70 bg-background/45 p-2"><p className="truncate text-white">{source.document_title || 'Untitled document'}</p>{source.content_preview && <p className="mt-1 line-clamp-3 leading-4">{source.content_preview}</p>}</div>)}</div>
-        )}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border/60 pt-2">
-          {message.model && <span>{message.provider || ''}/{message.model}</span>}
-          {message.latency_ms != null && <span>{formatLatency(message.latency_ms)}</span>}
-          {message.usage && <span>{formatNumber(message.usage.input_tokens, 0)} in · {formatNumber(message.usage.output_tokens, 0)} out</span>}
-          {message.trace_id && <span className="font-mono">trace {message.trace_id.slice(0, 8)}…</span>}
-        </div>
-      </div>
-    </details>
-  )
-}
-
-function MessageRow({ message, agentName, streaming }: { message: ChatMessageType; agentName: string; streaming: boolean }) {
-  const user = message.role === 'user'
-  return (
-    <div className={cn('flex gap-2', user ? 'justify-end' : 'justify-start')}>
-      {!user && <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-surface"><Bot className="h-3 w-3 text-primary-light" /></div>}
-      <div className={cn('min-w-0 max-w-[88%]', user ? 'max-w-[88%]' : 'flex-1')}>
-        {!user && <p className="mb-1 truncate text-[8px] font-medium text-muted">{agentName}</p>}
-        <div className={cn('rounded-lg border px-2.5 py-2 text-[10px] leading-4 text-white', user ? 'rounded-br-sm border-primary/30 bg-primary/10' : 'rounded-bl-sm border-border/80 bg-surface/70')}>
-          {message.parsed_output && !streaming ? (
-            <pre className="scrollbar-thin max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-[9px] leading-4">{JSON.stringify(message.parsed_output, null, 2)}</pre>
-          ) : message.content ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}{streaming && <span className="ml-1 inline-block h-3 w-1 animate-pulse rounded-sm bg-primary" />}</p>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-muted"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />{message.activity?.message || 'Working…'}</span>
-          )}
-        </div>
-        {message.output_parse_error && <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[9px] leading-4 text-amber-200"><AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />{message.output_parse_error}</div>}
-        {!user && !streaming && <ChatDetails message={message} />}
-      </div>
-      {user && <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-primary/25 bg-primary/10"><User className="h-3 w-3 text-primary-light" /></div>}
-    </div>
-  )
 }
 
 function SessionItem({
@@ -219,11 +167,16 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const effectiveSnapshot = pinnedPreviousSnapshot && sessionSnapshot ? sessionSnapshot : currentSnapshot
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
-  const sessionsQuery = useAgentSessions(isStateless ? undefined : agent.id, isStateless ? undefined : projectId)
+  const sessionsQuery = useAgentSessions(
+    isStateless ? undefined : agent.id,
+    isStateless ? undefined : projectId,
+  )
   const sessions = useMemo(() => {
     const byId = new Map<string, SessionListItem>()
     for (const page of sessionsQuery.data?.pages ?? []) {
-      for (const item of page.items) if (!byId.has(item.id)) byId.set(item.id, item)
+      for (const item of page.items) {
+        if (!byId.has(item.id)) byId.set(item.id, item)
+      }
     }
     return Array.from(byId.values())
   }, [sessionsQuery.data])
@@ -320,7 +273,11 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     if (!sessionSnapshot) setSessionSnapshot(snapshot)
     accumulatedRef.current = ''
     metadataRef.current = {}
-    setMessages((previous) => [...previous, { role: 'user', content }, { role: 'assistant', content: '', activity: { status: 'working', message: 'Working…' } }])
+    setMessages((previous) => [
+      ...previous,
+      { role: 'user', content },
+      { role: 'assistant', content: '', activity: { status: 'working', message: 'Working…' } },
+    ])
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setIsSending(true)
@@ -346,16 +303,45 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           updateLastAssistant((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
         },
         onTokenRetract: (info) => {
-          if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
-          updateLastAssistant((last) => ({ ...last, content: accumulatedRef.current, activity: { status: 'planning_tools', message: 'Checking Tools…' } }))
+          if (info.content_length > 0) {
+            accumulatedRef.current = accumulatedRef.current.slice(
+              0,
+              Math.max(0, accumulatedRef.current.length - info.content_length),
+            )
+          }
+          updateLastAssistant((last) => ({
+            ...last,
+            content: accumulatedRef.current,
+            activity: { status: 'planning_tools', message: 'Checking Tools…' },
+          }))
         },
         onInternalToken: () => undefined,
         onSources: (sources) => { metadataRef.current.sources = sources },
-        onToolCallStarted: (tool) => updateLastAssistant((last) => ({ ...last, activity: { status: 'calling_tool', message: `Calling ${tool.tool_name}…`, tool_name: tool.tool_name }, tool_calls: upsertToolCall(last.tool_calls, { ...tool, status: tool.status || 'running' }) })),
-        onToolCallCompleted: (tool) => updateLastAssistant((last) => ({ ...last, activity: { status: 'processing_tool_result', message: 'Processing Tool result…', tool_name: tool.tool_name }, tool_calls: upsertToolCall(last.tool_calls, tool) })),
+        onToolCallStarted: (tool) => updateLastAssistant((last) => ({
+          ...last,
+          activity: {
+            status: 'calling_tool',
+            message: `Calling ${tool.tool_name}…`,
+            tool_name: tool.tool_name,
+          },
+          tool_calls: upsertToolCall(last.tool_calls, { ...tool, status: tool.status || 'running' }),
+        })),
+        onToolCallCompleted: (tool) => updateLastAssistant((last) => ({
+          ...last,
+          activity: {
+            status: 'processing_tool_result',
+            message: 'Processing Tool result…',
+            tool_name: tool.tool_name,
+          },
+          tool_calls: upsertToolCall(last.tool_calls, tool),
+        })),
         onFallback: (info) => {
           accumulatedRef.current = ''
-          updateLastAssistant((last) => ({ ...last, content: '', activity: { status: 'working', message: 'Trying fallback model…' } }))
+          updateLastAssistant((last) => ({
+            ...last,
+            content: '',
+            activity: { status: 'working', message: 'Trying fallback model…' },
+          }))
           toast.info(`Primary model failed. Retrying with ${info.fallback_provider}/${info.fallback_model}.`)
         },
         onDone: (response) => {
@@ -388,11 +374,19 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         },
         onError: (error) => {
           toast.error(error.message)
-          updateLastAssistant((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
+          updateLastAssistant((last) => ({
+            ...last,
+            activity: null,
+            content: last.content || `Error: ${error.message}`,
+            output_parse_error: error.message,
+            trace_id: metadataRef.current.trace_id ?? null,
+          }))
         },
       })
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) toast.error(error instanceof Error ? error.message : 'Agent Chat failed')
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        toast.error(error instanceof Error ? error.message : 'Agent Chat failed')
+      }
     } finally {
       setIsSending(false)
     }
@@ -408,11 +402,23 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div ref={sessionMenuRef} className="relative flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-2.5 py-2">
+      <div
+        ref={sessionMenuRef}
+        className="relative flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-2.5 py-2"
+      >
         <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary-light" />
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <p className="text-[10px] font-semibold text-white">Chat</p>
-          <span className={cn('rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase', isDirty ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-blue-500/30 bg-blue-500/10 text-blue-300')}>{isDirty ? 'Draft preview' : 'Current Draft'}</span>
+          <span
+            className={cn(
+              'rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase',
+              isDirty
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                : 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+            )}
+          >
+            {isDirty ? 'Draft preview' : 'Current Draft'}
+          </span>
         </div>
         <button
           type="button"
@@ -424,7 +430,14 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           <History className="h-3 w-3" />
           Sessions
         </button>
-        <button type="button" onClick={startNewChat} className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white"><RotateCcw className="h-3 w-3" />New</button>
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white"
+        >
+          <RotateCcw className="h-3 w-3" />
+          New
+        </button>
 
         {sessionsOpen && (
           <div className="absolute right-2 top-[calc(100%+6px)] z-50 flex max-h-[min(420px,65vh)] w-72 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/50">
@@ -437,9 +450,16 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
             </div>
             <div className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
               {sessionsQuery.isLoading && sessions.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-[9px] text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading sessions…</div>
+                <div className="flex items-center justify-center gap-2 py-8 text-[9px] text-muted">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading sessions…
+                </div>
               ) : sessions.length === 0 ? (
-                <div className="py-8 text-center"><History className="mx-auto h-5 w-5 text-muted" /><p className="mt-2 text-[9px] text-white">No previous sessions</p><p className="mt-1 text-[8px] text-muted">Start a Chat to create the first session.</p></div>
+                <div className="py-8 text-center">
+                  <History className="mx-auto h-5 w-5 text-muted" />
+                  <p className="mt-2 text-[9px] text-white">No previous sessions</p>
+                  <p className="mt-1 text-[8px] text-muted">Start a Chat to create the first session.</p>
+                </div>
               ) : sessions.map((session) => (
                 <SessionItem
                   key={session.id}
@@ -464,23 +484,55 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         )}
       </div>
 
-      <div ref={messagesRef} onScroll={(event) => { shouldStickRef.current = nearBottom(event.currentTarget) }} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+      <div
+        ref={messagesRef}
+        onScroll={(event) => { shouldStickRef.current = nearBottom(event.currentTarget) }}
+        className="scrollbar-thin min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3"
+      >
         {restoringSession ? (
-          <div className="flex min-h-full items-center justify-center gap-2 text-[9px] text-muted"><Loader2 className="h-4 w-4 animate-spin" />Loading session…</div>
+          <div className="flex min-h-full items-center justify-center gap-2 text-[9px] text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading session…
+          </div>
         ) : messages.length === 0 ? (
           <div className="flex min-h-full flex-col items-center justify-center px-3 py-4 text-center">
-            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Bot className="h-4 w-4 text-primary-light" /></div>
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
+              <Bot className="h-4 w-4 text-primary-light" />
+            </div>
             <h2 className="text-[12px] font-semibold text-white">Chat with {agent.name}</h2>
             <p className="mt-1 max-w-sm text-[9px] leading-4 text-muted">Validate the current Agent Draft in isolation.</p>
-            {isInactive ? <div className="mt-3 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-[9px] text-red-200">This Agent is inactive. Activate it before using Chat.</div> : (
+            {isInactive ? (
+              <div className="mt-3 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-[9px] text-red-200">
+                This Agent is inactive. Activate it before using Chat.
+              </div>
+            ) : (
               <div className="mt-3 grid w-full max-w-sm gap-1.5">
-                {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => void send(suggestion)} className="group flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-surface/45 px-3 py-2 text-left text-[9px] leading-4 text-muted hover:border-primary/30 hover:text-white"><span>{suggestion}</span><ArrowRight className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5" /></button>)}
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => void send(suggestion)}
+                    className="group flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-surface/45 px-3 py-2 text-left text-[9px] leading-4 text-muted hover:border-primary/30 hover:text-white"
+                  >
+                    <span>{suggestion}</span>
+                    <ArrowRight className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                ))}
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {messages.map((message, index) => <MessageRow key={`${message.created_at || 'live'}-${index}`} message={message} agentName={agent.name} streaming={message.role === 'assistant' && isSending && index === messages.length - 1} />)}
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={`${message.created_at || 'live'}-${index}`}
+                message={message}
+                isStreaming={message.role === 'assistant' && isSending && index === messages.length - 1}
+                isLast={index === messages.length - 1}
+                agentName={agent.name}
+                variant="network"
+              />
+            ))}
           </div>
         )}
       </div>
@@ -502,7 +554,11 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           <button type="button" onClick={startNewChat} className="shrink-0 rounded bg-primary px-2 py-1 font-medium text-white">New Chat</button>
         </div>
       )}
-      {pinnedPreviousSnapshot && <div className="shrink-0 border-t border-border/70 bg-background/35 px-2.5 py-1.5 text-[8px] text-muted">This Chat remains pinned to its previous Draft snapshot.</div>}
+      {pinnedPreviousSnapshot && (
+        <div className="shrink-0 border-t border-border/70 bg-background/35 px-2.5 py-1.5 text-[8px] text-muted">
+          This Chat remains pinned to its previous Draft snapshot.
+        </div>
+      )}
 
       <div className="shrink-0 border-t border-border/80 bg-surface/65 p-2.5">
         <div className="rounded-lg border border-border/90 bg-background/70 focus-within:border-primary/35 focus-within:ring-1 focus-within:ring-primary/10">
@@ -523,9 +579,24 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           />
           <div className="flex items-center justify-end border-t border-border/60 px-2 py-1.5">
             {isSending ? (
-              <button type="button" onClick={cancel} className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/30 bg-red-500/10 text-red-200" aria-label="Stop"><Square className="h-3 w-3 fill-current" /></button>
+              <button
+                type="button"
+                onClick={cancel}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/30 bg-red-500/10 text-red-200"
+                aria-label="Stop"
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
             ) : (
-              <button type="button" onClick={() => void send()} disabled={!input.trim() || isInactive || historicalSessionPending} className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/35 bg-primary text-white disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50" aria-label="Send"><Send className="h-3.5 w-3.5" /></button>
+              <button
+                type="button"
+                onClick={() => void send()}
+                disabled={!input.trim() || isInactive || historicalSessionPending}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/35 bg-primary text-white disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50"
+                aria-label="Send"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
         </div>
