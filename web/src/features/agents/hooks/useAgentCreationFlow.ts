@@ -341,6 +341,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     agentInstructions,
     setAgentInstructions,
     modelMode,
+    credentials,
     activeCredentials,
     selectedCredential,
     selectCredential,
