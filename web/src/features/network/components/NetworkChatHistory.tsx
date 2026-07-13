@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { Ref } from 'react'
 import { Loader2, Workflow } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
@@ -8,7 +8,7 @@ import type { NetworkExecution, NetworkTurn } from './networkChatExecution'
 import { NetworkAnswer } from './NetworkExecutionTree'
 
 interface NetworkChatHistoryProps {
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: Ref<HTMLDivElement>
   networkName: string
   turns: NetworkTurn[]
   running: boolean
