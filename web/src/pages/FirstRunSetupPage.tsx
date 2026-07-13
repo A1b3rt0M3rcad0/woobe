@@ -26,6 +26,8 @@ import { createProjectSchema, type CreateProjectFormData } from '@/features/proj
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { slugify } from '@/lib/slug'
 
+import './FirstRunSetupPage.css'
+
 type SetupStage = 'project' | 'agent'
 
 const SETUP_STEPS = [
@@ -106,6 +108,11 @@ export default function FirstRunSetupPage() {
   const stage: SetupStage = projectId ? 'agent' : 'project'
   const organization = organizationQuery.data
   const selectedProject = currentProject?.id === projectId ? currentProject : null
+  const stageLabel = stage === 'project' ? 'Project setup' : 'Project created'
+  const stageTitle = stage === 'project' ? 'Create the Project for your Agent' : 'Configure the first Agent'
+  const stageDescription = stage === 'project'
+    ? 'Create the technical boundary that will contain the Agent and its operational resources.'
+    : 'Define its behavior and connect the model required to enter the Playground.'
 
   useEffect(() => {
     if (!organization || currentOrganization?.id === organization.id) return
@@ -156,8 +163,8 @@ export default function FirstRunSetupPage() {
   }
 
   return (
-    <div className="min-h-full bg-background">
-      <header className="border-b border-border/80 bg-surface/45">
+    <div className="first-run-setup flex min-h-full flex-col bg-background lg:h-full lg:min-h-0 lg:overflow-hidden">
+      <header className="shrink-0 border-b border-border/80 bg-surface/45">
         <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-6 px-5 py-6 sm:px-8 lg:px-10">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/[0.06] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-primary-light">
@@ -176,8 +183,8 @@ export default function FirstRunSetupPage() {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10 lg:py-8">
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      <div className="first-run-setup__content mx-auto grid w-full max-w-7xl flex-1 gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10 lg:py-8">
+        <aside className="space-y-4 lg:self-start">
           <section className="rounded-xl border border-border/90 bg-surface/65 p-5">
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Launch progress</p>
             <div className="mt-5">
@@ -203,85 +210,87 @@ export default function FirstRunSetupPage() {
           </section>
         </aside>
 
-        <main className="min-w-0">
-          {stage === 'project' ? (
-            <section className="overflow-hidden rounded-2xl border border-border/90 bg-surface/60 shadow-xl shadow-black/10">
-              <div className="border-b border-border/80 px-6 py-5 sm:px-8">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
-                  <FolderKanban className="h-5 w-5" />
-                </div>
-                <h2 className="mt-5 text-lg font-semibold text-white">Create the Project for your Agent</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                  The Project isolates Agents, Knowledge, Tools, credentials, runtime and observability. You can rename and configure it later.
-                </p>
-              </div>
+        <main className="first-run-setup__main flex min-w-0 min-h-0 flex-col">
+          <div className="mb-4 shrink-0">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary-light">{stageLabel}</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{stageTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">{stageDescription}</p>
+          </div>
 
-              <form onSubmit={form.handleSubmit(createProjectAndContinue)} className="space-y-6 px-6 py-6 sm:px-8 sm:py-8">
-                <div className="max-w-2xl">
-                  <label className="mb-2 block text-sm font-medium text-white">Project name</label>
-                  <Input
-                    {...form.register('name')}
-                    error={form.formState.errors.name?.message}
-                    placeholder="Customer support platform"
-                    autoFocus
+          <div className="min-h-0 flex-1">
+            {stage === 'project' ? (
+              <section className="first-run-project-panel flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/90 bg-surface/60 shadow-xl shadow-black/10">
+                <div className="flex shrink-0 items-center gap-3 border-b border-border/80 px-6 py-4 sm:px-8">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
+                    <FolderKanban className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Project details</h3>
+                    <p className="mt-0.5 text-xs text-muted">The name can be changed later in Project settings.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={form.handleSubmit(createProjectAndContinue)} className="flex min-h-0 flex-1 flex-col">
+                  <div className="scrollbar-thin min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8 sm:py-8">
+                    <div className="max-w-2xl">
+                      <label className="mb-2 block text-sm font-medium text-white">Project name</label>
+                      <Input
+                        {...form.register('name')}
+                        error={form.formState.errors.name?.message}
+                        placeholder="Customer support platform"
+                        autoFocus
+                      />
+                      <p className="mt-2 text-xs leading-5 text-muted">
+                        Use the product, team or technical boundary this Project will represent.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 rounded-xl border border-border/80 bg-background/50 p-4 sm:grid-cols-3">
+                      <div className="flex items-start gap-3">
+                        <Circle className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+                        <div>
+                          <p className="text-sm font-medium text-white">Project</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">Create the isolation boundary.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                        <div>
+                          <p className="text-sm font-medium text-white">Agent</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">Define instructions and model.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Rocket className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                        <div>
+                          <p className="text-sm font-medium text-white">Playground</p>
+                          <p className="mt-1 text-xs leading-5 text-muted">Run the first operational test.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 justify-end border-t border-border/80 px-6 py-4 sm:px-8">
+                    <Button type="submit" loading={createProject.isPending}>
+                      Create Project and continue
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+                </form>
+              </section>
+            ) : projectId ? (
+              <div className="first-run-agent-flow min-h-0">
+                <DialogPresentationProvider presentation="embedded">
+                  <CreateAgentFlowModal
+                    open
+                    projectId={projectId}
+                    onClose={exitSetup}
+                    onCreated={openPlayground}
                   />
-                  <p className="mt-2 text-xs leading-5 text-muted">
-                    Use the product, team or technical boundary this Project will represent.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 rounded-xl border border-border/80 bg-background/50 p-4 sm:grid-cols-3">
-                  <div className="flex items-start gap-3">
-                    <Circle className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
-                    <div>
-                      <p className="text-sm font-medium text-white">Project</p>
-                      <p className="mt-1 text-xs leading-5 text-muted">Create the isolation boundary.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
-                    <div>
-                      <p className="text-sm font-medium text-white">Agent</p>
-                      <p className="mt-1 text-xs leading-5 text-muted">Define instructions and model.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Rocket className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
-                    <div>
-                      <p className="text-sm font-medium text-white">Playground</p>
-                      <p className="mt-1 text-xs leading-5 text-muted">Run the first operational test.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end border-t border-border/80 pt-5">
-                  <Button type="submit" loading={createProject.isPending}>
-                    Create Project and continue
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </form>
-            </section>
-          ) : projectId ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary-light">Project created</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Configure the first Agent</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Define its behavior and connect the model required to enter the Playground.
-                </p>
+                </DialogPresentationProvider>
               </div>
-
-              <DialogPresentationProvider presentation="embedded">
-                <CreateAgentFlowModal
-                  open
-                  projectId={projectId}
-                  onClose={exitSetup}
-                  onCreated={openPlayground}
-                />
-              </DialogPresentationProvider>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </main>
       </div>
     </div>
