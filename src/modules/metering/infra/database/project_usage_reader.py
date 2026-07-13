@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import text
 
@@ -12,8 +13,53 @@ from shared.infra.errors import NotFoundError
 _ENVIRONMENT_SQL = """
 COALESCE(
     NULLIF(trace.data ->> 'execution_context', ''),
+    NULLIF(trace.data -> 'diagnostics' ->> 'execution_context', ''),
     NULLIF(trace.data ->> 'environment', ''),
     'draft'
+)
+"""
+
+_RELEASE_ID_SQL = """
+COALESCE(
+    NULLIF(trace.data ->> 'agent_release_id', ''),
+    NULLIF(trace.data -> 'diagnostics' ->> 'agent_release_id', '')
+)
+"""
+
+_RELEASE_VERSION_SQL = """
+COALESCE(
+    NULLIF(trace.data ->> 'agent_release_version', ''),
+    NULLIF(trace.data -> 'diagnostics' ->> 'agent_release_version', '')
+)
+"""
+
+_LLM_CALLS_SQL = """
+COALESCE(
+    CASE
+        WHEN COALESCE(trace.data ->> 'llm_call_count', '') ~ '^[0-9]+$'
+        THEN (trace.data ->> 'llm_call_count')::integer
+        WHEN COALESCE(trace.data -> 'diagnostics' ->> 'llm_call_count', '') ~ '^[0-9]+$'
+        THEN (trace.data -> 'diagnostics' ->> 'llm_call_count')::integer
+        WHEN jsonb_typeof(trace.data -> 'llm_calls') = 'array'
+        THEN jsonb_array_length(trace.data -> 'llm_calls')
+        ELSE 0
+    END,
+    0
+)
+"""
+
+_TOOL_CALLS_SQL = """
+COALESCE(
+    CASE
+        WHEN COALESCE(trace.data ->> 'tool_call_count', '') ~ '^[0-9]+$'
+        THEN (trace.data ->> 'tool_call_count')::integer
+        WHEN COALESCE(trace.data -> 'diagnostics' ->> 'tool_call_count', '') ~ '^[0-9]+$'
+        THEN (trace.data -> 'diagnostics' ->> 'tool_call_count')::integer
+        WHEN jsonb_typeof(trace.data -> 'tool_calls') = 'array'
+        THEN jsonb_array_length(trace.data -> 'tool_calls')
+        ELSE 0
+    END,
+    0
 )
 """
 
@@ -28,10 +74,11 @@ AND (
     CAST(:provider_model_id AS uuid) IS NULL
     OR trace.provider_model_id = CAST(:provider_model_id AS uuid)
     OR trace.data ->> 'provider_model_id' = CAST(:provider_model_id AS text)
+    OR trace.data -> 'diagnostics' ->> 'provider_model_id' = CAST(:provider_model_id AS text)
 )
 AND (
     CAST(:release_id AS uuid) IS NULL
-    OR trace.data ->> 'agent_release_id' = CAST(:release_id AS text)
+    OR {_RELEASE_ID_SQL} = CAST(:release_id AS text)
 )
 """
 
@@ -47,8 +94,8 @@ trace.provider,
 trace.model,
 trace.provider_model_id,
 {_ENVIRONMENT_SQL} AS environment,
-NULLIF(trace.data ->> 'agent_release_id', '') AS release_id_text,
-NULLIF(trace.data ->> 'agent_release_version', '') AS release_version,
+{_RELEASE_ID_SQL} AS release_id_text,
+{_RELEASE_VERSION_SQL} AS release_version,
 COALESCE(
     CASE
         WHEN COALESCE(trace.data ->> 'input_tokens', '') ~ '^[0-9]+$'
@@ -73,28 +120,11 @@ COALESCE(
     END,
     0
 ) AS embedding_tokens,
-COALESCE(
-    CASE
-        WHEN COALESCE(trace.data ->> 'llm_call_count', '') ~ '^[0-9]+$'
-        THEN (trace.data ->> 'llm_call_count')::integer
-        WHEN jsonb_typeof(trace.data -> 'llm_calls') = 'array'
-        THEN jsonb_array_length(trace.data -> 'llm_calls')
-        ELSE 0
-    END,
-    0
-) AS llm_calls,
-COALESCE(
-    CASE
-        WHEN COALESCE(trace.data ->> 'tool_call_count', '') ~ '^[0-9]+$'
-        THEN (trace.data ->> 'tool_call_count')::integer
-        WHEN jsonb_typeof(trace.data -> 'tool_calls') = 'array'
-        THEN jsonb_array_length(trace.data -> 'tool_calls')
-        ELSE 0
-    END,
-    0
-) AS tool_calls,
+{_LLM_CALLS_SQL} AS llm_calls,
+{_TOOL_CALLS_SQL} AS tool_calls,
 COALESCE(
     NULLIF(trace.data ->> 'cost_status', ''),
+    NULLIF(trace.data -> 'diagnostics' ->> 'cost_status', ''),
     CASE WHEN trace.total_cost_usd IS NULL THEN 'unknown' ELSE 'known' END
 ) AS cost_status
 """
@@ -145,55 +175,74 @@ class SQLAlchemyProjectUsageReader:
             "step": "1 hour" if query.bucket == "hour" else "1 day",
             "top_limit": query.top_limit,
         }
-        summary = await self._summary(params)
-        if not summary.pop("project_exists"):
+        raw_summary = await self._summary(params)
+        if not raw_summary.pop("project_exists"):
             raise NotFoundError("Project not found")
+
         timeseries = await self._timeseries(params)
         breakdown = await self._breakdown(params, query.group_by)
         top_executions = await self._top_executions(params)
 
-        runtime_requests = int(summary["runtime_requests"])
-        priced_requests = int(summary["priced_requests"])
-        known_cost = summary["known_cost_usd"]
-        input_tokens = int(summary["input_tokens"])
-        output_tokens = int(summary["output_tokens"])
-        previous_requests = int(summary.pop("previous_requests"))
-        previous_cost = summary.pop("previous_cost_usd")
+        runtime_requests = int(raw_summary["runtime_requests"])
+        priced_requests = int(raw_summary["priced_requests"])
+        known_cost = raw_summary["known_cost_usd"]
+        input_tokens = int(raw_summary["input_tokens"])
+        output_tokens = int(raw_summary["output_tokens"])
+        previous_requests = int(raw_summary.pop("previous_requests"))
+        previous_cost = float(raw_summary.pop("previous_cost_usd"))
+        data_through = raw_summary.pop("data_through")
+        embedding_tokens = int(raw_summary.pop("embedding_tokens"))
+        tool_calls = int(raw_summary.pop("tool_calls"))
+        missing_model = int(raw_summary.pop("missing_model_attribution"))
+        missing_release = int(raw_summary.pop("missing_release_attribution"))
 
-        summary["cost_coverage_percent"] = (
+        raw_summary["cost_coverage_percent"] = (
             round((priced_requests / runtime_requests) * 100, 2)
             if runtime_requests
             else None
         )
-        summary["cost_per_priced_request"] = (
+        raw_summary["cost_per_priced_request"] = (
             round(float(known_cost) / priced_requests, 8)
             if known_cost is not None and priced_requests
             else None
         )
-        summary["tokens_per_request"] = (
+        raw_summary["tokens_per_request"] = (
             round((input_tokens + output_tokens) / runtime_requests, 2)
             if runtime_requests
             else None
         )
-        summary["request_change_percent"] = self._change(runtime_requests, previous_requests)
-        summary["cost_change_percent"] = self._change(
+        raw_summary["request_change_percent"] = self._change(
+            runtime_requests,
+            previous_requests,
+        )
+        raw_summary["cost_change_percent"] = self._change(
             float(known_cost or 0),
-            float(previous_cost or 0),
+            previous_cost,
         )
 
         total_cost = float(known_cost or 0)
         for row in breakdown:
             row_cost = float(row.get("known_cost_usd") or 0)
-            row["share_percent"] = round((row_cost / total_cost) * 100, 2) if total_cost else 0.0
-            priced = int(row.pop("priced_requests", 0))
-            requests = int(row["runtime_requests"])
-            row["cost_per_priced_request"] = round(row_cost / priced, 8) if priced else None
-            row["cost_coverage_percent"] = round((priced / requests) * 100, 2) if requests else None
+            row["share_percent"] = (
+                round((row_cost / total_cost) * 100, 2) if total_cost else 0.0
+            )
+            row_priced = int(row.pop("priced_requests", 0))
+            row_requests = int(row["runtime_requests"])
+            row["cost_per_priced_request"] = (
+                round(row_cost / row_priced, 8) if row_priced else None
+            )
+            row["cost_coverage_percent"] = (
+                round((row_priced / row_requests) * 100, 2)
+                if row_requests
+                else None
+            )
 
-        data_through = summary.pop("data_through")
-        lag = None
+        freshness_seconds = None
         if data_through is not None:
-            lag = max(round((datetime.now(UTC) - data_through).total_seconds()), 0)
+            freshness_seconds = max(
+                round((datetime.now(UTC) - data_through).total_seconds()),
+                0,
+            )
 
         return {
             "project_id": query.project_id,
@@ -204,24 +253,24 @@ class SQLAlchemyProjectUsageReader:
             "bucket": query.bucket,
             "environment": query.environment,
             "group_by": query.group_by,
-            "summary": summary,
+            "summary": raw_summary,
             "timeseries": timeseries,
             "composition": {
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                "embedding_tokens": int(summary.pop("embedding_tokens")),
-                "tool_calls": int(summary.pop("tool_calls")),
+                "embedding_tokens": embedding_tokens,
+                "tool_calls": tool_calls,
                 "vector_queries": 0,
             },
             "breakdown": breakdown,
             "top_executions": top_executions,
             "data_quality": {
                 "fully_priced_requests": priced_requests,
-                "partial_requests": int(summary["partial_cost_requests"]),
-                "unpriced_requests": int(summary["unpriced_requests"]),
-                "missing_model_attribution": int(summary.pop("missing_model_attribution")),
-                "missing_release_attribution": int(summary.pop("missing_release_attribution")),
-                "aggregation_lag_seconds": lag,
+                "partial_requests": int(raw_summary["partial_cost_requests"]),
+                "unpriced_requests": int(raw_summary["unpriced_requests"]),
+                "missing_model_attribution": missing_model,
+                "missing_release_attribution": missing_release,
+                "aggregation_lag_seconds": freshness_seconds,
             },
         }
 
@@ -247,10 +296,11 @@ class SQLAlchemyProjectUsageReader:
                     CAST(:provider_model_id AS uuid) IS NULL
                     OR trace.provider_model_id = CAST(:provider_model_id AS uuid)
                     OR trace.data ->> 'provider_model_id' = CAST(:provider_model_id AS text)
+                    OR trace.data -> 'diagnostics' ->> 'provider_model_id' = CAST(:provider_model_id AS text)
                   )
                   AND (
                     CAST(:release_id AS uuid) IS NULL
-                    OR trace.data ->> 'agent_release_id' = CAST(:release_id AS text)
+                    OR {_RELEASE_ID_SQL} = CAST(:release_id AS text)
                   )
             )
             SELECT
@@ -269,20 +319,31 @@ class SQLAlchemyProjectUsageReader:
                 COUNT(*) FILTER (WHERE cost_status = 'partial') AS partial_cost_requests,
                 COUNT(*) FILTER (WHERE cost_status NOT IN ('known', 'partial')) AS unpriced_requests,
                 COALESCE(SUM(total_cost_usd) FILTER (
-                    WHERE status IN ('failed', 'cancelled') AND total_cost_usd IS NOT NULL
+                    WHERE status IN ('failed', 'cancelled')
+                      AND total_cost_usd IS NOT NULL
                 ), 0) AS failed_spend_usd,
-                COUNT(*) FILTER (WHERE provider_model_id IS NULL AND model IS NULL) AS missing_model_attribution,
-                COUNT(*) FILTER (WHERE release_id_text IS NULL) AS missing_release_attribution,
+                COUNT(*) FILTER (
+                    WHERE provider_model_id IS NULL AND model IS NULL
+                ) AS missing_model_attribution,
+                COUNT(*) FILTER (
+                    WHERE release_id_text IS NULL
+                ) AS missing_release_attribution,
                 MAX(COALESCE(ended_at, started_at)) AS data_through,
                 (SELECT COUNT(*) FROM previous_traces) AS previous_requests,
-                (SELECT SUM(total_cost_usd) FROM previous_traces WHERE total_cost_usd IS NOT NULL) AS previous_cost_usd
+                (
+                    SELECT SUM(total_cost_usd)
+                    FROM previous_traces
+                    WHERE total_cost_usd IS NOT NULL
+                ) AS previous_cost_usd
             FROM current_traces
             """
         )
         row = (await self._uow.session.execute(statement, params)).mappings().one()
+        requests = int(row["runtime_requests"] or 0)
+        known_cost = row["known_cost_usd"]
         return {
             "project_exists": bool(row["project_exists"]),
-            "runtime_requests": int(row["runtime_requests"] or 0),
+            "runtime_requests": requests,
             "successful_requests": int(row["successful_requests"] or 0),
             "failed_requests": int(row["failed_requests"] or 0),
             "cancelled_requests": int(row["cancelled_requests"] or 0),
@@ -291,7 +352,11 @@ class SQLAlchemyProjectUsageReader:
             "output_tokens": int(row["output_tokens"] or 0),
             "embedding_tokens": int(row["embedding_tokens"] or 0),
             "tool_calls": int(row["tool_calls"] or 0),
-            "known_cost_usd": round(float(row["known_cost_usd"]), 8) if row["known_cost_usd"] is not None else (0.0 if not row["runtime_requests"] else None),
+            "known_cost_usd": (
+                round(float(known_cost), 8)
+                if known_cost is not None
+                else (0.0 if requests == 0 else None)
+            ),
             "priced_requests": int(row["priced_requests"] or 0),
             "partial_cost_requests": int(row["partial_cost_requests"] or 0),
             "unpriced_requests": int(row["unpriced_requests"] or 0),
@@ -311,21 +376,41 @@ class SQLAlchemyProjectUsageReader:
                     date_trunc(:bucket, trace.started_at) AS bucket_start,
                     trace.status,
                     trace.total_cost_usd,
-                    {_ENVIRONMENT_SQL} AS environment,
-                    COALESCE(CASE WHEN COALESCE(trace.data ->> 'input_tokens', '') ~ '^[0-9]+$' THEN (trace.data ->> 'input_tokens')::bigint ELSE 0 END, 0) AS input_tokens,
-                    COALESCE(CASE WHEN COALESCE(trace.data ->> 'output_tokens', '') ~ '^[0-9]+$' THEN (trace.data ->> 'output_tokens')::bigint ELSE 0 END, 0) AS output_tokens,
-                    COALESCE(CASE
-                        WHEN COALESCE(trace.data ->> 'llm_call_count', '') ~ '^[0-9]+$' THEN (trace.data ->> 'llm_call_count')::integer
-                        WHEN jsonb_typeof(trace.data -> 'llm_calls') = 'array' THEN jsonb_array_length(trace.data -> 'llm_calls')
-                        ELSE 0 END, 0) AS llm_calls,
-                    COALESCE(NULLIF(trace.data ->> 'cost_status', ''), CASE WHEN trace.total_cost_usd IS NULL THEN 'unknown' ELSE 'known' END) AS cost_status
+                    COALESCE(
+                        CASE
+                            WHEN COALESCE(trace.data ->> 'input_tokens', '') ~ '^[0-9]+$'
+                            THEN (trace.data ->> 'input_tokens')::bigint
+                            ELSE 0
+                        END,
+                        0
+                    ) AS input_tokens,
+                    COALESCE(
+                        CASE
+                            WHEN COALESCE(trace.data ->> 'output_tokens', '') ~ '^[0-9]+$'
+                            THEN (trace.data ->> 'output_tokens')::bigint
+                            ELSE 0
+                        END,
+                        0
+                    ) AS output_tokens,
+                    {_LLM_CALLS_SQL} AS llm_calls,
+                    COALESCE(
+                        NULLIF(trace.data ->> 'cost_status', ''),
+                        NULLIF(trace.data -> 'diagnostics' ->> 'cost_status', ''),
+                        CASE
+                            WHEN trace.total_cost_usd IS NULL THEN 'unknown'
+                            ELSE 'known'
+                        END
+                    ) AS cost_status
                 FROM observability.traces AS trace
                 WHERE {_BASE_FILTER_SQL}
             ),
             buckets AS (
                 SELECT generate_series(
                     date_trunc(:bucket, CAST(:start AS timestamptz)),
-                    date_trunc(:bucket, CAST(:end AS timestamptz) - interval '1 microsecond'),
+                    date_trunc(
+                        :bucket,
+                        CAST(:end AS timestamptz) - interval '1 microsecond'
+                    ),
                     CAST(:step AS interval)
                 ) AS bucket_start
             ),
@@ -334,14 +419,20 @@ class SQLAlchemyProjectUsageReader:
                     bucket_start,
                     COUNT(*) AS runtime_requests,
                     COUNT(*) FILTER (WHERE status = 'completed') AS successful_requests,
-                    COUNT(*) FILTER (WHERE status IN ('failed', 'cancelled')) AS failed_requests,
+                    COUNT(*) FILTER (
+                        WHERE status IN ('failed', 'cancelled')
+                    ) AS failed_requests,
                     COALESCE(SUM(llm_calls), 0) AS llm_calls,
                     COALESCE(SUM(input_tokens), 0) AS input_tokens,
                     COALESCE(SUM(output_tokens), 0) AS output_tokens,
-                    SUM(total_cost_usd) FILTER (WHERE total_cost_usd IS NOT NULL) AS known_cost_usd,
+                    SUM(total_cost_usd) FILTER (
+                        WHERE total_cost_usd IS NOT NULL
+                    ) AS known_cost_usd,
                     COUNT(*) FILTER (WHERE cost_status = 'known') AS priced_requests,
                     COUNT(*) FILTER (WHERE cost_status = 'partial') AS partial_cost_requests,
-                    COUNT(*) FILTER (WHERE cost_status NOT IN ('known', 'partial')) AS unpriced_requests
+                    COUNT(*) FILTER (
+                        WHERE cost_status NOT IN ('known', 'partial')
+                    ) AS unpriced_requests
                 FROM filtered
                 GROUP BY bucket_start
             )
@@ -363,24 +454,36 @@ class SQLAlchemyProjectUsageReader:
             """
         )
         rows = (await self._uow.session.execute(statement, params)).mappings().all()
-        return [
-            {
-                "bucket_start": row["bucket_start"],
-                "runtime_requests": int(row["runtime_requests"] or 0),
-                "successful_requests": int(row["successful_requests"] or 0),
-                "failed_requests": int(row["failed_requests"] or 0),
-                "llm_calls": int(row["llm_calls"] or 0),
-                "input_tokens": int(row["input_tokens"] or 0),
-                "output_tokens": int(row["output_tokens"] or 0),
-                "known_cost_usd": round(float(row["known_cost_usd"]), 8) if row["known_cost_usd"] is not None else (0.0 if not row["runtime_requests"] else None),
-                "priced_requests": int(row["priced_requests"] or 0),
-                "partial_cost_requests": int(row["partial_cost_requests"] or 0),
-                "unpriced_requests": int(row["unpriced_requests"] or 0),
-            }
-            for row in rows
-        ]
+        points: list[dict[str, Any]] = []
+        for row in rows:
+            requests = int(row["runtime_requests"] or 0)
+            known_cost = row["known_cost_usd"]
+            points.append(
+                {
+                    "bucket_start": row["bucket_start"],
+                    "runtime_requests": requests,
+                    "successful_requests": int(row["successful_requests"] or 0),
+                    "failed_requests": int(row["failed_requests"] or 0),
+                    "llm_calls": int(row["llm_calls"] or 0),
+                    "input_tokens": int(row["input_tokens"] or 0),
+                    "output_tokens": int(row["output_tokens"] or 0),
+                    "known_cost_usd": (
+                        round(float(known_cost), 8)
+                        if known_cost is not None
+                        else (0.0 if requests == 0 else None)
+                    ),
+                    "priced_requests": int(row["priced_requests"] or 0),
+                    "partial_cost_requests": int(row["partial_cost_requests"] or 0),
+                    "unpriced_requests": int(row["unpriced_requests"] or 0),
+                }
+            )
+        return points
 
-    async def _breakdown(self, params: dict[str, Any], group_by: str) -> list[dict[str, Any]]:
+    async def _breakdown(
+        self,
+        params: dict[str, Any],
+        group_by: str,
+    ) -> list[dict[str, Any]]:
         key_sql, label_sql = _GROUP_SQL[group_by]
         statement = text(
             f"""
@@ -393,13 +496,19 @@ class SQLAlchemyProjectUsageReader:
             SELECT
                 {key_sql} AS key,
                 {label_sql} AS label,
-                SUM(filtered.total_cost_usd) FILTER (WHERE filtered.total_cost_usd IS NOT NULL) AS known_cost_usd,
+                SUM(filtered.total_cost_usd) FILTER (
+                    WHERE filtered.total_cost_usd IS NOT NULL
+                ) AS known_cost_usd,
                 COUNT(*) AS runtime_requests,
-                COUNT(*) FILTER (WHERE filtered.status = 'completed') AS successful_requests,
+                COUNT(*) FILTER (
+                    WHERE filtered.status = 'completed'
+                ) AS successful_requests,
                 COALESCE(SUM(filtered.llm_calls), 0) AS llm_calls,
                 COALESCE(SUM(filtered.input_tokens), 0) AS input_tokens,
                 COALESCE(SUM(filtered.output_tokens), 0) AS output_tokens,
-                COUNT(*) FILTER (WHERE filtered.cost_status = 'known') AS priced_requests
+                COUNT(*) FILTER (
+                    WHERE filtered.cost_status = 'known'
+                ) AS priced_requests
             FROM filtered
             GROUP BY 1, 2
             ORDER BY known_cost_usd DESC NULLS LAST, runtime_requests DESC
@@ -411,7 +520,11 @@ class SQLAlchemyProjectUsageReader:
             {
                 "key": str(row["key"]),
                 "label": str(row["label"]),
-                "known_cost_usd": round(float(row["known_cost_usd"]), 8) if row["known_cost_usd"] is not None else None,
+                "known_cost_usd": (
+                    round(float(row["known_cost_usd"]), 8)
+                    if row["known_cost_usd"] is not None
+                    else None
+                ),
                 "runtime_requests": int(row["runtime_requests"] or 0),
                 "successful_requests": int(row["successful_requests"] or 0),
                 "llm_calls": int(row["llm_calls"] or 0),
@@ -422,7 +535,10 @@ class SQLAlchemyProjectUsageReader:
             for row in rows
         ]
 
-    async def _top_executions(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+    async def _top_executions(
+        self,
+        params: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         statement = text(
             f"""
             SELECT {_TRACE_FIELDS_SQL}
@@ -436,10 +552,11 @@ class SQLAlchemyProjectUsageReader:
         rows = (await self._uow.session.execute(statement, params)).mappings().all()
         results: list[dict[str, Any]] = []
         for row in rows:
-            release_id = None
+            release_id: UUID | None = None
             try:
-                release_id = row["release_id_text"] and __import__("uuid").UUID(str(row["release_id_text"]))
-            except (ValueError, AttributeError):
+                if row["release_id_text"]:
+                    release_id = UUID(str(row["release_id_text"]))
+            except (TypeError, ValueError):
                 release_id = None
             results.append(
                 {
@@ -456,7 +573,11 @@ class SQLAlchemyProjectUsageReader:
                     "input_tokens": int(row["input_tokens"] or 0),
                     "output_tokens": int(row["output_tokens"] or 0),
                     "tool_calls": int(row["tool_calls"] or 0),
-                    "known_cost_usd": round(float(row["total_cost_usd"]), 8) if row["total_cost_usd"] is not None else None,
+                    "known_cost_usd": (
+                        round(float(row["total_cost_usd"]), 8)
+                        if row["total_cost_usd"] is not None
+                        else None
+                    ),
                     "cost_status": row["cost_status"],
                     "started_at": row["started_at"],
                 }
