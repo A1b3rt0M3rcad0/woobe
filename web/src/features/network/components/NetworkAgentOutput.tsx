@@ -3,7 +3,7 @@ import { HelpCircle } from 'lucide-react'
 
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
-import { NetworkOutputHelpModal } from './NetworkOutputHelpModal'
+import { OutputContractHelpModal } from '@/features/playground/components/OutputContractHelpModal'
 
 const DEFAULT_SCHEMA = `{
   "message": "string",
@@ -47,7 +47,7 @@ export function NetworkAgentOutput({ onValidity }: { onValidity: (value: boolean
         <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} onValidJsonChange={() => onValidity(true)} editable disabled={!enabled} actions={['format', 'validate', 'clear']} minHeight={180} maxHeight={360} placeholder='{ "message": "string" }' />
         <p className="mt-2 text-[11px] leading-5 text-muted">Write the response shape directly. Type names such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> describe expected values.</p>
       </section>
-      <NetworkOutputHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <OutputContractHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }
