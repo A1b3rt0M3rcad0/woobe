@@ -8,7 +8,7 @@ import type { NetworkExecution, NetworkTurn } from './networkChatExecution'
 import { NetworkAnswer } from './NetworkExecutionTree'
 
 interface NetworkChatHistoryProps {
-  scrollRef: RefObject<HTMLDivElement | null>
+  scrollRef: RefObject<HTMLDivElement>
   networkName: string
   turns: NetworkTurn[]
   running: boolean
