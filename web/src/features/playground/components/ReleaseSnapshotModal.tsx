@@ -1,9 +1,11 @@
 import { FileText, X, Package } from 'lucide-react'
+import { EnvironmentBadge } from '@/components/common/EnvironmentBadge'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Textarea } from '@/components/ui/Textarea'
 import { useKnowledgeVersions } from '@/features/agents/hooks'
 import type { AgentRelease } from '@/features/agents/types'
+import { getEnvironmentAppearance } from '@/lib/environment-appearance'
 
 type ReleaseSnapshotModalProps = {
   open: boolean
@@ -50,12 +52,13 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
   const ragConfig = recordValue(runtimeConfig.rag)
   const knowledgeVersion = knowledgeVersions.find((item) => item.id === release.knowledge_version_id) || null
   const knowledgeMetadata = recordValue(knowledgeVersion?.snapshot_metadata)
+  const environmentAppearance = getEnvironmentAppearance(release.status)
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
     <div className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40">
       <div className="flex items-start justify-between gap-4 border-b border-border/90 bg-background/20 p-5">
         <div className="space-y-1">
-          <div className="flex items-center gap-2"><h2 className="text-base font-semibold text-white">{title}</h2><Badge variant="secondary">{release.version}</Badge></div>
+          <div className="flex items-center gap-2"><h2 className="text-base font-semibold text-white">{title}</h2>{environmentAppearance ? <EnvironmentBadge environment={release.status} label={release.version} compact /> : <Badge variant="secondary">{release.version}</Badge>}</div>
           {description && <p className="text-xs text-muted">{description}</p>}
         </div>
         <button className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" onClick={onClose}><X className="h-4 w-4" /></button>
