@@ -81,7 +81,6 @@ type ResolvedAgentBinding = {
   binding: BindingMode
   editingVersion: string
   dirty?: boolean
-  nextAction: string
 }
 
 type AgentEditorDraft = {
@@ -256,21 +255,21 @@ function OperationsPanel({ tab, run, selectedRunId, onSelectRun }: { tab: PanelT
 
 function resolvedBindings(agents: [Agent, Agent, Agent], environment: Environment): Record<AgentNodeId, ResolvedAgentBinding> {
   const draft: Record<AgentNodeId, ResolvedAgentBinding> = {
-    coordinator: { nodeId: 'coordinator', agent: agents[0], source: 'draft', version: 'Revision 14', binding: 'follow_draft', editingVersion: 'Revision 14', dirty: true, nextAction: 'Create Agent Staging' },
-    billing: { nodeId: 'billing', agent: agents[1], source: 'staging', version: 'v0.3.20260713.01', binding: 'follow_staging', editingVersion: 'Revision 9', nextAction: 'Reuse Agent Staging' },
-    technical: { nodeId: 'technical', agent: agents[2], source: 'release', version: 'v0.1.20260712.00', binding: 'pin_release', editingVersion: 'Revision 7', nextAction: 'Reuse immutable Agent Release' },
+    coordinator: { nodeId: 'coordinator', agent: agents[0], source: 'draft', version: 'Revision 14', binding: 'follow_draft', editingVersion: 'Revision 14', dirty: true },
+    billing: { nodeId: 'billing', agent: agents[1], source: 'staging', version: 'v0.3.20260713.01', binding: 'follow_staging', editingVersion: 'Revision 9' },
+    technical: { nodeId: 'technical', agent: agents[2], source: 'release', version: 'v0.1.20260712.00', binding: 'pin_release', editingVersion: 'Revision 7' },
   }
   if (environment === 'draft') return draft
   if (environment === 'staging') {
     return {
-      coordinator: { ...draft.coordinator, source: 'staging', version: 'v0.4.20260713.02', binding: 'follow_staging', dirty: false, nextAction: 'Create Agent Release on publish' },
-      billing: { ...draft.billing, nextAction: 'Create Agent Release on publish' },
+      coordinator: { ...draft.coordinator, source: 'staging', version: 'v0.4.20260713.02', binding: 'follow_staging', dirty: false },
+      billing: draft.billing,
       technical: draft.technical,
     }
   }
   return {
-    coordinator: { ...draft.coordinator, source: 'release', version: 'v0.5.20260713.00', binding: 'pin_release', dirty: false, nextAction: 'Pinned in Network Release' },
-    billing: { ...draft.billing, source: 'release', version: 'v0.4.20260713.00', binding: 'pin_release', nextAction: 'Pinned in Network Release' },
+    coordinator: { ...draft.coordinator, source: 'release', version: 'v0.5.20260713.00', binding: 'pin_release', dirty: false },
+    billing: { ...draft.billing, source: 'release', version: 'v0.4.20260713.00', binding: 'pin_release' },
     technical: draft.technical,
   }
 }
