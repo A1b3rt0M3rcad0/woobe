@@ -7,9 +7,16 @@ import {
 } from './FirstRunSetupPage'
 
 describe('first-run setup paths', () => {
-  it('continues Project creation inside the same setup flow', () => {
+  it('continues Project creation inside the same setup workspace', () => {
     expect(firstRunProjectSetupPath('org-1', 'project-1'))
       .toBe('/organizations/org-1/projects/project-1/setup')
+  })
+
+  it('keeps Agent details, model and review inside one stable setup route', () => {
+    const setupPath = firstRunProjectSetupPath('org-1', 'project-1')
+    expect(setupPath).not.toContain('/details')
+    expect(setupPath).not.toContain('/model')
+    expect(setupPath).not.toContain('/review')
   })
 
   it('opens the created Agent directly in the explicit first-run Playground', () => {
