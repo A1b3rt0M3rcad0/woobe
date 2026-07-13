@@ -1,5 +1,6 @@
 import { AlertTriangle, KeyRound } from 'lucide-react'
 import { CopyButton } from '@/components/common/CopyButton'
+import { EnvironmentBadge } from '@/components/common/EnvironmentBadge'
 import type { CreateApiKeyResponse } from '@/features/api-keys/types'
 
 interface ApiKeySecretRevealProps {
@@ -53,7 +54,7 @@ export function ApiKeySecretReveal({ apiKey, agentName }: ApiKeySecretRevealProp
             </div>
             <div className="rounded-xl border border-border/80 bg-background/50 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Environment</p>
-              <p className="mt-1 text-sm font-medium capitalize text-white">{apiKey.environment}</p>
+              <div className="mt-1.5"><EnvironmentBadge environment={apiKey.environment} compact /></div>
             </div>
             <div className="rounded-xl border border-border/80 bg-background/50 p-3 sm:col-span-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Interfaces</p>
