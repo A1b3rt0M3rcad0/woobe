@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { EnvironmentBadge } from '@/components/common/EnvironmentBadge'
 import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
@@ -60,9 +60,7 @@ export function PlaygroundHeader({
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {releaseVersion && releaseStatus && (
-            <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
-              {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
-            </Badge>
+            <EnvironmentBadge environment={releaseStatus} label={releaseVersion} />
           )}
         </div>
         <span className="hidden max-w-[180px] truncate rounded-md border border-border/70 bg-background/45 px-2 py-1 font-mono text-[11px] text-muted md:inline">
