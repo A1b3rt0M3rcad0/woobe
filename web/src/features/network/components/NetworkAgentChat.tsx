@@ -75,9 +75,9 @@ function MessageRow({ message, agentName, streaming }: { message: ChatMessageTyp
   return (
     <div className={cn('flex gap-2', user ? 'justify-end' : 'justify-start')}>
       {!user && <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-surface"><Bot className="h-3 w-3 text-primary-light" /></div>}
-      <div className={cn('min-w-0 max-w-[calc(100%-34px)]', user ? 'max-w-[88%]' : 'flex-1')}>
+      <div className={cn('min-w-0 max-w-[88%]', user ? 'max-w-[88%]' : 'flex-1')}>
         {!user && <p className="mb-1 truncate text-[8px] font-medium text-muted">{agentName}</p>}
-        <div className={cn('rounded-lg border px-2.5 py-2 text-[10px] leading-4 text-white', user ? 'rounded-br-sm border-primary/30 bg-primary/12' : 'rounded-bl-sm border-border/80 bg-surface/70')}>
+        <div className={cn('rounded-lg border px-2.5 py-2 text-[10px] leading-4 text-white', user ? 'rounded-br-sm border-primary/30 bg-primary/10' : 'rounded-bl-sm border-border/80 bg-surface/70')}>
           {message.parsed_output && !streaming ? (
             <pre className="scrollbar-thin max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-[9px] leading-4">{JSON.stringify(message.parsed_output, null, 2)}</pre>
           ) : message.content ? (
