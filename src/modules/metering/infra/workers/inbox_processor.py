@@ -107,7 +107,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         for event in events:
             record = InboxProcessingRecord(
                 id=event.id,
-                outbox_origin_id=event.message_id,
+                outbox_origin_id=event.outbox_origin_id or event.message_id,
                 aggregate_type=event.producer_module or "unknown",
                 event_type=event.event_type,
                 event_version=event.event_version,
