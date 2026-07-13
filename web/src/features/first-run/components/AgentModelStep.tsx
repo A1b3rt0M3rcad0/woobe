@@ -219,7 +219,7 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
         open={providerModalOpen}
         onClose={() => setProviderModalOpen(false)}
         projectId={projectId}
-        existingCredentials={flow.activeCredentials}
+        existingCredentials={flow.credentials}
         onCreated={flow.registerCreatedCredential}
       />
       <ManualModelModal
