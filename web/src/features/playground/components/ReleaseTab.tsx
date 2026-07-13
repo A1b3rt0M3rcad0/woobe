@@ -1,11 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { getRelease } from '@/features/agents/api'
 import { useCreateRelease, usePromoteRelease, useReleases, useRollbackRelease } from '@/features/agents/hooks'
+import { EnvironmentBadge } from '@/components/common/EnvironmentBadge'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { toast } from 'sonner'
 import { CalendarDays, Copy, Eye, FileText, Info, MoreHorizontal, Package, Rocket, Undo2, Upload } from 'lucide-react'
+import { ENVIRONMENT_APPEARANCE } from '@/lib/environment-appearance'
 import { releaseToEditorState, useAgentEditor, type AgentEditorState } from '../AgentEditorContext'
 import { ReleaseSnapshotModal } from './ReleaseSnapshotModal'
 import { StageDraftSnapshotModal } from './StageDraftSnapshotModal'
@@ -87,7 +89,7 @@ function ReleaseMetadata({ release }: { release: AgentRelease }) {
 function PipelineHint() {
   return (
     <div className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-surface/40 px-2 py-1 text-[10px] font-medium shadow-sm">
-      <span className="text-muted">Draft</span><span className="text-muted">→</span><span className="text-indigo-300">Staging</span><span className="text-muted">→</span><span className="text-emerald-400">Production</span>
+      <span className="text-muted">Draft</span><span className="text-muted">→</span><span className={ENVIRONMENT_APPEARANCE.staging.text}>Staging</span><span className="text-muted">→</span><span className={ENVIRONMENT_APPEARANCE.production.text}>Production</span>
     </div>
   )
 }
@@ -114,7 +116,11 @@ function ReleaseActionsMenu({ actions, label = 'Release actions' }: { actions: M
 }
 
 function EmptyStageCard({ message, tone = 'neutral' }: { message: string; tone?: 'neutral' | 'staging' | 'production' }) {
-  const toneClass = tone === 'staging' ? 'border-indigo-500/25 bg-indigo-500/[0.04]' : tone === 'production' ? 'border-emerald-500/25 bg-emerald-500/[0.03]' : 'border-border bg-surface/40'
+  const toneClass = tone === 'staging'
+    ? ENVIRONMENT_APPEARANCE.staging.card
+    : tone === 'production'
+      ? ENVIRONMENT_APPEARANCE.production.card
+      : 'border-border bg-surface/40'
   return <div className={`rounded-lg border p-3 text-xs leading-5 text-muted ${toneClass}`}>{message}</div>
 }
 
@@ -320,13 +326,13 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <div className="h-px bg-border/50" />
       <section className="space-y-3">
         <h3 className="text-[11px] font-medium text-muted">Staging</h3>
-        {currentStaging ? <article className="rounded-lg border border-indigo-500/35 bg-indigo-500/[0.04] p-3 shadow-sm"><div className="flex items-start justify-between gap-2.5"><div className="min-w-0 space-y-2"><h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{currentStaging.version}</h4><ReleaseMetadata release={currentStaging} /><p className="max-w-md text-[11px] leading-4 text-muted">Read-only snapshot. It changes only when a new Draft is promoted.</p><div className="flex flex-wrap gap-2 pt-1"><Button size="sm" variant="outline" className="h-7 min-w-[96px] px-2 text-[11px]" onClick={openViewStaging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View snapshot</Button><Button size="sm" className="h-7 min-w-[110px] px-2 text-[11px]" onClick={openCreateRelease} loading={promoteRelease.isPending || isLoadingSnapshot}><Rocket className="mr-1 h-3 w-3" />Publish release</Button></div></div><Badge variant="secondary" className="shrink-0 border-indigo-500/35 bg-indigo-500/10 px-1.5 py-0 text-[10px] text-indigo-300">Staging</Badge></div></article> : <EmptyStageCard tone="staging" message="No Staging snapshot yet. Promote the current Draft before publishing." />}
+        {currentStaging ? <article className={`rounded-lg border p-3 shadow-sm ${ENVIRONMENT_APPEARANCE.staging.card}`}><div className="flex items-start justify-between gap-2.5"><div className="min-w-0 space-y-2"><h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{currentStaging.version}</h4><ReleaseMetadata release={currentStaging} /><p className="max-w-md text-[11px] leading-4 text-muted">Read-only snapshot. It changes only when a new Draft is promoted.</p><div className="flex flex-wrap gap-2 pt-1"><Button size="sm" variant="outline" className="h-7 min-w-[96px] px-2 text-[11px]" onClick={openViewStaging} loading={isLoadingSnapshot}><Eye className="mr-1 h-3 w-3" />View snapshot</Button><Button size="sm" className="h-7 min-w-[110px] px-2 text-[11px]" onClick={openCreateRelease} loading={promoteRelease.isPending || isLoadingSnapshot}><Rocket className="mr-1 h-3 w-3" />Publish release</Button></div></div><EnvironmentBadge environment="staging" compact className="shrink-0" /></div></article> : <EmptyStageCard tone="staging" message="No Staging snapshot yet. Promote the current Draft before publishing." />}
       </section>
 
       <div className="h-px bg-border/50" />
       <section className="space-y-3">
         <h3 className="text-[11px] font-medium text-muted">Production</h3>
-        {production ? <article className="rounded-lg border border-emerald-500/35 bg-emerald-500/[0.03] p-3 shadow-sm"><div className="flex items-start justify-between gap-2.5"><div className="min-w-0 space-y-2"><h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{production.version}</h4><ReleaseMetadata release={production} /><p className="max-w-md text-[11px] leading-4 text-muted">Immutable active runtime release.</p><div className="flex flex-wrap gap-2 pt-1"><Button size="sm" variant="outline" className="h-7 min-w-[96px] px-2 text-[11px]" onClick={() => openReleaseSnapshot(production, 'Production release')} loading={loadingReleaseId === production.id}><Eye className="mr-1 h-3 w-3" />View snapshot</Button>{rollbackTarget && <Button size="sm" variant="outline" className="h-7 min-w-[118px] border-emerald-500/60 px-2 text-[11px] text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300" onClick={() => setConfirmAction({ type: 'rollback', release: rollbackTarget })} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback production</Button>}</div></div><div className="flex shrink-0 items-start gap-2"><Badge variant="success" className="px-1.5 py-0 text-[10px]">Production</Badge><ReleaseActionsMenu actions={productionActions(production)} /></div></div></article> : <EmptyStageCard tone="production" message="No Production release is active yet. Publish Staging to create the first release." />}
+        {production ? <article className={`rounded-lg border p-3 shadow-sm ${ENVIRONMENT_APPEARANCE.production.card}`}><div className="flex items-start justify-between gap-2.5"><div className="min-w-0 space-y-2"><h4 className="truncate font-mono text-xs font-medium tracking-tight text-white">{production.version}</h4><ReleaseMetadata release={production} /><p className="max-w-md text-[11px] leading-4 text-muted">Immutable active runtime release.</p><div className="flex flex-wrap gap-2 pt-1"><Button size="sm" variant="outline" className="h-7 min-w-[96px] px-2 text-[11px]" onClick={() => openReleaseSnapshot(production, 'Production release')} loading={loadingReleaseId === production.id}><Eye className="mr-1 h-3 w-3" />View snapshot</Button>{rollbackTarget && <Button size="sm" variant="outline" className="h-7 min-w-[118px] border-emerald-500/60 px-2 text-[11px] text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300" onClick={() => setConfirmAction({ type: 'rollback', release: rollbackTarget })} loading={rollbackRelease.isPending}><Undo2 className="mr-1 h-3 w-3" />Rollback production</Button>}</div></div><div className="flex shrink-0 items-start gap-2"><EnvironmentBadge environment="production" compact /><ReleaseActionsMenu actions={productionActions(production)} /></div></div></article> : <EmptyStageCard tone="production" message="No Production release is active yet. Publish Staging to create the first release." />}
       </section>
 
       <section className="space-y-3"><h3 className="text-[11px] font-medium text-muted">History</h3>{history.length === 0 ? <EmptyStageCard message="No archived releases yet." /> : <div className="space-y-1">{history.map((release) => <div key={release.id} className="relative flex min-h-[60px] items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5"><div className="min-w-0 space-y-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="truncate font-mono text-xs font-medium text-white">{release.version}</p><Badge variant={statusVariant[release.status]} className="px-1.5 py-0 text-[10px]">{statusLabel[release.status]}</Badge></div><ReleaseMetadata release={release} /></div><ReleaseActionsMenu actions={historyActions(release)} /></div>)}</div>}</section>
