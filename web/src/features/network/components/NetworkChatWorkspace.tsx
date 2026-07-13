@@ -26,7 +26,7 @@ export function NetworkChatWorkspace({ networkName, target, bindings, sessionSig
   const [text, setText] = useState('')
   const [turns, setTurns] = useState<NetworkTurn[]>([{ id: 'initial-network-turn', user: 'I need help with an invoice that was charged twice.', answer: seed.answer, parsedOutput: seed.parsedOutput, provider: seed.provider, model: seed.model, usage: seed.usage, execution: seed.execution }])
   const [running, setRunning] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const signature = currentSignature(target, bindings)
   const changed = signature !== sessionSignature
