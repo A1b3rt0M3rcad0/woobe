@@ -1,11 +1,31 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, Bot, MessageSquare, RotateCcw, Send, Square, User } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowRight,
+  Bot,
+  Check,
+  History,
+  Loader2,
+  MessageSquare,
+  RotateCcw,
+  Send,
+  Square,
+  User,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
-import { useAskStream } from '@/features/playground/hooks'
-import type { AskResponse, ChatMessage as ChatMessageType, SourceInfo, ToolCallInfo, UsageInfo } from '@/features/playground/types'
+import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
+import type {
+  AskResponse,
+  ChatMessage as ChatMessageType,
+  Message as PersistedMessage,
+  SessionListItem,
+  SourceInfo,
+  ToolCallInfo,
+  UsageInfo,
+} from '@/features/playground/types'
 import { formatLatency, formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +55,44 @@ function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolC
   if (index === -1) return [...items, next]
   items[index] = { ...items[index], ...next, input: next.input ?? items[index].input, output: next.output ?? items[index].output }
   return items
+}
+
+function formatSessionDate(value: string | null) {
+  if (!value) return 'No messages yet'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown date'
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function persistedMessageToChat(message: PersistedMessage): ChatMessageType {
+  const data = message.data ?? {}
+  return {
+    role: message.role === 'user' ? 'user' : 'assistant',
+    content: message.content,
+    usage: message.input_tokens != null
+      ? {
+          input_tokens: message.input_tokens,
+          output_tokens: message.output_tokens ?? null,
+          cost_usd: message.cost_usd ?? null,
+        }
+      : null,
+    tool_calls: (data.tool_calls ?? null) as ChatMessageType['tool_calls'],
+    sources: (data.sources ?? null) as ChatMessageType['sources'],
+    model: typeof data.model === 'string' ? data.model : null,
+    provider: typeof data.provider === 'string' ? data.provider : null,
+    latency_ms: typeof data.latency_ms === 'number' ? data.latency_ms : null,
+    trace_id: typeof data.trace_id === 'string' ? data.trace_id : null,
+    parsed_output: data.parsed_output && typeof data.parsed_output === 'object'
+      ? data.parsed_output as Record<string, unknown>
+      : null,
+    output_parse_error: typeof data.output_parse_error === 'string' ? data.output_parse_error : null,
+    created_at: message.created_at,
+  }
 }
 
 function ChatDetails({ message }: { message: ChatMessageType }) {
@@ -94,6 +152,41 @@ function MessageRow({ message, agentName, streaming }: { message: ChatMessageTyp
   )
 }
 
+function SessionItem({
+  session,
+  current,
+  onSelect,
+}: {
+  session: SessionListItem
+  current: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'w-full rounded-lg border px-2.5 py-2 text-left transition-colors',
+        current
+          ? 'border-primary/35 bg-primary/10'
+          : 'border-border/75 bg-background/45 hover:border-primary/25 hover:bg-background/70',
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className={cn('truncate text-[9px]', current ? 'font-medium text-white' : 'text-slate-200')}>
+            {formatSessionDate(session.last_message_at || session.created_at)}
+          </p>
+          <p className="mt-0.5 text-[8px] text-muted">
+            {session.message_count} {session.message_count === 1 ? 'message' : 'messages'} · {session.id.slice(0, 8)}…
+          </p>
+        </div>
+        {current && <Check className="mt-0.5 h-3 w-3 shrink-0 text-primary-light" />}
+      </div>
+    </button>
+  )
+}
+
 function nearBottom(element: HTMLDivElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 48
 }
@@ -107,7 +200,11 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionSnapshot, setSessionSnapshot] = useState<Record<string, unknown> | null>(null)
   const [pinnedPreviousSnapshot, setPinnedPreviousSnapshot] = useState(false)
+  const [sessionsOpen, setSessionsOpen] = useState(false)
+  const [sessionToLoad, setSessionToLoad] = useState<string | null>(null)
+  const [historicalSessionPending, setHistoricalSessionPending] = useState(false)
   const messagesRef = useRef<HTMLDivElement>(null)
+  const sessionMenuRef = useRef<HTMLDivElement>(null)
   const shouldStickRef = useRef(true)
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
@@ -122,6 +219,16 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const effectiveSnapshot = pinnedPreviousSnapshot && sessionSnapshot ? sessionSnapshot : currentSnapshot
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
+  const sessionsQuery = useAgentSessions(isStateless ? undefined : agent.id, isStateless ? undefined : projectId)
+  const sessions = useMemo(() => {
+    const byId = new Map<string, SessionListItem>()
+    for (const page of sessionsQuery.data?.pages ?? []) {
+      for (const item of page.items) if (!byId.has(item.id)) byId.set(item.id, item)
+    }
+    return Array.from(byId.values())
+  }, [sessionsQuery.data])
+  const historyQuery = useSessionMessages(sessionToLoad ?? undefined)
+
   const updateLastAssistant = useCallback((updater: (message: ChatMessageType) => ChatMessageType) => {
     setMessages((previous) => {
       const next = [...previous]
@@ -132,8 +239,32 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   }, [])
 
   useEffect(() => {
-    if (isStateless && sessionId) setSessionId(null)
-  }, [isStateless, sessionId])
+    if (!sessionsOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!sessionMenuRef.current?.contains(event.target as Node)) setSessionsOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [sessionsOpen])
+
+  useEffect(() => {
+    if (!sessionToLoad || historyQuery.isFetching || !historyQuery.data) return
+    setMessages(historyQuery.data.map(persistedMessageToChat))
+    setSessionId(sessionToLoad)
+    setSessionSnapshot(null)
+    setPinnedPreviousSnapshot(false)
+    setHistoricalSessionPending(true)
+    setSessionToLoad(null)
+    shouldStickRef.current = true
+  }, [historyQuery.data, historyQuery.isFetching, sessionToLoad])
+
+  useEffect(() => {
+    if (!isStateless) return
+    setSessionsOpen(false)
+    setSessionToLoad(null)
+    setSessionId(null)
+    setHistoricalSessionPending(false)
+  }, [isStateless])
 
   useLayoutEffect(() => {
     const element = messagesRef.current
@@ -145,8 +276,11 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     cancel()
     setMessages([])
     setSessionId(null)
+    setSessionToLoad(null)
     setSessionSnapshot(currentSnapshot)
     setPinnedPreviousSnapshot(false)
+    setHistoricalSessionPending(false)
+    setSessionsOpen(false)
     setInput('')
     accumulatedRef.current = ''
     metadataRef.current = {}
@@ -154,9 +288,29 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     toast.success('New isolated Agent chat started')
   }, [cancel, currentSignature])
 
+  const selectSession = (nextSessionId: string) => {
+    if (isSending || isStateless || nextSessionId === sessionId) {
+      setSessionsOpen(false)
+      return
+    }
+    cancel()
+    setSessionToLoad(nextSessionId)
+    setMessages([])
+    setHistoricalSessionPending(false)
+    setSessionsOpen(false)
+    accumulatedRef.current = ''
+    metadataRef.current = {}
+  }
+
+  const continueHistoricalSession = () => {
+    setHistoricalSessionPending(false)
+    setSessionSnapshot(currentSnapshot)
+    setPinnedPreviousSnapshot(false)
+  }
+
   const send = async (rawContent?: string) => {
     const content = (rawContent ?? input).trim()
-    if (!content || isSending || isInactive) return
+    if (!content || isSending || isInactive || historicalSessionPending) return
     if (configurationChanged && !pinnedPreviousSnapshot) {
       toast.warning('Start a new Chat or keep the previous Draft snapshot before sending')
       return
@@ -229,6 +383,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
             }
             return next
           })
+          if (!isStateless) void sessionsQuery.refetch()
           if (finalContent.trim() && !response.output_parse_error) onChatCompleted()
         },
         onError: (error) => {
@@ -249,19 +404,70 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     event.target.style.height = `${Math.min(event.target.scrollHeight, 96)}px`
   }
 
+  const restoringSession = Boolean(sessionToLoad)
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-2.5 py-2">
+      <div ref={sessionMenuRef} className="relative flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-2.5 py-2">
         <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary-light" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2"><p className="text-[10px] font-semibold text-white">Isolated Chat</p><span className={cn('rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase', isDirty ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-blue-500/30 bg-blue-500/10 text-blue-300')}>{isDirty ? 'Draft preview' : 'Current Draft'}</span></div>
-          <p className="mt-0.5 truncate text-[8px] text-muted">Only {agent.name} runs. Network composition remains unchanged.</p>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <p className="text-[10px] font-semibold text-white">Chat</p>
+          <span className={cn('rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase', isDirty ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-blue-500/30 bg-blue-500/10 text-blue-300')}>{isDirty ? 'Draft preview' : 'Current Draft'}</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setSessionsOpen((open) => !open)}
+          disabled={isStateless}
+          title={isStateless ? 'Stateless Agents do not persist sessions' : 'Open previous sessions'}
+          className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <History className="h-3 w-3" />
+          Sessions
+        </button>
         <button type="button" onClick={startNewChat} className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white"><RotateCcw className="h-3 w-3" />New</button>
+
+        {sessionsOpen && (
+          <div className="absolute right-2 top-[calc(100%+6px)] z-50 flex max-h-[min(420px,65vh)] w-72 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/50">
+            <div className="flex shrink-0 items-center border-b border-border/80 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold text-white">Sessions</p>
+                <p className="mt-0.5 text-[8px] text-muted">Previous conversations for this Agent</p>
+              </div>
+              {sessionsQuery.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
+            </div>
+            <div className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
+              {sessionsQuery.isLoading && sessions.length === 0 ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-[9px] text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading sessions…</div>
+              ) : sessions.length === 0 ? (
+                <div className="py-8 text-center"><History className="mx-auto h-5 w-5 text-muted" /><p className="mt-2 text-[9px] text-white">No previous sessions</p><p className="mt-1 text-[8px] text-muted">Start a Chat to create the first session.</p></div>
+              ) : sessions.map((session) => (
+                <SessionItem
+                  key={session.id}
+                  session={session}
+                  current={session.id === sessionId}
+                  onSelect={() => selectSession(session.id)}
+                />
+              ))}
+              {sessionsQuery.hasNextPage && (
+                <button
+                  type="button"
+                  onClick={() => void sessionsQuery.fetchNextPage()}
+                  disabled={sessionsQuery.isFetchingNextPage}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/75 bg-background/35 px-2 py-2 text-[8px] text-muted hover:text-white disabled:opacity-50"
+                >
+                  {sessionsQuery.isFetchingNextPage && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Load more
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div ref={messagesRef} onScroll={(event) => { shouldStickRef.current = nearBottom(event.currentTarget) }} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
-        {messages.length === 0 ? (
+        {restoringSession ? (
+          <div className="flex min-h-full items-center justify-center gap-2 text-[9px] text-muted"><Loader2 className="h-4 w-4 animate-spin" />Loading session…</div>
+        ) : messages.length === 0 ? (
           <div className="flex min-h-full flex-col items-center justify-center px-3 py-4 text-center">
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Bot className="h-4 w-4 text-primary-light" /></div>
             <h2 className="text-[12px] font-semibold text-white">Chat with {agent.name}</h2>
@@ -274,12 +480,21 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((message, index) => <MessageRow key={index} message={message} agentName={agent.name} streaming={message.role === 'assistant' && isSending && index === messages.length - 1} />)}
+            {messages.map((message, index) => <MessageRow key={`${message.created_at || 'live'}-${index}`} message={message} agentName={agent.name} streaming={message.role === 'assistant' && isSending && index === messages.length - 1} />)}
           </div>
         )}
       </div>
 
-      {configurationChanged && !pinnedPreviousSnapshot && (
+      {historicalSessionPending && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-blue-500/20 bg-blue-500/[0.055] px-2.5 py-2 text-[8px] text-blue-100">
+          <History className="h-3.5 w-3.5 shrink-0 text-blue-300" />
+          <span className="min-w-0 flex-1">Historical session loaded. Continuing uses the current Agent Draft.</span>
+          <button type="button" onClick={startNewChat} className="shrink-0 font-medium text-muted hover:text-white">Start new</button>
+          <button type="button" onClick={continueHistoricalSession} className="shrink-0 rounded bg-primary px-2 py-1 font-medium text-white">Continue</button>
+        </div>
+      )}
+
+      {configurationChanged && !pinnedPreviousSnapshot && !historicalSessionPending && (
         <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/20 bg-amber-500/[0.055] px-2.5 py-2 text-[8px] text-amber-100">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
           <span className="min-w-0 flex-1 truncate">Draft changed during this Chat.</span>
@@ -302,16 +517,15 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
               }
             }}
             rows={1}
-            disabled={isInactive || isSending}
-            placeholder={isInactive ? 'Agent inactive' : 'Message this Agent…'}
+            disabled={isInactive || isSending || historicalSessionPending}
+            placeholder={isInactive ? 'Agent inactive' : historicalSessionPending ? 'Choose Continue or Start new' : 'Message this Agent…'}
             className="max-h-24 min-h-[38px] w-full resize-none bg-transparent px-3 py-2 text-[10px] leading-4 text-white outline-none placeholder:text-muted"
           />
-          <div className="flex items-center justify-between border-t border-border/60 px-2 py-1.5">
-            <span className="text-[8px] text-muted">{isStateless ? 'Stateless' : sessionId ? `Session ${sessionId.slice(0, 8)}…` : 'Stateful · new session'}</span>
+          <div className="flex items-center justify-end border-t border-border/60 px-2 py-1.5">
             {isSending ? (
               <button type="button" onClick={cancel} className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/30 bg-red-500/10 text-red-200" aria-label="Stop"><Square className="h-3 w-3 fill-current" /></button>
             ) : (
-              <button type="button" onClick={() => void send()} disabled={!input.trim() || isInactive} className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/35 bg-primary text-white disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50" aria-label="Send"><Send className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => void send()} disabled={!input.trim() || isInactive || historicalSessionPending} className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/35 bg-primary text-white disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50" aria-label="Send"><Send className="h-3.5 w-3.5" /></button>
             )}
           </div>
         </div>
