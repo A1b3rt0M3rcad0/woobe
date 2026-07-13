@@ -32,7 +32,7 @@ function providerLabel(value?: string | null) {
   return value === 'openai' ? 'OpenAI' : value === 'openrouter' ? 'OpenRouter' : value === 'custom' ? 'OpenAI Compatible' : value || 'Unknown'
 }
 
-function credentialMetadata(provider: string, baseUrl: string) {
+function credentialMetadata(provider: string, baseUrl: string): Record<string, string> {
   if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: 'https://openrouter.ai/api/v1', model_discovery_strategy: 'openrouter_models' }
   if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
   return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
