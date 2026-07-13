@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, CheckCircle2, ChevronDown, ChevronRight, CircleDot, GitBranch, Loader2, MessageSquare, Workflow, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, ChevronDown, ChevronRight, CircleDot, Loader2, Workflow, XCircle } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { MarkdownMessage } from '@/features/playground/components/MarkdownMessage'
@@ -12,6 +12,12 @@ import { cn } from '@/lib/utils'
 
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import { invocationCount, invocationPath, sourceCount, toolCount, type AgentInvocationStatus, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+
+const sourceTone: Record<NetworkAgentInvocation['source'], string> = {
+  draft: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+  staging: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
+  release: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+}
 
 function RichMessageContent({
   content,
