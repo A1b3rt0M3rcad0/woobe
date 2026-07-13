@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { CopyButton } from '@/components/common/CopyButton'
+import { EnvironmentBadge } from '@/components/common/EnvironmentBadge'
 import { Badge } from '@/components/ui/Badge'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { API_BASE_URL } from '@/lib/api/client'
+import { getEnvironmentAppearance } from '@/lib/environment-appearance'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { ApiReferenceRuntimeKeySection } from './ApiReferenceRuntimeKeySection'
 import {
@@ -152,14 +154,18 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
                     {(['production', 'staging'] as RuntimeSlot[]).map((slot) => {
                       const release = slot === 'production' ? productionRelease : stagingRelease
                       const active = activeSlot === slot
+                      const appearance = getEnvironmentAppearance(slot)
                       return (
                         <button
                           key={slot}
                           type="button"
                           onClick={() => setActiveSlot(slot)}
-                          className={`rounded-xl border p-3 text-left transition-colors ${active ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
+                          className={`rounded-xl border p-3 text-left transition-colors ${active && appearance ? `${appearance.border} ${appearance.background}` : 'border-border/80 bg-background/45 hover:border-primary/25'}`}
                         >
-                          <p className="text-xs font-semibold text-white">{slotLabels[slot]}</p>
+                          <p className={`flex items-center gap-1.5 text-xs font-semibold ${active && appearance ? appearance.text : 'text-white'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${appearance?.dot ?? 'bg-slate-400'}`} />
+                            {slotLabels[slot]}
+                          </p>
                           <p className="mt-1 text-[10px] text-muted">{release ? release.version : 'Not deployed'}</p>
                         </button>
                       )
@@ -173,9 +179,11 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Active Release</p>
                       <p className="mt-1 text-sm font-medium text-white">{slotLabels[activeSlot]}</p>
                     </div>
-                    <Badge variant={reference.available ? (activeSlot === 'production' ? 'success' : 'warning') : 'secondary'}>
-                      {reference.release?.version ?? 'not deployed'}
-                    </Badge>
+                    {reference.available ? (
+                      <EnvironmentBadge environment={activeSlot} label={reference.release?.version} compact />
+                    ) : (
+                      <Badge variant="secondary">not deployed</Badge>
+                    )}
                   </div>
                   {reference.release ? (
                     <>
