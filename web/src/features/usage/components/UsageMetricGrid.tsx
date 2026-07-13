@@ -1,5 +1,5 @@
-import type { ComponentType, SVGProps } from 'react'
-import { Activity, BadgeDollarSign, Braces, CircleGauge, Coins, Workflow } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Activity, BadgeDollarSign, Braces, CircleGauge, Coins, Workflow, type LucideIcon } from 'lucide-react'
 
 import type { ProjectUsageSummary } from '../types'
 import { formatKnownMoney, formatMoney } from '@/lib/formatters/money'
@@ -21,8 +21,8 @@ function Change({ value }: { value: number | null }) {
 interface MetricCardProps {
   label: string
   value: string
-  description: React.ReactNode
-  icon: ComponentType<SVGProps<SVGSVGElement>>
+  description: ReactNode
+  icon: LucideIcon
   warning?: boolean
 }
 
