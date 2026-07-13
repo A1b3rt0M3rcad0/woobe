@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart3, RefreshCw } from 'lucide-react'
+import { BarChart3, GitCompare, RefreshCw, SlidersHorizontal, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { ErrorState } from '@/components/common/ErrorState'
@@ -15,9 +15,45 @@ import { Select } from '@/components/ui/Select'
 import { resolveUsageWindow, useProjectUsage } from '@/features/usage/hooks'
 import { UsageMetricGrid } from '@/features/usage/components/UsageMetricGrid'
 import { UsageOperations } from '@/features/usage/components/UsageOperations'
+import { UsageStory } from '@/features/usage/components/UsageStory'
 import { UsageTrendChart, type UsageTrendMode } from '@/features/usage/components/UsageTrendChart'
-import type { UsageEnvironment, UsageGroupBy, UsageRange } from '@/features/usage/types'
-import { formatKnownMoney } from '@/lib/formatters/money'
+import type {
+  ProjectUsageBreakdownRow,
+  UsageEnvironment,
+  UsageGroupBy,
+  UsageRange,
+} from '@/features/usage/types'
+import { cn } from '@/lib/utils'
+
+type UsageLens = 'agent' | 'model' | 'provider'
+type UsageComparison = 'none' | 'environment' | 'release'
+
+interface ScopeSelection {
+  id: string
+  label: string
+}
+
+const rangeLabels: Record<UsageRange, string> = {
+  '24h': 'Last 24 hours',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+}
+
+const environmentLabels: Record<UsageEnvironment, string> = {
+  all: 'All environments',
+  draft: 'Draft',
+  staging: 'Staging',
+  production: 'Production',
+}
+
+const groupLabels: Record<UsageGroupBy, string> = {
+  agent: 'Agent',
+  model: 'Model',
+  provider: 'Provider',
+  environment: 'Environment',
+  release: 'Release',
+}
 
 function formatDateTime(value: string | null) {
   if (!value) return 'No completed runtime data'
@@ -31,23 +67,72 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value))
 }
 
-function formatBucket(value: string, bucket: 'hour' | 'day') {
-  return new Intl.DateTimeFormat('en-US', bucket === 'hour'
-    ? { month: 'short', day: 'numeric', hour: '2-digit' }
-    : { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
-}
-
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value)
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function ScopeChip({
+  label,
+  value,
+  onRemove,
+}: {
+  label: string
+  value: string
+  onRemove: () => void
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1.5 text-[11px] text-primary-light">
+      <span className="text-muted">{label}</span>
+      <span className="max-w-[220px] truncate font-medium text-white">{value}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded p-0.5 text-muted transition-colors hover:bg-white/10 hover:text-white"
+        aria-label={`Remove ${label} filter`}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  )
 }
 
 export default function UsagePage() {
   const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
   const [range, setRange] = useState<UsageRange>('30d')
   const [environment, setEnvironment] = useState<UsageEnvironment>('all')
-  const [groupBy, setGroupBy] = useState<UsageGroupBy>('agent')
+  const [lens, setLens] = useState<UsageLens>('agent')
+  const [comparison, setComparison] = useState<UsageComparison>('none')
   const [trendMode, setTrendMode] = useState<UsageTrendMode>('cost')
+  const [agentScope, setAgentScope] = useState<ScopeSelection | null>(null)
+  const [modelScope, setModelScope] = useState<ScopeSelection | null>(null)
+  const [releaseScope, setReleaseScope] = useState<ScopeSelection | null>(null)
   const [anchor, setAnchor] = useState(() => new Date())
+
+  const groupBy: UsageGroupBy = comparison === 'environment'
+    ? 'environment'
+    : comparison === 'release'
+      ? 'release'
+      : lens
+
+  const scopeSummary = [
+    rangeLabels[range],
+    environmentLabels[environment],
+    agentScope?.label ?? 'All agents',
+    modelScope?.label,
+    releaseScope ? `Release ${releaseScope.label}` : null,
+  ].filter(Boolean).join(' · ')
+
+  const analysisSummary = comparison === 'environment'
+    ? 'Comparing environments'
+    : comparison === 'release'
+      ? `Comparing releases for ${agentScope?.label ?? 'the selected agent'}`
+      : `Spend analyzed by ${groupLabels[groupBy].toLowerCase()}`
+
+  const contextLabel = `${scopeSummary} · ${analysisSummary}.`
 
   const params = useMemo(() => {
     if (!projectId) return undefined
@@ -57,9 +142,21 @@ export default function UsagePage() {
       ...window,
       environment,
       group_by: groupBy,
+      agent_id: agentScope?.id,
+      provider_model_id: modelScope?.id,
+      release_id: releaseScope?.id,
       top_limit: 10,
     }
-  }, [anchor, environment, groupBy, projectId, range])
+  }, [
+    agentScope?.id,
+    anchor,
+    environment,
+    groupBy,
+    modelScope?.id,
+    projectId,
+    range,
+    releaseScope?.id,
+  ])
 
   const usageQuery = useProjectUsage(params)
   const usage = usageQuery.data
@@ -70,10 +167,74 @@ export default function UsagePage() {
     void usageQuery.refetch()
   }
 
+  const selectEnvironment = (value: UsageEnvironment) => {
+    setEnvironment(value)
+    if (value !== 'all' && comparison === 'environment') setComparison('none')
+    setAnchor(new Date())
+  }
+
+  const clearAgentScope = () => {
+    setAgentScope(null)
+    setReleaseScope(null)
+    if (comparison === 'release') setComparison('none')
+  }
+
+  const clearAllScopes = () => {
+    setEnvironment('all')
+    setAgentScope(null)
+    setModelScope(null)
+    setReleaseScope(null)
+    setComparison('none')
+    setLens('agent')
+    setAnchor(new Date())
+  }
+
+  const handleDriverSelect = (row: ProjectUsageBreakdownRow) => {
+    if (groupBy === 'agent' && isUuid(row.key)) {
+      setAgentScope({ id: row.key, label: row.label })
+      setModelScope(null)
+      setReleaseScope(null)
+      setComparison('none')
+      setLens('model')
+      return
+    }
+
+    if (groupBy === 'model' && isUuid(row.key)) {
+      setModelScope({ id: row.key, label: row.label })
+      setReleaseScope(null)
+      if (agentScope) {
+        setComparison('release')
+      } else {
+        setComparison('none')
+        setLens('agent')
+      }
+      return
+    }
+
+    if (groupBy === 'environment' && row.key in environmentLabels) {
+      selectEnvironment(row.key as UsageEnvironment)
+      setComparison('none')
+      return
+    }
+
+    if (groupBy === 'release' && isUuid(row.key)) {
+      setReleaseScope({ id: row.key, label: row.label })
+      setComparison('none')
+      setLens(modelScope ? 'provider' : 'model')
+    }
+  }
+
+  const activeScopeCount = [
+    environment !== 'all',
+    Boolean(agentScope),
+    Boolean(modelScope),
+    Boolean(releaseScope),
+  ].filter(Boolean).length
+
   return (
     <ResourcePage
       title="Usage"
-      description="Understand runtime consumption, estimated provider spend and cost drivers for this Project."
+      description="Understand what changed, why it changed and where to investigate runtime cost and consumption."
       className="max-w-[1600px]"
       action={(
         <button
@@ -87,53 +248,135 @@ export default function UsagePage() {
         </button>
       )}
     >
-      <div className="-mt-2 text-xs text-muted">
-        Data through <span className="text-white">{formatDateTime(usage?.data_through ?? null)}</span>
+      <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+        <span>Data through <span className="text-white">{formatDateTime(usage?.data_through ?? null)}</span></span>
         {usage?.data_quality.aggregation_lag_seconds !== null && usage?.data_quality.aggregation_lag_seconds !== undefined
-          ? ` · ${usage.data_quality.aggregation_lag_seconds}s freshness`
-          : ''}
+          ? <span>· {usage.data_quality.aggregation_lag_seconds}s freshness</span>
+          : null}
+        <span>·</span>
+        <span className="text-primary-light">{contextLabel}</span>
       </div>
 
       <ResourceToolbar>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <ResourceTabs
-            value={range}
-            onChange={(value) => { setRange(value); setAnchor(new Date()) }}
-            label="Usage period"
-            tabs={[
-              { value: '24h', label: 'Last 24 hours' },
-              { value: '7d', label: 'Last 7 days' },
-              { value: '30d', label: 'Last 30 days' },
-              { value: '90d', label: 'Last 90 days' },
-            ]}
-          />
-          <ResourceTabs
-            value={environment}
-            onChange={(value) => { setEnvironment(value); setAnchor(new Date()) }}
-            label="Runtime environment"
-            tabs={[
-              { value: 'all', label: 'All environments' },
-              { value: 'draft', label: 'Draft' },
-              { value: 'staging', label: 'Staging' },
-              { value: 'production', label: 'Production' },
-            ]}
-          />
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <label htmlFor="usage-group-by" className="text-xs font-medium text-muted">Group cost drivers by</label>
-          <Select
-            id="usage-group-by"
-            value={groupBy}
-            onChange={(event) => setGroupBy(event.target.value as UsageGroupBy)}
-            className="min-w-[180px] bg-background/35"
-            options={[
-              { value: 'agent', label: 'Agent' },
-              { value: 'model', label: 'Model' },
-              { value: 'provider', label: 'Provider' },
-              { value: 'environment', label: 'Environment' },
-              { value: 'release', label: 'Release' },
-            ]}
-          />
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <ResourceTabs
+              value={range}
+              onChange={(value) => { setRange(value); setAnchor(new Date()) }}
+              label="Usage period"
+              tabs={[
+                { value: '24h', label: 'Last 24 hours' },
+                { value: '7d', label: 'Last 7 days' },
+                { value: '30d', label: 'Last 30 days' },
+                { value: '90d', label: 'Last 90 days' },
+              ]}
+            />
+            <ResourceTabs
+              value={environment}
+              onChange={selectEnvironment}
+              label="Runtime environment"
+              tabs={[
+                { value: 'all', label: 'All environments' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'staging', label: 'Staging' },
+                { value: 'production', label: 'Production' },
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
+                Analyze by
+              </div>
+              <Select
+                id="usage-analyze-by"
+                value={lens}
+                onChange={(event) => {
+                  setLens(event.target.value as UsageLens)
+                  setComparison('none')
+                }}
+                className="min-w-[180px] bg-background/35"
+                options={[
+                  { value: 'agent', label: 'Agent' },
+                  { value: 'model', label: 'Model' },
+                  { value: 'provider', label: 'Provider' },
+                ]}
+              />
+              <p className="text-[10px] leading-4 text-muted">
+                Environment is a scope filter. Release comparison becomes available after selecting an agent.
+              </p>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted">
+                <GitCompare className="h-3.5 w-3.5 text-primary-light" />
+                Compare
+              </div>
+              <div className="inline-flex flex-wrap rounded-lg border border-border/80 bg-background/35 p-1">
+                <button
+                  type="button"
+                  onClick={() => setComparison('none')}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                    comparison === 'none' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
+                  )}
+                >
+                  None
+                </button>
+                {environment === 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setComparison('environment')}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                      comparison === 'environment' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
+                    )}
+                  >
+                    Environments
+                  </button>
+                )}
+                {agentScope && !releaseScope && (
+                  <button
+                    type="button"
+                    onClick={() => setComparison('release')}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                      comparison === 'release' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
+                    )}
+                  >
+                    Releases
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {activeScopeCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Active scope</span>
+              {environment !== 'all' && (
+                <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} />
+              )}
+              {agentScope && <ScopeChip label="Agent" value={agentScope.label} onRemove={clearAgentScope} />}
+              {modelScope && <ScopeChip label="Model" value={modelScope.label} onRemove={() => setModelScope(null)} />}
+              {releaseScope && (
+                <ScopeChip
+                  label="Release"
+                  value={releaseScope.label}
+                  onRemove={() => setReleaseScope(null)}
+                />
+              )}
+              <button
+                type="button"
+                onClick={clearAllScopes}
+                className="ml-auto text-[10px] font-medium text-muted transition-colors hover:text-white"
+              >
+                Clear scope
+              </button>
+            </div>
+          )}
         </div>
       </ResourceToolbar>
 
@@ -148,21 +391,34 @@ export default function UsagePage() {
       ) : !usage || !hasUsage ? (
         <ResourceEmptyState
           icon={<BarChart3 className="h-4 w-4" />}
-          title="No runtime usage in this period"
-          description="Usage appears after an Agent reaches a terminal runtime state. Select a wider period or another environment if executions already exist."
+          title="No runtime usage in this scope"
+          description="Usage appears after an Agent reaches a terminal runtime state. Widen the period or remove a scope filter if executions already exist."
         />
       ) : (
         <div className="space-y-4">
+          <UsageStory
+            summary={usage.summary}
+            breakdown={usage.breakdown}
+            groupBy={usage.group_by}
+            contextLabel={contextLabel}
+          />
+
           <section>
             <ResourceSectionHeader
-              title="Usage overview"
-              description="Consumption and estimated provider spend for the exact selected window."
+              title="Operational scorecard"
+              description="Primary outcomes first; supporting consumption metrics remain visible without competing for equal weight."
               count={`${formatNumber(usage.summary.runtime_requests)} runtime requests`}
             />
             <UsageMetricGrid summary={usage.summary} />
           </section>
 
-          <UsageTrendChart points={usage.timeseries} mode={trendMode} onModeChange={setTrendMode} />
+          <UsageTrendChart
+            points={usage.timeseries}
+            mode={trendMode}
+            bucket={usage.bucket}
+            contextLabel={contextLabel}
+            onModeChange={setTrendMode}
+          />
 
           <UsageOperations
             breakdown={usage.breakdown}
@@ -170,46 +426,11 @@ export default function UsagePage() {
             quality={usage.data_quality}
             executions={usage.top_executions}
             groupBy={usage.group_by}
+            contextLabel={contextLabel}
             organizationId={organizationId ?? ''}
             projectId={projectId ?? ''}
+            onSelectDriver={handleDriverSelect}
           />
-
-          <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold text-white">Period breakdown</h2>
-              <p className="mt-1 text-xs text-muted">Requests, LLM calls, tokens and known spend per {usage.bucket} bucket.</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] text-left text-xs">
-                <thead className="border-b border-border/80 bg-background/20 text-[10px] uppercase tracking-wider text-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Period</th>
-                    <th className="px-3 py-3 text-right font-medium">Requests</th>
-                    <th className="px-3 py-3 text-right font-medium">Success</th>
-                    <th className="px-3 py-3 text-right font-medium">Failed</th>
-                    <th className="px-3 py-3 text-right font-medium">LLM calls</th>
-                    <th className="px-3 py-3 text-right font-medium">Input</th>
-                    <th className="px-3 py-3 text-right font-medium">Output</th>
-                    <th className="px-4 py-3 text-right font-medium">Known spend</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/70">
-                  {[...usage.timeseries].reverse().map((point) => (
-                    <tr key={point.bucket_start} className="transition-colors hover:bg-background/25">
-                      <td className="px-4 py-3 font-medium text-white">{formatBucket(point.bucket_start, usage.bucket)}</td>
-                      <td className="px-3 py-3 text-right text-white">{formatNumber(point.runtime_requests)}</td>
-                      <td className="px-3 py-3 text-right text-emerald-300">{formatNumber(point.successful_requests)}</td>
-                      <td className="px-3 py-3 text-right text-amber-300">{formatNumber(point.failed_requests)}</td>
-                      <td className="px-3 py-3 text-right text-white">{formatNumber(point.llm_calls)}</td>
-                      <td className="px-3 py-3 text-right text-white">{formatNumber(point.input_tokens)}</td>
-                      <td className="px-3 py-3 text-right text-white">{formatNumber(point.output_tokens)}</td>
-                      <td className={point.partial_cost_requests || point.unpriced_requests ? 'px-4 py-3 text-right text-amber-300' : 'px-4 py-3 text-right text-white'}>{formatKnownMoney(point.known_cost_usd)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </div>
       )}
     </ResourcePage>
