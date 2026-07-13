@@ -7,10 +7,11 @@ export function DashboardLayout() {
   const { pathname } = useLocation()
   const isWorkspaceSelection = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname)
   const isSetupFlow = /\/setup\/?$/.test(pathname)
-  const hideSidebar = pathname.includes('/playground') || isSetupFlow
+  const isNetworkWorkspace = /\/projects\/[^/]+\/network\/?$/.test(pathname)
+  const hideSidebar = pathname.includes('/playground') || isSetupFlow || isNetworkWorkspace
   const isProjectOverview = /^\/organizations\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
-  const mainClassName = isSetupFlow
-    ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden lg:overflow-hidden'
+  const mainClassName = isSetupFlow || isNetworkWorkspace
+    ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
     : isProjectOverview
       ? 'project-overview-main scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-5 2xl:p-6'
       : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
