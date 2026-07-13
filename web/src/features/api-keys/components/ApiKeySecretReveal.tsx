@@ -54,7 +54,13 @@ export function ApiKeySecretReveal({ apiKey, agentName }: ApiKeySecretRevealProp
             </div>
             <div className="rounded-xl border border-border/80 bg-background/50 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Environment</p>
-              <div className="mt-1.5"><EnvironmentBadge environment={apiKey.environment} compact /></div>
+              <div className="mt-1.5">
+                {apiKey.environment ? (
+                  <EnvironmentBadge environment={apiKey.environment} compact />
+                ) : (
+                  <span className="text-sm text-muted">Not specified</span>
+                )}
+              </div>
             </div>
             <div className="rounded-xl border border-border/80 bg-background/50 p-3 sm:col-span-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Interfaces</p>
