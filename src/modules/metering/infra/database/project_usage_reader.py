@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -172,7 +172,7 @@ class SQLAlchemyProjectUsageReader:
             "provider_model_id": query.provider_model_id,
             "release_id": query.release_id,
             "bucket": query.bucket,
-            "step": "1 hour" if query.bucket == "hour" else "1 day",
+            "step": timedelta(hours=1) if query.bucket == "hour" else timedelta(days=1),
             "top_limit": query.top_limit,
         }
         raw_summary = await self._summary(params)
