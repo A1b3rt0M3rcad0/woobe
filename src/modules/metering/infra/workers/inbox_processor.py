@@ -123,9 +123,18 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
 
     async def process(self, record: InboxProcessingRecord) -> None:
         assert self._session is not None
+        source_event_id = None
+        try:
+            source_event_id = UUID(str(record.outbox_origin_id))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Metering inbox record %s has no valid source event id",
+                record.id,
+            )
         await self._handler.handle(
             event_type=record.event_type,
             payload=record.payload,
+            source_event_id=source_event_id,
             correlation_id=record.correlation_id,
             causation_id=record.causation_id,
             event_version=record.event_version,
