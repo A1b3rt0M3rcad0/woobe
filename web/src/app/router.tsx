@@ -19,6 +19,7 @@ import FirstRunSetupPage from '@/pages/FirstRunSetupPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
+import NetworkPage from '@/pages/NetworkPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
 import ModelsPage from '@/pages/ModelsPage'
@@ -209,6 +210,7 @@ export function AppRouter() {
             <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/setup" element={<FirstRunSetupPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/network" element={<NetworkPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentPlaygroundRedirect />} />
@@ -227,6 +229,7 @@ export function AppRouter() {
 
           <Route path="/projects" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/network" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/new" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/:agentId" element={<LegacyProjectRedirect />} />
