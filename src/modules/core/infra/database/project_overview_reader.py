@@ -44,6 +44,15 @@ agent_environment AS (
 )
 """
 
+_TRACE_ENVIRONMENT_SQL = """
+COALESCE(
+    NULLIF(trace.data ->> 'execution_context', ''),
+    NULLIF(trace.data -> 'diagnostics' ->> 'execution_context', ''),
+    agent_environment.environment,
+    'draft'
+)
+"""
+
 
 class SQLAlchemyProjectOverviewReader:
     """Constant-query cross-schema read model owned by the core query side."""
@@ -119,7 +128,7 @@ class SQLAlchemyProjectOverviewReader:
                   AND trace.status IN ('completed', 'failed', 'cancelled')
                   AND (
                     :environment = 'all'
-                    OR agent_environment.environment = :environment
+                    OR {_TRACE_ENVIRONMENT_SQL} = :environment
                   )
             ),
             previous_traces AS (
@@ -133,7 +142,7 @@ class SQLAlchemyProjectOverviewReader:
                   AND trace.status IN ('completed', 'failed', 'cancelled')
                   AND (
                     :environment = 'all'
-                    OR agent_environment.environment = :environment
+                    OR {_TRACE_ENVIRONMENT_SQL} = :environment
                   )
             )
             SELECT
@@ -279,7 +288,7 @@ class SQLAlchemyProjectOverviewReader:
                   AND trace.status IN ('completed', 'failed', 'cancelled')
                   AND (
                     :environment = 'all'
-                    OR agent_environment.environment = :environment
+                    OR {_TRACE_ENVIRONMENT_SQL} = :environment
                   )
                 GROUP BY 1
             ),
@@ -427,7 +436,7 @@ class SQLAlchemyProjectOverviewReader:
                 trace.id,
                 trace.agent_id,
                 agent_environment.agent_name,
-                agent_environment.environment,
+                {_TRACE_ENVIRONMENT_SQL} AS environment,
                 trace.status,
                 trace.total_latency_ms AS latency_ms,
                 CASE
@@ -447,7 +456,7 @@ class SQLAlchemyProjectOverviewReader:
               AND trace.status IN ('completed', 'failed', 'cancelled')
               AND (
                 :environment = 'all'
-                OR agent_environment.environment = :environment
+                OR {_TRACE_ENVIRONMENT_SQL} = :environment
               )
             ORDER BY trace.started_at DESC NULLS LAST, trace.created_at DESC
             LIMIT :recent_limit
