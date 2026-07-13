@@ -34,7 +34,13 @@ export function ModelPicker({
   resultNote,
 }: ModelPickerProps) {
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
+    <div
+      className={`grid h-full min-h-0 gap-3 overflow-hidden ${
+        resultNote
+          ? 'grid-rows-[auto_auto_minmax(0,1fr)]'
+          : 'grid-rows-[auto_minmax(0,1fr)]'
+      }`}
+    >
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         <Input
@@ -45,7 +51,7 @@ export function ModelPicker({
         />
       </div>
 
-      {resultNote ? <p className="text-xs leading-5 text-muted">{resultNote}</p> : <span className="hidden" />}
+      {resultNote && <p className="text-xs leading-5 text-muted">{resultNote}</p>}
 
       <ScrollArea className="model-picker-scroll h-full min-h-0 overflow-y-scroll rounded-xl border border-border/80 bg-background/40 p-2 pr-1.5">
         {loading ? (
