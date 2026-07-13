@@ -1,7 +1,14 @@
 export function formatMoney(amount: number, currency = 'USD'): string {
   const absolute = Math.abs(amount)
-  const maximumFractionDigits = absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : 6
-  if (absolute > 0 && absolute < 0.000001) {
+  if (absolute === 0) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(0)
+  }
+  if (absolute < 0.000001) {
     return `<${new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
@@ -9,6 +16,7 @@ export function formatMoney(amount: number, currency = 'USD'): string {
       maximumFractionDigits: 6,
     }).format(0.000001)}`
   }
+  const maximumFractionDigits = absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : 6
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
