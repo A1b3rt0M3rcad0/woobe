@@ -1,0 +1,101 @@
+.first-run-agent-flow > div > div:first-child button {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .first-run-setup__content,
+  .first-run-setup__main {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .first-run-project-panel,
+  .first-run-agent-flow {
+    height: min(720px, 100%);
+    min-height: 0;
+  }
+
+  .first-run-agent-flow > div {
+    display: flex;
+    height: 100%;
+    max-height: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .first-run-agent-flow > div > div:first-child {
+    flex: none;
+  }
+
+  .first-run-agent-flow > div > div:last-child {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    padding-bottom: 0;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div {
+    display: flex;
+    min-height: 0;
+    max-height: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+    padding-right: 0;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1rem;
+    overflow: hidden;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside {
+    position: static;
+    flex: none;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside > section:first-child {
+    display: none;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside > section:last-child {
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside > section:last-child > p {
+    display: none;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside > section:last-child > div {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > aside > section:last-child > div > div {
+    min-width: 0;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:first-child > main {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .first-run-agent-flow > div > div:last-child > div > div:last-child {
+    position: static;
+    flex: none;
+    margin-top: 1rem;
+  }
+
+  .first-run-agent-flow .max-h-80 {
+    max-height: clamp(12rem, 30vh, 20rem);
+  }
+}
