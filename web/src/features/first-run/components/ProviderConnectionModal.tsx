@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -38,6 +39,7 @@ export function ProviderConnectionModal({
         showActions={false}
         onPendingChange={setPending}
         onCreated={(credential) => {
+          toast.success('Provider connected')
           onCreated(credential)
           onClose()
         }}
