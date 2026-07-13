@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import type { AgentCreationFlowController } from '@/features/agents/hooks/useAgentCreationFlow'
 import { providerLabel } from '@/features/agents/hooks/useAgentCreationFlow'
+import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ManualModelModal } from './ManualModelModal'
 import { ModelPicker, type ModelPickerItem } from './ModelPicker'
 import { ProviderConnectionModal } from './ProviderConnectionModal'
@@ -12,6 +13,14 @@ import { ProviderConnectionModal } from './ProviderConnectionModal'
 interface AgentModelStepProps {
   projectId: string
   flow: AgentCreationFlowController
+}
+
+export function credentialDisplayLabel(credential: Pick<ProviderCredential, 'name' | 'provider'>) {
+  const name = credential.name.trim()
+  const provider = providerLabel(credential.provider)
+  return name.toLocaleLowerCase() === provider.toLocaleLowerCase()
+    ? name
+    : `${name} · ${provider}`
 }
 
 export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
@@ -30,18 +39,22 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
       }))
   }, [flow.usableAgentModels, query])
 
-  const catalogItems = useMemo<ModelPickerItem[]>(() => {
+  const catalogMatches = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    return flow.availableModels
-      .filter((model) => !normalized || `${model.label} ${model.id} ${model.provider} ${model.owned_by || ''}`.toLowerCase().includes(normalized))
-      .slice(0, 100)
-      .map((model) => ({
-        id: model.id,
-        title: model.label,
-        subtitle: `${providerLabel(model.provider)} · ${model.id}`,
-        metadata: model.context_window ? `${model.context_window.toLocaleString()} token context` : undefined,
-      }))
+    return flow.availableModels.filter((model) => (
+      !normalized
+      || `${model.label} ${model.id} ${model.provider} ${model.owned_by || ''}`.toLowerCase().includes(normalized)
+    ))
   }, [flow.availableModels, query])
+
+  const catalogItems = useMemo<ModelPickerItem[]>(() => (
+    catalogMatches.slice(0, 100).map((model) => ({
+      id: model.id,
+      title: model.label,
+      subtitle: `${providerLabel(model.provider)} · ${model.id}`,
+      metadata: model.context_window ? `${model.context_window.toLocaleString()} token context` : undefined,
+    }))
+  ), [catalogMatches])
 
   if (flow.inventoryLoading) {
     return (
@@ -79,8 +92,13 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
     if (model) flow.selectCatalogModel(model)
   }
 
+  const selectedConnection = flow.selectedCredential || flow.activeCredentials[0] || null
+  const catalogResultNote = catalogMatches.length > 100
+    ? `Showing the first 100 of ${catalogMatches.length.toLocaleString()} matching models. Refine the search to narrow the list.`
+    : undefined
+
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
+    <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 overflow-hidden">
       {flow.activeCredentials.length === 0 ? (
         <section className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/40 px-6 text-center">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
@@ -93,15 +111,14 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
           <Button type="button" className="mt-5" onClick={() => setProviderModalOpen(true)}>Connect provider</Button>
         </section>
       ) : (
-        <section className="flex min-h-16 items-center justify-between gap-4 rounded-xl border border-border/80 bg-background/45 px-4 py-3">
+        <section className="flex min-h-16 items-center justify-between gap-4 overflow-hidden rounded-xl border border-border/80 bg-background/45 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-primary-light" />
             <div className="min-w-0">
               <p className="text-xs text-muted">Provider connection</p>
-              {flow.activeCredentials.length === 1 ? (
-                <p className="mt-0.5 truncate text-sm font-medium text-white">
-                  {flow.selectedCredential?.name || flow.activeCredentials[0].name}
-                  <span className="ml-2 font-normal text-muted">{providerLabel((flow.selectedCredential || flow.activeCredentials[0]).provider)}</span>
+              {flow.activeCredentials.length === 1 && selectedConnection ? (
+                <p className="mt-0.5 truncate text-sm font-medium text-white" title={credentialDisplayLabel(selectedConnection)}>
+                  {credentialDisplayLabel(selectedConnection)}
                 </p>
               ) : (
                 <Select
@@ -109,7 +126,7 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
                   onChange={(event) => flow.selectCredential(event.target.value)}
                   options={flow.activeCredentials.map((credential) => ({
                     value: credential.id,
-                    label: `${credential.name} · ${providerLabel(credential.provider)}`,
+                    label: credentialDisplayLabel(credential),
                   }))}
                   className="mt-1 min-w-64"
                 />
@@ -161,7 +178,7 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
       )}
 
       {flow.activeCredentials.length > 0 && (
-        <div className="min-h-0">
+        <div className="h-full min-h-0 overflow-hidden">
           {flow.modelMode === 'existing' ? (
             <ModelPicker
               items={existingItems}
@@ -192,6 +209,7 @@ export function AgentModelStep({ projectId, flow }: AgentModelStepProps) {
                 loading={flow.catalogLoading}
                 emptyTitle="No catalog models found"
                 emptyDescription="Try another search or enter the model identifier manually."
+                resultNote={catalogResultNote}
               />
             )
           ) : (
