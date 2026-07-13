@@ -96,7 +96,7 @@ type AgentEditorDraft = {
   tools: string[]
 }
 
-const fallbackAgents: Agent[] = [
+const fallbackAgents: [Agent, Agent, Agent] = [
   { id: 'mock-coordinator', project_id: 'mock', name: 'Coordinator', description: 'Classifies requests and selects the correct specialist.', provider: 'openai', model: 'gpt-5.2', status: 'active' },
   { id: 'mock-billing', project_id: 'mock', name: 'Billing Specialist', description: 'Handles invoices, payments and subscriptions.', provider: 'openai', model: 'gpt-5.2-mini', status: 'active' },
   { id: 'mock-technical', project_id: 'mock', name: 'Technical Support', description: 'Investigates incidents and technical questions.', provider: 'anthropic', model: 'claude-sonnet-4.5', status: 'active' },
@@ -254,7 +254,7 @@ function OperationsPanel({ tab, run, selectedRunId, onSelectRun }: { tab: PanelT
   return <ValidationPanel />
 }
 
-function resolvedBindings(agents: Agent[], environment: Environment): Record<AgentNodeId, ResolvedAgentBinding> {
+function resolvedBindings(agents: [Agent, Agent, Agent], environment: Environment): Record<AgentNodeId, ResolvedAgentBinding> {
   const draft: Record<AgentNodeId, ResolvedAgentBinding> = {
     coordinator: { nodeId: 'coordinator', agent: agents[0], source: 'draft', version: 'Revision 14', binding: 'follow_draft', editingVersion: 'Revision 14', dirty: true, nextAction: 'Create Agent Staging' },
     billing: { nodeId: 'billing', agent: agents[1], source: 'staging', version: 'v0.3.20260713.01', binding: 'follow_staging', editingVersion: 'Revision 9', nextAction: 'Reuse Agent Staging' },
@@ -320,7 +320,7 @@ function EmptyNetwork({ onCreateAgent }: { onCreateAgent: () => void }) {
   )
 }
 
-function NetworkCanvas({ agents, bindings, selectedNode, onSelectNode, run, environment }: { agents: Agent[]; bindings: Record<AgentNodeId, ResolvedAgentBinding>; selectedNode: NodeId; onSelectNode: (id: NodeId) => void; run: Run; environment: Environment }) {
+function NetworkCanvas({ agents, bindings, selectedNode, onSelectNode, run, environment }: { agents: [Agent, Agent, Agent]; bindings: Record<AgentNodeId, ResolvedAgentBinding>; selectedNode: NodeId; onSelectNode: (id: NodeId) => void; run: Run; environment: Environment }) {
   const active = new Set(run.path)
   const technicalFailed = run.status === 'error' && run.path.includes('technical')
   const sourceCounts = Object.values(bindings).reduce<Record<AgentSource, number>>((acc, binding) => ({ ...acc, [binding.source]: acc[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
@@ -437,7 +437,7 @@ function CopyButton({ value }: { value: string }) {
   return <button type="button" onClick={() => { void navigator.clipboard?.writeText(value); toast.success('Copied') }} className="rounded-lg border border-border/80 bg-background/35 p-1.5 text-muted hover:text-white"><Copy className="h-3.5 w-3.5" /></button>
 }
 
-function ApiReferenceModal({ open, onClose, agents }: { open: boolean; onClose: () => void; agents: Agent[] }) {
+function ApiReferenceModal({ open, onClose, agents }: { open: boolean; onClose: () => void; agents: [Agent, Agent, Agent] }) {
   const [environment, setEnvironment] = useState<'staging' | 'production'>('production')
   const [section, setSection] = useState<ApiSection>('http')
   if (!open) return null
@@ -454,7 +454,7 @@ function ReleasePlanRow({ name, current, action, status }: { name: string; curre
   return <div className="rounded-xl border border-border/75 bg-background/30 p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-medium text-white">{name}</p><p className="mt-1 font-mono text-[9px] text-muted">{current}</p><p className="mt-2 text-[10px] text-slate-300">{action}</p></div><Badge tone={status === 'required' ? 'warning' : status === 'reuse' ? 'production' : 'staging'}>{status}</Badge></div></div>
 }
 
-function ReleaseModal({ action, agents, onClose, onConfirm }: { action: Exclude<ReleaseAction, null>; agents: Agent[]; onClose: () => void; onConfirm: () => void }) {
+function ReleaseModal({ action, agents, onClose, onConfirm }: { action: Exclude<ReleaseAction, null>; agents: [Agent, Agent, Agent]; onClose: () => void; onConfirm: () => void }) {
   const content = action === 'stage'
     ? { eyebrow: 'Draft → Staging', title: 'Stage Network and required Agents?', description: 'Promote every Agent Draft required by the Network, then create one exact Network Staging snapshot.', confirm: 'Stage Network and 1 Agent', icon: ShieldCheck }
     : action === 'publish'
@@ -478,7 +478,10 @@ export default function NetworkPage() {
   const [releaseAction, setReleaseAction] = useState<ReleaseAction>(null)
   const [apiOpen, setApiOpen] = useState(false)
   const hasAgents = Boolean(agentsQuery.data?.length)
-  const agents = useMemo(() => { const source = agentsQuery.data?.length ? agentsQuery.data : fallbackAgents; return [source[0] ?? fallbackAgents[0], source[1] ?? fallbackAgents[1], source[2] ?? fallbackAgents[2]] }, [agentsQuery.data])
+  const agents = useMemo<[Agent, Agent, Agent]>(() => {
+    const source = agentsQuery.data?.length ? agentsQuery.data : fallbackAgents
+    return [source[0] ?? fallbackAgents[0], source[1] ?? fallbackAgents[1], source[2] ?? fallbackAgents[2]]
+  }, [agentsQuery.data])
   const bindings = useMemo(() => resolvedBindings(agents, environment), [agents, environment])
   const run = runs.find((item) => item.id === selectedRunId) ?? runs[0]
   const selectedBinding = selectedNode === 'coordinator' || selectedNode === 'billing' || selectedNode === 'technical' ? bindings[selectedNode] : null
