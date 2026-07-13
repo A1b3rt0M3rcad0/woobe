@@ -16,6 +16,7 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.15) transparent;
+    scrollbar-gutter: stable;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -135,43 +136,6 @@ div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.s
 
 div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
   min-height: 2rem;
-}
-
-/*
- * Keep the Network inspector height chain bounded so Configuration and Versions
- * own their scroll instead of growing below the viewport.
- */
-aside.absolute.inset-y-0.right-0.z-40 > div.min-h-0.flex-1.overflow-hidden {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 0%;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-aside.absolute.inset-y-0.right-0.z-40 > div.min-h-0.flex-1.overflow-hidden > div.flex.min-h-0.flex-1.flex-col {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-aside.absolute.inset-y-0.right-0.z-40 > div.min-h-0.flex-1.overflow-hidden > div.flex.min-h-0.flex-1.flex-col > div.min-h-0.flex-1.overflow-y-auto.p-4 {
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
-}
-
-aside.absolute.inset-y-0.right-0.z-40 > div.min-h-0.flex-1.overflow-hidden > div.flex.min-h-0.flex-1.flex-col > div.min-h-0.flex-1.overflow-y-auto.p-4::-webkit-scrollbar {
-  width: 5px;
-}
-
-aside.absolute.inset-y-0.right-0.z-40 > div.min-h-0.flex-1.overflow-hidden > div.flex.min-h-0.flex-1.flex-col > div.min-h-0.flex-1.overflow-y-auto.p-4::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
 }
 
 /*
