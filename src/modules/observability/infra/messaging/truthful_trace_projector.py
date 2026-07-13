@@ -19,12 +19,41 @@ from modules.observability.infra.messaging.trace_projector import (
     project_agent_event as legacy_project,
 )
 
+_RUNTIME_DIMENSION_FIELDS = (
+    "execution_context",
+    "agent_release_id",
+    "agent_release_version",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+)
+
 
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
     trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
     trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
     trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
     trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+
+
+def _apply_runtime_dimensions(trace: Trace, payload: dict[str, Any]) -> None:
+    data = dict(trace.data or {})
+    diagnostics = payload.get("diagnostics")
+    diagnostic_values = diagnostics if isinstance(diagnostics, dict) else {}
+    for field in _RUNTIME_DIMENSION_FIELDS:
+        value = payload.get(field)
+        if value is None:
+            value = diagnostic_values.get(field)
+        if value is not None:
+            data[field] = value
+    for field in ("llm_call_count", "tool_call_count"):
+        value = payload.get(field)
+        if value is None:
+            value = diagnostic_values.get(field)
+        if value is not None:
+            data[field] = value
+    trace.data = data
 
 
 async def _project_cancelled(
@@ -57,6 +86,7 @@ async def _project_cancelled(
     trace.started_at = trace.started_at or now
     trace.ended_at = now
     _apply_provider_model_refs(trace, payload)
+    _apply_runtime_dimensions(trace, payload)
     data = dict(trace.data or {})
     data.update(
         {
@@ -99,6 +129,7 @@ async def project_agent_event(
         return
 
     _apply_provider_model_refs(trace, payload)
+    _apply_runtime_dimensions(trace, payload)
 
     if event_type == "agent.execution.llm_completed.v1":
         await event_repo.delete(_event_id(trace_id, "llm_completed"))
@@ -130,12 +161,18 @@ async def project_agent_event(
         "total_tokens", "sources", "tool_calls", "llm_calls",
         "parsed_output", "output_parse_error", "fallback_used",
         "fallback_info", "model", "provider", "cost_status",
+        "cost_reason", "pricing_id", "pricing_snapshot",
         "usage_complete", "execution_events", "timeline_complete",
         "provider_model_id", "provider_credential_id",
         "fallback_provider_model_id", "fallback_credential_id",
-        "model_binding", "fallback_model_binding",
+        "model_binding", "fallback_model_binding", "execution_context",
+        "agent_release_id", "agent_release_version", "llm_call_count",
+        "tool_call_count",
     ):
-        data[field] = payload.get(field)
+        value = payload.get(field)
+        if value is None and field in diagnostics:
+            value = diagnostics.get(field)
+        data[field] = value
     data["cost_usd"] = payload.get("cost_usd")
     data["diagnostics"] = diagnostics
     trace.data = data
