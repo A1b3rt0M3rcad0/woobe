@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import type { AgentNodeId, ChatTarget, NetworkBinding, NetworkRun } from './networkWorkspaceTypes'
+import type { AgentNodeId, ChatTarget, NetworkBinding } from './networkWorkspaceTypes'
 import { currentSignature, makeExecution, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+import { createNetworkTraceRecord } from './networkObservabilityFactory'
+import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import { NetworkChatComposer } from './NetworkChatComposer'
 import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
@@ -11,17 +13,18 @@ interface NetworkChatWorkspaceProps {
   networkName: string
   target: ChatTarget
   bindings: Record<AgentNodeId, NetworkBinding>
+  sessionId: string
   sessionSignature: string
   pinned: boolean
   onTarget: (target: ChatTarget) => void
   onNewSession: (signature: string) => void
   onPin: () => void
-  onRun: (run: NetworkRun) => void
+  onRun: (trace: NetworkTraceRecord) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
 }
 
-export function NetworkChatWorkspace({ networkName, target, bindings, sessionSignature, pinned, onTarget, onNewSession, onPin, onRun, onSelectAgent, onOpenTrace }: NetworkChatWorkspaceProps) {
+export function NetworkChatWorkspace({ networkName, target, bindings, sessionId, sessionSignature, pinned, onTarget, onNewSession, onPin, onRun, onSelectAgent, onOpenTrace }: NetworkChatWorkspaceProps) {
   const seed = useMemo(() => makeExecution('I need help with an invoice that was charged twice.', target, bindings), [])
   const [text, setText] = useState('')
   const [turns, setTurns] = useState<NetworkTurn[]>([{ id: 'initial-network-turn', user: 'I need help with an invoice that was charged twice.', answer: seed.answer, parsedOutput: seed.parsedOutput, provider: seed.provider, model: seed.model, usage: seed.usage, execution: seed.execution }])
@@ -55,7 +58,7 @@ export function NetworkChatWorkspace({ networkName, target, bindings, sessionSig
   const send = (suggestion?: string) => {
     const content = (suggestion ?? text).trim()
     if (!content || running) return
-    if (changed && !pinned) return toast.warning('Resolve the session composition before sending')
+    if (changed && !pinned) { toast.warning('Resolve the session composition before sending'); return }
     setText('')
     setRunning(true)
     timeoutRef.current = setTimeout(() => {
@@ -63,7 +66,7 @@ export function NetworkChatWorkspace({ networkName, target, bindings, sessionSig
       setTurns((items) => [...items, { id: result.execution.id, user: content, answer: result.answer, parsedOutput: result.parsedOutput, provider: result.provider, model: result.model, usage: result.usage, execution: result.execution }])
       setRunning(false)
       timeoutRef.current = null
-      onRun({ id: result.execution.id, title: content, environment: result.execution.environment, status: result.execution.status, duration: `${(result.execution.durationMs / 1000).toFixed(2)}s`, cost: `$${result.execution.costUsd.toFixed(3)}`, path: result.execution.path, traceId: result.execution.traceId })
+      onRun(createNetworkTraceRecord({ execution: result.execution, target, bindings, sessionId, title: content, userMessage: content, answer: result.answer, source: 'chat' }))
     }, 520)
   }
 

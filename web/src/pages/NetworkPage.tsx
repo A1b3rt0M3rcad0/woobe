@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Activity, Bug, ChevronLeft, Code2, GitBranch, ListChecks, MessageSquare, Plus, Settings2, Workflow, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, Code2, MessageSquare, Workflow, type LucideIcon } from 'lucide-react'
 
 import { useAgents } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
@@ -10,11 +10,15 @@ import { NetworkChatWorkspace } from '@/features/network/components/NetworkChatW
 import { NetworkInspectorWorkspace, type NetworkConfigSection, type NetworkInspectorSection } from '@/features/network/components/NetworkInspectorWorkspace'
 import type { AgentNodeId, ChatTarget, Environment, NetworkRun, NetworkSelection, NetworkVersionOption, NodeId } from '@/features/network/components/networkWorkspaceTypes'
 import { NetworkCanvas } from '@/features/network/components/NetworkCanvas'
-import { Badge, Operations, type PanelTab } from '@/features/network/components/NetworkOperations'
+import { Badge, NetworkOperationsPanel, NetworkOperationsRail, type PanelTab } from '@/features/network/components/NetworkOperations'
+import { createNetworkTraceRecord } from '@/features/network/components/networkObservabilityFactory'
+import { createMockNetworkTraces } from '@/features/network/components/networkObservabilityMocks'
+import { traceToRun, type NetworkTraceRecord } from '@/features/network/components/networkObservabilityTypes'
 import { NetworkApiModal } from '@/features/network/components/NetworkApiModal'
 import { NetworkInspectorShell, type InspectorContext } from '@/features/network/components/NetworkInspectorShell'
 import { NetworkReleaseModal, UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
-import { DRAFT, HISTORY, PRODUCTION, STAGING, bind, clone, fallbackAgents, runHistory, signature } from '@/features/network/components/networkPageData'
+import { DRAFT, HISTORY, PRODUCTION, STAGING, bind, clone, fallbackAgents, signature } from '@/features/network/components/networkPageData'
+import type { NetworkExecution } from '@/features/network/components/networkChatExecution'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { cn } from '@/lib/utils'
 
@@ -34,7 +38,8 @@ export default function NetworkPage() {
   const [environment, setEnvironment] = useState<Environment>('draft')
   const [centerMode, setCenterMode] = useState<CenterMode>('canvas')
   const [chatTarget, setChatTarget] = useState<ChatTarget>('draft')
-  const [panelTab, setPanelTab] = useState<PanelTab>('runs')
+  const [panelTab, setPanelTab] = useState<PanelTab>('traces')
+  const [showLeftPanel, setShowLeftPanel] = useState(true)
   const [selectedNode, setSelectedNode] = useState<NodeId>('coordinator')
   const [pendingNode, setPendingNode] = useState<NodeId | null>(null)
   const [compositionNode, setCompositionNode] = useState<AgentNodeId>('coordinator')
@@ -56,9 +61,14 @@ export default function NetworkPage() {
   const historyBindings = useMemo(() => bind(agents, HISTORY), [agents])
   const visibleBindings = environment === 'draft' ? draftBindings : environment === 'staging' ? stagingBindings : productionBindings
   const chatBindings = chatTarget === 'draft' ? draftBindings : chatTarget === 'staging' ? stagingBindings : chatTarget === 'production' ? productionBindings : historyBindings
-  const [run, setRun] = useState<NetworkRun>(runHistory[0])
-  const [sessionSignature, setSessionSignature] = useState(() => signature('draft', bind(fallbackAgents, DRAFT)))
+
+  const [networkSessionId, setNetworkSessionId] = useState('network-session-current')
+  const [sessionSignature, setSessionSignature] = useState(() => signature('draft', draftBindings))
   const [pinned, setPinned] = useState(false)
+  const [traces, setTraces] = useState<NetworkTraceRecord[]>(() => createMockNetworkTraces({ draft: draftBindings, staging: stagingBindings, production: productionBindings, currentSessionId: 'network-session-current' }))
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(() => traces[0]?.id ?? null)
+  const [run, setRun] = useState<NetworkRun>(() => traceToRun(traces[0]!))
+
   const selectedAgentNode = selectedNode === 'entry' || selectedNode === 'end' ? null : selectedNode
   const selectedAgentDraft = selectedAgentNode ? draftBindings[selectedAgentNode] : null
   const selectedNetworkBinding = selectedAgentNode ? visibleBindings[selectedAgentNode] : null
@@ -78,22 +88,14 @@ export default function NetworkPage() {
 
   const selectNode = (node: NodeId) => {
     const currentAgentId = selectedAgentDraft?.agent.id
-    if (node !== selectedNode && currentAgentId && dirtyAgentIds.has(currentAgentId)) {
-      setPendingNode(node)
-      return
-    }
+    if (node !== selectedNode && currentAgentId && dirtyAgentIds.has(currentAgentId)) { setPendingNode(node); return }
     commitNodeSelection(node)
   }
 
   const updateSelectedAgentDirty = (dirty: boolean) => {
     const agentId = selectedAgentDraft?.agent.id
     if (!agentId) return
-    setDirtyAgentIds((current) => {
-      const next = new Set(current)
-      if (dirty) next.add(agentId)
-      else next.delete(agentId)
-      return next
-    })
+    setDirtyAgentIds((current) => { const next = new Set(current); if (dirty) next.add(agentId); else next.delete(agentId); return next })
   }
 
   const discardAndSwitch = () => {
@@ -107,7 +109,7 @@ export default function NetworkPage() {
 
   const saveAndSwitch = async () => {
     if (!pendingNode || !saveAgentActionRef.current) return
-    if (!await saveAgentActionRef.current()) return
+    if (!(await saveAgentActionRef.current())) return
     const target = pendingNode
     setPendingNode(null)
     commitNodeSelection(target)
@@ -138,12 +140,22 @@ export default function NetworkPage() {
   const confirmRelease = () => {
     if (releaseAction === 'stage') stage()
     else if (releaseAction === 'publish') publish()
-    else {
-      setProductionState(clone(HISTORY))
-      toast.success('Historical Network Release reactivated')
-    }
+    else { setProductionState(clone(HISTORY)); toast.success('Historical Network Release reactivated') }
     setReleaseAction(null)
   }
+
+  const selectTrace = (trace: NetworkTraceRecord) => { setSelectedTraceId(trace.id); setRun(traceToRun(trace)) }
+  const viewTraceOnCanvas = (trace: NetworkTraceRecord) => { selectTrace(trace); setCenterMode('canvas') }
+  const handleCompletedTrace = (trace: NetworkTraceRecord) => { setTraces((current) => [trace, ...current.filter((item) => item.id !== trace.id)]); setSelectedTraceId(trace.id); setRun(traceToRun(trace)) }
+  const openTraceFromChat = (execution: NetworkExecution) => {
+    const existing = traces.find((trace) => trace.execution.id === execution.id || trace.traceId === execution.traceId)
+    const trace = existing ?? createNetworkTraceRecord({ execution, target: chatTarget, bindings: chatBindings, sessionId: networkSessionId, title: 'Network execution', userMessage: 'Opened from the current Network Chat.', answer: 'Execution details from the current Network Chat.', source: 'chat' })
+    if (!existing) setTraces((current) => [trace, ...current])
+    selectTrace(trace)
+    setPanelTab('traces')
+    setShowLeftPanel(true)
+  }
+  const handlePanelTab = (tab: PanelTab) => { if (showLeftPanel && panelTab === tab) { setShowLeftPanel(false); return }; setPanelTab(tab); setShowLeftPanel(true) }
 
   const networkBindingSummary: AgentNetworkBindingSummary | null = selectedNetworkBinding ? { source: selectedNetworkBinding.source, version: selectedNetworkBinding.version } : null
   const agentWorkspace = selectedAgentDraft && networkBindingSummary ? <NetworkAgentWorkspace key={selectedAgentDraft.agent.id} agent={selectedAgentDraft.agent} projectId={projectId!} networkBinding={networkBindingSummary} onOpenComposition={() => { setCompositionNode(selectedAgentDraft.nodeId); setInspectorContext('network'); setNetworkSection('configuration'); setNetworkConfigSection('composition') }} onDirtyChange={updateSelectedAgentDirty} onRegisterSaveAction={(saveAction) => { saveAgentActionRef.current = saveAction }} /> : null
@@ -151,9 +163,27 @@ export default function NetworkPage() {
 
   return (
     <div className="flex h-screen min-w-[1180px] flex-col overflow-hidden bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-3"><button onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted"><ChevronLeft className="h-4 w-4" /></button><div><div className="flex items-center gap-2"><h1 className="text-sm font-semibold text-white">{currentProject?.name || 'Project'} Network</h1><Badge>Prototype</Badge></div><p className="text-[9px] text-muted">One Network per Project</p></div><div className="ml-auto flex items-center gap-2"><div className="flex rounded-xl border border-border bg-background/35 p-1">{(['draft', 'staging', 'production'] as Environment[]).map((item) => <button key={item} onClick={() => setEnvironment(item)} className={cn('rounded-lg px-3 py-1.5 text-[10px] capitalize', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted')}>{item}</button>)}</div><button onClick={() => { setCenterMode('chat'); setChatTarget(environment); setPinned(false) }} className={smallButton}><MessageSquare className="mr-1 inline h-3.5 w-3.5" />Network Chat</button><button onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-1 inline h-3.5 w-3.5" />API Reference</button><button onClick={() => setReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button></div></header>
-      <div className="relative flex h-8 shrink-0 items-center border-b border-border bg-surface/35 px-3 text-[9px] text-muted"><span>Viewing: <b className="text-slate-300">{environment === 'draft' ? 'Working Draft Revision 29' : environment === 'staging' ? 'Network Staging v0.12' : 'Network Release v0.10'}</b> · {environment === 'draft' ? 'Network configuration enabled' : 'exact read-only composition'}</span><div className="absolute left-1/2 flex -translate-x-1/2 rounded-lg border border-border bg-background/45 p-0.5">{([['canvas', Workflow], ['chat', MessageSquare]] as Array<[CenterMode, LucideIcon]>).map(([mode, Icon]) => <button key={mode} onClick={() => setCenterMode(mode)} className={cn('flex items-center gap-1 rounded-md px-2.5 py-1 capitalize', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted')}><Icon className="h-3 w-3" />{mode}</button>)}</div><span className="ml-auto">Max hops 8 · Timeout 90s</span></div>
-      <div className="relative flex min-h-0 flex-1"><nav className="flex w-14 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface/75 p-2">{([['runs', Activity], ['trace', GitBranch], ['debug', Bug], ['validation', ListChecks]] as Array<[PanelTab, LucideIcon]>).map(([tab, Icon]) => <button key={tab} onClick={() => setPanelTab(tab)} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border', panelTab === tab ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-transparent text-muted')}><Icon className="h-4 w-4" /></button>)}<button className="mt-auto flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted"><Plus className="h-4 w-4" /></button><button className="flex h-10 w-10 items-center justify-center text-muted"><Settings2 className="h-4 w-4" /></button></nav><aside className="hidden w-[330px] shrink-0 border-r border-border bg-surface/65 2xl:block"><Operations tab={panelTab} run={run} draftBindings={draftBindings} /></aside>{agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : centerMode === 'canvas' ? <NetworkCanvas bindings={visibleBindings} run={run} selectedNode={selectedNode} environment={environment} dirtyAgentIds={dirtyAgentIds} onSelect={selectNode} /> : <NetworkChatWorkspace networkName={`${currentProject?.name || 'Project'} Network`} target={chatTarget} bindings={chatBindings} sessionSignature={sessionSignature} pinned={pinned} onTarget={(target) => { setChatTarget(target); setPinned(false) }} onNewSession={(next) => { setSessionSignature(next); setPinned(false); toast.success('New Network session started') }} onPin={() => { setPinned(true); toast.info('Session kept on previous composition') }} onRun={(next) => { setRun(next); setPanelTab('trace') }} onSelectAgent={(node) => selectNode(node)} onOpenTrace={(execution) => { setRun({ id: execution.id, title: 'Network execution', environment: execution.environment, status: execution.status, duration: `${(execution.durationMs / 1000).toFixed(2)}s`, cost: `$${execution.costUsd.toFixed(3)}`, path: execution.path, traceId: execution.traceId }); setPanelTab('trace') }} />}<NetworkInspectorShell context={inspectorContext} selectedAgentDraft={selectedAgentDraft} selectedNetworkBinding={selectedNetworkBinding} expanded={expanded} onContext={setInspectorContext} onExpand={() => setExpanded((value) => !value)} agentWorkspace={agentWorkspace} networkWorkspace={networkWorkspace} /></div>
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-3">
+        <button type="button" onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted"><ChevronLeft className="h-4 w-4" /></button>
+        <div><div className="flex items-center gap-2"><h1 className="text-sm font-semibold text-white">{currentProject?.name || 'Project'} Network</h1><Badge>Prototype</Badge></div><p className="text-[9px] text-muted">One Network per Project</p></div>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex rounded-xl border border-border bg-background/35 p-1">{(['draft', 'staging', 'production'] as Environment[]).map((item) => <button key={item} type="button" onClick={() => setEnvironment(item)} className={cn('rounded-lg px-3 py-1.5 text-[10px] capitalize', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted')}>{item}</button>)}</div>
+          <button type="button" onClick={() => { setCenterMode('chat'); setChatTarget(environment); setPinned(false) }} className={smallButton}><MessageSquare className="mr-1 inline h-3.5 w-3.5" />Network Chat</button>
+          <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-1 inline h-3.5 w-3.5" />API Reference</button>
+          <button type="button" onClick={() => setReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button>
+        </div>
+      </header>
+      <div className="relative flex h-8 shrink-0 items-center border-b border-border bg-surface/35 px-3 text-[9px] text-muted">
+        <span>Viewing: <b className="text-slate-300">{environment === 'draft' ? 'Working Draft Revision 29' : environment === 'staging' ? 'Network Staging v0.12' : 'Network Release v0.10'}</b> · {environment === 'draft' ? 'Network configuration enabled' : 'exact read-only composition'}</span>
+        <div className="absolute left-1/2 flex -translate-x-1/2 rounded-lg border border-border bg-background/45 p-0.5">{([['canvas', Workflow], ['chat', MessageSquare]] as Array<[CenterMode, LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => setCenterMode(mode)} className={cn('flex items-center gap-1 rounded-md px-2.5 py-1 capitalize', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted')}><Icon className="h-3 w-3" />{mode}</button>)}</div>
+        <span className="ml-auto">Max hops 8 · Timeout 90s</span>
+      </div>
+      <div className="relative flex min-h-0 flex-1">
+        <NetworkOperationsRail activeTab={showLeftPanel ? panelTab : null} onTabChange={handlePanelTab} />
+        {showLeftPanel ? <NetworkOperationsPanel activeTab={panelTab} traces={traces} selectedTraceId={selectedTraceId} currentSessionId={networkSessionId} onSelectTrace={selectTrace} onViewCanvas={viewTraceOnCanvas} onOpenAgent={selectNode} /> : null}
+        {agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : centerMode === 'canvas' ? <NetworkCanvas bindings={visibleBindings} run={run} selectedNode={selectedNode} environment={environment} dirtyAgentIds={dirtyAgentIds} onSelect={selectNode} /> : <NetworkChatWorkspace networkName={`${currentProject?.name || 'Project'} Network`} target={chatTarget} bindings={chatBindings} sessionId={networkSessionId} sessionSignature={sessionSignature} pinned={pinned} onTarget={(target) => { setChatTarget(target); setPinned(false) }} onNewSession={(nextSignature) => { setSessionSignature(nextSignature); setNetworkSessionId(`network-session-${Date.now()}`); setPinned(false); toast.success('New Network session started') }} onPin={() => { setPinned(true); toast.info('Session kept on previous composition') }} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} />}
+        <NetworkInspectorShell context={inspectorContext} selectedAgentDraft={selectedAgentDraft} selectedNetworkBinding={selectedNetworkBinding} expanded={expanded} onContext={setInspectorContext} onExpand={() => setExpanded((value) => !value)} agentWorkspace={agentWorkspace} networkWorkspace={networkWorkspace} />
+      </div>
       {showApi ? <NetworkApiModal open={showApi} onClose={() => setShowApi(false)} bindings={{ staging: stagingBindings, production: productionBindings }} /> : null}
       {releaseAction ? <NetworkReleaseModal action={releaseAction} draftBindings={draftBindings} stagingBindings={stagingBindings} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
       {pendingNode && selectedAgentDraft ? <UnsavedAgentSwitchDialog agentName={selectedAgentDraft.agent.name} onStay={() => setPendingNode(null)} onDiscard={discardAndSwitch} onSave={() => void saveAndSwitch()} /> : null}
