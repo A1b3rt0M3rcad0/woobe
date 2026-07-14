@@ -122,8 +122,12 @@ class NetworkApplicationService:
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
             definition = self._definition(network.draft_definition)
-            status = "staging" if environment == NetworkEnvironment.STAGING else "production"
-            bindings = await self._resolve_agent_bindings(session, definition, project_id, status)
+            status = (
+                "staging" if environment == NetworkEnvironment.STAGING else "production"
+            )
+            bindings = await self._resolve_agent_bindings(
+                session, definition, project_id, status
+            )
             missing = [item for item in bindings.values() if not item.get("release_id")]
             return {
                 "environment": environment.value,
@@ -145,9 +149,17 @@ class NetworkApplicationService:
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
             definition = self._definition(network.draft_definition)
-            status = "staging" if environment == NetworkEnvironment.STAGING else "production"
-            bindings = await self._resolve_agent_bindings(session, definition, project_id, status)
-            missing = [item["agent_id"] for item in bindings.values() if not item.get("release_id")]
+            status = (
+                "staging" if environment == NetworkEnvironment.STAGING else "production"
+            )
+            bindings = await self._resolve_agent_bindings(
+                session, definition, project_id, status
+            )
+            missing = [
+                item["agent_id"]
+                for item in bindings.values()
+                if not item.get("release_id")
+            ]
             if missing:
                 raise ConflictError(
                     f"Agents are not ready for {status}: {', '.join(missing)}"
@@ -217,7 +229,9 @@ class NetworkApplicationService:
             }
         return bindings
 
-    async def list_versions(self, network_id: UUID, project_id: UUID) -> list[NetworkVersionModel]:
+    async def list_versions(
+        self, network_id: UUID, project_id: UUID
+    ) -> list[NetworkVersionModel]:
         async with self._session_factory() as session:
             network = await NetworkRepository(session).get(network_id)
             if network is None or network.project_id != project_id:
