@@ -42,8 +42,13 @@ from shared.infra.config import Settings
 class ProjectRAIAgentInvoker:
     """Invokes the existing Agent runtime in-process with Network-only tools."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        settings: Settings,
+    ) -> None:
         self._session_factory = session_factory
+        self._settings = settings
 
     async def invoke(
         self,
@@ -58,7 +63,7 @@ class ProjectRAIAgentInvoker:
         internal_tools: list[InternalDelegationTool],
         network_context: dict[str, object],
     ) -> AgentInvocationResult:
-        settings = Settings.model_validate({})
+        settings = self._settings
         cipher = SecretCipherAdapter(settings.encryption_key)
         http_executor = get_http_tool_executor()
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
