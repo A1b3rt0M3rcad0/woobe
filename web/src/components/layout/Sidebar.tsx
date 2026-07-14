@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
+  Workflow,
   Bot,
   BookOpen,
   Wrench,
@@ -35,6 +36,7 @@ interface NavItem {
 
 const buildNavItems: NavItem[] = [
   { label: 'Overview', icon: LayoutDashboard, href: (orgId: string, projId: string) => `/organizations/${orgId}/projects/${projId}`, end: true },
+  { label: 'Network', icon: Workflow, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'network') },
   { label: 'Agents', icon: Bot, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'agents') },
   { label: 'Knowledge', icon: BookOpen, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'knowledge') },
   { label: 'Tools', icon: Wrench, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'tools') },

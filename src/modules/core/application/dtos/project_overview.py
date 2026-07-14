@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 OverviewBucket = Literal["hour", "day"]
 OverviewEnvironment = Literal["all", "draft", "staging", "production"]
+OverviewTraceEnvironment = Literal["draft", "staging", "production", "playground"]
 
 
 class ProjectOverviewQuery(BaseModel):
@@ -98,7 +99,7 @@ class ProjectOverviewTrace(BaseModel):
     id: UUID
     agent_id: UUID | None = None
     agent_name: str | None = None
-    environment: Literal["draft", "staging", "production"] | None = None
+    environment: OverviewTraceEnvironment | None = None
     status: str
     latency_ms: float | None = None
     total_tokens: int | None = None
