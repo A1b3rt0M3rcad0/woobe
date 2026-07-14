@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createNetworkSession,
   ensureNetwork,
+  getNetworkSessionMessages,
   getNetworkSessions,
   getNetworkVersions,
   promoteNetwork,
@@ -35,6 +36,14 @@ export function useNetworkSessions(networkId?: string, projectId?: string) {
   })
 }
 
+export function useNetworkSessionMessages(networkId?: string, sessionId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: ['network-session-messages', networkId, sessionId, projectId],
+    queryFn: () => getNetworkSessionMessages(networkId!, sessionId!, projectId!),
+    enabled: Boolean(networkId && sessionId && projectId),
+  })
+}
+
 export function useSaveNetworkDraft(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -60,11 +69,7 @@ export function useSaveNetworkDraft(networkId?: string, projectId?: string) {
 export function usePromoteNetwork(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (environment: NetworkPromotionEnvironment) => promoteNetwork(
-      networkId!,
-      projectId!,
-      environment,
-    ),
+    mutationFn: (environment: NetworkPromotionEnvironment) => promoteNetwork(networkId!, projectId!, environment),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
@@ -80,20 +85,14 @@ export function useCreateNetworkSession(networkId?: string, projectId?: string) 
       environment,
       title: `New ${environment} session`,
     }),
-    onSuccess: () => queryClient.invalidateQueries({
-      queryKey: ['network-sessions', networkId, projectId],
-    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] }),
   })
 }
 
 export function useRollbackNetwork(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (targetVersionId: string) => rollbackNetworkProduction(
-      networkId!,
-      projectId!,
-      targetVersionId,
-    ),
+    mutationFn: (targetVersionId: string) => rollbackNetworkProduction(networkId!, projectId!, targetVersionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
