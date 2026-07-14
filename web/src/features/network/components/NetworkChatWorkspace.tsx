@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
+import { cancelNetworkExecution } from '@/features/network/api'
 import { streamNetworkExecution } from '@/features/network/stream'
 import { currentSignature, makeExecution, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
@@ -75,6 +76,7 @@ export function NetworkChatWorkspace({
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const executionIdRef = useRef<string | null>(null)
   const signature = currentSignature(environment, bindings)
   const changed = hashComposition(signature) !== activeSession.compositionHash
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
@@ -84,12 +86,20 @@ export function NetworkChatWorkspace({
 
   const stop = () => {
     const wasRunning = running
+    const executionId = executionIdRef.current
     abortRef.current?.abort()
     abortRef.current = null
+    executionIdRef.current = null
     setRunning(false)
     setLiveAnswer('')
     setLiveActivity([])
-    if (wasRunning) toast.info('Network execution connection stopped; server execution may continue')
+    if (wasRunning && executionId) {
+      void cancelNetworkExecution(executionId, projectId)
+        .then(() => toast.info('Network execution cancellation requested'))
+        .catch(() => toast.warning('Connection closed, but cancellation could not be confirmed'))
+    } else if (wasRunning) {
+      toast.info('Network execution connection stopped')
+    }
   }
 
   const startNew = () => {
@@ -131,7 +141,7 @@ export function NetworkChatWorkspace({
         networkSessionId: activeSession.id,
         message: content,
       }, {
-        onExecutionId: (id) => { executionId = id },
+        onExecutionId: (id) => { executionId = id; executionIdRef.current = id },
         onEvent: (eventType, event) => {
           if (eventType !== 'token') {
             setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
@@ -184,6 +194,7 @@ export function NetworkChatWorkspace({
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
+      if (executionIdRef.current === executionId) executionIdRef.current = null
       setRunning(false)
     }
   }
