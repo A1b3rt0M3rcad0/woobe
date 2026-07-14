@@ -22,7 +22,8 @@ _SNAPSHOT_FIELDS = (
     "response_format", "output_schema", "provider", "model",
     "provider_credential_id", "fallback_provider", "fallback_model",
     "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
-    "collection_ids", "runtime_config", "risk_score", "created_by",
+    "session_mode", "agent_status", "collection_ids", "runtime_config",
+    "risk_score", "created_by",
 )
 
 
@@ -63,6 +64,8 @@ def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
         base_url=saved.base_url,
         temperature=saved.temperature,
         max_output_tokens=saved.max_output_tokens,
+        session_mode=saved.session_mode,
+        agent_status=saved.agent_status,
         collection_ids=saved.collection_ids,
         runtime_config=saved.runtime_config,
         release_notes=saved.release_notes,
