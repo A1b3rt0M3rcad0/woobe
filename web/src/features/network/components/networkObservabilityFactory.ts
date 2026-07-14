@@ -195,6 +195,7 @@ export function createNetworkTraceRecord({
   }
   const invocation = invocationEvents(execution.root, startedAt, 2)
   const finalSequence = invocation.lastSequence + 1
+  const lastPathNode = execution.path[execution.path.length - 1]
   const finalEvent: NetworkTraceEvent = {
     id: `${execution.id}-final`,
     type:
@@ -211,7 +212,7 @@ export function createNetworkTraceRecord({
           : 'Network execution completed',
     timestamp: executionCompletionTime(execution) ?? new Date().toISOString(),
     sequence: finalSequence,
-    nodeId: execution.status === 'success' ? 'end' : execution.path.at(-1),
+    nodeId: execution.status === 'success' ? 'end' : lastPathNode,
     status:
       execution.status === 'error'
         ? 'error'
