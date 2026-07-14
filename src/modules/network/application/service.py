@@ -145,7 +145,7 @@ class NetworkApplicationService:
         created_by: UUID | None,
     ) -> NetworkVersionModel:
         async with self._session_factory() as session, session.begin():
-            network = await NetworkRepository(session).get(network_id)
+            network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
             definition = self._definition(network.draft_definition)
