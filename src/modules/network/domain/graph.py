@@ -19,7 +19,7 @@ def validate_network_definition(
     hard_max_invocations: int = 64,
     hard_timeout_seconds: int = 300,
 ) -> None:
-    if definition.schema_version != 1:
+    if definition.schema_version != 2:
         raise NetworkGraphError("Unsupported Network definition schema version")
     if not definition.nodes:
         raise NetworkGraphError("Network must contain at least one Agent node")
@@ -61,9 +61,7 @@ def validate_network_definition(
         pending.extend(reachable[current])
     unreachable = set(nodes) - visited
     if unreachable:
-        raise NetworkGraphError(
-            "Every Agent node must be reachable from the root Agent"
-        )
+        raise NetworkGraphError("Every Agent node must be reachable from the root Agent")
 
     visiting: set[UUID] = set()
     visited_for_cycles: set[UUID] = set()
@@ -85,25 +83,21 @@ def validate_network_definition(
     if not 1 <= limits.max_depth <= hard_max_depth:
         raise NetworkGraphError(f"max_depth must be between 1 and {hard_max_depth}")
     if not 1 <= limits.max_invocations <= hard_max_invocations:
-        raise NetworkGraphError(
-            f"max_invocations must be between 1 and {hard_max_invocations}"
-        )
+        raise NetworkGraphError(f"max_invocations must be between 1 and {hard_max_invocations}")
     if not 1 <= limits.timeout_seconds <= hard_timeout_seconds:
-        raise NetworkGraphError(
-            f"timeout_seconds must be between 1 and {hard_timeout_seconds}"
-        )
+        raise NetworkGraphError(f"timeout_seconds must be between 1 and {hard_timeout_seconds}")
 
     names: set[str] = set()
     for node in definition.nodes:
         if len(node.capability_description) > 2000:
-            raise NetworkGraphError(
-                "Agent capability_description cannot exceed 2000 characters"
-            )
+            raise NetworkGraphError("Agent capability_description cannot exceed 2000 characters")
+        if node.binding.source == "draft" and node.binding.release_id is not None:
+            raise NetworkGraphError("Draft Agent binding cannot include release_id")
+        if node.binding.source != "draft" and node.binding.release_id is None:
+            raise NetworkGraphError(f"{node.binding.source.title()} Agent binding requires release_id")
         name = delegation_tool_name(node)
         if name in names:
-            raise NetworkGraphError(
-                "Agent labels must generate unique delegation tool names"
-            )
+            raise NetworkGraphError("Agent labels must generate unique delegation tool names")
         names.add(name)
 
 
@@ -115,10 +109,7 @@ def delegation_tool_name(node: NetworkNode) -> str:
     return f"delegate_to_{slug}"[:64]
 
 
-def composition_hash(
-    definition: NetworkDefinition,
-    resolved_bindings: dict[str, object],
-) -> str:
+def composition_hash(definition: NetworkDefinition, resolved_bindings: dict[str, object]) -> str:
     payload = {
         "definition": definition.to_dict(),
         "resolved_bindings": resolved_bindings,
