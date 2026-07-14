@@ -22,7 +22,10 @@ from modules.network.infra.database.models import (
     NetworkVersionModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
-from modules.network.infra.runtime import ProjectRAIAgentInvoker, SQLNetworkExecutionStore
+from modules.network.infra.runtime import (
+    ProjectRAIAgentInvoker,
+    SQLNetworkExecutionStore,
+)
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
@@ -60,9 +63,16 @@ class NetworkExecutionProcessor:
             execution = await session.get(NetworkExecutionModel, execution_id)
             if execution is None:
                 return
-            version = await session.get(NetworkVersionModel, execution.network_version_id)
+            version = await session.get(
+                NetworkVersionModel, execution.network_version_id
+            )
             if version is None:
-                await self._fail(execution_id, generation, "version_missing", "Pinned Network version not found")
+                await self._fail(
+                    execution_id,
+                    generation,
+                    "version_missing",
+                    "Pinned Network version not found",
+                )
                 return
 
         stop_heartbeat = asyncio.Event()
@@ -77,7 +87,9 @@ class NetworkExecutionProcessor:
             )
             result = await executor.execute(execution, version)
             if lease_lost.is_set():
-                logger.warning("Network execution lease lost execution_id=%s", execution_id)
+                logger.warning(
+                    "Network execution lease lost execution_id=%s", execution_id
+                )
                 return
             await self._complete(
                 execution_id,
@@ -86,7 +98,9 @@ class NetworkExecutionProcessor:
                 trace_id=result.trace_id,
             )
         except NetworkExecutionCancelled:
-            await self._terminal(execution_id, generation, "cancelled", "execution_cancelled", {})
+            await self._terminal(
+                execution_id, generation, "cancelled", "execution_cancelled", {}
+            )
         except NetworkBudgetExceeded as exc:
             await self._fail(execution_id, generation, "budget_exceeded", str(exc))
         except Exception as exc:
@@ -142,7 +156,9 @@ class NetworkExecutionProcessor:
             if execution is None:
                 return
             repository = NetworkRuntimeRepository(session)
-            await repository.mark_completed(execution, output=output, root_trace_id=trace_id)
+            await repository.mark_completed(
+                execution, output=output, root_trace_id=trace_id
+            )
             await repository.append_event(
                 execution,
                 "token",
@@ -154,7 +170,9 @@ class NetworkExecutionProcessor:
                 {"trace_id": str(trace_id) if trace_id else None},
             )
 
-    async def _fail(self, execution_id: UUID, generation: int, code: str, detail: str) -> None:
+    async def _fail(
+        self, execution_id: UUID, generation: int, code: str, detail: str
+    ) -> None:
         async with self._session_factory() as session, session.begin():
             execution = await session.scalar(
                 select(NetworkExecutionModel)
@@ -302,7 +320,9 @@ class NetworkLeaseRecoveryWorker:
                 has_invocations = bool(
                     await session.scalar(
                         select(NetworkInvocationModel.id)
-                        .where(NetworkInvocationModel.network_execution_id == execution.id)
+                        .where(
+                            NetworkInvocationModel.network_execution_id == execution.id
+                        )
                         .limit(1)
                     )
                 )
