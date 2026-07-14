@@ -60,15 +60,21 @@ def _network_payload(network) -> dict:
         "description": network.description,
         "draft_definition": network.draft_definition,
         "draft_revision": network.draft_revision,
-        "staging_version_id": str(network.staging_version_id) if network.staging_version_id else None,
-        "production_version_id": str(network.production_version_id) if network.production_version_id else None,
+        "staging_version_id": str(network.staging_version_id)
+        if network.staging_version_id
+        else None,
+        "production_version_id": str(network.production_version_id)
+        if network.production_version_id
+        else None,
         "created_at": network.created_at,
         "updated_at": network.updated_at,
     }
 
 
 @router.put("/projects/{project_id}")
-async def ensure_network(project_id: UUID, payload: EnsureNetworkRequest, request: Request):
+async def ensure_network(
+    project_id: UUID, payload: EnsureNetworkRequest, request: Request
+):
     _authorize_project(request, project_id)
     network = await _service(request).ensure_network(project_id, payload.name)
     return {"success": True, "data": _network_payload(network)}
@@ -173,7 +179,11 @@ async def create_network_session(
 ):
     user_id = _authorize_project(request, payload.project_id)
     principal = request.state.principal
-    tenant_id = str(principal.project_id) if isinstance(principal, ProjectApiPrincipal) else None
+    tenant_id = (
+        str(principal.project_id)
+        if isinstance(principal, ProjectApiPrincipal)
+        else None
+    )
     session = await _service(request).create_session(
         network_id=network_id,
         project_id=payload.project_id,
@@ -264,8 +274,12 @@ async def _execution_stream(
                     "sequence": event.sequence,
                     "execution_id": str(event.network_execution_id),
                     "network_session_id": str(event.network_session_id),
-                    "invocation_id": str(event.invocation_id) if event.invocation_id else None,
-                    "parent_invocation_id": str(event.parent_invocation_id) if event.parent_invocation_id else None,
+                    "invocation_id": str(event.invocation_id)
+                    if event.invocation_id
+                    else None,
+                    "parent_invocation_id": str(event.parent_invocation_id)
+                    if event.parent_invocation_id
+                    else None,
                     "node_id": str(event.node_id) if event.node_id else None,
                     "agent_id": str(event.agent_id) if event.agent_id else None,
                     "depth": event.depth,
@@ -301,7 +315,9 @@ async def run_network_stream(
         message=payload.message,
         idempotency_key=payload.idempotency_key,
     )
-    start_sequence = int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
+    start_sequence = (
+        int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
+    )
     return StreamingResponse(
         _execution_stream(request, execution.id, payload.project_id, start_sequence),
         media_type="text/event-stream",
@@ -337,7 +353,9 @@ async def list_execution_events(
                 "id": str(event.id),
                 "sequence": event.sequence,
                 "event_type": event.event_type,
-                "invocation_id": str(event.invocation_id) if event.invocation_id else None,
+                "invocation_id": str(event.invocation_id)
+                if event.invocation_id
+                else None,
                 "node_id": str(event.node_id) if event.node_id else None,
                 "agent_id": str(event.agent_id) if event.agent_id else None,
                 "depth": event.depth,
