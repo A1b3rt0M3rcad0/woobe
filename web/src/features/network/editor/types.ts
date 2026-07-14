@@ -37,6 +37,7 @@ export type NetworkDefinitionChange =
   | { type: 'remove-node'; nodeId: string }
   | { type: 'move-node'; nodeId: string; position: NetworkNode['position'] }
   | { type: 'rename-node'; nodeId: string; label: string }
+  | { type: 'describe-node'; nodeId: string; description: string }
   | { type: 'add-edge'; edge: NetworkEdge }
   | { type: 'remove-edge'; edgeId: string }
   | { type: 'set-root'; nodeId: string }
