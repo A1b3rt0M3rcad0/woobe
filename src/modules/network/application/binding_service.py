@@ -20,13 +20,7 @@ from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 
 class ExplicitBindingNetworkService(NetworkApplicationService):
-    """Network lifecycle with explicit, immutable Agent bindings.
-
-    The base service still owns sessions, execution submission, rollback and
-    history. This specialization replaces only Draft validation, promotion and
-    Draft binding resolution so the change remains isolated to the binding
-    contract.
-    """
+    """Adds explicit, immutable Agent bindings to the Network lifecycle."""
 
     async def save_draft(
         self,
@@ -91,32 +85,43 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
         expected_network_version_id: UUID | None = None,
         approved_action_ids: list[str] | None = None,
     ) -> NetworkVersionModel:
-        approved = set(approved_action_ids or [])
         async with self._session_factory() as session, session.begin():
             network = await session.get(NetworkModel, network_id, with_for_update=True)
             if network is None or network.project_id != project_id:
                 raise NotFoundError("Network not found")
-            if environment == NetworkEnvironment.STAGING:
-                if expected_revision is None or expected_revision != network.draft_revision:
-                    raise ConflictError(
-                        "Network Draft changed after the promotion preview. Review the promotion again."
-                    )
+            if (
+                environment == NetworkEnvironment.STAGING
+                and expected_revision is not None
+                and expected_revision != network.draft_revision
+            ):
+                raise ConflictError(
+                    "Network Draft changed after the promotion preview. Review the promotion again."
+                )
             definition, source_version_id = await self._promotion_source(
                 session, network, environment
             )
-            if environment == NetworkEnvironment.PRODUCTION:
-                if expected_network_version_id is None or expected_network_version_id != source_version_id:
-                    raise ConflictError(
-                        "Network Staging changed after the promotion preview. Review the promotion again."
-                    )
+            if (
+                environment == NetworkEnvironment.PRODUCTION
+                and expected_network_version_id is not None
+                and expected_network_version_id != source_version_id
+            ):
+                raise ConflictError(
+                    "Network Staging changed after the promotion preview. Review the promotion again."
+                )
 
             plan = await self._build_promotion_plan(
                 session, definition, project_id, environment, lock=True
             )
             if not plan["ready"]:
-                reasons = [node["blocking_reason"] for node in plan["nodes"] if node["blocking_reason"]]
+                reasons = [
+                    node["blocking_reason"]
+                    for node in plan["nodes"]
+                    if node["blocking_reason"]
+                ]
                 raise ConflictError("; ".join(reasons) or "Network promotion is not ready")
+
             required = {action["id"] for action in plan["actions"]}
+            approved = required if approved_action_ids is None else set(approved_action_ids)
             if required - approved:
                 raise ConflictError(
                     "Agent promotion approvals changed. Review the promotion again."
@@ -133,7 +138,7 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 )
                 if source is None:
                     raise ConflictError(
-                        "Agent Draft changed after the promotion preview. Review the promotion again."
+                        "Agent snapshot changed after the promotion preview. Review the promotion again."
                     )
                 if action["action"] == "promote_draft_to_staging":
                     if source.status != "draft" or source.snapshot_kind != "draft":
@@ -161,18 +166,26 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 action_id = item.get("action_id")
                 release = promoted.get(action_id)
                 if release is None:
+                    selected_ref = item.get("selected_ref")
                     release = await self._get_release(
                         session,
-                        UUID(item["selected_ref"]),
+                        UUID(selected_ref) if selected_ref else None,
                         project_id,
                         node.agent_id,
                         lock=False,
                     )
                 if release is None:
                     raise ConflictError(f"Agent binding is unavailable: {node.agent_id}")
-                final_source = "release" if release.snapshot_kind == "release" else "staging"
-                if environment == NetworkEnvironment.PRODUCTION and final_source != "release":
-                    raise ConflictError("Network Production can only use immutable Agent Releases")
+                final_source = (
+                    "release" if release.snapshot_kind == "release" else "staging"
+                )
+                if (
+                    environment == NetworkEnvironment.PRODUCTION
+                    and final_source != "release"
+                ):
+                    raise ConflictError(
+                        "Network Production can only use immutable Agent Releases"
+                    )
                 final_nodes.append(
                     replace(
                         node,
@@ -186,7 +199,11 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                     node.id, node.agent_id, release, final_source
                 )
 
-            final_definition = replace(definition, nodes=tuple(final_nodes), schema_version=2)
+            final_definition = replace(
+                definition,
+                nodes=tuple(final_nodes),
+                schema_version=2,
+            )
             kind = (
                 NetworkVersionKind.STAGING
                 if environment == NetworkEnvironment.STAGING
@@ -230,11 +247,20 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
         if network.staging_version_id is None:
             raise ConflictError("Stage the Network before publishing Production")
         staging = await session.get(NetworkVersionModel, network.staging_version_id)
-        if staging is None or staging.network_id != network.id or staging.kind != "staging":
+        if (
+            staging is None
+            or staging.network_id != network.id
+            or staging.kind != "staging"
+        ):
             raise ConflictError("Current Network Staging version was not found")
         return self._definition(staging.definition), staging.id
 
-    async def _validate_draft_bindings(self, session, definition: NetworkDefinition, project_id: UUID) -> None:
+    async def _validate_draft_bindings(
+        self,
+        session,
+        definition: NetworkDefinition,
+        project_id: UUID,
+    ) -> None:
         from modules.agent.infra.database.models import AgentModel
 
         for node in definition.nodes:
@@ -246,7 +272,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 )
             )
             if agent is None:
-                raise ConflictError(f"Agent is unavailable for this Project: {node.agent_id}")
+                raise ConflictError(
+                    f"Agent is unavailable for this Project: {node.agent_id}"
+                )
             if node.binding.source == "draft":
                 continue
             release = await self._get_release(
@@ -258,7 +286,8 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
             )
             if release is None or release.snapshot_kind != node.binding.source:
                 raise ConflictError(
-                    f"Agent {node.agent_id} does not own the selected {node.binding.source} snapshot"
+                    f"Agent {node.agent_id} does not own the selected "
+                    f"{node.binding.source} snapshot"
                 )
 
     async def _build_promotion_plan(
@@ -289,7 +318,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 blocking_reason = f"Agent is unavailable: {node.agent_id}"
             elif node.binding.source == "draft":
                 if environment != NetworkEnvironment.STAGING:
-                    blocking_reason = "Network Production cannot contain Agent Draft bindings"
+                    blocking_reason = (
+                        "Network Production cannot contain Agent Draft bindings"
+                    )
                 else:
                     query = select(AgentReleaseModel).where(
                         AgentReleaseModel.project_id == project_id,
@@ -301,7 +332,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                         query = query.with_for_update()
                     selected_release = await session.scalar(query)
                     if selected_release is None:
-                        blocking_reason = "Save the Agent Draft before staging the Network"
+                        blocking_reason = (
+                            "Save the Agent Draft before staging the Network"
+                        )
                     else:
                         action = "promote_draft_to_staging"
             else:
@@ -312,12 +345,25 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                     node.agent_id,
                     lock=lock,
                 )
-                if selected_release is None or selected_release.snapshot_kind != node.binding.source:
-                    blocking_reason = f"Selected Agent {node.binding.source} snapshot is unavailable"
-                elif environment == NetworkEnvironment.PRODUCTION and node.binding.source == "staging":
+                if (
+                    selected_release is None
+                    or selected_release.snapshot_kind != node.binding.source
+                ):
+                    blocking_reason = (
+                        f"Selected Agent {node.binding.source} snapshot is unavailable"
+                    )
+                elif (
+                    environment == NetworkEnvironment.PRODUCTION
+                    and node.binding.source == "staging"
+                ):
                     action = "publish_staging_to_release"
-                elif environment == NetworkEnvironment.PRODUCTION and node.binding.source != "release":
-                    blocking_reason = "Network Production can only use Agent Releases"
+                elif (
+                    environment == NetworkEnvironment.PRODUCTION
+                    and node.binding.source != "release"
+                ):
+                    blocking_reason = (
+                        "Network Production can only use Agent Releases"
+                    )
 
             action_id = None
             if action and selected_release is not None:
@@ -346,8 +392,12 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                     "agent_id": str(node.agent_id),
                     "agent_name": getattr(agent, "name", str(node.agent_id)),
                     "selected_source": node.binding.source,
-                    "selected_ref": str(selected_release.id) if selected_release else None,
-                    "selected_version": getattr(selected_release, "version", None),
+                    "selected_ref": (
+                        str(selected_release.id) if selected_release else None
+                    ),
+                    "selected_version": getattr(
+                        selected_release, "version", None
+                    ),
                     "result_source": result_source,
                     "action_required": action,
                     "action_id": action_id,
@@ -358,7 +408,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
             "ready": all(node["blocking_reason"] is None for node in nodes),
             "nodes": nodes,
             "actions": list(actions_by_id.values()),
-            "missing_agent_ids": [node["agent_id"] for node in nodes if node["blocking_reason"]],
+            "missing_agent_ids": [
+                node["agent_id"] for node in nodes if node["blocking_reason"]
+            ],
         }
 
     async def _get_release(
@@ -383,8 +435,17 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
             query = query.with_for_update()
         return await session.scalar(query)
 
-    async def _copy_agent_snapshot(self, session, source, *, target: str, promoted_by: UUID | None):
-        from modules.agent.domain.release_versioning import calculate_next_release_version
+    async def _copy_agent_snapshot(
+        self,
+        session,
+        source,
+        *,
+        target: str,
+        promoted_by: UUID | None,
+    ):
+        from modules.agent.domain.release_versioning import (
+            calculate_next_release_version,
+        )
         from modules.agent.infra.database.models import AgentReleaseModel
 
         target_status = "staging" if target == "staging" else "production"
@@ -417,20 +478,33 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
             ).all()
         )
         if target == "staging":
-            number = 1 + sum(1 for item in releases if item.snapshot_kind == "staging")
+            number = 1 + sum(
+                1 for item in releases if item.snapshot_kind == "staging"
+            )
             used = {item.version for item in releases}
             while f"staging-r{number}" in used:
                 number += 1
             version = f"staging-r{number}"
             snapshot_kind = "staging"
         else:
-            historical = [item.version for item in releases if item.snapshot_kind == "release"]
+            historical = [
+                item.version
+                for item in releases
+                if item.snapshot_kind == "release"
+            ]
             version = calculate_next_release_version(historical, "change")
             snapshot_kind = "release"
 
         excluded = {
-            "id", "created_at", "updated_at", "version", "status",
-            "snapshot_kind", "promoted_by", "promoted_at", "release_notes",
+            "id",
+            "created_at",
+            "updated_at",
+            "version",
+            "status",
+            "snapshot_kind",
+            "promoted_by",
+            "promoted_at",
+            "release_notes",
         }
         values = {
             column.name: deepcopy(getattr(source, column.name))
@@ -453,21 +527,40 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
     @staticmethod
     def _same_agent_snapshot(left, right) -> bool:
         excluded = {
-            "id", "created_at", "updated_at", "version", "status",
-            "snapshot_kind", "promoted_by", "promoted_at", "release_notes",
+            "id",
+            "created_at",
+            "updated_at",
+            "version",
+            "status",
+            "snapshot_kind",
+            "promoted_by",
+            "promoted_at",
+            "release_notes",
         }
         return all(
-            deepcopy(getattr(left, column.name)) == deepcopy(getattr(right, column.name))
+            deepcopy(getattr(left, column.name))
+            == deepcopy(getattr(right, column.name))
             for column in left.__table__.columns
             if column.name not in excluded
         )
 
     @staticmethod
     def _snapshot_hash(value: dict[str, Any]) -> str:
-        encoded = json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode()
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            default=str,
+            separators=(",", ":"),
+        ).encode()
         return hashlib.sha256(encoded).hexdigest()
 
-    def _release_binding_payload(self, node_id, agent_id, release, source: str) -> dict[str, Any]:
+    def _release_binding_payload(
+        self,
+        node_id,
+        agent_id,
+        release,
+        source: str,
+    ) -> dict[str, Any]:
         return {
             "node_id": str(node_id),
             "agent_id": str(agent_id),
@@ -480,7 +573,15 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 {
                     column.name: deepcopy(getattr(release, column.name))
                     for column in release.__table__.columns
-                    if column.name not in {"id", "created_at", "updated_at", "status", "promoted_by", "promoted_at"}
+                    if column.name
+                    not in {
+                        "id",
+                        "created_at",
+                        "updated_at",
+                        "status",
+                        "promoted_by",
+                        "promoted_at",
+                    }
                 }
             ),
         }
@@ -512,10 +613,18 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                     node.agent_id,
                     lock=False,
                 )
-                if release is None or release.snapshot_kind != node.binding.source:
-                    raise ConflictError(f"Pinned Agent snapshot is unavailable: {node.agent_id}")
+                if (
+                    release is None
+                    or release.snapshot_kind != node.binding.source
+                ):
+                    raise ConflictError(
+                        f"Pinned Agent snapshot is unavailable: {node.agent_id}"
+                    )
                 bindings[str(node.id)] = self._release_binding_payload(
-                    node.id, node.agent_id, release, node.binding.source
+                    node.id,
+                    node.agent_id,
+                    release,
+                    node.binding.source,
                 )
                 continue
 
@@ -532,27 +641,106 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 or agent_settings.get("runtime_config")
             )
             snapshot = {
-                "system_prompt": draft_release.system_prompt if draft_release and draft_release.system_prompt is not None else agent.system_prompt,
-                "response_format": draft_release.response_format if draft_release and draft_release.response_format is not None else agent_settings.get("response_format"),
-                "provider": draft_release.provider if draft_release and draft_release.provider is not None else agent.provider,
-                "model": draft_release.model if draft_release and draft_release.model is not None else agent.model,
-                "provider_credential_id": self._uuid_text(draft_release.provider_credential_id if draft_release and draft_release.provider_credential_id is not None else agent.provider_credential_id),
-                "provider_model_id": self._uuid_text(getattr(draft_release, "provider_model_id", None) or getattr(agent, "provider_model_id", None)),
-                "fallback_provider": draft_release.fallback_provider if draft_release and draft_release.fallback_provider is not None else agent.fallback_provider,
-                "fallback_model": draft_release.fallback_model if draft_release and draft_release.fallback_model is not None else agent.fallback_model,
-                "fallback_credential_id": self._uuid_text(draft_release.fallback_credential_id if draft_release and draft_release.fallback_credential_id is not None else agent.fallback_credential_id),
-                "fallback_provider_model_id": self._uuid_text(getattr(draft_release, "fallback_provider_model_id", None) or getattr(agent, "fallback_provider_model_id", None)),
-                "temperature": draft_release.temperature if draft_release and draft_release.temperature is not None else agent.temperature,
-                "max_output_tokens": draft_release.max_output_tokens if draft_release and draft_release.max_output_tokens is not None else agent.max_output_tokens,
-                "session_mode": draft_release.session_mode if draft_release and draft_release.session_mode is not None else agent.session_mode,
+                "system_prompt": (
+                    draft_release.system_prompt
+                    if draft_release and draft_release.system_prompt is not None
+                    else agent.system_prompt
+                ),
+                "response_format": (
+                    draft_release.response_format
+                    if draft_release and draft_release.response_format is not None
+                    else agent_settings.get("response_format")
+                ),
+                "provider": (
+                    draft_release.provider
+                    if draft_release and draft_release.provider is not None
+                    else agent.provider
+                ),
+                "model": (
+                    draft_release.model
+                    if draft_release and draft_release.model is not None
+                    else agent.model
+                ),
+                "provider_credential_id": self._uuid_text(
+                    draft_release.provider_credential_id
+                    if draft_release
+                    and draft_release.provider_credential_id is not None
+                    else agent.provider_credential_id
+                ),
+                "provider_model_id": self._uuid_text(
+                    getattr(draft_release, "provider_model_id", None)
+                    or getattr(agent, "provider_model_id", None)
+                ),
+                "fallback_provider": (
+                    draft_release.fallback_provider
+                    if draft_release and draft_release.fallback_provider is not None
+                    else agent.fallback_provider
+                ),
+                "fallback_model": (
+                    draft_release.fallback_model
+                    if draft_release and draft_release.fallback_model is not None
+                    else agent.fallback_model
+                ),
+                "fallback_credential_id": self._uuid_text(
+                    draft_release.fallback_credential_id
+                    if draft_release
+                    and draft_release.fallback_credential_id is not None
+                    else agent.fallback_credential_id
+                ),
+                "fallback_provider_model_id": self._uuid_text(
+                    getattr(draft_release, "fallback_provider_model_id", None)
+                    or getattr(agent, "fallback_provider_model_id", None)
+                ),
+                "temperature": (
+                    draft_release.temperature
+                    if draft_release and draft_release.temperature is not None
+                    else agent.temperature
+                ),
+                "max_output_tokens": (
+                    draft_release.max_output_tokens
+                    if draft_release and draft_release.max_output_tokens is not None
+                    else agent.max_output_tokens
+                ),
+                "session_mode": (
+                    draft_release.session_mode
+                    if draft_release and draft_release.session_mode is not None
+                    else agent.session_mode
+                ),
                 "runtime_config": runtime_config,
             }
             bindings[str(node.id)] = {
                 "node_id": str(node.id),
                 "agent_id": str(node.agent_id),
                 "binding_source": "draft",
-                "draft_release_id": self._uuid_text(draft_release.id if draft_release else None),
+                "draft_release_id": self._uuid_text(
+                    draft_release.id if draft_release else None
+                ),
                 "snapshot_override": snapshot,
                 "snapshot_hash": self._snapshot_hash(snapshot),
             }
         return bindings
+
+
+def install_explicit_binding_service() -> None:
+    """Install explicit bindings without changing existing route imports."""
+
+    names = (
+        "save_draft",
+        "preview_promotion",
+        "promote",
+        "_promotion_source",
+        "_validate_draft_bindings",
+        "_build_promotion_plan",
+        "_get_release",
+        "_copy_agent_snapshot",
+        "_same_agent_snapshot",
+        "_snapshot_hash",
+        "_release_binding_payload",
+        "_resolve_draft_bindings",
+    )
+    for name in names:
+        setattr(
+            NetworkApplicationService,
+            name,
+            getattr(ExplicitBindingNetworkService, name),
+        )
