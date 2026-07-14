@@ -62,8 +62,15 @@ class NetworkVersionModel(BaseModel):
 class NetworkSessionModel(BaseModel):
     __tablename__ = "network_sessions"
     __table_args__ = (
-        Index("ix_network_sessions_network_environment", "network_id", "environment", "created_at"),
-        Index("ix_network_sessions_project_status", "project_id", "status", "created_at"),
+        Index(
+            "ix_network_sessions_network_environment",
+            "network_id",
+            "environment",
+            "created_at",
+        ),
+        Index(
+            "ix_network_sessions_project_status", "project_id", "status", "created_at"
+        ),
         UniqueConstraint(
             "network_id",
             "external_session_id",
@@ -89,7 +96,9 @@ class NetworkSessionModel(BaseModel):
 class NetworkMessageModel(BaseModel):
     __tablename__ = "network_messages"
     __table_args__ = (
-        Index("ix_network_messages_session_created", "network_session_id", "created_at"),
+        Index(
+            "ix_network_messages_session_created", "network_session_id", "created_at"
+        ),
         {"schema": "network"},
     )
 
@@ -129,13 +138,17 @@ class NetworkExecutionModel(BaseModel):
     __tablename__ = "network_executions"
     __table_args__ = (
         Index("ix_network_executions_status_created", "status", "created_at"),
-        Index("ix_network_executions_project_status", "project_id", "status", "created_at"),
+        Index(
+            "ix_network_executions_project_status", "project_id", "status", "created_at"
+        ),
         Index("ix_network_executions_lease", "status", "lease_expires_at"),
         Index(
             "uq_network_execution_active_session",
             "network_session_id",
             unique=True,
-            postgresql_where=text("status IN ('queued', 'running', 'cancel_requested')"),
+            postgresql_where=text(
+                "status IN ('queued', 'running', 'cancel_requested')"
+            ),
         ),
         UniqueConstraint(
             "network_id",
@@ -163,7 +176,9 @@ class NetworkExecutionModel(BaseModel):
     lease_generation: Mapped[int] = mapped_column(Integer, default=0)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     failure_code: Mapped[str | None] = mapped_column(String(64))
     failure_detail: Mapped[str | None] = mapped_column(Text)
     last_event_sequence: Mapped[int] = mapped_column(Integer, default=0)
@@ -174,7 +189,11 @@ class NetworkExecutionModel(BaseModel):
 class NetworkInvocationModel(BaseModel):
     __tablename__ = "network_invocations"
     __table_args__ = (
-        Index("ix_network_invocations_execution_created", "network_execution_id", "created_at"),
+        Index(
+            "ix_network_invocations_execution_created",
+            "network_execution_id",
+            "created_at",
+        ),
         Index("ix_network_invocations_parent", "parent_invocation_id"),
         {"schema": "network"},
     )
@@ -207,7 +226,11 @@ class NetworkExecutionEventModel(BaseModel):
             "sequence",
             name="uq_network_execution_event_sequence",
         ),
-        Index("ix_network_execution_events_execution_created", "network_execution_id", "created_at"),
+        Index(
+            "ix_network_execution_events_execution_created",
+            "network_execution_id",
+            "created_at",
+        ),
         {"schema": "network"},
     )
 
