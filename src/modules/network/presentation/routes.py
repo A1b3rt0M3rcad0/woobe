@@ -391,6 +391,15 @@ async def list_network_session_messages(
                         "root_trace_id": str(execution.root_trace_id)
                         if execution.root_trace_id
                         else None,
+                        "failure_code": execution.failure_code,
+                        "failure": next(
+                            (
+                                event["data"]
+                                for event in reversed(events_by_execution[execution.id])
+                                if event["event_type"] == "execution_failed"
+                            ),
+                            None,
+                        ),
                         "started_at": execution.started_at,
                         "completed_at": execution.completed_at,
                         "events": events_by_execution[execution.id],
