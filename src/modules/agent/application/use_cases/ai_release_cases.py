@@ -51,7 +51,6 @@ class GetReleaseUseCase:
         item = await self._release_repo.get_by_id(release_id)
         if item is None:
             from modules.agent.domain.errors import ReleaseNotFoundError
-
             raise ReleaseNotFoundError
         return item
 
@@ -64,10 +63,14 @@ class DeleteReleaseUseCase:
         item = await self._release_repo.get_by_id(release_id)
         if item is None:
             from modules.agent.domain.errors import ReleaseNotFoundError
-
             raise ReleaseNotFoundError
-        if item.status not in {ReleaseStatus.draft, ReleaseStatus.staging}:
-            raise ConflictError("Published and historical releases are immutable and cannot be deleted")
+        if (
+            item.status != ReleaseStatus.draft
+            or getattr(item, "snapshot_kind", "draft") != "draft"
+        ):
+            raise ConflictError(
+                "Staging, published and historical Agent snapshots are immutable and cannot be deleted"
+            )
         await self._release_repo.delete(release_id)
 
 
@@ -130,6 +133,5 @@ class GetReleaseTestUseCase:
         item = await self._test_repo.get_by_id(test_id)
         if item is None:
             from modules.agent.domain.errors import ReleaseTestNotFoundError
-
             raise ReleaseTestNotFoundError
         return item
