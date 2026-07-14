@@ -42,6 +42,7 @@ def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
         agent_id=saved.agent_id,
         version=saved.version,
         status=saved.status,
+        snapshot_kind=getattr(saved, "snapshot_kind", None),
         prompt_version_id=saved.prompt_version_id,
         contract_version_id=saved.contract_version_id,
         knowledge_version_id=saved.knowledge_version_id,
@@ -85,6 +86,7 @@ class AutoCreateReleaseUseCase:
         self._copy_input_to_release(input_dto, draft)
         draft.version = "draft"
         draft.status = ReleaseStatus.draft
+        draft.snapshot_kind = "draft"
         return _release_to_output(await self._release_repo.save(draft))
 
     async def _get_singleton(self, agent_id: UUID, status: ReleaseStatus) -> AgentRelease | None:
@@ -128,7 +130,7 @@ class ReleaseLifecycleUseCase:
         if target == ReleaseStatus.staging:
             if release.status != ReleaseStatus.draft:
                 raise ConflictError("Staging can only be replaced by promoting the current Draft")
-            saved = await self._upsert_singleton_snapshot(release, target, user_id=user_id)
+            saved = await self._copy_to_staging_snapshot(release, user_id=user_id)
         else:
             if release.status == ReleaseStatus.draft:
                 raise ConflictError("Draft must be promoted to Staging before Production")
@@ -147,21 +149,24 @@ class ReleaseLifecycleUseCase:
                 saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
-    async def _upsert_singleton_snapshot(self, source: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
-        current = await self._get_singleton(source.agent_id, target)
-        if current is None:
-            current = AgentRelease(project_id=source.project_id, agent_id=source.agent_id, version=target.value, status=target)
-        self._copy_snapshot(source, current)
-        current.version = target.value
-        current.status = target
-        current.promoted_by = user_id
-        current.promoted_at = datetime.now(timezone.utc)
-        return await self._release_repo.save(current)
+    async def _copy_to_staging_snapshot(self, source: AgentRelease, *, user_id: UUID | None) -> AgentRelease:
+        await self._archive_current(source.agent_id, ReleaseStatus.staging)
+        version = await self._next_staging_version(source.agent_id)
+        staged = self._new_snapshot_copy(
+            source,
+            version=version,
+            status=ReleaseStatus.staging,
+            release_notes=source.release_notes,
+            promoted_by=user_id,
+            snapshot_kind="staging",
+        )
+        return await self._release_repo.save(staged)
 
     async def _move_to_status(self, release: AgentRelease, target: ReleaseStatus, *, user_id: UUID | None) -> AgentRelease:
         await self._archive_current(release.agent_id, target, exclude_id=release.id)
         release.status = target
         if target == ReleaseStatus.production:
+            release.snapshot_kind = "release"
             release.promoted_by = user_id
             release.promoted_at = datetime.now(timezone.utc)
         return await self._release_repo.save(release)
@@ -175,6 +180,7 @@ class ReleaseLifecycleUseCase:
             status=ReleaseStatus.production,
             release_notes=release_notes,
             promoted_by=user_id,
+            snapshot_kind="release",
         )
         return await self._release_repo.save(cloned)
 
@@ -196,9 +202,17 @@ class ReleaseLifecycleUseCase:
                 await self._release_repo.save(stale)
         return primary
 
+    async def _next_staging_version(self, agent_id: UUID) -> str:
+        releases = await self._release_repo.list_by_agent(agent_id)
+        used = {item.version for item in releases}
+        number = 1 + sum(1 for item in releases if getattr(item, "snapshot_kind", None) == "staging")
+        while f"staging-r{number}" in used:
+            number += 1
+        return f"staging-r{number}"
+
     async def _next_version(self, agent_id: UUID, change_kind: str) -> str:
         releases = await self._release_repo.list_by_agent(agent_id)
-        historical_versions = [item.version for item in releases if item.status not in (ReleaseStatus.draft, ReleaseStatus.staging)]
+        historical_versions = [item.version for item in releases if getattr(item, "snapshot_kind", None) == "release"]
         return calculate_next_release_version(historical_versions, change_kind)
 
     def _copy_snapshot(self, source: AgentRelease, target: AgentRelease) -> None:
@@ -218,11 +232,13 @@ class ReleaseLifecycleUseCase:
         status: ReleaseStatus,
         release_notes: str | None,
         promoted_by: UUID | None,
+        snapshot_kind: str,
     ) -> AgentRelease:
         cloned = AgentRelease()
         self._copy_snapshot(source, cloned)
         cloned.version = version
         cloned.status = status
+        cloned.snapshot_kind = snapshot_kind
         cloned.release_notes = release_notes
         cloned.promoted_by = promoted_by
         cloned.promoted_at = datetime.now(timezone.utc)
