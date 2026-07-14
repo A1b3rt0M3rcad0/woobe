@@ -166,12 +166,27 @@ def _execution_payload(
         "status": execution.status,
         "answer": execution.output_message,
         "result": execution.output_message,
-        "error": execution.failure_detail,
+        "error": _public_failure_message(execution.failure_code),
         "trace_id": str(execution.root_trace_id) if execution.root_trace_id else None,
         "created_at": execution.created_at,
         "started_at": execution.started_at,
         "completed_at": execution.completed_at,
     }
+
+
+def _public_failure_message(code: str | None) -> str | None:
+    messages = {
+        "credential_error": "The Agent provider credential is not ready.",
+        "model_binding_error": "The Agent provider model binding is not ready.",
+        "runtime_configuration_error": "The Agent runtime configuration is not ready.",
+        "provider_rate_limited": "The model provider rate-limited this request.",
+        "provider_timeout": "The model provider did not answer before the timeout.",
+        "budget_exceeded": "The Network runtime budget was exceeded.",
+        "worker_lease_expired": "The Network worker stopped before completion.",
+    }
+    if code is None:
+        return None
+    return messages.get(code, "Network execution failed.")
 
 
 async def run_network_http(request: Request):
@@ -199,7 +214,8 @@ async def run_network_http(request: Request):
                 content=jsonable_encoder(
                     {
                         "success": False,
-                        "message": execution.failure_detail or execution.status,
+                        "message": _public_failure_message(execution.failure_code)
+                        or execution.status,
                         "data": _execution_payload(execution, network_session),
                     }
                 ),
