@@ -41,6 +41,7 @@ class NetworkEventType(StrEnum):
     EXECUTION_QUEUED = "execution_queued"
     EXECUTION_STARTED = "execution_started"
     INVOCATION_STARTED = "agent_invocation_started"
+    INVOCATION_FAILED = "agent_invocation_failed"
     AGENT_ACTIVITY = "agent_activity"
     DELEGATION_STARTED = "delegation_started"
     DELEGATION_COMPLETED = "delegation_completed"
