@@ -1,4 +1,4 @@
-import type { NetworkMessageResource, NetworkRuntimeEvent } from '@/features/network/types'
+import type { NetworkMessageResource } from '@/features/network/types'
 
 import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
@@ -9,7 +9,7 @@ import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspac
 function historyRecords(message: NetworkMessageResource, sessionId: string): RuntimeEventRecord[] {
   const execution = message.execution
   if (!execution) return []
-  return execution.events.map((item: NetworkRuntimeEvent) => ({
+  return execution.events.map((item) => ({
     eventType: item.event_type,
     event: {
       protocol_version: 1,
@@ -39,25 +39,8 @@ export interface HydratedNetworkHistory {
   traces: NetworkTraceRecord[]
 }
 
-export function hydrateNetworkHistory({
-  messages,
-  environment,
-  bindings,
-  session,
-  versionLabel,
-}: {
-  messages: NetworkMessageResource[]
-  environment: Environment
-  bindings: Record<AgentNodeId, NetworkBinding>
-  session: NetworkSession
-  versionLabel: string
-}): HydratedNetworkHistory {
-  type HistoryGroup = {
-    user?: NetworkMessageResource
-    assistant?: NetworkMessageResource
-    executionMessage?: NetworkMessageResource
-  }
-
+export function hydrateNetworkHistory({ messages, environment, bindings, session, versionLabel }: { messages: NetworkMessageResource[]; environment: Environment; bindings: Record<AgentNodeId, NetworkBinding>; session: NetworkSession; versionLabel: string }): HydratedNetworkHistory {
+  type HistoryGroup = { user?: NetworkMessageResource; assistant?: NetworkMessageResource; executionMessage?: NetworkMessageResource }
   const grouped = new Map<string, HistoryGroup>()
   for (const message of messages) {
     const executionId = message.network_execution_id
@@ -77,34 +60,9 @@ export function hydrateNetworkHistory({
     const records = historyRecords(source, session.id)
     const user = group.user?.content ?? ''
     const answer = group.assistant?.content ?? source.execution.failure?.message ?? ''
-    const turn = buildTurnFromRuntimeEvents({
-      records,
-      environment,
-      bindings,
-      executionId,
-      user,
-      answer,
-      fallbackTraceId: source.execution.root_trace_id ?? undefined,
-      terminalStatus: terminalStatus(source.execution.status),
-    })
+    const turn = buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) })
     turns.push(turn)
-    traces.push(createNetworkTraceRecord({
-      execution: turn.execution,
-      environment,
-      bindings,
-      networkSessionId: session.id,
-      title: user || 'Network Run',
-      userMessage: user,
-      answer: turn.answer,
-      usage: turn.usage,
-      agentContexts: session.agentContexts,
-      parsedOutput: turn.parsedOutput,
-      outputParseError: turn.outputParseError,
-      source: 'runtime',
-      runtimeEvents: records,
-      networkVersion: versionLabel,
-    }))
+    traces.push(createNetworkTraceRecord({ execution: turn.execution, environment, bindings, networkSessionId: session.id, title: user || 'Network Run', userMessage: user, answer: turn.answer, usage: turn.usage, agentContexts: session.agentContexts, parsedOutput: turn.parsedOutput, outputParseError: turn.outputParseError, source: 'runtime', runtimeEvents: records, networkVersion: versionLabel }))
   }
-
   return { turns, traces }
 }
