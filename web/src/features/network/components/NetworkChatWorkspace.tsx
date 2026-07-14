@@ -80,7 +80,14 @@ export function NetworkChatWorkspace({
   const send = (suggestion?: string) => {
     const content = (suggestion ?? text).trim()
     if (!content || running) return
-    if (changed && !pinned) { toast.warning('Start a new session or continue with the pinned composition before sending'); return }
+    if (changed && environment !== 'draft') {
+      toast.warning(`Start a new ${environment} session for the current Network snapshot before sending`)
+      return
+    }
+    if (changed && !pinned) {
+      toast.warning('Start a new session or continue with the pinned Draft composition before sending')
+      return
+    }
     setText('')
     setRunning(true)
     timeoutRef.current = setTimeout(() => {
