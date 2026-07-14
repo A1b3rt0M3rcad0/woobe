@@ -5,8 +5,10 @@ import time
 from uuid import UUID
 
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 
 from modules.network.application.service import NetworkApplicationService
 from modules.network.domain.enums import NetworkEnvironment
@@ -110,10 +112,35 @@ async def _submit(
 ) -> tuple[ProjectApiPrincipal, NetworkSessionModel, NetworkExecutionModel]:
     principal = _principal(request)
     payload = await _payload(request)
-    network_session = await _resolve_session(request, principal, payload)
     idempotency_key = payload.idempotency_key or request.headers.get("Idempotency-Key")
+    network_id = principal.target_id
+    if network_id is None:
+        raise AuthorizationError("Network Runtime Key binding is incomplete")
+
+    if idempotency_key:
+        async with request.app.state.session_factory() as database:
+            existing = await database.scalar(
+                select(NetworkExecutionModel).where(
+                    NetworkExecutionModel.network_id == network_id,
+                    NetworkExecutionModel.idempotency_key == idempotency_key,
+                )
+            )
+            existing_session = (
+                await database.get(NetworkSessionModel, existing.network_session_id)
+                if existing is not None
+                else None
+            )
+        if existing is not None and existing_session is not None:
+            if (
+                existing.project_id != principal.project_id
+                or existing_session.environment != principal.environment
+            ):
+                raise NotFoundError("Network execution not found")
+            return principal, existing_session, existing
+
+    network_session = await _resolve_session(request, principal, payload)
     execution = await _service(request).submit_execution(
-        network_id=principal.target_id,
+        network_id=network_id,
         project_id=principal.project_id,
         network_session_id=network_session.id,
         message=payload.message,
@@ -161,11 +188,11 @@ async def run_network_http(request: Request):
             status_code = 409 if execution.status == "cancelled" else 503
             return JSONResponse(
                 status_code=status_code,
-                content={
+                content=jsonable_encoder({
                     "success": False,
                     "message": execution.failure_detail or execution.status,
                     "data": _execution_payload(execution, network_session),
-                },
+                }),
             )
         await asyncio.sleep(0.25)
     raise RuntimeTimeoutError("Network execution exceeded the HTTP response timeout")
