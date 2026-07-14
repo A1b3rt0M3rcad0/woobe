@@ -77,3 +77,13 @@ def test_classifies_a_generic_provider_rejection_without_leaking_detail() -> Non
         "The model provider rejected the Agent request."
     )
     assert "proprietary payload" not in failure.public_payload()["message"]
+
+
+def test_classifies_missing_worker_http_runtime_as_bootstrap_error() -> None:
+    failure = classify_runtime_exception(
+        RuntimeError("HTTP tool executor is not configured")
+    )
+
+    assert failure.code == "runtime_configuration_error"
+    assert failure.stage == "agent_bootstrap"
+    assert failure.retryable is False

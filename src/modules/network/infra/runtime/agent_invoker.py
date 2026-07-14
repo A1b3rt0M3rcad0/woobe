@@ -24,13 +24,13 @@ from modules.agent.application.use_cases.execution_context import (
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_embedding_factory import (
     LangchainEmbeddingFactory,
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.network.application.runtime import (
     AgentInvocationResult,
@@ -47,9 +47,11 @@ class ProjectRAIAgentInvoker:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         settings: Settings,
+        http_executor: HttpToolExecutor,
     ) -> None:
         self._session_factory = session_factory
         self._settings = settings
+        self._http_executor = http_executor
 
     async def invoke(
         self,
@@ -66,7 +68,7 @@ class ProjectRAIAgentInvoker:
     ) -> AgentInvocationResult:
         settings = self._settings
         cipher = SecretCipherAdapter(settings.encryption_key)
-        http_executor = get_http_tool_executor()
+        http_executor = self._http_executor
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
 
         async def read_runtime_tools(tool_ids: list[UUID]):

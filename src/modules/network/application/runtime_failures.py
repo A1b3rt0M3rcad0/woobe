@@ -123,6 +123,7 @@ def classify_runtime_exception(
         "base_url" in normalized
         or "settings" in normalized
         or "runtime session factory" in normalized
+        or "http tool executor is not configured" in normalized
     ):
         return NetworkRuntimeFailure(
             code="runtime_configuration_error",

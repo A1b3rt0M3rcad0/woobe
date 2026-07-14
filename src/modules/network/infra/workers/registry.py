@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.network.infra.workers.execution_worker import (
     NetworkExecutionConsumer,
     NetworkExecutionProcessor,
@@ -36,6 +37,7 @@ def register_network_workers(
     processor = NetworkExecutionProcessor(
         session_factory,
         settings=settings,
+        http_executor=get_http_tool_executor(),
         lease_ttl_seconds=settings.network_execution_lease_ttl_seconds,
         heartbeat_seconds=settings.network_execution_lease_heartbeat_seconds,
     )

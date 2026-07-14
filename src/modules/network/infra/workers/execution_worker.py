@@ -11,6 +11,7 @@ from aio_pika import IncomingMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.network.application.runtime import (
     NetworkBudgetExceeded,
     NetworkExecutionCancelled,
@@ -40,6 +41,7 @@ class NetworkExecutionProcessor:
         session_factory: async_sessionmaker[AsyncSession],
         *,
         settings: Settings,
+        http_executor: HttpToolExecutor,
         lease_ttl_seconds: int,
         heartbeat_seconds: int,
         worker_id: str | None = None,
@@ -52,6 +54,7 @@ class NetworkExecutionProcessor:
         self._agent_invoker = ProjectRAIAgentInvoker(
             self._session_factory,
             self._settings,
+            http_executor,
         )
 
     async def process(self, execution_id: UUID) -> None:
