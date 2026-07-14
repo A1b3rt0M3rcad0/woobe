@@ -155,12 +155,30 @@ class StructuredOutputAskAgentUseCase(
                         ]
                     agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
             except Exception:
-                return prepared
-
-            updated = list(prepared)
+                updated = list(prepared)
+                tool_name_to_id = updated[8]
+            else:
+                updated = list(prepared)
             updated[7] = agent_tools
             updated[8] = tool_name_to_id
             updated[9] = bool(agent_tools)
+
+        if context and context.internal_tool_definitions:
+            definitions = list(updated[7])
+            mapping = dict(updated[8])
+            internal_mapping = context.internal_tool_name_to_id or {}
+            collisions = set(mapping).intersection(internal_mapping)
+            if collisions:
+                raise ValueError(
+                    "Network delegation tool name collides with an Agent Tool: "
+                    + ", ".join(sorted(collisions))
+                )
+            definitions.extend(context.internal_tool_definitions)
+            mapping.update(internal_mapping)
+            updated[7] = definitions
+            updated[8] = mapping
+            updated[9] = bool(definitions)
+            tool_name_to_id = mapping
 
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])
