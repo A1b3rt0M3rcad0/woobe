@@ -139,9 +139,7 @@ def _values_for_key(value: Any, target: str) -> list[Any]:
 
 
 def _serialized_size(value: Any) -> int:
-    return len(
-        json.dumps(value, separators=(",", ":"), default=str).encode("utf-8")
-    )
+    return len(json.dumps(value, separators=(",", ":"), default=str).encode("utf-8"))
 
 
 class HttpSecurityGuard:
@@ -173,9 +171,9 @@ class HttpSecurityGuard:
         request: Request,
         principal: SecurityPrincipal | None,
     ) -> bool:
-        return isinstance(principal, ProjectApiPrincipal) and is_runtime_execution_request(
-            request.method, request.url.path
-        )
+        return isinstance(
+            principal, ProjectApiPrincipal
+        ) and is_runtime_execution_request(request.method, request.url.path)
 
     async def acquire_runtime_permit(self, principal: ProjectApiPrincipal) -> UUID:
         return await self._api_key_concurrency_limiter.acquire(
@@ -331,7 +329,11 @@ class HttpSecurityGuard:
                     else None
                 )
                 target_id = matching_row.target_id or matching_row.agent_id
-                if target_type not in {"agent", "network"} or target_id is None or key_environment is None:
+                if (
+                    target_type not in {"agent", "network"}
+                    or target_id is None
+                    or key_environment is None
+                ):
                     raise AuthorizationError("Runtime Key binding is incomplete")
                 if runtime_interface not in interfaces:
                     raise AuthorizationError(
@@ -362,7 +364,10 @@ class HttpSecurityGuard:
                 ),
                 target_id=(
                     UUID(str(matching_row.target_id or matching_row.agent_id))
-                    if (matching_row.target_id is not None or matching_row.agent_id is not None)
+                    if (
+                        matching_row.target_id is not None
+                        or matching_row.agent_id is not None
+                    )
                     else None
                 ),
                 environment=key_environment,
