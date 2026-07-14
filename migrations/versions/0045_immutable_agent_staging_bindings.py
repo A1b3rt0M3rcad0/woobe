@@ -56,7 +56,7 @@ def upgrade() -> None:
         "agent_releases",
         "snapshot_kind",
         nullable=False,
-        server_default="draft",
+        server_default=sa.text("'draft'"),
         schema="agent",
     )
     op.create_index(
