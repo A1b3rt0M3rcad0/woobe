@@ -252,6 +252,7 @@ async def _execution_stream(
     sequence = start_sequence
     last_heartbeat = time.monotonic()
     heartbeat_seconds = request.app.state.settings.network_stream_heartbeat_seconds
+    poll_interval = 0.1
     while True:
         if await request.is_disconnected():
             return
@@ -288,6 +289,7 @@ async def _execution_stream(
                 },
                 sequence=event.sequence,
             )
+        poll_interval = 0.1 if events else min(1.0, poll_interval * 1.5)
         if status in TERMINAL_STATUSES and not events:
             return
         now = time.monotonic()
@@ -297,7 +299,7 @@ async def _execution_stream(
                 {"protocol_version": 1, "execution_id": str(execution_id)},
             )
             last_heartbeat = now
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(poll_interval)
 
 
 @router.post("/{network_id}/executions/stream")
