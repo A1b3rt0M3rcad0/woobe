@@ -17,7 +17,7 @@ export function Badge({ children, tone = 'default' }: { children: ReactNode; ton
 }
 
 const items = [
-  { id: 'traces' as const, label: 'Traces', icon: Activity },
+  { id: 'traces' as const, label: 'Runs', icon: Activity },
   { id: 'debug' as const, label: 'Debug', icon: Bug },
 ]
 
