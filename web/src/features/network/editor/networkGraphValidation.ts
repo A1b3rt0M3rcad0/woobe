@@ -66,6 +66,7 @@ export function validateNetworkGraph(definition: NetworkDefinition): NetworkEdit
 
   const tools = new Map<string, string>()
   for (const node of definition.nodes) {
+    if (node.capability_description.length > 2000) issues.push({ code: 'capability-description', severity: 'error', message: `${node.label} has a delegation description longer than 2000 characters.`, nodeId: node.id })
     const tool = delegationToolName(node)
     const previous = tools.get(tool)
     if (previous) issues.push({ code: 'tool-name', severity: 'error', message: `${node.label} generates the same delegation tool as another Agent.`, nodeId: node.id })
@@ -78,4 +79,3 @@ export function validateNetworkGraph(definition: NetworkDefinition): NetworkEdit
   if (timeout_seconds < 1 || timeout_seconds > 300) issues.push({ code: 'timeout', severity: 'error', message: 'Timeout must be between 1 and 300 seconds.' })
   return issues
 }
-
