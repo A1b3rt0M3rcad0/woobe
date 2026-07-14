@@ -26,7 +26,7 @@ import { NetworkInspectorShell, type InspectorContext } from '@/features/network
 import { UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
 import { NetworkRollbackDialog } from '@/features/network/components/NetworkRollbackDialog'
 import { DRAFT, PRODUCTION, STAGING, bind, clone, fallbackAgents } from '@/features/network/components/networkPageData'
-import { networkLabel, type NetworkExecution } from '@/features/network/components/networkChatExecution'
+import { delegationCount, networkLabel, type NetworkExecution } from '@/features/network/components/networkChatExecution'
 import { applyNetworkDefinitionChange, createEmptyNetworkDefinition, createNodeForAgent, normalizeNetworkDefinition } from '@/features/network/editor/networkDefinitionMapper'
 import { validateNetworkGraph } from '@/features/network/editor/networkGraphValidation'
 import type { NetworkDefinitionChange, NetworkEditorSelection } from '@/features/network/editor/types'
@@ -502,14 +502,17 @@ export default function NetworkPage() {
       selectTrace(trace)
       setPanelTab('traces')
       setShowLeftPanel(true)
-      toast.error('Network execution failed. Trace opened for diagnosis.')
+      toast.error('Network execution failed. Run details opened for diagnosis.')
     } else {
-      toast.success('Network execution completed', { description: `${trace.execution.path.length} hops · ${trace.durationMs}ms` })
+      toast.success('Network execution completed', { description: `${delegationCount(trace.execution.root)} hops · ${trace.durationMs}ms` })
     }
   }
   const openTraceFromChat = (execution: NetworkExecution) => {
     if (!activeSession) return
-    const existing = activeTraces.find((trace) => trace.execution.id === execution.id || trace.traceId === execution.traceId)
+    const existing = activeTraces.find((trace) => (
+      trace.execution.id === execution.id
+      || (execution.traceId != null && trace.traceId === execution.traceId)
+    ))
     const trace = existing ?? createNetworkTraceRecord({ execution, environment, bindings: runtimeBindings, networkSessionId: activeSession.id, title: 'Network execution', userMessage: 'Opened from the current Network Chat.', answer: 'Execution details from the current Network Chat.', agentContexts: activeSession.agentContexts, source: 'chat', networkVersion: networkLabel(environment, versionLabel) })
     if (!existing) setTraces((current) => [trace, ...current])
     selectTrace(trace)
