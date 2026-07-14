@@ -26,6 +26,9 @@ class PromotionRequest(BaseModel):
         NetworkEnvironment.STAGING,
         NetworkEnvironment.PRODUCTION,
     ]
+    expected_revision: int | None = Field(default=None, ge=0)
+    expected_network_version_id: UUID | None = None
+    approved_action_ids: list[str] = Field(default_factory=list, max_length=256)
 
 
 class RollbackNetworkRequest(BaseModel):
