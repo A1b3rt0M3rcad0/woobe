@@ -5,6 +5,7 @@ export interface NetworkNode {
   id: string
   agent_id: string
   label: string
+  capability_description: string
   position: { x: number; y: number }
 }
 
@@ -75,6 +76,16 @@ export interface NetworkExecutionHistoryResource {
   draft_revision: number | null
   network_version_id: string | null
   root_trace_id: string | null
+  failure_code: string | null
+  failure: {
+    code?: string
+    stage?: string
+    message?: string
+    retryable?: boolean
+    cause_invocation_id?: string | null
+    cause_node_id?: string | null
+    cause_agent_id?: string | null
+  } | null
   started_at: string | null
   completed_at: string | null
   events: Array<{
