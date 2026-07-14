@@ -4,7 +4,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
+from modules.agent.application.composers.tool_runtime_factory import (
+    build_tool_runtime_registry,
+)
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.runtime_tool_inventory import (
@@ -22,7 +24,9 @@ from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
-from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
+from modules.agent.infra.adapters.langchain_embedding_factory import (
+    LangchainEmbeddingFactory,
+)
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -122,7 +126,9 @@ class ProjectRAIAgentInvoker:
         context.session_id = agent_session_id
         context.execution_context = execution_context
         context.agent_release_id = release_id
-        context.internal_tool_definitions = [tool.definition() for tool in internal_tools]
+        context.internal_tool_definitions = [
+            tool.definition() for tool in internal_tools
+        ]
         context.internal_tool_name_to_id = {
             tool.name: str(tool.id) for tool in internal_tools
         }
