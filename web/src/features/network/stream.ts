@@ -14,6 +14,7 @@ export interface NetworkStreamInput {
   message: string
   idempotencyKey?: string
   lastEventId?: number
+  expectedDraftRevision?: number
 }
 
 export interface NetworkStreamCallbacks {
@@ -68,6 +69,7 @@ async function requestStream(
       network_session_id: input.networkSessionId,
       message: input.message,
       idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      expected_draft_revision: input.expectedDraftRevision,
     }),
   })
   if (response.status === 401 && !retriedAuth) {

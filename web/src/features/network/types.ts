@@ -1,4 +1,5 @@
-export type NetworkEnvironment = 'staging' | 'production'
+export type NetworkEnvironment = 'draft' | 'staging' | 'production'
+export type NetworkPromotionEnvironment = Exclude<NetworkEnvironment, 'draft'>
 
 export interface NetworkNode {
   id: string
@@ -58,12 +59,46 @@ export interface NetworkVersion {
 export interface NetworkSessionResource {
   id: string
   network_id?: string
-  network_version_id: string
+  network_version_id: string | null
   environment: NetworkEnvironment
   title: string
   status: 'active' | 'closed'
   last_message_at?: string | null
+  message_count: number
+  trace_count: number
   created_at: string
+}
+
+export interface NetworkExecutionHistoryResource {
+  id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out' | 'uncertain'
+  draft_revision: number | null
+  network_version_id: string | null
+  root_trace_id: string | null
+  started_at: string | null
+  completed_at: string | null
+  events: Array<{
+    id: string
+    sequence: number
+    event_type: string
+    invocation_id: string | null
+    parent_invocation_id: string | null
+    node_id: string | null
+    agent_id: string | null
+    depth: number | null
+    data: Record<string, unknown>
+    created_at: string
+  }>
+}
+
+export interface NetworkMessageResource {
+  id: string
+  network_execution_id: string | null
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  data: Record<string, unknown> | null
+  created_at: string
+  execution: NetworkExecutionHistoryResource | null
 }
 
 export interface NetworkRuntimeEvent {
@@ -82,7 +117,7 @@ export interface NetworkRuntimeEvent {
 }
 
 export interface PromotionPreview {
-  environment: NetworkEnvironment
+  environment: NetworkPromotionEnvironment
   ready: boolean
   bindings: Record<string, Record<string, unknown>>
   missing_agent_ids: string[]

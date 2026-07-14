@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 class NetworkEnvironment(StrEnum):
+    DRAFT = "draft"
     STAGING = "staging"
     PRODUCTION = "production"
 

@@ -24,7 +24,8 @@ export interface NetworkSession {
   networkId: string
   title: string
   environment: Environment
-  networkVersion: string
+  networkVersion: string | null
+  draftRevision: number | null
   compositionHash: string
   status: 'active' | 'closed'
   createdAt: string

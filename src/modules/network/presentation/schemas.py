@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -22,7 +22,15 @@ class SaveNetworkDraftRequest(BaseModel):
 
 class PromotionRequest(BaseModel):
     project_id: UUID
-    environment: NetworkEnvironment
+    environment: Literal[
+        NetworkEnvironment.STAGING,
+        NetworkEnvironment.PRODUCTION,
+    ]
+
+
+class RollbackNetworkRequest(BaseModel):
+    project_id: UUID
+    target_version_id: UUID
 
 
 class CreateNetworkSessionRequest(BaseModel):
@@ -37,3 +45,4 @@ class RunNetworkRequest(BaseModel):
     network_session_id: UUID
     message: str = Field(min_length=1, max_length=32768)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
+    expected_draft_revision: int | None = Field(default=None, ge=0)

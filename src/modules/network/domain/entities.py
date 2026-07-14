@@ -140,7 +140,7 @@ class NetworkVersion:
 @dataclass
 class NetworkSession:
     network_id: UUID
-    network_version_id: UUID
+    network_version_id: UUID | None
     project_id: UUID
     environment: NetworkEnvironment
     title: str = "New Network session"
@@ -156,10 +156,13 @@ class NetworkSession:
 @dataclass
 class NetworkExecution:
     network_id: UUID
-    network_version_id: UUID
+    network_version_id: UUID | None
     network_session_id: UUID
     project_id: UUID
     input_message: str
+    draft_revision: int | None = None
+    definition_snapshot: dict[str, Any] | None = None
+    resolved_bindings_snapshot: dict[str, Any] | None = None
     status: NetworkExecutionStatus = NetworkExecutionStatus.QUEUED
     idempotency_key: str | None = None
     output_message: str | None = None

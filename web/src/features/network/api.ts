@@ -3,6 +3,8 @@ import { get, patch, post, put } from '@/lib/api/client'
 import type {
   NetworkDefinition,
   NetworkEnvironment,
+  NetworkMessageResource,
+  NetworkPromotionEnvironment,
   NetworkResource,
   NetworkSessionResource,
   NetworkVersion,
@@ -33,7 +35,7 @@ export function saveNetworkDraft(
 export function previewNetworkPromotion(
   networkId: string,
   projectId: string,
-  environment: NetworkEnvironment,
+  environment: NetworkPromotionEnvironment,
 ): Promise<PromotionPreview> {
   return post<PromotionPreview>(`/network/${networkId}/promotions/preview`, {
     project_id: projectId,
@@ -44,7 +46,7 @@ export function previewNetworkPromotion(
 export function promoteNetwork(
   networkId: string,
   projectId: string,
-  environment: NetworkEnvironment,
+  environment: NetworkPromotionEnvironment,
 ): Promise<NetworkVersion> {
   return post<NetworkVersion>(`/network/${networkId}/promotions`, {
     project_id: projectId,
@@ -58,6 +60,17 @@ export function getNetworkVersions(
 ): Promise<NetworkVersion[]> {
   return get<NetworkVersion[]>(`/network/${networkId}/versions`, {
     params: { project_id: projectId },
+  })
+}
+
+export function rollbackNetworkProduction(
+  networkId: string,
+  projectId: string,
+  targetVersionId: string,
+): Promise<NetworkVersion> {
+  return post<NetworkVersion>(`/network/${networkId}/rollback`, {
+    project_id: projectId,
+    target_version_id: targetVersionId,
   })
 }
 
@@ -80,6 +93,26 @@ export function getNetworkSessions(
   return get<NetworkSessionResource[]>(`/network/${networkId}/sessions`, {
     params: { project_id: projectId },
   })
+}
+
+export function getNetworkSessionMessages(
+  networkId: string,
+  sessionId: string,
+  projectId: string,
+): Promise<NetworkMessageResource[]> {
+  return get<NetworkMessageResource[]>(`/network/${networkId}/sessions/${sessionId}/messages`, {
+    params: { project_id: projectId },
+  })
+}
+
+export function resetNetworkSessionContext(
+  networkId: string,
+  sessionId: string,
+  projectId: string,
+): Promise<{ network_session_id: string }> {
+  return post<{ network_session_id: string }>(
+    `/network/${networkId}/sessions/${sessionId}/reset-context?project_id=${encodeURIComponent(projectId)}`,
+  )
 }
 
 export function cancelNetworkExecution(

@@ -10,6 +10,7 @@ import {
   networkLabel,
   type NetworkAgentInvocation,
   type NetworkExecution,
+  type RuntimeEventRecord,
 } from './networkChatExecution'
 import {
   executionCompletionTime,
@@ -173,6 +174,25 @@ function aggregateUsage(root: NetworkAgentInvocation): UsageInfo {
   }
 }
 
+function runtimeTraceEvents(records: RuntimeEventRecord[]): NetworkTraceEvent[] {
+  return records.map(({ eventType, event }, index) => ({
+    id: event.event_id ?? `${event.execution_id}-${event.sequence ?? index}`,
+    type: eventType,
+    label: eventType.replace(/_/g, ' '),
+    timestamp: event.created_at ?? new Date().toISOString(),
+    sequence: event.sequence ?? index + 1,
+    spanId: event.invocation_id,
+    parentSpanId: event.parent_invocation_id,
+    nodeId: event.node_id ?? undefined,
+    status: eventType.includes('failed') || eventType.includes('cancelled')
+      ? 'error'
+      : eventType.includes('started')
+        ? 'running'
+        : 'success',
+    payload: event.data,
+  }))
+}
+
 export function createNetworkTraceRecord({
   execution,
   environment,
@@ -186,6 +206,8 @@ export function createNetworkTraceRecord({
   parsedOutput,
   outputParseError,
   source = 'chat',
+  runtimeEvents,
+  networkVersion,
 }: {
   execution: NetworkExecution
   environment: Environment
@@ -199,6 +221,8 @@ export function createNetworkTraceRecord({
   parsedOutput?: Record<string, unknown> | null
   outputParseError?: string | null
   source?: NetworkTraceSource
+  runtimeEvents?: RuntimeEventRecord[]
+  networkVersion?: string
 }): NetworkTraceRecord {
   const startedAt = execution.startedAt
   const startEvent: NetworkTraceEvent = {
@@ -211,7 +235,7 @@ export function createNetworkTraceRecord({
     status: 'running',
     payload: {
       environment,
-      network_version: networkLabel(environment),
+      network_version: networkVersion ?? networkLabel(environment),
       network_session_id: networkSessionId,
       message: userMessage,
       max_hops: 8,
@@ -273,7 +297,7 @@ export function createNetworkTraceRecord({
     parsedOutput,
     outputParseError,
     environment: execution.environment,
-    networkVersion: networkLabel(environment),
+    networkVersion: networkVersion ?? networkLabel(environment),
     compositionHash: hashComposition(currentSignature(environment, bindings)),
     status: execution.status,
     startedAt,
@@ -283,6 +307,8 @@ export function createNetworkTraceRecord({
     costUsd: execution.costUsd,
     agentContexts,
     execution,
-    events: [startEvent, enteredEvent, ...invocation.events, finalEvent],
+    events: runtimeEvents?.length
+      ? runtimeTraceEvents(runtimeEvents)
+      : [startEvent, enteredEvent, ...invocation.events, finalEvent],
   }
 }

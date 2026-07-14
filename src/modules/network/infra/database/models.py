@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -76,12 +77,17 @@ class NetworkSessionModel(BaseModel):
             "external_session_id",
             name="uq_network_sessions_external_id",
         ),
+        CheckConstraint(
+            "(environment = 'draft' AND network_version_id IS NULL) OR "
+            "(environment IN ('staging', 'production') AND network_version_id IS NOT NULL)",
+            name="ck_network_sessions_environment_version",
+        ),
         {"schema": "network"},
     )
 
     network_id: Mapped[UUID] = mapped_column(ForeignKey("network.networks.id"))
-    network_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("network.network_versions.id")
+    network_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("network.network_versions.id"), nullable=True
     )
     project_id: Mapped[UUID]
     environment: Mapped[str] = mapped_column(String(32))
@@ -155,18 +161,38 @@ class NetworkExecutionModel(BaseModel):
             "idempotency_key",
             name="uq_network_execution_idempotency",
         ),
+        CheckConstraint(
+            "(network_version_id IS NULL AND draft_revision IS NOT NULL "
+            "AND definition_snapshot IS NOT NULL "
+            "AND resolved_bindings_snapshot IS NOT NULL) OR "
+            "(network_version_id IS NOT NULL AND draft_revision IS NULL)",
+            name="ck_network_executions_snapshot_source",
+        ),
+        Index(
+            "ix_network_executions_network_draft_revision",
+            "network_id",
+            "draft_revision",
+            "created_at",
+        ),
         {"schema": "network"},
     )
 
     network_id: Mapped[UUID] = mapped_column(ForeignKey("network.networks.id"))
-    network_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("network.network_versions.id")
+    network_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("network.network_versions.id"), nullable=True
     )
     network_session_id: Mapped[UUID] = mapped_column(
         ForeignKey("network.network_sessions.id")
     )
     project_id: Mapped[UUID]
     input_message: Mapped[str] = mapped_column(Text)
+    draft_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    definition_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    resolved_bindings_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     output_message: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="queued")
     idempotency_key: Mapped[str | None] = mapped_column(String(255))

@@ -1,0 +1,37 @@
+.network-flow .react-flow__controls,
+.network-flow .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid rgb(51 65 85 / 0.9);
+  border-radius: 0.75rem;
+  background: #08111f;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
+}
+
+.network-flow .react-flow__controls-button {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-bottom: 1px solid rgb(51 65 85 / 0.75);
+  background: #0f172a;
+  color: #cbd5e1;
+}
+
+.network-flow .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.network-flow .react-flow__controls-button:hover,
+.network-flow .react-flow__controls-button:focus-visible {
+  background: #172554;
+  color: #fff;
+}
+
+.network-flow .react-flow__controls-button svg {
+  max-width: 0.9rem;
+  max-height: 0.9rem;
+  fill: currentColor;
+}
+
+.network-flow .react-flow__minimap-svg {
+  background: #08111f;
+}

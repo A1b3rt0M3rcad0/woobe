@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Background,
   Controls,
@@ -7,6 +7,7 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  useNodesState,
   type Connection,
   type Edge,
   type Node,
@@ -14,6 +15,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import './network-flow.css'
 import { AlertTriangle, Bot, Crown, Plus, Workflow } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -78,7 +80,7 @@ export function NetworkGraphEditor({
   onAddAgent: () => void
 }) {
   const agentsById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const nodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
+  const derivedNodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
     id: node.id,
     type: 'network-agent',
     position: node.position,
@@ -93,6 +95,13 @@ export function NetworkGraphEditor({
       issues: issues.filter((issue) => issue.nodeId === node.id),
     },
   })), [agentsById, definition.nodes, definition.root_node_id, issues, readOnly, selection])
+  const [nodes, setNodes, onNodesChange] = useNodesState<AgentFlowNode>(derivedNodes)
+  const draggingRef = useRef(false)
+
+  useEffect(() => {
+    if (draggingRef.current) return
+    setNodes(derivedNodes)
+  }, [derivedNodes, setNodes])
   const edges = useMemo<Edge[]>(() => definition.edges.map((edge) => ({
     id: edge.id,
     source: edge.source_node_id,
@@ -120,11 +129,19 @@ export function NetworkGraphEditor({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        colorMode="dark"
+        className="network-flow"
+        onNodesChange={onNodesChange}
         onConnect={connect}
         onNodeClick={(_, node) => onSelect({ type: 'node', id: node.id })}
         onEdgeClick={(_, edge) => onSelect({ type: 'edge', id: edge.id })}
         onPaneClick={() => onSelect({ type: 'network' })}
-        onNodeDragStop={(_, node) => onChange({ type: 'move-node', nodeId: node.id, position: node.position })}
+        onNodeDragStart={() => { draggingRef.current = true }}
+        onNodeDragStop={(_, node) => {
+          draggingRef.current = false
+          setNodes((current) => current.map((item) => item.id === node.id ? { ...item, position: node.position } : item))
+          onChange({ type: 'move-node', nodeId: node.id, position: node.position })
+        }}
         isValidConnection={(connection) => !canConnectNetworkNodes(definition, connection.source, connection.target)}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
@@ -138,7 +155,15 @@ export function NetworkGraphEditor({
       >
         <Background gap={22} size={1} color="rgba(100,116,139,.22)" />
         <Controls position="bottom-left" showInteractive={false} />
-        <MiniMap position="bottom-right" pannable zoomable nodeColor={(node) => node.id === definition.root_node_id ? '#7c3aed' : '#334155'} maskColor="rgba(2,6,23,.78)" />
+        <MiniMap
+          position="bottom-right"
+          pannable
+          zoomable
+          bgColor="#08111f"
+          nodeStrokeColor="#64748b"
+          nodeColor={(node) => node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
+          maskColor="rgba(2,6,23,.72)"
+        />
       </ReactFlow>
 
       <div className="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-2 rounded-xl border border-border bg-surface/90 px-3 py-2 text-[10px] text-muted shadow-lg">
@@ -163,4 +188,3 @@ export function NetworkGraphEditor({
     </div>
   )
 }
-

@@ -82,6 +82,8 @@ async def _resolve_session(
     if network_id is None:
         raise AuthorizationError("Network Runtime Key binding is incomplete")
     environment = NetworkEnvironment(principal.environment)
+    if environment == NetworkEnvironment.DRAFT:
+        raise AuthorizationError("Runtime Keys cannot execute a Network Draft")
 
     if payload.session_id is None:
         return await _service(request).create_session(
@@ -158,7 +160,9 @@ def _execution_payload(
         "job_id": str(execution.id),
         "session_id": str(network_session.id),
         "network_id": str(execution.network_id),
-        "network_version_id": str(execution.network_version_id),
+        "network_version_id": str(execution.network_version_id)
+        if execution.network_version_id
+        else None,
         "status": execution.status,
         "answer": execution.output_message,
         "result": execution.output_message,

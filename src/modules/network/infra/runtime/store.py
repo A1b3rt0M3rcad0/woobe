@@ -34,13 +34,18 @@ class SQLNetworkExecutionStore:
         depth: int,
         message: str,
         parent_invocation_id: UUID | None,
+        persist_context: bool,
     ) -> NetworkInvocationModel:
         async with self._session_factory() as session, session.begin():
             repository = NetworkRuntimeRepository(session)
-            context = await repository.get_or_create_agent_context(
-                network_session_id=execution.network_session_id,
-                node_id=node_id,
-                agent_id=agent_id,
+            context = (
+                await repository.get_or_create_agent_context(
+                    network_session_id=execution.network_session_id,
+                    node_id=node_id,
+                    agent_id=agent_id,
+                )
+                if persist_context
+                else None
             )
             invocation = await repository.create_invocation(
                 execution=execution,
@@ -49,7 +54,7 @@ class SQLNetworkExecutionStore:
                 depth=depth,
                 input_message=message,
                 parent_invocation_id=parent_invocation_id,
-                agent_session_id=context.agent_session_id,
+                agent_session_id=context.agent_session_id if context else None,
             )
             return invocation
 
@@ -58,6 +63,7 @@ class SQLNetworkExecutionStore:
         invocation_id: UUID,
         *,
         result: AgentInvocationResult,
+        persist_context: bool,
     ) -> None:
         async with self._session_factory() as session, session.begin():
             invocation = await session.get(NetworkInvocationModel, invocation_id)
@@ -68,6 +74,7 @@ class SQLNetworkExecutionStore:
             invocation.trace_id = result.trace_id
             if result.session_id:
                 invocation.agent_session_id = result.session_id
+            if result.session_id and persist_context:
                 from sqlalchemy import select
 
                 context = await session.scalar(

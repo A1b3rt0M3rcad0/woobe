@@ -194,6 +194,9 @@ class NetworkRuntimeRepository:
         )
         context = result.scalar_one_or_none()
         if context is not None:
+            if context.agent_id != agent_id:
+                context.agent_id = agent_id
+                context.agent_session_id = None
             return context
         context = NetworkAgentContextModel(
             network_session_id=network_session_id,

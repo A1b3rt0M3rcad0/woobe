@@ -1,7 +1,7 @@
 import type { SourceInfo, ToolCallInfo, UsageInfo } from '@/features/playground/types'
+import type { NetworkRuntimeEvent } from '@/features/network/types'
 
 import type { AgentNodeId, Environment, NetworkBinding, NodeId } from './networkWorkspaceTypes'
-import type { AgentContextState, NetworkAgentContext } from './networkSessionTypes'
 
 export type AgentInvocationStatus = 'pending' | 'running' | 'success' | 'error' | 'skipped'
 
@@ -13,7 +13,7 @@ export interface NetworkAgentInvocation {
   agentId: string
   agentName: string
   agentSessionId: string | null
-  contextState: AgentContextState
+  contextState: 'created' | 'reused' | 'stateless'
   previousInvocationCount: number
   childTraceId: string | null
   provider?: string | null
@@ -57,19 +57,28 @@ export interface NetworkTurn {
   execution: NetworkExecution
 }
 
-export function networkLabel(environment: Environment) {
-  if (environment === 'draft') return 'Draft Revision 29'
-  if (environment === 'staging') return 'Staging v0.12.20260713.00'
-  return 'Production v0.10.20260710.00'
+export interface RuntimeEventRecord {
+  eventType: string
+  event: NetworkRuntimeEvent
 }
 
-export function currentSignature(environment: Environment, bindings: Record<AgentNodeId, NetworkBinding>) {
-  return `${environment}|${(['coordinator', 'billing', 'technical'] as AgentNodeId[])
-    .map((nodeId) => {
-      const binding = bindings[nodeId]
-      return `${nodeId}:${binding.ref}:${binding.dirty ? 'preview' : 'saved'}`
-    })
-    .join('|')}`
+export function networkLabel(environment: Environment, version?: string | number | null) {
+  if (environment === 'draft') return `Draft r${version ?? 'current'}`
+  if (environment === 'staging') return version ? `Staging ${version}` : 'Current Staging'
+  return version ? `Production ${version}` : 'Current Production'
+}
+
+export function currentSignature(
+  environment: Environment,
+  bindings: Record<AgentNodeId, NetworkBinding>,
+) {
+  const signature = Object.values(bindings)
+    .sort((left, right) => left.nodeId.localeCompare(right.nodeId))
+    .map((binding) => (
+      `${binding.nodeId}:${binding.agent.id}:${binding.source}:${binding.ref}:${binding.dirty ? 'preview' : 'saved'}`
+    ))
+    .join('|')
+  return `${environment}|${signature}`
 }
 
 export function invocationCount(root: NetworkAgentInvocation): number {
@@ -90,247 +99,233 @@ export function invocationPath(root: NetworkAgentInvocation): string[] {
   return [root.agentName, ...invocationPath(primaryChild)]
 }
 
-function bindingFor(
-  bindings: Record<AgentNodeId, NetworkBinding>,
-  preferred: AgentNodeId,
-): NetworkBinding {
-  return bindings[preferred] ?? Object.values(bindings)[0]
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
-function makeId(prefix: string) {
-  return `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}`
-}
-
-function makeTool(name: string, input: unknown, output: unknown, durationMs: number): ToolCallInfo {
+function asUsage(value: unknown): UsageInfo {
+  const usage = asRecord(value)
   return {
-    tool_call_id: makeId(name),
-    tool_name: name,
-    input,
-    output,
-    duration_ms: durationMs,
-    status: 'completed',
-    success: true,
+    input_tokens: typeof usage.input_tokens === 'number' ? usage.input_tokens : 0,
+    output_tokens: typeof usage.output_tokens === 'number' ? usage.output_tokens : 0,
+    total_tokens: typeof usage.total_tokens === 'number' ? usage.total_tokens : 0,
+    cost_usd: typeof usage.cost_usd === 'number' ? usage.cost_usd : 0,
   }
 }
 
-function resolveAgentContext(
-  binding: NetworkBinding,
-  networkSessionId: string,
-  contexts: NetworkAgentContext[],
-  timestamp: string,
-): { context: NetworkAgentContext; state: AgentContextState; previousInvocationCount: number } {
-  const sessionMode = binding.agent.session_mode === 'stateless' ? 'stateless' : 'stateful'
-  const existing = contexts.find((item) => item.nodeId === binding.nodeId)
-  const previousInvocationCount = existing?.invocationCount ?? 0
-
-  if (sessionMode === 'stateless') {
-    const context: NetworkAgentContext = {
-      id: existing?.id ?? makeId(`context-${binding.nodeId}`),
-      networkSessionId,
-      nodeId: binding.nodeId,
-      agentId: binding.agent.id,
-      agentName: binding.agent.name,
-      sessionMode,
-      agentSessionId: null,
-      source: binding.source,
-      version: binding.version,
-      invocationCount: previousInvocationCount + 1,
-      messageCount: 0,
-      createdAt: existing?.createdAt ?? timestamp,
-      lastInvokedAt: timestamp,
+function totalUsage(invocations: NetworkAgentInvocation[]): UsageInfo {
+  return invocations.reduce<UsageInfo>((total, invocation) => {
+    const usage: UsageInfo = invocation.usage ?? {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      cost_usd: 0,
     }
-    return { context, state: 'stateless', previousInvocationCount }
-  }
-
-  const context: NetworkAgentContext = {
-    id: existing?.id ?? makeId(`context-${binding.nodeId}`),
-    networkSessionId,
-    nodeId: binding.nodeId,
-    agentId: binding.agent.id,
-    agentName: binding.agent.name,
-    sessionMode,
-    agentSessionId: existing?.agentSessionId ?? makeId(`agent-session-${binding.nodeId}`),
-    source: binding.source,
-    version: binding.version,
-    invocationCount: previousInvocationCount + 1,
-    messageCount: (existing?.messageCount ?? 0) + 2,
-    createdAt: existing?.createdAt ?? timestamp,
-    lastInvokedAt: timestamp,
-  }
-  return { context, state: existing ? 'reused' : 'created', previousInvocationCount }
+    return {
+      input_tokens: (total.input_tokens ?? 0) + (usage.input_tokens ?? 0),
+      output_tokens: (total.output_tokens ?? 0) + (usage.output_tokens ?? 0),
+      total_tokens: (total.total_tokens ?? 0) + (usage.total_tokens ?? 0),
+      cost_usd: (total.cost_usd ?? 0) + (usage.cost_usd ?? 0),
+    }
+  }, { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0 })
 }
 
-export function makeExecution(
-  rawMessage: string,
-  environment: Environment,
+function placeholderInvocation(
   bindings: Record<AgentNodeId, NetworkBinding>,
-  networkSessionId = 'network-session-current',
-  agentContexts: NetworkAgentContext[] = [],
-): {
-  answer: string
-  parsedOutput?: Record<string, unknown>
-  execution: NetworkExecution
-  provider: string
-  model: string
-  usage: UsageInfo
-  agentContexts: NetworkAgentContext[]
-} {
-  const message = rawMessage.toLowerCase()
-  const technical = /api|timeout|error|incident|password|technical|status/.test(message)
-  const requestJson = /json|structured|schema/.test(message)
-  const coordinator = bindingFor(bindings, 'coordinator')
-  const specialist = technical ? bindingFor(bindings, 'technical') : bindingFor(bindings, 'billing')
-  const tertiary = technical && /invoice|billing|subscription/.test(message)
-    ? bindingFor(bindings, 'billing')
-    : null
-  const startedAt = new Date().toISOString()
-  const nextContexts = [...agentContexts]
-
-  const useContext = (binding: NetworkBinding) => {
-    const resolved = resolveAgentContext(binding, networkSessionId, nextContexts, startedAt)
-    const index = nextContexts.findIndex((item) => item.nodeId === binding.nodeId)
-    if (index >= 0) nextContexts[index] = resolved.context
-    else nextContexts.push(resolved.context)
-    return resolved
+  status: NetworkExecution['status'],
+): NetworkAgentInvocation {
+  const binding = Object.values(bindings)[0]
+  return {
+    spanId: 'network-root',
+    parentSpanId: null,
+    sequence: 0,
+    nodeId: binding?.nodeId,
+    agentId: binding?.agent.id ?? '',
+    agentName: binding?.agent.name ?? 'Network',
+    agentSessionId: null,
+    contextState: 'created',
+    previousInvocationCount: 0,
+    childTraceId: null,
+    provider: binding?.agent.provider ?? null,
+    model: binding?.agent.model ?? null,
+    source: binding?.source ?? 'draft',
+    version: binding?.version ?? 'current',
+    status: status === 'error' ? 'error' : status,
+    durationMs: 0,
+    usage: asUsage(null),
+    costUsd: 0,
+    tools: [],
+    sources: [],
+    children: [],
   }
+}
 
-  const coordinatorContext = useContext(coordinator)
-  const specialistContext = useContext(specialist)
-  const tertiaryContext = tertiary ? useContext(tertiary) : null
+export function buildExecutionFromRuntimeEvents({
+  records,
+  environment,
+  bindings,
+  executionId,
+  answer,
+  fallbackTraceId,
+  terminalStatus = 'success',
+}: {
+  records: RuntimeEventRecord[]
+  environment: Environment
+  bindings: Record<AgentNodeId, NetworkBinding>
+  executionId: string
+  answer: string
+  fallbackTraceId?: string
+  terminalStatus?: NetworkExecution['status']
+}): { execution: NetworkExecution; usage: UsageInfo; provider: string; model: string } {
+  const sorted = [...records].sort(
+    (left, right) => (left.event.sequence ?? 0) - (right.event.sequence ?? 0),
+  )
+  const invocations = new Map<string, NetworkAgentInvocation>()
+  let traceId = fallbackTraceId ?? ''
 
-  const specialistSources: SourceInfo[] = technical
-    ? [{ document_id: 'doc-runbook', chunk_id: 'chunk-api-timeout', document_title: 'API Incident Runbook', page_number: 8, score: 0.918, content_preview: 'Confirm upstream availability, inspect recent deployments and compare timeout distribution by region.' }]
-    : [
-        { document_id: 'doc-invoice-policy', chunk_id: 'chunk-duplicate-charge', document_title: 'Invoice and Refund Policy', page_number: 14, score: 0.892, content_preview: 'Duplicate charges should be matched by invoice identifier and payment authorization before refund review.' },
-        { document_id: 'doc-refund-procedure', chunk_id: 'chunk-refund-workflow', document_title: 'Refund Procedures', page_number: 7, score: 0.846, content_preview: 'Validated duplicate transactions can be escalated to the refund workflow with the original authorization reference.' },
-      ]
-
-  const specialistTools = technical
-    ? [makeTool('check_service_status', { service: 'public-api', window: '30m' }, { status: 'degraded', region: 'sa-east-1', incidents: 1 }, 412)]
-    : [makeTool('find_invoice', { query: 'duplicate charge', include_payments: true }, { invoice_id: 'inv_1042', duplicate_payment: true, refund_eligible: true }, 384)]
-
-  const tertiaryInvocation: NetworkAgentInvocation | null = tertiary && tertiaryContext
-    ? {
-        spanId: makeId('span-billing-review'),
-        parentSpanId: 'span-specialist',
-        sequence: 3,
-        nodeId: tertiary.nodeId,
-        agentId: tertiary.agent.id,
-        agentName: tertiary.agent.name,
-        agentSessionId: tertiaryContext.context.agentSessionId,
-        contextState: tertiaryContext.state,
-        previousInvocationCount: tertiaryContext.previousInvocationCount,
-        childTraceId: makeId('agent-trace'),
-        provider: tertiary.agent.provider,
-        model: tertiary.agent.model,
-        source: tertiary.source,
-        version: tertiary.version,
-        status: 'success',
-        durationMs: 438,
-        usage: { input_tokens: 74, output_tokens: 18, total_tokens: 92, cost_usd: 0.002 },
-        costUsd: 0.002,
-        input: { request: rawMessage, handoff: 'Review subscription and billing relationship.' },
-        output: 'The subscription is active and the second charge is not associated with a renewal.',
+  for (const { eventType, event } of sorted) {
+    const invocationId = event.invocation_id
+    if (eventType === 'agent_invocation_started' && invocationId) {
+      const binding = event.node_id ? bindings[event.node_id] : undefined
+      invocations.set(invocationId, {
+        spanId: invocationId,
+        parentSpanId: event.parent_invocation_id ?? null,
+        sequence: event.sequence ?? invocations.size + 1,
+        nodeId: event.node_id ?? undefined,
+        agentId: event.agent_id ?? binding?.agent.id ?? '',
+        agentName: String(event.data.label ?? binding?.agent.name ?? 'Agent'),
+        agentSessionId: null,
+        contextState: 'created',
+        previousInvocationCount: 0,
+        childTraceId: null,
+        provider: binding?.agent.provider ?? null,
+        model: binding?.agent.model ?? null,
+        source: binding?.source ?? (environment === 'production' ? 'release' : environment),
+        version: binding?.version ?? 'current',
+        status: 'running',
+        input: event.data.input,
         tools: [],
         sources: [],
         children: [],
-      }
-    : null
-
-  const specialistInvocation: NetworkAgentInvocation = {
-    spanId: 'span-specialist',
-    parentSpanId: 'span-coordinator',
-    sequence: 2,
-    nodeId: specialist.nodeId,
-    agentId: specialist.agent.id,
-    agentName: specialist.agent.name,
-    agentSessionId: specialistContext.context.agentSessionId,
-    contextState: specialistContext.state,
-    previousInvocationCount: specialistContext.previousInvocationCount,
-    childTraceId: makeId('agent-trace'),
-    provider: specialist.agent.provider,
-    model: specialist.agent.model,
-    source: specialist.source,
-    version: specialist.version,
-    status: 'success',
-    durationMs: technical ? 1210 : 1184,
-    usage: { input_tokens: technical ? 238 : 231, output_tokens: technical ? 81 : 74, total_tokens: technical ? 319 : 305, cost_usd: technical ? 0.011 : 0.009 },
-    costUsd: technical ? 0.011 : 0.009,
-    input: { request: rawMessage, handoff: technical ? 'Investigate the incident and propose diagnostic steps.' : 'Validate the duplicated charge and refund eligibility.' },
-    output: technical
-      ? 'The public API is degraded in one region. The first action is to inspect the current incident and recent deployment changes.'
-      : 'The matching invoice contains a duplicated payment authorization and is eligible for refund review.',
-    tools: specialistTools,
-    sources: specialistSources,
-    children: tertiaryInvocation ? [tertiaryInvocation] : [],
+      })
+      continue
+    }
+    if (eventType === 'agent_invocation_completed' && invocationId) {
+      const current = invocations.get(invocationId)
+      if (!current) continue
+      const usage = asUsage(event.data.usage)
+      const childTraceId = typeof event.data.trace_id === 'string' ? event.data.trace_id : null
+      if (!current.parentSpanId && childTraceId) traceId = childTraceId
+      current.status = 'success'
+      current.agentSessionId = typeof event.data.agent_session_id === 'string'
+        ? event.data.agent_session_id
+        : null
+      current.childTraceId = childTraceId
+      current.provider = typeof event.data.provider === 'string' ? event.data.provider : current.provider
+      current.model = typeof event.data.model === 'string' ? event.data.model : current.model
+      current.usage = usage
+      current.costUsd = usage.cost_usd ?? 0
+      current.output = typeof event.data.output === 'string' ? event.data.output : null
+      current.tools = Array.isArray(event.data.tool_calls)
+        ? event.data.tool_calls as ToolCallInfo[]
+        : []
+      current.sources = Array.isArray(event.data.sources)
+        ? event.data.sources as SourceInfo[]
+        : []
+      current.parsedOutput = event.data.parsed_output != null
+        ? asRecord(event.data.parsed_output)
+        : null
+      current.outputParseError = typeof event.data.output_parse_error === 'string'
+        ? event.data.output_parse_error
+        : null
+    }
+    if (eventType === 'execution_completed' && typeof event.data.trace_id === 'string') {
+      traceId = event.data.trace_id
+    }
   }
 
-  const root: NetworkAgentInvocation = {
-    spanId: 'span-coordinator',
-    parentSpanId: null,
-    sequence: 1,
-    nodeId: coordinator.nodeId,
-    agentId: coordinator.agent.id,
-    agentName: coordinator.agent.name,
-    agentSessionId: coordinatorContext.context.agentSessionId,
-    contextState: coordinatorContext.state,
-    previousInvocationCount: coordinatorContext.previousInvocationCount,
-    childTraceId: makeId('agent-trace'),
-    provider: coordinator.agent.provider,
-    model: coordinator.agent.model,
-    source: coordinator.source,
-    version: coordinator.version,
-    status: 'success',
-    durationMs: 312,
-    usage: { input_tokens: 84, output_tokens: 22, total_tokens: 106, cost_usd: 0.003 },
-    costUsd: 0.003,
-    input: { message: rawMessage, entrypoint: 'ENTRY' },
-    output: technical
-      ? `Classified the request as technical support and called ${specialist.agent.name}.`
-      : `Classified the request as billing support and called ${specialist.agent.name}.`,
-    tools: [],
-    sources: [],
-    children: [specialistInvocation],
+  const ordered = [...invocations.values()].sort((left, right) => left.sequence - right.sequence)
+  for (const invocation of ordered) invocation.children = []
+  for (const invocation of ordered) {
+    if (!invocation.parentSpanId) continue
+    invocations.get(invocation.parentSpanId)?.children.push(invocation)
   }
 
-  const parsedOutput = requestJson
-    ? { status: technical ? 'degraded' : 'resolved', routed_to: specialist.agent.name, action: technical ? 'inspect_incident' : 'refund_review', confidence: 0.96 }
-    : undefined
+  const status = terminalStatus
+  const root = ordered.find((item) => !item.parentSpanId)
+    ?? placeholderInvocation(bindings, status)
+  if (status === 'error' && root.status === 'running') root.status = 'error'
 
-  const answer = requestJson
-    ? JSON.stringify(parsedOutput, null, 2)
-    : technical
-      ? 'Technical Support identified a degraded API region and prepared the first diagnostic steps. Review the active incident and compare it with recent deployments.'
-      : 'Billing Specialist found the duplicated payment and prepared the invoice for refund review.'
-
-  const durationMs = 1840 + (tertiaryInvocation ? 438 : 0)
-  const costUsd = 0.012 + (tertiaryInvocation ? 0.002 : 0)
-  const path = tertiaryInvocation?.nodeId
-    ? ['entry', 'coordinator', specialist.nodeId, tertiaryInvocation.nodeId, 'end'] as NodeId[]
-    : ['entry', 'coordinator', specialist.nodeId, 'end'] as NodeId[]
+  const startedAt = sorted.find((item) => item.event.created_at)?.event.created_at
+    ?? new Date().toISOString()
+  const completedAt = [...sorted].reverse().find((item) => item.event.created_at)?.event.created_at
+    ?? startedAt
+  const durationMs = Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
+  for (const invocation of ordered) {
+    if (invocation.durationMs == null) invocation.durationMs = durationMs
+  }
+  const usage = totalUsage(ordered)
+  const path = [
+    'entry',
+    ...ordered.map((item) => item.nodeId).filter((value): value is string => Boolean(value)),
+    ...(status === 'success' ? ['end'] : []),
+  ] as NodeId[]
 
   return {
-    answer,
-    parsedOutput,
-    provider: specialist.agent.provider || 'custom',
-    model: specialist.agent.model || 'model',
-    usage: {
-      input_tokens: 84 + (specialistInvocation.usage?.input_tokens ?? 0) + (tertiaryInvocation?.usage?.input_tokens ?? 0),
-      output_tokens: 22 + (specialistInvocation.usage?.output_tokens ?? 0) + (tertiaryInvocation?.usage?.output_tokens ?? 0),
-      total_tokens: 106 + (specialistInvocation.usage?.total_tokens ?? 0) + (tertiaryInvocation?.usage?.total_tokens ?? 0),
-      cost_usd: costUsd,
-    },
-    agentContexts: nextContexts,
     execution: {
-      id: makeId('network-execution'),
-      traceId: makeId('network-trace'),
-      status: 'success',
+      id: executionId,
+      traceId: traceId || executionId,
+      status,
       environment,
       startedAt,
       durationMs,
-      costUsd,
+      costUsd: usage.cost_usd ?? 0,
       path,
       root,
     },
+    usage,
+    provider: root.provider ?? '',
+    model: root.model ?? '',
+  }
+}
+
+export function buildTurnFromRuntimeEvents({
+  records,
+  environment,
+  bindings,
+  executionId,
+  user,
+  answer,
+  fallbackTraceId,
+  terminalStatus,
+}: {
+  records: RuntimeEventRecord[]
+  environment: Environment
+  bindings: Record<AgentNodeId, NetworkBinding>
+  executionId: string
+  user: string
+  answer: string
+  fallbackTraceId?: string
+  terminalStatus?: NetworkExecution['status']
+}): NetworkTurn {
+  const built = buildExecutionFromRuntimeEvents({
+    records,
+    environment,
+    bindings,
+    executionId,
+    answer,
+    fallbackTraceId,
+    terminalStatus,
+  })
+  return {
+    id: executionId,
+    user,
+    answer,
+    parsedOutput: built.execution.root.parsedOutput,
+    outputParseError: built.execution.root.outputParseError,
+    provider: built.provider,
+    model: built.model,
+    usage: built.usage,
+    execution: built.execution,
   }
 }

@@ -63,10 +63,16 @@ class NetworkExecutionProcessor:
             execution = await session.get(NetworkExecutionModel, execution_id)
             if execution is None:
                 return
-            version = await session.get(
-                NetworkVersionModel, execution.network_version_id
+            version = (
+                await session.get(NetworkVersionModel, execution.network_version_id)
+                if execution.network_version_id
+                else None
             )
-            if version is None:
+            if version is None and not (
+                execution.draft_revision is not None
+                and execution.definition_snapshot
+                and execution.resolved_bindings_snapshot
+            ):
                 await self._fail(
                     execution_id,
                     generation,
@@ -243,6 +249,7 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
         await self._manager.consume(
             queue_name="network.execution",
             routing_keys=[
+                "network.execution.draft.requested.v1",
                 "network.execution.staging.requested.v1",
                 "network.execution.production.requested.v1",
             ],

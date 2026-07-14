@@ -1,14 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
-import { cancelNetworkExecution } from '@/features/network/api'
+import {
+  cancelNetworkExecution,
+  getNetworkSessionMessages,
+  resetNetworkSessionContext,
+} from '@/features/network/api'
 import { streamNetworkExecution } from '@/features/network/stream'
-import { currentSignature, makeExecution, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+import type { NetworkMessageResource, NetworkRuntimeEvent } from '@/features/network/types'
+import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
+import {
+  buildTurnFromRuntimeEvents,
+  type NetworkExecution,
+  type NetworkTurn,
+  type RuntimeEventRecord,
+} from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
-import { hashComposition, type NetworkTraceRecord } from './networkObservabilityTypes'
+import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
-import type { NetworkRuntimeEvent } from '@/features/network/types'
 import { NetworkChatComposer } from './NetworkChatComposer'
 import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
@@ -18,28 +27,21 @@ interface NetworkChatWorkspaceProps {
   projectId: string
   networkName: string
   environment: Environment
+  versionLabel: string
+  currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
   sessions: NetworkSession[]
   activeSession: NetworkSession
-  pinned: boolean
+  onBeforeDraftRun: () => Promise<number>
   onSelectSession: (sessionId: string) => void
   onNewSession: () => void
-  onPin: () => void
   onRun: (trace: NetworkTraceRecord) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
 }
 
-function seedMessage(session: NetworkSession) {
-  const title = session.title.toLowerCase()
-  if (title.includes('invoice') || title.includes('refund')) return 'I need help with an invoice that was charged twice.'
-  if (title.includes('password')) return 'I need help resetting a password after repeated login errors.'
-  if (title.includes('timeout') || title.includes('incident')) return 'The public API is returning a 504 timeout.'
-  return 'Review how this request should be routed through the Network.'
-}
-
 function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
-  if (eventType === 'execution_accepted') return 'Execution accepted and queued'
+  if (eventType === 'execution_accepted') return `Execution accepted in ${String(event.data.environment ?? 'runtime')}`
   if (eventType === 'execution_started') return 'Network worker started the execution'
   if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
@@ -51,25 +53,88 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   return eventType.replace(/_/g, ' ')
 }
 
+function historyRecords(
+  message: NetworkMessageResource,
+  sessionId: string,
+): RuntimeEventRecord[] {
+  const execution = message.execution
+  if (!execution) return []
+  return execution.events.map((item) => ({
+    eventType: item.event_type,
+    event: {
+      protocol_version: 1,
+      event_id: item.id,
+      sequence: item.sequence,
+      execution_id: execution.id,
+      network_session_id: sessionId,
+      invocation_id: item.invocation_id,
+      parent_invocation_id: item.parent_invocation_id,
+      node_id: item.node_id,
+      agent_id: item.agent_id,
+      depth: item.depth,
+      data: item.data,
+      created_at: item.created_at,
+    },
+  }))
+}
+
+function terminalStatus(status: string): NetworkExecution['status'] {
+  if (status === 'completed') return 'success'
+  if (status === 'running' || status === 'queued') return 'running'
+  return 'error'
+}
+
+function hydrateTurns(
+  messages: NetworkMessageResource[],
+  environment: Environment,
+  bindings: Record<AgentNodeId, NetworkBinding>,
+  sessionId: string,
+) {
+  const users = new Map<string, NetworkMessageResource>()
+  const turns: NetworkTurn[] = []
+  for (const message of messages) {
+    const executionId = message.network_execution_id
+    if (!executionId) continue
+    if (message.role === 'user') {
+      users.set(executionId, message)
+      continue
+    }
+    if (message.role !== 'assistant' || !message.execution) continue
+    const user = users.get(executionId)
+    turns.push(buildTurnFromRuntimeEvents({
+      records: historyRecords(message, sessionId),
+      environment,
+      bindings,
+      executionId,
+      user: user?.content ?? '',
+      answer: message.content,
+      fallbackTraceId: message.execution.root_trace_id ?? undefined,
+      terminalStatus: terminalStatus(message.execution.status),
+    }))
+  }
+  return turns
+}
+
 export function NetworkChatWorkspace({
   networkId,
   projectId,
   networkName,
   environment,
+  versionLabel,
+  currentVersionId,
   bindings,
   sessions,
   activeSession,
-  pinned,
+  onBeforeDraftRun,
   onSelectSession,
   onNewSession,
-  onPin,
   onRun,
   onSelectAgent,
   onOpenTrace,
 }: NetworkChatWorkspaceProps) {
-  const seed = useMemo(() => makeExecution(seedMessage(activeSession), environment, bindings, activeSession.id, activeSession.agentContexts), [activeSession.id])
   const [text, setText] = useState('')
-  const [turns, setTurns] = useState<NetworkTurn[]>(activeSession.messageCount > 0 ? [{ id: `seed-${activeSession.id}`, user: seedMessage(activeSession), answer: seed.answer, parsedOutput: seed.parsedOutput, provider: seed.provider, model: seed.model, usage: seed.usage, execution: seed.execution }] : [])
+  const [turns, setTurns] = useState<NetworkTurn[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
@@ -77,12 +142,34 @@ export function NetworkChatWorkspace({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
-  const signature = currentSignature(environment, bindings)
-  const changed = hashComposition(signature) !== activeSession.compositionHash
-  const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
+  const bindingsRef = useRef(bindings)
+  const changed = environment !== 'draft' && activeSession.networkVersion !== currentVersionId
+  const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>(
+    (result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }),
+    { draft: 0, staging: 0, release: 0 },
+  )
 
   useEffect(() => () => abortRef.current?.abort(), [])
-  useEffect(() => { const element = scrollRef.current; if (element) element.scrollTop = element.scrollHeight }, [turns, running])
+  useEffect(() => { bindingsRef.current = bindings }, [bindings])
+  useEffect(() => {
+    let active = true
+    setHistoryLoading(true)
+    getNetworkSessionMessages(networkId, activeSession.id, projectId)
+      .then((messages) => {
+        if (active) setTurns(hydrateTurns(messages, environment, bindingsRef.current, activeSession.id))
+      })
+      .catch((error) => {
+        if (active) toast.error(error instanceof Error ? error.message : 'Unable to load Network messages')
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false)
+      })
+    return () => { active = false }
+  }, [activeSession.id, environment, networkId, projectId])
+  useEffect(() => {
+    const element = scrollRef.current
+    if (element) element.scrollTop = element.scrollHeight
+  }, [turns, running])
 
   const stop = () => {
     const wasRunning = running
@@ -113,13 +200,19 @@ export function NetworkChatWorkspace({
     onNewSession()
   }
 
+  const resetContext = async () => {
+    if (running) return
+    try {
+      await resetNetworkSessionContext(networkId, activeSession.id, projectId)
+      toast.success('Agent contexts reset for this Network Session')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to reset Network context')
+    }
+  }
+
   const send = async (suggestion?: string) => {
     const content = (suggestion ?? text).trim()
     if (!content || running) return
-    if (environment === 'draft') {
-      toast.info('Stage the Network before running it')
-      return
-    }
     if (changed) {
       toast.warning(`Start a new ${environment} session for the current Network version before sending`)
       return
@@ -131,18 +224,34 @@ export function NetworkChatWorkspace({
     setLastHeartbeatAt(null)
     const controller = new AbortController()
     abortRef.current = controller
+    const records: RuntimeEventRecord[] = []
     let answer = ''
     let executionId = ''
     let traceId = ''
+    let status: NetworkExecution['status'] = 'success'
     try {
+      const expectedDraftRevision = environment === 'draft'
+        ? await onBeforeDraftRun()
+        : undefined
+      const executionBindings = environment === 'draft'
+        ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [
+          nodeId,
+          { ...binding, version: `r${expectedDraftRevision}`, dirty: false },
+        ])) as Record<AgentNodeId, NetworkBinding>
+        : bindings
       await streamNetworkExecution({
         networkId,
         projectId,
         networkSessionId: activeSession.id,
         message: content,
+        expectedDraftRevision,
       }, {
-        onExecutionId: (id) => { executionId = id; executionIdRef.current = id },
+        onExecutionId: (id) => {
+          executionId = id
+          executionIdRef.current = id
+        },
         onEvent: (eventType, event) => {
+          records.push({ eventType, event })
           if (eventType !== 'token') {
             setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           }
@@ -157,39 +266,42 @@ export function NetworkChatWorkspace({
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
           }
+          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+            status = 'error'
+          }
         },
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
 
-      const result = makeExecution(content, environment, bindings, activeSession.id, activeSession.agentContexts)
-      result.answer = answer || result.answer
-      if (executionId) result.execution.id = executionId
-      if (traceId) result.execution.traceId = traceId
-      setTurns((items) => [...items, {
-        id: result.execution.id,
-        user: content,
-        answer: result.answer,
-        parsedOutput: result.parsedOutput,
-        provider: result.provider,
-        model: result.model,
-        usage: result.usage,
-        execution: result.execution,
-      }])
-      onRun(createNetworkTraceRecord({
-        execution: result.execution,
+      const turn = buildTurnFromRuntimeEvents({
+        records,
         environment,
-        bindings,
+        bindings: executionBindings,
+        executionId: executionId || crypto.randomUUID(),
+        user: content,
+        answer,
+        fallbackTraceId: traceId,
+        terminalStatus: status,
+      })
+      setTurns((items) => [...items, turn])
+      onRun(createNetworkTraceRecord({
+        execution: turn.execution,
+        environment,
+        bindings: executionBindings,
         networkSessionId: activeSession.id,
         title: content,
         userMessage: content,
-        answer: result.answer,
-        usage: result.usage,
-        agentContexts: result.agentContexts,
-        parsedOutput: result.parsedOutput,
+        answer: turn.answer,
+        usage: turn.usage,
+        agentContexts: activeSession.agentContexts,
+        parsedOutput: turn.parsedOutput,
         source: 'chat',
+        runtimeEvents: records,
+        networkVersion: environment === 'draft' ? `Draft r${expectedDraftRevision}` : versionLabel,
       }))
     } catch (error) {
       if (!controller.signal.aborted) {
+        if (!executionId) setText(content)
         toast.error(error instanceof Error ? error.message : 'Network execution failed')
       }
     } finally {
@@ -203,15 +315,16 @@ export function NetworkChatWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <NetworkChatHeader
         environment={environment}
+        versionLabel={versionLabel}
         counts={counts}
         sessions={sessions}
         activeSessionId={activeSession.id}
         changed={changed}
-        pinned={pinned}
         onSelectSession={onSelectSession}
         onNew={startNew}
-        onPin={onPin}
+        onResetContext={() => void resetContext()}
       />
+      {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[10px]">
         <div className="flex items-center gap-2 text-primary-light"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Live Network activity<span className="ml-auto text-[9px] text-muted">{lastHeartbeatAt ? 'heartbeat received' : 'connection open'}</span></div>

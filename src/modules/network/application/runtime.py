@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Protocol
 from uuid import UUID, uuid5
 
 from modules.network.domain.entities import NetworkDefinition
@@ -31,6 +31,13 @@ class AgentInvocationResult:
     answer: str
     session_id: UUID | None = None
     trace_id: UUID | None = None
+    provider: str | None = None
+    model: str | None = None
+    usage: dict[str, Any] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    sources: list[dict[str, Any]] | None = None
+    parsed_output: dict[str, Any] | None = None
+    output_parse_error: str | None = None
 
 
 @dataclass
@@ -72,7 +79,8 @@ class AgentInvoker(Protocol):
         *,
         project_id: UUID,
         agent_id: UUID,
-        release_id: UUID,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
         message: str,
         agent_session_id: UUID | None,
         execution_context: str,
@@ -93,6 +101,7 @@ class NetworkExecutionStore(Protocol):
         depth: int,
         message: str,
         parent_invocation_id: UUID | None,
+        persist_context: bool,
     ) -> NetworkInvocationModel: ...
 
     async def complete_invocation(
@@ -100,6 +109,7 @@ class NetworkExecutionStore(Protocol):
         invocation_id: UUID,
         *,
         result: AgentInvocationResult,
+        persist_context: bool,
     ) -> None: ...
 
     async def fail_invocation(self, invocation_id: UUID, error: str) -> None: ...
@@ -122,9 +132,21 @@ class NetworkExecutor:
     async def execute(
         self,
         execution: NetworkExecutionModel,
-        version: NetworkVersionModel,
+        version: NetworkVersionModel | None,
     ) -> AgentInvocationResult:
-        definition = NetworkDefinition.from_dict(version.definition)
+        if version is None:
+            if not execution.definition_snapshot or not execution.resolved_bindings_snapshot:
+                raise RuntimeError("Draft execution snapshot is missing")
+            definition_payload = execution.definition_snapshot
+            resolved_bindings = execution.resolved_bindings_snapshot
+            runtime_environment = "draft"
+        else:
+            definition_payload = version.definition
+            resolved_bindings = version.resolved_bindings
+            runtime_environment = (
+                "production" if version.kind == "release" else "staging"
+            )
+        definition = NetworkDefinition.from_dict(definition_payload)
         nodes = {node.id: node for node in definition.nodes}
         outgoing: dict[UUID, list[UUID]] = {node_id: [] for node_id in nodes}
         for edge in definition.edges:
@@ -153,9 +175,14 @@ class NetworkExecutor:
                     raise NetworkBudgetExceeded("Network invocation budget exceeded")
 
             node = nodes[node_id]
-            binding = version.resolved_bindings.get(str(node_id)) or {}
+            binding = resolved_bindings.get(str(node_id)) or {}
             release_id = binding.get("release_id")
-            if not release_id:
+            snapshot_override = binding.get("snapshot_override")
+            if runtime_environment == "draft" and not isinstance(
+                snapshot_override, dict
+            ):
+                raise RuntimeError(f"Node {node_id} has no Agent Draft snapshot")
+            if runtime_environment != "draft" and not release_id:
                 raise RuntimeError(
                     f"Node {node_id} has no immutable Agent release binding"
                 )
@@ -167,6 +194,7 @@ class NetworkExecutor:
                 depth=depth,
                 message=message,
                 parent_invocation_id=parent_invocation_id,
+                persist_context=definition.session_mode == "stateful",
             )
             await self._store.emit(
                 execution.id,
@@ -241,16 +269,21 @@ class NetworkExecutor:
                 result = await self._invoker.invoke(
                     project_id=execution.project_id,
                     agent_id=node.agent_id,
-                    release_id=UUID(str(release_id)),
+                    release_id=UUID(str(release_id)) if release_id else None,
+                    snapshot_override=snapshot_override,
                     message=message,
                     agent_session_id=invocation.agent_session_id,
                     execution_context=(
-                        "production" if version.kind == "release" else "staging"
+                        "playground"
+                        if runtime_environment == "draft"
+                        else runtime_environment
                     ),
                     internal_tools=tools,
                     network_context={
                         "network_id": str(execution.network_id),
-                        "network_version_id": str(execution.network_version_id),
+                        "network_version_id": str(execution.network_version_id)
+                        if execution.network_version_id
+                        else None,
                         "network_session_id": str(execution.network_session_id),
                         "network_execution_id": str(execution.id),
                         "network_invocation_id": str(invocation.id),
@@ -259,26 +292,48 @@ class NetworkExecutor:
                         else None,
                         "network_node_id": str(node_id),
                         "depth": depth,
+                        "draft_revision": getattr(execution, "draft_revision", None),
                     },
                 )
             except Exception as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
                 raise
 
-            await self._store.complete_invocation(invocation.id, result=result)
+            await self._store.complete_invocation(
+                invocation.id,
+                result=result,
+                persist_context=definition.session_mode == "stateful",
+            )
             if await self._store.is_cancel_requested(execution.id):
                 raise NetworkExecutionCancelled("Network execution was cancelled")
             await self._store.emit(
                 execution.id,
                 "agent_invocation_completed",
-                {"trace_id": str(result.trace_id) if result.trace_id else None},
+                {
+                    "trace_id": str(result.trace_id) if result.trace_id else None,
+                    "agent_session_id": str(result.session_id)
+                    if result.session_id
+                    else None,
+                    "provider": result.provider,
+                    "model": result.model,
+                    "usage": result.usage,
+                    "tool_calls": result.tool_calls or [],
+                    "sources": result.sources or [],
+                    "parsed_output": result.parsed_output,
+                    "output_parse_error": result.output_parse_error,
+                    "output": result.answer,
+                },
                 invocation_id=invocation.id,
             )
             return result
 
-        return await invoke_node(
-            definition.root_node_id,
-            execution.input_message,
-            0,
-            None,
-        )
+        try:
+            async with asyncio.timeout(definition.limits.timeout_seconds):
+                return await invoke_node(
+                    definition.root_node_id,
+                    execution.input_message,
+                    0,
+                    None,
+                )
+        except TimeoutError as exc:
+            raise NetworkBudgetExceeded("Network execution timeout exceeded") from exc

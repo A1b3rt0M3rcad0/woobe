@@ -12,20 +12,21 @@ import { NetworkGraphInspector } from '@/features/network/components/NetworkGrap
 import { NetworkPromotionDialog } from '@/features/network/components/NetworkPromotionDialog'
 import { NetworkRemoveDialog } from '@/features/network/components/NetworkRemoveDialog'
 import { NetworkDraftConflictDialog } from '@/features/network/components/NetworkDraftConflictDialog'
-import { useCreateNetworkSession, useNetwork, useNetworkSessions, useNetworkVersions, usePromoteNetwork, useSaveNetworkDraft } from '@/features/network/hooks'
+import { useCreateNetworkSession, useNetwork, useNetworkSessions, useNetworkVersions, usePromoteNetwork, useRollbackNetwork, useSaveNetworkDraft } from '@/features/network/hooks'
 import type { NetworkDefinition, NetworkSessionResource } from '@/features/network/types'
 import { NetworkChatWorkspace } from '@/features/network/components/NetworkChatWorkspace'
 import { NetworkInspectorWorkspace, type NetworkConfigSection, type NetworkInspectorSection } from '@/features/network/components/NetworkInspectorWorkspace'
-import type { AgentNodeId, Environment, NetworkVersionOption, NodeId } from '@/features/network/components/networkWorkspaceTypes'
+import type { AgentNodeId, Environment, NetworkBinding, NetworkVersionOption, NodeId } from '@/features/network/components/networkWorkspaceTypes'
 import { Badge, NetworkOperationsPanel, NetworkOperationsRail, type PanelTab } from '@/features/network/components/NetworkOperations'
 import { createNetworkTraceRecord } from '@/features/network/components/networkObservabilityFactory'
-import { hashComposition, type NetworkTraceRecord } from '@/features/network/components/networkObservabilityTypes'
+import type { NetworkTraceRecord } from '@/features/network/components/networkObservabilityTypes'
 import type { ActiveSessionByEnvironment, NetworkSession, NetworkSessionsByEnvironment } from '@/features/network/components/networkSessionTypes'
 import { NetworkApiModal } from '@/features/network/components/NetworkApiModal'
 import { NetworkInspectorShell, type InspectorContext } from '@/features/network/components/NetworkInspectorShell'
-import { NetworkReleaseModal, UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
-import { DRAFT, HISTORY, PRODUCTION, STAGING, bind, clone, fallbackAgents } from '@/features/network/components/networkPageData'
-import { currentSignature, networkLabel, type NetworkExecution } from '@/features/network/components/networkChatExecution'
+import { UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
+import { NetworkRollbackDialog } from '@/features/network/components/NetworkRollbackDialog'
+import { DRAFT, PRODUCTION, STAGING, bind, clone, fallbackAgents } from '@/features/network/components/networkPageData'
+import { networkLabel, type NetworkExecution } from '@/features/network/components/networkChatExecution'
 import { applyNetworkDefinitionChange, createEmptyNetworkDefinition, createNodeForAgent, normalizeNetworkDefinition } from '@/features/network/editor/networkDefinitionMapper'
 import { validateNetworkGraph } from '@/features/network/editor/networkGraphValidation'
 import type { NetworkDefinitionChange, NetworkEditorSelection } from '@/features/network/editor/types'
@@ -44,6 +45,7 @@ export default function NetworkPage() {
   const saveNetworkDraftMutation = useSaveNetworkDraft(network?.id, projectId)
   const promoteNetworkMutation = usePromoteNetwork(network?.id, projectId)
   const createNetworkSessionMutation = useCreateNetworkSession(network?.id, projectId)
+  const rollbackNetworkMutation = useRollbackNetwork(network?.id, projectId)
   const networkSessionsQuery = useNetworkSessions(network?.id, projectId)
   const networkVersionsQuery = useNetworkVersions(network?.id, projectId)
   const agentsQuery = useAgents(projectId)
@@ -55,11 +57,11 @@ export default function NetworkPage() {
   const [environment, setEnvironment] = useState<Environment>('draft')
   const [centerMode, setCenterMode] = useState<CenterMode>('canvas')
   const [panelTab, setPanelTab] = useState<PanelTab>('traces')
-  const [showLeftPanel, setShowLeftPanel] = useState(true)
-  const [selectedNode, setSelectedNode] = useState<NodeId>('coordinator')
+  const [showLeftPanel, setShowLeftPanel] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<NodeId>('entry')
   const [pendingNode, setPendingNode] = useState<NodeId | null>(null)
   const [compositionNode, setCompositionNode] = useState<AgentNodeId>('coordinator')
-  const [inspectorContext, setInspectorContext] = useState<InspectorContext>('agent')
+  const [inspectorContext, setInspectorContext] = useState<InspectorContext>('network')
   const [networkSection, setNetworkSection] = useState<NetworkInspectorSection>('configuration')
   const [networkConfigSection, setNetworkConfigSection] = useState<NetworkConfigSection>('composition')
   const [expanded, setExpanded] = useState(false)
@@ -76,7 +78,7 @@ export default function NetworkPage() {
   const [draftConflict, setDraftConflict] = useState(false)
   const [draftState, setDraftState] = useState(() => clone(DRAFT))
   const [stagingState, setStagingState] = useState(() => clone(STAGING))
-  const [productionState, setProductionState] = useState(() => clone(PRODUCTION))
+  const [productionState] = useState(() => clone(PRODUCTION))
   const [dirtyAgentIds, setDirtyAgentIds] = useState<Set<string>>(() => new Set())
   const saveAgentActionRef = useRef<(() => Promise<boolean>) | null>(null)
   const hydratedRevisionRef = useRef<number | null>(null)
@@ -86,17 +88,80 @@ export default function NetworkPage() {
   const productionBindings = useMemo(() => bind(agents, productionState), [agents, productionState])
   const visibleBindings = environment === 'draft' ? draftBindings : environment === 'staging' ? stagingBindings : productionBindings
   const editorIssues = useMemo(() => validateNetworkGraph(editorDefinition), [editorDefinition])
+  const stagingVersion = useMemo(
+    () => networkVersionsQuery.data?.find((item) => item.id === network?.staging_version_id) ?? null,
+    [network?.staging_version_id, networkVersionsQuery.data],
+  )
+  const productionVersion = useMemo(
+    () => networkVersionsQuery.data?.find((item) => item.id === network?.production_version_id) ?? null,
+    [network?.production_version_id, networkVersionsQuery.data],
+  )
+  const visibleVersion = environment === 'staging'
+    ? stagingVersion
+    : environment === 'production'
+      ? productionVersion
+      : null
   const visibleDefinition = useMemo(() => {
     if (environment === 'draft') return editorDefinition
-    const versionId = environment === 'staging' ? network?.staging_version_id : network?.production_version_id
-    const version = networkVersionsQuery.data?.find((item) => item.id === versionId)
-    return version ? normalizeNetworkDefinition(version.definition) : editorDefinition
-  }, [editorDefinition, environment, network?.production_version_id, network?.staging_version_id, networkVersionsQuery.data])
+    return visibleVersion
+      ? normalizeNetworkDefinition(visibleVersion.definition)
+      : createEmptyNetworkDefinition()
+  }, [editorDefinition, environment, visibleVersion])
   const visibleEditorIssues = useMemo(() => validateNetworkGraph(visibleDefinition), [visibleDefinition])
   const projectAgents = agentsQuery.data ?? []
+  const environmentReady = environment === 'draft' || Boolean(visibleVersion)
+  const versionLabel = environment === 'draft'
+    ? String(editorRevision)
+    : visibleVersion?.version ?? 'not created'
+  const currentVersionId = environment === 'draft' ? null : visibleVersion?.id ?? null
+  const runtimeBindings = useMemo<Record<AgentNodeId, NetworkBinding>>(() => {
+    const agentsById = new Map(projectAgents.map((agent) => [agent.id, agent]))
+    const source = environment === 'draft' ? 'draft' : environment === 'staging' ? 'staging' : 'release'
+    return Object.fromEntries(visibleDefinition.nodes.flatMap((node) => {
+      const agent = agentsById.get(node.agent_id)
+      if (!agent) return []
+      const resolved = visibleVersion?.resolved_bindings[node.id]
+      return [[node.id, {
+        nodeId: node.id,
+        agent,
+        source,
+        ref: resolved?.release_id ?? agent.id,
+        version: environment === 'draft' ? `r${editorRevision}` : resolved?.release_version ?? versionLabel,
+        draftVersion: `r${editorRevision}`,
+        dirty: environment === 'draft' && editorDirty,
+      } satisfies NetworkBinding]]
+    }))
+  }, [editorDefinition, editorDirty, editorRevision, environment, projectAgents, versionLabel, visibleDefinition.nodes, visibleVersion])
+  const apiBindings = useMemo(() => {
+    const agentsById = new Map(projectAgents.map((agent) => [agent.id, agent]))
+    const build = (
+      version: typeof stagingVersion,
+      source: 'staging' | 'release',
+    ): Record<AgentNodeId, NetworkBinding> => Object.fromEntries(
+      (version?.definition.nodes ?? []).flatMap((node) => {
+        const agent = agentsById.get(node.agent_id)
+        const resolved = version?.resolved_bindings[node.id]
+        if (!agent || !resolved) return []
+        return [[node.id, {
+          nodeId: node.id,
+          agent,
+          source,
+          ref: resolved.release_id,
+          version: resolved.release_version,
+          draftVersion: `r${editorRevision}`,
+          dirty: false,
+        } satisfies NetworkBinding]]
+      }),
+    )
+    return {
+      staging: build(stagingVersion, 'staging'),
+      production: build(productionVersion, 'release'),
+    }
+  }, [editorRevision, productionVersion, projectAgents, stagingVersion])
 
   useEffect(() => {
     if (!network || hydratedRevisionRef.current === network.draft_revision) return
+    if (hydratedRevisionRef.current !== null && network.draft_revision < hydratedRevisionRef.current) return
     if (editorDirty && hydratedRevisionRef.current !== null) return
     setEditorDefinition(normalizeNetworkDefinition(network.draft_definition))
     setEditorName(network.name)
@@ -120,7 +185,6 @@ export default function NetworkPage() {
   }))
   const [traces, setTraces] = useState<NetworkTraceRecord[]>([])
   const [selectedTraceIdBySession, setSelectedTraceIdBySession] = useState<Record<string, string | null>>({})
-  const [pinned, setPinned] = useState(false)
 
   useEffect(() => {
     const remoteSessions = networkSessionsQuery.data
@@ -132,31 +196,32 @@ export default function NetworkPage() {
       title: item.title,
       environment: item.environment,
       networkVersion: item.network_version_id,
-      compositionHash: hashComposition(currentSignature(
-        item.environment,
-        item.environment === 'staging' ? stagingBindings : productionBindings,
-      )),
+      draftRevision: item.environment === 'draft' ? editorRevision : null,
+      compositionHash: item.network_version_id ?? `draft:${editorRevision}`,
       status: item.status,
       createdAt: item.created_at,
       lastMessageAt: item.last_message_at ?? null,
-      messageCount: 0,
-      traceCount: 0,
+      messageCount: item.message_count ?? 0,
+      traceCount: item.trace_count ?? 0,
       agentContexts: [],
     })
+    const draft = remoteSessions.filter((item) => item.environment === 'draft').map(mapSession)
     const staging = remoteSessions.filter((item) => item.environment === 'staging').map(mapSession)
     const production = remoteSessions.filter((item) => item.environment === 'production').map(mapSession)
-    setSessionsByEnvironment((current) => ({ ...current, staging, production }))
+    setSessionsByEnvironment({ draft, staging, production })
     setActiveSessionIdByEnvironment((current) => ({
       ...current,
+      draft: draft.some((item) => item.id === current.draft) ? current.draft : draft[0]?.id ?? null,
       staging: staging.some((item) => item.id === current.staging) ? current.staging : staging[0]?.id ?? null,
       production: production.some((item) => item.id === current.production) ? current.production : production[0]?.id ?? null,
     }))
-  }, [networkSessionsQuery.data, network?.id, projectId, stagingBindings, productionBindings])
+  }, [editorRevision, networkSessionsQuery.data, network?.id, projectId])
 
   const persistDraft = async () => {
     if (!network || !projectId) throw new Error('Network is still loading')
     const errors = validateNetworkGraph(editorDefinition).filter((issue) => issue.severity === 'error')
     if (errors.length) throw new Error(errors[0].message)
+    if (!editorDirty) return { ...network, draft_revision: editorRevision }
     const saved = await saveNetworkDraftMutation.mutateAsync({
       expectedRevision: editorRevision,
       name: editorName,
@@ -253,6 +318,22 @@ export default function NetworkPage() {
   const selectedNetworkBinding = selectedAgentNode ? visibleBindings[selectedAgentNode] : null
   const action = environment === 'draft' ? 'stage' : environment === 'staging' ? 'publish' : 'rollback'
 
+  const openReleaseAction = async (nextAction: Exclude<ReleaseAction, null>) => {
+    if (nextAction !== 'stage') {
+      setReleaseAction(nextAction)
+      return
+    }
+    try {
+      await persistDraft()
+      setReleaseAction('stage')
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('changed by another request')) {
+        setDraftConflict(true)
+      }
+      toast.error(error instanceof Error ? error.message : 'Unable to prepare Network Staging')
+    }
+  }
+
   const changeEnvironment = (next: Environment) => {
     if (next === environment) return
     if (environment === 'draft' && (dirtyAgentIds.size > 0 || editorDirty)) {
@@ -260,7 +341,6 @@ export default function NetworkPage() {
       return
     }
     setEnvironment(next)
-    setPinned(false)
     const nextSessionId = activeSessionIdByEnvironment[next]
     if (nextSessionId) setSelectedTraceIdBySession((current) => ({ ...current, [nextSessionId]: null }))
   }
@@ -278,6 +358,11 @@ export default function NetworkPage() {
   }
 
   const selectNode = (node: NodeId) => {
+    if (visibleDefinition.nodes.some((item) => item.id === node)) {
+      setEditorSelection({ type: 'node', id: node })
+      setCenterMode('canvas')
+      return
+    }
     const currentAgentId = selectedAgentDraft?.agent.id
     if (node !== selectedNode && currentAgentId && dirtyAgentIds.has(currentAgentId)) { setPendingNode(node); return }
     commitNodeSelection(node)
@@ -318,7 +403,6 @@ export default function NetworkPage() {
       await persistDraft()
       await promoteNetworkMutation.mutateAsync('staging')
       setEnvironment('staging')
-      setPinned(false)
       toast.success('Immutable Network Staging version created')
     } catch (error) {
       if (error instanceof Error && error.message.includes('changed by another request')) setDraftConflict(true)
@@ -329,10 +413,8 @@ export default function NetworkPage() {
   const publish = async () => {
     if (!network || !projectId) return
     try {
-      await persistDraft()
       await promoteNetworkMutation.mutateAsync('production')
       setEnvironment('production')
-      setPinned(false)
       toast.success('Immutable Network Production release created')
     } catch (error) {
       if (error instanceof Error && error.message.includes('changed by another request')) setDraftConflict(true)
@@ -343,23 +425,34 @@ export default function NetworkPage() {
   const confirmRelease = () => {
     if (releaseAction === 'stage') void stage()
     else if (releaseAction === 'publish') void publish()
-    else { setProductionState(clone(HISTORY)); toast.success('Historical Network Release reactivated') }
     setReleaseAction(null)
+  }
+
+  const rollbackProduction = async (targetVersionId: string) => {
+    try {
+      await rollbackNetworkMutation.mutateAsync(targetVersionId)
+      setReleaseAction(null)
+      toast.success('Historical Network Release restored as a new Production version')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to rollback Network Production')
+    }
   }
 
   const selectSession = (sessionId: string) => {
     setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: sessionId }))
     setSelectedTraceIdBySession((current) => ({ ...current, [sessionId]: null }))
-    setPinned(false)
   }
 
   const createSession = async () => {
-    if (environment === 'draft') {
-      toast.info('Stage the Network before starting a runtime session')
+    if (!network || !projectId) return
+    if (!environmentReady) {
+      toast.info(`Create the ${environment} version before starting its Chat`)
       return
     }
-    if (!network || !projectId) return
     try {
+      const sessionDraftRevision = environment === 'draft'
+        ? (await persistDraft()).draft_revision
+        : null
       const created = await createNetworkSessionMutation.mutateAsync(environment)
       const session: NetworkSession = {
         id: created.id,
@@ -368,10 +461,8 @@ export default function NetworkPage() {
         title: created.title,
         environment: created.environment,
         networkVersion: created.network_version_id,
-        compositionHash: hashComposition(currentSignature(
-          created.environment,
-          created.environment === 'staging' ? stagingBindings : productionBindings,
-        )),
+        draftRevision: sessionDraftRevision,
+        compositionHash: created.network_version_id ?? `draft:${sessionDraftRevision}`,
         status: created.status,
         createdAt: created.created_at,
         lastMessageAt: null,
@@ -419,7 +510,7 @@ export default function NetworkPage() {
   const openTraceFromChat = (execution: NetworkExecution) => {
     if (!activeSession) return
     const existing = activeTraces.find((trace) => trace.execution.id === execution.id || trace.traceId === execution.traceId)
-    const trace = existing ?? createNetworkTraceRecord({ execution, environment, bindings: visibleBindings, networkSessionId: activeSession.id, title: 'Network execution', userMessage: 'Opened from the current Network Chat.', answer: 'Execution details from the current Network Chat.', agentContexts: activeSession.agentContexts, source: 'chat' })
+    const trace = existing ?? createNetworkTraceRecord({ execution, environment, bindings: runtimeBindings, networkSessionId: activeSession.id, title: 'Network execution', userMessage: 'Opened from the current Network Chat.', answer: 'Execution details from the current Network Chat.', agentContexts: activeSession.agentContexts, source: 'chat', networkVersion: networkLabel(environment, versionLabel) })
     if (!existing) setTraces((current) => [trace, ...current])
     selectTrace(trace)
     setPanelTab('traces')
@@ -429,7 +520,7 @@ export default function NetworkPage() {
 
   const networkBindingSummary: AgentNetworkBindingSummary | null = selectedNetworkBinding ? { source: selectedNetworkBinding.source, version: selectedNetworkBinding.version } : null
   const agentWorkspace = selectedAgentDraft && networkBindingSummary ? <NetworkAgentWorkspace key={selectedAgentDraft.agent.id} agent={selectedAgentDraft.agent} projectId={projectId!} networkBinding={networkBindingSummary} readOnly={environment !== 'draft'} onOpenComposition={() => { setCompositionNode(selectedAgentDraft.nodeId); setInspectorContext('network'); setNetworkSection('configuration'); setNetworkConfigSection('composition') }} onDirtyChange={updateSelectedAgentDirty} onRegisterSaveAction={(saveAction) => { saveAgentActionRef.current = saveAction }} /> : null
-  const networkWorkspace = <NetworkInspectorWorkspace section={networkSection} configSection={networkConfigSection} environment={environment} bindings={visibleBindings} draftBindings={draftBindings} stagingBindings={stagingBindings} productionBindings={productionBindings} compositionNode={compositionNode} onSection={setNetworkSection} onConfigSection={setNetworkConfigSection} onCompositionNode={(node) => { setCompositionNode(node); setSelectedNode(node) }} onUse={useVersion} onStage={() => setReleaseAction('stage')} onPublish={() => setReleaseAction('publish')} onRollback={() => setReleaseAction('rollback')} onLoadNetwork={() => { setDraftState(clone(HISTORY)); setEnvironment('draft'); setInspectorContext('network'); setNetworkSection('configuration'); setNetworkConfigSection('composition'); toast.success('Historical Network Release loaded into Draft') }} />
+  const networkWorkspace = <NetworkInspectorWorkspace section={networkSection} configSection={networkConfigSection} environment={environment} bindings={visibleBindings} draftBindings={draftBindings} stagingBindings={stagingBindings} productionBindings={productionBindings} compositionNode={compositionNode} onSection={setNetworkSection} onConfigSection={setNetworkConfigSection} onCompositionNode={(node) => { setCompositionNode(node); setSelectedNode(node) }} onUse={useVersion} onStage={() => void openReleaseAction('stage')} onPublish={() => void openReleaseAction('publish')} onRollback={() => void openReleaseAction('rollback')} onLoadNetwork={() => toast.info('Select a historical Production version from Rollback')} />
 
   return (
     <div className="flex h-screen min-w-0 flex-col overflow-hidden bg-background">
@@ -438,27 +529,27 @@ export default function NetworkPage() {
         <div><div className="flex items-center gap-2"><h1 className="text-sm font-semibold text-white">{currentProject?.name || 'Project'} Network</h1><Badge>{networkQuery.isLoading ? 'Loading' : 'Runtime'}</Badge></div><p className="text-[10px] text-muted">One Network per Project</p></div>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="Network environment" className="flex rounded-xl border border-border bg-background/35 p-1">{(['draft', 'staging', 'production'] as Environment[]).map((item) => <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-lg px-3 py-1.5 text-[10px] capitalize', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>{item}</button>)}</div>
-          {environment === 'draft' ? <button type="button" disabled={!editorDirty || saveNetworkDraftMutation.isPending || editorIssues.some((issue) => issue.severity === 'error')} onClick={() => void saveDraft()} className={smallButton}>{saveNetworkDraftMutation.isPending ? 'Saving…' : editorDirty ? 'Save Draft' : 'Draft saved'}</button> : null}
+          {environment === 'draft' ? <button type="button" disabled={!editorDirty || saveNetworkDraftMutation.isPending || editorIssues.some((issue) => issue.severity === 'error')} onClick={() => void saveDraft()} className={smallButton}>{saveNetworkDraftMutation.isPending ? 'Saving…' : editorDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
           <button type="button" onClick={() => setCenterMode('chat')} className={smallButton}><MessageSquare className="mr-1 inline h-3.5 w-3.5" />Network Chat</button>
           <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-1 inline h-3.5 w-3.5" />API Reference</button>
-          <button type="button" onClick={() => setReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button>
+          <button type="button" onClick={() => void openReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button>
         </div>
       </header>
       <div className="relative flex h-8 shrink-0 items-center border-b border-border bg-surface/35 px-3 text-[10px] text-muted">
-        <span className="inline-flex items-center gap-1.5">{environment === 'draft' ? <PencilLine className="h-3 w-3 text-primary-light" /> : <Lock className="h-3 w-3 text-muted" />}Viewing: <b className="text-slate-300">{networkLabel(environment)}</b> · {environment === 'draft' ? editorDirty ? 'Unsaved composition changes' : 'Draft saved' : 'Read-only composition · Chat and Traces available'}</span>
+        <span className="inline-flex items-center gap-1.5">{environment === 'draft' ? <PencilLine className="h-3 w-3 text-primary-light" /> : <Lock className="h-3 w-3 text-muted" />}Viewing: <b className="text-slate-300">{networkLabel(environment, versionLabel)}</b> · {environment === 'draft' ? editorDirty ? 'Unsaved composition changes' : 'Draft saved' : environmentReady ? 'Read-only composition · Chat and Traces available' : 'Environment not created'}</span>
         <div className="absolute left-1/2 flex -translate-x-1/2 rounded-lg border border-border bg-background/45 p-0.5">{([['canvas', Workflow], ['chat', MessageSquare]] as Array<[CenterMode, LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => setCenterMode(mode)} className={cn('flex items-center gap-1 rounded-md px-2.5 py-1 capitalize', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted')}><Icon className="h-3 w-3" />{mode}</button>)}</div>
         <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'No session selected'} · Max depth {visibleDefinition.settings.max_depth} · Timeout {visibleDefinition.settings.timeout_seconds}s</span>
       </div>
       <div className="relative flex min-h-0 flex-1">
         <NetworkOperationsRail activeTab={showLeftPanel ? panelTab : null} onTabChange={handlePanelTab} />
         {showLeftPanel ? <NetworkOperationsPanel activeTab={panelTab} traces={activeTraces} session={activeSession} selectedTraceId={selectedTraceId} onSelectTrace={selectTrace} onViewCanvas={viewTraceOnCanvas} onOpenAgent={selectNode} /> : null}
-        {agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : centerMode === 'canvas' ? <NetworkGraphEditor definition={visibleDefinition} agents={projectAgents} issues={visibleEditorIssues} selection={editorSelection} readOnly={environment !== 'draft'} onChange={changeEditor} onSelect={setEditorSelection} onAddAgent={() => setCatalogOpen(true)} /> : activeSession ? <NetworkChatWorkspace key={activeSession.id} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} bindings={visibleBindings} sessions={environmentSessions} activeSession={activeSession} pinned={pinned} onSelectSession={selectSession} onNewSession={() => createSession()} onPin={() => { setPinned(true); toast.info('Session kept on its previous composition') }} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} /> : <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div><p className="text-sm font-medium text-white">No Network Session selected</p><button type="button" onClick={createSession} className="mt-3 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Create session</button></div></div>}
+        {agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : !environmentReady ? <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6"><p className="text-sm font-medium text-white">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p><p className="mt-2 text-[10px] leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p><button type="button" onClick={() => setEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-4 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button></div></div> : centerMode === 'canvas' ? <NetworkGraphEditor definition={visibleDefinition} agents={projectAgents} issues={visibleEditorIssues} selection={editorSelection} readOnly={environment !== 'draft'} onChange={changeEditor} onSelect={setEditorSelection} onAddAgent={() => setCatalogOpen(true)} /> : activeSession ? <NetworkChatWorkspace key={activeSession.id} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} onBeforeDraftRun={async () => (await persistDraft()).draft_revision} onSelectSession={selectSession} onNewSession={() => createSession()} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} /> : <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div><p className="text-sm font-medium text-white">No {environment} Network Session selected</p><p className="mt-1 text-[10px] text-muted">The Chat will use {networkLabel(environment, versionLabel)}.</p><button type="button" onClick={createSession} className="mt-3 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Create session</button></div></div>}
         {centerMode === 'canvas' ? <NetworkGraphInspector definition={visibleDefinition} agents={projectAgents} issues={visibleEditorIssues} selection={editorSelection} readOnly={environment !== 'draft'} name={editorName} description={editorDescription} onMetadata={updateEditorMetadata} onChange={changeEditor} /> : <NetworkInspectorShell context={inspectorContext} selectedAgentDraft={selectedAgentDraft} selectedNetworkBinding={selectedNetworkBinding} expanded={expanded} onContext={setInspectorContext} onExpand={() => setExpanded((value) => !value)} agentWorkspace={agentWorkspace} networkWorkspace={networkWorkspace} />}
         <NetworkAgentCatalogDrawer open={catalogOpen} agents={projectAgents} addedAgentIds={new Set(editorDefinition.nodes.map((node) => node.agent_id))} onClose={() => setCatalogOpen(false)} onAdd={addAgentToNetwork} />
       </div>
-      {showApi ? <NetworkApiModal open={showApi} onClose={() => setShowApi(false)} projectId={projectId!} networkId={network?.id || ''} versionIds={{ staging: network?.staging_version_id, production: network?.production_version_id }} bindings={{ staging: stagingBindings, production: productionBindings }} /> : null}
-      {releaseAction === 'stage' || releaseAction === 'publish' ? <NetworkPromotionDialog environment={releaseAction === 'stage' ? 'staging' : 'production'} definition={editorDefinition} agents={projectAgents} issues={editorIssues} pending={saveNetworkDraftMutation.isPending || promoteNetworkMutation.isPending} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
-      {releaseAction === 'rollback' ? <NetworkReleaseModal action="rollback" draftBindings={draftBindings} stagingBindings={stagingBindings} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
+      {showApi ? <NetworkApiModal open={showApi} onClose={() => setShowApi(false)} projectId={projectId!} networkId={network?.id || ''} versionIds={{ staging: network?.staging_version_id, production: network?.production_version_id }} bindings={apiBindings} /> : null}
+      {releaseAction === 'stage' || releaseAction === 'publish' ? <NetworkPromotionDialog environment={releaseAction === 'stage' ? 'staging' : 'production'} networkId={network?.id || ''} projectId={projectId!} definition={releaseAction === 'stage' ? editorDefinition : visibleDefinition} agents={projectAgents} issues={releaseAction === 'stage' ? editorIssues : visibleEditorIssues} pending={saveNetworkDraftMutation.isPending || promoteNetworkMutation.isPending} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
+      {releaseAction === 'rollback' ? <NetworkRollbackDialog versions={networkVersionsQuery.data ?? []} currentVersionId={network?.production_version_id ?? null} pending={rollbackNetworkMutation.isPending} onClose={() => setReleaseAction(null)} onConfirm={(versionId) => void rollbackProduction(versionId)} /> : null}
       {pendingRemoval ? <NetworkRemoveDialog title={pendingRemoval.type === 'remove-node' ? 'Remove Agent from Network?' : 'Remove delegation?'} description={pendingRemoval.type === 'remove-node' ? 'The Agent remains available in the Project. Only this Network node will be removed.' : 'The source Agent will no longer be able to delegate work through this connection.'} impact={pendingRemoval.type === 'remove-node' ? `${editorDefinition.edges.filter((edge) => edge.source_node_id === pendingRemoval.nodeId || edge.target_node_id === pendingRemoval.nodeId).length} connected delegation(s) will also be removed. The graph must remain reachable before it can be saved.` : 'The target Agent may become unreachable from the entry point.'} onClose={() => setPendingRemoval(null)} onConfirm={() => { applyEditorChange(pendingRemoval); setPendingRemoval(null) }} /> : null}
       {draftConflict ? <NetworkDraftConflictDialog onClose={() => setDraftConflict(false)} onReload={() => void reloadServerDraft()} /> : null}
       {pendingNode && selectedAgentDraft ? <UnsavedAgentSwitchDialog agentName={selectedAgentDraft.agent.name} onStay={() => setPendingNode(null)} onDiscard={discardAndSwitch} onSave={() => void saveAndSwitch()} /> : null}
