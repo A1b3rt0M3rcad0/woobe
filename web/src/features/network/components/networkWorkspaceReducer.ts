@@ -49,20 +49,18 @@ export function networkWorkspaceReducer(
         selection: action.selection ?? state.selection,
         inspectionScope: { type: 'current' },
       }
-    case 'select': {
-      const inferredContext: NetworkInspectorContext = action.selection.type === 'node'
-        ? 'agent'
-        : 'network'
+    case 'select':
       return {
         ...state,
         selection: action.selection,
-        inspectorContext: action.context ?? inferredContext,
+        // Selection changes the inspected subject, not the inspector tab. The
+        // user stays in Agent or Network until explicitly switching context.
+        inspectorContext: state.inspectorContext,
       }
-    }
     case 'context':
       return { ...state, inspectorContext: action.context }
     case 'toggle-inspector':
-      return { ...state, inspectorExpanded: !state.inspectorExpanded }
+      return state
     case 'inspect-run':
       return { ...state, inspectionScope: { type: 'run', runId: action.runId } }
     case 'clear-run-inspection':
