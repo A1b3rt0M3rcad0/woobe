@@ -65,6 +65,22 @@ def validate_network_definition(
             "Every Agent node must be reachable from the root Agent"
         )
 
+    visiting: set[UUID] = set()
+    visited_for_cycles: set[UUID] = set()
+
+    def visit_for_cycles(node_id: UUID) -> None:
+        if node_id in visiting:
+            raise NetworkGraphError("Network delegation graph cannot contain cycles")
+        if node_id in visited_for_cycles:
+            return
+        visiting.add(node_id)
+        for target_id in reachable[node_id]:
+            visit_for_cycles(target_id)
+        visiting.remove(node_id)
+        visited_for_cycles.add(node_id)
+
+    visit_for_cycles(definition.root_node_id)
+
     limits = definition.limits
     if not 1 <= limits.max_depth <= hard_max_depth:
         raise NetworkGraphError(f"max_depth must be between 1 and {hard_max_depth}")
