@@ -70,6 +70,32 @@ def test_rejects_unreachable_agent() -> None:
         validate_network_definition(graph)
 
 
+def test_rejects_delegation_cycle_below_root() -> None:
+    graph = definition()
+    child = graph.nodes[1]
+    grandchild = NetworkNode(id=uuid4(), agent_id=uuid4(), label="Refund specialist")
+    graph = NetworkDefinition(
+        root_node_id=graph.root_node_id,
+        nodes=graph.nodes + (grandchild,),
+        edges=graph.edges
+        + (
+            NetworkEdge(
+                id=uuid4(),
+                source_node_id=child.id,
+                target_node_id=grandchild.id,
+            ),
+            NetworkEdge(
+                id=uuid4(),
+                source_node_id=grandchild.id,
+                target_node_id=child.id,
+            ),
+        ),
+        limits=graph.limits,
+    )
+    with pytest.raises(NetworkGraphError, match="cycles"):
+        validate_network_definition(graph)
+
+
 def test_enforces_hard_limits() -> None:
     graph = definition()
     graph = NetworkDefinition(
