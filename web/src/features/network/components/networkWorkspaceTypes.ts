@@ -1,7 +1,7 @@
 import type { Agent } from '@/features/agents/types'
 
 export type Environment = 'draft' | 'staging' | 'production'
-export type ChatTarget = Environment | 'history'
+export type ChatTarget = Environment
 export type BindingSource = 'draft' | 'staging' | 'release'
 export type NodeId = 'entry' | 'coordinator' | 'billing' | 'technical' | 'end'
 export type AgentNodeId = Exclude<NodeId, 'entry' | 'end'>
