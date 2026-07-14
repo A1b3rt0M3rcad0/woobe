@@ -7,6 +7,7 @@ import { currentSignature, makeExecution, type NetworkExecution, type NetworkTur
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import { hashComposition, type NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
+import type { NetworkRuntimeEvent } from '@/features/network/types'
 import { NetworkChatComposer } from './NetworkChatComposer'
 import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
@@ -36,6 +37,19 @@ function seedMessage(session: NetworkSession) {
   return 'Review how this request should be routed through the Network.'
 }
 
+function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
+  if (eventType === 'execution_accepted') return 'Execution accepted and queued'
+  if (eventType === 'execution_started') return 'Network worker started the execution'
+  if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
+  if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
+  if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
+  if (eventType === 'delegation_completed') return `Delegation completed: ${String(event.data.target ?? 'Agent')}`
+  if (eventType === 'execution_completed') return 'Network execution completed'
+  if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
+  if (eventType === 'execution_cancelled') return 'Network execution cancelled'
+  return eventType.replaceAll('_', ' ')
+}
+
 export function NetworkChatWorkspace({
   networkId,
   projectId,
@@ -56,6 +70,9 @@ export function NetworkChatWorkspace({
   const [text, setText] = useState('')
   const [turns, setTurns] = useState<NetworkTurn[]>(activeSession.messageCount > 0 ? [{ id: `seed-${activeSession.id}`, user: seedMessage(activeSession), answer: seed.answer, parsedOutput: seed.parsedOutput, provider: seed.provider, model: seed.model, usage: seed.usage, execution: seed.execution }] : [])
   const [running, setRunning] = useState(false)
+  const [liveAnswer, setLiveAnswer] = useState('')
+  const [liveActivity, setLiveActivity] = useState<string[]>([])
+  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const signature = currentSignature(environment, bindings)
@@ -70,6 +87,8 @@ export function NetworkChatWorkspace({
     abortRef.current?.abort()
     abortRef.current = null
     setRunning(false)
+    setLiveAnswer('')
+    setLiveActivity([])
     if (wasRunning) toast.info('Network execution connection stopped; server execution may continue')
   }
 
@@ -77,6 +96,8 @@ export function NetworkChatWorkspace({
     abortRef.current?.abort()
     abortRef.current = null
     setRunning(false)
+    setLiveAnswer('')
+    setLiveActivity([])
     setTurns([])
     setText('')
     onNewSession()
@@ -95,6 +116,9 @@ export function NetworkChatWorkspace({
     }
     setText('')
     setRunning(true)
+    setLiveAnswer('')
+    setLiveActivity([])
+    setLastHeartbeatAt(null)
     const controller = new AbortController()
     abortRef.current = controller
     let answer = ''
@@ -109,15 +133,22 @@ export function NetworkChatWorkspace({
       }, {
         onExecutionId: (id) => { executionId = id },
         onEvent: (eventType, event) => {
+          if (eventType !== 'token') {
+            setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+          }
           if (eventType === 'token') {
             const chunk = event.data.content
-            if (typeof chunk === 'string') answer += chunk
+            if (typeof chunk === 'string') {
+              answer += chunk
+              setLiveAnswer(answer)
+            }
           }
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
           }
         },
+        onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
 
       const result = makeExecution(content, environment, bindings, activeSession.id, activeSession.agentContexts)
@@ -171,6 +202,11 @@ export function NetworkChatWorkspace({
         onPin={onPin}
       />
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
+      {running ? <div className="mx-4 mb-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[10px]">
+        <div className="flex items-center gap-2 text-primary-light"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Live Network activity<span className="ml-auto text-[9px] text-muted">{lastHeartbeatAt ? 'heartbeat received' : 'connection open'}</span></div>
+        {liveActivity.length ? <div className="mt-2 space-y-1 text-muted">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}
+        {liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-slate-200">{liveAnswer}</p> : null}
+      </div> : null}
       <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
     </div>
   )
