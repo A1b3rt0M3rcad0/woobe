@@ -24,6 +24,7 @@ export type NetworkAgentNodeData = {
   node: NetworkNode
   isRoot: boolean
   readOnly: boolean
+  activeInRun?: boolean
   issues: NetworkEditorIssue[]
 } & Record<string, unknown>
 

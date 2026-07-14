@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import {
-  cancelNetworkExecution,
-  getNetworkSessionMessages,
-  resetNetworkSessionContext,
-} from '@/features/network/api'
+import { cancelNetworkExecution, resetNetworkSessionContext } from '@/features/network/api'
 import { streamNetworkExecution } from '@/features/network/stream'
-import type { NetworkMessageResource, NetworkRuntimeEvent } from '@/features/network/types'
+import type { NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
-import {
-  buildTurnFromRuntimeEvents,
-  type NetworkExecution,
-  type NetworkTurn,
-  type RuntimeEventRecord,
-} from './networkChatExecution'
+import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -32,6 +23,8 @@ interface NetworkChatWorkspaceProps {
   bindings: Record<AgentNodeId, NetworkBinding>
   sessions: NetworkSession[]
   activeSession: NetworkSession
+  historyTurns: NetworkTurn[]
+  historyLoading: boolean
   onBeforeDraftRun: () => Promise<number>
   onSelectSession: (sessionId: string) => void
   onNewSession: () => void
@@ -54,74 +47,6 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   return eventType.replace(/_/g, ' ')
 }
 
-function historyRecords(
-  message: NetworkMessageResource,
-  sessionId: string,
-): RuntimeEventRecord[] {
-  const execution = message.execution
-  if (!execution) return []
-  return execution.events.map((item) => ({
-    eventType: item.event_type,
-    event: {
-      protocol_version: 1,
-      event_id: item.id,
-      sequence: item.sequence,
-      execution_id: execution.id,
-      network_session_id: sessionId,
-      invocation_id: item.invocation_id,
-      parent_invocation_id: item.parent_invocation_id,
-      node_id: item.node_id,
-      agent_id: item.agent_id,
-      depth: item.depth,
-      data: item.data,
-      created_at: item.created_at,
-    },
-  }))
-}
-
-function terminalStatus(status: string): NetworkExecution['status'] {
-  if (status === 'completed') return 'success'
-  if (status === 'running' || status === 'queued') return 'running'
-  return 'error'
-}
-
-function hydrateTurns(
-  messages: NetworkMessageResource[],
-  environment: Environment,
-  bindings: Record<AgentNodeId, NetworkBinding>,
-  sessionId: string,
-) {
-  type HistoryGroup = {
-    user?: NetworkMessageResource
-    assistant?: NetworkMessageResource
-    executionMessage?: NetworkMessageResource
-  }
-  const grouped = new Map<string, HistoryGroup>()
-  for (const message of messages) {
-    const executionId = message.network_execution_id
-    if (!executionId) continue
-    const current: HistoryGroup = grouped.get(executionId) ?? {}
-    if (message.role === 'user') current.user = message
-    if (message.role === 'assistant') current.assistant = message
-    if (message.execution) current.executionMessage = message
-    grouped.set(executionId, current)
-  }
-  return [...grouped.entries()].flatMap(([executionId, group]) => {
-    const source = group.assistant?.execution ? group.assistant : group.executionMessage
-    if (!source?.execution) return []
-    return [buildTurnFromRuntimeEvents({
-      records: historyRecords(source, sessionId),
-      environment,
-      bindings,
-      executionId,
-      user: group.user?.content ?? '',
-      answer: group.assistant?.content ?? source.execution.failure?.message ?? '',
-      fallbackTraceId: source.execution.root_trace_id ?? undefined,
-      terminalStatus: terminalStatus(source.execution.status),
-    })]
-  })
-}
-
 export function NetworkChatWorkspace({
   networkId,
   projectId,
@@ -132,6 +57,8 @@ export function NetworkChatWorkspace({
   bindings,
   sessions,
   activeSession,
+  historyTurns,
+  historyLoading,
   onBeforeDraftRun,
   onSelectSession,
   onNewSession,
@@ -140,8 +67,7 @@ export function NetworkChatWorkspace({
   onOpenTrace,
 }: NetworkChatWorkspaceProps) {
   const [text, setText] = useState('')
-  const [turns, setTurns] = useState<NetworkTurn[]>([])
-  const [historyLoading, setHistoryLoading] = useState(true)
+  const [turns, setTurns] = useState<NetworkTurn[]>(historyTurns)
   const [running, setRunning] = useState(false)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
@@ -149,7 +75,6 @@ export function NetworkChatWorkspace({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
-  const bindingsRef = useRef(bindings)
   const changed = environment !== 'draft' && activeSession.networkVersion !== currentVersionId
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>(
     (result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }),
@@ -157,22 +82,7 @@ export function NetworkChatWorkspace({
   )
 
   useEffect(() => () => abortRef.current?.abort(), [])
-  useEffect(() => { bindingsRef.current = bindings }, [bindings])
-  useEffect(() => {
-    let active = true
-    setHistoryLoading(true)
-    getNetworkSessionMessages(networkId, activeSession.id, projectId)
-      .then((messages) => {
-        if (active) setTurns(hydrateTurns(messages, environment, bindingsRef.current, activeSession.id))
-      })
-      .catch((error) => {
-        if (active) toast.error(error instanceof Error ? error.message : 'Unable to load Network messages')
-      })
-      .finally(() => {
-        if (active) setHistoryLoading(false)
-      })
-    return () => { active = false }
-  }, [activeSession.id, environment, networkId, projectId])
+  useEffect(() => { setTurns(historyTurns) }, [historyTurns])
   useEffect(() => {
     const element = scrollRef.current
     if (element) element.scrollTop = element.scrollHeight
@@ -236,15 +146,11 @@ export function NetworkChatWorkspace({
     let executionId = ''
     let traceId = ''
     let status: NetworkExecution['status'] = 'success'
+
     try {
-      const expectedDraftRevision = environment === 'draft'
-        ? await onBeforeDraftRun()
-        : undefined
+      const expectedDraftRevision = environment === 'draft' ? await onBeforeDraftRun() : undefined
       const executionBindings = environment === 'draft'
-        ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [
-          nodeId,
-          { ...binding, version: `r${expectedDraftRevision}`, dirty: false },
-        ])) as Record<AgentNodeId, NetworkBinding>
+        ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
       await streamNetworkExecution({
         networkId,
@@ -259,9 +165,7 @@ export function NetworkChatWorkspace({
         },
         onEvent: (eventType, event) => {
           records.push({ eventType, event })
-          if (eventType !== 'token') {
-            setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
-          }
+          if (eventType !== 'token') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           if (eventType === 'token') {
             const chunk = event.data.content
             if (typeof chunk === 'string') {
@@ -273,9 +177,7 @@ export function NetworkChatWorkspace({
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
           }
-          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
-            status = 'error'
-          }
+          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') status = 'error'
         },
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
@@ -320,24 +222,10 @@ export function NetworkChatWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <NetworkChatHeader
-        environment={environment}
-        versionLabel={versionLabel}
-        counts={counts}
-        sessions={sessions}
-        activeSessionId={activeSession.id}
-        changed={changed}
-        onSelectSession={onSelectSession}
-        onNew={startNew}
-        onResetContext={() => void resetContext()}
-      />
+      <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession.id} changed={changed} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
-      {running ? <div className="mx-4 mb-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[10px]">
-        <div className="flex items-center gap-2 text-primary-light"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Live Network activity<span className="ml-auto text-[9px] text-muted">{lastHeartbeatAt ? 'heartbeat received' : 'connection open'}</span></div>
-        {liveActivity.length ? <div className="mt-2 space-y-1 text-muted">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}
-        {liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-slate-200">{liveAnswer}</p> : null}
-      </div> : null}
+      {running ? <div className="mx-4 mb-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[10px]"><div className="flex items-center gap-2 text-primary-light"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Live Network activity<span className="ml-auto text-[9px] text-muted">{lastHeartbeatAt ? 'heartbeat received' : 'connection open'}</span></div>{liveActivity.length ? <div className="mt-2 space-y-1 text-muted">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}{liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-slate-200">{liveAnswer}</p> : null}</div> : null}
       <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
     </div>
   )
