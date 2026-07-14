@@ -43,6 +43,9 @@ export function normalizeNetworkDefinition(value: unknown): NetworkDefinition {
       id: node.id,
       agent_id: node.agent_id,
       label: typeof node.label === 'string' && node.label.trim() ? node.label.trim() : 'Agent',
+      capability_description: typeof node.capability_description === 'string'
+        ? node.capability_description.trim().slice(0, 2000)
+        : '',
       position: validPosition(node.position),
     }]
   })
@@ -86,6 +89,7 @@ export function createNodeForAgent(agent: Agent, index: number): NetworkNode {
     id: crypto.randomUUID(),
     agent_id: agent.id,
     label: agent.name,
+    capability_description: (agent.description ?? '').trim().slice(0, 2000),
     position: { x: 180 + column * 300, y: 140 + row * 220 },
   }
 }
@@ -114,6 +118,8 @@ export function applyNetworkDefinitionChange(
       return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, position: change.position } : node) }
     case 'rename-node':
       return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, label: change.label } : node) }
+    case 'describe-node':
+      return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, capability_description: change.description.slice(0, 2000) } : node) }
     case 'add-edge':
       return { ...definition, edges: [...definition.edges, change.edge] }
     case 'remove-edge':
@@ -128,4 +134,3 @@ export function applyNetworkDefinitionChange(
       return { ...definition, settings: { ...change.settings } }
   }
 }
-
