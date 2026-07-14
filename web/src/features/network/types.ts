@@ -1,5 +1,10 @@
 export type NetworkEnvironment = 'draft' | 'staging' | 'production'
 export type NetworkPromotionEnvironment = Exclude<NetworkEnvironment, 'draft'>
+export type NetworkAgentBindingSource = 'draft' | 'staging' | 'release'
+
+export type NetworkAgentBindingSelector =
+  | { source: 'draft'; release_id: null }
+  | { source: 'staging' | 'release'; release_id: string }
 
 export interface NetworkNode {
   id: string
@@ -7,6 +12,7 @@ export interface NetworkNode {
   label: string
   capability_description: string
   position: { x: number; y: number }
+  binding: NetworkAgentBindingSelector
 }
 
 export interface NetworkEdge {
@@ -16,7 +22,7 @@ export interface NetworkEdge {
 }
 
 export interface NetworkDefinition {
-  schema_version: 1
+  schema_version: 2
   root_node_id: string
   nodes: NetworkNode[]
   edges: NetworkEdge[]
@@ -41,19 +47,24 @@ export interface NetworkResource {
   updated_at: string
 }
 
+export interface ResolvedNetworkBinding {
+  node_id: string
+  agent_id: string
+  binding_source?: NetworkAgentBindingSource
+  release_id: string
+  release_version: string
+  release_status: string
+  snapshot_kind?: 'staging' | 'release'
+  snapshot_hash?: string
+}
+
 export interface NetworkVersion {
   id: string
   kind: 'staging' | 'release'
   version: string
   composition_hash: string
   definition: NetworkDefinition
-  resolved_bindings: Record<string, {
-    node_id: string
-    agent_id: string
-    release_id: string
-    release_version: string
-    release_status: string
-  }>
+  resolved_bindings: Record<string, ResolvedNetworkBinding>
   created_at: string
 }
 
@@ -127,9 +138,41 @@ export interface NetworkRuntimeEvent {
   created_at?: string
 }
 
+export interface PromotionPreviewNode {
+  node_id: string
+  agent_id: string
+  agent_name: string
+  selected_source: NetworkAgentBindingSource
+  selected_ref: string | null
+  selected_version: string | null
+  result_source: Exclude<NetworkAgentBindingSource, 'draft'>
+  action_required: 'promote_draft_to_staging' | 'publish_staging_to_release' | null
+  action_id: string | null
+  blocking_reason: string | null
+}
+
+export interface PromotionPreviewAction {
+  id: string
+  agent_id: string
+  agent_name: string
+  action: 'promote_draft_to_staging' | 'publish_staging_to_release'
+  source_release_id: string
+  source_version: string
+}
+
 export interface PromotionPreview {
   environment: NetworkPromotionEnvironment
+  network_revision: number
+  network_version_id: string | null
   ready: boolean
-  bindings: Record<string, Record<string, unknown>>
+  nodes: PromotionPreviewNode[]
+  actions: PromotionPreviewAction[]
   missing_agent_ids: string[]
+}
+
+export interface PromoteNetworkInput {
+  environment: NetworkPromotionEnvironment
+  expected_revision?: number | null
+  expected_network_version_id?: string | null
+  approved_action_ids?: string[]
 }
