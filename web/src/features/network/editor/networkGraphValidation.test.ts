@@ -7,9 +7,9 @@ function graph(): NetworkDefinition {
     schema_version: 1,
     root_node_id: '00000000-0000-4000-8000-000000000001',
     nodes: [
-      { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'Coordinator', position: { x: 0, y: 0 } },
-      { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Billing', position: { x: 300, y: 0 } },
-      { id: '00000000-0000-4000-8000-000000000003', agent_id: '10000000-0000-4000-8000-000000000003', label: 'Refunds', position: { x: 600, y: 0 } },
+      { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'Coordinator', capability_description: 'Coordinates requests.', position: { x: 0, y: 0 } },
+      { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Billing', capability_description: 'Answers billing questions.', position: { x: 300, y: 0 } },
+      { id: '00000000-0000-4000-8000-000000000003', agent_id: '10000000-0000-4000-8000-000000000003', label: 'Refunds', capability_description: 'Handles refund requests.', position: { x: 600, y: 0 } },
     ],
     edges: [
       { id: '20000000-0000-4000-8000-000000000001', source_node_id: '00000000-0000-4000-8000-000000000001', target_node_id: '00000000-0000-4000-8000-000000000002' },
@@ -42,4 +42,3 @@ describe('network graph validation', () => {
     expect(delegationToolName(graph().nodes[1])).toBe('delegate_to_billing')
   })
 })
-
