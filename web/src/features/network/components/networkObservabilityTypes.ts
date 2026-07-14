@@ -1,8 +1,11 @@
+import type { UsageInfo } from '@/features/playground/types'
+
 import type {
   NetworkAgentInvocation,
   NetworkExecution,
 } from './networkChatExecution'
 import type { NetworkRun, NodeId } from './networkWorkspaceTypes'
+import type { NetworkAgentContext } from './networkSessionTypes'
 
 export type NetworkTraceSource = 'chat' | 'runtime'
 export type NetworkTraceEventStatus =
@@ -28,11 +31,13 @@ export interface NetworkTraceEvent {
 export interface NetworkTraceRecord {
   id: string
   traceId: string
-  sessionId: string
+  networkSessionId: string
   source: NetworkTraceSource
   title: string
   userMessage: string
   answer: string
+  parsedOutput?: Record<string, unknown> | null
+  outputParseError?: string | null
   environment: NetworkExecution['environment']
   networkVersion: string
   compositionHash: string
@@ -40,7 +45,9 @@ export interface NetworkTraceRecord {
   startedAt: string
   completedAt: string | null
   durationMs: number
+  usage: UsageInfo
   costUsd: number
+  agentContexts: NetworkAgentContext[]
   execution: NetworkExecution
   events: NetworkTraceEvent[]
 }
