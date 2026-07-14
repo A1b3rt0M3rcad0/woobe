@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Bot, LocateFixed, Maximize2, Minimize2, Workflow } from 'lucide-react'
+import { Bot, LocateFixed, Workflow } from 'lucide-react'
 
 import type { Agent } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import { NetworkGraphInspector } from './NetworkGraphInspector'
-import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
+import type { NetworkBinding } from './networkWorkspaceTypes'
 import type { NetworkCenterMode, NetworkInspectionScope, NetworkInspectorContext } from './networkWorkspaceReducer'
 
 interface NetworkContextInspectorProps {
@@ -21,12 +21,12 @@ interface NetworkContextInspectorProps {
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
-  expanded: boolean
+  expanded?: boolean
   name: string
   description: string
   agentWorkspace: ReactNode
   onContext: (context: NetworkInspectorContext) => void
-  onExpand: () => void
+  onExpand?: () => void
   onLocateOnCanvas: () => void
   onSelect: (selection: NetworkEditorSelection) => void
   onMetadata: (metadata: { name?: string; description?: string }) => void
@@ -44,12 +44,10 @@ export function NetworkContextInspector({
   issues,
   selection,
   readOnly,
-  expanded,
   name,
   description,
   agentWorkspace,
   onContext,
-  onExpand,
   onLocateOnCanvas,
   onSelect,
   onMetadata,
@@ -65,10 +63,7 @@ export function NetworkContextInspector({
   const agentEnabled = Boolean(selectedNode && selectedAgent && selectedBinding)
 
   return (
-    <aside className={cn(
-      'absolute inset-y-0 right-0 z-40 flex min-h-0 shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:bg-surface/80 xl:shadow-none',
-      expanded ? 'w-[min(96vw,720px)] xl:w-[720px]' : 'w-[min(94vw,520px)] xl:w-[520px]',
-    )}>
+    <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,520px)] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-[520px] xl:bg-surface/80 xl:shadow-none">
       <div className="flex shrink-0 items-center gap-1 border-b border-border bg-background/20 p-1.5">
         <button
           type="button"
@@ -95,9 +90,6 @@ export function NetworkContextInspector({
           )}
         >
           <Workflow className="h-3.5 w-3.5" />Network
-        </button>
-        <button type="button" onClick={onExpand} className="rounded-lg border border-border/80 bg-background/35 p-2 text-muted hover:text-white" aria-label={expanded ? 'Reduce inspector' : 'Expand inspector'}>
-          {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
       </div>
 
