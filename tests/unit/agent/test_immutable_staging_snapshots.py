@@ -72,3 +72,33 @@ def test_promoting_draft_creates_new_immutable_staging_snapshots():
         assert second.agent_status == "active"
 
     asyncio.run(scenario())
+
+
+def test_publishing_historical_staging_creates_release_without_mutating_source():
+    async def scenario():
+        staging = AgentRelease(
+            version="staging-r3",
+            status=ReleaseStatus.archived,
+            system_prompt="validated prompt",
+        )
+        staging.snapshot_kind = "staging"
+        repository = InMemoryReleaseRepository([staging])
+        lifecycle = ReleaseLifecycleUseCase(repository)
+
+        output = await lifecycle.execute(
+            staging.agent_id,
+            staging.id,
+            target_status="production",
+        )
+        published = await repository.get_by_id(output.id)
+        source = await repository.get_by_id(staging.id)
+
+        assert published.id != source.id
+        assert published.status == ReleaseStatus.production
+        assert published.snapshot_kind == "release"
+        assert published.system_prompt == "validated prompt"
+        assert source.status == ReleaseStatus.archived
+        assert source.snapshot_kind == "staging"
+        assert source.version == "staging-r3"
+
+    asyncio.run(scenario())
