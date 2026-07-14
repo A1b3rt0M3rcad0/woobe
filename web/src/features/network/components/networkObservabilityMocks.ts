@@ -83,6 +83,94 @@ function createTrace({
   )
 }
 
+function failTimeoutTrace(record: NetworkTraceRecord): NetworkTraceRecord {
+  const failureMessage = 'Gateway timeout from the service-status provider'
+  const failedInvocation = record.execution.root.children[0]
+  if (!failedInvocation) return record
+
+  const failedSpanId = failedInvocation.spanId
+  const failedRoot = {
+    ...record.execution.root,
+    children: record.execution.root.children.map((invocation) => invocation.spanId === failedSpanId
+      ? {
+          ...invocation,
+          status: 'error' as const,
+          output: 'The service status provider did not respond before the Tool timeout.',
+          tools: invocation.tools.map((tool) => ({
+            ...tool,
+            status: 'error',
+            success: false,
+            output: null,
+            error: failureMessage,
+          })),
+        }
+      : invocation),
+  }
+
+  const events = record.events.map((event) => {
+    if (event.spanId === failedSpanId && event.type === 'network.tool.call.completed') {
+      return {
+        ...event,
+        type: 'network.tool.call.failed',
+        label: `${String(event.payload.tool_name ?? 'Tool')} failed`,
+        status: 'error' as const,
+        payload: {
+          ...event.payload,
+          success: false,
+          output: null,
+          error: failureMessage,
+        },
+      }
+    }
+    if (event.spanId === failedSpanId && event.type === 'network.agent.invocation.completed') {
+      return {
+        ...event,
+        type: 'network.agent.invocation.failed',
+        label: `${failedInvocation.agentName} failed`,
+        status: 'error' as const,
+        payload: {
+          ...event.payload,
+          output: 'The service status provider did not respond before the Tool timeout.',
+          error: failureMessage,
+        },
+      }
+    }
+    if (event.type === 'network.execution.completed') {
+      return {
+        ...event,
+        type: 'network.execution.failed',
+        label: 'Network execution failed',
+        nodeId: 'technical' as const,
+        status: 'error' as const,
+        payload: {
+          ...event.payload,
+          duration_ms: 730,
+          cost_usd: 0.004,
+          error: failureMessage,
+        },
+      }
+    }
+    return event
+  })
+
+  return {
+    ...record,
+    answer: 'The Network stopped after the service-status Tool timed out.',
+    status: 'error',
+    durationMs: 730,
+    costUsd: 0.004,
+    execution: {
+      ...record.execution,
+      status: 'error',
+      durationMs: 730,
+      costUsd: 0.004,
+      path: ['entry', 'coordinator', 'technical'],
+      root: failedRoot,
+    },
+    events,
+  }
+}
+
 export function createMockNetworkTraces({
   draft,
   staging,
@@ -135,7 +223,7 @@ export function createMockNetworkTraces({
     source: 'runtime',
   })
 
-  const timeout = createTrace({
+  const timeout = failTimeoutTrace(createTrace({
     message: 'The public API is returning a 504 timeout.',
     environment: 'draft',
     bindings: draft,
@@ -145,26 +233,7 @@ export function createMockNetworkTraces({
     minutesAgo: 21,
     id: 'network-trace-timeout',
     traceId: '92a3589e-b7f1-49ec-88d7-cb2558f43144',
-  })
-  const failedInvocation = timeout.execution.root.children[0]
-  if (failedInvocation) {
-    failedInvocation.status = 'error'
-    failedInvocation.output = 'The service status provider did not respond before the Tool timeout.'
-    failedInvocation.tools = failedInvocation.tools.map((tool) => ({
-      ...tool,
-      status: 'error',
-      success: false,
-      output: null,
-      error: 'Gateway timeout from the service-status provider',
-    }))
-  }
-  timeout.execution.status = 'error'
-  timeout.status = 'error'
-  timeout.execution.durationMs = 730
-  timeout.durationMs = 730
-  timeout.execution.costUsd = 0.004
-  timeout.costUsd = 0.004
-  timeout.execution.path = ['entry', 'coordinator', 'technical']
+  }))
 
   const incident = createTrace({
     message: 'Check whether the timeout is limited to one region.',
