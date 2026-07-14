@@ -8,7 +8,9 @@ from modules.network.application.runtime import (
     AgentInvocationResult,
     NetworkExecutionCancelled,
     NetworkExecutor,
+    delegation_tool_description,
 )
+from modules.network.domain.entities import NetworkNode
 
 
 class _Invoker:
@@ -44,6 +46,23 @@ class _Store:
 
     async def emit(self, *_args, **_kwargs) -> None:
         return None
+
+
+def test_delegation_tool_exposes_the_versioned_agent_capability() -> None:
+    node = NetworkNode(
+        id=uuid4(),
+        agent_id=uuid4(),
+        label="Billing specialist",
+        capability_description=(
+            "Investigates invoices, duplicate charges, and payment disputes."
+        ),
+    )
+
+    description = delegation_tool_description(node)
+
+    assert "Billing specialist" in description
+    assert "duplicate charges" in description
+    assert "system prompt" not in description.lower()
 
 
 def test_cancellation_after_agent_call_discards_network_result() -> None:
