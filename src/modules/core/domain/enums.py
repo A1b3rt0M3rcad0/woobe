@@ -18,6 +18,11 @@ class ApiKeyKind(StrEnum):
     runtime = auto()
 
 
+class RuntimeTargetType(StrEnum):
+    agent = auto()
+    network = auto()
+
+
 class RuntimeEnvironment(StrEnum):
     staging = auto()
     production = auto()
