@@ -102,6 +102,15 @@ class ApiKeyModel(BaseModel):
             "environment",
             "status",
         ),
+        Index(
+            "ix_core_api_keys_runtime_target_binding",
+            "project_id",
+            "kind",
+            "target_type",
+            "target_id",
+            "environment",
+            "status",
+        ),
         {"schema": "core"},
     )
 
@@ -115,6 +124,8 @@ class ApiKeyModel(BaseModel):
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     kind: Mapped[str] = mapped_column(String(32), default="project")
     agent_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    target_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_id: Mapped[UUID | None] = mapped_column(nullable=True)
     environment: Mapped[str | None] = mapped_column(String(32), nullable=True)
     interfaces: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")
