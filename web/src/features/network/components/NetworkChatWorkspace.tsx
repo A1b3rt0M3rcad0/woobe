@@ -45,6 +45,7 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_started') return 'Network worker started the execution'
   if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
+  if (eventType === 'agent_invocation_failed') return `Agent failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
   if (eventType === 'delegation_completed') return `Delegation completed: ${String(event.data.target ?? 'Agent')}`
   if (eventType === 'execution_completed') return 'Network execution completed'
@@ -90,29 +91,35 @@ function hydrateTurns(
   bindings: Record<AgentNodeId, NetworkBinding>,
   sessionId: string,
 ) {
-  const users = new Map<string, NetworkMessageResource>()
-  const turns: NetworkTurn[] = []
+  type HistoryGroup = {
+    user?: NetworkMessageResource
+    assistant?: NetworkMessageResource
+    executionMessage?: NetworkMessageResource
+  }
+  const grouped = new Map<string, HistoryGroup>()
   for (const message of messages) {
     const executionId = message.network_execution_id
     if (!executionId) continue
-    if (message.role === 'user') {
-      users.set(executionId, message)
-      continue
-    }
-    if (message.role !== 'assistant' || !message.execution) continue
-    const user = users.get(executionId)
-    turns.push(buildTurnFromRuntimeEvents({
-      records: historyRecords(message, sessionId),
+    const current: HistoryGroup = grouped.get(executionId) ?? {}
+    if (message.role === 'user') current.user = message
+    if (message.role === 'assistant') current.assistant = message
+    if (message.execution) current.executionMessage = message
+    grouped.set(executionId, current)
+  }
+  return [...grouped.entries()].flatMap(([executionId, group]) => {
+    const source = group.assistant?.execution ? group.assistant : group.executionMessage
+    if (!source?.execution) return []
+    return [buildTurnFromRuntimeEvents({
+      records: historyRecords(source, sessionId),
       environment,
       bindings,
       executionId,
-      user: user?.content ?? '',
-      answer: message.content,
-      fallbackTraceId: message.execution.root_trace_id ?? undefined,
-      terminalStatus: terminalStatus(message.execution.status),
-    }))
-  }
-  return turns
+      user: group.user?.content ?? '',
+      answer: group.assistant?.content ?? source.execution.failure?.message ?? '',
+      fallbackTraceId: source.execution.root_trace_id ?? undefined,
+      terminalStatus: terminalStatus(source.execution.status),
+    })]
+  })
 }
 
 export function NetworkChatWorkspace({
