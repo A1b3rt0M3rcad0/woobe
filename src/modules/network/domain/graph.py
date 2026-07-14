@@ -95,6 +95,10 @@ def validate_network_definition(
 
     names: set[str] = set()
     for node in definition.nodes:
+        if len(node.capability_description) > 2000:
+            raise NetworkGraphError(
+                "Agent capability_description cannot exceed 2000 characters"
+            )
         name = delegation_tool_name(node)
         if name in names:
             raise NetworkGraphError(
