@@ -121,12 +121,13 @@ function asUsage(value: unknown): UsageInfo | null {
   if (
     typeof usage.input_tokens !== 'number'
     || typeof usage.output_tokens !== 'number'
-    || typeof usage.total_tokens !== 'number'
   ) return null
   return {
     input_tokens: usage.input_tokens,
     output_tokens: usage.output_tokens,
-    total_tokens: usage.total_tokens,
+    total_tokens: typeof usage.total_tokens === 'number'
+      ? usage.total_tokens
+      : usage.input_tokens + usage.output_tokens,
     cost_usd: typeof usage.cost_usd === 'number' ? usage.cost_usd : null,
   }
 }
