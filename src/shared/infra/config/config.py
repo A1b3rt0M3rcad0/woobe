@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     runtime_max_snapshot_override_bytes: int = Field(default=32768, gt=0, le=4194304)
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+    network_runtime_enabled: bool = True
+    network_stream_heartbeat_seconds: float = Field(default=10.0, gt=0, le=60)
+    network_max_depth_default: int = Field(default=4, ge=1, le=8)
+    network_max_depth_hard: int = Field(default=8, ge=1, le=16)
+    network_max_invocations_default: int = Field(default=16, ge=1, le=64)
+    network_max_invocations_hard: int = Field(default=64, ge=1, le=128)
+    network_timeout_default_seconds: int = Field(default=90, ge=1, le=300)
+    network_timeout_hard_seconds: int = Field(default=300, ge=1, le=600)
+    network_execution_lease_ttl_seconds: int = Field(default=30, ge=15, le=300)
+    network_execution_lease_heartbeat_seconds: int = Field(default=10, ge=5, le=60)
+    network_worker_prefetch: int = Field(default=4, ge=1, le=100)
+    network_worker_slots: int = Field(default=4, ge=1, le=100)
     http_tool_timeout_max_ms: int = Field(default=30000, gt=0, le=120000)
     http_tool_response_max_bytes: int = Field(default=1048576, gt=0, le=16777216)
     db_pool_size: int = Field(default=20, gt=0, le=200)
@@ -116,6 +128,24 @@ class Settings(BaseSettings):
             ("projectrai", "projectrai"),
             ("guest", "guest"),
         }
+
+    @model_validator(mode="after")
+    def validate_network_runtime(self) -> Settings:
+        errors: list[str] = []
+        if self.network_max_depth_default > self.network_max_depth_hard:
+            errors.append("Network default max depth exceeds hard max depth")
+        if self.network_max_invocations_default > self.network_max_invocations_hard:
+            errors.append("Network default max invocations exceeds hard max invocations")
+        if self.network_timeout_default_seconds > self.network_timeout_hard_seconds:
+            errors.append("Network default timeout exceeds hard timeout")
+        if (
+            self.network_execution_lease_heartbeat_seconds * 2
+            >= self.network_execution_lease_ttl_seconds
+        ):
+            errors.append("Network lease TTL must exceed two heartbeat intervals")
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
     @model_validator(mode="after")
     def validate_runtime_security(self) -> Settings:
