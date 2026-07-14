@@ -20,7 +20,10 @@ class SQLNetworkExecutionStore:
     async def is_cancel_requested(self, execution_id: UUID) -> bool:
         async with self._session_factory() as session:
             execution = await session.get(NetworkExecutionModel, execution_id)
-            return execution is None or execution.status in {"cancel_requested", "cancelled"}
+            return execution is None or execution.status in {
+                "cancel_requested",
+                "cancelled",
+            }
 
     async def start_invocation(
         self,
