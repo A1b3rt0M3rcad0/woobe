@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.network.domain.enums import NetworkExecutionStatus
@@ -200,9 +201,19 @@ class NetworkRuntimeRepository:
             agent_id=agent_id,
             agent_session_id=None,
         )
-        self.session.add(context)
-        await self.session.flush()
-        return context
+        try:
+            async with self.session.begin_nested():
+                self.session.add(context)
+                await self.session.flush()
+            return context
+        except IntegrityError:
+            result = await self.session.execute(
+                select(NetworkAgentContextModel).where(
+                    NetworkAgentContextModel.network_session_id == network_session_id,
+                    NetworkAgentContextModel.network_node_id == node_id,
+                )
+            )
+            return result.scalar_one()
 
     async def create_invocation(
         self,
