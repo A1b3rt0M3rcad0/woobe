@@ -7,8 +7,8 @@ describe('network definition mapper', () => {
   })
 
   it('selects the first Agent as root and removes incident edges', () => {
-    const first = { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'First', position: { x: 0, y: 0 } }
-    const second = { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Second', position: { x: 300, y: 0 } }
+    const first = { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'First', capability_description: 'Coordinates work.', position: { x: 0, y: 0 } }
+    const second = { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Second', capability_description: 'Completes specialist work.', position: { x: 300, y: 0 } }
     let definition = applyNetworkDefinitionChange(createEmptyNetworkDefinition(), { type: 'add-node', node: first })
     definition = applyNetworkDefinitionChange(definition, { type: 'add-node', node: second })
     definition = applyNetworkDefinitionChange(definition, { type: 'add-edge', edge: { id: 'edge', source_node_id: first.id, target_node_id: second.id } })
@@ -21,8 +21,8 @@ describe('network definition mapper', () => {
     const definition = normalizeNetworkDefinition({
       root_node_id: '00000000-0000-4000-8000-000000000001',
       nodes: [
-        { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'First', position: { x: 0, y: 0 } },
-        { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Second', position: { x: 300, y: 0 } },
+        { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'First', capability_description: 'Coordinates work.', position: { x: 0, y: 0 } },
+        { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Second', capability_description: 'Completes specialist work.', position: { x: 300, y: 0 } },
       ],
       edges: [{ id: 'edge', source_node_id: '00000000-0000-4000-8000-000000000001', target_node_id: '00000000-0000-4000-8000-000000000002' }],
     })
@@ -30,4 +30,3 @@ describe('network definition mapper', () => {
     expect(changed.edges).toEqual([])
   })
 })
-
