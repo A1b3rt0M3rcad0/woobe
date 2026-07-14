@@ -67,6 +67,8 @@ export function validateNetworkGraph(definition: NetworkDefinition): NetworkEdit
   const tools = new Map<string, string>()
   for (const node of definition.nodes) {
     if (node.capability_description.length > 2000) issues.push({ code: 'capability-description', severity: 'error', message: `${node.label} has a delegation description longer than 2000 characters.`, nodeId: node.id })
+    if (node.binding.source === 'draft' && node.binding.release_id !== null) issues.push({ code: 'draft-binding', severity: 'error', message: `${node.label} has an invalid Draft binding.`, nodeId: node.id })
+    if (node.binding.source !== 'draft' && !node.binding.release_id) issues.push({ code: 'stable-binding', severity: 'error', message: `${node.label} must reference an exact Agent snapshot.`, nodeId: node.id })
     const tool = delegationToolName(node)
     const previous = tools.get(tool)
     if (previous) issues.push({ code: 'tool-name', severity: 'error', message: `${node.label} generates the same delegation tool as another Agent.`, nodeId: node.id })
