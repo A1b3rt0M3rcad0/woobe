@@ -126,8 +126,19 @@ class ProjectRAIAgentInvoker:
         context.internal_tool_name_to_id = {
             tool.name: str(tool.id) for tool in internal_tools
         }
+        uuid_context_fields = {
+            "network_id",
+            "network_version_id",
+            "network_session_id",
+            "network_execution_id",
+            "network_invocation_id",
+            "parent_invocation_id",
+            "network_node_id",
+        }
         for key, value in network_context.items():
             if hasattr(context, key):
+                if key in uuid_context_fields and value is not None:
+                    value = UUID(str(value))
                 setattr(context, key, value)
 
         token = current_execution.set(context)
