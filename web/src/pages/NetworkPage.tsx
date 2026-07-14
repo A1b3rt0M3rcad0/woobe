@@ -11,6 +11,7 @@ import { NetworkGraphEditor } from '@/features/network/components/NetworkGraphEd
 import { NetworkGraphInspector } from '@/features/network/components/NetworkGraphInspector'
 import { NetworkPromotionDialog } from '@/features/network/components/NetworkPromotionDialog'
 import { NetworkRemoveDialog } from '@/features/network/components/NetworkRemoveDialog'
+import { NetworkDraftConflictDialog } from '@/features/network/components/NetworkDraftConflictDialog'
 import { useCreateNetworkSession, useNetwork, useNetworkSessions, useNetworkVersions, usePromoteNetwork, useSaveNetworkDraft } from '@/features/network/hooks'
 import type { NetworkDefinition, NetworkSessionResource } from '@/features/network/types'
 import { NetworkChatWorkspace } from '@/features/network/components/NetworkChatWorkspace'
@@ -72,6 +73,7 @@ export default function NetworkPage() {
   const [editorRevision, setEditorRevision] = useState(0)
   const [editorDirty, setEditorDirty] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<NetworkDefinitionChange | null>(null)
+  const [draftConflict, setDraftConflict] = useState(false)
   const [draftState, setDraftState] = useState(() => clone(DRAFT))
   const [stagingState, setStagingState] = useState(() => clone(STAGING))
   const [productionState, setProductionState] = useState(() => clone(PRODUCTION))
@@ -202,8 +204,23 @@ export default function NetworkPage() {
       await persistDraft()
       toast.success('Network Draft saved')
     } catch (error) {
+      if (error instanceof Error && error.message.includes('changed by another request')) setDraftConflict(true)
       toast.error(error instanceof Error ? error.message : 'Unable to save Network Draft')
     }
+  }
+
+  const reloadServerDraft = async () => {
+    const result = await networkQuery.refetch()
+    if (!result.data) return
+    setEditorDefinition(normalizeNetworkDefinition(result.data.draft_definition))
+    setEditorName(result.data.name)
+    setEditorDescription(result.data.description)
+    setEditorRevision(result.data.draft_revision)
+    hydratedRevisionRef.current = result.data.draft_revision
+    setEditorDirty(false)
+    setEditorSelection({ type: 'network' })
+    setDraftConflict(false)
+    toast.success('Latest Network Draft loaded')
   }
 
   useEffect(() => {
@@ -304,6 +321,7 @@ export default function NetworkPage() {
       setPinned(false)
       toast.success('Immutable Network Staging version created')
     } catch (error) {
+      if (error instanceof Error && error.message.includes('changed by another request')) setDraftConflict(true)
       toast.error(error instanceof Error ? error.message : 'Unable to stage Network')
     }
   }
@@ -317,6 +335,7 @@ export default function NetworkPage() {
       setPinned(false)
       toast.success('Immutable Network Production release created')
     } catch (error) {
+      if (error instanceof Error && error.message.includes('changed by another request')) setDraftConflict(true)
       toast.error(error instanceof Error ? error.message : 'Unable to publish Network')
     }
   }
@@ -441,6 +460,7 @@ export default function NetworkPage() {
       {releaseAction === 'stage' || releaseAction === 'publish' ? <NetworkPromotionDialog environment={releaseAction === 'stage' ? 'staging' : 'production'} definition={editorDefinition} agents={projectAgents} issues={editorIssues} pending={saveNetworkDraftMutation.isPending || promoteNetworkMutation.isPending} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
       {releaseAction === 'rollback' ? <NetworkReleaseModal action="rollback" draftBindings={draftBindings} stagingBindings={stagingBindings} onClose={() => setReleaseAction(null)} onConfirm={confirmRelease} /> : null}
       {pendingRemoval ? <NetworkRemoveDialog title={pendingRemoval.type === 'remove-node' ? 'Remove Agent from Network?' : 'Remove delegation?'} description={pendingRemoval.type === 'remove-node' ? 'The Agent remains available in the Project. Only this Network node will be removed.' : 'The source Agent will no longer be able to delegate work through this connection.'} impact={pendingRemoval.type === 'remove-node' ? `${editorDefinition.edges.filter((edge) => edge.source_node_id === pendingRemoval.nodeId || edge.target_node_id === pendingRemoval.nodeId).length} connected delegation(s) will also be removed. The graph must remain reachable before it can be saved.` : 'The target Agent may become unreachable from the entry point.'} onClose={() => setPendingRemoval(null)} onConfirm={() => { applyEditorChange(pendingRemoval); setPendingRemoval(null) }} /> : null}
+      {draftConflict ? <NetworkDraftConflictDialog onClose={() => setDraftConflict(false)} onReload={() => void reloadServerDraft()} /> : null}
       {pendingNode && selectedAgentDraft ? <UnsavedAgentSwitchDialog agentName={selectedAgentDraft.agent.name} onStay={() => setPendingNode(null)} onDiscard={discardAndSwitch} onSave={() => void saveAndSwitch()} /> : null}
     </div>
   )
