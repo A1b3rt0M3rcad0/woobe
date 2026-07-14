@@ -266,7 +266,8 @@ class HttpSecurityGuard:
                 text(
                     """
                     SELECT id, project_id, key_prefix, key_hash, key_version,
-                           scopes, kind, agent_id, environment, interfaces,
+                           scopes, kind, agent_id, target_type, target_id,
+                           environment, interfaces,
                            status, revoked_at, expires_at
                     FROM core.api_keys
                     WHERE key_prefix = :key_prefix
@@ -322,7 +323,15 @@ class HttpSecurityGuard:
                     raise AuthorizationError(
                         "A Runtime Key is required for this endpoint"
                     )
-                if matching_row.agent_id is None or key_environment is None:
+                target_type = (
+                    str(matching_row.target_type)
+                    if matching_row.target_type is not None
+                    else "agent"
+                    if matching_row.agent_id is not None
+                    else None
+                )
+                target_id = matching_row.target_id or matching_row.agent_id
+                if target_type not in {"agent", "network"} or target_id is None or key_environment is None:
                     raise AuthorizationError("Runtime Key binding is incomplete")
                 if runtime_interface not in interfaces:
                     raise AuthorizationError(
@@ -342,6 +351,18 @@ class HttpSecurityGuard:
                 agent_id=(
                     UUID(str(matching_row.agent_id))
                     if matching_row.agent_id is not None
+                    else None
+                ),
+                target_type=(
+                    str(matching_row.target_type)
+                    if matching_row.target_type is not None
+                    else "agent"
+                    if matching_row.agent_id is not None
+                    else None
+                ),
+                target_id=(
+                    UUID(str(matching_row.target_id or matching_row.agent_id))
+                    if (matching_row.target_id is not None or matching_row.agent_id is not None)
                     else None
                 ),
                 environment=key_environment,
