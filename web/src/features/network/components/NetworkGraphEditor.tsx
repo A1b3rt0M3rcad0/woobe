@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './network-flow.css'
-import { AlertTriangle, Bot, Crown, Plus, Workflow } from 'lucide-react'
+import { AlertTriangle, Bot, Crown, Plus, Workflow, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
@@ -33,7 +33,15 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   return (
     <article className={cn(
       'w-60 rounded-2xl border bg-surface/95 p-3.5 text-left shadow-xl shadow-black/20 transition',
-      selected ? 'border-primary ring-4 ring-primary/10' : issue ? 'border-red-500/45' : data.isRoot ? 'border-primary/55' : 'border-border hover:border-primary/35',
+      selected
+        ? 'border-primary ring-4 ring-primary/10'
+        : data.activeInRun
+          ? 'border-emerald-400/65 ring-4 ring-emerald-400/10'
+          : issue
+            ? 'border-red-500/45'
+            : data.isRoot
+              ? 'border-primary/55'
+              : 'border-border hover:border-primary/35',
     )}>
       {!data.isRoot ? <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-surface !bg-slate-400" /> : null}
       <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-surface !bg-primary" />
@@ -51,8 +59,8 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-2">
-        <span className={cn('rounded-md border px-1.5 py-0.5 text-[8px] font-semibold uppercase', data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted')}>
-          {data.isRoot ? 'Entry point' : 'Agent'}
+        <span className={cn('rounded-md border px-1.5 py-0.5 text-[8px] font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted')}>
+          {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
         </span>
         <span className={cn('h-2 w-2 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
       </div>
@@ -68,20 +76,27 @@ export function NetworkGraphEditor({
   issues,
   selection,
   readOnly,
+  activePath = [],
+  inspectionLabel,
   onChange,
   onSelect,
   onAddAgent,
+  onClearInspection,
 }: {
   definition: NetworkDefinition
   agents: Agent[]
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
+  activePath?: string[]
+  inspectionLabel?: string | null
   onChange: (change: NetworkDefinitionChange) => void
   onSelect: (selection: NetworkEditorSelection) => void
   onAddAgent: () => void
+  onClearInspection?: () => void
 }) {
   const agentsById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
+  const activePathSet = useMemo(() => new Set(activePath), [activePath])
   const derivedNodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
     id: node.id,
     type: 'network-agent',
@@ -94,9 +109,10 @@ export function NetworkGraphEditor({
       agent: agentsById.get(node.agent_id),
       isRoot: definition.root_node_id === node.id,
       readOnly,
+      activeInRun: activePathSet.has(node.id),
       issues: issues.filter((issue) => issue.nodeId === node.id),
     },
-  })), [agentsById, definition.nodes, definition.root_node_id, issues, readOnly, selection])
+  })), [activePathSet, agentsById, definition.nodes, definition.root_node_id, issues, readOnly, selection])
   const [nodes, setNodes, onNodesChange] = useNodesState<AgentFlowNode>(derivedNodes)
   const draggingRef = useRef(false)
 
@@ -104,14 +120,18 @@ export function NetworkGraphEditor({
     if (draggingRef.current) return
     setNodes(derivedNodes)
   }, [derivedNodes, setNodes])
-  const edges = useMemo<Edge[]>(() => definition.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source_node_id,
-    target: edge.target_node_id,
-    selected: selection.type === 'edge' && selection.id === edge.id,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    style: { strokeWidth: 2 },
-  })), [definition.edges, selection])
+  const edges = useMemo<Edge[]>(() => definition.edges.map((edge) => {
+    const active = activePath.some((nodeId, index) => nodeId === edge.source_node_id && activePath[index + 1] === edge.target_node_id)
+    return {
+      id: edge.id,
+      source: edge.source_node_id,
+      target: edge.target_node_id,
+      selected: selection.type === 'edge' && selection.id === edge.id,
+      markerEnd: { type: MarkerType.ArrowClosed, color: active ? '#34d399' : undefined },
+      animated: active,
+      style: { strokeWidth: active ? 2.5 : 2, stroke: active ? '#34d399' : undefined },
+    }
+  }), [activePath, definition.edges, selection])
 
   const connect = (connection: Connection) => {
     if (readOnly || !connection.source || !connection.target) return
@@ -155,12 +175,7 @@ export function NetworkGraphEditor({
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={30}
-          size={1}
-          color="rgba(100,116,139,.38)"
-        />
+        <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="rgba(100,116,139,.38)" />
         <Controls position="bottom-left" showInteractive={false} />
         <MiniMap
           position="bottom-right"
@@ -168,7 +183,7 @@ export function NetworkGraphEditor({
           zoomable
           bgColor="#020817"
           nodeStrokeColor="#64748b"
-          nodeColor={(node) => node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
+          nodeColor={(node) => activePathSet.has(node.id) ? '#10b981' : node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
           maskColor="rgba(2,8,23,.78)"
         />
       </ReactFlow>
@@ -177,6 +192,12 @@ export function NetworkGraphEditor({
         <Workflow className="h-3.5 w-3.5 text-primary-light" />
         <span><b className="text-white">{definition.nodes.length}</b> Agents · <b className="text-white">{definition.edges.length}</b> delegations</span>
       </div>
+      {inspectionLabel ? (
+        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-amber-500/25 bg-surface/95 px-3 py-2 text-[9px] text-amber-100 shadow-lg">
+          <span>Network Run: {inspectionLabel}</span>
+          {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-md p-1 text-muted hover:bg-background/60 hover:text-white" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
+        </div>
+      ) : null}
       {!readOnly ? (
         <button type="button" onClick={onAddAgent} className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-[10px] font-semibold text-white shadow-lg shadow-primary/20">
           <Plus className="h-3.5 w-3.5" />Add Agent
