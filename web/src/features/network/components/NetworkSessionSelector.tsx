@@ -1,0 +1,95 @@
+import { useState } from 'react'
+import { Check, ChevronDown, MessageSquarePlus } from 'lucide-react'
+
+import { cn } from '@/lib/utils'
+
+import type { NetworkSession } from './networkSessionTypes'
+
+function relativeTime(value: string | null) {
+  if (!value) return 'No messages yet'
+  const minutes = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 60_000))
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+export function NetworkSessionSelector({
+  sessions,
+  activeSessionId,
+  onSelect,
+  onNew,
+}: {
+  sessions: NetworkSession[]
+  activeSessionId: string | null
+  onSelect: (sessionId: string) => void
+  onNew: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const active = sessions.find((session) => session.id === activeSessionId) ?? null
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-9 min-w-[220px] max-w-[320px] items-center gap-2 rounded-lg border border-border bg-background/55 px-3 text-left transition-colors hover:border-primary/30"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-medium text-white">{active?.title ?? 'Select a Network Session'}</p>
+          <p className="mt-0.5 truncate text-[9px] text-muted">{active ? `${active.messageCount} messages · ${active.traceCount} traces` : 'Sessions are isolated by environment'}</p>
+        </div>
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-11 z-40 w-[340px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/35">
+          <div className="flex items-center justify-between border-b border-border/80 px-3 py-2.5">
+            <div>
+              <p className="text-[11px] font-semibold text-white">Network Sessions</p>
+              <p className="mt-0.5 text-[9px] text-muted">Only sessions from the active environment.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onNew() }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[10px] font-medium text-white"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              New
+            </button>
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto p-2 scrollbar-thin">
+            {sessions.length ? sessions.map((session) => {
+              const selected = session.id === activeSessionId
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => { onSelect(session.id); setOpen(false) }}
+                  role="option"
+                  aria-selected={selected}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                    selected ? 'border-primary/30 bg-primary/10' : 'border-transparent hover:border-border hover:bg-background/55',
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('truncate text-[11px] font-medium', selected ? 'text-white' : 'text-slate-200')}>{session.title}</p>
+                    <p className="mt-1 text-[9px] text-muted">{session.messageCount} messages · {session.traceCount} traces · {relativeTime(session.lastMessageAt)}</p>
+                  </div>
+                  {selected ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-light" /> : null}
+                </button>
+              )
+            }) : (
+              <div className="p-6 text-center">
+                <p className="text-[11px] text-muted">No sessions in this environment.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
