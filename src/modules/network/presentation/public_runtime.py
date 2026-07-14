@@ -183,16 +183,22 @@ async def run_network_http(request: Request):
         if execution is None or execution.project_id != principal.project_id:
             raise NotFoundError("Network execution not found")
         if execution.status == "completed":
-            return {"success": True, "message": "ok", "data": _execution_payload(execution, network_session)}
+            return {
+                "success": True,
+                "message": "ok",
+                "data": _execution_payload(execution, network_session),
+            }
         if execution.status in TERMINAL_STATUSES:
             status_code = 409 if execution.status == "cancelled" else 503
             return JSONResponse(
                 status_code=status_code,
-                content=jsonable_encoder({
-                    "success": False,
-                    "message": execution.failure_detail or execution.status,
-                    "data": _execution_payload(execution, network_session),
-                }),
+                content=jsonable_encoder(
+                    {
+                        "success": False,
+                        "message": execution.failure_detail or execution.status,
+                        "data": _execution_payload(execution, network_session),
+                    }
+                ),
             )
         await asyncio.sleep(0.25)
     raise RuntimeTimeoutError("Network execution exceeded the HTTP response timeout")
