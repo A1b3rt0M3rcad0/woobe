@@ -5,7 +5,7 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
-import { invocationCount, sourceCount, toolCount } from './networkChatExecution'
+import { delegationCount, invocationCount, sourceCount, toolCount } from './networkChatExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -55,6 +55,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const agents = invocationCount(trace.execution.root)
   const tools = toolCount(trace.execution.root)
   const sources = sourceCount(trace.execution.root)
+  const delegations = delegationCount(trace.execution.root)
   const routeEvents = trace.events.filter((event) => event.type.startsWith('network.route.'))
   const running = trace.status === 'running'
   const completed = trace.status === 'success'
@@ -66,7 +67,9 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
       ? 'border-emerald-500/25 bg-emerald-500/10'
       : 'border-red-500/25 bg-red-500/10'
   const statusText = running ? 'text-blue-300' : completed ? 'text-emerald-300' : 'text-red-300'
-  const totalTokens = trace.usage.total_tokens ?? ((trace.usage.input_tokens ?? 0) + (trace.usage.output_tokens ?? 0))
+  const totalTokens = trace.usage
+    ? trace.usage.total_tokens ?? ((trace.usage.input_tokens ?? 0) + (trace.usage.output_tokens ?? 0))
+    : null
 
   return (
     <div className="space-y-3 p-4">
@@ -76,7 +79,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[13px] font-semibold text-white">Trace Detail</h3>
+            <h3 className="text-[13px] font-semibold text-white">Network Run</h3>
             <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusSurface, statusText)}>{statusLabel}</span>
             <span className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted">{formatLatency(trace.durationMs)}</span>
           </div>
@@ -89,13 +92,27 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         <Metric label="Agents" value={String(agents)} />
         <Metric label="Tools" value={String(tools)} />
         <Metric label="Sources" value={String(sources)} />
-        <Metric label="Hops" value={String(trace.execution.path.length)} />
+        <Metric label="Hops" value={String(delegations)} />
       </div>
 
       <div className="rounded-lg border border-border/75 bg-background/45 p-3">
         <p className="text-[10px] uppercase tracking-wide text-muted">Usage</p>
-        <p className="mt-1 text-[11px] text-slate-200">Input {formatTokens(trace.usage.input_tokens)} · Output {formatTokens(trace.usage.output_tokens)} · Total {formatTokens(totalTokens)} · {formatCurrency(trace.costUsd)}</p>
+        <p className="mt-1 text-[11px] text-slate-200">
+          {trace.usage && totalTokens != null
+            ? <>Input {formatTokens(trace.usage.input_tokens)} · Output {formatTokens(trace.usage.output_tokens)} · Total {formatTokens(totalTokens)} · {trace.costUsd == null ? 'Cost unknown' : formatCurrency(trace.costUsd)}</>
+            : 'Usage unavailable — the Agent Run failed before provider telemetry was returned.'}
+        </p>
       </div>
+
+      {trace.execution.root.failure ? (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[11px] font-medium text-red-300">{trace.execution.root.failure.message}</p>
+            <code className="rounded border border-red-500/20 px-1.5 py-0.5 text-[9px] text-red-200">{trace.execution.root.failure.code}</code>
+          </div>
+          <p className="mt-1 text-[10px] text-muted">Stage: {trace.execution.root.failure.stage} · {trace.execution.root.failure.retryable ? 'Retryable' : 'Not retryable'}</p>
+        </div>
+      ) : null}
 
       <div className="rounded-lg border border-border/75 bg-background/45 p-3">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted">User Message</p>
@@ -135,7 +152,12 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
       </div>
 
       <div className="space-y-1 border-t border-border pt-3">
-        <CopyableIdRow label="trace" value={trace.traceId} />
+        {trace.traceId ? <CopyableIdRow label="trace" value={trace.traceId} /> : (
+          <div className="grid grid-cols-[92px_1fr] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
+            <span className="text-[10px] uppercase text-muted">trace</span>
+            <span className="text-[10px] text-muted">Not created</span>
+          </div>
+        )}
         <CopyableIdRow label="network session" value={trace.networkSessionId} />
         <CopyableIdRow label="network" value={session.networkId} />
         <CopyableIdRow label="project" value={session.projectId} />
