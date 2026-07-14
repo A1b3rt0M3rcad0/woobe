@@ -24,12 +24,39 @@ class NetworkLimits:
 
 
 @dataclass(frozen=True)
+class AgentBindingSelector:
+    source: str = "draft"
+    release_id: UUID | None = None
+
+    @classmethod
+    def from_dict(cls, value: Any) -> AgentBindingSelector:
+        raw = value if isinstance(value, dict) else {}
+        source = str(raw.get("source") or "draft").strip().lower()
+        if source not in {"draft", "staging", "release"}:
+            raise ValueError("Agent binding source must be draft, staging or release")
+        release_value = raw.get("release_id")
+        release_id = UUID(str(release_value)) if release_value else None
+        if source == "draft" and release_id is not None:
+            raise ValueError("Draft Agent binding cannot include release_id")
+        if source != "draft" and release_id is None:
+            raise ValueError(f"{source.title()} Agent binding requires release_id")
+        return cls(source=source, release_id=release_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "release_id": str(self.release_id) if self.release_id else None,
+        }
+
+
+@dataclass(frozen=True)
 class NetworkNode:
     id: UUID
     agent_id: UUID
     label: str
     capability_description: str = ""
     position: dict[str, float] = field(default_factory=dict)
+    binding: AgentBindingSelector = field(default_factory=AgentBindingSelector)
 
 
 @dataclass(frozen=True)
@@ -46,7 +73,7 @@ class NetworkDefinition:
     edges: tuple[NetworkEdge, ...]
     limits: NetworkLimits = field(default_factory=NetworkLimits)
     session_mode: str = "stateful"
-    schema_version: int = 1
+    schema_version: int = 2
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> NetworkDefinition:
@@ -62,6 +89,7 @@ class NetworkDefinition:
                         item.get("capability_description") or ""
                     ).strip(),
                     position=dict(item.get("position") or {}),
+                    binding=AgentBindingSelector.from_dict(item.get("binding")),
                 )
                 for item in value.get("nodes", [])
             ),
@@ -79,12 +107,12 @@ class NetworkDefinition:
                 timeout_seconds=int(settings.get("timeout_seconds", 90)),
             ),
             session_mode=str(settings.get("session_mode", "stateful")),
-            schema_version=int(value.get("schema_version", 1)),
+            schema_version=2,
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": self.schema_version,
+            "schema_version": 2,
             "root_node_id": str(self.root_node_id),
             "nodes": [
                 {
@@ -93,6 +121,7 @@ class NetworkDefinition:
                     "label": node.label,
                     "capability_description": node.capability_description,
                     "position": node.position,
+                    "binding": node.binding.to_dict(),
                 }
                 for node in self.nodes
             ],
