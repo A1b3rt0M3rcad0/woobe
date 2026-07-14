@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Protocol
 from uuid import UUID, uuid5
 
-from modules.network.domain.entities import NetworkDefinition
+from modules.network.application.runtime_failures import classify_runtime_exception
+from modules.network.domain.entities import NetworkDefinition, NetworkNode
 from modules.network.domain.graph import delegation_tool_name
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
@@ -16,6 +18,24 @@ from modules.network.infra.database.models import (
 
 
 NETWORK_TOOL_NAMESPACE = UUID("bd84d8e4-0d63-4a8f-96ca-3fd22e42dfe0")
+
+
+def agent_capability_summary(node: NetworkNode) -> str:
+    capability = " ".join(node.capability_description.split())
+    return capability or (
+        f"This specialist performs the role represented by {node.label}."
+    )
+
+
+def delegation_tool_description(node: NetworkNode) -> str:
+    capability = agent_capability_summary(node)
+    return (
+        f"Delegate a focused task to {node.label}. "
+        f"Specialist capability: {capability} "
+        "Use this specialist only when that capability is required. Send the "
+        "precise task and only the context needed to complete it, then integrate "
+        "the returned result into your response."
+    )
 
 
 class NetworkBudgetExceeded(RuntimeError):
@@ -58,12 +78,23 @@ class InternalDelegationTool:
                     "properties": {
                         "task": {
                             "type": "string",
-                            "description": "The precise task the specialist must complete.",
+                            "description": (
+                                "The precise task the specialist must complete."
+                            ),
                         },
                         "context": {
                             "type": "object",
-                            "description": "Only the context required to complete the task.",
+                            "description": (
+                                "Only the context required to complete the task."
+                            ),
                             "additionalProperties": True,
+                        },
+                        "expected_output": {
+                            "type": "string",
+                            "description": (
+                                "Optional description of the result the specialist "
+                                "should return."
+                            ),
                         },
                     },
                     "required": ["task"],
@@ -199,7 +230,26 @@ class NetworkExecutor:
             await self._store.emit(
                 execution.id,
                 "agent_invocation_started",
-                {"label": node.label, "invocation_count": invocation_count},
+                {
+                    "label": node.label,
+                    "invocation_count": invocation_count,
+                    "provider": snapshot_override.get("provider")
+                    if isinstance(snapshot_override, dict)
+                    else None,
+                    "model": snapshot_override.get("model")
+                    if isinstance(snapshot_override, dict)
+                    else None,
+                    "source": "draft"
+                    if runtime_environment == "draft"
+                    else "release"
+                    if runtime_environment == "production"
+                    else "staging",
+                    "version": (
+                        f"r{execution.draft_revision}"
+                        if runtime_environment == "draft"
+                        else binding.get("release_version")
+                    ),
+                },
                 invocation_id=invocation.id,
             )
 
@@ -216,6 +266,8 @@ class NetworkExecutor:
                     *,
                     delegated_target_id: UUID = target_id,
                     delegated_target_label: str = target.label,
+                    delegated_target_capability: str = agent_capability_summary(target),
+                    delegating_agent_label: str = node.label,
                 ) -> dict:
                     task = str(arguments.get("task") or "").strip()
                     if not task:
@@ -224,15 +276,33 @@ class NetworkExecutor:
                             "error": "Delegation task cannot be blank",
                         }
                     context = arguments.get("context")
-                    delegated_message = task
+                    expected_output = str(
+                        arguments.get("expected_output") or ""
+                    ).strip()
+                    envelope: dict[str, object] = {
+                        "delegated_by": delegating_agent_label,
+                        "delegated_to": delegated_target_label,
+                        "specialist_capability": delegated_target_capability,
+                        "task": task,
+                    }
                     if isinstance(context, dict) and context:
-                        delegated_message = f"{task}\n\nDelegated context:\n{context}"
+                        envelope["context"] = context
+                    if expected_output:
+                        envelope["expected_output"] = expected_output
+                    delegated_message = (
+                        "You are receiving a delegated task from another Agent in "
+                        "the same Network Run. Complete it using your own "
+                        "instructions and return the result to the delegating "
+                        "Agent.\n\n"
+                        + json.dumps(envelope, ensure_ascii=False, indent=2)
+                    )
                     await self._store.emit(
                         execution.id,
                         "delegation_started",
                         {
                             "target_node_id": str(delegated_target_id),
                             "target": delegated_target_label,
+                            "target_capability": delegated_target_capability,
                         },
                         invocation_id=invocation.id,
                     )
@@ -257,10 +327,7 @@ class NetworkExecutor:
                     InternalDelegationTool(
                         id=tool_id,
                         name=delegation_tool_name(target),
-                        description=(
-                            f"Delegate a focused task to {target.label}. "
-                            "Use it only when that specialist is required, then integrate its result."
-                        ),
+                        description=delegation_tool_description(target),
                         handler=delegate,
                     )
                 )
@@ -295,9 +362,54 @@ class NetworkExecutor:
                         "draft_revision": getattr(execution, "draft_revision", None),
                     },
                 )
+            except NetworkExecutionCancelled as exc:
+                await self._store.fail_invocation(invocation.id, str(exc))
+                await self._store.emit(
+                    execution.id,
+                    "agent_invocation_failed",
+                    {
+                        "code": "execution_cancelled",
+                        "stage": "network_control",
+                        "message": "The Network Run was cancelled.",
+                        "retryable": False,
+                        "cause_invocation_id": str(invocation.id),
+                        "cause_node_id": str(node.id),
+                        "cause_agent_id": str(node.agent_id),
+                    },
+                    invocation_id=invocation.id,
+                )
+                raise
+            except NetworkBudgetExceeded as exc:
+                await self._store.fail_invocation(invocation.id, str(exc))
+                await self._store.emit(
+                    execution.id,
+                    "agent_invocation_failed",
+                    {
+                        "code": "budget_exceeded",
+                        "stage": "network_budget",
+                        "message": str(exc),
+                        "retryable": False,
+                        "cause_invocation_id": str(invocation.id),
+                        "cause_node_id": str(node.id),
+                        "cause_agent_id": str(node.agent_id),
+                    },
+                    invocation_id=invocation.id,
+                )
+                raise
             except Exception as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
-                raise
+                failure = classify_runtime_exception(exc).with_run_context(
+                    invocation_id=invocation.id,
+                    node_id=node.id,
+                    agent_id=node.agent_id,
+                )
+                await self._store.emit(
+                    execution.id,
+                    "agent_invocation_failed",
+                    failure.public_payload(),
+                    invocation_id=invocation.id,
+                )
+                raise failure from exc
 
             await self._store.complete_invocation(
                 invocation.id,
