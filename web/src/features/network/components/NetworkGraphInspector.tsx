@@ -1,12 +1,97 @@
-import { AlertTriangle, Bot, Crown, Link2, Settings2, Trash2, Workflow } from 'lucide-react'
-import type { Agent } from '@/features/agents/types'
+import { AlertTriangle, Bot, Crown, GitBranch, Link2, Settings2, Trash2, Workflow } from 'lucide-react'
+import { useReleases } from '@/features/agents/hooks'
+import type { Agent, AgentRelease } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
-import type { NetworkDefinition } from '../types'
+import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkNode } from '../types'
 import { delegationToolName } from '../editor/networkGraphValidation'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import type { NetworkBinding } from './networkWorkspaceTypes'
 
 const input = 'mt-1.5 w-full rounded-xl border border-border bg-background/50 px-3 py-2.5 text-xs text-white outline-none focus:border-primary/40 disabled:opacity-50'
+
+function snapshotKind(release: AgentRelease): 'draft' | 'staging' | 'release' {
+  if (release.snapshot_kind) return release.snapshot_kind
+  if (release.status === 'draft') return 'draft'
+  if (release.status === 'staging' || release.version.startsWith('staging')) return 'staging'
+  return 'release'
+}
+
+function bindingValue(binding: NetworkAgentBindingSelector) {
+  return binding.source === 'draft' ? 'draft' : `${binding.source}:${binding.release_id}`
+}
+
+function AgentBindingPicker({
+  node,
+  agent,
+  readOnly,
+  onChange,
+}: {
+  node: NetworkNode
+  agent: Agent
+  readOnly: boolean
+  onChange: (binding: NetworkAgentBindingSelector) => void
+}) {
+  const releasesQuery = useReleases(agent.id)
+  const releases = releasesQuery.data ?? []
+  const selectedId = node.binding.source === 'draft' ? null : node.binding.release_id
+  const selected = selectedId ? releases.find((release) => release.id === selectedId) ?? null : null
+  const activeStaging = releases.find((release) => release.status === 'staging' && snapshotKind(release) === 'staging') ?? null
+  const immutableReleases = releases.filter((release) => snapshotKind(release) === 'release')
+  const stagingOptions = [activeStaging, selected && snapshotKind(selected) === 'staging' ? selected : null]
+    .filter((release, index, items): release is AgentRelease => Boolean(release) && items.findIndex((item) => item?.id === release?.id) === index)
+  const releaseOptions = [selected && snapshotKind(selected) === 'release' ? selected : null, ...immutableReleases]
+    .filter((release, index, items): release is AgentRelease => Boolean(release) && items.findIndex((item) => item?.id === release?.id) === index)
+
+  const selectBinding = (value: string) => {
+    if (value === 'draft') {
+      onChange({ source: 'draft', release_id: null })
+      return
+    }
+    const separator = value.indexOf(':')
+    const source = value.slice(0, separator)
+    const releaseId = value.slice(separator + 1)
+    if ((source === 'staging' || source === 'release') && releaseId) {
+      onChange({ source, release_id: releaseId })
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-primary/20 bg-primary/[0.035] p-3">
+      <div className="flex items-center gap-2">
+        <GitBranch className="h-3.5 w-3.5 text-primary-light" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-medium text-white">Version used by this Network</p>
+          <p className="mt-0.5 text-[8px] leading-4 text-muted">The binding belongs to this node and is persisted in the Network Draft.</p>
+        </div>
+      </div>
+      <select
+        disabled={readOnly || releasesQuery.isLoading}
+        className={input}
+        value={bindingValue(node.binding)}
+        onChange={(event) => selectBinding(event.target.value)}
+        aria-label={`Agent version used by ${node.label}`}
+      >
+        <option value="draft">Draft · current mutable configuration</option>
+        {stagingOptions.map((release) => (
+          <option key={release.id} value={`staging:${release.id}`}>
+            Staging · {release.version}{release.status === 'staging' ? ' · active' : ' · pinned historical'}
+          </option>
+        ))}
+        {releaseOptions.map((release) => (
+          <option key={release.id} value={`release:${release.id}`}>
+            Release · {release.version}{release.status === 'production' ? ' · production' : ''}
+          </option>
+        ))}
+      </select>
+      {releasesQuery.isError ? <p className="mt-2 text-[9px] text-red-300">Agent versions could not be loaded. Retry before changing this binding.</p> : null}
+      {node.binding.source === 'draft' ? (
+        <p className="mt-2 text-[9px] leading-4 text-amber-100">Draft is shared and mutable. Each Network Draft Run still captures an atomic snapshot. Staging will require approval to promote this Agent Draft.</p>
+      ) : (
+        <p className="mt-2 text-[9px] leading-4 text-muted">This exact immutable snapshot will be used by Network Draft Runs. Agent configuration is read-only from this binding.</p>
+      )}
+    </section>
+  )
+}
 
 export function NetworkGraphInspector({
   definition,
@@ -64,6 +149,7 @@ export function NetworkGraphInspector({
             </div>
             <p className="mt-3 border-t border-border/70 pt-2 text-[9px] leading-4 text-muted">The role and delegation capability belong only to this Network node. Prompt, model, Tools and Knowledge belong to the shared Agent.</p>
           </div>
+          {agent ? <AgentBindingPicker node={node} agent={agent} readOnly={readOnly} onChange={(next) => onChange({ type: 'set-binding', nodeId: node.id, binding: next })} /> : null}
           <label className="block text-[10px] text-muted">Node label<input disabled={readOnly} className={input} value={node.label} onChange={(event) => onChange({ type: 'rename-node', nodeId: node.id, label: event.target.value })} /></label>
           <label className="block text-[10px] text-muted">
             Delegation capability
