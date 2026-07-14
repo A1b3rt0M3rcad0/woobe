@@ -18,7 +18,7 @@ interface NetworkChatWorkspaceProps {
   activeSession: NetworkSession
   pinned: boolean
   onSelectSession: (sessionId: string) => void
-  onNewSession: (signature: string) => void
+  onNewSession: () => void
   onPin: () => void
   onRun: (trace: NetworkTraceRecord) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
@@ -74,7 +74,7 @@ export function NetworkChatWorkspace({
     setRunning(false)
     setTurns([])
     setText('')
-    onNewSession(signature)
+    onNewSession()
   }
 
   const send = (suggestion?: string) => {
