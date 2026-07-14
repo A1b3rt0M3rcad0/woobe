@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.network.domain.entities import NetworkDefinition
@@ -38,7 +39,7 @@ class NetworkApplicationService:
         self._hard_timeout_seconds = hard_timeout_seconds
 
     async def ensure_network(self, project_id: UUID, name: str) -> NetworkModel:
-        async with self._session_factory() as session, session.begin():
+        async with self._session_factory() as session:
             repository = NetworkRepository(session)
             existing = await repository.get_by_project(project_id)
             if existing is not None:
@@ -51,7 +52,15 @@ class NetworkApplicationService:
                 draft_revision=0,
             )
             session.add(network)
-            await session.flush()
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                existing = await repository.get_by_project(project_id)
+                if existing is None:
+                    raise
+                return existing
+            await session.refresh(network)
             return network
 
     async def get_network(self, project_id: UUID) -> NetworkModel:
@@ -264,7 +273,11 @@ class NetworkApplicationService:
         if not message.strip():
             raise ValidationError("Network message cannot be blank")
         async with self._session_factory() as session, session.begin():
-            network_session = await session.get(NetworkSessionModel, network_session_id)
+            network_session = await session.get(
+                NetworkSessionModel,
+                network_session_id,
+                with_for_update=True,
+            )
             if (
                 network_session is None
                 or network_session.network_id != network_id
@@ -282,6 +295,19 @@ class NetworkApplicationService:
                 )
                 if existing is not None:
                     return existing
+
+            active_execution = await session.scalar(
+                select(NetworkExecutionModel).where(
+                    NetworkExecutionModel.network_session_id == network_session_id,
+                    NetworkExecutionModel.status.in_(
+                        {"queued", "running", "cancel_requested"}
+                    ),
+                )
+            )
+            if active_execution is not None:
+                raise ConflictError(
+                    f"Network Session already has an active execution: {active_execution.id}"
+                )
 
             execution = NetworkExecutionModel(
                 network_id=network_id,
