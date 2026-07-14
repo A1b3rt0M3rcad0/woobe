@@ -17,8 +17,18 @@ from modules.network.domain.graph import (
 
 
 def definition() -> NetworkDefinition:
-    root = NetworkNode(id=uuid4(), agent_id=uuid4(), label="Coordinator")
-    child = NetworkNode(id=uuid4(), agent_id=uuid4(), label="Billing specialist")
+    root = NetworkNode(
+        id=uuid4(),
+        agent_id=uuid4(),
+        label="Coordinator",
+        capability_description="Routes work to the right specialist.",
+    )
+    child = NetworkNode(
+        id=uuid4(),
+        agent_id=uuid4(),
+        label="Billing specialist",
+        capability_description="Investigates invoices and billing disputes.",
+    )
     return NetworkDefinition(
         root_node_id=root.id,
         nodes=(root, child),
@@ -118,3 +128,23 @@ def test_composition_hash_changes_with_exact_release_binding() -> None:
     first = composition_hash(graph, {str(graph.root_node_id): {"release_id": "a"}})
     second = composition_hash(graph, {str(graph.root_node_id): {"release_id": "b"}})
     assert first != second
+
+
+def test_composition_hash_versions_delegation_capabilities() -> None:
+    graph = definition()
+    changed_child = NetworkNode(
+        id=graph.nodes[1].id,
+        agent_id=graph.nodes[1].agent_id,
+        label=graph.nodes[1].label,
+        capability_description="Handles refunds only.",
+        position=graph.nodes[1].position,
+    )
+    changed = NetworkDefinition(
+        root_node_id=graph.root_node_id,
+        nodes=(graph.nodes[0], changed_child),
+        edges=graph.edges,
+        limits=graph.limits,
+    )
+    bindings = {str(graph.root_node_id): {"release_id": "a"}}
+
+    assert composition_hash(graph, bindings) != composition_hash(changed, bindings)
