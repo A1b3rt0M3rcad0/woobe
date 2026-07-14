@@ -45,13 +45,20 @@ def _messaging_columns() -> list[sa.Column]:
         sa.Column("event_type", sa.String(255), nullable=False),
         sa.Column("event_version", sa.Integer(), server_default="1", nullable=False),
         sa.Column("routing_key", sa.String(255), nullable=False),
-        sa.Column("payload", JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column(
+            "payload", JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False
+        ),
         sa.Column("idempotency_key", sa.String(255), nullable=False),
         sa.Column("correlation_id", UUID, nullable=True),
         sa.Column("causation_id", UUID, nullable=True),
         sa.Column("status", sa.String(32), nullable=False),
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
-        sa.Column("available_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "available_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("locked_by", sa.String(128), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
@@ -67,7 +74,12 @@ def upgrade() -> None:
         sa.Column("project_id", UUID, nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), server_default="", nullable=False),
-        sa.Column("draft_definition", JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column(
+            "draft_definition",
+            JSONB,
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
         sa.Column("draft_revision", sa.Integer(), server_default="0", nullable=False),
         sa.Column("staging_version_id", UUID, nullable=True),
         sa.Column("production_version_id", UUID, nullable=True),
@@ -91,7 +103,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["rollback_of_version_id"], ["network.network_versions.id"]
         ),
-        sa.UniqueConstraint("network_id", "version", name="uq_network_versions_version"),
+        sa.UniqueConstraint(
+            "network_id", "version", name="uq_network_versions_version"
+        ),
         schema="network",
     )
     op.create_index(
@@ -158,7 +172,9 @@ def upgrade() -> None:
         sa.Column("cancel_requested_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("failure_code", sa.String(64), nullable=True),
         sa.Column("failure_detail", sa.Text(), nullable=True),
-        sa.Column("last_event_sequence", sa.Integer(), server_default="0", nullable=False),
+        sa.Column(
+            "last_event_sequence", sa.Integer(), server_default="0", nullable=False
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["network_id"], ["network.networks.id"]),
@@ -301,7 +317,9 @@ def upgrade() -> None:
         sa.Column("node_id", UUID, nullable=True),
         sa.Column("agent_id", UUID, nullable=True),
         sa.Column("depth", sa.Integer(), nullable=True),
-        sa.Column("payload", JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column(
+            "payload", JSONB, server_default=sa.text("'{}'::jsonb"), nullable=False
+        ),
         sa.ForeignKeyConstraint(
             ["network_execution_id"], ["network.network_executions.id"]
         ),
