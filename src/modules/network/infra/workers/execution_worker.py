@@ -16,6 +16,7 @@ from modules.network.application.runtime import (
     NetworkExecutionCancelled,
     NetworkExecutor,
 )
+from modules.network.application.runtime_failures import NetworkRuntimeFailure
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
@@ -26,6 +27,7 @@ from modules.network.infra.runtime import (
     ProjectRAIAgentInvoker,
     SQLNetworkExecutionStore,
 )
+from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
@@ -37,14 +39,20 @@ class NetworkExecutionProcessor:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         *,
+        settings: Settings,
         lease_ttl_seconds: int,
         heartbeat_seconds: int,
         worker_id: str | None = None,
     ) -> None:
         self._session_factory = session_factory
+        self._settings = settings
         self._lease_ttl_seconds = lease_ttl_seconds
         self._heartbeat_seconds = heartbeat_seconds
         self._worker_id = worker_id or f"network-worker-{os.getpid()}"
+        self._agent_invoker = ProjectRAIAgentInvoker(
+            self._session_factory,
+            self._settings,
+        )
 
     async def process(self, execution_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
@@ -88,7 +96,7 @@ class NetworkExecutionProcessor:
         )
         try:
             executor = NetworkExecutor(
-                invoker=ProjectRAIAgentInvoker(self._session_factory),
+                invoker=self._agent_invoker,
                 store=SQLNetworkExecutionStore(self._session_factory),
             )
             result = await executor.execute(execution, version)
@@ -108,10 +116,38 @@ class NetworkExecutionProcessor:
                 execution_id, generation, "cancelled", "execution_cancelled", {}
             )
         except NetworkBudgetExceeded as exc:
-            await self._fail(execution_id, generation, "budget_exceeded", str(exc))
+            await self._fail(
+                execution_id,
+                generation,
+                "budget_exceeded",
+                str(exc),
+                stage="network_budget",
+                safe_message=str(exc),
+            )
+        except NetworkRuntimeFailure as exc:
+            logger.exception("Network execution failed execution_id=%s", execution_id)
+            await self._fail(
+                execution_id,
+                generation,
+                exc.code,
+                exc.internal_detail,
+                stage=exc.stage,
+                safe_message=exc.safe_message,
+                retryable=exc.retryable,
+                cause_invocation_id=exc.invocation_id,
+                cause_node_id=exc.node_id,
+                cause_agent_id=exc.agent_id,
+            )
         except Exception as exc:
             logger.exception("Network execution failed execution_id=%s", execution_id)
-            await self._fail(execution_id, generation, "runtime_error", str(exc))
+            await self._fail(
+                execution_id,
+                generation,
+                "runtime_error",
+                str(exc),
+                stage="network_runtime",
+                safe_message="Network execution failed.",
+            )
         finally:
             stop_heartbeat.set()
             await heartbeat_task
@@ -177,7 +213,18 @@ class NetworkExecutionProcessor:
             )
 
     async def _fail(
-        self, execution_id: UUID, generation: int, code: str, detail: str
+        self,
+        execution_id: UUID,
+        generation: int,
+        code: str,
+        detail: str,
+        *,
+        stage: str = "network_runtime",
+        safe_message: str = "Network execution failed.",
+        retryable: bool = False,
+        cause_invocation_id: UUID | None = None,
+        cause_node_id: UUID | None = None,
+        cause_agent_id: UUID | None = None,
     ) -> None:
         async with self._session_factory() as session, session.begin():
             execution = await session.scalar(
@@ -196,7 +243,17 @@ class NetworkExecutionProcessor:
             await repository.append_event(
                 execution,
                 "execution_failed",
-                {"code": code, "message": "Network execution failed"},
+                {
+                    "code": code,
+                    "stage": stage,
+                    "message": safe_message,
+                    "retryable": retryable,
+                    "cause_invocation_id": str(cause_invocation_id)
+                    if cause_invocation_id
+                    else None,
+                    "cause_node_id": str(cause_node_id) if cause_node_id else None,
+                    "cause_agent_id": str(cause_agent_id) if cause_agent_id else None,
+                },
             )
 
     async def _terminal(
@@ -345,5 +402,15 @@ class NetworkLeaseRecoveryWorker:
                 await NetworkRuntimeRepository(session).append_event(
                     execution,
                     "execution_failed",
-                    {"code": "worker_lease_expired", "uncertain": has_invocations},
+                    {
+                        "code": "worker_lease_expired",
+                        "stage": "worker_lease",
+                        "message": (
+                            "The Network worker stopped before completion. "
+                            "Automatic replay was blocked to avoid duplicate side "
+                            "effects."
+                        ),
+                        "retryable": False,
+                        "uncertain": has_invocations,
+                    },
                 )
