@@ -61,7 +61,9 @@ def validate_network_definition(
         pending.extend(reachable[current])
     unreachable = set(nodes) - visited
     if unreachable:
-        raise NetworkGraphError("Every Agent node must be reachable from the root Agent")
+        raise NetworkGraphError(
+            "Every Agent node must be reachable from the root Agent"
+        )
 
     limits = definition.limits
     if not 1 <= limits.max_depth <= hard_max_depth:
@@ -79,7 +81,9 @@ def validate_network_definition(
     for node in definition.nodes:
         name = delegation_tool_name(node)
         if name in names:
-            raise NetworkGraphError("Agent labels must generate unique delegation tool names")
+            raise NetworkGraphError(
+                "Agent labels must generate unique delegation tool names"
+            )
         names.add(name)
 
 
