@@ -156,7 +156,9 @@ class NetworkExecutor:
             binding = version.resolved_bindings.get(str(node_id)) or {}
             release_id = binding.get("release_id")
             if not release_id:
-                raise RuntimeError(f"Node {node_id} has no immutable Agent release binding")
+                raise RuntimeError(
+                    f"Node {node_id} has no immutable Agent release binding"
+                )
 
             invocation = await self._store.start_invocation(
                 execution=execution,
@@ -189,7 +191,10 @@ class NetworkExecutor:
                 ) -> dict:
                     task = str(arguments.get("task") or "").strip()
                     if not task:
-                        return {"success": False, "error": "Delegation task cannot be blank"}
+                        return {
+                            "success": False,
+                            "error": "Delegation task cannot be blank",
+                        }
                     context = arguments.get("context")
                     delegated_message = task
                     if isinstance(context, dict) and context:
@@ -197,7 +202,10 @@ class NetworkExecutor:
                     await self._store.emit(
                         execution.id,
                         "delegation_started",
-                        {"target_node_id": str(delegated_target_id), "target": delegated_target_label},
+                        {
+                            "target_node_id": str(delegated_target_id),
+                            "target": delegated_target_label,
+                        },
                         invocation_id=invocation.id,
                     )
                     child = await invoke_node(
@@ -209,7 +217,10 @@ class NetworkExecutor:
                     await self._store.emit(
                         execution.id,
                         "delegation_completed",
-                        {"target_node_id": str(delegated_target_id), "target": delegated_target_label},
+                        {
+                            "target_node_id": str(delegated_target_id),
+                            "target": delegated_target_label,
+                        },
                         invocation_id=invocation.id,
                     )
                     return {"success": True, "output": {"answer": child.answer}}
@@ -243,7 +254,9 @@ class NetworkExecutor:
                         "network_session_id": str(execution.network_session_id),
                         "network_execution_id": str(execution.id),
                         "network_invocation_id": str(invocation.id),
-                        "parent_invocation_id": str(parent_invocation_id) if parent_invocation_id else None,
+                        "parent_invocation_id": str(parent_invocation_id)
+                        if parent_invocation_id
+                        else None,
                         "network_node_id": str(node_id),
                         "depth": depth,
                     },
