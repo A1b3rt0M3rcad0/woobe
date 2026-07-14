@@ -141,6 +141,9 @@ async def promote_network(
         project_id=payload.project_id,
         environment=payload.environment,
         created_by=user_id,
+        expected_revision=payload.expected_revision,
+        expected_network_version_id=payload.expected_network_version_id,
+        approved_action_ids=payload.approved_action_ids,
     )
     return {
         "success": True,
