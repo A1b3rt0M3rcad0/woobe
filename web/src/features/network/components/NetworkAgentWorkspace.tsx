@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, Edit3, GitBranch, Lock, MessageSquare, Power, Rocket, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { useUpdateAgent } from '@/features/agents/hooks'
-import type { Agent } from '@/features/agents/types'
+import { useReleases, useUpdateAgent } from '@/features/agents/hooks'
+import type { Agent, AgentRelease } from '@/features/agents/types'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 import { NetworkAgentChat } from './NetworkAgentChat'
@@ -17,6 +17,7 @@ type SessionMode = 'stateful' | 'stateless'
 export interface AgentNetworkBindingSummary {
   source: BindingSource
   version: string
+  ref?: string
 }
 
 interface NetworkAgentWorkspaceProps {
@@ -33,6 +34,37 @@ function sourceLabel(source: BindingSource) {
   if (source === 'draft') return 'Draft'
   if (source === 'staging') return 'Staging'
   return 'Release'
+}
+
+function agentFromRelease(agent: Agent, release: AgentRelease): Agent {
+  return {
+    ...agent,
+    name: release.name ?? agent.name,
+    description: release.description ?? agent.description,
+    system_prompt: release.system_prompt ?? agent.system_prompt,
+    provider: release.provider ?? agent.provider,
+    model: release.model ?? agent.model,
+    provider_model_id: release.provider_model_id ?? agent.provider_model_id,
+    fallback_provider_model_id: release.fallback_provider_model_id ?? agent.fallback_provider_model_id,
+    provider_credential_id: release.provider_credential_id ?? agent.provider_credential_id,
+    fallback_provider: release.fallback_provider ?? agent.fallback_provider,
+    fallback_model: release.fallback_model ?? agent.fallback_model,
+    fallback_credential_id: release.fallback_credential_id ?? agent.fallback_credential_id,
+    temperature: release.temperature ?? agent.temperature,
+    max_output_tokens: release.max_output_tokens ?? agent.max_output_tokens,
+    settings: release.runtime_config ?? agent.settings,
+  }
+}
+
+function SnapshotUnavailable({ message }: { message: string }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center p-6 text-center">
+      <div className="max-w-sm rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5">
+        <p className="text-[11px] font-medium text-white">Exact Agent snapshot unavailable</p>
+        <p className="mt-2 text-[9px] leading-5 text-muted">{message}</p>
+      </div>
+    </div>
+  )
 }
 
 function RuntimePopover({
@@ -156,7 +188,7 @@ function NetworkAgentWorkspaceContent({ agent, projectId, networkBinding, readOn
   useEffect(() => { setRuntimeSessionMode(agent.session_mode === 'stateless' ? 'stateless' : 'stateful') }, [agent.session_mode])
 
   const runtimeAgent = useMemo<Agent>(() => ({ ...agent, status: runtimeStatus, session_mode: runtimeSessionMode }), [agent, runtimeSessionMode, runtimeStatus])
-  const bindingTitle = readOnly ? 'This Agent snapshot is read-only in the selected Network environment.' : loadedReleaseVersion ? `Draft based on ${loadedReleaseVersion}. Editing it does not change the Network binding.` : 'Editing the Agent Draft does not change the Network binding.'
+  const bindingTitle = readOnly ? 'This exact Agent snapshot is read-only in the selected Network context.' : loadedReleaseVersion ? `Draft based on ${loadedReleaseVersion}. Editing it affects every context that uses this Agent Draft.` : 'Editing this shared Agent Draft may affect every context that uses it.'
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface/75">
@@ -174,7 +206,7 @@ function NetworkAgentWorkspaceContent({ agent, projectId, networkBinding, readOn
             <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[8px] text-muted" title={bindingTitle}>
               <GitBranch className="h-3 w-3 shrink-0 text-primary-light" />
               <span className="truncate">Network uses <span className="text-white">{sourceLabel(networkBinding.source)}</span> <span className="font-mono text-slate-300">{networkBinding.version}</span></span>
-              <button type="button" onClick={onOpenComposition} className="ml-auto shrink-0 font-medium text-primary-light hover:text-white">Composition</button>
+              <button type="button" onClick={onOpenComposition} className="ml-auto shrink-0 font-medium text-primary-light hover:text-white">Role in Network</button>
             </div>
           </div>
         </div>
@@ -187,7 +219,7 @@ function NetworkAgentWorkspaceContent({ agent, projectId, networkBinding, readOn
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className={cn('absolute inset-0', tab !== 'editor' && 'invisible pointer-events-none')} aria-hidden={tab !== 'editor'}>
           <div className={cn('h-full', readOnly && 'pointer-events-none opacity-45')}><NetworkAgentEditor agent={agent} projectId={projectId} agentId={agent.id} onDirtyChange={readOnly ? undefined : onDirtyChange} onRegisterSaveAction={readOnly ? undefined : onRegisterSaveAction} /></div>
-          {readOnly ? <div className="absolute inset-x-4 top-4 z-10 rounded-xl border border-border bg-surface/95 p-3 shadow-lg"><div className="flex items-start gap-2"><Lock className="mt-0.5 h-4 w-4 text-muted" /><div><p className="text-[11px] font-medium text-white">Agent configuration is read-only</p><p className="mt-1 text-[9px] leading-4 text-muted">Switch the Network header to Draft to edit this Agent. Versions and Chat remain available for inspection.</p></div></div></div> : null}
+          {readOnly ? <div className="absolute inset-x-4 top-4 z-10 rounded-xl border border-border bg-surface/95 p-3 shadow-lg"><div className="flex items-start gap-2"><Lock className="mt-0.5 h-4 w-4 text-muted" /><div><p className="text-[11px] font-medium text-white">Agent configuration is read-only</p><p className="mt-1 text-[9px] leading-4 text-muted">This view represents the exact Agent snapshot selected by the Network binding. Prepare changes in the Agent Draft and publish a new Network version.</p></div></div></div> : null}
         </div>
         <div className={cn('absolute inset-0', tab !== 'versions' && 'invisible pointer-events-none')} aria-hidden={tab !== 'versions'}><NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={networkBinding} onOpenComposition={onOpenComposition} /></div>
         <div className={cn('absolute inset-0', tab !== 'chat' && 'invisible pointer-events-none')} aria-hidden={tab !== 'chat'}><NetworkAgentChat agent={runtimeAgent} projectId={projectId} onChatCompleted={() => undefined} /></div>
@@ -197,5 +229,19 @@ function NetworkAgentWorkspaceContent({ agent, projectId, networkBinding, readOn
 }
 
 export function NetworkAgentWorkspace(props: NetworkAgentWorkspaceProps) {
+  const releasesQuery = useReleases(props.readOnly && props.networkBinding.source !== 'draft' ? props.agent.id : undefined)
+
+  if (props.readOnly && props.networkBinding.source === 'draft') {
+    return <SnapshotUnavailable message="This Draft Network Run is immutable, but the current history contract does not yet return the captured Agent Draft payload. The mutable current Agent is intentionally not shown as if it were the executed snapshot." />
+  }
+
+  if (props.readOnly && props.networkBinding.source !== 'draft') {
+    if (releasesQuery.isLoading) return <div className="flex h-full items-center justify-center text-[10px] text-muted">Loading exact Agent snapshot…</div>
+    const release = releasesQuery.data?.find((item) => item.id === props.networkBinding.ref || item.version === props.networkBinding.version)
+    if (!release) return <SnapshotUnavailable message={`The Network references Agent snapshot ${props.networkBinding.version}, but it could not be loaded. The current Agent is intentionally not substituted.`} />
+    const snapshotAgent = agentFromRelease(props.agent, release)
+    return <AgentEditorProvider key={`${props.agent.id}:${release.id}`} agent={snapshotAgent} projectId={props.projectId}><NetworkAgentWorkspaceContent {...props} agent={snapshotAgent} networkBinding={{ ...props.networkBinding, version: release.version, ref: release.id }} readOnly /></AgentEditorProvider>
+  }
+
   return <AgentEditorProvider key={props.agent.id} agent={props.agent} projectId={props.projectId}><NetworkAgentWorkspaceContent {...props} /></AgentEditorProvider>
 }
