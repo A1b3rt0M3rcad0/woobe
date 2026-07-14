@@ -528,6 +528,8 @@ class NetworkApplicationService:
             draft_revision: int | None = None
             definition_snapshot: dict[str, Any] | None = None
             bindings_snapshot: dict[str, Any] | None = None
+            accepted_version_id: UUID | None = network_session.network_version_id
+            accepted_version: str | None = None
             if network_session.environment == NetworkEnvironment.DRAFT.value:
                 network = await session.get(NetworkModel, network_id, with_for_update=True)
                 if network is None or network.project_id != project_id:
@@ -547,6 +549,20 @@ class NetworkApplicationService:
                 )
                 draft_revision = network.draft_revision
                 definition_snapshot = definition.to_dict()
+                accepted_composition_hash = composition_hash(
+                    definition,
+                    bindings_snapshot,
+                )
+            else:
+                version = await session.get(
+                    NetworkVersionModel,
+                    network_session.network_version_id,
+                )
+                if version is None or version.network_id != network_id:
+                    raise ConflictError("Pinned Network version was not found")
+                definition = self._definition(version.definition)
+                accepted_version = version.version
+                accepted_composition_hash = version.composition_hash
 
             execution = NetworkExecutionModel(
                 network_id=network_id,
@@ -582,6 +598,17 @@ class NetworkApplicationService:
                             "status": "queued",
                             "environment": network_session.environment,
                             "draft_revision": draft_revision,
+                            "network_version_id": str(accepted_version_id)
+                            if accepted_version_id
+                            else None,
+                            "network_version": accepted_version,
+                            "composition_hash": accepted_composition_hash,
+                            "root_node_id": str(definition.root_node_id),
+                            "limits": {
+                                "max_depth": definition.limits.max_depth,
+                                "max_invocations": definition.limits.max_invocations,
+                                "timeout_seconds": definition.limits.timeout_seconds,
+                            },
                         },
                     ),
                     NetworkOutboxEventModel(
