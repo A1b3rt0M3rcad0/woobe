@@ -95,7 +95,10 @@ export default function NetworkPage() {
       title: item.title,
       environment: item.environment,
       networkVersion: item.network_version_id,
-      compositionHash: '',
+      compositionHash: hashComposition(currentSignature(
+        item.environment,
+        item.environment === 'staging' ? stagingBindings : productionBindings,
+      )),
       status: item.status,
       createdAt: item.created_at,
       lastMessageAt: item.last_message_at ?? null,
@@ -111,7 +114,7 @@ export default function NetworkPage() {
       staging: staging.some((item) => item.id === current.staging) ? current.staging : staging[0]?.id ?? null,
       production: production.some((item) => item.id === current.production) ? current.production : production[0]?.id ?? null,
     }))
-  }, [networkSessionsQuery.data, network?.id, projectId])
+  }, [networkSessionsQuery.data, network?.id, projectId, stagingBindings, productionBindings])
 
   const buildNetworkDefinition = (): NetworkDefinition => {
     const nodes = [
@@ -273,7 +276,10 @@ export default function NetworkPage() {
         title: created.title,
         environment: created.environment,
         networkVersion: created.network_version_id,
-        compositionHash: '',
+        compositionHash: hashComposition(currentSignature(
+          created.environment,
+          created.environment === 'staging' ? stagingBindings : productionBindings,
+        )),
         status: created.status,
         createdAt: created.created_at,
         lastMessageAt: null,
