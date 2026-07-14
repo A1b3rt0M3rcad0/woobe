@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from modules.network.infra.workers.execution_worker import (
@@ -10,6 +8,7 @@ from modules.network.infra.workers.execution_worker import (
     NetworkLeaseRecoveryWorker,
     NetworkOutboxDispatcherWorker,
 )
+from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -27,7 +26,7 @@ class NetworkWorkerRegistry:
 
 def register_network_workers(
     registry: NetworkWorkerRegistry,
-    settings: Any,
+    settings: Settings,
     engine: AsyncEngine,
     rabbitmq_manager: RabbitMQManager | None = None,
 ) -> None:
@@ -36,6 +35,7 @@ def register_network_workers(
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     processor = NetworkExecutionProcessor(
         session_factory,
+        settings=settings,
         lease_ttl_seconds=settings.network_execution_lease_ttl_seconds,
         heartbeat_seconds=settings.network_execution_lease_heartbeat_seconds,
     )
