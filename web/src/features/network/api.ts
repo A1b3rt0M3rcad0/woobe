@@ -8,6 +8,7 @@ import type {
   NetworkResource,
   NetworkSessionResource,
   NetworkVersion,
+  PromoteNetworkInput,
   PromotionPreview,
 } from './types'
 
@@ -46,11 +47,14 @@ export function previewNetworkPromotion(
 export function promoteNetwork(
   networkId: string,
   projectId: string,
-  environment: NetworkPromotionEnvironment,
+  input: PromoteNetworkInput,
 ): Promise<NetworkVersion> {
   return post<NetworkVersion>(`/network/${networkId}/promotions`, {
     project_id: projectId,
-    environment,
+    environment: input.environment,
+    expected_revision: input.expected_revision ?? undefined,
+    expected_network_version_id: input.expected_network_version_id ?? undefined,
+    approved_action_ids: input.approved_action_ids ?? [],
   })
 }
 
