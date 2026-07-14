@@ -1,5 +1,5 @@
 import type { Agent } from '@/features/agents/types'
-import type { NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
+import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
 
 export type NetworkEditorIssueSeverity = 'error' | 'warning'
 
@@ -39,6 +39,7 @@ export type NetworkDefinitionChange =
   | { type: 'move-node'; nodeId: string; position: NetworkNode['position'] }
   | { type: 'rename-node'; nodeId: string; label: string }
   | { type: 'describe-node'; nodeId: string; description: string }
+  | { type: 'set-binding'; nodeId: string; binding: NetworkAgentBindingSelector }
   | { type: 'add-edge'; edge: NetworkEdge }
   | { type: 'remove-edge'; edgeId: string }
   | { type: 'set-root'; nodeId: string }
