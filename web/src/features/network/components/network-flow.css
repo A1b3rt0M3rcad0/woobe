@@ -1,9 +1,22 @@
+.network-flow {
+  --xy-background-color: #020817;
+  --xy-background-color-default: #020817;
+  --xy-edge-stroke: rgb(71 85 105 / 0.9);
+  --xy-edge-stroke-default: rgb(71 85 105 / 0.9);
+  background-color: #020817;
+}
+
+.network-flow .react-flow__renderer,
+.network-flow .react-flow__pane {
+  background: transparent;
+}
+
 .network-flow .react-flow__controls,
 .network-flow .react-flow__minimap {
   overflow: hidden;
   border: 1px solid rgb(51 65 85 / 0.9);
   border-radius: 0.75rem;
-  background: #08111f;
+  background: #020817;
   box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
 }
 
@@ -12,7 +25,7 @@
   height: 2rem;
   border: 0;
   border-bottom: 1px solid rgb(51 65 85 / 0.75);
-  background: #0f172a;
+  background: #0f1729;
   color: #cbd5e1;
 }
 
@@ -33,5 +46,5 @@
 }
 
 .network-flow .react-flow__minimap-svg {
-  background: #08111f;
+  background: #020817;
 }
