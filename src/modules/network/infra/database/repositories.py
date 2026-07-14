@@ -276,6 +276,7 @@ class NetworkRuntimeRepository:
         *,
         code: str,
         detail: str,
+        root_trace_id: UUID | None = None,
         uncertain: bool = False,
     ) -> None:
         execution.status = (
@@ -285,6 +286,8 @@ class NetworkRuntimeRepository:
         )
         execution.failure_code = code
         execution.failure_detail = detail[:4000]
+        if root_trace_id is not None:
+            execution.root_trace_id = root_trace_id
         execution.completed_at = datetime.now(timezone.utc)
         execution.lease_owner = None
         execution.lease_expires_at = None

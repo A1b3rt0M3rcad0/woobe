@@ -147,6 +147,76 @@ describe('Network runtime event projection', () => {
     expect(turn.answer).toContain('configuration')
   })
 
+  it('keeps a real Agent Trace when the provider fails after preparation', () => {
+    const records: RuntimeEventRecord[] = [
+      {
+        eventType: 'agent_invocation_started',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-provider-failed',
+          invocation_id: 'invocation-provider-failed',
+          parent_invocation_id: null,
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          data: { label: 'Root Agent' },
+          sequence: 2,
+          created_at: '2026-07-14T10:00:00.000Z',
+        },
+      },
+      {
+        eventType: 'agent_invocation_failed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-provider-failed',
+          invocation_id: 'invocation-provider-failed',
+          parent_invocation_id: null,
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          data: {
+            code: 'provider_request_error',
+            stage: 'provider_request',
+            message: 'The model provider rejected the Agent request.',
+            retryable: false,
+            trace_id: 'trace-provider-failed',
+          },
+          sequence: 3,
+          created_at: '2026-07-14T10:00:00.020Z',
+        },
+      },
+      {
+        eventType: 'execution_failed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-provider-failed',
+          data: {
+            code: 'provider_request_error',
+            trace_id: 'trace-provider-failed',
+          },
+          sequence: 4,
+          created_at: '2026-07-14T10:00:00.025Z',
+        },
+      },
+    ]
+
+    const turn = buildTurnFromRuntimeEvents({
+      records,
+      environment: 'draft',
+      bindings: { 'node-root': binding },
+      executionId: 'execution-provider-failed',
+      user: 'hello',
+      answer: '',
+      terminalStatus: 'error',
+    })
+
+    expect(turn.execution.traceId).toBe('trace-provider-failed')
+    expect(turn.execution.root.childTraceId).toBe('trace-provider-failed')
+    expect(turn.execution.root.failure?.stage).toBe('provider_request')
+    expect(turn.usage).toBeNull()
+    expect(turn.execution.costUsd).toBeNull()
+  })
+
   it('signs any dynamic node ids without fixed roles', () => {
     expect(currentSignature('draft', { 'node-root': binding })).toContain('node-root')
     expect(currentSignature('draft', { 'node-root': binding })).not.toContain('billing')

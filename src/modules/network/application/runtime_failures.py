@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Iterator
 from uuid import UUID
 
 
@@ -17,6 +17,8 @@ class NetworkRuntimeFailure(RuntimeError):
     invocation_id: UUID | None = None
     node_id: UUID | None = None
     agent_id: UUID | None = None
+    trace_id: UUID | None = None
+    agent_session_id: UUID | None = None
 
     def __post_init__(self) -> None:
         RuntimeError.__init__(self, self.internal_detail)
@@ -35,6 +37,18 @@ class NetworkRuntimeFailure(RuntimeError):
             agent_id=agent_id,
         )
 
+    def with_agent_context(
+        self,
+        *,
+        trace_id: UUID | None,
+        agent_session_id: UUID | None,
+    ) -> NetworkRuntimeFailure:
+        return replace(
+            self,
+            trace_id=trace_id,
+            agent_session_id=agent_session_id,
+        )
+
     def public_payload(self) -> dict[str, Any]:
         return {
             "code": self.code,
@@ -46,6 +60,7 @@ class NetworkRuntimeFailure(RuntimeError):
             else None,
             "cause_node_id": str(self.node_id) if self.node_id else None,
             "cause_agent_id": str(self.agent_id) if self.agent_id else None,
+            "trace_id": str(self.trace_id) if self.trace_id else None,
         }
 
 
@@ -57,8 +72,12 @@ def classify_runtime_exception(
     if isinstance(exception, NetworkRuntimeFailure):
         return exception
 
-    detail = str(exception) or exception.__class__.__name__
-    normalized = f"{exception.__class__.__name__} {detail}".lower()
+    chain = list(_exception_chain(exception))
+    detail = _internal_exception_detail(chain)
+    normalized = " ".join(
+        f"{item.__class__.__module__}.{item.__class__.__name__} {str(item)}"
+        for item in chain
+    ).lower()
 
     if "credential" in normalized or "decrypt" in normalized or "secret" in normalized:
         return NetworkRuntimeFailure(
@@ -69,9 +88,29 @@ def classify_runtime_exception(
             retryable=False,
         )
     if (
+        "authenticationerror" in normalized
+        or "permissiondeniederror" in normalized
+        or "unauthorized" in normalized
+        or "invalid api key" in normalized
+        or "incorrect api key" in normalized
+        or "status code: 401" in normalized
+        or "error code: 401" in normalized
+        or "status code: 403" in normalized
+        or "error code: 403" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="provider_authentication_error",
+            stage="provider_request",
+            safe_message="The model provider rejected the configured authentication.",
+            internal_detail=detail,
+            retryable=False,
+        )
+    if (
         "provider model" in normalized
         or "modelconfig" in normalized
         or "model binding" in normalized
+        or "model_not_found" in normalized
+        or ("model" in normalized and "not found" in normalized)
     ):
         return NetworkRuntimeFailure(
             code="model_binding_error",
@@ -83,7 +122,7 @@ def classify_runtime_exception(
     if (
         "base_url" in normalized
         or "settings" in normalized
-        or "validationerror" in normalized
+        or "runtime session factory" in normalized
     ):
         return NetworkRuntimeFailure(
             code="runtime_configuration_error",
@@ -92,7 +131,46 @@ def classify_runtime_exception(
             internal_detail=detail,
             retryable=False,
         )
-    if "429" in normalized or "rate limit" in normalized:
+    if (
+        "knowledgeversion" in normalized
+        or "knowledge version" in normalized
+        or "vector snapshot" in normalized
+        or "embedding provider" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="knowledge_binding_error",
+            stage="knowledge_resolution",
+            safe_message="The Agent knowledge binding is not ready for this Run.",
+            internal_detail=detail,
+            retryable=False,
+        )
+    if (
+        "selected tool" in normalized
+        or "tool snapshot" in normalized
+        or "delegation tool name collides" in normalized
+        or "tool runtime" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="tool_binding_error",
+            stage="tool_resolution",
+            safe_message="The Agent tool binding is not ready for this Run.",
+            internal_detail=detail,
+            retryable=False,
+        )
+    if "validationerror" in normalized:
+        return NetworkRuntimeFailure(
+            code="runtime_configuration_error",
+            stage="agent_bootstrap",
+            safe_message="The Agent runtime configuration could not be loaded.",
+            internal_detail=detail,
+            retryable=False,
+        )
+    if (
+        "ratelimiterror" in normalized
+        or "status code: 429" in normalized
+        or "error code: 429" in normalized
+        or "rate limit" in normalized
+    ):
         return NetworkRuntimeFailure(
             code="provider_rate_limited",
             stage="provider_request",
@@ -100,13 +178,74 @@ def classify_runtime_exception(
             internal_detail=detail,
             retryable=True,
         )
-    if "timeout" in normalized or "timed out" in normalized:
+    if (
+        "apitimeouterror" in normalized
+        or "readtimeout" in normalized
+        or "connecttimeout" in normalized
+        or "timeout" in normalized
+        or "timed out" in normalized
+    ):
         return NetworkRuntimeFailure(
             code="provider_timeout",
             stage="provider_request",
             safe_message="The model provider did not answer before the timeout.",
             internal_detail=detail,
             retryable=True,
+        )
+    if (
+        "apiconnectionerror" in normalized
+        or "connecterror" in normalized
+        or "connection error" in normalized
+        or "connection refused" in normalized
+        or "name or service not known" in normalized
+        or "name resolution" in normalized
+        or "nodename nor servname" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="provider_unreachable",
+            stage="provider_request",
+            safe_message="The Agent worker could not reach the model provider.",
+            internal_detail=detail,
+            retryable=True,
+        )
+    if (
+        "internalservererror" in normalized
+        or "status code: 500" in normalized
+        or "error code: 500" in normalized
+        or "status code: 502" in normalized
+        or "error code: 502" in normalized
+        or "status code: 503" in normalized
+        or "error code: 503" in normalized
+        or "status code: 504" in normalized
+        or "error code: 504" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="provider_unavailable",
+            stage="provider_request",
+            safe_message="The model provider is temporarily unavailable.",
+            internal_detail=detail,
+            retryable=True,
+        )
+    if (
+        "instrumentedexecutionerror" in normalized
+        or "apistatuserror" in normalized
+        or "badrequesterror" in normalized
+        or "openai.notfounderror" in normalized
+        or "unprocessableentityerror" in normalized
+        or "ai provider error" in normalized
+        or "status code: 400" in normalized
+        or "error code: 400" in normalized
+        or "status code: 404" in normalized
+        or "error code: 404" in normalized
+        or "status code: 422" in normalized
+        or "error code: 422" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="provider_request_error",
+            stage="provider_request",
+            safe_message="The model provider rejected the Agent request.",
+            internal_detail=detail,
+            retryable=False,
         )
 
     return NetworkRuntimeFailure(
@@ -116,3 +255,25 @@ def classify_runtime_exception(
         internal_detail=detail,
         retryable=False,
     )
+
+
+def _exception_chain(exception: Exception) -> Iterator[Exception]:
+    """Yield an exception and its explicit/implicit causes without looping."""
+
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while isinstance(current, Exception) and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
+
+
+def _internal_exception_detail(chain: list[Exception]) -> str:
+    parts: list[str] = []
+    for item in chain:
+        name = item.__class__.__name__
+        message = str(item).strip()
+        part = f"{name}: {message}" if message else name
+        if not parts or parts[-1] != part:
+            parts.append(part)
+    return " <- ".join(parts)

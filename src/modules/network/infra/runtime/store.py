@@ -87,12 +87,37 @@ class SQLNetworkExecutionStore:
                 if context is not None:
                     context.agent_session_id = result.session_id
 
-    async def fail_invocation(self, invocation_id: UUID, error: str) -> None:
+    async def fail_invocation(
+        self,
+        invocation_id: UUID,
+        error: str,
+        *,
+        trace_id: UUID | None = None,
+        agent_session_id: UUID | None = None,
+        persist_context: bool = False,
+    ) -> None:
         async with self._session_factory() as session, session.begin():
             invocation = await session.get(NetworkInvocationModel, invocation_id)
             if invocation is not None:
                 invocation.status = "failed"
                 invocation.error = error[:4000]
+                if trace_id is not None:
+                    invocation.trace_id = trace_id
+                if agent_session_id is not None:
+                    invocation.agent_session_id = agent_session_id
+                if agent_session_id is not None and persist_context:
+                    from sqlalchemy import select
+
+                    context = await session.scalar(
+                        select(NetworkAgentContextModel).where(
+                            NetworkAgentContextModel.network_session_id
+                            == invocation.network_session_id,
+                            NetworkAgentContextModel.network_node_id
+                            == invocation.node_id,
+                        )
+                    )
+                    if context is not None:
+                        context.agent_session_id = agent_session_id
 
     async def emit(
         self,

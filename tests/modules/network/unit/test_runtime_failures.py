@@ -26,6 +26,7 @@ def test_failure_payload_carries_the_causal_agent_run() -> None:
         safe_message="The model provider did not answer before the timeout.",
         internal_detail="private upstream detail",
         retryable=True,
+        trace_id=invocation_id,
     ).with_run_context(
         invocation_id=invocation_id,
         node_id=node_id,
@@ -41,4 +42,38 @@ def test_failure_payload_carries_the_causal_agent_run() -> None:
         "cause_invocation_id": str(invocation_id),
         "cause_node_id": str(node_id),
         "cause_agent_id": str(agent_id),
+        "trace_id": str(invocation_id),
     }
+
+
+def test_classifies_the_original_provider_connection_error_through_wrappers() -> None:
+    try:
+        try:
+            raise ConnectionError("Connection refused by private provider host")
+        except ConnectionError as provider_error:
+            raise RuntimeError("instrumented execution failed") from provider_error
+    except RuntimeError as instrumented_error:
+        try:
+            raise ValueError("AI provider error: request failed") from instrumented_error
+        except ValueError as wrapped:
+            failure = classify_runtime_exception(wrapped)
+
+    assert failure.code == "provider_unreachable"
+    assert failure.stage == "provider_request"
+    assert failure.retryable is True
+    assert "private provider host" not in failure.public_payload()["message"]
+    assert "private provider host" in failure.internal_detail
+
+
+def test_classifies_a_generic_provider_rejection_without_leaking_detail() -> None:
+    failure = classify_runtime_exception(
+        ValueError("AI provider error: upstream rejected proprietary payload")
+    )
+
+    assert failure.code == "provider_request_error"
+    assert failure.stage == "provider_request"
+    assert failure.retryable is False
+    assert failure.public_payload()["message"] == (
+        "The model provider rejected the Agent request."
+    )
+    assert "proprietary payload" not in failure.public_payload()["message"]

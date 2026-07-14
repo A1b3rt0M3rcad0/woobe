@@ -283,11 +283,19 @@ export function buildExecutionFromRuntimeEvents({
     if (eventType === 'agent_invocation_failed' && invocationId) {
       const current = invocations.get(invocationId)
       if (!current) continue
+      const childTraceId = typeof event.data.trace_id === 'string'
+        ? event.data.trace_id
+        : null
+      current.childTraceId = childTraceId
+      if (!current.parentSpanId && childTraceId) traceId = childTraceId
       current.status = 'error'
       current.failure = asFailure(event.data)
       continue
     }
     if (eventType === 'execution_completed' && typeof event.data.trace_id === 'string') {
+      traceId = event.data.trace_id
+    }
+    if (eventType === 'execution_failed' && typeof event.data.trace_id === 'string') {
       traceId = event.data.trace_id
     }
   }

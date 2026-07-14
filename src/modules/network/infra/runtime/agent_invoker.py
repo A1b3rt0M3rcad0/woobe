@@ -36,6 +36,7 @@ from modules.network.application.runtime import (
     AgentInvocationResult,
     InternalDelegationTool,
 )
+from modules.network.application.runtime_failures import classify_runtime_exception
 from shared.infra.config import Settings
 
 
@@ -156,18 +157,25 @@ class ProjectRAIAgentInvoker:
 
         token = current_execution.set(context)
         try:
-            output = await use_case.execute(
-                AskInput(
-                    project_id=project_id,
-                    agent_id=agent_id,
-                    message=message,
-                    session_id=agent_session_id,
-                    metadata={"source": "network_runtime", **network_context},
-                    execution_context=execution_context,
-                    loaded_release_id=release_id,
-                    snapshot_override=snapshot_override,
+            try:
+                output = await use_case.execute(
+                    AskInput(
+                        project_id=project_id,
+                        agent_id=agent_id,
+                        message=message,
+                        session_id=agent_session_id,
+                        metadata={"source": "network_runtime", **network_context},
+                        execution_context=execution_context,
+                        loaded_release_id=release_id,
+                        snapshot_override=snapshot_override,
+                    )
                 )
-            )
+            except Exception as exc:
+                failure = classify_runtime_exception(exc).with_agent_context(
+                    trace_id=context.trace_id,
+                    agent_session_id=context.session_id,
+                )
+                raise failure from exc
             return AgentInvocationResult(
                 answer=output.answer,
                 session_id=output.session_id,

@@ -36,17 +36,29 @@ class _PrimaryExecutionHost(Protocol):
 class InstrumentedPrimaryExecutionMixin:
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
-        token = current_execution.set(
-            new_execution_context(
-                metadata.get("server_received_at"),
-                metadata.get("client_sent_at"),
+        # A caller such as the Network runtime may seed a task-local execution
+        # context with correlation ids and internal delegation tools. Replacing
+        # it here silently drops those capabilities before _prepare() can bind
+        # them to the model. Playground/public calls do not seed a context and
+        # continue to receive an isolated context exactly as before.
+        existing_context = current_execution.get()
+        token = None
+        if existing_context is None:
+            token = current_execution.set(
+                new_execution_context(
+                    metadata.get("server_received_at"),
+                    metadata.get("client_sent_at"),
+                )
             )
-        )
+        elif existing_context.client_sent_at is None:
+            existing_context.client_sent_at = metadata.get("client_sent_at")
+
         parent = cast(_PrimaryExecutionSuper, super())
         try:
             return await parent.execute(input_dto)
         finally:
-            current_execution.reset(token)
+            if token is not None:
+                current_execution.reset(token)
 
     async def _prepare(self, input_dto: Any) -> Any:
         context = current_execution.get()

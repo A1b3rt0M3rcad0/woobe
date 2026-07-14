@@ -143,7 +143,15 @@ class NetworkExecutionStore(Protocol):
         persist_context: bool,
     ) -> None: ...
 
-    async def fail_invocation(self, invocation_id: UUID, error: str) -> None: ...
+    async def fail_invocation(
+        self,
+        invocation_id: UUID,
+        error: str,
+        *,
+        trace_id: UUID | None = None,
+        agent_session_id: UUID | None = None,
+        persist_context: bool = False,
+    ) -> None: ...
 
     async def emit(
         self,
@@ -397,11 +405,17 @@ class NetworkExecutor:
                 )
                 raise
             except Exception as exc:
-                await self._store.fail_invocation(invocation.id, str(exc))
                 failure = classify_runtime_exception(exc).with_run_context(
                     invocation_id=invocation.id,
                     node_id=node.id,
                     agent_id=node.agent_id,
+                )
+                await self._store.fail_invocation(
+                    invocation.id,
+                    failure.internal_detail,
+                    trace_id=failure.trace_id,
+                    agent_session_id=failure.agent_session_id,
+                    persist_context=definition.session_mode == "stateful",
                 )
                 await self._store.emit(
                     execution.id,

@@ -137,6 +137,7 @@ class NetworkExecutionProcessor:
                 cause_invocation_id=exc.invocation_id,
                 cause_node_id=exc.node_id,
                 cause_agent_id=exc.agent_id,
+                trace_id=exc.trace_id,
             )
         except Exception as exc:
             logger.exception("Network execution failed execution_id=%s", execution_id)
@@ -225,6 +226,7 @@ class NetworkExecutionProcessor:
         cause_invocation_id: UUID | None = None,
         cause_node_id: UUID | None = None,
         cause_agent_id: UUID | None = None,
+        trace_id: UUID | None = None,
     ) -> None:
         async with self._session_factory() as session, session.begin():
             execution = await session.scalar(
@@ -239,7 +241,12 @@ class NetworkExecutionProcessor:
             if execution is None:
                 return
             repository = NetworkRuntimeRepository(session)
-            await repository.mark_failed(execution, code=code, detail=detail)
+            await repository.mark_failed(
+                execution,
+                code=code,
+                detail=detail,
+                root_trace_id=trace_id,
+            )
             await repository.append_event(
                 execution,
                 "execution_failed",
@@ -253,6 +260,7 @@ class NetworkExecutionProcessor:
                     else None,
                     "cause_node_id": str(cause_node_id) if cause_node_id else None,
                     "cause_agent_id": str(cause_agent_id) if cause_agent_id else None,
+                    "trace_id": str(trace_id) if trace_id else None,
                 },
             )
 
