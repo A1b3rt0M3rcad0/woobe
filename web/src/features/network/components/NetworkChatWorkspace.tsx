@@ -48,7 +48,7 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_completed') return 'Network execution completed'
   if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'execution_cancelled') return 'Network execution cancelled'
-  return eventType.replaceAll('_', ' ')
+  return eventType.replace(/_/g, ' ')
 }
 
 export function NetworkChatWorkspace({
