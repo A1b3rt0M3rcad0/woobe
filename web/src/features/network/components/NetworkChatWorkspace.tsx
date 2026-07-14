@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
+import { streamNetworkExecution } from '@/features/network/stream'
 import { currentSignature, makeExecution, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import { hashComposition, type NetworkTraceRecord } from './networkObservabilityTypes'
@@ -11,6 +12,8 @@ import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
 
 interface NetworkChatWorkspaceProps {
+  networkId: string
+  projectId: string
   networkName: string
   environment: Environment
   bindings: Record<AgentNodeId, NetworkBinding>
@@ -34,6 +37,8 @@ function seedMessage(session: NetworkSession) {
 }
 
 export function NetworkChatWorkspace({
+  networkId,
+  projectId,
   networkName,
   environment,
   bindings,
@@ -52,49 +57,83 @@ export function NetworkChatWorkspace({
   const [turns, setTurns] = useState<NetworkTurn[]>(activeSession.messageCount > 0 ? [{ id: `seed-${activeSession.id}`, user: seedMessage(activeSession), answer: seed.answer, parsedOutput: seed.parsedOutput, provider: seed.provider, model: seed.model, usage: seed.usage, execution: seed.execution }] : [])
   const [running, setRunning] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const signature = currentSignature(environment, bindings)
   const changed = hashComposition(signature) !== activeSession.compositionHash
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
 
-  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
+  useEffect(() => () => abortRef.current?.abort(), [])
   useEffect(() => { const element = scrollRef.current; if (element) element.scrollTop = element.scrollHeight }, [turns, running])
 
   const stop = () => {
-    const wasRunning = running || Boolean(timeoutRef.current)
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = null
+    const wasRunning = running
+    abortRef.current?.abort()
+    abortRef.current = null
     setRunning(false)
-    if (wasRunning) toast.info('Network execution stopped')
+    if (wasRunning) toast.info('Network execution connection stopped; server execution may continue')
   }
 
   const startNew = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = null
+    abortRef.current?.abort()
+    abortRef.current = null
     setRunning(false)
     setTurns([])
     setText('')
     onNewSession()
   }
 
-  const send = (suggestion?: string) => {
+  const send = async (suggestion?: string) => {
     const content = (suggestion ?? text).trim()
     if (!content || running) return
-    if (changed && environment !== 'draft') {
-      toast.warning(`Start a new ${environment} session for the current Network snapshot before sending`)
+    if (environment === 'draft') {
+      toast.info('Stage the Network before running it')
       return
     }
-    if (changed && !pinned) {
-      toast.warning('Start a new session or continue with the pinned Draft composition before sending')
+    if (changed) {
+      toast.warning(`Start a new ${environment} session for the current Network version before sending`)
       return
     }
     setText('')
     setRunning(true)
-    timeoutRef.current = setTimeout(() => {
+    const controller = new AbortController()
+    abortRef.current = controller
+    let answer = ''
+    let executionId = ''
+    let traceId = ''
+    try {
+      await streamNetworkExecution({
+        networkId,
+        projectId,
+        networkSessionId: activeSession.id,
+        message: content,
+      }, {
+        onExecutionId: (id) => { executionId = id },
+        onEvent: (eventType, event) => {
+          if (eventType === 'token') {
+            const chunk = event.data.content
+            if (typeof chunk === 'string') answer += chunk
+          }
+          if (eventType === 'execution_completed') {
+            const id = event.data.trace_id
+            if (typeof id === 'string') traceId = id
+          }
+        },
+      }, controller.signal)
+
       const result = makeExecution(content, environment, bindings, activeSession.id, activeSession.agentContexts)
-      setTurns((items) => [...items, { id: result.execution.id, user: content, answer: result.answer, parsedOutput: result.parsedOutput, provider: result.provider, model: result.model, usage: result.usage, execution: result.execution }])
-      setRunning(false)
-      timeoutRef.current = null
+      result.answer = answer || result.answer
+      if (executionId) result.execution.id = executionId
+      if (traceId) result.execution.traceId = traceId
+      setTurns((items) => [...items, {
+        id: result.execution.id,
+        user: content,
+        answer: result.answer,
+        parsedOutput: result.parsedOutput,
+        provider: result.provider,
+        model: result.model,
+        usage: result.usage,
+        execution: result.execution,
+      }])
       onRun(createNetworkTraceRecord({
         execution: result.execution,
         environment,
@@ -108,7 +147,14 @@ export function NetworkChatWorkspace({
         parsedOutput: result.parsedOutput,
         source: 'chat',
       }))
-    }, 520)
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        toast.error(error instanceof Error ? error.message : 'Network execution failed')
+      }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
+      setRunning(false)
+    }
   }
 
   return (
