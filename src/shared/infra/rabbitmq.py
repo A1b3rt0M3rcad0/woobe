@@ -119,10 +119,13 @@ class RabbitMQManager:
         queue_name: str,
         routing_keys: list[str],
         callback,
+        prefetch_count: int | None = None,
     ) -> None:
         if queue_name in self._consuming_queues:
             return
 
+        if prefetch_count is not None:
+            await self.channel.set_qos(prefetch_count=max(1, prefetch_count))
         await self.declare_topology(queue_name=queue_name, routing_keys=routing_keys)
         queue = await self.channel.get_queue(name=queue_name, ensure=True)
         await queue.consume(callback=callback)
