@@ -372,10 +372,29 @@ class NetworkApplicationService:
 
     async def request_cancellation(self, execution_id: UUID, project_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
-            execution = await session.get(NetworkExecutionModel, execution_id)
+            execution = await session.get(
+                NetworkExecutionModel,
+                execution_id,
+                with_for_update=True,
+            )
             if execution is None or execution.project_id != project_id:
                 raise NotFoundError("Network execution not found")
             if execution.status not in {"queued", "running"}:
                 return
-            execution.status = "cancel_requested"
-            execution.cancel_requested_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            execution.cancel_requested_at = now
+            if execution.status == "queued":
+                execution.status = "cancelled"
+                execution.completed_at = now
+                execution.last_event_sequence += 1
+                session.add(
+                    NetworkExecutionEventModel(
+                        network_execution_id=execution.id,
+                        network_session_id=execution.network_session_id,
+                        sequence=execution.last_event_sequence,
+                        event_type="execution_cancelled",
+                        payload={"cancelled_before_start": True},
+                    )
+                )
+            else:
+                execution.status = "cancel_requested"
