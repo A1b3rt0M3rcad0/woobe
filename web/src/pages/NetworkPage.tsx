@@ -50,6 +50,41 @@ function definitionForEnvironment(
   return version ? normalizeNetworkDefinition(version.definition) : createEmptyNetworkDefinition()
 }
 
+function versionBindings(
+  version: NetworkVersion | null,
+  environment: Extract<Environment, 'staging' | 'production'>,
+  agents: Agent[],
+): Record<AgentNodeId, NetworkBinding> {
+  const agentsById = new Map(agents.map((agent) => [agent.id, agent]))
+  return Object.fromEntries((version?.definition.nodes ?? []).flatMap((node) => {
+    const agent = agentsById.get(node.agent_id)
+    const resolved = version?.resolved_bindings[node.id]
+    if (!agent || !resolved) return []
+    return [[node.id, {
+      nodeId: node.id,
+      agent,
+      source: resolvedBindingSource(environment, resolved.release_status),
+      ref: resolved.release_id,
+      version: resolved.release_version,
+      draftVersion: 'current Draft',
+      dirty: false,
+    } satisfies NetworkBinding]]
+  }))
+}
+
+function RunSnapshotUnavailable({ draft, loading, onReturn }: { draft: boolean; loading: boolean; onReturn: () => void }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
+      <div className="max-w-md rounded-2xl border border-amber-500/25 bg-surface/80 p-6 shadow-xl">
+        <Lock className="mx-auto h-5 w-5 text-amber-300" />
+        <p className="mt-3 text-sm font-medium text-white">{loading ? 'Loading execution snapshot' : 'Exact Network Run snapshot unavailable'}</p>
+        <p className="mt-2 text-[10px] leading-5 text-muted">{loading ? 'Resolving the immutable Network version and Agent bindings used by this Run.' : draft ? 'The runtime captured this Draft atomically, but the current history response does not expose definition_snapshot and resolved_bindings_snapshot. The mutable current Draft is intentionally not substituted.' : 'The immutable Network version referenced by this Session could not be loaded. The current environment is intentionally not shown as if it were the executed composition.'}</p>
+        {!loading ? <button type="button" onClick={onReturn} className="mt-4 rounded-lg border border-border bg-background/45 px-3 py-2 text-[10px] font-medium text-primary-light hover:border-primary/30 hover:text-white">Return to current composition</button> : null}
+      </div>
+    </div>
+  )
+}
+
 export default function NetworkPage() {
   const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
   const navigate = useNavigate()
@@ -85,75 +120,37 @@ export default function NetworkPage() {
   const hydratedRevisionRef = useRef<number | null>(null)
 
   const editorIssues = useMemo(() => validateNetworkGraph(editorDefinition), [editorDefinition])
-  const stagingVersion = useMemo(
-    () => networkVersionsQuery.data?.find((item) => item.id === network?.staging_version_id) ?? null,
-    [network?.staging_version_id, networkVersionsQuery.data],
-  )
-  const productionVersion = useMemo(
-    () => networkVersionsQuery.data?.find((item) => item.id === network?.production_version_id) ?? null,
-    [network?.production_version_id, networkVersionsQuery.data],
-  )
-  const visibleVersion = environment === 'staging'
-    ? stagingVersion
-    : environment === 'production'
-      ? productionVersion
-      : null
-  const visibleDefinition = useMemo(
-    () => definitionForEnvironment(environment, editorDefinition, stagingVersion, productionVersion),
-    [editorDefinition, environment, productionVersion, stagingVersion],
-  )
+  const stagingVersion = useMemo(() => networkVersionsQuery.data?.find((item) => item.id === network?.staging_version_id) ?? null, [network?.staging_version_id, networkVersionsQuery.data])
+  const productionVersion = useMemo(() => networkVersionsQuery.data?.find((item) => item.id === network?.production_version_id) ?? null, [network?.production_version_id, networkVersionsQuery.data])
+  const visibleVersion = environment === 'staging' ? stagingVersion : environment === 'production' ? productionVersion : null
+  const visibleDefinition = useMemo(() => definitionForEnvironment(environment, editorDefinition, stagingVersion, productionVersion), [editorDefinition, environment, productionVersion, stagingVersion])
   const visibleEditorIssues = useMemo(() => validateNetworkGraph(visibleDefinition), [visibleDefinition])
   const environmentReady = environment === 'draft' || Boolean(visibleVersion)
-  const versionLabel = environment === 'draft'
-    ? String(editorRevision)
-    : visibleVersion?.version ?? 'not created'
+  const versionLabel = environment === 'draft' ? String(editorRevision) : visibleVersion?.version ?? 'not created'
   const currentVersionId = environment === 'draft' ? null : visibleVersion?.id ?? null
 
   const runtimeBindings = useMemo<Record<AgentNodeId, NetworkBinding>>(() => {
+    if (environment !== 'draft') return versionBindings(visibleVersion, environment, projectAgents)
     const agentsById = new Map(projectAgents.map((agent) => [agent.id, agent]))
     return Object.fromEntries(visibleDefinition.nodes.flatMap((node) => {
       const agent = agentsById.get(node.agent_id)
       if (!agent) return []
-      const resolved = visibleVersion?.resolved_bindings[node.id]
-      const source = resolvedBindingSource(environment, resolved?.release_status)
       return [[node.id, {
         nodeId: node.id,
         agent,
-        source,
-        ref: resolved?.release_id ?? agent.id,
-        version: environment === 'draft' ? 'current Draft' : resolved?.release_version ?? 'not available',
+        source: 'draft',
+        ref: agent.id,
+        version: 'current Draft',
         draftVersion: 'current Draft',
-        dirty: environment === 'draft' && dirtyAgentIds.has(agent.id),
+        dirty: dirtyAgentIds.has(agent.id),
       } satisfies NetworkBinding]]
     }))
   }, [dirtyAgentIds, environment, projectAgents, visibleDefinition.nodes, visibleVersion])
 
-  const apiBindings = useMemo(() => {
-    const agentsById = new Map(projectAgents.map((agent) => [agent.id, agent]))
-    const build = (
-      version: NetworkVersion | null,
-      environmentName: Extract<Environment, 'staging' | 'production'>,
-    ): Record<AgentNodeId, NetworkBinding> => Object.fromEntries(
-      (version?.definition.nodes ?? []).flatMap((node) => {
-        const agent = agentsById.get(node.agent_id)
-        const resolved = version?.resolved_bindings[node.id]
-        if (!agent || !resolved) return []
-        return [[node.id, {
-          nodeId: node.id,
-          agent,
-          source: resolvedBindingSource(environmentName, resolved.release_status),
-          ref: resolved.release_id,
-          version: resolved.release_version,
-          draftVersion: 'current Draft',
-          dirty: false,
-        } satisfies NetworkBinding]]
-      }),
-    )
-    return {
-      staging: build(stagingVersion, 'staging'),
-      production: build(productionVersion, 'production'),
-    }
-  }, [productionVersion, projectAgents, stagingVersion])
+  const apiBindings = useMemo(() => ({
+    staging: versionBindings(stagingVersion, 'staging', projectAgents),
+    production: versionBindings(productionVersion, 'production', projectAgents),
+  }), [productionVersion, projectAgents, stagingVersion])
 
   useEffect(() => {
     if (!network || hydratedRevisionRef.current === network.draft_revision) return
@@ -168,17 +165,9 @@ export default function NetworkPage() {
     hydratedRevisionRef.current = network.draft_revision
   }, [editorDirty, network])
 
-  const initialSessions = useMemo<NetworkSessionsByEnvironment>(() => ({
-    draft: [],
-    staging: [],
-    production: [],
-  }), [])
+  const initialSessions = useMemo<NetworkSessionsByEnvironment>(() => ({ draft: [], staging: [], production: [] }), [])
   const [sessionsByEnvironment, setSessionsByEnvironment] = useState(() => initialSessions)
-  const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<ActiveSessionByEnvironment>(() => ({
-    draft: null,
-    staging: null,
-    production: null,
-  }))
+  const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<ActiveSessionByEnvironment>(() => ({ draft: null, staging: null, production: null }))
   const [traces, setTraces] = useState<NetworkTraceRecord[]>([])
   const [selectedTraceIdBySession, setSelectedTraceIdBySession] = useState<Record<string, string | null>>({})
 
@@ -217,12 +206,7 @@ export default function NetworkPage() {
     const errors = validateNetworkGraph(editorDefinition).filter((issue) => issue.severity === 'error')
     if (errors.length) throw new Error(errors[0].message)
     if (!editorDirty) return { ...network, draft_revision: editorRevision }
-    const saved = await saveNetworkDraftMutation.mutateAsync({
-      expectedRevision: editorRevision,
-      name: editorName,
-      description: editorDescription,
-      definition: editorDefinition,
-    })
+    const saved = await saveNetworkDraftMutation.mutateAsync({ expectedRevision: editorRevision, name: editorName, description: editorDescription, definition: editorDefinition })
     hydratedRevisionRef.current = saved.draft_revision
     setEditorRevision(saved.draft_revision)
     setEditorDirty(false)
@@ -233,9 +217,7 @@ export default function NetworkPage() {
     if (environment !== 'draft' || inspectionScope.type === 'run') return
     setEditorDefinition((current) => applyNetworkDefinitionChange(current, change))
     setEditorDirty(true)
-    if (change.type === 'remove-node' || change.type === 'remove-edge') {
-      dispatchWorkspace({ type: 'select', selection: { type: 'network' }, context: 'network' })
-    }
+    if (change.type === 'remove-node' || change.type === 'remove-edge') dispatchWorkspace({ type: 'select', selection: { type: 'network' }, context: 'network' })
   }
 
   const changeEditor = (change: NetworkDefinitionChange) => {
@@ -311,8 +293,33 @@ export default function NetworkPage() {
   const activeTraces = activeSession ? traces.filter((trace) => trace.networkSessionId === activeSession.id && trace.environment === environment) : []
   const selectedTraceId = activeSession ? selectedTraceIdBySession[activeSession.id] ?? null : null
   const selectedTrace = selectedTraceId ? activeTraces.find((trace) => trace.id === selectedTraceId) ?? null : null
+  const inspectionVersion = inspectionScope.type === 'run' && activeSession?.networkVersion
+    ? networkVersionsQuery.data?.find((item) => item.id === activeSession.networkVersion) ?? null
+    : null
+  const runSnapshotLoading = inspectionScope.type === 'run' && environment !== 'draft' && Boolean(activeSession?.networkVersion) && networkVersionsQuery.isLoading
+  const runSnapshotUnavailable = inspectionScope.type === 'run' && !inspectionVersion
+  const workspaceDefinition = useMemo(() => {
+    if (inspectionScope.type !== 'run') return visibleDefinition
+    return inspectionVersion ? normalizeNetworkDefinition(inspectionVersion.definition) : createEmptyNetworkDefinition()
+  }, [inspectionScope.type, inspectionVersion, visibleDefinition])
+  const workspaceBindings = useMemo<Record<AgentNodeId, NetworkBinding>>(() => {
+    if (inspectionScope.type !== 'run') return runtimeBindings
+    if (!inspectionVersion || environment === 'draft') return {}
+    return versionBindings(inspectionVersion, environment, projectAgents)
+  }, [environment, inspectionScope.type, inspectionVersion, projectAgents, runtimeBindings])
+  const workspaceIssues = useMemo(() => validateNetworkGraph(workspaceDefinition), [workspaceDefinition])
+  const inspectionVersionLabel = inspectionVersion?.version ?? versionLabel
+
+  useEffect(() => {
+    if (selection.type === 'node' && !workspaceDefinition.nodes.some((node) => node.id === selection.id)) {
+      dispatchWorkspace({ type: 'select', selection: { type: 'network' }, context: 'network' })
+    } else if (selection.type === 'edge' && !workspaceDefinition.edges.some((edge) => edge.id === selection.id)) {
+      dispatchWorkspace({ type: 'select', selection: { type: 'network' }, context: 'network' })
+    }
+  }, [selection, workspaceDefinition.edges, workspaceDefinition.nodes])
+
   const selectedNodeId = selection.type === 'node' ? selection.id : null
-  const selectedNetworkBinding = selectedNodeId ? runtimeBindings[selectedNodeId] ?? null : null
+  const selectedNetworkBinding = selectedNodeId ? workspaceBindings[selectedNodeId] ?? null : null
   const selectedAgent = selectedNetworkBinding?.agent ?? null
   const action = environment === 'draft' ? 'stage' : environment === 'staging' ? 'publish' : 'rollback'
 
@@ -347,9 +354,7 @@ export default function NetworkPage() {
     if (nextSessionId) setSelectedTraceIdBySession((current) => ({ ...current, [nextSessionId]: null }))
   }
 
-  const commitNodeSelection = (nodeId: string) => {
-    dispatchWorkspace({ type: 'select', selection: { type: 'node', id: nodeId }, context: 'agent' })
-  }
+  const commitNodeSelection = (nodeId: string) => dispatchWorkspace({ type: 'select', selection: { type: 'node', id: nodeId }, context: 'agent' })
 
   const selectWorkspace = (nextSelection: NetworkEditorSelection, context?: 'agent' | 'network') => {
     const currentAgentId = selectedAgent?.id
@@ -363,7 +368,7 @@ export default function NetworkPage() {
   }
 
   const selectNode = (nodeId: string) => {
-    if (!visibleDefinition.nodes.some((item) => item.id === nodeId)) return
+    if (!workspaceDefinition.nodes.some((item) => item.id === nodeId)) return
     selectWorkspace({ type: 'node', id: nodeId }, 'agent')
   }
 
@@ -453,9 +458,7 @@ export default function NetworkPage() {
       return
     }
     try {
-      const sessionDraftRevision = environment === 'draft'
-        ? (await persistDraft()).draft_revision
-        : null
+      const sessionDraftRevision = environment === 'draft' ? (await persistDraft()).draft_revision : null
       const created = await createNetworkSessionMutation.mutateAsync(environment)
       const session: NetworkSession = {
         id: created.id,
@@ -473,10 +476,7 @@ export default function NetworkPage() {
         traceCount: 0,
         agentContexts: [],
       }
-      setSessionsByEnvironment((current) => ({
-        ...current,
-        [environment]: [session, ...current[environment]],
-      }))
+      setSessionsByEnvironment((current) => ({ ...current, [environment]: [session, ...current[environment]] }))
       setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: session.id }))
       dispatchWorkspace({ type: 'clear-run-inspection' })
       toast.success(`New ${environment} Network Session started`)
@@ -517,10 +517,7 @@ export default function NetworkPage() {
   }
   const openTraceFromChat = (execution: NetworkExecution) => {
     if (!activeSession) return
-    const existing = activeTraces.find((trace) => (
-      trace.execution.id === execution.id
-      || (execution.traceId != null && trace.traceId === execution.traceId)
-    ))
+    const existing = activeTraces.find((trace) => trace.execution.id === execution.id || (execution.traceId != null && trace.traceId === execution.traceId))
     const trace = existing ?? createNetworkTraceRecord({
       execution,
       environment,
@@ -548,7 +545,7 @@ export default function NetworkPage() {
   }
 
   const networkBindingSummary: AgentNetworkBindingSummary | null = selectedNetworkBinding
-    ? { source: selectedNetworkBinding.source, version: selectedNetworkBinding.version }
+    ? { source: selectedNetworkBinding.source, version: selectedNetworkBinding.version, ref: selectedNetworkBinding.ref }
     : null
   const inspectorReadOnly = environment !== 'draft' || inspectionScope.type === 'run'
   const agentWorkspace = selectedAgent && networkBindingSummary ? (
@@ -564,6 +561,9 @@ export default function NetworkPage() {
     />
   ) : null
 
+  const clearRunInspection = () => dispatchWorkspace({ type: 'clear-run-inspection' })
+  const runInspectionLabel = selectedTrace?.execution.id ?? (inspectionScope.type === 'run' ? inspectionScope.runId : null)
+
   return (
     <div className="flex h-screen min-w-0 flex-col overflow-hidden bg-background">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-3">
@@ -573,19 +573,19 @@ export default function NetworkPage() {
           <div role="tablist" aria-label="Network environment" className="flex rounded-xl border border-border bg-background/35 p-1">{(['draft', 'staging', 'production'] as Environment[]).map((item) => <button key={item} type="button" role="tab" aria-selected={item === environment} onClick={() => changeEnvironment(item)} title={item === 'draft' ? 'Editable working composition' : item === 'staging' ? 'Read-only validation snapshot' : 'Immutable released composition'} className={cn('rounded-lg px-3 py-1.5 text-[10px] capitalize', item === environment ? item === 'production' ? 'bg-emerald-500/10 text-emerald-300' : item === 'staging' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>{item}</button>)}</div>
           {environment === 'draft' ? <button type="button" disabled={!editorDirty || saveNetworkDraftMutation.isPending || editorIssues.some((issue) => issue.severity === 'error') || inspectionScope.type === 'run'} onClick={() => void saveDraft()} className={smallButton}>{saveNetworkDraftMutation.isPending ? 'Saving…' : editorDirty ? 'Save Draft' : `Draft saved · r${editorRevision}`}</button> : null}
           <button type="button" onClick={() => setShowApi(true)} className={smallButton}><Code2 className="mr-1 inline h-3.5 w-3.5" />API Reference</button>
-          <button type="button" onClick={() => void openReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button>
+          <button type="button" disabled={inspectionScope.type === 'run'} onClick={() => void openReleaseAction(action)} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45">{environment === 'draft' ? 'Stage Network' : environment === 'staging' ? 'Publish Release' : 'Rollback'}</button>
         </div>
       </header>
       <div className="relative flex h-8 shrink-0 items-center border-b border-border bg-surface/35 px-3 text-[10px] text-muted">
-        <span className="inline-flex items-center gap-1.5">{environment === 'draft' ? <PencilLine className="h-3 w-3 text-primary-light" /> : <Lock className="h-3 w-3 text-muted" />}Viewing: <b className="text-slate-300">{inspectionScope.type === 'run' && selectedTrace ? `Network Run ${selectedTrace.execution.id}` : networkLabel(environment, versionLabel)}</b> · {inspectionScope.type === 'run' ? 'Read-only execution context' : environment === 'draft' ? editorDirty ? 'Unsaved composition changes' : 'Draft saved' : environmentReady ? 'Read-only composition · Chat and Runs available' : 'Environment not created'}</span>
+        <span className="inline-flex items-center gap-1.5">{inspectionScope.type === 'run' || environment !== 'draft' ? <Lock className="h-3 w-3 text-muted" /> : <PencilLine className="h-3 w-3 text-primary-light" />}Viewing: <b className="text-slate-300">{inspectionScope.type === 'run' && selectedTrace ? `Network Run ${selectedTrace.execution.id} · ${networkLabel(environment, inspectionVersionLabel)}` : networkLabel(environment, versionLabel)}</b> · {inspectionScope.type === 'run' ? runSnapshotUnavailable ? 'Execution snapshot unavailable' : 'Exact read-only execution context' : environment === 'draft' ? editorDirty ? 'Unsaved composition changes' : 'Draft saved' : environmentReady ? 'Read-only composition · Chat and Runs available' : 'Environment not created'}</span>
         <div className="absolute left-1/2 flex -translate-x-1/2 rounded-lg border border-border bg-background/45 p-0.5">{([['canvas', Workflow], ['chat', MessageSquare]] as Array<[typeof centerMode, LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => dispatchWorkspace({ type: 'center', mode })} className={cn('flex items-center gap-1 rounded-md px-2.5 py-1 capitalize', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted')}><Icon className="h-3 w-3" />{mode}</button>)}</div>
-        <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'No session selected'} · Max depth {visibleDefinition.settings.max_depth} · Timeout {visibleDefinition.settings.timeout_seconds}s</span>
+        <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'No session selected'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
       </div>
       <div className="relative flex min-h-0 flex-1">
         <NetworkOperationsRail activeTab={showLeftPanel ? panelTab : null} onTabChange={handlePanelTab} />
         {showLeftPanel ? <NetworkOperationsPanel activeTab={panelTab} traces={activeTraces} session={activeSession} selectedTraceId={selectedTraceId} onSelectTrace={selectTrace} onViewCanvas={viewTraceOnCanvas} onOpenAgent={selectNode} /> : null}
-        {agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : !environmentReady ? <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6"><p className="text-sm font-medium text-white">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p><p className="mt-2 text-[10px] leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p><button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-4 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button></div></div> : centerMode === 'canvas' ? <NetworkGraphEditor definition={visibleDefinition} agents={projectAgents} issues={visibleEditorIssues} selection={selection} readOnly={inspectorReadOnly} activePath={inspectionScope.type === 'run' ? selectedTrace?.execution.path ?? [] : []} inspectionLabel={inspectionScope.type === 'run' ? selectedTrace?.execution.id ?? inspectionScope.runId : null} onClearInspection={() => dispatchWorkspace({ type: 'clear-run-inspection' })} onChange={changeEditor} onSelect={selectWorkspace} onAddAgent={() => setCatalogOpen(true)} /> : activeSession ? <NetworkChatWorkspace key={activeSession.id} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} onBeforeDraftRun={async () => (await persistDraft()).draft_revision} onSelectSession={selectSession} onNewSession={() => createSession()} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} /> : <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div><p className="text-sm font-medium text-white">No {environment} Network Session selected</p><p className="mt-1 text-[10px] text-muted">The Chat will use {networkLabel(environment, versionLabel)}.</p><button type="button" onClick={createSession} className="mt-3 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Create session</button></div></div>}
-        <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={selectedTrace?.execution.id ?? null} definition={visibleDefinition} agents={projectAgents} bindings={runtimeBindings} issues={visibleEditorIssues} selection={selection} readOnly={inspectorReadOnly} expanded={inspectorExpanded} name={editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onExpand={() => dispatchWorkspace({ type: 'toggle-inspector' })} onLocateOnCanvas={() => dispatchWorkspace({ type: 'center', mode: 'canvas' })} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />
+        {agentsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div> : !environmentReady ? <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div className="max-w-sm rounded-2xl border border-border bg-surface/70 p-6"><p className="text-sm font-medium text-white">{environment === 'staging' ? 'Staging has not been created' : 'Production has not been published'}</p><p className="mt-2 text-[10px] leading-5 text-muted">{environment === 'staging' ? 'Return to Draft, save the composition and create an immutable Staging version.' : 'Validate the Network in Staging, then publish that exact snapshot.'}</p><button type="button" onClick={() => changeEnvironment(environment === 'staging' ? 'draft' : 'staging')} className="mt-4 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Go to {environment === 'staging' ? 'Draft' : 'Staging'}</button></div></div> : centerMode === 'canvas' ? runSnapshotUnavailable ? <RunSnapshotUnavailable draft={environment === 'draft'} loading={runSnapshotLoading} onReturn={clearRunInspection} /> : <NetworkGraphEditor definition={workspaceDefinition} agents={projectAgents} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} activePath={inspectionScope.type === 'run' ? selectedTrace?.execution.path ?? [] : []} inspectionLabel={runInspectionLabel} onClearInspection={clearRunInspection} onChange={changeEditor} onSelect={selectWorkspace} onAddAgent={() => setCatalogOpen(true)} /> : activeSession ? <NetworkChatWorkspace key={activeSession.id} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} onBeforeDraftRun={async () => (await persistDraft()).draft_revision} onSelectSession={selectSession} onNewSession={() => createSession()} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} /> : <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center"><div><p className="text-sm font-medium text-white">No {environment} Network Session selected</p><p className="mt-1 text-[10px] text-muted">The Chat will use {networkLabel(environment, versionLabel)}.</p><button type="button" onClick={createSession} className="mt-3 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Create session</button></div></div>}
+        <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={runInspectionLabel} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} expanded={inspectorExpanded} name={inspectionVersion ? `${editorName} · ${inspectionVersion.version}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onExpand={() => dispatchWorkspace({ type: 'toggle-inspector' })} onLocateOnCanvas={() => dispatchWorkspace({ type: 'center', mode: 'canvas' })} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />
         <NetworkAgentCatalogDrawer open={catalogOpen} agents={projectAgents} addedAgentIds={new Set(editorDefinition.nodes.map((node) => node.agent_id))} onClose={() => setCatalogOpen(false)} onAdd={addAgentToNetwork} />
       </div>
       {showApi ? <NetworkApiModal open={showApi} onClose={() => setShowApi(false)} projectId={projectId!} networkId={network?.id || ''} versionIds={{ staging: network?.staging_version_id, production: network?.production_version_id }} bindings={apiBindings} /> : null}
