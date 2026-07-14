@@ -1,5 +1,5 @@
 import type { Agent } from '@/features/agents/types'
-import type { NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
+import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
 import type { NetworkDefinitionChange } from './types'
 
 export const DEFAULT_NETWORK_SETTINGS: NetworkDefinition['settings'] = {
@@ -9,9 +9,11 @@ export const DEFAULT_NETWORK_SETTINGS: NetworkDefinition['settings'] = {
   timeout_seconds: 90,
 }
 
+const DRAFT_BINDING: NetworkAgentBindingSelector = { source: 'draft', release_id: null }
+
 export function createEmptyNetworkDefinition(): NetworkDefinition {
   return {
-    schema_version: 1,
+    schema_version: 2,
     root_node_id: '',
     nodes: [],
     edges: [],
@@ -26,6 +28,19 @@ function validPosition(value: unknown): NetworkNode['position'] {
     x: typeof position.x === 'number' ? position.x : 260,
     y: typeof position.y === 'number' ? position.y : 220,
   }
+}
+
+function validBinding(value: unknown): NetworkAgentBindingSelector {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DRAFT_BINDING }
+  const binding = value as Record<string, unknown>
+  if (
+    (binding.source === 'staging' || binding.source === 'release')
+    && typeof binding.release_id === 'string'
+    && binding.release_id
+  ) {
+    return { source: binding.source, release_id: binding.release_id }
+  }
+  return { ...DRAFT_BINDING }
 }
 
 export function normalizeNetworkDefinition(value: unknown): NetworkDefinition {
@@ -47,6 +62,7 @@ export function normalizeNetworkDefinition(value: unknown): NetworkDefinition {
         ? node.capability_description.trim().slice(0, 2000)
         : '',
       position: validPosition(node.position),
+      binding: validBinding(node.binding),
     }]
   })
   const nodeIds = new Set(nodes.map((node) => node.id))
@@ -69,7 +85,7 @@ export function normalizeNetworkDefinition(value: unknown): NetworkDefinition {
     ? source.root_node_id
     : nodes[0]?.id ?? ''
   return {
-    schema_version: 1,
+    schema_version: 2,
     root_node_id: root,
     nodes,
     edges,
@@ -91,6 +107,7 @@ export function createNodeForAgent(agent: Agent, index: number): NetworkNode {
     label: agent.name,
     capability_description: (agent.description ?? '').trim().slice(0, 2000),
     position: { x: 180 + column * 300, y: 140 + row * 220 },
+    binding: { ...DRAFT_BINDING },
   }
 }
 
@@ -120,6 +137,8 @@ export function applyNetworkDefinitionChange(
       return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, label: change.label } : node) }
     case 'describe-node':
       return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, capability_description: change.description.slice(0, 2000) } : node) }
+    case 'set-binding':
+      return { ...definition, nodes: definition.nodes.map((node) => node.id === change.nodeId ? { ...node, binding: change.binding } : node) }
     case 'add-edge':
       return { ...definition, edges: [...definition.edges, change.edge] }
     case 'remove-edge':
