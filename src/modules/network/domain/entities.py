@@ -28,6 +28,7 @@ class NetworkNode:
     id: UUID
     agent_id: UUID
     label: str
+    capability_description: str = ""
     position: dict[str, float] = field(default_factory=dict)
 
 
@@ -57,6 +58,9 @@ class NetworkDefinition:
                     id=UUID(str(item["id"])),
                     agent_id=UUID(str(item["agent_id"])),
                     label=str(item.get("label") or "Agent"),
+                    capability_description=str(
+                        item.get("capability_description") or ""
+                    ).strip(),
                     position=dict(item.get("position") or {}),
                 )
                 for item in value.get("nodes", [])
@@ -87,6 +91,7 @@ class NetworkDefinition:
                     "id": str(node.id),
                     "agent_id": str(node.agent_id),
                     "label": node.label,
+                    "capability_description": node.capability_description,
                     "position": node.position,
                 }
                 for node in self.nodes
