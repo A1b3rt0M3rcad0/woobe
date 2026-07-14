@@ -115,7 +115,9 @@ class NetworkRuntimeRepository:
             sequence=execution.last_event_sequence,
             event_type=event_type,
             invocation_id=invocation.id if invocation else None,
-            parent_invocation_id=invocation.parent_invocation_id if invocation else None,
+            parent_invocation_id=invocation.parent_invocation_id
+            if invocation
+            else None,
             node_id=invocation.node_id if invocation else None,
             agent_id=invocation.agent_id if invocation else None,
             depth=invocation.depth if invocation else None,
@@ -278,7 +280,9 @@ class NetworkOutboxRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def claim_batch(self, *, limit: int, worker_id: str) -> list[NetworkOutboxEventModel]:
+    async def claim_batch(
+        self, *, limit: int, worker_id: str
+    ) -> list[NetworkOutboxEventModel]:
         now = datetime.now(timezone.utc)
         result = await self.session.execute(
             select(NetworkOutboxEventModel)
@@ -307,7 +311,7 @@ class NetworkOutboxRepository:
         event.status = "dead" if event.attempts >= 5 else "retryable"
         event.error = error[:4000]
         event.available_at = datetime.now(timezone.utc) + timedelta(
-            seconds=min(300, 2 ** event.attempts)
+            seconds=min(300, 2**event.attempts)
         )
         event.locked_at = None
         event.locked_by = None
