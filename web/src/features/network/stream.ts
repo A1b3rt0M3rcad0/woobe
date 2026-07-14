@@ -51,7 +51,7 @@ async function requestStream(
   callbacks: NetworkStreamCallbacks,
   signal: AbortSignal | undefined,
   retriedAuth: boolean,
-): Promise<void> {
+): Promise<boolean> {
   await ensureCsrfToken()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -85,6 +85,7 @@ async function requestStream(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let terminalEventReceived = false
   while (true) {
     const { value, done } = await reader.read()
     buffer += decoder.decode(value, { stream: !done })
@@ -94,18 +95,41 @@ async function requestStream(
       const parsed = parseSseBlock(block)
       if (!parsed) continue
       const event = JSON.parse(parsed.data) as NetworkRuntimeEvent
-      if (parsed.id && event.sequence == null) event.sequence = Number(parsed.id)
+      if (parsed.id) {
+        input.lastEventId = Number(parsed.id)
+        if (event.sequence == null) event.sequence = input.lastEventId
+      }
       if (parsed.event === 'heartbeat') callbacks.onHeartbeat?.(event)
-      else callbacks.onEvent(parsed.event, event)
+      else {
+        callbacks.onEvent(parsed.event, event)
+        if (['execution_completed', 'execution_failed', 'execution_cancelled'].includes(parsed.event)) {
+          terminalEventReceived = true
+        }
+      }
     }
     if (done) break
   }
+  return terminalEventReceived
 }
 
-export function streamNetworkExecution(
+export async function streamNetworkExecution(
   input: NetworkStreamInput,
   callbacks: NetworkStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  return requestStream(input, callbacks, signal, false)
+  const stableInput: NetworkStreamInput = {
+    ...input,
+    idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
+  }
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (signal?.aborted) throw new DOMException('Network stream aborted', 'AbortError')
+    try {
+      const completed = await requestStream(stableInput, callbacks, signal, false)
+      if (completed) return
+    } catch (error) {
+      if (signal?.aborted || attempt === 3) throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+  }
+  throw new Error('Network stream ended before a terminal event')
 }
