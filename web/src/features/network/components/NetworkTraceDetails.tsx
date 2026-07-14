@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CheckCircle2, ChevronDown, ChevronRight, Copy, GitBranch, Play, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, CircleDot, Copy, GitBranch, Play, XCircle } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
@@ -56,20 +56,28 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const tools = toolCount(trace.execution.root)
   const sources = sourceCount(trace.execution.root)
   const routeEvents = trace.events.filter((event) => event.type.startsWith('network.route.'))
+  const running = trace.status === 'running'
   const completed = trace.status === 'success'
-  const StatusIcon = completed ? CheckCircle2 : XCircle
+  const StatusIcon = running ? CircleDot : completed ? CheckCircle2 : XCircle
+  const statusLabel = running ? 'Running' : completed ? 'Completed' : 'Failed'
+  const statusSurface = running
+    ? 'border-blue-500/25 bg-blue-500/10'
+    : completed
+      ? 'border-emerald-500/25 bg-emerald-500/10'
+      : 'border-red-500/25 bg-red-500/10'
+  const statusText = running ? 'text-blue-300' : completed ? 'text-emerald-300' : 'text-red-300'
   const totalTokens = trace.usage.total_tokens ?? ((trace.usage.input_tokens ?? 0) + (trace.usage.output_tokens ?? 0))
 
   return (
     <div className="space-y-3 p-4">
       <div className="flex items-start gap-3">
-        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border', completed ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-red-500/25 bg-red-500/10')}>
-          <StatusIcon className={cn('h-4 w-4', completed ? 'text-emerald-400' : 'text-red-400')} />
+        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border', statusSurface)}>
+          <StatusIcon className={cn('h-4 w-4', statusText, running && 'animate-pulse')} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-semibold text-white">Trace Detail</h3>
-            <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', completed ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-red-500/25 bg-red-500/10 text-red-300')}>{completed ? 'Completed' : trace.status === 'running' ? 'Running' : 'Failed'}</span>
+            <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusSurface, statusText)}>{statusLabel}</span>
             <span className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted">{formatLatency(trace.durationMs)}</span>
           </div>
           <p className="mt-1 text-[10px] text-muted">{session.title} · {trace.networkVersion}</p>
