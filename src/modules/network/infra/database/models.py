@@ -96,7 +96,9 @@ class NetworkMessageModel(BaseModel):
     network_session_id: Mapped[UUID] = mapped_column(
         ForeignKey("network.network_sessions.id")
     )
-    network_execution_id: Mapped[UUID | None]
+    network_execution_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("network.network_executions.id")
+    )
     project_id: Mapped[UUID]
     role: Mapped[str] = mapped_column(String(32))
     content: Mapped[str] = mapped_column(Text)
