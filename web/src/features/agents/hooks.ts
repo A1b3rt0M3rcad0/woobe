@@ -87,6 +87,9 @@ export function useCreateKnowledgeVersion(agentId?: string) {
 export function useReleases(agentId: string | undefined) {
   return useQuery({ queryKey: ['releases', agentId], queryFn: () => getReleases(agentId!), enabled: Boolean(agentId) })
 }
+export function useRelease(agentId: string | undefined, releaseId: string | undefined) {
+  return useQuery({ queryKey: ['release', agentId, releaseId], queryFn: () => getRelease(agentId!, releaseId!), enabled: Boolean(agentId) && Boolean(releaseId) })
+}
 export function useCreateRelease(agentId?: string) {
   const queryClient = useQueryClient()
   return useMutation({ mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }) } })
