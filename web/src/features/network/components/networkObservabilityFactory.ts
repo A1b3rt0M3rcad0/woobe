@@ -164,14 +164,20 @@ function invocationEvents(
   return { events, lastSequence: sequence }
 }
 
-function aggregateUsage(root: NetworkAgentInvocation): UsageInfo {
-  const childUsage = root.children.map(aggregateUsage)
-  return {
-    input_tokens: (root.usage?.input_tokens ?? 0) + childUsage.reduce((total, item) => total + (item.input_tokens ?? 0), 0),
-    output_tokens: (root.usage?.output_tokens ?? 0) + childUsage.reduce((total, item) => total + (item.output_tokens ?? 0), 0),
-    total_tokens: (root.usage?.total_tokens ?? 0) + childUsage.reduce((total, item) => total + (item.total_tokens ?? 0), 0),
-    cost_usd: (root.costUsd ?? 0) + childUsage.reduce((total, item) => total + (item.cost_usd ?? 0), 0),
-  }
+function aggregateUsage(root: NetworkAgentInvocation): UsageInfo | null {
+  const usage = [root.usage, ...root.children.map(aggregateUsage)]
+    .filter((item): item is UsageInfo => item != null)
+  if (!usage.length) return null
+  const totals = usage.reduce<UsageInfo>((total, item) => ({
+    input_tokens: (total.input_tokens ?? 0) + (item.input_tokens ?? 0),
+    output_tokens: (total.output_tokens ?? 0) + (item.output_tokens ?? 0),
+    total_tokens: (total.total_tokens ?? 0) + (item.total_tokens ?? 0),
+    cost_usd: 0,
+  }), { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0 })
+  totals.cost_usd = usage.every((item) => typeof item.cost_usd === 'number')
+    ? usage.reduce((total, item) => total + (item.cost_usd ?? 0), 0)
+    : null
+  return totals
 }
 
 function runtimeTraceEvents(records: RuntimeEventRecord[]): NetworkTraceEvent[] {
@@ -216,7 +222,7 @@ export function createNetworkTraceRecord({
   title: string
   userMessage: string
   answer: string
-  usage?: UsageInfo
+  usage?: UsageInfo | null
   agentContexts?: NetworkAgentContext[]
   parsedOutput?: Record<string, unknown> | null
   outputParseError?: string | null
@@ -225,6 +231,13 @@ export function createNetworkTraceRecord({
   networkVersion?: string
 }): NetworkTraceRecord {
   const startedAt = execution.startedAt
+  const accepted = runtimeEvents?.find((record) => record.eventType === 'execution_accepted')
+    ?.event.data
+  const acceptedVersion = typeof accepted?.network_version === 'string'
+    ? networkLabel(environment, accepted.network_version)
+    : environment === 'draft' && typeof accepted?.draft_revision === 'number'
+      ? `Draft r${accepted.draft_revision}`
+      : networkVersion ?? networkLabel(environment)
   const startEvent: NetworkTraceEvent = {
     id: `${execution.id}-start`,
     type: 'network.execution.started',
@@ -235,7 +248,7 @@ export function createNetworkTraceRecord({
     status: 'running',
     payload: {
       environment,
-      network_version: networkVersion ?? networkLabel(environment),
+      network_version: acceptedVersion,
       network_session_id: networkSessionId,
       message: userMessage,
       max_hops: 8,
@@ -297,8 +310,12 @@ export function createNetworkTraceRecord({
     parsedOutput,
     outputParseError,
     environment: execution.environment,
-    networkVersion: networkVersion ?? networkLabel(environment),
-    compositionHash: hashComposition(currentSignature(environment, bindings)),
+    networkVersion: acceptedVersion,
+    compositionHash: String(
+      runtimeEvents?.find((record) => record.eventType === 'execution_accepted')
+        ?.event.data.composition_hash
+      ?? hashComposition(currentSignature(environment, bindings)),
+    ),
     status: execution.status,
     startedAt,
     completedAt: executionCompletionTime(execution),
