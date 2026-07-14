@@ -261,17 +261,20 @@ class NetworkExecutor:
                         "depth": depth,
                     },
                 )
-                await self._store.complete_invocation(invocation.id, result=result)
-                await self._store.emit(
-                    execution.id,
-                    "agent_invocation_completed",
-                    {"trace_id": str(result.trace_id) if result.trace_id else None},
-                    invocation_id=invocation.id,
-                )
-                return result
             except Exception as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
                 raise
+
+            await self._store.complete_invocation(invocation.id, result=result)
+            if await self._store.is_cancel_requested(execution.id):
+                raise NetworkExecutionCancelled("Network execution was cancelled")
+            await self._store.emit(
+                execution.id,
+                "agent_invocation_completed",
+                {"trace_id": str(result.trace_id) if result.trace_id else None},
+                invocation_id=invocation.id,
+            )
+            return result
 
         return await invoke_node(
             definition.root_node_id,
