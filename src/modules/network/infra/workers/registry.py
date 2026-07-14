@@ -45,6 +45,7 @@ def register_network_workers(
             rabbitmq_manager,
             processor,
             prefetch_count=settings.network_worker_prefetch,
+            worker_slots=settings.network_worker_slots,
         )
     )
     registry.register(NetworkLeaseRecoveryWorker(engine))
