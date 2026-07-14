@@ -131,25 +131,22 @@ class ReleaseLifecycleUseCase:
         if target == ReleaseStatus.draft:
             raise ConflictError("Draft is changed through Save Draft, not promotion")
         if target == ReleaseStatus.staging:
-            if release.status != ReleaseStatus.draft:
-                raise ConflictError("Staging can only be replaced by promoting the current Draft")
+            if release.status != ReleaseStatus.draft or getattr(release, "snapshot_kind", "draft") != "draft":
+                raise ConflictError("Staging can only be created from the current Agent Draft")
             saved = await self._copy_to_staging_snapshot(release, user_id=user_id)
         else:
-            if release.status == ReleaseStatus.draft:
+            snapshot_kind = getattr(release, "snapshot_kind", None)
+            if release.status == ReleaseStatus.draft or snapshot_kind == "draft":
                 raise ConflictError("Draft must be promoted to Staging before Production")
-            if release.status == ReleaseStatus.staging:
-                copy_snapshot = True
-            elif copy_snapshot:
-                raise ConflictError("New Production releases can only be published from Staging")
-            if copy_snapshot:
+            if release.status == ReleaseStatus.production and snapshot_kind == "release":
+                saved = release
+            else:
                 saved = await self._copy_to_production_release(
                     release,
                     user_id=user_id,
                     change_kind=change_kind,
                     release_notes=release_notes,
                 )
-            else:
-                saved = await self._move_to_status(release, target, user_id=user_id)
         return _release_to_output(saved)
 
     async def _copy_to_staging_snapshot(self, source: AgentRelease, *, user_id: UUID | None) -> AgentRelease:
