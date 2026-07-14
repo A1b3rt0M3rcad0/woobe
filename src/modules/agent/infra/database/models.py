@@ -45,6 +45,8 @@ class AgentModel(BaseModel):
     __table_args__ = {"schema": "agent"}
 
     project_id: Mapped[UUID]
+    provider_model_id: Mapped[UUID | None] = mapped_column(PG_UUID)
+    fallback_provider_model_id: Mapped[UUID | None] = mapped_column(PG_UUID)
     provider_credential_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.provider_credentials.id")
     )
@@ -132,6 +134,12 @@ class AgentReleaseModel(BaseModel):
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
         Index(
+            "uq_agent_releases_staging",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'staging'"),
+        ),
+        Index(
             "uq_agent_releases_production",
             "agent_id",
             unique=True,
@@ -144,6 +152,7 @@ class AgentReleaseModel(BaseModel):
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="draft")
+    snapshot_kind: Mapped[str] = mapped_column(String(16), default="draft")
     prompt_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_prompts.id")
     )
@@ -156,7 +165,8 @@ class AgentReleaseModel(BaseModel):
     model_config_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_model_configs.id")
     )
-    # Snapshot fields — complete agent config inline
+    provider_model_id: Mapped[UUID | None] = mapped_column(PG_UUID)
+    fallback_provider_model_id: Mapped[UUID | None] = mapped_column(PG_UUID)
     name: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     system_prompt: Mapped[str | None] = mapped_column(Text)
@@ -179,7 +189,6 @@ class AgentReleaseModel(BaseModel):
     agent_status: Mapped[str | None] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
     runtime_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    # Meta
     release_notes: Mapped[str | None] = mapped_column(Text)
     risk_score: Mapped[int | None] = mapped_column(Integer)
     created_by: Mapped[UUID | None]
@@ -327,8 +336,8 @@ class AskJobModel(BaseModel):
     )
 
     project_id: Mapped[UUID]
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
-    session_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent.sessions.id"))
+    agent_id: Mapped[UUID]
+    session_id: Mapped[UUID | None]
     status: Mapped[str] = mapped_column(String(32), default="pending")
     params: Mapped[dict] = mapped_column(JSONB)
     result: Mapped[dict | None] = mapped_column(JSONB)
@@ -448,12 +457,3 @@ class AgentInboxEventModel(BaseModel):
     idempotency_key: Mapped[str] = mapped_column(String(255))
     correlation_id: Mapped[UUID]
     causation_id: Mapped[UUID | None]
-    status: Mapped[str] = mapped_column(String(32), default="received")
-    attempts: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=text("now()")
-    )
-    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    locked_by: Mapped[str | None] = mapped_column(String(128))
-    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    error: Mapped[str | None] = mapped_column(Text)
