@@ -29,6 +29,8 @@ export function NetworkChatHeader({
   onPin,
 }: NetworkChatHeaderProps) {
   const readOnly = environment !== 'draft'
+  const draftChanged = environment === 'draft' && changed
+  const immutableSnapshotChanged = environment !== 'draft' && changed
   return (
     <div className="shrink-0 border-b border-border bg-surface/45 px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -55,7 +57,7 @@ export function NetworkChatHeader({
           Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.
         </div>
       ) : null}
-      {changed && !pinned ? (
+      {draftChanged && !pinned ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
           <div className="min-w-0 flex-1">
@@ -66,7 +68,17 @@ export function NetworkChatHeader({
           <button type="button" onClick={onNew} className="rounded-md bg-primary px-2.5 py-1.5 text-[10px] font-medium text-white">Start new session</button>
         </div>
       ) : null}
-      {pinned ? <p className="mt-2 text-[9px] text-muted">This Network Session remains pinned to its original composition and Agent contexts.</p> : null}
+      {immutableSnapshotChanged ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-medium text-amber-100">This session belongs to an earlier {environment} snapshot</p>
+            <p className="text-[9px] text-amber-100/65">Its messages and traces remain available, but new messages require a session for {networkLabel(environment)}.</p>
+          </div>
+          <button type="button" onClick={onNew} className="rounded-md bg-primary px-2.5 py-1.5 text-[10px] font-medium text-white">Start current snapshot session</button>
+        </div>
+      ) : null}
+      {environment === 'draft' && pinned ? <p className="mt-2 text-[9px] text-muted">This Network Session remains pinned to its original composition and Agent contexts.</p> : null}
     </div>
   )
 }
