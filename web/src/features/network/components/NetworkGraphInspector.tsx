@@ -34,6 +34,7 @@ export function NetworkGraphInspector({
   const source = edge ? definition.nodes.find((item) => item.id === edge.source_node_id) : null
   const target = edge ? definition.nodes.find((item) => item.id === edge.target_node_id) : null
   const errors = issues.filter((item) => item.severity === 'error')
+  const rootMustBeReassigned = Boolean(node && definition.root_node_id === node.id && definition.nodes.length > 1)
 
   return (
     <aside className="flex h-full min-h-0 w-[min(94vw,390px)] shrink-0 flex-col border-l border-border bg-surface/85">
@@ -44,7 +45,7 @@ export function NetworkGraphInspector({
           <label className="block text-[10px] text-muted">Node label<input disabled={readOnly} className={input} value={node.label} onChange={(event) => onChange({ type: 'rename-node', nodeId: node.id, label: event.target.value })} /></label>
           <div className="rounded-xl border border-border bg-background/35 p-3"><p className="text-[9px] uppercase tracking-wide text-muted">Delegation tool</p><p className="mt-1 break-all font-mono text-[10px] text-slate-200">{delegationToolName(node)}</p></div>
           {definition.root_node_id === node.id ? <div className="flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 text-[10px] text-primary-light"><Crown className="h-4 w-4" />Entry point and final responder</div> : <button disabled={readOnly} type="button" onClick={() => onChange({ type: 'set-root', nodeId: node.id })} className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-[10px] font-medium text-primary-light disabled:opacity-50"><Crown className="h-3.5 w-3.5" />Set as Entry Point</button>}
-          <button disabled={readOnly} type="button" onClick={() => onChange({ type: 'remove-node', nodeId: node.id })} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-[10px] font-medium text-red-300 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />Remove from Network</button>
+          <button disabled={readOnly || rootMustBeReassigned} type="button" title={rootMustBeReassigned ? 'Set another Agent as Entry Point before removing this node' : undefined} onClick={() => onChange({ type: 'remove-node', nodeId: node.id })} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-[10px] font-medium text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />{rootMustBeReassigned ? 'Choose another Entry Point first' : 'Remove from Network'}</button>
         </> : edge ? <>
           <div className="rounded-xl border border-border bg-background/35 p-4"><div className="flex items-center gap-2 text-xs text-white"><span className="truncate">{source?.label}</span><Link2 className="h-3.5 w-3.5 shrink-0 text-primary-light" /><span className="truncate">{target?.label}</span></div><p className="mt-3 text-[9px] leading-4 text-muted">This permission lets the source Agent delegate a task to the target Agent. Results return automatically through the invocation hierarchy.</p></div>
           <button disabled={readOnly} type="button" onClick={() => onChange({ type: 'remove-edge', edgeId: edge.id })} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-[10px] font-medium text-red-300 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />Remove delegation</button>
@@ -67,4 +68,3 @@ export function NetworkGraphInspector({
     </aside>
   )
 }
-
