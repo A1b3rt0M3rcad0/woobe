@@ -1,9 +1,11 @@
 """Network bounded context."""
 
+from modules.network.application.binding_compatibility import install_legacy_version_binding_compatibility
 from modules.network.application.binding_concurrency import install_binding_concurrency_guards
 from modules.network.application.binding_runtime import install_pinned_release_runtime_support
 from modules.network.application.binding_service import install_explicit_binding_service
 
 install_explicit_binding_service()
+install_legacy_version_binding_compatibility()
 install_binding_concurrency_guards()
 install_pinned_release_runtime_support()
