@@ -213,10 +213,12 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
         processor: NetworkExecutionProcessor,
         *,
         prefetch_count: int,
+        worker_slots: int,
     ) -> None:
         self._manager = manager
         self._processor = processor
         self._prefetch_count = prefetch_count
+        self._slots = asyncio.Semaphore(max(1, worker_slots))
         self._registered = asyncio.Event()
 
     async def consume(self) -> None:
@@ -233,14 +235,15 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
         await asyncio.Event().wait()
 
     async def _handle(self, message: IncomingMessage) -> None:
-        try:
-            payload = json.loads(message.body.decode())
-            execution_id = UUID(str(payload["execution_id"]))
-            await self._processor.process(execution_id)
-            await message.ack()
-        except Exception:
-            logger.exception("Network execution message failed")
-            await message.reject(requeue=False)
+        async with self._slots:
+            try:
+                payload = json.loads(message.body.decode())
+                execution_id = UUID(str(payload["execution_id"]))
+                await self._processor.process(execution_id)
+                await message.ack()
+            except Exception:
+                logger.exception("Network execution message failed")
+                await message.reject(requeue=False)
 
     async def persist_inbox(self, record: InboxRecord) -> None:
         return None
