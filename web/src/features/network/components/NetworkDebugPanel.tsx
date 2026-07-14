@@ -31,12 +31,13 @@ function ResolvedComposition({ trace }: { trace: NetworkTraceRecord }) {
 export function NetworkDebugPanel({ trace }: { trace: NetworkTraceRecord | null }) {
   if (!trace) return <div className="flex h-full items-center justify-center p-6 text-center"><div><Bug className="mx-auto h-8 w-8 text-muted/50" /><p className="mt-3 text-xs text-muted">Select a trace to inspect Network debug data.</p></div></div>
   const routeEvents = trace.events.filter((event) => event.type.startsWith('network.route.'))
-  const activeEvent = trace.events.at(-1)
+  const activeEvent = trace.events[trace.events.length - 1]
+  const lastPathNode = trace.execution.path[trace.execution.path.length - 1]
   return (
     <ScrollArea className="h-full min-h-0">
       <div className="space-y-2.5 p-3">
         <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-white">Debug</p><p className="mt-1 text-[9px] text-muted">{trace.status === 'running' ? 'Live execution' : `Historical trace ${trace.traceId.slice(0, 8)}…`}</p></div><Badge tone={trace.status === 'error' ? 'danger' : trace.status === 'running' ? 'warning' : 'production'}>{trace.status}</Badge></div>
-        <div className="grid grid-cols-2 gap-1.5"><Metric label="Environment" value={trace.environment} /><Metric label="Elapsed" value={formatLatency(trace.durationMs)} /><Metric label="Current node" value={String(activeEvent?.nodeId ?? trace.execution.path.at(-1) ?? '—')} /><Metric label="Hop" value={`${trace.execution.path.length} / 8`} /></div>
+        <div className="grid grid-cols-2 gap-1.5"><Metric label="Environment" value={trace.environment} /><Metric label="Elapsed" value={formatLatency(trace.durationMs)} /><Metric label="Current node" value={String(activeEvent?.nodeId ?? lastPathNode ?? '—')} /><Metric label="Hop" value={`${trace.execution.path.length} / 8`} /></div>
         <CollapsibleSection title="Routing decisions" badge={String(routeEvents.length)} defaultOpen><div className="space-y-1.5">{routeEvents.map((event) => <div key={event.id} className="rounded-lg border border-border/70 bg-background/45 p-2.5"><div className="flex items-center gap-2"><GitBranch className="h-3 w-3 text-primary-light" /><code className="min-w-0 flex-1 truncate text-[9px] text-white">{event.type}</code><span className="text-[8px] text-muted">{new Date(event.timestamp).toLocaleTimeString()}</span></div><p className="mt-1 text-[8px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={112} className="mt-2" /></div>)}</div></CollapsibleSection>
         <CollapsibleSection title="Request context" defaultOpen><JsonCodeBlock value={{ message: trace.userMessage, network_session_id: trace.sessionId, environment: trace.environment, network_version: trace.networkVersion, composition_hash: trace.compositionHash, max_hops: 8, timeout_seconds: 90, entrypoint: 'ENTRY' }} maxHeight={180} /></CollapsibleSection>
         <CollapsibleSection title="Resolved composition" badge={`${invocationCount(trace.execution.root)} Agents`}><ResolvedComposition trace={trace} /></CollapsibleSection>
