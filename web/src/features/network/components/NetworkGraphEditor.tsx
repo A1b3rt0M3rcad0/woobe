@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import {
   Background,
+  BackgroundVariant,
   Controls,
   Handle,
   MarkerType,
@@ -46,6 +47,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
           </div>
           <p className="mt-1 truncate text-[9px] text-muted">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
+          {data.node.capability_description ? <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-2">
@@ -153,16 +155,21 @@ export function NetworkGraphEditor({
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={22} size={1} color="rgba(100,116,139,.22)" />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={30}
+          size={1}
+          color="rgba(100,116,139,.38)"
+        />
         <Controls position="bottom-left" showInteractive={false} />
         <MiniMap
           position="bottom-right"
           pannable
           zoomable
-          bgColor="#08111f"
+          bgColor="#020817"
           nodeStrokeColor="#64748b"
           nodeColor={(node) => node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
-          maskColor="rgba(2,6,23,.72)"
+          maskColor="rgba(2,8,23,.78)"
         />
       </ReactFlow>
 
