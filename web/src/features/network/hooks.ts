@@ -10,7 +10,7 @@ import {
   rollbackNetworkProduction,
   saveNetworkDraft,
 } from './api'
-import type { NetworkDefinition, NetworkEnvironment, NetworkPromotionEnvironment, NetworkResource } from './types'
+import type { NetworkDefinition, NetworkEnvironment, NetworkResource, PromoteNetworkInput } from './types'
 
 export function useNetwork(projectId?: string, projectName = 'Project Network') {
   return useQuery({
@@ -69,10 +69,12 @@ export function useSaveNetworkDraft(networkId?: string, projectId?: string) {
 export function usePromoteNetwork(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (environment: NetworkPromotionEnvironment) => promoteNetwork(networkId!, projectId!, environment),
+    mutationFn: (input: PromoteNetworkInput) => promoteNetwork(networkId!, projectId!, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['releases'] })
+      queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
     },
   })
 }
