@@ -14,10 +14,8 @@ import type { AgentNodeId, Environment, NetworkRun, NetworkSelection, NetworkVer
 import { NetworkCanvas } from '@/features/network/components/NetworkCanvas'
 import { Badge, NetworkOperationsPanel, NetworkOperationsRail, type PanelTab } from '@/features/network/components/NetworkOperations'
 import { createNetworkTraceRecord } from '@/features/network/components/networkObservabilityFactory'
-import { createMockNetworkTraces } from '@/features/network/components/networkObservabilityMocks'
 import { hashComposition, traceToRun, type NetworkTraceRecord } from '@/features/network/components/networkObservabilityTypes'
-import { createMockNetworkSessions } from '@/features/network/components/networkSessionMocks'
-import type { ActiveSessionByEnvironment, NetworkSession } from '@/features/network/components/networkSessionTypes'
+import type { ActiveSessionByEnvironment, NetworkSession, NetworkSessionsByEnvironment } from '@/features/network/components/networkSessionTypes'
 import { NetworkApiModal } from '@/features/network/components/NetworkApiModal'
 import { NetworkInspectorShell, type InspectorContext } from '@/features/network/components/NetworkInspectorShell'
 import { NetworkReleaseModal, UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
@@ -74,14 +72,18 @@ export default function NetworkPage() {
   const productionBindings = useMemo(() => bind(agents, productionState), [agents, productionState])
   const visibleBindings = environment === 'draft' ? draftBindings : environment === 'staging' ? stagingBindings : productionBindings
 
-  const initialSessions = useMemo(() => ({ draft: [], staging: [], production: [] } as ReturnType<typeof createMockNetworkSessions>), [])
+  const initialSessions = useMemo<NetworkSessionsByEnvironment>(() => ({
+    draft: [],
+    staging: [],
+    production: [],
+  }), [])
   const [sessionsByEnvironment, setSessionsByEnvironment] = useState(() => initialSessions)
   const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<ActiveSessionByEnvironment>(() => ({
     draft: initialSessions.draft[0]?.id ?? null,
     staging: initialSessions.staging[0]?.id ?? null,
     production: initialSessions.production[0]?.id ?? null,
   }))
-  const [traces, setTraces] = useState<NetworkTraceRecord[]>(() => createMockNetworkTraces({ draft: draftBindings, staging: stagingBindings, production: productionBindings, sessions: initialSessions }))
+  const [traces, setTraces] = useState<NetworkTraceRecord[]>([])
   const [selectedTraceIdBySession, setSelectedTraceIdBySession] = useState<Record<string, string | null>>({})
   const [pinned, setPinned] = useState(false)
 
