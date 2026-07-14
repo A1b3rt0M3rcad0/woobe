@@ -14,6 +14,7 @@ interface NetworkAgentVersionsProps {
   agent: Agent
   projectId: string
   networkBinding: AgentNetworkBindingSummary
+  readOnly?: boolean
   onOpenComposition: () => void
 }
 
@@ -64,7 +65,7 @@ function VersionCard({ release, actions }: { release: AgentRelease; actions: Rea
   )
 }
 
-export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenComposition }: NetworkAgentVersionsProps) {
+export function NetworkAgentVersions({ agent, projectId, networkBinding, readOnly = false, onOpenComposition }: NetworkAgentVersionsProps) {
   const { data: releases = [], isLoading } = useReleases(agent.id)
   const createRelease = useCreateRelease(agent.id)
   const promoteRelease = usePromoteRelease(agent.id)
@@ -90,6 +91,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   }
 
   const stageDraft = async () => {
+    if (readOnly) return
     try {
       const draft = await createRelease.mutateAsync({ project_id: projectId, agent_id: agent.id, version: 'draft', ...toSnapshot() } as any)
       await promoteRelease.mutateAsync({ releaseId: draft.id, targetStatus: 'staging', copySnapshot: true })
@@ -100,7 +102,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   }
 
   const publishStaging = async () => {
-    if (!staging) return
+    if (readOnly || !staging) return
     if (typeof window !== 'undefined' && !window.confirm(`Publish ${staging.version} to Production?`)) return
     try {
       await promoteRelease.mutateAsync({ releaseId: staging.id, targetStatus: 'production', copySnapshot: true, releaseNotes: releaseNotes.trim() || undefined })
@@ -112,6 +114,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   }
 
   const loadIntoDraft = async (release: AgentRelease) => {
+    if (readOnly) return
     if (typeof window !== 'undefined' && !window.confirm(`Load ${release.version} into the Agent Draft? Unsaved Draft changes will be replaced.`)) return
     setLoadingId(release.id)
     try {
@@ -127,6 +130,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   }
 
   const rollback = async (release: AgentRelease) => {
+    if (readOnly) return
     if (typeof window !== 'undefined' && !window.confirm(`Rollback Agent Production to ${release.version}?`)) return
     try {
       await rollbackRelease.mutateAsync({ releaseId: release.id })
@@ -138,20 +142,24 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
 
   if (isLoading) return <div className="flex h-full items-center justify-center text-[10px] text-muted">Loading Agent versions…</div>
 
+  const viewAction = (release: AgentRelease) => <button type="button" disabled={loadingId === release.id} onClick={() => void viewRelease(release)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="View exact snapshot"><Eye className="h-3 w-3" /></button>
+
   return (
     <div className="scrollbar-thin h-full min-h-0 overflow-y-auto overscroll-contain bg-background p-3">
       <div className="sticky top-0 z-10 mb-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-surface/95 px-2.5 py-2 shadow-sm">
         <GitBranch className="h-3.5 w-3.5 shrink-0 text-primary-light" />
         <p className="min-w-0 flex-1 truncate text-[9px] text-white">Network uses <span className="font-medium capitalize">{networkBinding.source}</span> <span className="font-mono text-slate-300">{networkBinding.version}</span></p>
-        <button type="button" onClick={onOpenComposition} className="shrink-0 text-[9px] font-medium text-primary-light hover:text-white">Change</button>
+        <button type="button" onClick={onOpenComposition} className="shrink-0 text-[9px] font-medium text-primary-light hover:text-white">Role in Network</button>
       </div>
+
+      {readOnly ? <div className="mb-3 rounded-lg border border-border bg-background/35 px-3 py-2 text-[9px] leading-4 text-muted">Inspection mode. Agent promotion, rollback and Draft replacement actions are disabled here.</div> : null}
 
       <div className="space-y-3">
         <section className="rounded-lg border border-border/80 bg-background/35 p-3">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface"><Upload className="h-3.5 w-3.5 text-primary-light" /></div>
             <div className="min-w-0 flex-1"><p className="text-[11px] font-medium text-white">Current Draft</p><p className="mt-0.5 text-[9px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</p></div>
-            <Button size="sm" className="h-7 px-2 text-[9px]" onClick={() => void stageDraft()} loading={createRelease.isPending || promoteRelease.isPending}>Stage</Button>
+            {!readOnly ? <Button size="sm" className="h-7 px-2 text-[9px]" onClick={() => void stageDraft()} loading={createRelease.isPending || promoteRelease.isPending}>Stage</Button> : null}
           </div>
         </section>
 
@@ -161,42 +169,21 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
             <div className="rounded-lg border border-indigo-500/25 bg-indigo-500/[0.045] p-2.5">
               <div className="flex items-start gap-2.5">
                 <div className="min-w-0 flex-1"><p className="font-mono text-[10px] font-medium text-white">{staging.version}</p><p className="mt-1 text-[9px] text-muted">Exact validation snapshot · {formatDate(staging.created_at)}</p></div>
-                <button type="button" onClick={() => void viewRelease(staging)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="View snapshot"><Eye className="h-3 w-3" /></button>
+                {viewAction(staging)}
               </div>
-              <div className="mt-2 flex gap-2">
-                <input value={releaseNotes} onChange={(event) => setReleaseNotes(event.target.value)} placeholder="Release description" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background/60 px-2 text-[9px] text-white placeholder:text-muted outline-none focus:border-primary/40" />
-                <Button size="sm" className="h-8 px-2 text-[9px]" onClick={() => void publishStaging()} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />Publish</Button>
-              </div>
+              {!readOnly ? <div className="mt-2 flex gap-2"><input value={releaseNotes} onChange={(event) => setReleaseNotes(event.target.value)} placeholder="Release description" className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background/60 px-2 text-[9px] text-white placeholder:text-muted outline-none focus:border-primary/40" /><Button size="sm" className="h-8 px-2 text-[9px]" onClick={() => void publishStaging()} loading={promoteRelease.isPending}><Rocket className="mr-1 h-3 w-3" />Publish</Button></div> : null}
             </div>
-          ) : <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No Staging snapshot. Stage the current Draft first.</div>}
+          ) : <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No Staging snapshot.</div>}
         </section>
 
         <section>
           <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted">Production</p>
-          {production ? (
-            <VersionCard release={production} actions={<><button type="button" disabled={loadingId === production.id} onClick={() => void viewRelease(production)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white"><Eye className="h-3 w-3" /></button><button type="button" disabled={loadingId === production.id} onClick={() => void loadIntoDraft(production)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="Copy to Draft"><Copy className="h-3 w-3" /></button></>} />
-          ) : <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No Production Release is active.</div>}
+          {production ? <VersionCard release={production} actions={<>{viewAction(production)}{!readOnly ? <button type="button" disabled={loadingId === production.id} onClick={() => void loadIntoDraft(production)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="Copy to Draft"><Copy className="h-3 w-3" /></button> : null}</>} /> : <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No Production Release is active.</div>}
         </section>
 
         <section>
           <div className="mb-1.5 flex items-center gap-1.5"><History className="h-3 w-3 text-muted" /><p className="text-[9px] font-semibold uppercase tracking-wider text-muted">History</p></div>
-          {history.length === 0 ? <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No historical Releases yet.</div> : (
-            <div className="space-y-1.5">
-              {history.map((release) => (
-                <VersionCard
-                  key={release.id}
-                  release={release}
-                  actions={
-                    <>
-                      <button type="button" disabled={loadingId === release.id} onClick={() => void viewRelease(release)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="View"><Eye className="h-3 w-3" /></button>
-                      <button type="button" disabled={loadingId === release.id} onClick={() => void loadIntoDraft(release)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="Load into Draft"><Copy className="h-3 w-3" /></button>
-                      <button type="button" onClick={() => void rollback(release)} className="rounded-md border border-emerald-500/25 p-1.5 text-emerald-400 hover:bg-emerald-500/10" title="Rollback"><RotateCcw className="h-3 w-3" /></button>
-                    </>
-                  }
-                />
-              ))}
-            </div>
-          )}
+          {history.length === 0 ? <div className="rounded-lg border border-dashed border-border p-3 text-[9px] text-muted">No historical Releases yet.</div> : <div className="space-y-1.5">{history.map((release) => <VersionCard key={release.id} release={release} actions={<>{viewAction(release)}{!readOnly ? <><button type="button" disabled={loadingId === release.id} onClick={() => void loadIntoDraft(release)} className="rounded-md border border-border/80 p-1.5 text-muted hover:text-white" title="Load into Draft"><Copy className="h-3 w-3" /></button><button type="button" onClick={() => void rollback(release)} className="rounded-md border border-emerald-500/25 p-1.5 text-emerald-400 hover:bg-emerald-500/10" title="Rollback"><RotateCcw className="h-3 w-3" /></button></> : null}</>} />)}</div>}
         </section>
       </div>
 
