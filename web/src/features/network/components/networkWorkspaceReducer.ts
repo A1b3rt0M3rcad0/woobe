@@ -13,7 +13,6 @@ export interface NetworkWorkspaceState {
   environment: Environment
   selection: NetworkEditorSelection
   inspectorContext: NetworkInspectorContext
-  inspectorExpanded: boolean
   inspectionScope: NetworkInspectionScope
 }
 
@@ -22,7 +21,6 @@ export type NetworkWorkspaceAction =
   | { type: 'environment'; environment: Environment; selection?: NetworkEditorSelection }
   | { type: 'select'; selection: NetworkEditorSelection; context?: NetworkInspectorContext }
   | { type: 'context'; context: NetworkInspectorContext }
-  | { type: 'toggle-inspector' }
   | { type: 'inspect-run'; runId: string }
   | { type: 'clear-run-inspection' }
 
@@ -31,7 +29,6 @@ export const initialNetworkWorkspaceState: NetworkWorkspaceState = {
   environment: 'draft',
   selection: { type: 'network' },
   inspectorContext: 'network',
-  inspectorExpanded: false,
   inspectionScope: { type: 'current' },
 }
 
@@ -59,8 +56,6 @@ export function networkWorkspaceReducer(
       }
     case 'context':
       return { ...state, inspectorContext: action.context }
-    case 'toggle-inspector':
-      return state
     case 'inspect-run':
       return { ...state, inspectionScope: { type: 'run', runId: action.runId } }
     case 'clear-run-inspection':
