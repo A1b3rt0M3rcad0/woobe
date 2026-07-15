@@ -13,6 +13,7 @@ export type NetworkSelection = {
   draftVersion: string
   draftBase?: string
   dirty: boolean
+  snapshotOverride?: Record<string, unknown>
 }
 
 export type NetworkBinding = NetworkSelection & {
