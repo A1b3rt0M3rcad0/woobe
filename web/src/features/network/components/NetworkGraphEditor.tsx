@@ -170,7 +170,7 @@ export function NetworkGraphEditor({
         elementsSelectable
         deleteKeyCode={null}
         fitView
-        fitViewOptions={{ padding: 0.25 }}
+        fitViewOptions={{ padding: 0.38, maxZoom: 0.88 }}
         minZoom={0.25}
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
