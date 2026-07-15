@@ -8,6 +8,7 @@ import { useCreateRelease, usePromoteRelease, useReleases, useRollbackRelease } 
 import type { Agent, AgentRelease } from '@/features/agents/types'
 import { releaseToEditorState, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
+import { AgentSnapshotDetails } from './AgentSnapshotDetails'
 import type { AgentNetworkBindingSummary } from './NetworkAgentWorkspace'
 
 interface NetworkAgentVersionsProps {
@@ -36,12 +37,18 @@ function SnapshotModal({ release, onClose }: { release: AgentRelease | null; onC
   if (!release) return null
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
+      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
         <div className="flex shrink-0 items-start gap-3 border-b border-border p-4">
-          <div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wider text-primary-light">Agent snapshot</p><h2 className="mt-1 truncate text-sm font-semibold text-white">{release.version}</h2><p className="mt-1 text-[10px] text-muted">Read-only configuration preserved for this version.</p></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] uppercase tracking-wider text-primary-light">Agent snapshot</p>
+            <h2 className="mt-1 truncate text-sm font-semibold text-white">{release.name || 'Agent'} · {release.version}</h2>
+            <p className="mt-1 text-[10px] text-muted">Read-only configuration preserved for this version.</p>
+          </div>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted hover:bg-background hover:text-white"><X className="h-4 w-4" /></button>
         </div>
-        <pre className="scrollbar-thin min-h-0 flex-1 overflow-auto p-4 text-[10px] leading-5 text-slate-300">{JSON.stringify(release, null, 2)}</pre>
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+          <AgentSnapshotDetails release={release} />
+        </div>
       </div>
     </div>
   )
@@ -155,13 +162,13 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, readOnl
       {readOnly ? <div className="mb-3 rounded-lg border border-border bg-background/35 px-3 py-2 text-[9px] leading-4 text-muted">Inspection mode. Agent promotion, rollback and Draft replacement actions are disabled here.</div> : null}
 
       <div className="space-y-3">
-        <section className="rounded-lg border border-border/80 bg-background/35 p-3">
+        {!readOnly ? <section className="rounded-lg border border-border/80 bg-background/35 p-3">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface"><Upload className="h-3.5 w-3.5 text-primary-light" /></div>
             <div className="min-w-0 flex-1"><p className="text-[11px] font-medium text-white">Current Draft</p><p className="mt-0.5 text-[9px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</p></div>
-            {!readOnly ? <Button size="sm" className="h-7 px-2 text-[9px]" onClick={() => void stageDraft()} loading={createRelease.isPending || promoteRelease.isPending}>Stage</Button> : null}
+            <Button size="sm" className="h-7 px-2 text-[9px]" onClick={() => void stageDraft()} loading={createRelease.isPending || promoteRelease.isPending}>Stage</Button>
           </div>
-        </section>
+        </section> : null}
 
         <section>
           <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted">Staging</p>
