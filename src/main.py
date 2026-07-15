@@ -259,13 +259,24 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def startup() -> None:
-        async with app.state.async_engine.begin() as connection:
-            await connection.execute(text("SELECT 1"))
+        engine = app.state.async_engine
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("API runtime started without background workers")
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await close_http_tool_executor()
         await app.state.async_engine.dispose()
+        logger.info("API runtime stopped")
+
+    @app.get("/live", include_in_schema=False)
+    async def live():
+        return {"status": "ok", "runtime": "api"}
+
+    @app.get("/health", include_in_schema=False)
+    async def health():
+        return {"status": "ok"}
 
     return app
 
@@ -273,17 +284,10 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-def run() -> None:
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=False,
-        loop="uvloop",
-    )
+async def _main() -> None:
+    # Allows `python -m src.main` smoke imports without starting uvicorn.
+    await asyncio.sleep(0)
 
 
 if __name__ == "__main__":
-    asyncio.run(asyncio.to_thread(run))
+    asyncio.run(_main())
