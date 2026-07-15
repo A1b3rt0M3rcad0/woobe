@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import type { Ref, UIEventHandler } from 'react'
 import { Workflow } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
@@ -17,7 +17,7 @@ interface NetworkChatHistoryProps {
   pendingMessage: string | null
   liveAnswer: string
   liveActivity: string[]
-  onScroll?: React.UIEventHandler<HTMLDivElement>
+  onScroll?: UIEventHandler<HTMLDivElement>
   onSuggestion: (value: string) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
