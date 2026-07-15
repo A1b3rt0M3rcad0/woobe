@@ -9,12 +9,14 @@ export function NetworkAgentCatalogDrawer({
   addedAgentIds,
   onClose,
   onAdd,
+  onCreate,
 }: {
   open: boolean
   agents: Agent[]
   addedAgentIds: Set<string>
   onClose: () => void
   onAdd: (agent: Agent) => void
+  onCreate: () => void
 }) {
   const [query, setQuery] = useState('')
   const filtered = useMemo(() => {
@@ -30,10 +32,11 @@ export function NetworkAgentCatalogDrawer({
           <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-white">Add Agent</p><p className="mt-1 text-[10px] text-muted">Choose an Agent from this Project.</p></div>
           <button type="button" onClick={onClose} className="rounded-lg border border-border p-2 text-muted hover:text-white"><X className="h-4 w-4" /></button>
         </header>
-        <div className="border-b border-border p-4">
+        <div className="space-y-3 border-b border-border p-4">
+          <button type="button" onClick={onCreate} className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-[10px] font-medium text-primary-light hover:bg-primary/10 hover:text-white"><Plus className="h-3.5 w-3.5" />Create and add Agent</button>
           <label className="flex items-center gap-2 rounded-xl border border-border bg-background/45 px-3 py-2.5"><Search className="h-3.5 w-3.5 text-muted" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, model or provider" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-muted" /></label>
         </div>
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+        <div className="scrollbar-thin min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
           {filtered.map((agent) => {
             const added = addedAgentIds.has(agent.id)
             return <article key={agent.id} className={cn('rounded-xl border p-3', added ? 'border-primary/20 bg-primary/5' : 'border-border bg-background/30')}>
@@ -47,4 +50,3 @@ export function NetworkAgentCatalogDrawer({
     </div>
   )
 }
-
