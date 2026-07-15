@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Copy, KeyRound, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { createRuntimeApiKey } from '@/features/api-keys/api'
+import { getNetworkVersions } from '@/features/network/api'
 import type { NetworkVersion } from '@/features/network/types'
 import { API_BASE_URL } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
@@ -16,7 +18,8 @@ type Props = {
   onClose: () => void
   projectId: string
   networkId: string
-  versions: { staging: NetworkVersion | null; production: NetworkVersion | null }
+  versionIds?: { staging?: string | null; production?: string | null }
+  versions?: { staging: NetworkVersion | null; production: NetworkVersion | null }
   bindings: {
     staging: Record<AgentNodeId, NetworkBinding>
     production: Record<AgentNodeId, NetworkBinding>
@@ -45,15 +48,29 @@ export function NetworkApiModal({
   onClose,
   projectId,
   networkId,
+  versionIds,
   versions,
   bindings,
 }: Props) {
   const [environment, setEnvironment] = useState<'staging' | 'production'>('staging')
   const [creating, setCreating] = useState(false)
   const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const managedVersions = useQuery({
+    queryKey: ['network-versions', networkId, projectId],
+    queryFn: () => getNetworkVersions(networkId, projectId),
+    enabled: Boolean(open && networkId && projectId && !versions),
+  })
+  const resolvedVersions = useMemo(() => {
+    if (versions) return versions
+    const available = managedVersions.data ?? []
+    return {
+      staging: available.find((item) => item.id === versionIds?.staging) ?? null,
+      production: available.find((item) => item.id === versionIds?.production) ?? null,
+    }
+  }, [managedVersions.data, versionIds?.production, versionIds?.staging, versions])
   const active = bindings[environment]
-  const activeVersion = versions[environment]
-  const versionId = activeVersion?.id ?? null
+  const activeVersion = resolvedVersions[environment]
+  const versionId = activeVersion?.id ?? versionIds?.[environment] ?? null
   const parsedOutput = exampleResult(activeVersion)
   const responseExample = {
     success: true,
@@ -124,14 +141,14 @@ export function NetworkApiModal({
                     className={cn('rounded-xl border p-3 text-left', item === environment ? 'border-primary/35 bg-primary/10' : 'border-border bg-background/35')}
                   >
                     <p className="text-[10px] font-semibold capitalize text-white">{item}</p>
-                    <p className="mt-1 truncate font-mono text-[9px] text-muted">{versions[item]?.version ?? 'not promoted'}</p>
+                    <p className="mt-1 truncate font-mono text-[9px] text-muted">{resolvedVersions[item]?.version ?? 'not promoted'}</p>
                   </button>
                 ))}
               </div>
 
               <div className={cn(surface, 'mt-4 p-3')}>
                 <p className="text-[9px] uppercase text-muted">Pinned Network Release</p>
-                <p className="mt-1 break-all font-mono text-[10px] text-white">{activeVersion?.version ?? 'Promote this environment first'}</p>
+                <p className="mt-1 break-all font-mono text-[10px] text-white">{activeVersion?.version ?? (versionId ? 'Loading version metadata…' : 'Promote this environment first')}</p>
                 {activeVersion?.entry_agent_release_version ? <p className="mt-2 text-[9px] text-muted">Entry Agent Release · <span className="font-mono text-slate-300">{activeVersion.entry_agent_release_version}</span></p> : null}
               </div>
 
