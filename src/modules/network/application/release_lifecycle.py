@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from modules.agent.domain.release_compatibility import classify_release_change
 from modules.agent.domain.release_versioning import calculate_next_release_version
 from modules.agent.infra.database.models import AgentReleaseModel
 from modules.network.domain.enums import NetworkEnvironment
@@ -68,6 +69,31 @@ async def _equivalent_agent_snapshot(
     return None
 
 
+async def _candidate_manifest(session, definition, nodes: list[dict[str, Any]]):
+    by_node = {str(item.get("node_id")): item for item in nodes}
+    manifest: list[dict[str, Any]] = []
+    entry_release = None
+    for node in definition.nodes:
+        item = by_node.get(str(node.id)) or {}
+        release = await _release_by_id(session, item.get("selected_ref"))
+        if release is None:
+            continue
+        record = {
+            "node_id": str(node.id),
+            "role": "entry" if node.id == definition.root_node_id else "specialist",
+            "agent_id": str(node.agent_id),
+            "release_id": str(release.id),
+            "release_version": release.version,
+            "snapshot_hash": agent_snapshot_hash(release),
+            "output_contract_hash": output_contract_hash(release),
+        }
+        manifest.append(record)
+        if node.id == definition.root_node_id:
+            entry_release = release
+    manifest.sort(key=lambda item: (item["role"] != "entry", item["node_id"]))
+    return manifest, entry_release
+
+
 async def _decorate_plan(self, session, definition, project_id, environment, *, lock=False):
     base = self._network_release_base_plan
     plan = await base(
@@ -106,6 +132,7 @@ async def _decorate_plan(self, session, definition, project_id, environment, *, 
                 lock=lock,
             )
         if equivalent is None:
+            node["snapshot_hash"] = agent_snapshot_hash(source)
             continue
         removed_action_ids.add(str(action_id))
         node["action_id"] = None
@@ -125,6 +152,82 @@ async def _decorate_plan(self, session, definition, project_id, environment, *, 
         if str(action.get("id")) not in removed_action_ids
     ]
     plan["reused_agent_count"] = reused
+
+    network = await session.scalar(
+        select(NetworkModel).where(NetworkModel.project_id == project_id)
+    )
+    if environment == NetworkEnvironment.STAGING:
+        existing = []
+        if network is not None:
+            existing = list(
+                (
+                    await session.scalars(
+                        select(NetworkVersionModel.version).where(
+                            NetworkVersionModel.network_id == network.id,
+                            NetworkVersionModel.kind == "staging",
+                        )
+                    )
+                ).all()
+            )
+        plan["staging_preview"] = {
+            "next_version": _next_staging_version(existing),
+            "reused_agent_count": reused,
+            "promotion_count": len(plan["actions"]),
+        }
+        return plan
+
+    if environment == NetworkEnvironment.PRODUCTION and network is not None:
+        candidate_manifest, entry_release = await _candidate_manifest(
+            session, definition, plan.get("nodes", [])
+        )
+        candidate_contract = output_contract_snapshot(entry_release) if entry_release else None
+        previous = (
+            await session.get(NetworkVersionModel, network.production_version_id)
+            if network.production_version_id
+            else None
+        )
+        change_kind = classify_contract_change(
+            previous.public_output_contract if previous else None,
+            candidate_contract,
+        )
+        existing_versions = list(
+            (
+                await session.scalars(
+                    select(NetworkVersionModel.version).where(
+                        NetworkVersionModel.network_id == network.id,
+                        NetworkVersionModel.kind == "release",
+                    )
+                )
+            ).all()
+        )
+        previous_manifest = {
+            str(item.get("node_id")): item
+            for item in (previous.agent_release_manifest or [])
+        } if previous else {}
+        internal_warnings: list[str] = []
+        for item in candidate_manifest:
+            if item["role"] == "entry":
+                continue
+            before = previous_manifest.get(item["node_id"])
+            if before and before.get("output_contract_hash") != item["output_contract_hash"]:
+                internal_warnings.append(
+                    f"Specialist Agent {item['agent_id']} changed its internal output contract."
+                )
+        plan["release_preview"] = {
+            "change_kind": change_kind.value,
+            "next_version": calculate_next_release_version(
+                existing_versions, change_kind
+            ),
+            "entry_agent_id": str(entry_release.agent_id) if entry_release else None,
+            "entry_agent_release_id": str(entry_release.id) if entry_release else None,
+            "entry_agent_release_version": entry_release.version if entry_release else None,
+            "public_output_contract": candidate_contract,
+            "public_output_contract_hash": canonical_hash(candidate_contract),
+            "agent_release_manifest": candidate_manifest,
+            "internal_warnings": internal_warnings,
+            "reused_agent_count": reused,
+            "promotion_count": len(plan["actions"]),
+        }
     return plan
 
 
@@ -172,6 +275,93 @@ async def _release_metadata(session, version: NetworkVersionModel, definition) -
     }
 
 
+async def _copy_agent_snapshot_semantic(
+    self,
+    session,
+    source,
+    *,
+    target: str,
+    promoted_by: UUID | None,
+):
+    if target == "staging":
+        return await self._network_release_base_copy_agent_snapshot(
+            session,
+            source,
+            target=target,
+            promoted_by=promoted_by,
+        )
+
+    equivalent = await _equivalent_agent_snapshot(
+        session,
+        source=source,
+        target_kind="release",
+        active_only=False,
+        lock=True,
+    )
+    if equivalent is not None:
+        return equivalent
+
+    active = list(
+        (
+            await session.scalars(
+                select(AgentReleaseModel)
+                .where(
+                    AgentReleaseModel.agent_id == source.agent_id,
+                    AgentReleaseModel.status == "production",
+                    AgentReleaseModel.snapshot_kind == "release",
+                )
+                .with_for_update()
+            )
+        ).all()
+    )
+    previous = active[0] if active else None
+    for current in active:
+        current.status = "archived"
+
+    releases = list(
+        (
+            await session.scalars(
+                select(AgentReleaseModel).where(
+                    AgentReleaseModel.agent_id == source.agent_id
+                )
+            )
+        ).all()
+    )
+    historical = [
+        item.version for item in releases if item.snapshot_kind == "release"
+    ]
+    change_kind = classify_release_change(previous, source)
+    version = calculate_next_release_version(historical, change_kind)
+    excluded = {
+        "id",
+        "created_at",
+        "updated_at",
+        "version",
+        "status",
+        "snapshot_kind",
+        "promoted_by",
+        "promoted_at",
+        "release_notes",
+    }
+    values = {
+        column.name: deepcopy(getattr(source, column.name))
+        for column in AgentReleaseModel.__table__.columns
+        if column.name not in excluded
+    }
+    clone = AgentReleaseModel(
+        **values,
+        version=version,
+        status="production",
+        snapshot_kind="release",
+        release_notes=source.release_notes,
+        promoted_by=promoted_by,
+        promoted_at=datetime.now(timezone.utc),
+    )
+    session.add(clone)
+    await session.flush()
+    return clone
+
+
 async def _promote_with_release_semantics(
     self,
     *,
@@ -208,10 +398,11 @@ async def _promote_with_release_semantics(
         definition = self._definition(version.definition)
         metadata = await _release_metadata(session, version, definition)
         entry_release = metadata["entry_release"]
-        version.entry_agent_id = definition.root_node_id and next(
-            (node.agent_id for node in definition.nodes if node.id == definition.root_node_id),
+        entry_node = next(
+            (node for node in definition.nodes if node.id == definition.root_node_id),
             None,
         )
+        version.entry_agent_id = entry_node.agent_id if entry_node else None
         version.entry_agent_release_id = entry_release.id if entry_release else None
         version.entry_agent_release_version = entry_release.version if entry_release else None
         version.public_output_contract = deepcopy(metadata["public_contract"])
@@ -320,5 +511,9 @@ def install_network_release_lifecycle() -> None:
     NetworkApplicationService._network_release_base_promote = (  # type: ignore[attr-defined]
         NetworkApplicationService.promote
     )
+    NetworkApplicationService._network_release_base_copy_agent_snapshot = (  # type: ignore[attr-defined]
+        NetworkApplicationService._copy_agent_snapshot
+    )
     NetworkApplicationService._build_promotion_plan = _decorate_plan  # type: ignore[attr-defined]
+    NetworkApplicationService._copy_agent_snapshot = _copy_agent_snapshot_semantic  # type: ignore[attr-defined]
     NetworkApplicationService.promote = _promote_with_release_semantics  # type: ignore[assignment]
