@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { cancelNetworkExecution, resetNetworkSessionContext } from '@/features/network/api'
@@ -12,6 +13,7 @@ import type { NetworkSession } from './networkSessionTypes'
 import { NetworkChatComposer } from './NetworkChatComposer'
 import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
+import { reconcileNetworkTurns } from './networkTurnReconciliation'
 
 interface NetworkChatWorkspaceProps {
   networkId: string
@@ -66,9 +68,11 @@ export function NetworkChatWorkspace({
   onSelectAgent,
   onOpenTrace,
 }: NetworkChatWorkspaceProps) {
+  const queryClient = useQueryClient()
   const [text, setText] = useState('')
-  const [turns, setTurns] = useState<NetworkTurn[]>(historyTurns)
+  const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [running, setRunning] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
@@ -76,17 +80,28 @@ export function NetworkChatWorkspace({
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
   const changed = environment !== 'draft' && activeSession.networkVersion !== currentVersionId
+  const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>(
     (result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }),
     { draft: 0, staging: 0, release: 0 },
   )
 
   useEffect(() => () => abortRef.current?.abort(), [])
-  useEffect(() => { setTurns(historyTurns) }, [historyTurns])
+  useEffect(() => {
+    const persistedIds = new Set(historyTurns.map((turn) => turn.id))
+    if (persistedIds.size) setLocalTurns((current) => current.filter((turn) => !persistedIds.has(turn.id)))
+  }, [historyTurns])
   useEffect(() => {
     const element = scrollRef.current
     if (element) element.scrollTop = element.scrollHeight
-  }, [turns, running])
+  }, [turns, running, liveAnswer, liveActivity])
+
+  const refreshPersistedSession = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['network-session-messages', networkId, activeSession.id, projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] }),
+    ])
+  }
 
   const stop = () => {
     const wasRunning = running
@@ -95,11 +110,15 @@ export function NetworkChatWorkspace({
     abortRef.current = null
     executionIdRef.current = null
     setRunning(false)
+    setPendingMessage(null)
     setLiveAnswer('')
     setLiveActivity([])
     if (wasRunning && executionId) {
       void cancelNetworkExecution(executionId, projectId)
-        .then(() => toast.info('Network execution cancellation requested'))
+        .then(async () => {
+          toast.info('Network execution cancellation requested')
+          await refreshPersistedSession()
+        })
         .catch(() => toast.warning('Connection closed, but cancellation could not be confirmed'))
     } else if (wasRunning) {
       toast.info('Network execution connection stopped')
@@ -111,9 +130,10 @@ export function NetworkChatWorkspace({
     abortRef.current?.abort()
     abortRef.current = null
     setRunning(false)
+    setPendingMessage(null)
     setLiveAnswer('')
     setLiveActivity([])
-    setTurns([])
+    setLocalTurns([])
     setText('')
     onNewSession()
   }
@@ -137,6 +157,7 @@ export function NetworkChatWorkspace({
     }
     setText('')
     setRunning(true)
+    setPendingMessage(content)
     setLiveAnswer('')
     setLiveActivity([])
     setLastHeartbeatAt(null)
@@ -193,7 +214,7 @@ export function NetworkChatWorkspace({
         fallbackTraceId: traceId,
         terminalStatus: status,
       })
-      setTurns((items) => [...items, turn])
+      setLocalTurns((items) => [...items.filter((item) => item.id !== turn.id), turn])
       onRun(createNetworkTraceRecord({
         execution: turn.execution,
         environment,
@@ -209,15 +230,20 @@ export function NetworkChatWorkspace({
         runtimeEvents: records,
         networkVersion: environment === 'draft' ? `Draft r${expectedDraftRevision}` : versionLabel,
       }))
+      await refreshPersistedSession()
     } catch (error) {
       if (!controller.signal.aborted) {
         if (!executionId) setText(content)
         toast.error(error instanceof Error ? error.message : 'Network execution failed')
+        if (executionId) await refreshPersistedSession()
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
       if (executionIdRef.current === executionId) executionIdRef.current = null
       setRunning(false)
+      setPendingMessage(null)
+      setLiveAnswer('')
+      setLiveActivity([])
     }
   }
 
@@ -225,8 +251,8 @@ export function NetworkChatWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession.id} changed={changed} newSessionDisabled={running} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
-      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
-      {running ? <div className="mx-4 mb-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-[10px]"><div className="flex items-center gap-2 text-primary-light"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Live Network activity<span className="ml-auto text-[9px] text-muted">{lastHeartbeatAt ? 'heartbeat received' : 'connection open'}</span></div>{liveActivity.length ? <div className="mt-2 space-y-1 text-muted">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}{liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-slate-200">{liveAnswer}</p> : null}</div> : null}
+      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
+      {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
       <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
     </div>
   )
