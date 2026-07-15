@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import {
   Background,
   BackgroundVariant,
@@ -19,12 +20,15 @@ import './network-flow.css'
 import { AlertTriangle, Bot, Crown, Lock, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { getRelease } from '@/features/agents/api'
 import type { Agent } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import { canConnectNetworkNodes } from '../editor/networkGraphValidation'
 import type { NetworkAgentNodeData, NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
+import { NetworkBindingBadge } from './NetworkBindingBadge'
 import { NetworkCanvasChrome } from './NetworkCanvasChrome'
+import type { AgentNodeId, NetworkBinding } from './networkWorkspaceTypes'
 
 type AgentFlowNode = Node<NetworkAgentNodeData, 'network-agent'>
 
@@ -58,11 +62,24 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
           {data.node.capability_description ? <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-2">
-        <span className={cn('rounded-md border px-1.5 py-0.5 text-[8px] font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted')}>
-          {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
-        </span>
-        <span className={cn('h-2 w-2 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
+      <div className="mt-3 space-y-2 border-t border-border/70 pt-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn('rounded-md border px-1.5 py-0.5 text-[8px] font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted')}>
+            {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
+          </span>
+          <span className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
+        </div>
+        {data.binding ? (
+          <NetworkBindingBadge
+            source={data.binding.source}
+            version={data.binding.version}
+            dirty={data.binding.dirty}
+            className="w-full justify-center"
+            title={`${data.binding.source === 'release' ? 'Agent Release' : data.binding.source === 'staging' ? 'Agent Staging snapshot' : 'Agent Draft'}: ${data.binding.version}${data.binding.dirty ? ' · unsaved changes' : ''}`}
+          />
+        ) : (
+          <span className="block rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-center text-[8px] font-semibold text-red-300">Binding unavailable</span>
+        )}
       </div>
     </article>
   )
@@ -73,6 +90,7 @@ const nodeTypes: NodeTypes = { 'network-agent': AgentNode }
 export function NetworkGraphEditor({
   definition,
   agents,
+  bindings,
   issues,
   selection,
   readOnly,
@@ -85,6 +103,7 @@ export function NetworkGraphEditor({
 }: {
   definition: NetworkDefinition
   agents: Agent[]
+  bindings: Record<AgentNodeId, NetworkBinding>
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
@@ -97,6 +116,40 @@ export function NetworkGraphEditor({
 }) {
   const agentsById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const activePathSet = useMemo(() => new Set(activePath), [activePath])
+  const unresolvedBindings = useMemo(() => Object.values(bindings).filter((binding) => (
+    binding.source !== 'draft'
+    && Boolean(binding.ref)
+    && (!binding.version || binding.version === 'pinned snapshot')
+  )), [bindings])
+  const releaseQueries = useQueries({
+    queries: unresolvedBindings.map((binding) => ({
+      queryKey: ['release', binding.agent.id, binding.ref],
+      queryFn: () => getRelease(binding.agent.id, binding.ref),
+      staleTime: 60_000,
+    })),
+  })
+  const releaseVersionByRef = useMemo(() => {
+    const result = new Map<string, string>()
+    releaseQueries.forEach((query, index) => {
+      const binding = unresolvedBindings[index]
+      if (binding && query.data?.version) result.set(binding.ref, query.data.version)
+    })
+    return result
+  }, [releaseQueries, unresolvedBindings])
+  const displayBindings = useMemo(() => Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => {
+    const fallbackVersion = binding.source === 'draft'
+      ? 'current'
+      : releaseVersionByRef.get(binding.ref) ?? 'pinned'
+    const version = !binding.version || binding.version === 'current Draft' || binding.version === 'pinned snapshot'
+      ? fallbackVersion
+      : binding.version
+    return [nodeId, {
+      source: binding.source,
+      version,
+      dirty: binding.dirty,
+      ref: binding.ref,
+    }]
+  })), [bindings, releaseVersionByRef])
   const derivedNodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
     id: node.id,
     type: 'network-agent',
@@ -107,12 +160,13 @@ export function NetworkGraphEditor({
     data: {
       node,
       agent: agentsById.get(node.agent_id),
+      binding: displayBindings[node.id],
       isRoot: definition.root_node_id === node.id,
       readOnly,
       activeInRun: activePathSet.has(node.id),
       issues: issues.filter((issue) => issue.nodeId === node.id),
     },
-  })), [activePathSet, agentsById, definition.nodes, definition.root_node_id, issues, readOnly, selection])
+  })), [activePathSet, agentsById, definition.nodes, definition.root_node_id, displayBindings, issues, readOnly, selection])
   const [nodes, setNodes, onNodesChange] = useNodesState<AgentFlowNode>(derivedNodes)
   const draggingRef = useRef(false)
   const viewportTouchedRef = useRef(false)
