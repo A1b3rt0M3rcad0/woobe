@@ -1,9 +1,9 @@
 import type { NetworkMessageResource } from '@/features/network/types'
 
-import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
+import { buildTurnFromRuntimeEvents, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
-import type { NetworkSession } from './networkSessionTypes'
+import type { NetworkAgentContext, NetworkSession } from './networkSessionTypes'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
 
 function historyRecords(message: NetworkMessageResource, sessionId: string): RuntimeEventRecord[] {
@@ -34,6 +34,34 @@ function terminalStatus(status: string): NetworkExecution['status'] {
   return 'error'
 }
 
+function invocationContexts(root: NetworkAgentInvocation, session: NetworkSession): NetworkAgentContext[] {
+  const byNode = new Map<string, NetworkAgentContext>()
+  const visit = (invocation: NetworkAgentInvocation) => {
+    if (invocation.nodeId) {
+      const existing = byNode.get(invocation.nodeId)
+      const invokedAt = session.lastMessageAt ?? session.createdAt
+      byNode.set(invocation.nodeId, {
+        id: existing?.id ?? `${session.id}:${invocation.nodeId}`,
+        networkSessionId: session.id,
+        nodeId: invocation.nodeId,
+        agentId: invocation.agentId,
+        agentName: invocation.agentName,
+        sessionMode: invocation.contextState === 'stateless' ? 'stateless' : 'stateful',
+        agentSessionId: invocation.agentSessionId,
+        source: invocation.source,
+        version: invocation.version,
+        invocationCount: (existing?.invocationCount ?? 0) + 1,
+        messageCount: session.messageCount,
+        createdAt: existing?.createdAt ?? invokedAt,
+        lastInvokedAt: invokedAt,
+      })
+    }
+    invocation.children.forEach(visit)
+  }
+  visit(root)
+  return [...byNode.values()]
+}
+
 export interface HydratedNetworkHistory {
   turns: NetworkTurn[]
   traces: NetworkTraceRecord[]
@@ -61,8 +89,9 @@ export function hydrateNetworkHistory({ messages, environment, bindings, session
     const user = group.user?.content ?? ''
     const answer = group.assistant?.content ?? source.execution.failure?.message ?? ''
     const turn = buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) })
+    const contexts = session.agentContexts.length ? session.agentContexts : invocationContexts(turn.execution.root, session)
     turns.push(turn)
-    traces.push(createNetworkTraceRecord({ execution: turn.execution, environment, bindings, networkSessionId: session.id, title: user || 'Network Run', userMessage: user, answer: turn.answer, usage: turn.usage, agentContexts: session.agentContexts, parsedOutput: turn.parsedOutput, outputParseError: turn.outputParseError, source: 'runtime', runtimeEvents: records, networkVersion: versionLabel }))
+    traces.push(createNetworkTraceRecord({ execution: turn.execution, environment, bindings, networkSessionId: session.id, title: user || 'Network Run', userMessage: user, answer: turn.answer, usage: turn.usage, agentContexts: contexts, parsedOutput: turn.parsedOutput, outputParseError: turn.outputParseError, source: 'runtime', runtimeEvents: records, networkVersion: versionLabel }))
   }
   return { turns, traces }
 }
