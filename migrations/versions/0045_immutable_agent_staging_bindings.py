@@ -59,6 +59,11 @@ def upgrade() -> None:
         server_default=sa.text("'draft'"),
         schema="agent",
     )
+
+    # Some existing databases already carry this index from the previous
+    # Agent schema lifecycle. Rebuild it deterministically after normalizing
+    # duplicate active Staging rows instead of failing on the relation name.
+    op.execute("DROP INDEX IF EXISTS agent.uq_agent_releases_staging")
     op.create_index(
         "uq_agent_releases_staging",
         "agent_releases",
@@ -82,9 +87,5 @@ def downgrade() -> None:
         schema="agent",
         type_="check",
     )
-    op.drop_index(
-        "uq_agent_releases_staging",
-        table_name="agent_releases",
-        schema="agent",
-    )
+    op.execute("DROP INDEX IF EXISTS agent.uq_agent_releases_staging")
     op.drop_column("agent_releases", "snapshot_kind", schema="agent")
