@@ -1,6 +1,7 @@
 export type NetworkEnvironment = 'draft' | 'staging' | 'production'
 export type NetworkPromotionEnvironment = Exclude<NetworkEnvironment, 'draft'>
 export type NetworkAgentBindingSource = 'draft' | 'staging' | 'release'
+export type ReleaseChangeKind = 'compatibility' | 'feature' | 'change'
 
 export type NetworkAgentBindingSelector =
   | { source: 'draft'; release_id: null }
@@ -60,6 +61,23 @@ export interface ResolvedNetworkBinding {
   snapshot_override?: Record<string, unknown> | null
 }
 
+export interface NetworkOutputContract {
+  enabled: boolean
+  type: 'json'
+  strict: boolean
+  schema: Record<string, unknown>
+}
+
+export interface NetworkAgentReleaseManifestItem {
+  node_id: string
+  role: 'entry' | 'specialist'
+  agent_id: string
+  release_id: string
+  release_version: string
+  snapshot_hash: string
+  output_contract_hash: string
+}
+
 export interface NetworkVersion {
   id: string
   kind: 'staging' | 'release'
@@ -72,6 +90,34 @@ export interface NetworkVersion {
   source_version_id?: string | null
   activation_kind?: 'publish' | 'reactivate' | 'rollback' | null
   change_description?: string | null
+  source_draft_revision?: number | null
+  source_staging_version_id?: string | null
+  entry_agent_id?: string | null
+  entry_agent_release_id?: string | null
+  entry_agent_release_version?: string | null
+  public_output_contract?: NetworkOutputContract | null
+  public_output_contract_hash?: string | null
+  agent_release_manifest?: NetworkAgentReleaseManifestItem[] | null
+  agent_release_manifest_hash?: string | null
+  runtime_settings_hash?: string | null
+  release_fingerprint?: string | null
+  change_kind?: ReleaseChangeKind | null
+}
+
+export interface NetworkProductionActivation {
+  id: string
+  network_id: string
+  version_id: string
+  previous_version_id: string | null
+  activation_kind: 'publish' | 'reactivate' | 'rollback'
+  change_description: string
+  created_by: string | null
+  created_at: string
+}
+
+export interface ActivateNetworkProductionResult {
+  version: NetworkVersion
+  activation: NetworkProductionActivation
 }
 
 export interface NetworkSessionResource {
@@ -167,6 +213,8 @@ export interface NetworkExecutionSnapshot {
   resolved_bindings: Record<string, ResolvedNetworkBinding>
   snapshot_source: 'execution' | 'network_version'
   agent_contexts: NetworkExecutionSnapshotAgentContext[]
+  parsed_output?: Record<string, unknown> | null
+  output_parse_error?: string | null
 }
 
 export interface PromotionPreviewNode {
@@ -180,6 +228,8 @@ export interface PromotionPreviewNode {
   action_required: 'promote_draft_to_staging' | 'publish_staging_to_release' | null
   action_id: string | null
   blocking_reason: string | null
+  reuse_reason?: string | null
+  snapshot_hash?: string | null
 }
 
 export interface PromotionPreviewAction {
@@ -191,6 +241,26 @@ export interface PromotionPreviewAction {
   source_version: string
 }
 
+export interface NetworkStagingPreview {
+  next_version: string
+  reused_agent_count: number
+  promotion_count: number
+}
+
+export interface NetworkReleasePreview {
+  change_kind: ReleaseChangeKind
+  next_version: string
+  entry_agent_id: string | null
+  entry_agent_release_id: string | null
+  entry_agent_release_version: string | null
+  public_output_contract: NetworkOutputContract | null
+  public_output_contract_hash: string
+  agent_release_manifest: NetworkAgentReleaseManifestItem[]
+  internal_warnings: string[]
+  reused_agent_count: number
+  promotion_count: number
+}
+
 export interface PromotionPreview {
   environment: NetworkPromotionEnvironment
   network_revision: number
@@ -199,6 +269,9 @@ export interface PromotionPreview {
   nodes: PromotionPreviewNode[]
   actions: PromotionPreviewAction[]
   missing_agent_ids: string[]
+  reused_agent_count?: number
+  staging_preview?: NetworkStagingPreview
+  release_preview?: NetworkReleasePreview
 }
 
 export interface PromoteNetworkInput {
