@@ -58,6 +58,10 @@ function isNearBottom(element: HTMLDivElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_THRESHOLD_PX
 }
 
+function isPublicFinalToken(event: NetworkRuntimeEvent) {
+  return event.data.visibility === 'assistant' && event.data.channel === 'final'
+}
+
 export function NetworkChatWorkspace({
   networkId,
   projectId,
@@ -202,7 +206,7 @@ export function NetworkChatWorkspace({
           if (eventType !== 'token' && eventType !== 'token_retract') {
             setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           }
-          if (eventType === 'token') {
+          if (eventType === 'token' && isPublicFinalToken(event)) {
             const chunk = event.data.content
             if (typeof chunk === 'string') {
               answer += chunk
