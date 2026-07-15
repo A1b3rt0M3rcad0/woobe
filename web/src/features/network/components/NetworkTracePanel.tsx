@@ -23,6 +23,14 @@ function formatTraceTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }).format(date)
 }
 
+function newestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
+  const startedDelta = new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime()
+  if (startedDelta) return startedDelta
+  const completedDelta = new Date(right.completedAt ?? right.startedAt).getTime() - new Date(left.completedAt ?? left.startedAt).getTime()
+  if (completedDelta) return completedDelta
+  return right.id.localeCompare(left.id)
+}
+
 function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecord; selected: boolean; onSelect: () => void }) {
   return (
     <button type="button" onClick={onSelect} className={cn('w-full rounded-lg border px-3 py-2.5 text-left transition-colors', selected ? 'border-primary/35 bg-primary/10' : 'border-transparent hover:border-border/70 hover:bg-background/55')}>
@@ -56,7 +64,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
     if (status !== 'all' && trace.status !== status) return false
     const normalized = query.trim().toLowerCase()
     return !normalized || `${trace.title} ${trace.userMessage} ${trace.traceId ?? ''}`.toLowerCase().includes(normalized)
-  }), [query, status, traces])
+  }).sort(newestFirst), [query, status, traces])
   const selected = selectedTraceId ? filtered.find((trace) => trace.id === selectedTraceId) ?? null : null
 
   if (!session) {
@@ -78,7 +86,7 @@ export function NetworkTracePanel({ traces, session, selectedTraceId, onSelectTr
           <div className="min-w-0">
             <h2 className="text-[12px] font-semibold text-white">Network Runs</h2>
             <p className="mt-1 truncate text-[10px] text-slate-300">{session.title}</p>
-            <p className="mt-0.5 text-[10px] text-muted">{session.networkVersion} · {traces.length} execution{traces.length === 1 ? '' : 's'}</p>
+            <p className="mt-0.5 text-[10px] text-muted">{session.versionLabel} · {traces.length} execution{traces.length === 1 ? '' : 's'}</p>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-muted"><Filter className="h-3.5 w-3.5" />{filtered.length}</div>
         </div>
