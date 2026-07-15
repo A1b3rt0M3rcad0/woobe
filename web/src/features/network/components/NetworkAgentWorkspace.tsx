@@ -19,6 +19,7 @@ export interface AgentNetworkBindingSummary {
   source: BindingSource
   version: string
   ref?: string
+  snapshotOverride?: Record<string, unknown>
 }
 
 interface NetworkAgentWorkspaceProps {
@@ -35,6 +36,51 @@ function sourceLabel(source: BindingSource) {
   if (source === 'draft') return 'Draft'
   if (source === 'staging') return 'Staging'
   return 'Release'
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function stringValue(record: Record<string, unknown>, key: string): string | undefined {
+  return typeof record[key] === 'string' ? record[key] as string : undefined
+}
+
+function numberValue(record: Record<string, unknown>, key: string): number | undefined {
+  return typeof record[key] === 'number' ? record[key] as number : undefined
+}
+
+function capturedDraftRelease(agent: Agent, binding: AgentNetworkBindingSummary): AgentRelease | null {
+  if (!binding.snapshotOverride) return null
+  const snapshot = binding.snapshotOverride
+  const responseFormat = recordValue(snapshot.response_format)
+  const runtimeConfig = recordValue(snapshot.runtime_config)
+  return {
+    id: `captured-draft:${agent.id}`,
+    project_id: agent.project_id,
+    agent_id: agent.id,
+    version: binding.version,
+    status: 'archived',
+    snapshot_kind: 'draft',
+    name: stringValue(snapshot, 'name') ?? agent.name,
+    description: stringValue(snapshot, 'description') ?? agent.description,
+    system_prompt: stringValue(snapshot, 'system_prompt'),
+    response_format: Object.keys(responseFormat).length ? responseFormat : undefined,
+    output_schema: recordValue(snapshot.output_schema),
+    provider: stringValue(snapshot, 'provider'),
+    model: stringValue(snapshot, 'model'),
+    provider_credential_id: stringValue(snapshot, 'provider_credential_id'),
+    provider_model_id: stringValue(snapshot, 'provider_model_id'),
+    fallback_provider_model_id: stringValue(snapshot, 'fallback_provider_model_id'),
+    fallback_provider: stringValue(snapshot, 'fallback_provider'),
+    fallback_model: stringValue(snapshot, 'fallback_model'),
+    fallback_credential_id: stringValue(snapshot, 'fallback_credential_id'),
+    temperature: numberValue(snapshot, 'temperature'),
+    max_output_tokens: numberValue(snapshot, 'max_output_tokens'),
+    session_mode: stringValue(snapshot, 'session_mode'),
+    knowledge_version_id: stringValue(snapshot, 'knowledge_version_id'),
+    runtime_config: runtimeConfig,
+  }
 }
 
 function agentFromRelease(agent: Agent, release: AgentRelease): Agent {
@@ -152,11 +198,12 @@ function JsonSnapshot({ label, value }: { label: string; value: unknown }) {
 
 function ReadOnlyAgentSnapshotContent({ agent, release, projectId, networkBinding, onOpenComposition }: NetworkAgentWorkspaceProps & { release: AgentRelease }) {
   const [tab, setTab] = useState<SnapshotWorkspaceTab>('snapshot')
+  const showVersions = networkBinding.source !== 'draft'
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface/75">
       <div className="shrink-0 border-b border-border/80 bg-background/20 px-3 py-2.5"><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light"><Lock className="h-3.5 w-3.5" /></div><div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><p className="truncate text-[11px] font-semibold text-white">{agent.name}</p><span className="rounded border border-border bg-background/50 px-1.5 py-0.5 text-[8px] font-semibold uppercase text-muted">Read-only</span></div><div className="mt-1 flex min-w-0 items-center gap-1.5 text-[8px] text-muted"><GitBranch className="h-3 w-3 shrink-0 text-primary-light" /><span className="truncate">Exact {sourceLabel(networkBinding.source)} snapshot <span className="font-mono text-slate-300">{release.version}</span></span><button type="button" onClick={onOpenComposition} className="ml-auto shrink-0 font-medium text-primary-light hover:text-white">Role in Network</button></div></div></div></div>
-      <div className="flex shrink-0 gap-1 border-b border-border/80 bg-surface/60 p-1.5">{([['snapshot', 'Snapshot', FileJson], ['versions', 'Versions', Rocket]] as Array<[SnapshotWorkspaceTab, string, typeof FileJson]>).map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-medium', tab === id ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/70 hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
-      <div className="min-h-0 flex-1 overflow-hidden">{tab === 'snapshot' ? <div className="scrollbar-thin h-full overflow-y-auto p-4"><div className="mb-4 rounded-xl border border-border bg-background/35 p-3 text-[9px] leading-4 text-muted">This is the immutable Agent configuration referenced by the Network. The isolated Chat is intentionally unavailable because it would execute the current Agent runtime rather than this historical snapshot.</div><div className="grid grid-cols-2 gap-2"><SnapshotField label="Version" value={release.version} mono /><SnapshotField label="Status" value={release.status} /><SnapshotField label="Provider" value={release.provider} /><SnapshotField label="Model" value={release.model} mono /><SnapshotField label="Temperature" value={release.temperature} /><SnapshotField label="Max output tokens" value={release.max_output_tokens} /><SnapshotField label="Knowledge version" value={release.knowledge_version_id} mono /><SnapshotField label="Provider model" value={release.provider_model_id} mono /></div><section className="mt-4"><p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted">Instructions</p><div className="whitespace-pre-wrap rounded-xl border border-border/75 bg-background/35 p-3 text-[10px] leading-5 text-slate-200">{release.system_prompt || 'Not configured'}</div></section><div className="mt-4 space-y-4"><JsonSnapshot label="Output contract" value={release.response_format ?? release.output_schema} /><JsonSnapshot label="Runtime configuration" value={release.runtime_config} /></div></div> : <NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={{ ...networkBinding, version: release.version, ref: release.id }} readOnly onOpenComposition={onOpenComposition} />}</div>
+      {showVersions ? <div className="flex shrink-0 gap-1 border-b border-border/80 bg-surface/60 p-1.5">{([['snapshot', 'Snapshot', FileJson], ['versions', 'Versions', Rocket]] as Array<[SnapshotWorkspaceTab, string, typeof FileJson]>).map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-medium', tab === id ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/70 hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div> : null}
+      <div className="min-h-0 flex-1 overflow-hidden">{tab === 'snapshot' || !showVersions ? <div className="scrollbar-thin h-full overflow-y-auto p-4"><div className="mb-4 rounded-xl border border-border bg-background/35 p-3 text-[9px] leading-4 text-muted">This is the exact Agent configuration captured by the Network. The isolated Chat is unavailable because it would execute the current Agent runtime rather than this snapshot.</div><div className="grid grid-cols-2 gap-2"><SnapshotField label="Version" value={release.version} mono /><SnapshotField label="Snapshot" value={networkBinding.source} /><SnapshotField label="Provider" value={release.provider} /><SnapshotField label="Model" value={release.model} mono /><SnapshotField label="Temperature" value={release.temperature} /><SnapshotField label="Max output tokens" value={release.max_output_tokens} /><SnapshotField label="Knowledge version" value={release.knowledge_version_id} mono /><SnapshotField label="Provider model" value={release.provider_model_id} mono /></div><section className="mt-4"><p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted">Instructions</p><div className="whitespace-pre-wrap rounded-xl border border-border/75 bg-background/35 p-3 text-[10px] leading-5 text-slate-200">{release.system_prompt || 'Not configured'}</div></section><div className="mt-4 space-y-4"><JsonSnapshot label="Output contract" value={release.response_format ?? release.output_schema} /><JsonSnapshot label="Runtime configuration" value={release.runtime_config} /></div></div> : <NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={{ ...networkBinding, version: release.version, ref: release.id }} readOnly onOpenComposition={onOpenComposition} />}</div>
     </div>
   )
 }
@@ -167,7 +214,10 @@ export function NetworkAgentWorkspace(props: NetworkAgentWorkspaceProps) {
   const releaseListQuery = useReleases(stableInspection && !props.networkBinding.ref ? props.agent.id : undefined)
 
   if (props.readOnly && props.networkBinding.source === 'draft') {
-    return <SnapshotUnavailable message="This Draft Network Run is immutable, but the current history contract does not yet return the captured Agent Draft payload. The mutable current Agent is intentionally not shown as if it were the executed snapshot." />
+    const release = capturedDraftRelease(props.agent, props.networkBinding)
+    if (!release) return <SnapshotUnavailable message="The execution is immutable, but its captured Agent Draft payload is unavailable. The mutable current Agent is intentionally not substituted." />
+    const snapshotAgent = agentFromRelease(props.agent, release)
+    return <AgentEditorProvider key={`${props.agent.id}:${props.networkBinding.version}`} agent={snapshotAgent} projectId={props.projectId}><ReadOnlyAgentSnapshotContent {...props} agent={snapshotAgent} release={release} readOnly /></AgentEditorProvider>
   }
 
   if (stableInspection) {
