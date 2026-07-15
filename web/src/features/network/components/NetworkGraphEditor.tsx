@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from 'react'
 import {
   Background,
   BackgroundVariant,
-  Controls,
   Handle,
   MarkerType,
   MiniMap,
@@ -17,7 +16,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './network-flow.css'
-import { AlertTriangle, Bot, Crown, Lock, Plus, Workflow, X } from 'lucide-react'
+import { AlertTriangle, Bot, Crown, Lock, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
@@ -25,6 +24,7 @@ import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import { canConnectNetworkNodes } from '../editor/networkGraphValidation'
 import type { NetworkAgentNodeData, NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
+import { NetworkCanvasChrome } from './NetworkCanvasChrome'
 
 type AgentFlowNode = Node<NetworkAgentNodeData, 'network-agent'>
 
@@ -115,6 +115,7 @@ export function NetworkGraphEditor({
   })), [activePathSet, agentsById, definition.nodes, definition.root_node_id, issues, readOnly, selection])
   const [nodes, setNodes, onNodesChange] = useNodesState<AgentFlowNode>(derivedNodes)
   const draggingRef = useRef(false)
+  const viewportTouchedRef = useRef(false)
 
   useEffect(() => {
     if (draggingRef.current) return
@@ -132,6 +133,13 @@ export function NetworkGraphEditor({
       style: { strokeWidth: active ? 2.5 : 2, stroke: active ? '#34d399' : undefined },
     }
   }), [activePath, definition.edges, selection])
+  const fitKey = useMemo(() => [
+    inspectionLabel ?? 'current',
+    readOnly ? 'readonly' : 'editable',
+    definition.root_node_id ?? 'no-root',
+    definition.nodes.map((node) => node.id).sort().join(','),
+    definition.edges.map((edge) => edge.id).sort().join(','),
+  ].join(':'), [definition.edges, definition.nodes, definition.root_node_id, inspectionLabel, readOnly])
 
   const connect = (connection: Connection) => {
     if (readOnly || !connection.source || !connection.target) return
@@ -146,19 +154,25 @@ export function NetworkGraphEditor({
   }
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
+    <div data-network-canvas-shell className="relative min-h-0 flex-1 overflow-hidden bg-background">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         colorMode="dark"
         className="network-flow"
+        onMoveStart={(event) => {
+          if (event) viewportTouchedRef.current = true
+        }}
         onNodesChange={onNodesChange}
         onConnect={connect}
         onNodeClick={(_, node) => onSelect({ type: 'node', id: node.id })}
         onEdgeClick={(_, edge) => onSelect({ type: 'edge', id: edge.id })}
         onPaneClick={() => onSelect({ type: 'network' })}
-        onNodeDragStart={() => { draggingRef.current = true }}
+        onNodeDragStart={() => {
+          draggingRef.current = true
+          viewportTouchedRef.current = true
+        }}
         onNodeDragStop={(_, node) => {
           draggingRef.current = false
           setNodes((current) => current.map((item) => item.id === node.id ? { ...item, position: node.position } : item))
@@ -169,14 +183,17 @@ export function NetworkGraphEditor({
         nodesConnectable={!readOnly}
         elementsSelectable
         deleteKeyCode={null}
-        fitView
-        fitViewOptions={{ padding: 0.38, maxZoom: 0.88 }}
         minZoom={0.25}
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="rgba(100,116,139,.38)" />
-        <Controls position="bottom-left" showInteractive={false} />
+        <NetworkCanvasChrome
+          nodeCount={definition.nodes.length}
+          edgeCount={definition.edges.length}
+          fitKey={fitKey}
+          viewportTouchedRef={viewportTouchedRef}
+        />
         <MiniMap
           position="bottom-right"
           pannable
@@ -188,10 +205,6 @@ export function NetworkGraphEditor({
         />
       </ReactFlow>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-2 rounded-xl border border-border bg-surface/90 px-3 py-2 text-[10px] text-muted shadow-lg">
-        <Workflow className="h-3.5 w-3.5 text-primary-light" />
-        <span><b className="text-white">{definition.nodes.length}</b> Agents · <b className="text-white">{definition.edges.length}</b> delegations</span>
-      </div>
       {inspectionLabel ? (
         <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border/80 bg-surface/95 px-3 py-2 text-[9px] text-slate-300 shadow-lg">
           <Lock className="h-3 w-3 text-primary-light" />
@@ -207,7 +220,7 @@ export function NetworkGraphEditor({
       {!definition.nodes.length ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
           <div className="pointer-events-auto max-w-sm rounded-2xl border border-border bg-surface/95 p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary-light"><Workflow className="h-5 w-5" /></div>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-5 w-5" /></div>
             <h2 className="mt-4 text-sm font-semibold text-white">Build your Network</h2>
             <p className="mt-2 text-[10px] leading-5 text-muted">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
             {!readOnly ? <button type="button" onClick={onAddAgent} className="mt-5 rounded-xl bg-primary px-4 py-2.5 text-[10px] font-semibold text-white">Add first Agent</button> : null}
