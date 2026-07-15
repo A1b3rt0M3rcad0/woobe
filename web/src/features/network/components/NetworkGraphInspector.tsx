@@ -1,4 +1,4 @@
-import { AlertTriangle, Bot, Crown, GitBranch, Link2, Settings2, Trash2, Workflow } from 'lucide-react'
+import { AlertTriangle, Bot, Crown, Link2, Settings2, Trash2, Workflow } from 'lucide-react'
 import { useReleases } from '@/features/agents/hooks'
 import type { Agent, AgentRelease } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
@@ -55,40 +55,38 @@ function AgentBindingPicker({
     }
   }
 
+  const bindingHint = node.binding.source === 'draft'
+    ? 'Mutable Draft'
+    : node.binding.source === 'staging'
+      ? 'Pinned Staging snapshot'
+      : 'Immutable Release'
+
   return (
-    <section className="rounded-xl border border-primary/20 bg-primary/[0.035] p-3">
-      <div className="flex items-center gap-2">
-        <GitBranch className="h-3.5 w-3.5 text-primary-light" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-medium text-white">Version used by this Network</p>
-          <p className="mt-0.5 text-[8px] leading-4 text-muted">The binding belongs to this node and is persisted in the Network Draft.</p>
-        </div>
-      </div>
-      <select
-        disabled={readOnly || releasesQuery.isLoading}
-        className={input}
-        value={bindingValue(node.binding)}
-        onChange={(event) => selectBinding(event.target.value)}
-        aria-label={`Agent version used by ${node.label}`}
-      >
-        <option value="draft">Draft · current mutable configuration</option>
-        {stagingOptions.map((release) => (
-          <option key={release.id} value={`staging:${release.id}`}>
-            Staging · {release.version}{release.status === 'staging' ? ' · active' : ' · pinned historical'}
-          </option>
-        ))}
-        {releaseOptions.map((release) => (
-          <option key={release.id} value={`release:${release.id}`}>
-            Release · {release.version}{release.status === 'production' ? ' · production' : ''}
-          </option>
-        ))}
-      </select>
+    <section>
+      <label className="block text-[10px] text-muted">
+        Agent version
+        <select
+          disabled={readOnly || releasesQuery.isLoading}
+          className={input}
+          value={bindingValue(node.binding)}
+          onChange={(event) => selectBinding(event.target.value)}
+          aria-label={`Agent version used by ${node.label}`}
+        >
+          <option value="draft">Draft · current configuration</option>
+          {stagingOptions.map((release) => (
+            <option key={release.id} value={`staging:${release.id}`}>
+              Staging · {release.version}{release.status === 'staging' ? ' · active' : ' · pinned historical'}
+            </option>
+          ))}
+          {releaseOptions.map((release) => (
+            <option key={release.id} value={`release:${release.id}`}>
+              Release · {release.version}{release.status === 'production' ? ' · production' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-1.5 text-[9px] text-muted">{bindingHint}</p>
       {releasesQuery.isError ? <p className="mt-2 text-[9px] text-red-300">Agent versions could not be loaded. Retry before changing this binding.</p> : null}
-      {node.binding.source === 'draft' ? (
-        <p className="mt-2 text-[9px] leading-4 text-amber-100">Draft is shared and mutable. Each Network Draft Run still captures an atomic snapshot. Staging will require approval to promote this Agent Draft.</p>
-      ) : (
-        <p className="mt-2 text-[9px] leading-4 text-muted">This exact immutable snapshot will be used by Network Draft Runs. Agent configuration is read-only from this binding.</p>
-      )}
     </section>
   )
 }
@@ -135,7 +133,7 @@ export function NetworkGraphInspector({
         <p className="text-[9px] font-semibold uppercase tracking-widest text-primary-light">{node ? 'Role in Network' : edge ? 'Delegation' : 'Network'}</p>
         <h2 className="mt-1 truncate text-sm font-semibold text-white">{node?.label ?? (edge ? `${source?.label ?? 'Agent'} → ${target?.label ?? 'Agent'}` : name)}</h2>
       </header>
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+      <div className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
         {node ? <>
           <div className="rounded-xl border border-border bg-background/35 p-3">
             <div className="flex items-start gap-3">
