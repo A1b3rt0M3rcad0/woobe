@@ -165,7 +165,11 @@ def _execution_payload(
         else None,
         "status": execution.status,
         "answer": execution.output_message,
-        "result": execution.output_message,
+        "result": execution.parsed_output
+        if execution.parsed_output is not None
+        else execution.output_message,
+        "parsed_output": execution.parsed_output,
+        "output_parse_error": execution.output_parse_error,
         "error": _public_failure_message(execution.failure_code),
         "trace_id": str(execution.root_trace_id) if execution.root_trace_id else None,
         "created_at": execution.created_at,
