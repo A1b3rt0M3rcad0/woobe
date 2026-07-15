@@ -28,7 +28,7 @@ export function NetworkOperationsPanel({
     ? traces.find((trace) => trace.id === selectedTraceId) ?? null
     : null
   return (
-    <aside className="flex h-full min-h-0 w-[400px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface/65 shadow-sm shadow-black/10">
+    <aside className="absolute inset-y-0 left-14 z-30 flex min-h-0 w-[400px] flex-col overflow-hidden border-r border-border bg-surface/95 shadow-2xl shadow-black/30">
       {activeTab === 'traces' ? (
         <NetworkTracePanel
           traces={traces}
