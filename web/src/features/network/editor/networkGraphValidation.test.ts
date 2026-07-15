@@ -4,12 +4,33 @@ import { canConnectNetworkNodes, delegationToolName, validateNetworkGraph } from
 
 function graph(): NetworkDefinition {
   return {
-    schema_version: 1,
+    schema_version: 2,
     root_node_id: '00000000-0000-4000-8000-000000000001',
     nodes: [
-      { id: '00000000-0000-4000-8000-000000000001', agent_id: '10000000-0000-4000-8000-000000000001', label: 'Coordinator', capability_description: 'Coordinates requests.', position: { x: 0, y: 0 } },
-      { id: '00000000-0000-4000-8000-000000000002', agent_id: '10000000-0000-4000-8000-000000000002', label: 'Billing', capability_description: 'Answers billing questions.', position: { x: 300, y: 0 } },
-      { id: '00000000-0000-4000-8000-000000000003', agent_id: '10000000-0000-4000-8000-000000000003', label: 'Refunds', capability_description: 'Handles refund requests.', position: { x: 600, y: 0 } },
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        agent_id: '10000000-0000-4000-8000-000000000001',
+        label: 'Coordinator',
+        capability_description: 'Coordinates requests.',
+        position: { x: 0, y: 0 },
+        binding: { source: 'draft', release_id: null },
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        agent_id: '10000000-0000-4000-8000-000000000002',
+        label: 'Billing',
+        capability_description: 'Answers billing questions.',
+        position: { x: 300, y: 0 },
+        binding: { source: 'draft', release_id: null },
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000003',
+        agent_id: '10000000-0000-4000-8000-000000000003',
+        label: 'Refunds',
+        capability_description: 'Handles refund requests.',
+        position: { x: 600, y: 0 },
+        binding: { source: 'draft', release_id: null },
+      },
     ],
     edges: [
       { id: '20000000-0000-4000-8000-000000000001', source_node_id: '00000000-0000-4000-8000-000000000001', target_node_id: '00000000-0000-4000-8000-000000000002' },
