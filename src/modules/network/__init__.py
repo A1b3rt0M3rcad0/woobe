@@ -8,6 +8,7 @@ from modules.network.application.binding_compatibility import install_legacy_ver
 from modules.network.application.binding_concurrency import install_binding_concurrency_guards
 from modules.network.application.binding_runtime import install_pinned_release_runtime_support
 from modules.network.application.binding_service import ExplicitBindingNetworkService, install_explicit_binding_service
+from modules.network.application.release_atomic import install_atomic_network_promotion
 from modules.network.application.release_lifecycle import install_network_release_lifecycle
 from modules.network.application.service import NetworkApplicationService
 from modules.network.application.structured_output_persistence import install_structured_output_persistence
@@ -29,4 +30,5 @@ install_legacy_version_binding_compatibility()
 install_binding_concurrency_guards()
 install_pinned_release_runtime_support()
 install_network_release_lifecycle()
+install_atomic_network_promotion()
 install_structured_output_persistence()
