@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -35,18 +35,27 @@ interface NetworkChatWorkspaceProps {
   onOpenTrace: (execution: NetworkExecution) => void
 }
 
+const BOTTOM_THRESHOLD_PX = 56
+
 function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_accepted') return `Execution accepted in ${String(event.data.environment ?? 'runtime')}`
   if (eventType === 'execution_started') return 'Network worker started the execution'
+  if (eventType === 'agent_activity') return String(event.data.message ?? event.data.status ?? 'Agent is working')
   if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
   if (eventType === 'agent_invocation_failed') return `Agent failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
+  if (eventType === 'tool_call_started') return `Calling tool: ${String(event.data.tool_name ?? 'tool')}`
+  if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
   if (eventType === 'delegation_completed') return `Delegation completed: ${String(event.data.target ?? 'Agent')}`
   if (eventType === 'execution_completed') return 'Network execution completed'
   if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'execution_cancelled') return 'Network execution cancelled'
   return eventType.replace(/_/g, ' ')
+}
+
+function isNearBottom(element: HTMLDivElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_THRESHOLD_PX
 }
 
 export function NetworkChatWorkspace({
@@ -77,6 +86,7 @@ export function NetworkChatWorkspace({
   const [liveActivity, setLiveActivity] = useState<string[]>([])
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const shouldStickToBottomRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
   const changed = environment !== 'draft' && activeSession.networkVersion !== currentVersionId
@@ -86,15 +96,15 @@ export function NetworkChatWorkspace({
     { draft: 0, staging: 0, release: 0 },
   )
 
-  useEffect(() => () => abortRef.current?.abort(), [])
-  useEffect(() => {
+  useLayoutEffect(() => () => abortRef.current?.abort(), [])
+  useLayoutEffect(() => {
     const persistedIds = new Set(historyTurns.map((turn) => turn.id))
     if (persistedIds.size) setLocalTurns((current) => current.filter((turn) => !persistedIds.has(turn.id)))
   }, [historyTurns])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = scrollRef.current
-    if (element) element.scrollTop = element.scrollHeight
-  }, [turns, running, liveAnswer, liveActivity])
+    if (element && shouldStickToBottomRef.current) element.scrollTop = element.scrollHeight
+  }, [turns.length, running, liveAnswer, liveActivity.length])
 
   const refreshPersistedSession = async () => {
     await Promise.all([
@@ -103,16 +113,20 @@ export function NetworkChatWorkspace({
     ])
   }
 
+  const clearLiveState = () => {
+    setRunning(false)
+    setPendingMessage(null)
+    setLiveAnswer('')
+    setLiveActivity([])
+  }
+
   const stop = () => {
     const wasRunning = running
     const executionId = executionIdRef.current
     abortRef.current?.abort()
     abortRef.current = null
     executionIdRef.current = null
-    setRunning(false)
-    setPendingMessage(null)
-    setLiveAnswer('')
-    setLiveActivity([])
+    clearLiveState()
     if (wasRunning && executionId) {
       void cancelNetworkExecution(executionId, projectId)
         .then(async () => {
@@ -129,10 +143,7 @@ export function NetworkChatWorkspace({
     if (running) return
     abortRef.current?.abort()
     abortRef.current = null
-    setRunning(false)
-    setPendingMessage(null)
-    setLiveAnswer('')
-    setLiveActivity([])
+    clearLiveState()
     setLocalTurns([])
     setText('')
     onNewSession()
@@ -161,6 +172,7 @@ export function NetworkChatWorkspace({
     setLiveAnswer('')
     setLiveActivity([])
     setLastHeartbeatAt(null)
+    shouldStickToBottomRef.current = true
     const controller = new AbortController()
     abortRef.current = controller
     const records: RuntimeEventRecord[] = []
@@ -187,11 +199,20 @@ export function NetworkChatWorkspace({
         },
         onEvent: (eventType, event) => {
           records.push({ eventType, event })
-          if (eventType !== 'token') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+          if (eventType !== 'token' && eventType !== 'token_retract') {
+            setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+          }
           if (eventType === 'token') {
             const chunk = event.data.content
             if (typeof chunk === 'string') {
               answer += chunk
+              setLiveAnswer(answer)
+            }
+          }
+          if (eventType === 'token_retract') {
+            const length = event.data.content_length
+            if (typeof length === 'number' && length > 0) {
+              answer = answer.slice(0, Math.max(0, answer.length - length))
               setLiveAnswer(answer)
             }
           }
@@ -215,6 +236,7 @@ export function NetworkChatWorkspace({
         terminalStatus: status,
       })
       setLocalTurns((items) => [...items.filter((item) => item.id !== turn.id), turn])
+      clearLiveState()
       onRun(createNetworkTraceRecord({
         execution: turn.execution,
         environment,
@@ -240,10 +262,7 @@ export function NetworkChatWorkspace({
     } finally {
       if (abortRef.current === controller) abortRef.current = null
       if (executionIdRef.current === executionId) executionIdRef.current = null
-      setRunning(false)
-      setPendingMessage(null)
-      setLiveAnswer('')
-      setLiveActivity([])
+      clearLiveState()
     }
   }
 
@@ -251,7 +270,7 @@ export function NetworkChatWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession.id} changed={changed} newSessionDisabled={running} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
-      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
+      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
       <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
     </div>
