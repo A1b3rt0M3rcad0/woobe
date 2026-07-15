@@ -44,6 +44,10 @@ class NetworkVersionModel(BaseModel):
     __table_args__ = (
         UniqueConstraint("network_id", "version", name="uq_network_versions_version"),
         Index("ix_network_versions_project_kind", "project_id", "kind", "created_at"),
+        CheckConstraint(
+            "activation_kind IS NULL OR activation_kind IN ('publish', 'reactivate', 'rollback')",
+            name="ck_network_versions_activation_kind",
+        ),
         {"schema": "network"},
     )
 
@@ -58,6 +62,11 @@ class NetworkVersionModel(BaseModel):
     rollback_of_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("network.network_versions.id")
     )
+    source_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("network.network_versions.id"), nullable=True
+    )
+    activation_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    change_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class NetworkSessionModel(BaseModel):
