@@ -193,8 +193,9 @@ export function NetworkGraphEditor({
         <span><b className="text-white">{definition.nodes.length}</b> Agents · <b className="text-white">{definition.edges.length}</b> delegations</span>
       </div>
       {inspectionLabel ? (
-        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-amber-500/25 bg-surface/95 px-3 py-2 text-[9px] text-amber-100 shadow-lg">
-          <span>Network Run: {inspectionLabel}</span>
+        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border/80 bg-surface/95 px-3 py-2 text-[9px] text-slate-300 shadow-lg">
+          <Lock className="h-3 w-3 text-primary-light" />
+          <span>Snapshot: {inspectionLabel}</span>
           {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-md p-1 text-muted hover:bg-background/60 hover:text-white" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
         </div>
       ) : null}
