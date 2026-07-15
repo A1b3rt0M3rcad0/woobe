@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Bot, LocateFixed, Workflow } from 'lucide-react'
+import { Bot, LocateFixed, Lock, Workflow } from 'lucide-react'
 
 import type { Agent } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
