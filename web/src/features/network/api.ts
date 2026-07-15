@@ -2,10 +2,12 @@ import { get, patch, post, put } from '@/lib/api/client'
 
 import type {
   ActivateNetworkProductionInput,
+  ActivateNetworkProductionResult,
   NetworkDefinition,
   NetworkEnvironment,
   NetworkExecutionSnapshot,
   NetworkMessageResource,
+  NetworkProductionActivation,
   NetworkPromotionEnvironment,
   NetworkResource,
   NetworkSessionResource,
@@ -69,6 +71,15 @@ export function getNetworkVersions(
   })
 }
 
+export function getNetworkProductionActivations(
+  networkId: string,
+  projectId: string,
+): Promise<NetworkProductionActivation[]> {
+  return get<NetworkProductionActivation[]>(`/network/${networkId}/management/activations`, {
+    params: { project_id: projectId },
+  })
+}
+
 export function rollbackNetworkProduction(
   networkId: string,
   projectId: string,
@@ -84,8 +95,8 @@ export function activateNetworkProduction(
   networkId: string,
   projectId: string,
   input: ActivateNetworkProductionInput,
-): Promise<NetworkVersion> {
-  return post<NetworkVersion>(`/network/${networkId}/production/activations`, {
+): Promise<ActivateNetworkProductionResult> {
+  return post<ActivateNetworkProductionResult>(`/network/${networkId}/production/activations`, {
     project_id: projectId,
     source_version_id: input.source_version_id,
     expected_current_production_version_id: input.expected_current_production_version_id,
