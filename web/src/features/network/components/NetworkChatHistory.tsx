@@ -12,6 +12,9 @@ interface NetworkChatHistoryProps {
   networkName: string
   turns: NetworkTurn[]
   running: boolean
+  pendingMessage: string | null
+  liveAnswer: string
+  liveActivity: string[]
   onSuggestion: (value: string) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
@@ -22,7 +25,7 @@ const onboardingSuggestions = [
   'Test a request that should require delegation to a specialist.',
 ]
 
-export function NetworkChatHistory({ scrollRef, networkName, turns, running, onSuggestion, onSelectAgent, onOpenTrace }: NetworkChatHistoryProps) {
+export function NetworkChatHistory({ scrollRef, networkName, turns, running, pendingMessage, liveAnswer, liveActivity, onSuggestion, onSelectAgent, onOpenTrace }: NetworkChatHistoryProps) {
   return (
     <ScrollArea ref={scrollRef} className="min-h-0 flex-1 overscroll-contain">
       <div className="mx-auto max-w-4xl space-y-6 px-5 py-5">
@@ -37,7 +40,19 @@ export function NetworkChatHistory({ scrollRef, networkName, turns, running, onS
 
         {turns.map((turn) => <div key={turn.id} className="space-y-4"><div className="flex justify-end"><div className="max-w-[78%] rounded-xl rounded-br-md bg-primary px-4 py-3 text-[12px] leading-5 text-white shadow-sm shadow-black/10">{turn.user}</div></div><NetworkAnswer networkName={networkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} /></div>)}
 
-        {running ? <div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Workflow className="h-4 w-4 text-primary-light" /></div><div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface/70 px-4 py-3 text-[10px] text-muted"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary-light" />Executing Network composition…</div></div> : null}
+        {running && pendingMessage ? (
+          <div className="space-y-4">
+            <div className="flex justify-end"><div className="max-w-[78%] rounded-xl rounded-br-md bg-primary px-4 py-3 text-[12px] leading-5 text-white shadow-sm shadow-black/10">{pendingMessage}</div></div>
+            <div className="flex gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Workflow className="h-4 w-4 text-primary-light" /></div>
+              <div className="min-w-0 flex-1 rounded-xl border border-border bg-surface/70 px-4 py-3 text-[10px] text-muted">
+                <div className="inline-flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary-light" />Executing Network composition…</div>
+                {liveActivity.length ? <div className="mt-2 space-y-1 border-t border-border/60 pt-2">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}
+                {liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-[12px] leading-5 text-slate-200">{liveAnswer}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </ScrollArea>
   )
