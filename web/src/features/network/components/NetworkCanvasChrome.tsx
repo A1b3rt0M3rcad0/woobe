@@ -67,12 +67,17 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
       )
     }
   }, [fitView, getViewport, leftInset, nodeCount, setViewport])
+  const fitVisibleAreaRef = useRef(fitVisibleArea)
+
+  useEffect(() => {
+    fitVisibleAreaRef.current = fitVisibleArea
+  }, [fitVisibleArea])
 
   useEffect(() => {
     viewportTouchedRef.current = false
-    const frame = requestAnimationFrame(() => { void fitVisibleArea(0) })
+    const frame = requestAnimationFrame(() => { void fitVisibleAreaRef.current(0) })
     return () => cancelAnimationFrame(frame)
-  }, [fitKey, fitVisibleArea, viewportTouchedRef])
+  }, [fitKey, viewportTouchedRef])
 
   useEffect(() => {
     if (viewportTouchedRef.current) return
