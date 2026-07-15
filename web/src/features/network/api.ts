@@ -1,8 +1,10 @@
 import { get, patch, post, put } from '@/lib/api/client'
 
 import type {
+  ActivateNetworkProductionInput,
   NetworkDefinition,
   NetworkEnvironment,
+  NetworkExecutionSnapshot,
   NetworkMessageResource,
   NetworkPromotionEnvironment,
   NetworkResource,
@@ -62,7 +64,7 @@ export function getNetworkVersions(
   networkId: string,
   projectId: string,
 ): Promise<NetworkVersion[]> {
-  return get<NetworkVersion[]>(`/network/${networkId}/versions`, {
+  return get<NetworkVersion[]>(`/network/${networkId}/management/versions`, {
     params: { project_id: projectId },
   })
 }
@@ -75,6 +77,28 @@ export function rollbackNetworkProduction(
   return post<NetworkVersion>(`/network/${networkId}/rollback`, {
     project_id: projectId,
     target_version_id: targetVersionId,
+  })
+}
+
+export function activateNetworkProduction(
+  networkId: string,
+  projectId: string,
+  input: ActivateNetworkProductionInput,
+): Promise<NetworkVersion> {
+  return post<NetworkVersion>(`/network/${networkId}/production/activations`, {
+    project_id: projectId,
+    source_version_id: input.source_version_id,
+    expected_current_production_version_id: input.expected_current_production_version_id,
+    change_description: input.change_description,
+  })
+}
+
+export function getNetworkExecutionSnapshot(
+  executionId: string,
+  projectId: string,
+): Promise<NetworkExecutionSnapshot> {
+  return get<NetworkExecutionSnapshot>(`/network/executions/${executionId}/snapshot`, {
+    params: { project_id: projectId },
   })
 }
 
