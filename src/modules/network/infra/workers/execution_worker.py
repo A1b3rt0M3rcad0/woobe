@@ -113,6 +113,7 @@ class NetworkExecutionProcessor:
                 generation,
                 output=result.answer,
                 trace_id=result.trace_id,
+                streamed_output=result.streamed_output,
             )
         except NetworkExecutionCancelled:
             await self._terminal(
@@ -187,6 +188,7 @@ class NetworkExecutionProcessor:
         *,
         output: str,
         trace_id: UUID | None,
+        streamed_output: bool,
     ) -> None:
         async with self._session_factory() as session, session.begin():
             execution = await session.scalar(
@@ -205,11 +207,12 @@ class NetworkExecutionProcessor:
             await repository.mark_completed(
                 execution, output=output, root_trace_id=trace_id
             )
-            await repository.append_event(
-                execution,
-                "token",
-                {"content": output, "channel": "final", "visibility": "assistant"},
-            )
+            if output and not streamed_output:
+                await repository.append_event(
+                    execution,
+                    "token",
+                    {"content": output, "channel": "final", "visibility": "assistant"},
+                )
             await repository.append_event(
                 execution,
                 "execution_completed",
@@ -338,90 +341,30 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
                 logger.exception("Network execution message failed")
                 await message.reject(requeue=False)
 
-    async def persist_inbox(self, record: InboxRecord) -> None:
-        return None
 
-    async def acknowledge(self, message: IncomingMessage) -> None:
-        await message.ack()
-
-    async def reject(self, message: IncomingMessage, error: str) -> None:
-        await message.reject(requeue=False)
-
-
-class NetworkOutboxDispatcherWorker:
-    def __init__(self, engine: AsyncEngine, manager: RabbitMQManager) -> None:
-        self._session_factory = async_sessionmaker(engine, expire_on_commit=False)
-        self._manager = manager
-        self._worker_id = f"network-outbox-{os.getpid()}"
-
-    async def run(self) -> None:
-        from modules.network.infra.database.repositories import NetworkOutboxRepository
-
-        async with self._session_factory() as session, session.begin():
-            repository = NetworkOutboxRepository(session)
-            events = await repository.claim_batch(limit=50, worker_id=self._worker_id)
-            for event in events:
-                try:
-                    await self._manager.publish(
-                        routing_key=event.routing_key,
-                        payload=json.dumps(event.payload),
-                        correlation_id=str(event.correlation_id or ""),
-                        message_id=str(event.id),
-                    )
-                    await repository.mark_published(event)
-                except Exception as exc:
-                    await repository.mark_retryable(event, str(exc))
+async def build_network_execution_consumer(
+    engine: AsyncEngine,
+    session_factory: async_sessionmaker[AsyncSession],
+    rabbitmq: RabbitMQManager,
+    settings: Settings,
+    http_executor: HttpToolExecutor,
+) -> BaseInboxConsumer:
+    processor = NetworkExecutionProcessor(
+        session_factory,
+        settings=settings,
+        http_executor=http_executor,
+        lease_ttl_seconds=settings.network_execution_lease_seconds,
+        heartbeat_seconds=settings.network_execution_heartbeat_seconds,
+    )
+    return NetworkExecutionConsumer(
+        rabbitmq,
+        processor,
+        prefetch_count=settings.network_worker_prefetch,
+        worker_slots=settings.network_worker_slots,
+    )
 
 
-class NetworkLeaseRecoveryWorker:
-    """Fails stale executions safely instead of repeating unknown side effects."""
-
-    def __init__(self, engine: AsyncEngine) -> None:
-        self._session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async def run(self) -> None:
-        now = datetime.now(timezone.utc)
-        async with self._session_factory() as session, session.begin():
-            result = await session.execute(
-                select(NetworkExecutionModel)
-                .where(
-                    NetworkExecutionModel.status == "running",
-                    NetworkExecutionModel.lease_expires_at < now,
-                )
-                .with_for_update(skip_locked=True)
-                .limit(50)
-            )
-            for execution in result.scalars():
-                has_invocations = bool(
-                    await session.scalar(
-                        select(NetworkInvocationModel.id)
-                        .where(
-                            NetworkInvocationModel.network_execution_id == execution.id
-                        )
-                        .limit(1)
-                    )
-                )
-                execution.status = "uncertain" if has_invocations else "failed"
-                execution.failure_code = "worker_lease_expired"
-                execution.failure_detail = (
-                    "Worker lease expired after execution started; automatic replay was blocked "
-                    "to avoid duplicating external side effects."
-                )
-                execution.completed_at = now
-                execution.lease_owner = None
-                execution.lease_expires_at = None
-                await NetworkRuntimeRepository(session).append_event(
-                    execution,
-                    "execution_failed",
-                    {
-                        "code": "worker_lease_expired",
-                        "stage": "worker_lease",
-                        "message": (
-                            "The Network worker stopped before completion. "
-                            "Automatic replay was blocked to avoid duplicate side "
-                            "effects."
-                        ),
-                        "retryable": False,
-                        "uncertain": has_invocations,
-                    },
-                )
+inbox_record = InboxRecord(
+    name="network_execution",
+    builder=build_network_execution_consumer,
+)
