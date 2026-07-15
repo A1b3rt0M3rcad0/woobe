@@ -1,7 +1,9 @@
 import type { Ref } from 'react'
-import { Loader2, Workflow } from 'lucide-react'
+import { Workflow } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
+import { ChatMessage } from '@/features/playground/components/ChatMessage'
+import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkExecution, NetworkTurn } from './networkChatExecution'
@@ -15,6 +17,7 @@ interface NetworkChatHistoryProps {
   pendingMessage: string | null
   liveAnswer: string
   liveActivity: string[]
+  onScroll?: React.UIEventHandler<HTMLDivElement>
   onSuggestion: (value: string) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
@@ -25,9 +28,18 @@ const onboardingSuggestions = [
   'Test a request that should require delegation to a specialist.',
 ]
 
-export function NetworkChatHistory({ scrollRef, networkName, turns, running, pendingMessage, liveAnswer, liveActivity, onSuggestion, onSelectAgent, onOpenTrace }: NetworkChatHistoryProps) {
+export function NetworkChatHistory({ scrollRef, networkName, turns, running, pendingMessage, liveAnswer, liveActivity, onScroll, onSuggestion, onSelectAgent, onOpenTrace }: NetworkChatHistoryProps) {
+  const liveMessage: PlaygroundChatMessage = {
+    role: 'assistant',
+    content: liveAnswer,
+    activity: {
+      status: liveAnswer ? 'generating_answer' : 'working',
+      message: liveActivity.at(-1) ?? 'Executing Network composition…',
+    },
+  }
+
   return (
-    <ScrollArea ref={scrollRef} className="min-h-0 flex-1 overscroll-contain">
+    <ScrollArea ref={scrollRef} className="min-h-0 flex-1 overscroll-contain" onScroll={onScroll}>
       <div className="mx-auto max-w-4xl space-y-6 px-5 py-5">
         {turns.length === 0 && !running ? (
           <div className="flex min-h-[360px] flex-col items-center justify-center text-center">
@@ -38,19 +50,17 @@ export function NetworkChatHistory({ scrollRef, networkName, turns, running, pen
           </div>
         ) : null}
 
-        {turns.map((turn) => <div key={turn.id} className="space-y-4"><div className="flex justify-end"><div className="max-w-[78%] rounded-xl rounded-br-md bg-primary px-4 py-3 text-[12px] leading-5 text-white shadow-sm shadow-black/10">{turn.user}</div></div><NetworkAnswer networkName={networkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} /></div>)}
+        {turns.map((turn) => (
+          <div key={turn.id} className="space-y-4">
+            <ChatMessage message={{ role: 'user', content: turn.user }} variant="network" />
+            <NetworkAnswer networkName={networkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} />
+          </div>
+        ))}
 
         {running && pendingMessage ? (
           <div className="space-y-4">
-            <div className="flex justify-end"><div className="max-w-[78%] rounded-xl rounded-br-md bg-primary px-4 py-3 text-[12px] leading-5 text-white shadow-sm shadow-black/10">{pendingMessage}</div></div>
-            <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Workflow className="h-4 w-4 text-primary-light" /></div>
-              <div className="min-w-0 flex-1 rounded-xl border border-border bg-surface/70 px-4 py-3 text-[10px] text-muted">
-                <div className="inline-flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary-light" />Executing Network composition…</div>
-                {liveActivity.length ? <div className="mt-2 space-y-1 border-t border-border/60 pt-2">{liveActivity.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div> : null}
-                {liveAnswer ? <p className="mt-2 whitespace-pre-wrap border-t border-border/60 pt-2 text-[12px] leading-5 text-slate-200">{liveAnswer}</p> : null}
-              </div>
-            </div>
+            <ChatMessage message={{ role: 'user', content: pendingMessage }} variant="network" />
+            <ChatMessage message={liveMessage} agentName={networkName} variant="network" isStreaming />
           </div>
         ) : null}
       </div>
