@@ -37,7 +37,12 @@ def upgrade() -> None:
         UPDATE network.network_sessions AS network_session
         SET
             title = left(
-                regexp_replace(btrim(first_message.content), E'\\s+', ' ', 'g'),
+                regexp_replace(
+                    btrim(first_message.content),
+                    '[[:space:]]+',
+                    ' ',
+                    'g'
+                ),
                 72
             ),
             updated_at = now()
@@ -60,7 +65,12 @@ def upgrade() -> None:
             UPDATE network.network_sessions AS network_session
             SET
                 title = left(
-                    regexp_replace(btrim(NEW.content), E'\\s+', ' ', 'g'),
+                    regexp_replace(
+                        btrim(NEW.content),
+                        '[[:space:]]+',
+                        ' ',
+                        'g'
+                    ),
                     72
                 ),
                 updated_at = now()
