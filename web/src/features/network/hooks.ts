@@ -22,6 +22,16 @@ import type {
 } from './types'
 import { ApiError } from '@/lib/api/errors'
 
+function sessionTitle(environment: NetworkEnvironment) {
+  const timestamp = new Intl.DateTimeFormat(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date())
+  return `${environment.charAt(0).toUpperCase()}${environment.slice(1)} · ${timestamp}`
+}
+
 export function useNetwork(projectId?: string, projectName = 'Project Network') {
   return useQuery({
     queryKey: ['network', projectId],
@@ -131,6 +141,7 @@ export function useCreateNetworkSession(networkId?: string, projectId?: string) 
     mutationFn: (environment: NetworkEnvironment) => createNetworkSession(networkId!, {
       project_id: projectId!,
       environment,
+      title: sessionTitle(environment),
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] })
