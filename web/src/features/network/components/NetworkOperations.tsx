@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -7,11 +8,14 @@ import { NetworkTracePanel } from './NetworkTracePanel'
 export { Badge, NetworkOperationsRail } from './NetworkOperationsRail'
 export type { PanelTab } from './NetworkOperationsRail'
 
+export type NetworkOperationsPresentation = 'overlay' | 'docked'
+
 export function NetworkOperationsPanel({
   activeTab,
   traces,
   session,
   selectedTraceId,
+  presentation = 'overlay',
   onSelectTrace,
   onViewCanvas,
   onOpenAgent,
@@ -20,6 +24,7 @@ export function NetworkOperationsPanel({
   traces: NetworkTraceRecord[]
   session: NetworkSession | null
   selectedTraceId: string | null
+  presentation?: NetworkOperationsPresentation
   onSelectTrace: (trace: NetworkTraceRecord) => void
   onViewCanvas: (trace: NetworkTraceRecord) => void
   onOpenAgent: (nodeId: AgentNodeId) => void
@@ -30,7 +35,13 @@ export function NetworkOperationsPanel({
   return (
     <aside
       data-network-operations-panel
-      className="absolute inset-y-0 left-14 z-30 flex min-h-0 w-[400px] flex-col overflow-hidden border-r border-border bg-surface/95 shadow-2xl shadow-black/30"
+      data-presentation={presentation}
+      className={cn(
+        'flex min-h-0 flex-col overflow-hidden border-r border-border bg-surface/95',
+        presentation === 'overlay'
+          ? 'absolute inset-y-0 left-14 z-30 w-[400px] shadow-2xl shadow-black/30'
+          : 'absolute inset-y-0 left-14 z-30 w-[min(360px,calc(100vw-7rem))] shadow-2xl shadow-black/30 xl:relative xl:inset-auto xl:left-auto xl:z-0 xl:w-[360px] xl:shrink-0 xl:shadow-xl xl:shadow-black/20',
+      )}
     >
       {activeTab === 'traces' ? (
         <NetworkTracePanel
