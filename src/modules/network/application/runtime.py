@@ -326,10 +326,21 @@ class NetworkExecutor:
                         {
                             "target_node_id": str(delegated_target_id),
                             "target": delegated_target_label,
+                            "result_type": "structured"
+                            if child.parsed_output is not None
+                            else "text",
                         },
                         invocation_id=invocation.id,
                     )
-                    return {"success": True, "output": {"answer": child.answer}}
+                    return {
+                        "success": True,
+                        "result_type": "structured"
+                        if child.parsed_output is not None
+                        else "text",
+                        "result": child.parsed_output
+                        if child.parsed_output is not None
+                        else child.answer,
+                    }
 
                 tools.append(
                     InternalDelegationTool(
