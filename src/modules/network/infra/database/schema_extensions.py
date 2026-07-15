@@ -7,6 +7,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from modules.network.infra.database import models as network_models
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
@@ -128,6 +129,9 @@ class NetworkProductionActivationModel(BaseModel):
     activation_kind: Mapped[str] = mapped_column(String(32))
     change_description: Mapped[str] = mapped_column(Text)
     created_by: Mapped[UUID | None]
+
+
+network_models.NetworkProductionActivationModel = NetworkProductionActivationModel
 
 
 def version_extension_payload(version: NetworkVersionModel) -> dict[str, Any]:
