@@ -4,6 +4,7 @@ import {
   activateNetworkProduction,
   createNetworkSession,
   ensureNetwork,
+  getNetwork,
   getNetworkProductionActivations,
   getNetworkSessionMessages,
   getNetworkSessions,
@@ -19,11 +20,19 @@ import type {
   NetworkResource,
   PromoteNetworkInput,
 } from './types'
+import { ApiError } from '@/lib/api/errors'
 
 export function useNetwork(projectId?: string, projectName = 'Project Network') {
   return useQuery({
     queryKey: ['network', projectId],
-    queryFn: () => ensureNetwork(projectId!, `${projectName} Network`),
+    queryFn: async () => {
+      try {
+        return await getNetwork(projectId!)
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error
+        return ensureNetwork(projectId!, `${projectName} Network`)
+      }
+    },
     enabled: Boolean(projectId),
   })
 }
@@ -89,33 +98,6 @@ export function usePromoteNetwork(networkId?: string, projectId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
-      queryClient.invalidateQueries({ queryKey: ['releases'] })
-      queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
-    },
-  })
-}
-
-export function useCreateNetworkSession(networkId?: string, projectId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (environment: NetworkEnvironment) => createNetworkSession(networkId!, {
-      project_id: projectId!,
-      environment,
-      title: `New ${environment} session`,
-    }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] }),
-  })
-}
-
-export function useRollbackNetwork(networkId?: string, projectId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (targetVersionId: string) => rollbackNetworkProduction(networkId!, projectId!, targetVersionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
     },
   })
 }
@@ -128,6 +110,29 @@ export function useActivateNetworkProduction(networkId?: string, projectId?: str
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
+    },
+  })
+}
+
+export function useRollbackNetworkProduction(networkId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (targetVersionId: string) => rollbackNetworkProduction(networkId!, projectId!, targetVersionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+    },
+  })
+}
+
+export function useCreateNetworkSession(networkId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (environment: NetworkEnvironment) => createNetworkSession(networkId!, {
+      project_id: projectId!,
+      environment,
+    }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] })
     },
   })
