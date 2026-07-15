@@ -51,11 +51,13 @@ export interface ResolvedNetworkBinding {
   node_id: string
   agent_id: string
   binding_source?: NetworkAgentBindingSource
-  release_id: string
-  release_version: string
-  release_status: string
+  release_id?: string | null
+  draft_release_id?: string | null
+  release_version?: string | null
+  release_status?: string | null
   snapshot_kind?: 'staging' | 'release'
   snapshot_hash?: string
+  snapshot_override?: Record<string, unknown> | null
 }
 
 export interface NetworkVersion {
@@ -66,6 +68,10 @@ export interface NetworkVersion {
   definition: NetworkDefinition
   resolved_bindings: Record<string, ResolvedNetworkBinding>
   created_at: string
+  created_by?: string | null
+  source_version_id?: string | null
+  activation_kind?: 'publish' | 'reactivate' | 'rollback' | null
+  change_description?: string | null
 }
 
 export interface NetworkSessionResource {
@@ -138,6 +144,31 @@ export interface NetworkRuntimeEvent {
   created_at?: string
 }
 
+export interface NetworkExecutionSnapshotAgentContext {
+  node_id: string
+  agent_id: string
+  agent_session_id: string | null
+  source?: NetworkAgentBindingSource
+  version?: string
+  provider?: string
+  model?: string
+}
+
+export interface NetworkExecutionSnapshot {
+  execution_id: string
+  network_id: string
+  network_session_id: string
+  environment: NetworkEnvironment
+  draft_revision: number | null
+  network_version_id: string | null
+  version_label: string | null
+  composition_hash: string | null
+  definition: NetworkDefinition
+  resolved_bindings: Record<string, ResolvedNetworkBinding>
+  snapshot_source: 'execution' | 'network_version'
+  agent_contexts: NetworkExecutionSnapshotAgentContext[]
+}
+
 export interface PromotionPreviewNode {
   node_id: string
   agent_id: string
@@ -175,4 +206,10 @@ export interface PromoteNetworkInput {
   expected_revision?: number | null
   expected_network_version_id?: string | null
   approved_action_ids?: string[]
+}
+
+export interface ActivateNetworkProductionInput {
+  source_version_id: string
+  expected_current_production_version_id: string | null
+  change_description: string
 }
