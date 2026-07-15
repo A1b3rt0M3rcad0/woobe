@@ -71,8 +71,8 @@ class SQLNetworkExecutionStore:
                 return
             invocation.status = "completed"
             invocation.output_message = result.answer
-            invocation.parsed_output = result.parsed_output
-            invocation.output_parse_error = result.output_parse_error
+            setattr(invocation, "parsed_output", result.parsed_output)
+            setattr(invocation, "output_parse_error", result.output_parse_error)
             invocation.trace_id = result.trace_id
             if result.session_id:
                 invocation.agent_session_id = result.session_id
@@ -102,8 +102,20 @@ class SQLNetworkExecutionStore:
             )
             if execution is None:
                 return
-            execution.parsed_output = result.parsed_output
-            execution.output_parse_error = result.output_parse_error
+            setattr(execution, "parsed_output", result.parsed_output)
+            setattr(execution, "output_parse_error", result.output_parse_error)
+            await NetworkRuntimeRepository(session).append_event(
+                execution,
+                "network_result",
+                {
+                    "answer": result.answer,
+                    "parsed_output": result.parsed_output,
+                    "output_parse_error": result.output_parse_error,
+                    "result_type": "structured"
+                    if result.parsed_output is not None
+                    else "text",
+                },
+            )
 
     async def fail_invocation(
         self,
