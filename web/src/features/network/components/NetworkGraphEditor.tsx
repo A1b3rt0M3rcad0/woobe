@@ -32,6 +32,20 @@ import type { AgentNodeId, NetworkBinding } from './networkWorkspaceTypes'
 
 type AgentFlowNode = Node<NetworkAgentNodeData, 'network-agent'>
 
+type BindingDisplayCandidate = {
+  nodeId: string
+  agentId: string
+  source: 'draft' | 'staging' | 'release'
+  ref: string
+  version: string
+  dirty: boolean
+}
+
+function draftVersionFromInspection(inspectionLabel?: string | null) {
+  const match = inspectionLabel?.match(/Draft\s+r(\d+)/i)
+  return match ? `r${match[1]}` : 'current'
+}
+
 function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const issue = data.issues.find((item) => item.severity === 'error')
   return (
@@ -90,7 +104,7 @@ const nodeTypes: NodeTypes = { 'network-agent': AgentNode }
 export function NetworkGraphEditor({
   definition,
   agents,
-  bindings,
+  bindings = {},
   issues,
   selection,
   readOnly,
@@ -103,7 +117,7 @@ export function NetworkGraphEditor({
 }: {
   definition: NetworkDefinition
   agents: Agent[]
-  bindings: Record<AgentNodeId, NetworkBinding>
+  bindings?: Record<AgentNodeId, NetworkBinding>
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
@@ -116,15 +130,36 @@ export function NetworkGraphEditor({
 }) {
   const agentsById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const activePathSet = useMemo(() => new Set(activePath), [activePath])
-  const unresolvedBindings = useMemo(() => Object.values(bindings).filter((binding) => (
+  const bindingCandidates = useMemo<BindingDisplayCandidate[]>(() => definition.nodes.map((node) => {
+    const resolved = bindings[node.id]
+    if (resolved) {
+      return {
+        nodeId: node.id,
+        agentId: resolved.agent.id,
+        source: resolved.source,
+        ref: resolved.ref,
+        version: resolved.version,
+        dirty: resolved.dirty,
+      }
+    }
+    return {
+      nodeId: node.id,
+      agentId: node.agent_id,
+      source: node.binding.source,
+      ref: node.binding.release_id ?? node.agent_id,
+      version: node.binding.source === 'draft' ? draftVersionFromInspection(inspectionLabel) : 'pinned snapshot',
+      dirty: false,
+    }
+  }), [bindings, definition.nodes, inspectionLabel])
+  const unresolvedBindings = useMemo(() => bindingCandidates.filter((binding) => (
     binding.source !== 'draft'
     && Boolean(binding.ref)
     && (!binding.version || binding.version === 'pinned snapshot')
-  )), [bindings])
+  )), [bindingCandidates])
   const releaseQueries = useQueries({
     queries: unresolvedBindings.map((binding) => ({
-      queryKey: ['release', binding.agent.id, binding.ref],
-      queryFn: () => getRelease(binding.agent.id, binding.ref),
+      queryKey: ['release', binding.agentId, binding.ref],
+      queryFn: () => getRelease(binding.agentId, binding.ref),
       staleTime: 60_000,
     })),
   })
@@ -136,20 +171,20 @@ export function NetworkGraphEditor({
     })
     return result
   }, [releaseQueries, unresolvedBindings])
-  const displayBindings = useMemo(() => Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => {
+  const displayBindings = useMemo(() => Object.fromEntries(bindingCandidates.map((binding) => {
     const fallbackVersion = binding.source === 'draft'
-      ? 'current'
+      ? draftVersionFromInspection(inspectionLabel)
       : releaseVersionByRef.get(binding.ref) ?? 'pinned'
     const version = !binding.version || binding.version === 'current Draft' || binding.version === 'pinned snapshot'
       ? fallbackVersion
       : binding.version
-    return [nodeId, {
+    return [binding.nodeId, {
       source: binding.source,
       version,
       dirty: binding.dirty,
       ref: binding.ref,
     }]
-  })), [bindings, releaseVersionByRef])
+  })), [bindingCandidates, inspectionLabel, releaseVersionByRef])
   const derivedNodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
     id: node.id,
     type: 'network-agent',
