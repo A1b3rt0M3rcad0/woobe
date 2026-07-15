@@ -163,6 +163,8 @@ export function NetworkGraphEditor({
       staleTime: 60_000,
     })),
   })
+  const unresolvedBindingsKey = unresolvedBindings.map((binding) => `${binding.agentId}:${binding.ref}`).join('|')
+  const releaseVersionSignature = releaseQueries.map((query, index) => `${unresolvedBindings[index]?.ref ?? ''}:${query.data?.version ?? ''}`).join('|')
   const releaseVersionByRef = useMemo(() => {
     const result = new Map<string, string>()
     releaseQueries.forEach((query, index) => {
@@ -170,7 +172,8 @@ export function NetworkGraphEditor({
       if (binding && query.data?.version) result.set(binding.ref, query.data.version)
     })
     return result
-  }, [releaseQueries, unresolvedBindings])
+  }, [releaseVersionSignature, unresolvedBindingsKey])
+  const bindingCandidatesKey = bindingCandidates.map((binding) => `${binding.nodeId}:${binding.source}:${binding.ref}:${binding.version}:${binding.dirty ? '1' : '0'}`).join('|')
   const displayBindings = useMemo(() => Object.fromEntries(bindingCandidates.map((binding) => {
     const fallbackVersion = binding.source === 'draft'
       ? draftVersionFromInspection(inspectionLabel)
@@ -184,7 +187,7 @@ export function NetworkGraphEditor({
       dirty: binding.dirty,
       ref: binding.ref,
     }]
-  })), [bindingCandidates, inspectionLabel, releaseVersionByRef])
+  })), [bindingCandidatesKey, inspectionLabel, releaseVersionSignature])
   const derivedNodes = useMemo<AgentFlowNode[]>(() => definition.nodes.map((node) => ({
     id: node.id,
     type: 'network-agent',
