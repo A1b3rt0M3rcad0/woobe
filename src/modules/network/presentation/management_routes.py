@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
@@ -15,6 +13,10 @@ from modules.network.infra.database.models import (
     NetworkModel,
     NetworkSessionModel,
     NetworkVersionModel,
+)
+from modules.network.infra.database.schema_extensions import (
+    NetworkProductionActivationModel,
+    version_extension_payload,
 )
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
@@ -56,6 +58,22 @@ def _version_payload(version: NetworkVersionModel) -> dict:
         else None,
         "activation_kind": version.activation_kind,
         "change_description": version.change_description,
+        **version_extension_payload(version),
+    }
+
+
+def _activation_payload(activation: NetworkProductionActivationModel) -> dict:
+    return {
+        "id": str(activation.id),
+        "network_id": str(activation.network_id),
+        "version_id": str(activation.version_id),
+        "previous_version_id": str(activation.previous_version_id)
+        if activation.previous_version_id
+        else None,
+        "activation_kind": activation.activation_kind,
+        "change_description": activation.change_description,
+        "created_by": str(activation.created_by) if activation.created_by else None,
+        "created_at": activation.created_at,
     }
 
 
@@ -83,6 +101,35 @@ async def list_managed_network_versions(
             ).all()
         )
     return {"success": True, "data": [_version_payload(item) for item in versions]}
+
+
+@router.get("/{network_id}/management/activations")
+async def list_network_production_activations(
+    network_id: UUID,
+    project_id: UUID,
+    request: Request,
+):
+    _authorize_project(request, project_id)
+    async with request.app.state.session_factory() as session:
+        network = await session.get(NetworkModel, network_id)
+        if network is None or network.project_id != project_id:
+            raise NotFoundError("Network not found")
+        activations = list(
+            (
+                await session.scalars(
+                    select(NetworkProductionActivationModel)
+                    .where(
+                        NetworkProductionActivationModel.network_id == network_id,
+                        NetworkProductionActivationModel.project_id == project_id,
+                    )
+                    .order_by(NetworkProductionActivationModel.created_at.desc())
+                )
+            ).all()
+        )
+    return {
+        "success": True,
+        "data": [_activation_payload(item) for item in activations],
+    }
 
 
 @router.get("/executions/{execution_id}/snapshot")
@@ -211,6 +258,8 @@ async def get_network_execution_snapshot(
             "resolved_bindings": bindings,
             "snapshot_source": snapshot_source,
             "agent_contexts": list(contexts_by_node.values()),
+            "parsed_output": getattr(execution, "parsed_output", None),
+            "output_parse_error": getattr(execution, "output_parse_error", None),
         },
     }
 
@@ -248,29 +297,33 @@ async def activate_network_production(
         if source.id == network.production_version_id:
             raise ConflictError("Selected Network Release is already in Production")
 
-        count = await session.scalar(
-            select(func.count(NetworkVersionModel.id)).where(
-                NetworkVersionModel.network_id == network.id,
-                NetworkVersionModel.kind == "release",
-            )
+        previous = (
+            await session.get(NetworkVersionModel, network.production_version_id)
+            if network.production_version_id
+            else None
         )
-        now = datetime.now(timezone.utc)
-        version = NetworkVersionModel(
+        activation_kind = (
+            "rollback"
+            if previous is not None and source.created_at < previous.created_at
+            else "reactivate"
+        )
+        activation = NetworkProductionActivationModel(
             network_id=network.id,
             project_id=payload.project_id,
-            kind="release",
-            version=f"v{int(count or 0) + 1}.{now:%Y%m%d.%H%M%S}",
-            definition=deepcopy(source.definition),
-            resolved_bindings=deepcopy(source.resolved_bindings),
-            composition_hash=source.composition_hash,
-            created_by=created_by,
-            rollback_of_version_id=source.id,
-            source_version_id=source.id,
-            activation_kind="reactivate",
+            version_id=source.id,
+            previous_version_id=network.production_version_id,
+            activation_kind=activation_kind,
             change_description=description,
+            created_by=created_by,
         )
-        session.add(version)
+        session.add(activation)
+        network.production_version_id = source.id
         await session.flush()
-        network.production_version_id = version.id
 
-    return {"success": True, "data": _version_payload(version)}
+    return {
+        "success": True,
+        "data": {
+            "version": _version_payload(source),
+            "activation": _activation_payload(activation),
+        },
+    }
