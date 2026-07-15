@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ChevronDown, MessageSquarePlus } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -18,12 +18,10 @@ export function NetworkSessionSelector({
   sessions,
   activeSessionId,
   onSelect,
-  onNew,
 }: {
   sessions: NetworkSession[]
   activeSessionId: string | null
   onSelect: (sessionId: string) => void
-  onNew: () => void
 }) {
   const [open, setOpen] = useState(false)
   const active = sessions.find((session) => session.id === activeSessionId) ?? null
@@ -46,21 +44,11 @@ export function NetworkSessionSelector({
 
       {open ? (
         <div className="absolute right-0 top-11 z-40 w-[340px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/35">
-          <div className="flex items-center justify-between border-b border-border/80 px-3 py-2.5">
-            <div>
-              <p className="text-[11px] font-semibold text-white">Network Sessions</p>
-              <p className="mt-0.5 text-[9px] text-muted">Only sessions from the active environment.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onNew() }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[10px] font-medium text-white"
-            >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-              New
-            </button>
+          <div className="border-b border-border/80 px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-white">Network Sessions</p>
+            <p className="mt-0.5 text-[9px] text-muted">Only sessions from the active environment.</p>
           </div>
-          <div className="max-h-72 space-y-1 overflow-y-auto p-2 scrollbar-thin">
+          <div className="scrollbar-thin max-h-72 space-y-1 overflow-y-auto p-2">
             {sessions.length ? sessions.map((session) => {
               const selected = session.id === activeSessionId
               return (
