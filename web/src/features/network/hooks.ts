@@ -4,6 +4,7 @@ import {
   activateNetworkProduction,
   createNetworkSession,
   ensureNetwork,
+  getNetworkProductionActivations,
   getNetworkSessionMessages,
   getNetworkSessions,
   getNetworkVersions,
@@ -31,6 +32,14 @@ export function useNetworkVersions(networkId?: string, projectId?: string) {
   return useQuery({
     queryKey: ['network-versions', networkId, projectId],
     queryFn: () => getNetworkVersions(networkId!, projectId!),
+    enabled: Boolean(networkId && projectId),
+  })
+}
+
+export function useNetworkProductionActivations(networkId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: ['network-production-activations', networkId, projectId],
+    queryFn: () => getNetworkProductionActivations(networkId!, projectId!),
     enabled: Boolean(networkId && projectId),
   })
 }
@@ -80,6 +89,7 @@ export function usePromoteNetwork(networkId?: string, projectId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
       queryClient.invalidateQueries({ queryKey: ['releases'] })
       queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
     },
@@ -105,6 +115,7 @@ export function useRollbackNetwork(networkId?: string, projectId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
     },
   })
 }
@@ -116,6 +127,7 @@ export function useActivateNetworkProduction(networkId?: string, projectId?: str
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] })
     },
   })
