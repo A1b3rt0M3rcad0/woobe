@@ -94,7 +94,7 @@ export function NetworkPromotionDialog({
           <button type="button" onClick={onClose} className="rounded-lg border border-border p-2 text-muted hover:text-white"><X className="h-4 w-4" /></button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+        <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-5">
           {preview.data?.nodes.map((item) => {
             const node = definition.nodes.find((candidate) => candidate.id === item.node_id)
             const root = node?.id === definition.root_node_id
