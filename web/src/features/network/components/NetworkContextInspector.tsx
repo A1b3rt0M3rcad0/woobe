@@ -15,18 +15,17 @@ interface NetworkContextInspectorProps {
   centerMode: NetworkCenterMode
   inspectionScope: NetworkInspectionScope
   inspectionLabel?: string | null
+  inspectionKind?: 'run' | 'version' | null
   definition: NetworkDefinition
   agents: Agent[]
   bindings: Record<string, NetworkBinding>
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
-  expanded?: boolean
   name: string
   description: string
   agentWorkspace: ReactNode
   onContext: (context: NetworkInspectorContext) => void
-  onExpand?: () => void
   onLocateOnCanvas: () => void
   onSelect: (selection: NetworkEditorSelection) => void
   onMetadata: (metadata: { name?: string; description?: string }) => void
@@ -38,6 +37,7 @@ export function NetworkContextInspector({
   centerMode,
   inspectionScope,
   inspectionLabel,
+  inspectionKind,
   definition,
   agents,
   bindings,
@@ -62,6 +62,7 @@ export function NetworkContextInspector({
   const selectedBinding = selectedNode ? bindings[selectedNode.id] ?? null : null
   const agentEnabled = Boolean(selectedNode && selectedAgent && selectedBinding)
   const showAgent = context === 'agent' && agentEnabled
+  const inspecting = inspectionScope.type === 'run' && Boolean(inspectionLabel)
 
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,520px)] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-[520px] xl:bg-surface/80 xl:shadow-none">
@@ -118,9 +119,11 @@ export function NetworkContextInspector({
           <span className="truncate">{selectedNode ? `${selectedNode.label} · ${selectedAgent?.name ?? 'Agent unavailable'}` : name}</span>
           {selectedBinding ? <span className="ml-auto shrink-0 rounded border border-border bg-background/50 px-1.5 py-0.5 font-mono text-[8px] text-slate-300">{selectedBinding.source} · {selectedBinding.version}</span> : null}
         </div>
-        {inspectionScope.type === 'run' ? (
-          <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 text-[9px] leading-4 text-amber-100">
-            Inspecting Network Run {inspectionLabel ?? inspectionScope.runId}. Configuration is read-only and resolved from the execution snapshot when available.
+        {inspecting ? (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/35 px-2.5 py-2 text-[9px] text-muted">
+            <Lock className="h-3 w-3 shrink-0 text-primary-light" />
+            <span className="truncate">{inspectionKind === 'run' ? 'Historical Run snapshot' : 'Immutable Network snapshot'} · {inspectionLabel}</span>
+            <span className="ml-auto shrink-0 text-[8px] uppercase tracking-wide text-slate-400">Read-only</span>
           </div>
         ) : null}
       </div>
