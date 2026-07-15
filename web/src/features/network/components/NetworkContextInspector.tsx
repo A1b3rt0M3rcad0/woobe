@@ -61,6 +61,7 @@ export function NetworkContextInspector({
     : null
   const selectedBinding = selectedNode ? bindings[selectedNode.id] ?? null : null
   const agentEnabled = Boolean(selectedNode && selectedAgent && selectedBinding)
+  const showAgent = context === 'agent' && agentEnabled
 
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,520px)] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-[520px] xl:bg-surface/80 xl:shadow-none">
@@ -124,8 +125,13 @@ export function NetworkContextInspector({
         ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {context === 'agent' && agentEnabled ? agentWorkspace : (
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {agentEnabled ? (
+          <div className={cn('absolute inset-0', !showAgent && 'invisible pointer-events-none')} aria-hidden={!showAgent}>
+            {agentWorkspace}
+          </div>
+        ) : null}
+        <div className={cn('absolute inset-0', showAgent && 'invisible pointer-events-none')} aria-hidden={showAgent}>
           <NetworkGraphInspector
             embedded
             definition={definition}
@@ -140,7 +146,7 @@ export function NetworkContextInspector({
             onChange={onChange}
             onOpenAgent={agentEnabled ? () => onContext('agent') : undefined}
           />
-        )}
+        </div>
       </div>
     </aside>
   )
