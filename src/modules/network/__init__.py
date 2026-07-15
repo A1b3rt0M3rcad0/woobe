@@ -10,6 +10,7 @@ from modules.network.application.binding_runtime import install_pinned_release_r
 from modules.network.application.binding_service import ExplicitBindingNetworkService, install_explicit_binding_service
 from modules.network.application.release_lifecycle import install_network_release_lifecycle
 from modules.network.application.service import NetworkApplicationService
+from modules.network.application.structured_output_persistence import install_structured_output_persistence
 
 
 install_explicit_binding_service()
@@ -28,3 +29,4 @@ install_legacy_version_binding_compatibility()
 install_binding_concurrency_guards()
 install_pinned_release_runtime_support()
 install_network_release_lifecycle()
+install_structured_output_persistence()
