@@ -340,31 +340,3 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
             except Exception:
                 logger.exception("Network execution message failed")
                 await message.reject(requeue=False)
-
-
-async def build_network_execution_consumer(
-    engine: AsyncEngine,
-    session_factory: async_sessionmaker[AsyncSession],
-    rabbitmq: RabbitMQManager,
-    settings: Settings,
-    http_executor: HttpToolExecutor,
-) -> BaseInboxConsumer:
-    processor = NetworkExecutionProcessor(
-        session_factory,
-        settings=settings,
-        http_executor=http_executor,
-        lease_ttl_seconds=settings.network_execution_lease_seconds,
-        heartbeat_seconds=settings.network_execution_heartbeat_seconds,
-    )
-    return NetworkExecutionConsumer(
-        rabbitmq,
-        processor,
-        prefetch_count=settings.network_worker_prefetch,
-        worker_slots=settings.network_worker_slots,
-    )
-
-
-inbox_record = InboxRecord(
-    name="network_execution",
-    builder=build_network_execution_consumer,
-)
