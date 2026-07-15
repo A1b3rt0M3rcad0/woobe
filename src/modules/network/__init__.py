@@ -30,5 +30,13 @@ install_legacy_version_binding_compatibility()
 install_binding_concurrency_guards()
 install_pinned_release_runtime_support()
 install_network_release_lifecycle()
+
+# The decorated planner intentionally passes the service instance to the base
+# planner. Preserve the original function as a static descriptor so Python does
+# not bind a second implicit ``self``.
+NetworkApplicationService._network_release_base_plan = staticmethod(  # type: ignore[attr-defined]
+    NetworkApplicationService._network_release_base_plan  # type: ignore[attr-defined]
+)
+
 install_atomic_network_promotion()
 install_structured_output_persistence()
