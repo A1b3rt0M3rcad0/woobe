@@ -71,6 +71,8 @@ class SQLNetworkExecutionStore:
                 return
             invocation.status = "completed"
             invocation.output_message = result.answer
+            invocation.parsed_output = result.parsed_output
+            invocation.output_parse_error = result.output_parse_error
             invocation.trace_id = result.trace_id
             if result.session_id:
                 invocation.agent_session_id = result.session_id
