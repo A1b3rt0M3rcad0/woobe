@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  activateNetworkProduction,
   createNetworkSession,
   ensureNetwork,
   getNetworkSessionMessages,
@@ -10,7 +11,13 @@ import {
   rollbackNetworkProduction,
   saveNetworkDraft,
 } from './api'
-import type { NetworkDefinition, NetworkEnvironment, NetworkResource, PromoteNetworkInput } from './types'
+import type {
+  ActivateNetworkProductionInput,
+  NetworkDefinition,
+  NetworkEnvironment,
+  NetworkResource,
+  PromoteNetworkInput,
+} from './types'
 
 export function useNetwork(projectId?: string, projectName = 'Project Network') {
   return useQuery({
@@ -98,6 +105,18 @@ export function useRollbackNetwork(networkId?: string, projectId?: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+    },
+  })
+}
+
+export function useActivateNetworkProduction(networkId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ActivateNetworkProductionInput) => activateNetworkProduction(networkId!, projectId!, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] })
     },
   })
 }
