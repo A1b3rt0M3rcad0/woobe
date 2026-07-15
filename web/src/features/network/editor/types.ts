@@ -1,5 +1,11 @@
 import type { Agent } from '@/features/agents/types'
-import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
+import type {
+  NetworkAgentBindingSelector,
+  NetworkAgentBindingSource,
+  NetworkDefinition,
+  NetworkEdge,
+  NetworkNode,
+} from '../types'
 
 export type NetworkEditorIssueSeverity = 'error' | 'warning'
 
@@ -22,6 +28,12 @@ export interface NetworkEditorState {
 export type NetworkAgentNodeData = {
   agent?: Agent
   node: NetworkNode
+  binding?: {
+    source: NetworkAgentBindingSource
+    version: string
+    dirty: boolean
+    ref: string
+  }
   isRoot: boolean
   readOnly: boolean
   activeInRun?: boolean
