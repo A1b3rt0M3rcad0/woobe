@@ -89,6 +89,22 @@ class SQLNetworkExecutionStore:
                 if context is not None:
                     context.agent_session_id = result.session_id
 
+    async def persist_execution_output(
+        self,
+        execution_id: UUID,
+        result: AgentInvocationResult,
+    ) -> None:
+        async with self._session_factory() as session, session.begin():
+            execution = await session.get(
+                NetworkExecutionModel,
+                execution_id,
+                with_for_update=True,
+            )
+            if execution is None:
+                return
+            execution.parsed_output = result.parsed_output
+            execution.output_parse_error = result.output_parse_error
+
     async def fail_invocation(
         self,
         invocation_id: UUID,
