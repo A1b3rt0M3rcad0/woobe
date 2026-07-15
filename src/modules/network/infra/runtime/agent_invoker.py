@@ -181,7 +181,7 @@ class ProjectRAIAgentInvoker:
         channel: RuntimeStreamChannel | None = None
         stream_token = None
         streamed_output = False
-        execution_task: asyncio.Task | None = None
+        execution_task: asyncio.Task[Any] | None = None
         try:
             try:
                 if stream_handler is None:
@@ -197,10 +197,16 @@ class ProjectRAIAgentInvoker:
                             event = await asyncio.wait_for(channel.queue.get(), timeout=0.1)
                         except asyncio.TimeoutError:
                             continue
+                        payload = dict(event.payload)
                         if event.event_type == "token":
+                            if (
+                                payload.get("visibility") != "assistant"
+                                or payload.get("channel") != "final"
+                            ):
+                                continue
                             streamed_output = True
                         if event.event_type not in {"done", "error", "cancelled"}:
-                            await stream_handler(event.event_type, dict(event.payload))
+                            await stream_handler(event.event_type, payload)
                     output = await execution_task
             except Exception as exc:
                 failure = classify_runtime_exception(exc).with_agent_context(
