@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
 
@@ -21,6 +23,10 @@ from modules.agent.application.use_cases.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.use_cases.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
@@ -38,6 +44,8 @@ from modules.network.application.runtime import (
 )
 from modules.network.application.runtime_failures import classify_runtime_exception
 from shared.infra.config import Settings
+
+AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
 class ProjectRAIAgentInvoker:
@@ -65,6 +73,7 @@ class ProjectRAIAgentInvoker:
         execution_context: str,
         internal_tools: list[InternalDelegationTool],
         network_context: dict[str, object],
+        stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult:
         settings = self._settings
         cipher = SecretCipherAdapter(settings.encryption_key)
@@ -157,21 +166,42 @@ class ProjectRAIAgentInvoker:
                     value = UUID(str(value))
                 setattr(context, key, value)
 
-        token = current_execution.set(context)
+        input_dto = AskInput(
+            project_id=project_id,
+            agent_id=agent_id,
+            message=message,
+            session_id=agent_session_id,
+            metadata={"source": "network_runtime", **network_context},
+            execution_context=execution_context,
+            loaded_release_id=release_id,
+            snapshot_override=snapshot_override,
+        )
+
+        execution_token = current_execution.set(context)
+        channel: RuntimeStreamChannel | None = None
+        stream_token = None
+        streamed_output = False
+        execution_task: asyncio.Task | None = None
         try:
             try:
-                output = await use_case.execute(
-                    AskInput(
-                        project_id=project_id,
-                        agent_id=agent_id,
-                        message=message,
-                        session_id=agent_session_id,
-                        metadata={"source": "network_runtime", **network_context},
-                        execution_context=execution_context,
-                        loaded_release_id=release_id,
-                        snapshot_override=snapshot_override,
-                    )
-                )
+                if stream_handler is None:
+                    output = await use_case.execute(input_dto)
+                else:
+                    channel = RuntimeStreamChannel()
+                    stream_token = current_runtime_stream.set(channel)
+                    execution_task = asyncio.create_task(use_case.execute(input_dto))
+                    while True:
+                        if execution_task.done() and channel.queue.empty():
+                            break
+                        try:
+                            event = await asyncio.wait_for(channel.queue.get(), timeout=0.1)
+                        except asyncio.TimeoutError:
+                            continue
+                        if event.event_type == "token":
+                            streamed_output = True
+                        if event.event_type not in {"done", "error", "cancelled"}:
+                            await stream_handler(event.event_type, dict(event.payload))
+                    output = await execution_task
             except Exception as exc:
                 failure = classify_runtime_exception(exc).with_agent_context(
                     trace_id=context.trace_id,
@@ -189,6 +219,11 @@ class ProjectRAIAgentInvoker:
                 sources=[item.model_dump() for item in output.sources],
                 parsed_output=output.parsed_output,
                 output_parse_error=output.output_parse_error,
+                streamed_output=streamed_output,
             )
         finally:
-            current_execution.reset(token)
+            if execution_task is not None and not execution_task.done():
+                execution_task.cancel()
+            if stream_token is not None:
+                current_runtime_stream.reset(stream_token)
+            current_execution.reset(execution_token)
