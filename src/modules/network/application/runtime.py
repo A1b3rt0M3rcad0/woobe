@@ -18,6 +18,7 @@ from modules.network.infra.database.models import (
 
 
 NETWORK_TOOL_NAMESPACE = UUID("bd84d8e4-0d63-4a8f-96ca-3fd22e42dfe0")
+AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
 def agent_capability_summary(node: NetworkNode) -> str:
@@ -58,6 +59,7 @@ class AgentInvocationResult:
     sources: list[dict[str, Any]] | None = None
     parsed_output: dict[str, Any] | None = None
     output_parse_error: str | None = None
+    streamed_output: bool = False
 
 
 @dataclass
@@ -117,6 +119,7 @@ class AgentInvoker(Protocol):
         execution_context: str,
         internal_tools: list[InternalDelegationTool],
         network_context: dict[str, object],
+        stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult: ...
 
 
@@ -351,6 +354,19 @@ class NetworkExecutor:
                     )
                 )
 
+            async def stream_agent_event(
+                event_type: str,
+                payload: dict[str, Any],
+            ) -> None:
+                if depth > 0 and event_type in {"token", "token_retract"}:
+                    return
+                await self._store.emit(
+                    execution.id,
+                    event_type,
+                    payload,
+                    invocation_id=invocation.id,
+                )
+
             try:
                 result = await self._invoker.invoke(
                     project_id=execution.project_id,
@@ -380,6 +396,7 @@ class NetworkExecutor:
                         "depth": depth,
                         "draft_revision": getattr(execution, "draft_revision", None),
                     },
+                    stream_handler=stream_agent_event,
                 )
             except NetworkExecutionCancelled as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
