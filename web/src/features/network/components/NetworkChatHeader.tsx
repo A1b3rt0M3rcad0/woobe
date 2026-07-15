@@ -1,4 +1,4 @@
-import { AlertTriangle, Lock, Network, PencilLine, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Lock, MessageSquarePlus, Network, PencilLine, RotateCcw } from 'lucide-react'
 
 import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { networkLabel } from './networkChatExecution'
@@ -12,6 +12,7 @@ interface NetworkChatHeaderProps {
   activeSessionId: string | null
   versionLabel: string
   changed: boolean
+  newSessionDisabled?: boolean
   onSelectSession: (sessionId: string) => void
   onNew: () => void
   onResetContext: () => void
@@ -24,6 +25,7 @@ export function NetworkChatHeader({
   activeSessionId,
   versionLabel,
   changed,
+  newSessionDisabled = false,
   onSelectSession,
   onNew,
   onResetContext,
@@ -48,7 +50,10 @@ export function NetworkChatHeader({
             <p className="mt-0.5 text-[10px] text-muted">{networkLabel(environment, versionLabel)} · {counts.draft} Draft · {counts.staging} Staging · {counts.release} Release</p>
           </div>
         </div>
-        <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} onNew={onNew} />
+        <div className="flex items-center gap-1.5">
+          <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} />
+          <button type="button" disabled={newSessionDisabled} onClick={onNew} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/55 text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45" title="New Network Session" aria-label="New Network Session"><MessageSquarePlus className="h-3.5 w-3.5" /></button>
+        </div>
         <button type="button" onClick={onResetContext} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[9px] text-muted hover:border-primary/30 hover:text-white" title="Start fresh Agent contexts in this Network Session"><RotateCcw className="h-3 w-3" />Reset context</button>
       </div>
 
