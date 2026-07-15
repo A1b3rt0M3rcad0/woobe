@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './network-flow.css'
-import { AlertTriangle, Bot, Crown, Plus, Workflow, X } from 'lucide-react'
+import { AlertTriangle, Bot, Crown, Lock, Plus, Workflow, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
