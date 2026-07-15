@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+
 import { cn } from '@/lib/utils'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
@@ -8,14 +10,14 @@ import { NetworkTracePanel } from './NetworkTracePanel'
 export { Badge, NetworkOperationsRail } from './NetworkOperationsRail'
 export type { PanelTab } from './NetworkOperationsRail'
 
-export type NetworkOperationsPresentation = 'overlay' | 'docked'
+export type NetworkOperationsPresentation = 'auto' | 'overlay' | 'docked'
 
 export function NetworkOperationsPanel({
   activeTab,
   traces,
   session,
   selectedTraceId,
-  presentation = 'overlay',
+  presentation = 'auto',
   onSelectTrace,
   onViewCanvas,
   onOpenAgent,
@@ -29,18 +31,50 @@ export function NetworkOperationsPanel({
   onViewCanvas: (trace: NetworkTraceRecord) => void
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
+  const panelRef = useRef<HTMLElement | null>(null)
+  const [autoDocked, setAutoDocked] = useState(false)
   const selectedTrace = selectedTraceId
     ? traces.find((trace) => trace.id === selectedTraceId) ?? null
     : null
+
+  useEffect(() => {
+    if (presentation !== 'auto') return
+    const panel = panelRef.current
+    const centerWorkspace = panel?.nextElementSibling as HTMLElement | null
+    if (!centerWorkspace) return
+    const media = window.matchMedia('(min-width: 1280px)')
+    const updatePresentation = () => {
+      const chatLayer = centerWorkspace.children.item(1) as HTMLElement | null
+      setAutoDocked(media.matches && chatLayer?.getAttribute('aria-hidden') === 'false')
+    }
+    const observer = new MutationObserver(updatePresentation)
+    observer.observe(centerWorkspace, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['aria-hidden'],
+    })
+    media.addEventListener('change', updatePresentation)
+    updatePresentation()
+    return () => {
+      observer.disconnect()
+      media.removeEventListener('change', updatePresentation)
+    }
+  }, [presentation])
+
+  const resolvedPresentation = presentation === 'auto'
+    ? autoDocked ? 'docked' : 'overlay'
+    : presentation
+
   return (
     <aside
+      ref={panelRef}
       data-network-operations-panel
-      data-presentation={presentation}
+      data-presentation={resolvedPresentation}
       className={cn(
         'flex min-h-0 flex-col overflow-hidden border-r border-border bg-surface/95',
-        presentation === 'overlay'
+        resolvedPresentation === 'overlay'
           ? 'absolute inset-y-0 left-14 z-30 w-[400px] shadow-2xl shadow-black/30'
-          : 'absolute inset-y-0 left-14 z-30 w-[min(360px,calc(100vw-7rem))] shadow-2xl shadow-black/30 xl:relative xl:inset-auto xl:left-auto xl:z-0 xl:w-[360px] xl:shrink-0 xl:shadow-xl xl:shadow-black/20',
+          : 'relative z-0 w-[360px] shrink-0 shadow-xl shadow-black/20',
       )}
     >
       {activeTab === 'traces' ? (
