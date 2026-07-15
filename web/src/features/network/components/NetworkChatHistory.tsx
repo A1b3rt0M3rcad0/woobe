@@ -34,7 +34,7 @@ export function NetworkChatHistory({ scrollRef, networkName, turns, running, pen
     content: liveAnswer,
     activity: {
       status: liveAnswer ? 'generating_answer' : 'working',
-      message: liveActivity.at(-1) ?? 'Executing Network composition…',
+      message: liveActivity[liveActivity.length - 1] ?? 'Executing Network composition…',
     },
   }
 
