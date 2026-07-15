@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,13 +28,17 @@ _install_column(
 _install_column(
     NetworkVersionModel,
     "source_staging_version_id",
-    mapped_column(ForeignKey("network.network_versions.id"), nullable=True),
+    mapped_column(Uuid(as_uuid=True), ForeignKey("network.network_versions.id"), nullable=True),
 )
-_install_column(NetworkVersionModel, "entry_agent_id", mapped_column(nullable=True))
+_install_column(
+    NetworkVersionModel,
+    "entry_agent_id",
+    mapped_column(Uuid(as_uuid=True), nullable=True),
+)
 _install_column(
     NetworkVersionModel,
     "entry_agent_release_id",
-    mapped_column(ForeignKey("agent.agent_releases.id"), nullable=True),
+    mapped_column(Uuid(as_uuid=True), ForeignKey("agent.agent_releases.id"), nullable=True),
 )
 _install_column(
     NetworkVersionModel,
