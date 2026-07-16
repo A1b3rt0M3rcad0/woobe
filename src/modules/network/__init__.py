@@ -9,6 +9,7 @@ from modules.network.application.binding_concurrency import install_binding_conc
 from modules.network.application.binding_runtime import install_pinned_release_runtime_support
 from modules.network.application.binding_service import ExplicitBindingNetworkService, install_explicit_binding_service
 from modules.network.application.release_atomic import install_atomic_network_promotion
+from modules.network.application.release_environment_separation import install_detached_network_agent_releases
 from modules.network.application.release_lifecycle import install_network_release_lifecycle
 from modules.network.application.service import NetworkApplicationService
 from modules.network.application.structured_output_persistence import install_structured_output_persistence
@@ -39,4 +40,5 @@ NetworkApplicationService._network_release_base_plan = staticmethod(  # type: ig
 )
 
 install_atomic_network_promotion()
+install_detached_network_agent_releases()
 install_structured_output_persistence()
