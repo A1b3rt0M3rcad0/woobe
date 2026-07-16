@@ -239,7 +239,13 @@ async def execute_tool_call(
     ended_at = utc_iso()
     duration_ms = round((time.monotonic() - started) * 1000)
     normalized = normalize_tool_result(output)
-    llm_content = compact_tool_output_for_llm(output)
+    llm_value = output if normalized.success else {
+        "success": False,
+        "error_code": normalized.error_code,
+        "error": normalized.error_message,
+        "result": output,
+    }
+    llm_content = compact_tool_output_for_llm(llm_value)
     info = ToolCallInfo(
         tool_call_id=tool_call["id"],
         tool_name=tool_name,
