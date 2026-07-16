@@ -72,6 +72,7 @@ export interface ToolCallInfo {
   status?: string | null
   latency_ms?: number | null
   error?: string | null
+  error_code?: string | null
 }
 
 export interface UsageInfo {
@@ -187,70 +188,25 @@ export interface AskResponse {
   fallback_provider_model_id?: string | null
   fallback_credential_id?: string | null
   fallback_used: boolean
-  fallback_info?: FallbackInfo | null
+  fallback_info: FallbackInfo | null
   latency_ms: number | null
-  ttft_ms?: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
   execution_events?: ExecutionEvent[]
   diagnostics?: ExecutionDiagnostics | null
 }
 
-export interface Message {
-  id: string
-  session_id: string
-  role: string
-  content: string
-  input_tokens?: number | null
-  output_tokens?: number | null
-  cost_usd?: number | null
-  data?: Record<string, unknown>
-  created_at: string
-  updated_at?: string
-}
-
 export interface ChatMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   usage?: UsageInfo | null
-  sources?: SourceInfo[] | null
-  tool_calls?: ToolCallInfo[] | null
-  activity?: AgentActivityInfo | null
+  sources?: SourceInfo[]
+  tool_calls?: ToolCallInfo[]
+  trace_id?: string | null
   model?: string | null
   provider?: string | null
   latency_ms?: number | null
-  trace_id?: string | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
-  created_at?: string | null
-}
-
-export interface RawStreamEvent {
-  type: string
-  timestamp: string
-  payload: unknown
-}
-
-export interface TraceItem {
-  id: string
-  title: string
-  timestamp: string
-  status: 'success' | 'error' | 'warning' | 'running' | 'pending' | 'cancelled'
-  latency_ms: number | null
-  model: string | null
-  provider: string | null
-  provider_model_id?: string | null
-  provider_credential_id?: string | null
-  fallback_provider_model_id?: string | null
-  fallback_credential_id?: string | null
-  input_tokens: number | null
-  output_tokens: number | null
-  total_tokens: number | null
-  cost_usd: number | null
-  trace_id: string | null
-  response: AskResponse | null
-  fallback_used?: boolean
-  fallback_info?: FallbackInfo | null
-  project_id?: string
-  agent_id?: string
+  activity?: AgentActivityInfo | null
 }
