@@ -11,9 +11,18 @@ interface ToolCallsCollapsibleProps {
   variant?: 'playground' | 'network'
 }
 
+function isRunningTool(toolCall: ToolCallInfo): boolean {
+  return toolCall.status === 'running'
+    || (toolCall.success == null && toolCall.status !== 'error')
+}
+
+function isFailedTool(toolCall: ToolCallInfo): boolean {
+  return toolCall.success === false || toolCall.status === 'error'
+}
+
 function summaryLabel(toolCalls: ToolCallInfo[]): string {
-  const running = toolCalls.filter((toolCall) => toolCall.status === 'running' || toolCall.success == null).length
-  const failed = toolCalls.filter((toolCall) => toolCall.success === false || toolCall.status === 'error').length
+  const running = toolCalls.filter(isRunningTool).length
+  const failed = toolCalls.filter(isFailedTool).length
   const completed = toolCalls.length - running - failed
   const parts = [`Tool calls (${toolCalls.length})`]
   if (running) parts.push(`${running} running`)
@@ -28,8 +37,8 @@ export function ToolCallsCollapsible({
 }: ToolCallsCollapsibleProps) {
   const [open, setOpen] = useState(false)
   const compact = variant === 'network'
-  const hasRunningTool = toolCalls.some((toolCall) => toolCall.status === 'running' || toolCall.success == null)
-  const hasFailedTool = toolCalls.some((toolCall) => toolCall.success === false || toolCall.status === 'error')
+  const hasRunningTool = toolCalls.some(isRunningTool)
+  const hasFailedTool = toolCalls.some(isFailedTool)
 
   if (!toolCalls || toolCalls.length === 0) return null
 
@@ -55,8 +64,8 @@ export function ToolCallsCollapsible({
       {open && (
         <div className="space-y-1.5">
           {toolCalls.map((toolCall, index) => {
-            const isRunning = toolCall.status === 'running' || toolCall.success == null
-            const isSuccess = !isRunning && toolCall.success !== false && toolCall.status !== 'error'
+            const isRunning = isRunningTool(toolCall)
+            const isSuccess = !isRunning && !isFailedTool(toolCall)
             const failureLabel = toolCall.error_code || toolCall.error
             return (
               <div
