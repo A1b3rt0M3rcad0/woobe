@@ -32,6 +32,7 @@ interface ChatMessageProps {
   agentName?: string
   variant?: ChatMessageVariant
   assistantIcon?: 'bot' | 'network'
+  details?: ReactNode
   footerMeta?: ReactNode
   footerActions?: ReactNode
 }
@@ -213,6 +214,7 @@ export function ChatMessage({
   agentName,
   variant = 'playground',
   assistantIcon = 'bot',
+  details,
   footerMeta,
   footerActions,
 }: ChatMessageProps) {
@@ -305,6 +307,8 @@ export function ChatMessage({
           <SourcesCollapsible sources={message.sources} variant={variant} />
         </div>
       )}
+
+      {details}
 
       {!isStreaming && (
         <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
