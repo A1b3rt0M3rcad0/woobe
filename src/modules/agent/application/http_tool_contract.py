@@ -77,7 +77,8 @@ def compile_http_tool_contract(
     for name in names:
         properties.setdefault(name, {"type": "string", "description": f"Parameter {name}"})
     schema["properties"] = properties
-    required = [name for name in schema.get("required", []) if isinstance(name, str) and name in properties]
+    raw_required = schema.get("required")
+    required = [name for name in raw_required if isinstance(name, str) and name in properties] if isinstance(raw_required, list) else []
     for name in names:
         if not _has_default(normalized, name) and name not in required:
             required.append(name)
