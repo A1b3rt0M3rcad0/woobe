@@ -82,14 +82,49 @@ describe('networkLiveExecution', () => {
     expect(state.sources).toHaveLength(1)
   })
 
+  it('keeps semantic Tool error codes while a Run is active', () => {
+    let state = applyNetworkRuntimeEvent(
+      emptyLiveNetworkExecution(),
+      'tool_call_started',
+      event({
+        tool_call_id: 'tool-1',
+        tool_name: 'mcp_deepwiki_ask_question',
+      }, { invocation_id: 'root' }),
+    )
+
+    state = applyNetworkRuntimeEvent(state, 'tool_call_completed', event({
+      tool_call_id: 'tool-1',
+      tool_name: 'mcp_deepwiki_ask_question',
+      success: false,
+      status: 'error',
+      error_code: 'repository_not_found',
+      error: 'Repository not found',
+    }, { invocation_id: 'root' }))
+
+    expect(state.tools[0]).toEqual(expect.objectContaining({
+      success: false,
+      status: 'error',
+      error_code: 'repository_not_found',
+    }))
+  })
+
   it('marks active execution details as failed when the Run stops', () => {
     let state = applyNetworkRuntimeEvent(
       emptyLiveNetworkExecution(),
       'agent_invocation_started',
       event({ label: 'Specialist' }, { invocation_id: 'specialist', depth: 1 }),
     )
+    state = applyNetworkRuntimeEvent(state, 'tool_call_started', event({
+      tool_call_id: 'tool-running',
+      tool_name: 'lookup',
+    }, { invocation_id: 'specialist' }))
     state = applyNetworkRuntimeEvent(state, 'execution_failed', event({ message: 'failed' }))
 
     expect(state.agents[0].status).toBe('error')
+    expect(state.tools[0]).toEqual(expect.objectContaining({
+      status: 'error',
+      success: false,
+      error_code: 'execution_stopped',
+    }))
   })
 })
