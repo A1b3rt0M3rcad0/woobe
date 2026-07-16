@@ -13,6 +13,7 @@ import type { NetworkSession } from './networkSessionTypes'
 import { NetworkChatComposer } from './NetworkChatComposer'
 import { NetworkChatHeader } from './NetworkChatHeader'
 import { NetworkChatHistory } from './NetworkChatHistory'
+import { applyNetworkRuntimeEvent, emptyLiveNetworkExecution } from './networkLiveExecution'
 import { reconcileNetworkTurns } from './networkTurnReconciliation'
 
 interface NetworkChatWorkspaceProps {
@@ -88,6 +89,7 @@ export function NetworkChatWorkspace({
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
+  const [liveExecution, setLiveExecution] = useState(emptyLiveNetworkExecution)
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -108,7 +110,7 @@ export function NetworkChatWorkspace({
   useLayoutEffect(() => {
     const element = scrollRef.current
     if (element && shouldStickToBottomRef.current) element.scrollTop = element.scrollHeight
-  }, [turns.length, running, liveAnswer, liveActivity.length])
+  }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.tools.length, liveExecution.sources.length])
 
   const refreshPersistedSession = async () => {
     await Promise.all([
@@ -122,6 +124,7 @@ export function NetworkChatWorkspace({
     setPendingMessage(null)
     setLiveAnswer('')
     setLiveActivity([])
+    setLiveExecution(emptyLiveNetworkExecution())
   }
 
   const stop = () => {
@@ -175,6 +178,7 @@ export function NetworkChatWorkspace({
     setPendingMessage(content)
     setLiveAnswer('')
     setLiveActivity([])
+    setLiveExecution(emptyLiveNetworkExecution())
     setLastHeartbeatAt(null)
     shouldStickToBottomRef.current = true
     const controller = new AbortController()
@@ -203,6 +207,7 @@ export function NetworkChatWorkspace({
         },
         onEvent: (eventType, event) => {
           records.push({ eventType, event })
+          setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
           if (eventType !== 'token' && eventType !== 'token_retract') {
             setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           }
@@ -274,7 +279,7 @@ export function NetworkChatWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession.id} changed={changed} newSessionDisabled={running} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
-      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
+      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
       <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
     </div>
