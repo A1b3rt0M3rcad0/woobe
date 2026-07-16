@@ -48,3 +48,18 @@ def test_regular_success() -> None:
     )
     assert result.success is True
     assert result.error_code is None
+
+
+def test_regular_result_text_is_not_scanned_as_an_error() -> None:
+    result = normalize_tool_result(
+        {
+            "success": True,
+            "output": {
+                "result": {
+                    "answer": "The documentation explains how repository not found errors are handled."
+                }
+            },
+        }
+    )
+    assert result.success is True
+    assert result.error_code is None
