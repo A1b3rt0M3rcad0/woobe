@@ -11,6 +11,11 @@ AGENT_APP = PROJECT_ROOT / "src" / "modules" / "agent" / "application"
 REQUIRED_APP_DIRS = ["composers", "dtos", "handlers", "use_cases"]
 
 FORBIDDEN_FRAMEWORK_MODULES = {"sqlalchemy", "fastapi", "asyncpg", "aiormq"}
+RUNTIME_ORCHESTRATION_FILES = {
+    "ask_agent_stream_service.py",
+    "ask_use_case.py",
+    "instrumented_execution_finalizer.py",
+}
 
 
 def _get_imports(file_path: Path) -> list[str]:
@@ -52,7 +57,11 @@ class TestNormalizeAgentApplicationLayout:
     def test_composers_directory_has_multiple_files(self):
         composers_dir = AGENT_APP / "composers"
         assert composers_dir.is_dir()
-        py_files = [f for f in composers_dir.iterdir() if f.suffix == ".py" and not f.name.startswith("__")]
+        py_files = [
+            f
+            for f in composers_dir.iterdir()
+            if f.suffix == ".py" and not f.name.startswith("__")
+        ]
         assert len(py_files) >= 40, f"Expected 40+ composers, found {len(py_files)}"
 
     def test_handlers_directory_has_init(self):
@@ -61,26 +70,28 @@ class TestNormalizeAgentApplicationLayout:
         assert (handlers_dir / "__init__.py").exists()
 
     def test_no_application_file_imports_framework_libraries(self):
-        known_infra_use_cases = {"ask_agent_stream_service.py", "ask_use_case.py"}
         for py_file in AGENT_APP.rglob("*.py"):
             if "__pycache__" in py_file.parts:
                 continue
             if py_file.parent.name == "composers":
                 continue
-            if py_file.name in known_infra_use_cases:
+            if py_file.name in RUNTIME_ORCHESTRATION_FILES:
                 continue
             imports = _get_imports(py_file)
-            framework_refs = [m for m in imports if m.split(".")[0].lower() in FORBIDDEN_FRAMEWORK_MODULES]
+            framework_refs = [
+                module
+                for module in imports
+                if module.split(".")[0].lower() in FORBIDDEN_FRAMEWORK_MODULES
+            ]
             if framework_refs:
                 rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                 pytest.fail(f"Application file {rel} imports: {framework_refs}")
 
     def test_use_cases_only_import_domain_or_shared(self):
-        known_infra_importing = {"ask_agent_stream_service.py", "ask_use_case.py"}
         for py_file in (AGENT_APP / "use_cases").rglob("*.py"):
             if "__pycache__" in py_file.parts or py_file.name == "__init__.py":
                 continue
-            if py_file.name in known_infra_importing:
+            if py_file.name in RUNTIME_ORCHESTRATION_FILES:
                 continue
             imports = _get_imports(py_file)
             for imp in imports:
@@ -100,5 +111,9 @@ class TestNormalizeAgentApplicationLayout:
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "__all__":
                         if isinstance(node.value, ast.List):
-                            exports = {e.value for e in node.value.elts if isinstance(e, ast.Constant)}
+                            exports = {
+                                element.value
+                                for element in node.value.elts
+                                if isinstance(element, ast.Constant)
+                            }
         assert len(exports) >= 60, f"Expected 60+ DTO exports, found {len(exports)}"

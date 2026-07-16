@@ -1,188 +1,168 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useCollections, useCreateCollection, useDocuments, useUploadDocument } from '@/features/knowledge/hooks'
-import { PageHeader } from '@/components/common/PageHeader'
-import { LoadingState } from '@/components/common/LoadingState'
+import { Database, Plus } from 'lucide-react'
+
 import { ErrorState } from '@/components/common/ErrorState'
-import { EmptyState } from '@/components/common/EmptyState'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
-import { Table } from '@/components/ui/Table'
+import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Tabs } from '@/components/ui/Tabs'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { createCollectionSchema, type CreateCollectionFormData } from '@/features/knowledge/schemas'
-import { BookOpen, Plus, Upload } from 'lucide-react'
-import { toast } from 'sonner'
-import { formatBytes } from '@/lib/formatters/bytes'
-import { formatDate } from '@/lib/formatters/date'
-import type { Collection, Document } from '@/features/knowledge/types'
+import { Button } from '@/components/ui/Button'
+import { CollectionDetailsModal } from '@/features/knowledge/components/CollectionDetailsModalV2'
+import { KnowledgeEmbeddingPanel } from '@/features/knowledge/components/CollectionVectorWorkspace'
+import { CreateCollectionModal } from '@/features/knowledge/components/CreateCollectionModal'
+import { useCollections } from '@/features/knowledge/hooks'
+import type { Collection } from '@/features/knowledge/types'
+
+type Section = 'collections' | 'embedding'
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : 'Not recorded'
+}
 
 export default function KnowledgePage() {
   const { projectId } = useParams<{ projectId: string }>()
-  const { data: collections, isLoading: colsLoading, isError: colsError, refetch: refetchCols } = useCollections(projectId)
-  const { data: documents, isLoading: docsLoading, refetch: refetchDocs } = useDocuments(projectId)
-  const createCollection = useCreateCollection()
-  const uploadDocument = useUploadDocument()
-  const [showCreateCol, setShowCreateCol] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
+  const { data: collections, isLoading, isError, error, refetch } = useCollections(projectId)
+  const [section, setSection] = useState<Section>('collections')
+  const [showCreateCollection, setShowCreateCollection] = useState(false)
+  const [showCreateEmbeddingModel, setShowCreateEmbeddingModel] = useState(false)
+  const [collectionQuery, setCollectionQuery] = useState('')
+  const [embeddingQuery, setEmbeddingQuery] = useState('')
+  const [embeddingCount, setEmbeddingCount] = useState(0)
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
 
-  const colForm = useForm<CreateCollectionFormData>({
-    resolver: zodResolver(createCollectionSchema),
-  })
+  const items = collections ?? []
+  const selectedCollection = items.find((collection) => collection.id === selectedCollectionId) ?? null
+  const normalizedQuery = collectionQuery.trim().toLowerCase()
+  const visibleCollections = useMemo(() => {
+    if (!normalizedQuery) return items
+    return items.filter((collection) => [
+      collection.name,
+      collection.description ?? '',
+      collection.status ?? '',
+    ].some((value) => value.toLowerCase().includes(normalizedQuery)))
+  }, [items, normalizedQuery])
 
-  const [uploadColId, setUploadColId] = useState('')
-  const [uploadTitle, setUploadTitle] = useState('')
+  if (!projectId) return <ErrorState message="Project not found" />
 
-  const handleCreateCollection = async (data: CreateCollectionFormData) => {
-    try {
-      await createCollection.mutateAsync({ project_id: projectId!, name: data.name, description: data.description })
-      toast.success('Collection created')
-      setShowCreateCol(false)
-      colForm.reset()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }
+  const activeQuery = section === 'collections' ? collectionQuery : embeddingQuery
+  const collectionCount = normalizedQuery ? `${visibleCollections.length} of ${items.length}` : items.length
 
-  const handleUpload = async () => {
-    if (!uploadColId) {
-      toast.error('Select a collection')
-      return
-    }
-    try {
-      await uploadDocument.mutateAsync({
-        project_id: projectId!,
-        collection_id: uploadColId,
-        title: uploadTitle || 'Untitled',
-        file_name: 'sample.pdf',
-        content_type: 'application/pdf',
-        size_bytes: 0,
-      })
-      toast.success('Document uploaded')
-      setShowUpload(false)
-      setUploadTitle('')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
-    }
-  }
+  return (
+    <ResourcePage
+      title="Knowledge"
+      description="Create Collections, add Documents and build versioned vector snapshots."
+      action={(
+        <Button
+          type="button"
+          onClick={() => {
+            if (section === 'collections') setShowCreateCollection(true)
+            else setShowCreateEmbeddingModel(true)
+          }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          {section === 'collections' ? 'New Collection' : 'Add Embedding Model'}
+        </Button>
+      )}
+    >
+      <ResourceToolbar>
+        <ResourceTabs
+          value={section}
+          onChange={setSection}
+          label="Knowledge resource type"
+          tabs={[
+            { value: 'collections', label: 'Collections', count: items.length },
+            { value: 'embedding', label: 'Embedding models', count: embeddingCount },
+          ]}
+        />
+        <ResourceSearch
+          value={activeQuery}
+          onChange={section === 'collections' ? setCollectionQuery : setEmbeddingQuery}
+          placeholder={section === 'collections' ? 'Search Collections...' : 'Search Embedding models...'}
+          label={section === 'collections' ? 'Search Collections' : 'Search Embedding models'}
+        />
+      </ResourceToolbar>
 
-  const docColumns = [
-    { key: 'title', header: 'Title' },
-    { key: 'file_name', header: 'File' },
-    { key: 'content_type', header: 'Type' },
-    { key: 'size_bytes', header: 'Size', render: (d: Document) => formatBytes(d.size_bytes) },
-    { key: 'status', header: 'Status', render: (d: Document) => <StatusBadge status={d.status} /> },
-    { key: 'created_at', header: 'Created', render: (d: Document) => d.created_at ? formatDate(d.created_at) : '—' },
-  ]
+      {section === 'collections' ? (
+        <section>
+          <ResourceSectionHeader
+            title="Collections"
+            description="Open a Collection to manage Documents, vector readiness and snapshots."
+            count={collectionCount}
+          />
 
-  if (colsLoading || docsLoading) return <LoadingState />
-  if (colsError) return <ErrorState onRetry={refetchCols} />
-
-  const tabs = [
-    {
-      id: 'collections',
-      label: 'Collections',
-      content: (
-        <div>
-          <div className="flex justify-end mb-4">
-            <Button size="sm" onClick={() => setShowCreateCol(true)}>
-              <Plus className="mr-1 h-4 w-4" />
-              New Collection
-            </Button>
-          </div>
-          {collections && collections.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {collections.map((col: Collection) => (
-                <Card key={col.id}>
-                  <CardHeader>
-                    <CardTitle className="text-sm">{col.name}</CardTitle>
-                    <CardDescription>{col.description || 'No description'}</CardDescription>
-                  </CardHeader>
-                </Card>
+          {isLoading ? (
+            <LoadingState message="Loading Collections" variant="panel" layout="compact-cards" />
+          ) : isError ? (
+            <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+          ) : visibleCollections.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {visibleCollections.map((collection: Collection) => (
+                <ResourceCard
+                  key={collection.id}
+                  aria-label={`Open Collection ${collection.name}`}
+                  onClick={() => setSelectedCollectionId(collection.id)}
+                  icon={<Database className="h-4 w-4" />}
+                  title={collection.name}
+                  subtitle={collection.description || 'No description provided'}
+                  status={collection.status ? <StatusBadge status={collection.status} size="compact" /> : undefined}
+                  metadata={(
+                    <>
+                      <ResourcePill>{collection.documents_count ?? 0} Documents</ResourcePill>
+                      <ResourcePill tone={(collection.indexed_documents_count ?? 0) > 0 ? 'primary' : 'default'}>
+                        {collection.indexed_documents_count ?? 0} indexed
+                      </ResourcePill>
+                    </>
+                  )}
+                  footer={`Updated · ${formatDate(collection.updated_at || collection.created_at)}`}
+                />
               ))}
             </div>
           ) : (
-            <EmptyState icon={<BookOpen className="h-12 w-12" />} title="No collections" description="Create a collection to organize your documents." />
+            <ResourceEmptyState
+              icon={<Database className="h-4 w-4" />}
+              title={items.length === 0 ? 'No Collections yet' : 'No Collections found'}
+              description={items.length === 0
+                ? 'Create the first Collection, then add Documents inside it.'
+                : 'Adjust the search or clear it to see every Collection.'}
+              action={collectionQuery ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => setCollectionQuery('')}>
+                  Clear search
+                </Button>
+              ) : undefined}
+            />
           )}
-        </div>
-      ),
-    },
-    {
-      id: 'documents',
-      label: 'Documents',
-      content: (
-        <div>
-          <div className="flex justify-end mb-4">
-            <Button size="sm" onClick={() => setShowUpload(true)}>
-              <Upload className="mr-1 h-4 w-4" />
-              Upload Document
-            </Button>
-          </div>
-          {documents && documents.length > 0 ? (
-            <Card>
-              <CardContent className="p-0">
-                <Table columns={docColumns} data={documents} keyExtractor={(d) => d.id} />
-              </CardContent>
-            </Card>
-          ) : (
-            <EmptyState icon={<BookOpen className="h-12 w-12" />} title="No documents" description="Upload documents to add knowledge to your agents." />
-          )}
-        </div>
-      ),
-    },
-  ]
+        </section>
+      ) : (
+        <KnowledgeEmbeddingPanel
+          projectId={projectId}
+          query={embeddingQuery}
+          onQueryChange={setEmbeddingQuery}
+          createOpen={showCreateEmbeddingModel}
+          onCreateOpenChange={setShowCreateEmbeddingModel}
+          onCountChange={setEmbeddingCount}
+        />
+      )}
 
-  return (
-    <div>
-      <PageHeader title="Knowledge" description="Document collections and RAG management" />
-      <Tabs tabs={tabs} />
+      <CreateCollectionModal
+        open={showCreateCollection}
+        onClose={() => setShowCreateCollection(false)}
+        projectId={projectId}
+      />
 
-      <Dialog open={showCreateCol} onClose={() => setShowCreateCol(false)} title="Create Collection">
-        <form onSubmit={colForm.handleSubmit(handleCreateCollection)} className="space-y-4">
-          <Input {...colForm.register('name')} error={colForm.formState.errors.name?.message} placeholder="Collection name" />
-          <Textarea {...colForm.register('description')} placeholder="Description (optional)" />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreateCol(false)}>Cancel</Button>
-            <Button type="submit" loading={createCollection.isPending}>Create</Button>
-          </div>
-        </form>
-      </Dialog>
-
-      <Dialog open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-muted mb-1">Collection</label>
-            <select
-              value={uploadColId}
-              onChange={(e) => setUploadColId(e.target.value)}
-              className="flex h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
-            >
-              <option value="">Select collection</option>
-              {(collections || []).map((c: Collection) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <Input
-            value={uploadTitle}
-            onChange={(e) => setUploadTitle(e.target.value)}
-            placeholder="Document title"
-          />
-          <div className="rounded-lg border-2 border-dashed border-border p-8 text-center">
-            <Upload className="mx-auto h-8 w-8 text-muted mb-2" />
-            <p className="text-sm text-muted">Drop file here or click to browse</p>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowUpload(false)}>Cancel</Button>
-            <Button onClick={handleUpload} loading={uploadDocument.isPending}>Upload</Button>
-          </div>
-        </div>
-      </Dialog>
-    </div>
+      <CollectionDetailsModal
+        open={Boolean(selectedCollection)}
+        onClose={() => setSelectedCollectionId(null)}
+        collection={selectedCollection}
+        projectId={projectId}
+      />
+    </ResourcePage>
   )
 }

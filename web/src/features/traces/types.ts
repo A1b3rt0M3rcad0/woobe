@@ -1,11 +1,21 @@
 export type TraceStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export interface ModelBindingInfo {
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  provider?: string | null
+  model?: string | null
+}
+
 export interface FallbackInfo {
   primary_model: string | null
   primary_provider: string | null
+  primary_provider_model_id?: string | null
+  primary_credential_id?: string | null
   primary_error: string
   fallback_model: string | null
   fallback_provider: string | null
+  fallback_provider_model_id?: string | null
   fallback_credential_id: string | null
 }
 
@@ -17,6 +27,10 @@ export interface Trace {
   status: string
   provider?: string
   model?: string
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
   fallback_used?: boolean
   total_latency_ms?: number
   total_cost_usd?: number | null
@@ -90,6 +104,10 @@ export interface TraceDiagnostics {
   answerLength: number | null
   fallbackUsed: boolean
   structuredOutput: boolean
+  providerModelId?: string | null
+  providerCredentialId?: string | null
+  fallbackProviderModelId?: string | null
+  fallbackCredentialId?: string | null
   notes?: string[]
 }
 
@@ -103,6 +121,12 @@ export interface TraceSummary {
   status: TraceStatus
   model?: string | null
   provider?: string | null
+  providerModelId?: string | null
+  providerCredentialId?: string | null
+  fallbackProviderModelId?: string | null
+  fallbackCredentialId?: string | null
+  modelBinding?: ModelBindingInfo | null
+  fallbackModelBinding?: ModelBindingInfo | null
   latencyMs?: number | null
   inputTokens?: number | null
   outputTokens?: number | null

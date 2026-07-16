@@ -1,3 +1,6 @@
+from typing import cast
+from uuid import UUID
+
 from modules.agent.application.use_cases.knowledge_use_cases import DetachCollectionUseCase
 from shared.infra.errors import NotFoundError
 from shared.presentation.interface.controller import Controller
@@ -11,7 +14,7 @@ class DetachCollectionController(Controller):
 
     async def handle(self, request: Request) -> Response:
         try:
-            link_id = request.params.get("link_id")
+            link_id = cast(UUID, request.params.get("link_id"))
             await self._use_case.execute(link_id)
             return Response(
                 status_code=200,

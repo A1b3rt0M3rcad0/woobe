@@ -1,10 +1,12 @@
-import { get, post, del } from '@/lib/api/client'
+import { get, post, patch, del } from '@/lib/api/client'
 import type {
   AgentCollection,
   AttachCollectionRequest,
   Collection,
   CreateCollectionRequest,
   Document,
+  UploadDocumentFileRequest,
+  UpdateCollectionRequest,
   UploadDocumentRequest,
 } from './types'
 
@@ -18,6 +20,10 @@ export async function getCollection(id: string): Promise<Collection> {
 
 export async function createCollection(data: CreateCollectionRequest): Promise<Collection> {
   return post<Collection>('/knowledge/collections', data)
+}
+
+export async function updateCollection(id: string, data: UpdateCollectionRequest): Promise<Collection> {
+  return patch<Collection>(`/knowledge/collections/${id}`, data)
 }
 
 export async function getAgentCollections(agentId: string): Promise<AgentCollection[]> {
@@ -46,4 +52,20 @@ export async function getDocument(id: string): Promise<Document> {
 
 export async function uploadDocument(data: UploadDocumentRequest): Promise<Document> {
   return post<Document>('/knowledge/documents', data)
+}
+
+export async function uploadDocumentFile(data: UploadDocumentFileRequest): Promise<Document> {
+  const formData = new FormData()
+  formData.append('project_id', data.projectId)
+  formData.append('collection_id', data.collectionId)
+  if (data.title?.trim()) {
+    formData.append('title', data.title.trim())
+  }
+  formData.append('file', data.file)
+
+  return post<Document>('/knowledge/documents/upload', formData)
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  return del<void>(`/knowledge/documents/${id}`)
 }

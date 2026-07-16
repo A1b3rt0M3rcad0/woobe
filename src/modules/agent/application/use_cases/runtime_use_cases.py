@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from modules.agent.domain.entities import AskJob, Message, Session
@@ -18,12 +19,14 @@ from modules.agent.application.dtos.runtime_dtos import (
     GetAskJobOutput,
     ListAgentSessionsInput,
     ListAgentSessionsOutput,
+    ListAgentSessionsPageOutput,
     ListMessagesInput,
     ListMessagesOutput,
     MessageResponse,
     SendMessageInput,
     SendMessageOutput,
 )
+from modules.agent.domain.enums import RuntimeSessionMode, SessionStatus
 from shared.infra.time import utc_now
 
 
@@ -48,19 +51,21 @@ class CreateSessionUseCase:
             data=input_dto.data,
         )
         created = await self.repo.create(session)
+        project_id = cast(UUID, created.project_id)
+        agent_id = cast(UUID, created.agent_id)
 
         event = AgentSessionCreatedV1.create(
             session_id=created.id,
-            project_id=created.project_id,
-            agent_id=created.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             payload={"mode": created.mode},
         )
         await self._outbox.write(event)
 
         return CreateSessionOutput(
             id=created.id,
-            project_id=created.project_id,
-            agent_id=created.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             external_session_id=created.external_session_id,
             tenant_id=created.tenant_id,
             user_id=created.user_id,
@@ -87,16 +92,19 @@ class SendMessageUseCase:
 
     async def execute(self, input_dto: SendMessageInput) -> SendMessageOutput:
         sess = await self.session_repo.get_by_id(input_dto.session_id)
+        project_id = cast(UUID, sess.project_id)
+        agent_id = cast(UUID, sess.agent_id)
 
         message = Message(
-            project_id=sess.project_id,
-            agent_id=sess.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             session_id=input_dto.session_id,
             role=input_dto.role,
             content=input_dto.content,
             data=input_dto.data,
         )
         created = await self.message_repo.create(message)
+        session_id = cast(UUID, created.session_id)
 
         sess.last_message_at = utc_now()
         await self.session_repo.update(sess)
@@ -104,8 +112,8 @@ class SendMessageUseCase:
         event = AgentMessageCreatedV1.create(
             message_id=created.id,
             session_id=sess.id,
-            project_id=sess.project_id,
-            agent_id=sess.agent_id,
+            project_id=project_id,
+            agent_id=agent_id,
             role=created.role,
         )
         await self._outbox.write(event)
@@ -113,7 +121,7 @@ class SendMessageUseCase:
         return SendMessageOutput(
             message=MessageResponse(
                 id=created.id,
-                session_id=created.session_id,
+                session_id=session_id,
                 role=created.role,
                 content=created.content,
                 input_tokens=created.input_tokens,
@@ -123,7 +131,7 @@ class SendMessageUseCase:
                 created_at=created.created_at,
                 updated_at=created.updated_at,
             ),
-            session_id=created.session_id,
+            session_id=session_id,
         )
 
 
@@ -136,7 +144,7 @@ class ListMessagesUseCase:
         messages = await self._repo.list_by_session(input_dto.session_id, input_dto.offset, input_dto.limit)
         return [ListMessagesOutput(
             id=m.id,
-            session_id=m.session_id,
+            session_id=cast(UUID, m.session_id),
             role=m.role.value if hasattr(m.role, "value") else m.role,
             content=m.content,
             input_tokens=m.input_tokens,
@@ -158,27 +166,51 @@ class ListAgentSessionsUseCase:
         self._session_repo = session_repo
         self._message_repo = message_repo
 
-    async def execute(self, input_dto: ListAgentSessionsInput) -> list[ListAgentSessionsOutput]:
+    async def execute(self, input_dto: ListAgentSessionsInput) -> ListAgentSessionsPageOutput:
         sessions = await self._session_repo.list_by_agent(
             input_dto.project_id, input_dto.agent_id
         )
-        result = []
-        for s in sessions:
+        sessions = sorted(
+            sessions,
+            key=lambda session: (session.last_message_at or session.created_at).timestamp()
+            if session.last_message_at or session.created_at
+            else 0.0,
+            reverse=True,
+        )
+
+        start_index = 0
+        if input_dto.cursor:
+            for index, session in enumerate(sessions):
+                if str(session.id) == input_dto.cursor:
+                    start_index = index + 1
+                    break
+
+        page_sessions = sessions[start_index:start_index + input_dto.limit + 1]
+        has_next = len(page_sessions) > input_dto.limit
+        visible_sessions = page_sessions[:input_dto.limit]
+
+        result: list[ListAgentSessionsOutput] = []
+        for s in visible_sessions:
             try:
                 count = await self._message_repo.count_by_session(s.id)
             except Exception:
                 count = 0
             result.append(ListAgentSessionsOutput(
                 id=s.id,
-                project_id=s.project_id,
-                agent_id=s.agent_id,
-                status=s.status.value if hasattr(s.status, "value") else s.status,
-                mode=s.mode.value if hasattr(s.mode, "value") else s.mode,
+                project_id=cast(UUID, s.project_id),
+                agent_id=cast(UUID, s.agent_id),
+                status=SessionStatus(s.status),
+                mode=RuntimeSessionMode(s.mode),
                 last_message_at=s.last_message_at,
                 created_at=s.created_at,
                 message_count=count,
             ))
-        return result
+
+        return ListAgentSessionsPageOutput(
+            items=result,
+            next_cursor=str(result[-1].id) if has_next and result else None,
+            has_next=has_next,
+        )
 
 
 class CreateAskJobUseCase:
@@ -193,14 +225,14 @@ class CreateAskJobUseCase:
             agent_id=input_dto.agent_id,
             session_id=input_dto.session_id,
             status="pending",
-            params=input_dto.model_dump(exclude={"tenant_id", "user_id", "metadata"}),
+            params=input_dto.model_dump(mode="json"),
         )
         created = await self._repo.create(job)
 
         if self._outbox:
             event = AgentExecutionRequestedV1.create(
                 agent_id=input_dto.agent_id,
-                session_id=input_dto.session_id,
+                session_id=input_dto.session_id or created.id,
                 payload={
                     "job_id": str(created.id),
                     "project_id": str(input_dto.project_id),
@@ -230,4 +262,3 @@ class GetAskJobUseCase:
             started_at=job.started_at,
             completed_at=job.completed_at,
         )
-

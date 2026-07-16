@@ -5,11 +5,17 @@ secret redaction, and cipher operations.
 """
 import uuid
 
+import httpx
 import pytest
 
 from modules.agent.domain.events import AgentSecretCreatedV1
+from modules.agent.infra.adapters import tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from modules.agent.infra.adapters.tool_executor import _is_private_url, _sanitize_error
+from modules.agent.infra.adapters.tool_executor import (
+    HttpToolExecutor,
+    _is_private_url,
+    _sanitize_error,
+)
 
 
 class TestSSRFProtection:
@@ -31,6 +37,15 @@ class TestSSRFProtection:
     def test_blocks_private_192_168_net(self):
         assert _is_private_url("http://192.168.1.1/api")
 
+    def test_blocks_ipv4_link_local_metadata(self):
+        assert _is_private_url("http://169.254.169.254/latest/meta-data")
+
+    def test_blocks_private_ipv6(self):
+        assert _is_private_url("http://[fc00::1]/api")
+
+    def test_blocks_ipv6_link_local(self):
+        assert _is_private_url("http://[fe80::1]/api")
+
     def test_blocks_zero_zero_zero_zero(self):
         assert _is_private_url("http://0.0.0.0:3000")
 
@@ -39,6 +54,84 @@ class TestSSRFProtection:
 
     def test_returns_true_for_empty_hostname(self):
         assert _is_private_url("http:///path-only")
+
+    async def test_blocks_dns_resolution_change_before_connect(self, monkeypatch):
+        resolutions = iter(
+            [
+                frozenset({"93.184.216.34"}),
+                frozenset({"93.184.216.35"}),
+            ]
+        )
+        monkeypatch.setattr(
+            tool_executor,
+            "_validated_public_addresses",
+            lambda _url: next(resolutions),
+        )
+        executor = HttpToolExecutor(
+            client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200)))
+        )
+        try:
+            result = await executor.execute("GET", "https://example.test")
+        finally:
+            await executor._client.aclose()
+
+        assert result.success is False
+        assert "DNS resolution changed" in str(result.error)
+
+    async def test_blocks_redirect_response(self, monkeypatch):
+        public = frozenset({"93.184.216.34"})
+        monkeypatch.setattr(
+            tool_executor,
+            "_validated_public_addresses",
+            lambda _url: public,
+        )
+        client = httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    302,
+                    headers={"location": "http://127.0.0.1/private"},
+                )
+            )
+        )
+        executor = HttpToolExecutor(client=client)
+        try:
+            result = await executor.execute("GET", "https://example.test")
+        finally:
+            await client.aclose()
+
+        assert result.success is False
+        assert result.status_code == 302
+        assert result.error == "HTTP redirects are not allowed for tools"
+
+    async def test_blocks_connected_peer_outside_validated_dns(self, monkeypatch):
+        class NetworkStream:
+            def get_extra_info(self, name):
+                assert name == "server_addr"
+                return ("10.0.0.8", 443)
+
+        public = frozenset({"93.184.216.34"})
+        monkeypatch.setattr(
+            tool_executor,
+            "_validated_public_addresses",
+            lambda _url: public,
+        )
+        client = httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={"ok": True},
+                    extensions={"network_stream": NetworkStream()},
+                )
+            )
+        )
+        executor = HttpToolExecutor(client=client)
+        try:
+            result = await executor.execute("GET", "https://example.test")
+        finally:
+            await client.aclose()
+
+        assert result.success is False
+        assert "connected peer" in str(result.error)
 
 
 class TestErrorSanitization:

@@ -18,9 +18,15 @@ interface OperationsPanelProps {
   selectedTraceId: string | null
   sessions: SessionListItem[]
   sessionId: string | null
+  sessionMode?: 'stateful' | 'stateless'
   onSelectTrace: (id: string | null) => void
-  onNewSession: () => void
+  onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
+  onLoadMoreSessions?: () => void
+  hasMoreSessions?: boolean
+  sessionsLoading?: boolean
+  sessionsLoadingMore?: boolean
+  creatingSession?: boolean
   tracesLoading?: boolean
   tracesError?: boolean
   tracesErrorMessage?: string
@@ -37,9 +43,15 @@ export function OperationsPanel(props: OperationsPanelProps) {
     selectedTraceId,
     sessions,
     sessionId,
+    sessionMode = 'stateful',
     onSelectTrace,
     onNewSession,
     onSelectSession,
+    onLoadMoreSessions,
+    hasMoreSessions,
+    sessionsLoading,
+    sessionsLoadingMore,
+    creatingSession,
     tracesLoading,
     tracesError,
     tracesErrorMessage,
@@ -54,8 +66,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
       : null
 
     return (
-      <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface flex flex-col">
-        <ScrollArea className="flex-shrink-0 max-h-[260px] border-b border-border">
+      <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
+        <ScrollArea className="flex-shrink-0 max-h-[260px] border-b border-border/90 bg-background/20">
           <TraceList
             traces={traces}
             selectedTraceId={selectedTraceId}
@@ -70,12 +82,12 @@ export function OperationsPanel(props: OperationsPanelProps) {
         <ScrollArea className="flex-1 min-h-0">
           {selectedTrace ? (
             <>
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center justify-between border-b border-border/90 bg-background/25 px-4 py-3">
                 <h3 className="text-sm font-medium text-white">Trace Detail</h3>
                 <button
                   type="button"
                   onClick={() => onSelectTrace(null)}
-                  className="rounded-lg p-1 text-muted transition-colors hover:bg-accent hover:text-white"
+                  className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white"
                   aria-label="Close trace details"
                 >
                   <X className="h-4 w-4" />
@@ -91,7 +103,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
             </>
           ) : (
             <div className="p-4 text-center">
-              <p className="text-sm text-muted">Select a trace to view details.</p>
+              <div className="rounded-xl border border-border/80 bg-background/45 px-4 py-8">
+                <p className="text-sm text-muted">Select a trace to view details.</p>
+              </div>
             </div>
           )}
         </ScrollArea>
@@ -105,13 +119,19 @@ export function OperationsPanel(props: OperationsPanelProps) {
         <SessionsPanel
           sessions={sessions}
           currentSessionId={sessionId}
+          sessionMode={sessionMode}
           onNewSession={onNewSession}
           onSelectSession={onSelectSession}
+          onLoadMoreSessions={onLoadMoreSessions}
+          hasMoreSessions={hasMoreSessions}
+          isInitialLoading={sessionsLoading}
+          isLoadingMore={sessionsLoadingMore}
+          isCreatingSession={creatingSession}
         />
       )
 
   return (
-    <div className="w-[380px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border bg-surface">
+    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5">
       <ScrollArea className="h-full min-h-0">
         {content}
       </ScrollArea>

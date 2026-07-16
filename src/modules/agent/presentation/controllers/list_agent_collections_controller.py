@@ -1,3 +1,6 @@
+from typing import cast
+from uuid import UUID
+
 from modules.agent.presentation.mappers import agent_collection_output_to_response
 from modules.agent.application.use_cases.knowledge_use_cases import ListAgentCollectionsUseCase
 from shared.presentation.interface.controller import Controller
@@ -10,7 +13,7 @@ class ListAgentCollectionsController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        agent_id = request.params.get("agent_id") or request.query.get("agent_id")
+        agent_id = cast(UUID, request.params.get("agent_id") or request.query.get("agent_id"))
         results = await self._use_case.execute(agent_id)
         return Response(
             status_code=200,

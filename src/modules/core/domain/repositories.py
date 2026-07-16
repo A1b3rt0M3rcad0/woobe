@@ -6,7 +6,6 @@ from shared.infra.objects import CursorPage
 
 
 class ProjectRepository(ABC):
-
     @abstractmethod
     async def save(self, project: Project) -> Project: ...
 
@@ -33,18 +32,34 @@ class ProjectRepository(ABC):
 
 
 class ApiKeyRepository(ABC):
-
     @abstractmethod
     async def save(self, api_key: ApiKey) -> ApiKey: ...
+
+    @abstractmethod
+    async def update(self, api_key: ApiKey) -> ApiKey: ...
 
     @abstractmethod
     async def get_by_id(self, api_key_id: UUID) -> ApiKey | None: ...
 
     @abstractmethod
+    async def update_credential_metadata(
+        self,
+        credential_id: UUID,
+        *,
+        name: str,
+        description: str | None,
+    ) -> ApiKey: ...
+
+    @abstractmethod
     async def get_by_key_hash(self, key_hash: bytes) -> ApiKey | None: ...
 
     @abstractmethod
-    async def list_by_project(self, project_id: UUID) -> list[ApiKey]: ...  # TODO: Remove after pagination migration
+    async def get_by_prefix(self, key_prefix: str) -> ApiKey | None: ...
+
+    @abstractmethod
+    async def list_by_project(
+        self, project_id: UUID
+    ) -> list[ApiKey]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
     async def paginate_by_project(

@@ -31,6 +31,10 @@ def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
 
+def _repository_path(path_value: str) -> Path:
+    return PROJECT_ROOT.joinpath(*path_value.replace("\\", "/").split("/"))
+
+
 def _extract_layer_imports(file_path: Path) -> list[tuple[str, str, str]]:
     try:
         source = file_path.read_text(encoding="utf-8")
@@ -157,7 +161,7 @@ class TestLayerDependencies:
         layer_entries = [e for e in entries if e.get("scope") == SCOPE]
 
         for entry in layer_entries:
-            file_path = PROJECT_ROOT / entry["file"].replace("/", "\\")
+            file_path = _repository_path(entry["file"])
             assert file_path.exists(), (
                 f"Allowlist references non-existent file: {entry['file']}"
             )

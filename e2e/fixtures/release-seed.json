@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "generated_for": "mvp-08-release-hardening",
+  "tenants": [
+    {
+      "user": {"id": "user-a", "email": "owner-a@example.test"},
+      "organization": {"id": "org-a", "name": "Tenant A", "slug": "tenant-a"},
+      "project": {"id": "project-a", "name": "Release Project A", "slug": "release-project-a"},
+      "credential": {"id": "credential-a", "provider": "openai", "model": "fake-stream", "base_url": "http://fake-provider:8099/v1"},
+      "agent": {"id": "agent-a", "name": "Release Gate Agent A"},
+      "usage": {"requests": 2, "input_tokens": 14, "output_tokens": 10, "cost_usd": 0.001},
+      "traces": [{"id": "trace-a", "status": "completed", "latency_ms": 42, "ttft_ms": 5}]
+    },
+    {
+      "user": {"id": "user-b", "email": "owner-b@example.test"},
+      "organization": {"id": "org-b", "name": "Tenant B", "slug": "tenant-b"},
+      "project": {"id": "project-b", "name": "Release Project B", "slug": "release-project-b"},
+      "credential": {"id": "credential-b", "provider": "openai", "model": "fake-fallback", "base_url": "http://fake-provider:8099/v1"},
+      "agent": {"id": "agent-b", "name": "Release Gate Agent B"},
+      "usage": {"requests": 1, "input_tokens": 7, "output_tokens": 5, "cost_usd": 0.0005},
+      "traces": [{"id": "trace-b", "status": "completed", "latency_ms": 45, "ttft_ms": 6}]
+    }
+  ]
+}

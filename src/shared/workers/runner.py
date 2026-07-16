@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from shared.observability.metrics import runtime_metrics
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 from shared.workers.inbox_consumer_base import BaseInboxConsumer
 
@@ -45,58 +46,66 @@ class WorkerRunner:
             return "long-lived"
         return "poller"
 
+    def _record_failure(self, key: str, error: Exception) -> None:
+        health = self._health[key]
+        health.error = type(error).__name__
+        runtime_metrics.increment_worker_failure(
+            worker=key,
+            worker_type=health.worker_type,
+        )
+
     async def start(self) -> None:
         started_at = datetime.now(timezone.utc)
         for worker in self._workers:
             key = self._health_key(worker)
-            wtype = self._classify(worker)
+            worker_type = self._classify(worker)
             self._health[key] = WorkerHealth(
                 worker_name=key,
-                worker_type=wtype,
+                worker_type=worker_type,
                 is_running=True,
                 started_at=started_at,
             )
-            if wtype == "long-lived":
-                task = asyncio.create_task(
-                    self._run_long_lived(worker, key),
-                    name=key,
-                )
+            if worker_type == "long-lived":
+                task = asyncio.create_task(self._run_long_lived(worker, key), name=key)
             else:
-                task = asyncio.create_task(
-                    self._run_poller(worker, key),
-                    name=key,
-                )
+                task = asyncio.create_task(self._run_poller(worker, key), name=key)
             self._tasks.append(task)
-            logger.info("Worker %s (%s) started", key, wtype)
+            logger.info(
+                "Worker started",
+                extra={"worker_name": key, "worker_type": worker_type},
+            )
 
     async def _run_long_lived(self, worker: WorkerProtocol, key: str) -> None:
         try:
             await worker.run()
         except asyncio.CancelledError:
-            logger.info("Worker %s cancelled", key)
-            self._health[key].is_running = False
+            logger.info("Worker cancelled", extra={"worker_name": key})
+            raise
         except Exception as exc:
-            logger.exception("Worker %s failed: %s", key, exc)
+            logger.exception("Worker failed", extra={"worker_name": key})
+            self._record_failure(key, exc)
+        finally:
             self._health[key].is_running = False
-            self._health[key].error = str(exc)
 
     async def _run_poller(self, worker: WorkerProtocol, key: str) -> None:
         try:
             while not self._stop_event.is_set():
                 try:
                     await worker.run()
-                    self._health[key].last_run_at = datetime.now(timezone.utc)
+                    health = self._health[key]
+                    health.last_run_at = datetime.now(timezone.utc)
+                    health.error = None
                 except Exception as exc:
-                    logger.exception("Worker %s poll failed: %s", key, exc)
-                    self._health[key].error = str(exc)
+                    logger.exception("Worker poll failed", extra={"worker_name": key})
+                    self._record_failure(key, exc)
                 try:
-                    await asyncio.wait_for(
-                        self._stop_event.wait(), timeout=_POLL_INTERVAL
-                    )
+                    await asyncio.wait_for(self._stop_event.wait(), timeout=_POLL_INTERVAL)
                 except asyncio.TimeoutError:
                     pass
         except asyncio.CancelledError:
-            logger.info("Worker %s cancelled", key)
+            logger.info("Worker cancelled", extra={"worker_name": key})
+            raise
+        finally:
             self._health[key].is_running = False
 
     async def stop(self) -> None:
@@ -117,5 +126,11 @@ class WorkerRunner:
         for worker in self._workers:
             try:
                 await worker.run()
-            except Exception as exc:
-                logger.exception("Worker %s failed: %s", type(worker).__name__, exc)
+            except Exception:
+                key = self._health_key(worker)
+                worker_type = self._classify(worker)
+                runtime_metrics.increment_worker_failure(
+                    worker=key,
+                    worker_type=worker_type,
+                )
+                logger.exception("Worker failed", extra={"worker_name": key})

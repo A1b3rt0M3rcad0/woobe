@@ -3,8 +3,8 @@ import uuid6
 import pytest
 
 from modules.core.domain.errors import DuplicateSlugError, ProjectNotFoundError
-from modules.core.service.dtos import CreateApiKeyInput, CreateProjectInput
-from modules.core.service.use_cases import CreateApiKeyUseCase, CreateProjectUseCase
+from modules.core.application.dtos import CreateApiKeyInput, CreateProjectInput
+from modules.core.application.use_cases import CreateApiKeyUseCase, CreateProjectUseCase
 from tests.helpers import make_api_key, make_project
 
 

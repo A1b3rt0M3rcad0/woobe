@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { EditorView } from '@codemirror/view'
 import { Copy, Check, ChevronDown, ChevronRight, Paintbrush, Maximize2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatJsonSafely } from '@/lib/json-utils'
+import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { jsonDarkTheme, jsonSyntaxHighlight } from './json-cm-theme'
 
 interface JsonCodeBlockProps {
@@ -171,10 +173,10 @@ export function JsonCodeBlock({
         </div>
       )}
 
-      {expanded && (
+      {expanded && createPortal(
         <div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72 backdrop-blur-sm"
+          className={`fixed inset-0 ${UI_LAYER_CLASS.focus} flex items-center justify-center bg-[#020617]/72 backdrop-blur-md`}
           onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
         >
           <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[#24324A] bg-surface shadow-2xl">
@@ -212,7 +214,8 @@ export function JsonCodeBlock({
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

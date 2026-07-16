@@ -7,6 +7,7 @@ import signal
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
+from shared.observability.logging_config import configure_logging
 from shared.workers.discovery import build_registries, discover_module_entries
 from shared.workers.runner import WorkerRunner
 
@@ -14,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _configure_logging(settings: Settings) -> None:
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
+    configure_logging(level=settings.log_level, json_logs=settings.json_logs)
 
 
 def _install_shutdown_handlers(

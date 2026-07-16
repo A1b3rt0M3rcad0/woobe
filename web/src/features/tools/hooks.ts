@@ -1,6 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTools, getAgentTools, createTool, updateTool, updateToolStatus, deleteTool, testTool, getSecrets, createSecret } from './api'
-import type { CreateToolRequest, CreateSecretRequest, UpdateToolStatusRequest, TestToolRequest } from './types'
+import {
+  getTools,
+  getAgentTools,
+  createTool,
+  updateTool,
+  updateToolStatus,
+  deleteTool,
+  testTool,
+  discoverMcpTools,
+  getSecrets,
+  createSecret,
+} from './api'
+import type {
+  CreateToolRequest,
+  CreateSecretRequest,
+  UpdateToolStatusRequest,
+  TestToolRequest,
+  DiscoverMcpToolsRequest,
+} from './types'
 
 export function useTools(projectId?: string) {
   return useQuery({
@@ -65,6 +82,12 @@ export function useDeleteTool() {
 export function useTestTool() {
   return useMutation({
     mutationFn: (data: TestToolRequest) => testTool(data),
+  })
+}
+
+export function useDiscoverMcpTools() {
+  return useMutation({
+    mutationFn: (data: DiscoverMcpToolsRequest) => discoverMcpTools(data),
   })
 }
 

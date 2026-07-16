@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.observability.domain.enums import TraceEventType
+from modules.observability.domain.entities import Trace
+from modules.observability.domain.enums import TraceEventType, TraceStatus
 from modules.observability.infra.database.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
@@ -17,10 +19,105 @@ from modules.observability.infra.messaging.trace_projector import (
     project_agent_event as legacy_project,
 )
 
+_RUNTIME_DIMENSION_FIELDS = (
+    "execution_context",
+    "agent_release_id",
+    "agent_release_version",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+)
+
+
+def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
+    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
+    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+
+
+def _apply_runtime_dimensions(trace: Trace, payload: dict[str, Any]) -> None:
+    data = dict(trace.data or {})
+    diagnostics = payload.get("diagnostics")
+    diagnostic_values = diagnostics if isinstance(diagnostics, dict) else {}
+    for field in _RUNTIME_DIMENSION_FIELDS:
+        value = payload.get(field)
+        if value is None:
+            value = diagnostic_values.get(field)
+        if value is not None:
+            data[field] = value
+    for field in ("llm_call_count", "tool_call_count"):
+        value = payload.get(field)
+        if value is None:
+            value = diagnostic_values.get(field)
+        if value is not None:
+            data[field] = value
+    trace.data = data
+
+
+async def _project_cancelled(
+    *,
+    payload: dict[str, Any],
+    session: AsyncSession,
+) -> None:
+    trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
+    project_id = _uuid(payload.get("project_id"))
+    if trace_id is None:
+        return
+
+    trace_repo = SQLAlchemyTraceRepository(session)
+    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace = await trace_repo.get_by_id(trace_id)
+    if trace is None:
+        if project_id is None:
+            return
+        trace = Trace(
+            id=trace_id,
+            project_id=project_id,
+            agent_id=_uuid(payload.get("agent_id")),
+            session_id=_uuid(payload.get("session_id")),
+            status=TraceStatus.cancelled,
+            data={},
+        )
+
+    now = datetime.now(timezone.utc)
+    trace.status = TraceStatus.cancelled
+    trace.started_at = trace.started_at or now
+    trace.ended_at = now
+    _apply_provider_model_refs(trace, payload)
+    _apply_runtime_dimensions(trace, payload)
+    data = dict(trace.data or {})
+    data.update(
+        {
+            "last_event_type": "agent.execution.cancelled.v1",
+            "cancellation_reason": payload.get("reason"),
+            "request_id": payload.get("request_id"),
+            "provider_model_id": payload.get("provider_model_id"),
+            "provider_credential_id": payload.get("provider_credential_id"),
+            "fallback_provider_model_id": payload.get("fallback_provider_model_id"),
+            "fallback_credential_id": payload.get("fallback_credential_id"),
+        }
+    )
+    trace.data = data
+    await trace_repo.save(trace)
+    await _save_event(
+        event_repo,
+        trace_id=trace_id,
+        project_id=trace.project_id,
+        discriminator="cancelled",
+        kind=TraceEventType.warning,
+        payload={"event": "agent.execution.cancelled.v1", **payload},
+    )
+
 
 async def project_agent_event(
     *, event_type: str, payload: dict[str, Any], session: AsyncSession
 ) -> None:
+    if event_type == "agent.execution.cancelled.v1":
+        await _project_cancelled(payload=payload, session=session)
+        return
+
     await legacy_project(event_type=event_type, payload=payload, session=session)
     trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
     if trace_id is None:
@@ -30,6 +127,9 @@ async def project_agent_event(
     trace = await trace_repo.get_by_id(trace_id)
     if trace is None:
         return
+
+    _apply_provider_model_refs(trace, payload)
+    _apply_runtime_dimensions(trace, payload)
 
     if event_type == "agent.execution.llm_completed.v1":
         await event_repo.delete(_event_id(trace_id, "llm_completed"))
@@ -51,6 +151,7 @@ async def project_agent_event(
         return
 
     if event_type != "agent.execution.completed.v1":
+        await trace_repo.save(trace)
         return
 
     diagnostics = build(payload)
@@ -60,9 +161,18 @@ async def project_agent_event(
         "total_tokens", "sources", "tool_calls", "llm_calls",
         "parsed_output", "output_parse_error", "fallback_used",
         "fallback_info", "model", "provider", "cost_status",
+        "cost_reason", "pricing_id", "pricing_snapshot",
         "usage_complete", "execution_events", "timeline_complete",
+        "provider_model_id", "provider_credential_id",
+        "fallback_provider_model_id", "fallback_credential_id",
+        "model_binding", "fallback_model_binding", "execution_context",
+        "agent_release_id", "agent_release_version", "llm_call_count",
+        "tool_call_count",
     ):
-        data[field] = payload.get(field)
+        value = payload.get(field)
+        if value is None and field in diagnostics:
+            value = diagnostics.get(field)
+        data[field] = value
     data["cost_usd"] = payload.get("cost_usd")
     data["diagnostics"] = diagnostics
     trace.data = data

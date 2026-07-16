@@ -1,8 +1,5 @@
-"""Tests for spec 012: metering dispatcher and idempotent use cases.
+"""Tests for metering dispatcher and idempotent usage projections."""
 
-Covers: atomic effect, rollback/retry, no double count,
-out-of-order handling, unknown event types ignored.
-"""
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -11,23 +8,22 @@ import pytest
 from modules.metering.infra.messaging.inbox_handlers import (
     HANDLER_MAP,
     MeteringInboxEventRouter,
-    handle_noop,
-    handle_execution_started,
-    handle_llm_request,
-    handle_tool_execution,
     handle_execution_completed,
     handle_execution_failed,
     handle_fallback,
+    handle_llm_request,
+    handle_noop,
+    handle_tool_execution,
 )
 from modules.metering.infra.workers.inbox_processor import MeteringInboxProcessorWorker
 from shared.workers.inbox_processor_base import InboxProcessingRecord
 
 
 def _make_model_mock(**kwargs):
-    m = MagicMock()
-    for k, v in kwargs.items():
-        setattr(m, k, v)
-    return m
+    model = MagicMock()
+    for key, value in kwargs.items():
+        setattr(model, key, value)
+    return model
 
 
 @pytest.fixture
@@ -35,12 +31,8 @@ def mock_session():
     session = AsyncMock()
     session.add = MagicMock()
     session.flush = AsyncMock()
-    merge_model = _make_model_mock(project_id=MagicMock(), day=MagicMock())
-    session.merge = AsyncMock(return_value=merge_model)
-    execute_result = MagicMock()
-    execute_result.scalar_one_or_none = MagicMock(return_value=None)
-    session.execute = AsyncMock(return_value=execute_result)
     session.refresh = AsyncMock()
+    session.execute = AsyncMock(return_value=MagicMock())
     return session
 
 
@@ -52,18 +44,18 @@ def router():
 @pytest.fixture
 def execution_payload():
     return {
-        "execution_id": str(uuid4()),
+        "trace_id": str(uuid4()),
         "project_id": str(uuid4()),
         "agent_id": str(uuid4()),
         "input_tokens": 100,
         "output_tokens": 50,
         "cost_usd": 0.015,
+        "cost_status": "known",
+        "usage_complete": True,
     }
 
 
 class TestAtomicEffect:
-    """Handlers must create usage records atomically with the session."""
-
     @pytest.mark.asyncio
     async def test_requested_handler_is_noop(self, mock_session, execution_payload):
         await handle_noop(
@@ -74,61 +66,66 @@ class TestAtomicEffect:
         assert not mock_session.add.called
 
     @pytest.mark.asyncio
-    async def test_started_handler_logs_only(self, mock_session, execution_payload):
-        await handle_execution_started(
-            event_type="agent.execution.started.v1",
-            payload=execution_payload,
-            session=mock_session,
-        )
-        assert not mock_session.add.called
-
-    @pytest.mark.asyncio
-    async def test_llm_completed_records_tokens(self, mock_session, execution_payload):
+    async def test_llm_completed_records_one_llm_call(self, mock_session, execution_payload):
         await handle_llm_request(
             event_type="agent.execution.llm_completed.v1",
-            payload=execution_payload,
+            payload={**execution_payload, "call_id": str(uuid4())},
             session=mock_session,
+            source_event_id=uuid4(),
         )
-        assert mock_session.add.called or mock_session.merge.called
+        assert mock_session.add.called
+        assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
     async def test_tool_execution_records_call(self, mock_session, execution_payload):
         await handle_tool_execution(
             event_type="agent.execution.tool_completed.v1",
-            payload={**execution_payload, "tool_id": str(uuid4()), "tool_name": "calculator"},
+            payload={
+                **execution_payload,
+                "tool_call_id": str(uuid4()),
+                "tool_id": str(uuid4()),
+                "tool_name": "calculator",
+            },
             session=mock_session,
+            source_event_id=uuid4(),
         )
-        assert mock_session.add.called or mock_session.merge.called
+        assert mock_session.add.called
+        assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_fallback_records_event(self, mock_session, execution_payload):
+    async def test_fallback_records_metadata_event(self, mock_session, execution_payload):
         await handle_fallback(
             event_type="agent.execution.fallback_triggered.v1",
             payload=execution_payload,
             session=mock_session,
+            source_event_id=uuid4(),
         )
-        assert mock_session.add.called or mock_session.merge.called
+        assert mock_session.add.called
 
     @pytest.mark.asyncio
-    async def test_completed_handler_logs_only(self, mock_session, execution_payload):
+    async def test_completed_handler_records_runtime_request(self, mock_session, execution_payload):
         await handle_execution_completed(
             event_type="agent.execution.completed.v1",
             payload=execution_payload,
             session=mock_session,
+            source_event_id=uuid4(),
         )
+        assert mock_session.add.called
+        assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_failed_handler_logs_only(self, mock_session, execution_payload):
+    async def test_failed_handler_records_failed_runtime_request(self, mock_session, execution_payload):
         await handle_execution_failed(
             event_type="agent.execution.failed.v1",
             payload=execution_payload,
             session=mock_session,
+            source_event_id=uuid4(),
         )
+        assert mock_session.add.called
+        assert mock_session.execute.call_count == 2
 
 
 class TestRouterDispatch:
-    """Router must map each event type to the correct handler."""
-
     def test_all_event_types_have_handlers(self):
         required = {
             "agent.execution.requested.v1",
@@ -143,7 +140,7 @@ class TestRouterDispatch:
         assert required.issubset(registered), f"Missing: {required - registered}"
 
     @pytest.mark.asyncio
-    async def test_router_dispatches_to_handler(self, router, mock_session):
+    async def test_router_dispatches_to_handler(self, router):
         called = False
 
         async def fake_handler(**kwargs):
@@ -159,30 +156,15 @@ class TestRouterDispatch:
         await router.handle("unknown.event", {})
 
 
-class TestUnknownIgnored:
-    """Unknown event types must be silently ignored."""
-
-    @pytest.mark.asyncio
-    async def test_unknown_event_does_not_raise(self, router):
-        await router.handle("agent.execution.nonexistent.v1", {})
-
-    @pytest.mark.asyncio
-    async def test_unknown_event_type_not_in_map(self):
-        assert "agent.execution.nonexistent.v1" not in HANDLER_MAP
-
-
 class TestProcessorIntegration:
-    """Processor must call handlers with the session when processing records."""
-
     @pytest.mark.asyncio
-    async def test_processor_passes_session_to_handler(self):
+    async def test_processor_passes_session_and_source_identity_to_handler(self):
         mock_engine = AsyncMock()
         handler = MeteringInboxEventRouter()
         processor = MeteringInboxProcessorWorker(
             async_engine=mock_engine,
             handler=handler,
         )
-
         call_kwargs = {}
 
         async def capture_handler(**kwargs):
@@ -192,10 +174,10 @@ class TestProcessorIntegration:
         processor._session = AsyncMock()
         processor._repo = AsyncMock()
         processor._event_map = {}
-
+        source_event_id = uuid4()
         record = InboxProcessingRecord(
             id=uuid4(),
-            outbox_origin_id="msg-1",
+            outbox_origin_id=str(source_event_id),
             aggregate_type="agent",
             event_type="agent.execution.requested.v1",
             event_version=1,
@@ -205,11 +187,10 @@ class TestProcessorIntegration:
         )
         await processor.process(record)
         assert call_kwargs.get("session") is processor._session
+        assert call_kwargs.get("source_event_id") == source_event_id
 
 
 class TestRegistryRegistration:
-    """Router defaults must include all required event types."""
-
     def test_default_router_has_all_handlers(self):
         router = MeteringInboxEventRouter()
         required = {

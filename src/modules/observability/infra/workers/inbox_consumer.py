@@ -63,6 +63,12 @@ class ObservabilityInboxConsumerWorker(BaseInboxConsumer):
                 raise
 
     async def _persist_and_ack(self, message: Any, inbox_model: Any) -> None:
+        # SQLAlchemy expires ORM attributes on commit by default. Capture the
+        # logging fields before the transaction closes so logging does not try
+        # to lazy-refresh a detached InboxEventModel instance.
+        event_type_snapshot = getattr(inbox_model, "event_type", "unknown")
+        message_id_snapshot = getattr(inbox_model, "message_id", "unknown")
+        idempotency_key_snapshot = getattr(inbox_model, "idempotency_key", "unknown")
         duplicate = False
         async with AsyncSession(self._async_engine) as session:
             try:
@@ -76,13 +82,13 @@ class ObservabilityInboxConsumerWorker(BaseInboxConsumer):
         if duplicate:
             logger.info(
                 "Duplicate observability message acknowledged idempotency_key=%s",
-                getattr(inbox_model, "idempotency_key", "unknown"),
+                idempotency_key_snapshot,
             )
         else:
             logger.info(
                 "Persisted Observability Inbox event_type=%s message_id=%s",
-                getattr(inbox_model, "event_type", "unknown"),
-                getattr(inbox_model, "message_id", "unknown"),
+                event_type_snapshot,
+                message_id_snapshot,
             )
         await self.acknowledge(message)
 

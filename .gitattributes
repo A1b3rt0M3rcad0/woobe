@@ -1,0 +1,4 @@
+* text=auto
+
+# Shell scripts are executed inside Linux containers and must keep LF endings.
+*.sh text eol=lf

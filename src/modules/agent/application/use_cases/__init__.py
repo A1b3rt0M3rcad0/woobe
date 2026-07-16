@@ -4,13 +4,14 @@ from modules.agent.application.use_cases.ai_use_cases import (
     CreateModelConfigUseCase,
     CreatePromptUseCase,
     CreateProviderCredentialUseCase,
+    CreateProviderModelUseCase,
     CreateReleaseTestUseCase,
-    CreateReleaseUseCase,
     DeleteReleaseUseCase,
     GetAgentByIdUseCase,
     GetContractUseCase,
     GetModelConfigUseCase,
     GetPromptUseCase,
+    GetProviderModelUseCase,
     GetReleaseTestUseCase,
     GetReleaseUseCase,
     ListAgentsUseCase,
@@ -18,20 +19,28 @@ from modules.agent.application.use_cases.ai_use_cases import (
     ListModelConfigsUseCase,
     ListPromptsUseCase,
     ListProviderCredentialsUseCase,
+    ListProviderModelsUseCase,
     ListReleaseTestsUseCase,
     ListReleasesUseCase,
-    PromoteReleaseUseCase,
     RollbackReleaseUseCase,
     UpdateAgentUseCase,
     UpdateContractUseCase,
     UpdateProviderCredentialUseCase,
+    UpdateProviderModelUseCase,
 )
-from modules.agent.application.use_cases.ask_agent_stream_service import (
-    AskAgentStreamService,
+from modules.agent.application.use_cases.provider_management_cases import (
+    ArchiveProviderCredentialUseCase,
+    ArchiveProviderModelUseCase,
+    ProviderCredentialUsageUseCase,
+    ProviderModelUsageUseCase,
+    RevokeProviderCredentialUseCase,
+    RotateProviderCredentialUseCase,
 )
-from modules.agent.application.use_cases.ask_use_case import (
-    AskAgentUseCase,
-)
+from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase as CreateReleaseUseCase
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase as PromoteReleaseUseCase
+from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase as DeleteDocumentUseCase
 from modules.agent.application.use_cases.knowledge_use_cases import (
     AttachCollectionUseCase,
     CreateCollectionUseCase,
@@ -44,6 +53,7 @@ from modules.agent.application.use_cases.knowledge_use_cases import (
     ListDocumentsUseCase,
     ListKnowledgeVersionsUseCase,
     SearchChunksUseCase,
+    UploadDocumentFileUseCase,
     UploadDocumentUseCase,
 )
 from modules.agent.application.use_cases.runtime_use_cases import (
@@ -68,6 +78,8 @@ from modules.agent.application.use_cases.tools_use_cases import (
 )
 
 __all__ = [
+    "ArchiveProviderCredentialUseCase",
+    "ArchiveProviderModelUseCase",
     "AskAgentStreamService",
     "AskAgentUseCase",
     "AttachCollectionUseCase",
@@ -79,11 +91,13 @@ __all__ = [
     "CreateModelConfigUseCase",
     "CreatePromptUseCase",
     "CreateProviderCredentialUseCase",
+    "CreateProviderModelUseCase",
     "CreateReleaseTestUseCase",
     "CreateReleaseUseCase",
     "CreateSecretUseCase",
     "CreateSessionUseCase",
     "CreateToolUseCase",
+    "DeleteDocumentUseCase",
     "DeleteReleaseUseCase",
     "DeleteToolUseCase",
     "DetachCollectionUseCase",
@@ -95,6 +109,7 @@ __all__ = [
     "GetDocumentUseCase",
     "GetModelConfigUseCase",
     "GetPromptUseCase",
+    "GetProviderModelUseCase",
     "GetReleaseTestUseCase",
     "GetReleaseUseCase",
     "ListAgentCollectionsUseCase",
@@ -111,17 +126,24 @@ __all__ = [
     "ListModelConfigsUseCase",
     "ListPromptsUseCase",
     "ListProviderCredentialsUseCase",
+    "ListProviderModelsUseCase",
     "ListReleaseTestsUseCase",
     "ListReleasesUseCase",
     "PromoteReleaseUseCase",
+    "ProviderCredentialUsageUseCase",
+    "ProviderModelUsageUseCase",
+    "RevokeProviderCredentialUseCase",
     "RollbackReleaseUseCase",
+    "RotateProviderCredentialUseCase",
     "SearchChunksUseCase",
     "SendMessageUseCase",
     "TestToolUseCase",
     "UpdateAgentUseCase",
     "UpdateContractUseCase",
     "UpdateProviderCredentialUseCase",
+    "UpdateProviderModelUseCase",
     "UpdateToolStatusUseCase",
     "UpdateToolUseCase",
+    "UploadDocumentFileUseCase",
     "UploadDocumentUseCase",
 ]
