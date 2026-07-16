@@ -44,15 +44,16 @@ export function networkWorkspaceReducer(
         ...state,
         environment: action.environment,
         selection: action.selection ?? state.selection,
+        inspectorContext: 'network',
         inspectionScope: { type: 'current' },
       }
     case 'select':
       return {
         ...state,
         selection: action.selection,
-        // Selection changes the inspected subject, not the inspector tab. The
-        // user stays in Agent or Network until explicitly switching context.
-        inspectorContext: state.inspectorContext,
+        // Canvas selection opens the Network-scoped inspector. Shared Agent
+        // configuration remains an explicit secondary context.
+        inspectorContext: action.context ?? 'network',
       }
     case 'context':
       return { ...state, inspectorContext: action.context }
