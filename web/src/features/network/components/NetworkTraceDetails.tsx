@@ -216,11 +216,12 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
           </div>
           <button type="button" onClick={() => onViewCanvas(trace)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1.5 text-[9px] text-primary-light hover:text-white"><Play className="h-3 w-3" />Canvas</button>
         </div>
-        <div className="mt-3 grid grid-cols-4 gap-3 border-t border-border/70 pt-3">
+        <div className="mt-3 grid grid-cols-5 gap-2 border-t border-border/70 pt-3">
           <MetaItem label="Duration" value={formatLatency(trace.durationMs)} />
           <MetaItem label="Agents" value={String(agents)} />
           <MetaItem label="Tools" value={String(tools)} />
           <MetaItem label="Tokens" value={totalTokens == null ? 'Unknown' : formatTokens(totalTokens)} />
+          <MetaItem label="Cost" value={trace.costUsd == null ? 'Unknown' : formatCurrency(trace.costUsd)} />
         </div>
       </header>
 
