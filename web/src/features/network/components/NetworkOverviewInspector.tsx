@@ -41,7 +41,7 @@ export function NetworkOverviewInspector({
         </div>
       </header>
 
-      <div className="space-y-4">
+      <div className="space-y-4 p-4">
         {definition.nodes.length === 0 ? (
           <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-[10px] font-semibold text-white">Build your Network</p>
