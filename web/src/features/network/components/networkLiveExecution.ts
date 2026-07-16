@@ -48,7 +48,8 @@ function asBoolean(value: unknown): boolean | null {
 
 function sourceKey(source: SourceInfo, index: number): string {
   if (source.chunk_id) return `chunk:${source.chunk_id}`
-  return `document:${source.document_id ?? 'unknown'}:${source.page_number ?? 'unknown'}:${index}`
+  if (source.document_id) return `document:${source.document_id}:${source.page_number ?? 'unknown'}`
+  return `unknown:${index}`
 }
 
 function mergeSources(current: SourceInfo[], rawSources: unknown): SourceInfo[] {
@@ -63,8 +64,15 @@ function mergeSources(current: SourceInfo[], rawSources: unknown): SourceInfo[] 
   return [...merged.values()]
 }
 
-function toolKey(tool: LiveNetworkToolCall, index: number): string {
-  return tool.tool_call_id || `${tool.invocationId ?? 'invocation'}:${tool.tool_name}:${index}`
+function resolvedToolName(
+  existing: LiveNetworkToolCall,
+  candidate: LiveNetworkToolCall,
+): string {
+  if (
+    existing.tool_name.startsWith('Delegate to ')
+    && candidate.tool_name.startsWith('delegate_to_')
+  ) return existing.tool_name
+  return candidate.tool_name
 }
 
 function upsertTool(
@@ -75,7 +83,9 @@ function upsertTool(
   if (!key) return [...tools, candidate]
   const index = tools.findIndex((tool) => tool.tool_call_id === key)
   if (index < 0) return [...tools, candidate]
-  return tools.map((tool, toolIndex) => toolIndex === index ? { ...tool, ...candidate } : tool)
+  return tools.map((tool, toolIndex) => toolIndex === index
+    ? { ...tool, ...candidate, tool_name: resolvedToolName(tool, candidate) }
+    : tool)
 }
 
 function mergeCompletedTools(
@@ -272,12 +282,4 @@ export function applyNetworkRuntimeEvent(
   }
 
   return state
-}
-
-export function stableLiveTools(tools: LiveNetworkToolCall[]): LiveNetworkToolCall[] {
-  return [...tools].sort((left, right) => {
-    const leftIndex = tools.findIndex((tool, index) => toolKey(tool, index) === toolKey(left, index))
-    const rightIndex = tools.findIndex((tool, index) => toolKey(tool, index) === toolKey(right, index))
-    return leftIndex - rightIndex
-  })
 }
