@@ -1,26 +1,31 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { EditorView } from '@codemirror/view'
-import { Copy, Check, Maximize2, X, Braces } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Braces, Check, Copy, Maximize2, X } from 'lucide-react'
+
 import { jsonDarkTheme, jsonSyntaxHighlight } from '@/components/ui/json-cm-theme'
+import { cn } from '@/lib/utils'
 
 interface StructuredJsonResponseProps {
   value: unknown
   raw?: string
   maxHeight?: number | string
   className?: string
+  density?: 'comfortable' | 'compact'
 }
 
 export function StructuredJsonResponse({
   value,
-  maxHeight = 420,
+  maxHeight,
   className,
+  density = 'comfortable',
 }: StructuredJsonResponseProps) {
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const compact = density === 'compact'
+  const resolvedMaxHeight = maxHeight ?? (compact ? 260 : 420)
 
   const displayText = useMemo(() => {
     if (value == null) return ''
@@ -33,7 +38,7 @@ export function StructuredJsonResponse({
   }, [value])
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(displayText)
+    void navigator.clipboard.writeText(displayText)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }, [displayText])
@@ -48,8 +53,8 @@ export function StructuredJsonResponse({
 
   useEffect(() => {
     if (!expanded) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(false)
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false)
     }
     document.addEventListener('keydown', handler)
     document.body.style.overflow = 'hidden'
@@ -75,80 +80,79 @@ export function StructuredJsonResponse({
     <>
       <div
         className={cn(
-          'rounded-xl border overflow-hidden',
-          'border-[rgba(148,163,184,0.22)]',
-          'bg-[#0f172a]',
+          'overflow-hidden border border-[rgba(148,163,184,0.22)] bg-[#0f172a]',
+          compact ? 'rounded-lg' : 'rounded-xl',
           className,
         )}
       >
-        {/* Header */}
         <div
           className={cn(
-            'flex items-center justify-between gap-2 px-4',
-            'h-14',
-            'bg-[rgba(30,41,59,0.45)]',
-            'border-b border-[rgba(148,163,184,0.1)]',
+            'flex items-center justify-between gap-2 border-b border-[rgba(148,163,184,0.1)] bg-[rgba(30,41,59,0.45)]',
+            compact ? 'h-10 px-3' : 'h-14 px-4',
           )}
         >
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <Braces className="h-4 w-4 shrink-0 text-[#818cf8]" />
-            <span className="text-sm font-medium text-[rgba(226,232,240,0.92)] truncate">
+          <div className={cn('flex min-w-0 flex-1 items-center', compact ? 'gap-2' : 'gap-2.5')}>
+            <Braces className={cn('shrink-0 text-[#818cf8]', compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
+            <span
+              className={cn(
+                'truncate font-medium text-[rgba(226,232,240,0.92)]',
+                compact ? 'text-[10px]' : 'text-sm',
+              )}
+            >
               Structured response
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* JSON Badge */}
+          <div className={cn('flex shrink-0 items-center', compact ? 'gap-1' : 'gap-1.5')}>
             <span
               className={cn(
-                'text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
-                'bg-[rgba(99,102,241,0.12)] text-[#a5b4fc]',
+                'rounded bg-[rgba(99,102,241,0.12)] font-semibold uppercase tracking-wider text-[#a5b4fc]',
+                compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[10px]',
               )}
             >
               JSON
             </span>
 
-            {/* Copy */}
             {displayText && (
               <button
+                type="button"
                 onClick={handleCopy}
                 className={cn(
-                  'p-1.5 rounded-md transition-colors',
-                  'text-[rgba(148,163,184,0.88)] hover:text-white',
-                  'hover:bg-[rgba(255,255,255,0.05)]',
-                  'border border-[rgba(148,163,184,0.18)]',
+                  'rounded-md border border-[rgba(148,163,184,0.18)] text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white',
+                  compact ? 'p-1' : 'p-1.5',
                 )}
                 title={copied ? 'Copied!' : 'Copy'}
                 aria-label="Copy JSON"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? (
+                  <Check className={cn('text-emerald-400', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+                ) : (
+                  <Copy className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+                )}
               </button>
             )}
 
-            {/* Expand fullscreen */}
             {displayText && (
               <button
+                type="button"
                 onClick={handleExpand}
                 className={cn(
-                  'p-1.5 rounded-md transition-colors',
-                  'text-[rgba(148,163,184,0.88)] hover:text-white',
-                  'hover:bg-[rgba(255,255,255,0.05)]',
-                  'border border-[rgba(148,163,184,0.18)]',
+                  'rounded-md border border-[rgba(148,163,184,0.18)] text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white',
+                  compact ? 'p-1' : 'p-1.5',
                 )}
                 title="Expand JSON"
                 aria-label="Expand JSON"
               >
-                <Maximize2 className="h-3.5 w-3.5" />
+                <Maximize2 className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Body */}
         {displayText && (
           <div
-            className="overflow-auto scrollbar-thin"
-            style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}
+            className={cn('scrollbar-thin overflow-auto', compact && 'text-[10px]')}
+            style={{ maxHeight: typeof resolvedMaxHeight === 'number' ? `${resolvedMaxHeight}px` : resolvedMaxHeight }}
           >
             <CodeMirror
               value={displayText}
@@ -162,43 +166,42 @@ export function StructuredJsonResponse({
         )}
 
         {!displayText && (
-          <div className="px-4 py-6 text-center">
-            <p className="text-xs text-[rgba(148,163,184,0.6)]">No data</p>
+          <div className={compact ? 'px-3 py-4 text-center' : 'px-4 py-6 text-center'}>
+            <p className={cn('text-[rgba(148,163,184,0.6)]', compact ? 'text-[9px]' : 'text-xs')}>No data</p>
           </div>
         )}
       </div>
 
-      {/* Fullscreen overlay */}
       {expanded && (
         <div
           ref={overlayRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === overlayRef.current) handleCloseExpand() }}
+          onClick={(event) => { if (event.target === overlayRef.current) handleCloseExpand() }}
         >
-          <div className="relative flex flex-col w-[95vw] max-w-[1600px] h-[90vh] rounded-xl border border-[rgba(148,163,184,0.22)] bg-[#0f172a] shadow-2xl">
-            <div className="flex items-center justify-between shrink-0 px-5 py-4 border-b border-[rgba(148,163,184,0.1)]">
-              <span className="text-sm font-medium text-[rgba(226,232,240,0.92)]">
-                Structured response
-              </span>
+          <div className="relative flex h-[90vh] w-[95vw] max-w-[1600px] flex-col rounded-xl border border-[rgba(148,163,184,0.22)] bg-[#0f172a] shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-[rgba(148,163,184,0.1)] px-5 py-4">
+              <span className="text-sm font-medium text-[rgba(226,232,240,0.92)]">Structured response</span>
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={handleCopy}
-                  className="p-1.5 rounded-md text-[rgba(148,163,184,0.88)] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors border border-[rgba(148,163,184,0.18)]"
+                  className="rounded-md border border-[rgba(148,163,184,0.18)] p-1.5 text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
                   title={copied ? 'Copied!' : 'Copy'}
                   aria-label="Copy JSON"
                 >
                   {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                 </button>
                 <button
+                  type="button"
                   onClick={handleCloseExpand}
-                  className="p-1.5 rounded-md text-[rgba(148,163,184,0.88)] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors border border-[rgba(148,163,184,0.18)]"
+                  className="rounded-md border border-[rgba(148,163,184,0.18)] p-1.5 text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="min-h-0 flex-1">
               <CodeMirror
                 value={displayText}
                 extensions={cmExtensions}

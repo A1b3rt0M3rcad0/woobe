@@ -1,7 +1,10 @@
 import { Badge } from '@/components/ui/Badge'
+import { cn } from '@/lib/utils'
 
 interface StatusBadgeProps {
   status: string
+  size?: 'default' | 'compact'
+  className?: string
 }
 
 const statusMap: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
@@ -22,7 +25,14 @@ const statusMap: Record<string, 'default' | 'secondary' | 'success' | 'warning' 
   deleted: 'destructive',
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status, size = 'default', className }: StatusBadgeProps) {
   const variant = statusMap[status.toLowerCase()] || 'default'
-  return <Badge variant={variant}>{status}</Badge>
+  return (
+    <Badge
+      variant={variant}
+      className={cn(size === 'compact' && 'rounded-full px-2 py-0.5 text-[10px] font-medium', className)}
+    >
+      {status}
+    </Badge>
+  )
 }

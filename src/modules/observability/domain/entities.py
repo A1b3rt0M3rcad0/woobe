@@ -24,6 +24,10 @@ class Trace:
     total_cost_usd: float | None = None
     provider: str | None = None
     model: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
     fallback_used: bool = False
     error: str | None = None
     data: dict | None = None

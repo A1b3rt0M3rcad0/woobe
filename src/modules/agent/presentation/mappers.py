@@ -1,16 +1,5 @@
 from typing import Any
 
-from modules.agent.domain.entities import (
-    Agent,
-    AgentContract,
-    AgentModelConfig,
-    AgentPrompt,
-    AgentRelease,
-    AgentReleaseTest,
-    Document,
-    DocumentCollection,
-    ProviderCredential,
-)
 from modules.agent.presentation.schemas import (
     AgentCollectionResponse,
     AgentResponse,
@@ -31,51 +20,48 @@ from modules.agent.presentation.schemas import (
     ReleaseResponse,
     ReleaseTestResponse,
 )
-from modules.agent.application.dtos import (
-    AgentCollectionOutput,
-    AttachCollectionOutput,
-    CreateCollectionOutput,
-    DocumentChunkOutput,
-    UploadDocumentOutput,
-)
 
 
-def credential_to_response(credential: ProviderCredential) -> ProviderCredentialResponse:
+def _value(value: Any) -> Any:
+    return getattr(value, "value", value)
+
+
+def credential_to_response(credential: Any) -> ProviderCredentialResponse:
     return ProviderCredentialResponse(
         id=credential.id,
         project_id=credential.project_id,
-        provider=credential.provider.value if hasattr(credential.provider, 'value') else credential.provider,
+        provider=_value(credential.provider),
         name=credential.name,
-        status=credential.status.value if hasattr(credential.status, 'value') else credential.status,
+        status=_value(credential.status),
         created_at=credential.created_at,
         metadata=credential.metadata,
     )
 
 
-def agent_to_response(agent: Agent) -> AgentResponse:
+def agent_to_response(agent: Any) -> AgentResponse:
     return AgentResponse(
         id=agent.id,
         project_id=agent.project_id,
         name=agent.name,
-        provider=agent.provider.value if hasattr(agent.provider, 'value') else agent.provider,
+        provider=_value(agent.provider),
         model=agent.model,
         provider_credential_id=agent.provider_credential_id,
         fallback_credential_id=agent.fallback_credential_id,
-        fallback_provider=agent.fallback_provider.value if (hasattr(agent.fallback_provider, 'value') and agent.fallback_provider) else agent.fallback_provider,
+        fallback_provider=_value(agent.fallback_provider),
         fallback_model=agent.fallback_model,
         temperature=agent.temperature,
         max_output_tokens=agent.max_output_tokens,
-        session_mode=agent.session_mode.value if hasattr(agent.session_mode, 'value') else agent.session_mode,
+        session_mode=_value(agent.session_mode),
         system_prompt=agent.system_prompt,
         description=agent.description,
-        status=agent.status.value if hasattr(agent.status, 'value') else agent.status,
+        status=_value(agent.status),
         settings=agent.settings,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
     )
 
 
-def prompt_to_response(prompt: AgentPrompt) -> PromptResponse:
+def prompt_to_response(prompt: Any) -> PromptResponse:
     return PromptResponse(
         id=prompt.id,
         project_id=prompt.project_id,
@@ -83,24 +69,24 @@ def prompt_to_response(prompt: AgentPrompt) -> PromptResponse:
         version=prompt.version,
         name=prompt.name,
         content=prompt.content,
-        status=prompt.status.value if hasattr(prompt.status, 'value') else prompt.status,
+        status=_value(prompt.status),
         content_hash=prompt.content_hash,
         created_at=prompt.created_at,
         updated_at=prompt.updated_at,
     )
 
 
-def list_prompts_to_response(prompt: AgentPrompt) -> ListPromptsResponse:
+def list_prompts_to_response(prompt: Any) -> ListPromptsResponse:
     return ListPromptsResponse(
         id=prompt.id,
         version=prompt.version,
         name=prompt.name,
-        status=prompt.status.value if hasattr(prompt.status, 'value') else prompt.status,
+        status=_value(prompt.status),
         created_at=prompt.created_at,
     )
 
 
-def contract_to_response(contract: AgentContract) -> ContractResponse:
+def contract_to_response(contract: Any) -> ContractResponse:
     return ContractResponse(
         id=contract.id,
         project_id=contract.project_id,
@@ -109,64 +95,64 @@ def contract_to_response(contract: AgentContract) -> ContractResponse:
         name=contract.name,
         input_schema=contract.input_schema,
         output_schema=contract.output_schema,
-        validation_mode=contract.validation_mode.value if hasattr(contract.validation_mode, 'value') else contract.validation_mode,
+        validation_mode=_value(contract.validation_mode),
         repair_attempts=contract.repair_attempts,
         additional_instructions=contract.additional_instructions,
-        status=contract.status.value if hasattr(contract.status, 'value') else contract.status,
+        status=_value(contract.status),
         created_at=contract.created_at,
         updated_at=contract.updated_at,
     )
 
 
-def list_contracts_to_response(contract: AgentContract) -> ListContractsResponse:
+def list_contracts_to_response(contract: Any) -> ListContractsResponse:
     return ListContractsResponse(
         id=contract.id,
         version=contract.version,
         name=contract.name,
-        validation_mode=contract.validation_mode.value if hasattr(contract.validation_mode, 'value') else contract.validation_mode,
-        status=contract.status.value if hasattr(contract.status, 'value') else contract.status,
+        validation_mode=_value(contract.validation_mode),
+        status=_value(contract.status),
         created_at=contract.created_at,
     )
 
 
-def model_config_to_response(config: AgentModelConfig) -> ModelConfigResponse:
+def model_config_to_response(config: Any) -> ModelConfigResponse:
     return ModelConfigResponse(
         id=config.id,
         project_id=config.project_id,
         agent_id=config.agent_id,
         version=config.version,
-        provider=config.provider.value if hasattr(config.provider, 'value') else config.provider,
+        provider=_value(config.provider),
         provider_credential_id=config.provider_credential_id,
         model=config.model,
         base_url=config.base_url,
         temperature=config.temperature,
         max_output_tokens=config.max_output_tokens,
-        session_mode=config.session_mode.value if (hasattr(config.session_mode, 'value') and config.session_mode) else config.session_mode,
+        session_mode=_value(config.session_mode),
         settings=config.settings,
-        status=config.status.value if hasattr(config.status, 'value') else config.status,
+        status=_value(config.status),
         created_at=config.created_at,
         updated_at=config.updated_at,
     )
 
 
-def list_model_configs_to_response(config: AgentModelConfig) -> ListModelConfigsResponse:
+def list_model_configs_to_response(config: Any) -> ListModelConfigsResponse:
     return ListModelConfigsResponse(
         id=config.id,
         version=config.version,
-        provider=config.provider.value if hasattr(config.provider, 'value') else config.provider,
+        provider=_value(config.provider),
         model=config.model,
-        status=config.status.value if hasattr(config.status, 'value') else config.status,
+        status=_value(config.status),
         created_at=config.created_at,
     )
 
 
-def release_to_response(release: AgentRelease) -> ReleaseResponse:
+def release_to_response(release: Any) -> ReleaseResponse:
     return ReleaseResponse(
         id=release.id,
         project_id=release.project_id,
         agent_id=release.agent_id,
         version=release.version,
-        status=release.status.value if hasattr(release.status, 'value') else release.status,
+        status=_value(release.status),
         prompt_version_id=release.prompt_version_id,
         contract_version_id=release.contract_version_id,
         knowledge_version_id=release.knowledge_version_id,
@@ -199,16 +185,16 @@ def release_to_response(release: AgentRelease) -> ReleaseResponse:
     )
 
 
-def list_releases_to_response(release: AgentRelease | Any) -> ListReleasesResponse:
+def list_releases_to_response(release: Any) -> ListReleasesResponse:
     return ListReleasesResponse(
         id=release.id,
         version=release.version,
-        status=release.status.value if hasattr(release.status, 'value') else release.status,
-        name=release.name if hasattr(release, 'name') else None,
-        provider=release.provider if hasattr(release, 'provider') else None,
-        model=release.model if hasattr(release, 'model') else None,
-        system_prompt=release.system_prompt if hasattr(release, 'system_prompt') else None,
-        output_schema=release.output_schema if hasattr(release, 'output_schema') else None,
+        status=_value(release.status),
+        name=getattr(release, "name", None),
+        provider=getattr(release, "provider", None),
+        model=getattr(release, "model", None),
+        system_prompt=getattr(release, "system_prompt", None),
+        output_schema=getattr(release, "output_schema", None),
         risk_score=release.risk_score,
         release_notes=release.release_notes,
         created_at=release.created_at,
@@ -216,7 +202,7 @@ def list_releases_to_response(release: AgentRelease | Any) -> ListReleasesRespon
     )
 
 
-def release_test_to_response(test: AgentReleaseTest) -> ReleaseTestResponse:
+def release_test_to_response(test: Any) -> ReleaseTestResponse:
     return ReleaseTestResponse(
         id=test.id,
         project_id=test.project_id,
@@ -226,7 +212,7 @@ def release_test_to_response(test: AgentReleaseTest) -> ReleaseTestResponse:
         input_payload=test.input_payload,
         expected_output=test.expected_output,
         actual_output=test.actual_output,
-        status=test.status.value if hasattr(test.status, 'value') else test.status,
+        status=_value(test.status),
         validation_errors=test.validation_errors,
         latency_ms=test.latency_ms,
         created_at=test.created_at,
@@ -234,18 +220,18 @@ def release_test_to_response(test: AgentReleaseTest) -> ReleaseTestResponse:
     )
 
 
-def list_release_tests_to_response(test: AgentReleaseTest) -> ListReleaseTestsResponse:
+def list_release_tests_to_response(test: Any) -> ListReleaseTestsResponse:
     return ListReleaseTestsResponse(
         id=test.id,
         release_id=test.release_id,
         contract_version_id=test.contract_version_id,
-        status=test.status.value if hasattr(test.status, 'value') else test.status,
+        status=_value(test.status),
         latency_ms=test.latency_ms,
         created_at=test.created_at,
     )
 
 
-def collection_to_response(collection: DocumentCollection) -> CollectionResponse:
+def collection_to_response(collection: Any) -> CollectionResponse:
     return CollectionResponse(
         id=collection.id,
         project_id=collection.project_id,
@@ -257,19 +243,11 @@ def collection_to_response(collection: DocumentCollection) -> CollectionResponse
     )
 
 
-def create_collection_output_to_response(output: CreateCollectionOutput) -> CollectionResponse:
-    return CollectionResponse(
-        id=output.id,
-        project_id=output.project_id,
-        name=output.name,
-        description=output.description,
-        status=output.status,
-        created_at=output.created_at,
-        updated_at=output.updated_at,
-    )
+def create_collection_output_to_response(output: Any) -> CollectionResponse:
+    return collection_to_response(output)
 
 
-def agent_collection_output_to_response(output: AgentCollectionOutput) -> AgentCollectionResponse:
+def agent_collection_output_to_response(output: Any) -> AgentCollectionResponse:
     return AgentCollectionResponse(
         id=output.id,
         agent_id=output.agent_id,
@@ -279,17 +257,11 @@ def agent_collection_output_to_response(output: AgentCollectionOutput) -> AgentC
     )
 
 
-def attach_collection_output_to_response(output: AttachCollectionOutput) -> AgentCollectionResponse:
-    return AgentCollectionResponse(
-        id=output.id,
-        agent_id=output.agent_id,
-        collection_id=output.collection_id,
-        created_at=output.created_at,
-        updated_at=output.updated_at,
-    )
+def attach_collection_output_to_response(output: Any) -> AgentCollectionResponse:
+    return agent_collection_output_to_response(output)
 
 
-def document_to_response(document: Document) -> DocumentResponse:
+def document_to_response(document: Any) -> DocumentResponse:
     return DocumentResponse(
         id=document.id,
         project_id=document.project_id,
@@ -309,45 +281,35 @@ def document_to_response(document: Document) -> DocumentResponse:
     )
 
 
-def upload_document_output_to_response(output: UploadDocumentOutput) -> DocumentResponse:
-    return DocumentResponse(
-        id=output.id,
-        project_id=output.project_id,
-        collection_id=output.collection_id,
-        title=output.title,
-        file_name=output.file_name,
-        content_type=output.content_type,
-        size_bytes=output.size_bytes,
-        storage_key=output.storage_key,
-        status=output.status,
-        page_count=output.page_count,
-        chunk_count=output.chunk_count,
-        error=output.error,
-        indexed_at=output.indexed_at,
-        created_at=output.created_at,
-        updated_at=output.updated_at,
-    )
+def upload_document_output_to_response(output: Any) -> DocumentResponse:
+    return document_to_response(output)
 
 
-def knowledge_version_to_response(version) -> KnowledgeVersionResponse:
+def knowledge_version_to_response(version: Any) -> KnowledgeVersionResponse:
     return KnowledgeVersionResponse(
-        id=version.id, project_id=version.project_id, agent_id=version.agent_id,
-        version=version.version, collection_ids=version.collection_ids or [],
-        document_ids=version.document_ids, snapshot_metadata=version.snapshot_metadata,
-        status=version.status.value if hasattr(version.status, 'value') else version.status,
-        created_at=version.created_at, updated_at=version.updated_at,
+        id=version.id,
+        project_id=version.project_id,
+        agent_id=version.agent_id,
+        version=version.version,
+        collection_ids=version.collection_ids or [],
+        document_ids=version.document_ids,
+        snapshot_metadata=version.snapshot_metadata,
+        status=_value(version.status),
+        created_at=version.created_at,
+        updated_at=version.updated_at,
     )
 
 
-def list_knowledge_versions_to_response(version) -> ListKnowledgeVersionsResponse:
+def list_knowledge_versions_to_response(version: Any) -> ListKnowledgeVersionsResponse:
     return ListKnowledgeVersionsResponse(
-        id=version.id, version=version.version,
-        status=version.status.value if hasattr(version.status, 'value') else version.status,
+        id=version.id,
+        version=version.version,
+        status=_value(version.status),
         created_at=version.created_at,
     )
 
 
-def chunk_output_to_response(output: DocumentChunkOutput) -> ChunkResponse:
+def chunk_output_to_response(output: Any) -> ChunkResponse:
     return ChunkResponse(
         id=output.id,
         content=output.content,

@@ -1,90 +1,174 @@
-import { useNavigate, useParams } from 'react-router-dom'
-import { useAgents } from '@/features/agents/hooks'
-import { PageHeader } from '@/components/common/PageHeader'
-import { LoadingState } from '@/components/common/LoadingState'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Bot, Plus } from 'lucide-react'
+
 import { ErrorState } from '@/components/common/ErrorState'
-import { EmptyState } from '@/components/common/EmptyState'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { LoadingState } from '@/components/common/LoadingState'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+} from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Bot, Plus, Play, Settings } from 'lucide-react'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { Button } from '@/components/ui/Button'
+import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
+import { useAgents } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
+import { orgProjectPath } from '@/lib/constants/routes'
+
+type AgentStatusFilter = 'all' | 'active' | 'inactive' | 'archived'
+
+function providerLabel(agent: Agent) {
+  return [agent.provider, agent.model].filter(Boolean).join(' · ') || 'Model not configured'
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : 'Not recorded'
+}
 
 export default function AgentsPage() {
   const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: agents, isLoading, isError, error, refetch } = useAgents(projectId)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<AgentStatusFilter>('all')
+  const [showCreateAgent, setShowCreateAgent] = useState(false)
 
-  const p = (projectId: string, ...segments: string[]) => orgProjectPath(organizationId, projectId, ...segments)
+  const p = (currentProjectId: string, ...segments: string[]) => orgProjectPath(organizationId, currentProjectId, ...segments)
+  const items = agents ?? []
 
-  if (isLoading) return <LoadingState />
-  if (isError) return <ErrorState error={error} onRetry={refetch} />
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return
+
+    setShowCreateAgent(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('create')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  const statusCounts = useMemo(() => ({
+    all: items.length,
+    active: items.filter((agent) => agent.status?.toLowerCase() === 'active').length,
+    inactive: items.filter((agent) => agent.status?.toLowerCase() === 'inactive').length,
+    archived: items.filter((agent) => agent.status?.toLowerCase() === 'archived').length,
+  }), [items])
+
+  const visibleAgents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    return items.filter((agent) => {
+      const matchesStatus = statusFilter === 'all' || agent.status?.toLowerCase() === statusFilter
+      const matchesQuery = !normalizedQuery || [
+        agent.name,
+        agent.description ?? '',
+        agent.provider ?? '',
+        agent.model ?? '',
+        agent.status ?? '',
+        agent.session_mode ?? '',
+      ].some((value) => value.toLowerCase().includes(normalizedQuery))
+      return matchesStatus && matchesQuery
+    })
+  }, [items, query, statusFilter])
+
+  if (!projectId) return <ErrorState message="Project not found" />
+
+  const hasFilters = Boolean(query.trim()) || statusFilter !== 'all'
+  const resultCount = hasFilters ? `${visibleAgents.length} of ${items.length}` : items.length
+  const openPlayground = (agent: Agent) => {
+    navigate(`${p(projectId, 'agents', agent.id, 'playground')}?firstRun=1`)
+  }
 
   return (
-    <div>
-      <PageHeader
-        title="Agents"
-        description="Configure and manage AI agents"
-        actions={
-          <Button onClick={() => navigate(p(projectId!, 'agents', 'new'))}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Agent
-          </Button>
-        }
-      />
-
-      {!agents || agents.length === 0 ? (
-        <EmptyState
-          icon={<Bot className="h-12 w-12" />}
-          title="No agents yet"
-          description="Create your first agent to get started."
-          action={
-            <Button onClick={() => navigate(p(projectId!, 'agents', 'new'))}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agent
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map((agent: Agent) => (
-            <Card key={agent.id} className="hover:border-primary/50 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-primary" />
-                    {agent.name}
-                  </div>
-                  <StatusBadge status={agent.status} />
-                </CardTitle>
-                <CardDescription>
-                  {agent.provider} / {agent.model}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate(p(projectId!, 'agents', agent.id))}
-                  >
-                    <Settings className="mr-1 h-3 w-3" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(p(projectId!, 'agents', agent.id, 'playground'))}
-                  >
-                    <Play className="mr-1 h-3 w-3" />
-                    Playground
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+    <ResourcePage
+      title="Agents"
+      description="Create and operate model-backed Agents for this Project."
+      action={(
+        <Button type="button" onClick={() => setShowCreateAgent(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Agent
+        </Button>
       )}
-    </div>
+    >
+      <ResourceToolbar>
+        <ResourceTabs
+          value={statusFilter}
+          onChange={setStatusFilter}
+          label="Filter Agents by status"
+          tabs={[
+            { value: 'all', label: 'All', count: statusCounts.all },
+            { value: 'active', label: 'Active', count: statusCounts.active },
+            { value: 'inactive', label: 'Inactive', count: statusCounts.inactive },
+            { value: 'archived', label: 'Archived', count: statusCounts.archived },
+          ]}
+        />
+        <ResourceSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search Agents, models or providers..."
+          label="Search Agents"
+        />
+      </ResourceToolbar>
+
+      <section>
+        <ResourceSectionHeader
+          title="Agents"
+          description="Open an Agent to test, configure and release it."
+          count={resultCount}
+        />
+
+        {isLoading ? (
+          <LoadingState message="Loading Agents" variant="panel" layout="compact-cards" />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        ) : visibleAgents.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleAgents.map((agent) => (
+              <ResourceCard
+                key={agent.id}
+                aria-label={`Open Agent playground for ${agent.name}`}
+                onClick={() => navigate(p(projectId, 'agents', agent.id, 'playground'))}
+                icon={<Bot className="h-4 w-4" />}
+                title={agent.name}
+                subtitle={providerLabel(agent)}
+                status={<StatusBadge status={agent.status || 'inactive'} size="compact" />}
+                metadata={agent.session_mode ? <ResourcePill tone="primary">{agent.session_mode}</ResourcePill> : undefined}
+                footer={`Updated · ${formatDate(agent.updated_at || agent.created_at)}`}
+              />
+            ))}
+          </div>
+        ) : (
+          <ResourceEmptyState
+            icon={<Bot className="h-4 w-4" />}
+            title={items.length === 0 ? 'Create your first Agent' : 'No Agents found'}
+            description={items.length === 0
+              ? 'Create an Agent with instructions, a provider connection and a reusable generation model.'
+              : 'Adjust the search or clear the active status filter.'}
+            action={items.length === 0 ? (
+              <Button type="button" size="sm" onClick={() => setShowCreateAgent(true)}>
+                Create Agent
+              </Button>
+            ) : hasFilters ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all') }}>
+                Clear filters
+              </Button>
+            ) : undefined}
+          />
+        )}
+      </section>
+
+      <CreateAgentFlowModal
+        open={showCreateAgent}
+        onClose={() => setShowCreateAgent(false)}
+        projectId={projectId}
+        onCreated={(agent) => {
+          setShowCreateAgent(false)
+          openPlayground(agent)
+        }}
+      />
+    </ResourcePage>
   )
 }

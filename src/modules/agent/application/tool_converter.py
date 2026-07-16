@@ -1,57 +1,133 @@
 from __future__ import annotations
 
+from typing import Any
 
-def agent_tool_to_openai_definition(tool) -> dict:
-    config = tool.config or {}
-    input_schema = tool.input_schema or _build_input_schema(config)
-    return {
-        "type": "function",
-        "function": {
-            "name": _safe_tool_name(tool),
-            "description": tool.description or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}",
-            "parameters": input_schema,
-        },
-    }
+from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
+from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
+from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
+from modules.agent.domain.enums import ToolType
+
+MCP_PROVIDER_ROUTE_SEPARATOR = "::mcp::"
 
 
-def agent_tools_to_openai_definitions(tools: list) -> list[dict]:
-    return [agent_tool_to_openai_definition(t) for t in tools]
+class _DefinitionOnlyExecutor:
+    async def execute(self, *args, **kwargs):  # pragma: no cover - never called by definition building
+        raise RuntimeError("Definition-only executor cannot run tools")
 
 
-def _safe_tool_name(tool) -> str:
-    name = tool.name.lower().strip().replace(" ", "_").replace("-", "_")
+def _safe_name(value: str) -> str:
+    name = str(value).lower().strip().replace(" ", "_").replace("-", "_")
     name = "".join(c for c in name if c.isalnum() or c == "_")
     if not name or name[0].isdigit():
         name = f"tool_{name}"
     return name
 
 
-def _build_input_schema(config: dict) -> dict:
-    url = config.get("url", "")
-    body_template = config.get("body", "")
-    variables = _extract_url_variables(url)
-    if body_template:
-        for v in _extract_url_variables(body_template):
-            if v not in variables:
-                variables.append(v)
-    properties = {}
-    required = []
-    for var_name in variables:
-        properties[var_name] = {
-            "type": "string",
-            "description": f"Parameter {var_name}",
+def _dedupe_name(name: str, used: set[str]) -> str:
+    candidate = name
+    suffix = 2
+    while candidate in used:
+        candidate = f"{name}_{suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
+def _type_value(value: Any) -> str:
+    if value is None:
+        return ""
+    raw_value = getattr(value, "value", value)
+    return str(raw_value).lower()
+
+
+def _is_mcp_server_provider(tool: Any) -> bool:
+    config = getattr(tool, "config", None) or {}
+    tool_type = getattr(tool, "type", None)
+    is_mcp = (
+        str(config.get("protocol") or "").lower() == "mcp"
+        or tool_type in {ToolType.MCP, ToolType.HTTP_MCP}
+        or _type_value(tool_type) in {"mcp", "http_mcp"}
+    )
+    exposes_server = config.get("mode") == "server" or config.get("exposure") == "all_discovered"
+    return is_mcp and exposes_server
+
+
+def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
+    config = getattr(tool, "config", None) or {}
+    discovered_tools = allowed_mcp_discovered_tools(config)
+    parent_name = _safe_tool_name(tool)
+    definitions: list[dict] = []
+    mapping: dict[str, str] = {}
+
+    for discovered in discovered_tools:
+        if not isinstance(discovered, dict):
+            continue
+        remote_name = discovered.get("name")
+        if not isinstance(remote_name, str) or not remote_name.strip():
+            continue
+        function_name = _dedupe_name(_safe_name(f"{parent_name}_{remote_name}"), used_names)
+        parameters = discovered.get("input_schema") or discovered.get("inputSchema") or {
+            "type": "object",
+            "properties": {},
+            "required": [],
         }
-        required.append(var_name)
-    return {"type": "object", "properties": properties, "required": required}
+        if not isinstance(parameters, dict):
+            parameters = {"type": "object", "properties": {}, "required": []}
+        description = (
+            discovered.get("description")
+            or getattr(tool, "description", None)
+            or f"MCP tool {remote_name} from {getattr(tool, 'name', 'server')}"
+        )
+        definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": function_name,
+                    "description": description,
+                    "parameters": parameters,
+                },
+            }
+        )
+        mapping[function_name] = f"{tool.id}{MCP_PROVIDER_ROUTE_SEPARATOR}{remote_name}"
+
+    return definitions, mapping
 
 
-def _extract_url_variables(url: str) -> list[str]:
-    import re
-    matches = re.findall(r'\{\{(\w+)\}\}', url)
-    seen: set[str] = set()
-    result: list[str] = []
-    for m in matches:
-        if m not in seen:
-            seen.add(m)
-            result.append(m)
-    return result
+def agent_tool_to_openai_definition(tool) -> dict:
+    registry = build_default_tool_runtime_registry(_DefinitionOnlyExecutor())
+    return registry.to_openai_definition(tool)
+
+
+def agent_tools_to_openai_definitions(tools: list) -> list[dict]:
+    definitions, _mapping = agent_tools_to_openai_definitions_and_mapping(tools)
+    return definitions
+
+
+def agent_tools_to_openai_definitions_and_mapping(tools: list) -> tuple[list[dict], dict[str, str]]:
+    definitions: list[dict] = []
+    mapping: dict[str, str] = {}
+    used_names: set[str] = set()
+
+    for tool in tools:
+        if _is_mcp_server_provider(tool):
+            provider_definitions, provider_mapping = _mcp_provider_tool_definitions(tool, used_names)
+            definitions.extend(provider_definitions)
+            mapping.update(provider_mapping)
+            continue
+
+        definition = agent_tool_to_openai_definition(tool)
+        function_name = definition.get("function", {}).get("name")
+        if not isinstance(function_name, str) or not function_name:
+            function_name = _safe_tool_name(tool)
+            definition.setdefault("function", {})["name"] = function_name
+        unique_name = _dedupe_name(function_name, used_names)
+        if unique_name != function_name:
+            definition = {**definition, "function": {**definition.get("function", {}), "name": unique_name}}
+        definitions.append(definition)
+        mapping[unique_name] = str(tool.id)
+
+    return append_runtime_inventory_tool(definitions, mapping)
+
+
+def _safe_tool_name(tool) -> str:
+    return _safe_name(getattr(tool, "name", ""))

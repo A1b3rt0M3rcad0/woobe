@@ -1,0 +1,242 @@
+from uuid import UUID
+
+from modules.agent.application.dtos.ai_dtos import (
+    CreateAgentInput,
+    GetAgentInput,
+    ListAgentsInput,
+    ListAgentsOutput,
+    UpdateAgentInput,
+    UpdateAgentOutput,
+)
+from modules.agent.domain.entities import Agent
+from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
+from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
+from modules.agent.domain.repositories import AgentRepository, ProviderCredentialRepository
+from shared.infra.errors import ConflictError, ValidationError
+from shared.messaging.outbox_writer import OutboxEventWriter
+
+
+class CreateAgentUseCase:
+    def __init__(
+        self,
+        agent_repo: AgentRepository,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+        provider_model_repo=None,
+    ) -> None:
+        self._agent_repo = agent_repo
+        self._credential_repo = credential_repo
+        self._provider_model_repo = provider_model_repo
+        self._outbox = outbox
+
+    async def execute(self, input_dto: CreateAgentInput) -> Agent:
+        agent = Agent(**input_dto.model_dump())
+        _force_strict_json_settings(agent)
+        await _resolve_implicit_provider_model_bindings(agent, self._provider_model_repo)
+        await _resolve_provider_model_bindings(
+            agent,
+            self._provider_model_repo,
+            self._credential_repo,
+        )
+        if agent.provider_credential_id and not await self._credential_repo.get_by_id(agent.provider_credential_id):
+            from modules.agent.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(agent.provider_credential_id)
+        saved = await self._agent_repo.save(agent)
+        await self._outbox.write(AgentCreatedV1.create(
+            agent_id=saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else str(saved.provider),
+            model=saved.model,
+        ))
+        return saved
+
+
+class UpdateAgentUseCase:
+    def __init__(
+        self,
+        agent_repo: AgentRepository,
+        credential_repo: ProviderCredentialRepository,
+        outbox: OutboxEventWriter,
+        provider_model_repo=None,
+    ) -> None:
+        self._agent_repo = agent_repo
+        self._credential_repo = credential_repo
+        self._provider_model_repo = provider_model_repo
+        self._outbox = outbox
+
+    async def execute(self, agent_id: UUID, input_dto: UpdateAgentInput) -> UpdateAgentOutput:
+        existing = await self._agent_repo.get_by_id(agent_id)
+        if not existing:
+            from modules.agent.domain.errors import AgentNotFoundError
+            raise AgentNotFoundError(agent_id)
+        for field, value in input_dto.model_dump(exclude_unset=True).items():
+            setattr(existing, field, value)
+        _force_strict_json_settings(existing)
+        await _resolve_implicit_provider_model_bindings(existing, self._provider_model_repo)
+        await _resolve_provider_model_bindings(
+            existing,
+            self._provider_model_repo,
+            self._credential_repo,
+        )
+        saved = await self._agent_repo.update(existing)
+        await self._outbox.write(AgentUpdatedV1.create(
+            agent_id=saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            provider=saved.provider.value if hasattr(saved.provider, "value") else str(saved.provider),
+            model=saved.model,
+        ))
+        return UpdateAgentOutput(
+            id=saved.id,
+            project_id=saved.project_id,
+            name=saved.name,
+            type=saved.type,
+            provider=saved.provider,
+            model=saved.model,
+            provider_model_id=saved.provider_model_id,
+            fallback_provider_model_id=saved.fallback_provider_model_id,
+            provider_credential_id=saved.provider_credential_id,
+            fallback_credential_id=saved.fallback_credential_id,
+            fallback_provider=saved.fallback_provider,
+            fallback_model=saved.fallback_model,
+            temperature=saved.temperature,
+            max_output_tokens=saved.max_output_tokens,
+            session_mode=saved.session_mode,
+            system_prompt=saved.system_prompt,
+            description=saved.description,
+            status=saved.status,
+            settings=saved.settings,
+            created_at=saved.created_at,
+            updated_at=saved.updated_at,
+        )
+
+
+class ListAgentsUseCase:
+    def __init__(self, agent_repo: AgentRepository) -> None:
+        self._agent_repo = agent_repo
+
+    async def execute(self, input_dto: ListAgentsInput) -> list[ListAgentsOutput]:
+        if not input_dto.project_id:
+            return []
+        return [
+            ListAgentsOutput(
+                id=item.id,
+                project_id=item.project_id,
+                name=item.name,
+                provider=item.provider,
+                model=item.model,
+                provider_model_id=item.provider_model_id,
+                status=item.status,
+                created_at=item.created_at,
+            )
+            for item in await self._agent_repo.list_by_project(input_dto.project_id)
+        ]
+
+
+class GetAgentByIdUseCase:
+    def __init__(self, agent_repo: AgentRepository) -> None:
+        self._agent_repo = agent_repo
+
+    async def execute(self, input_dto: GetAgentInput) -> Agent:
+        from modules.agent.domain.errors import AgentNotFoundError
+        item = await self._agent_repo.get_by_id(input_dto.agent_id)
+        if not item:
+            raise AgentNotFoundError(input_dto.agent_id)
+        return item
+
+
+def _is_embedding_provider_model(provider_model) -> bool:
+    metadata = provider_model.metadata or {}
+    capability = str(metadata.get("capability") or metadata.get("type") or "").strip().lower()
+    if capability:
+        return capability in {"embedding", "embeddings"}
+    value = f"{provider_model.name} {provider_model.model}".lower()
+    return "embed" in value
+
+
+def _ensure_agent_compatible_provider_model(provider_model) -> None:
+    if _is_embedding_provider_model(provider_model):
+        raise ConflictError("Provider model is not compatible with agent runtime")
+
+
+def _force_strict_json_settings(agent: Agent) -> None:
+    settings = dict(agent.settings or {})
+    response_format = settings.get("response_format")
+    if not isinstance(response_format, dict):
+        return
+    if response_format.get("enabled") is not True or response_format.get("type") != "json":
+        return
+    settings["response_format"] = {**response_format, "strict": True}
+    agent.settings = settings
+
+
+async def _resolve_implicit_provider_model_bindings(agent: Agent, provider_model_repo) -> None:
+    if provider_model_repo is None:
+        return
+
+    if not agent.provider_model_id and agent.provider_credential_id and agent.model:
+        candidates = await provider_model_repo.list_by_credential(agent.provider_credential_id)
+        matches = [
+            item
+            for item in candidates
+            if item.project_id == agent.project_id
+            and item.model.strip() == agent.model.strip()
+            and getattr(item.status, "value", item.status) == ProviderModelStatus.active.value
+            and not _is_embedding_provider_model(item)
+        ]
+        if matches:
+            agent.provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
+
+    if not agent.fallback_provider_model_id and agent.fallback_credential_id and agent.fallback_model:
+        candidates = await provider_model_repo.list_by_credential(agent.fallback_credential_id)
+        matches = [
+            item
+            for item in candidates
+            if item.project_id == agent.project_id
+            and item.model.strip() == agent.fallback_model.strip()
+            and getattr(item.status, "value", item.status) == ProviderModelStatus.active.value
+            and not _is_embedding_provider_model(item)
+        ]
+        if matches:
+            agent.fallback_provider_model_id = sorted(matches, key=lambda item: str(item.id))[0].id
+
+
+async def _resolve_provider_model_bindings(
+    agent: Agent,
+    provider_model_repo,
+    credential_repo: ProviderCredentialRepository,
+) -> None:
+    if provider_model_repo is None:
+        return
+    if agent.provider_model_id:
+        provider_model = await provider_model_repo.get_by_id(agent.provider_model_id)
+        if provider_model is None or provider_model.project_id != agent.project_id:
+            from modules.agent.domain.errors import ModelConfigNotFoundError
+            raise ModelConfigNotFoundError
+        if getattr(provider_model.status, "value", provider_model.status) != ProviderModelStatus.active.value:
+            raise ValidationError("Provider model must be active")
+        _ensure_agent_compatible_provider_model(provider_model)
+        credential = await credential_repo.get_by_id(provider_model.provider_credential_id)
+        if credential is None or credential.project_id != agent.project_id:
+            from modules.agent.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(provider_model.provider_credential_id)
+        if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:
+            raise ValidationError("Provider credential must be active")
+        agent.provider_credential_id = credential.id
+        agent.provider = credential.provider
+        agent.model = provider_model.model
+
+    if agent.fallback_provider_model_id:
+        fallback_model = await provider_model_repo.get_by_id(agent.fallback_provider_model_id)
+        if fallback_model is None or fallback_model.project_id != agent.project_id:
+            from modules.agent.domain.errors import ModelConfigNotFoundError
+            raise ModelConfigNotFoundError
+        _ensure_agent_compatible_provider_model(fallback_model)
+        credential = await credential_repo.get_by_id(fallback_model.provider_credential_id)
+        if credential is None or credential.project_id != agent.project_id:
+            from modules.agent.domain.errors import CredentialNotFoundError
+            raise CredentialNotFoundError(fallback_model.provider_credential_id)
+        agent.fallback_credential_id = credential.id
+        agent.fallback_provider = credential.provider
+        agent.fallback_model = fallback_model.model

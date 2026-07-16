@@ -1,213 +1,113 @@
 import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
+import { Link2, Plus, Wrench } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { EmptyState } from '@/components/common/EmptyState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { Wrench, Plus, Link2, AlertTriangle, Circle, XCircle, Pencil } from 'lucide-react'
-import { ImportToolsModal } from './ImportToolsModal'
+import { Button } from '@/components/ui/Button'
+import { AgentToolCard } from '@/features/tools/components/AgentToolCard'
+import { useTools, useUpdateToolStatus } from '@/features/tools/hooks'
+import type { McpToolPermission, Tool } from '@/features/tools/types'
+import { toolPermissionsFromTools, useAgentEditor } from '../AgentEditorContext'
 import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
-import { useAgentTools, useUpdateToolStatus, useUpdateTool, useTools } from '@/features/tools/hooks'
-import type { Tool } from '@/features/tools/types'
-import { toast } from 'sonner'
+import { ImportToolsModal } from './ImportToolsModal'
 
 interface ToolsTabProps {
   projectId: string
   agentId: string
 }
 
-const riskVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  low: 'success',
-  medium: 'warning',
-  high: 'destructive',
-  critical: 'destructive',
-}
-
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
-  const { data: tools = [], isLoading, refetch } = useAgentTools(agentId)
-  const { refetch: refetchProjectTools } = useTools(projectId)
+  const { data: allTools = [], isLoading, refetch } = useTools(projectId)
   const updateStatus = useUpdateToolStatus()
-  const updateTool = useUpdateTool()
-
+  const { state, setField, setState } = useAgentEditor()
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
-  const agentToolIds = new Set(tools.map(t => t.id))
+  const selectedIds = new Set(state.toolIds)
+  const toolsById = new Map(allTools.map((tool) => [tool.id, tool]))
+  const tools = state.toolIds.map((toolId) => toolsById.get(toolId)).filter((tool): tool is Tool => Boolean(tool))
+  const activeCount = tools.filter((tool) => tool.status === 'active').length
+
+  const refreshTools = async () => { await refetch() }
 
   const handleToggleActive = async (tool: Tool) => {
+    if (tool.status === 'deprecated') return
     try {
       const newStatus = tool.status === 'active' ? 'inactive' : 'active'
       await updateStatus.mutateAsync({ toolId: tool.id, data: { status: newStatus } })
       toast.success(`"${tool.name}" ${newStatus === 'active' ? 'activated' : 'deactivated'}`)
-      refetch()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update status')
+      await refreshTools()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update status')
     }
   }
 
-  const handleRemove = async (tool: Tool) => {
-    try {
-      await updateTool.mutateAsync({ toolId: tool.id, data: { agent_id: null } })
-      toast.success(`"${tool.name}" removed from agent`)
-      refetch()
-      refetchProjectTools()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove tool from agent')
-    }
+  const removeTool = (tool: Tool) => {
+    const permissions = { ...state.toolPermissions }
+    delete permissions[tool.id]
+    setState({ ...state, toolIds: state.toolIds.filter((toolId) => toolId !== tool.id), toolPermissions: permissions })
+    toast.success(`"${tool.name}" removed from draft`)
   }
 
-  const handleCreated = (_tool?: Tool) => {
-    refetch()
-    refetchProjectTools()
+  const addTool = (tool: Tool) => {
+    if (selectedIds.has(tool.id)) return
+    const initialPermissions = toolPermissionsFromTools([tool])[tool.id] || {}
+    setState({
+      ...state,
+      toolIds: [...state.toolIds, tool.id],
+      toolPermissions: { ...state.toolPermissions, [tool.id]: initialPermissions },
+    })
+    toast.success(`"${tool.name}" added to draft`)
   }
 
-  const handleImport = () => {
-    refetch()
-    refetchProjectTools()
+  const updatePermissions = (toolId: string, permissions: Record<string, McpToolPermission>) => {
+    setField('toolPermissions', { ...state.toolPermissions, [toolId]: permissions })
   }
 
-  const handleEdit = (tool: Tool) => {
-    setEditingTool(tool)
-  }
-
-  const handleEditSaved = () => {
-    setEditingTool(null)
-    refetch()
-    refetchProjectTools()
-  }
-
-  if (isLoading) return <LoadingState />
+  if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-medium text-blue-300">Grant capabilities to the agent</p>
-            <p className="text-xs text-muted mt-1">
-              Activate tools to let the agent interact with external systems, execute code, and access real-time data during runs.
-            </p>
-          </div>
+    <div className="space-y-3 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted">Tools</p>
+          {tools.length > 0 ? <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} active</p> : null}
         </div>
-      </div>
-
-      <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          Create
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
-          <Link2 className="mr-1 h-4 w-4" />
-          Import
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}><Plus className="mr-1 h-4 w-4" />Create</Button>
+          <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}><Link2 className="mr-1 h-4 w-4" />Import</Button>
+        </div>
       </div>
 
       {tools.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-6">
-          <EmptyState
-            icon={<Wrench className="h-10 w-10" />}
-            title="No tools imported"
-            description="Create or import tools to give your agent additional capabilities."
-            action={
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" onClick={() => setShowCreateModal(true)}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  Create Tool
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
-                  <Link2 className="mr-1 h-4 w-4" />
-                  Import Tools
-                </Button>
-              </div>
-            }
-          />
+          <EmptyState icon={<Wrench className="h-10 w-10" />} title="No tools selected" description="Create or import tools to add them to this Agent draft. Save Draft persists the selection." />
         </div>
       ) : (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted uppercase tracking-wider">Agent Tools</p>
-            <span className="text-[10px] text-muted">{tools.filter(t => t.status === 'active').length} of {tools.length} active</span>
-          </div>
-          <div className="space-y-2">
-            {tools.map((tool) => {
-              const isActive = tool.status === 'active'
-              return (
-              <div key={tool.id} className={`rounded-lg border p-3 space-y-2 transition-opacity ${isActive ? 'border-border bg-background' : 'border-border/50 bg-background/50 opacity-70'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      {isActive ? (
-                        <Circle className="h-2.5 w-2.5 fill-emerald-400 text-emerald-400 shrink-0" />
-                      ) : (
-                        <XCircle className="h-2.5 w-2.5 text-muted shrink-0" />
-                      )}
-                      <p className="text-sm font-medium truncate">{tool.name}</p>
-                      <Badge variant={isActive ? 'success' : 'secondary'} className="text-[10px] px-1 py-0">
-                        {isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted mt-0.5">{tool.description || 'No description'}</p>
-                  </div>
-                  <Badge variant={riskVariant[tool.risk_level] || 'default'}>{tool.risk_level}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted uppercase tracking-wider">{tool.type}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={isActive ? 'default' : 'outline'}
-                      onClick={() => handleToggleActive(tool)}
-                    >
-                      {isActive ? 'Active' : 'Activate'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEdit(tool)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-400 hover:text-red-300"
-                      onClick={() => handleRemove(tool)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              )
-            })}
-          </div>
-        </>
+        <div className="space-y-3">
+          {tools.map((tool) => (
+            <AgentToolCard
+              key={tool.id}
+              context="playground"
+              tool={tool}
+              statusLoading={updateStatus.isPending}
+              onChanged={refreshTools}
+              onToggleActive={() => { void handleToggleActive(tool) }}
+              onEdit={() => setEditingTool(tool)}
+              onRemove={() => removeTool(tool)}
+              permissionOverrides={state.toolPermissions[tool.id] || {}}
+              onPermissionOverridesChange={(permissions) => updatePermissions(tool.id, permissions)}
+            />
+          ))}
+        </div>
       )}
 
-      <ImportToolsModal
-        open={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        projectId={projectId}
-        agentId={agentId}
-        importedToolIds={agentToolIds}
-        onImport={handleImport}
-      />
-
-      <CreateToolModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        projectId={projectId}
-        agentId={agentId}
-        onCreated={handleCreated}
-      />
-
-      <EditToolModal
-        tool={editingTool}
-        onClose={() => setEditingTool(null)}
-        onSaved={handleEditSaved}
-      />
+      <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addTool} />
+      <CreateToolModal open={showCreateModal} onClose={() => setShowCreateModal(false)} projectId={projectId} agentId={agentId} onCreated={(tool) => { if (tool) addTool(tool); void refreshTools() }} />
+      <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={() => { setEditingTool(null); void refreshTools() }} />
     </div>
   )
 }

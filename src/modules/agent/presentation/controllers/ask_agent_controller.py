@@ -3,7 +3,7 @@ import logging
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos import AskInput
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -39,20 +39,32 @@ class AskAgentController(Controller):
                 latency_ms=result.latency_ms,
                 parsed_output=result.parsed_output,
                 output_parse_error=result.output_parse_error,
-            )
+            ).model_dump()
+            data["provider_model_id"] = result.provider_model_id
+            data["provider_credential_id"] = result.provider_credential_id
+            data["fallback_provider_model_id"] = result.fallback_provider_model_id
+            data["fallback_credential_id"] = result.fallback_credential_id
+            data["fallback_info"] = result.fallback_info
+            data["execution_events"] = result.execution_events
+            data["diagnostics"] = result.diagnostics
 
             return Response(
                 status_code=200,
                 body={
                     "success": True,
                     "message": "Agent answered successfully",
-                    "data": data.model_dump(),
+                    "data": data,
                 },
             )
 
         except NotFoundError as e:
             return Response(
                 status_code=404,
+                body={"success": False, "message": str(e), "data": None},
+            )
+        except ConflictError as e:
+            return Response(
+                status_code=409,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ValidationError as e:

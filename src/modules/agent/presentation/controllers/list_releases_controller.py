@@ -5,6 +5,14 @@ from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
 
+def _release_list_payload(release):
+    data = list_releases_to_response(release).model_dump()
+    data["provider_model_id"] = getattr(release, "provider_model_id", None)
+    data["fallback_provider_model_id"] = getattr(release, "fallback_provider_model_id", None)
+    data["knowledge_version_id"] = getattr(release, "knowledge_version_id", None)
+    return data
+
+
 class ListReleasesController(Controller):
     def __init__(self, use_case: ListReleasesUseCase) -> None:
         self._use_case = use_case
@@ -12,7 +20,7 @@ class ListReleasesController(Controller):
     async def handle(self, request: Request) -> Response:
         agent_id = request.path_params["agent_id"]
         result = await self._use_case.execute(agent_id)
-        items = [list_releases_to_response(r).model_dump() for r in result]
+        items = [_release_list_payload(release) for release in result]
         return Response(
             status_code=200,
             body={"success": True, "data": items},

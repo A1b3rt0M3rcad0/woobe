@@ -33,6 +33,11 @@ class TestCoreUnitOfWork:
         assert "def outbox" in content
         assert "SQLAlchemyOutboxEventWriter" in content
 
+    def test_uow_has_project_overview_property(self):
+        content = UOW_FILE.read_text(encoding="utf-8")
+        assert "def project_overview" in content
+        assert "UnitOfWorkProjectOverviewReader" in content
+
     def test_uow_has_commit_and_rollback(self):
         content = UOW_FILE.read_text(encoding="utf-8")
         assert "async def commit" in content
@@ -48,6 +53,7 @@ class TestCoreUnitOfWork:
         assert "self._projects = None" in content
         assert "self._api_keys = None" in content
         assert "self._outbox = None" in content
+        assert "self._project_overview = None" in content
 
     def test_no_composer_imports_postgres_unit_of_work(self):
         for py_file in sorted(COMPOSERS_DIR.iterdir()):

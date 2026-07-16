@@ -1,33 +1,67 @@
-import { getToken, clearToken } from '@/lib/auth/token'
 import { ApiError, UnauthorizedError } from './errors'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+function resolveBaseUrl(value: string | undefined): string {
+  const baseUrl = value?.trim()
+
+  if (!baseUrl) {
+    throw new Error('VITE_API_URL must be configured with an absolute API URL')
+  }
+
+  try {
+    const url = new URL(baseUrl)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Invalid API URL protocol')
+    }
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    throw new Error(`VITE_API_URL must be an absolute HTTP(S) URL. Received: ${baseUrl}`)
+  }
+}
+
+export const API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_URL)
+const AUTH_REFRESH_PATH = '/identity/auth/refresh'
+const AUTH_CSRF_PATH = '/identity/auth/csrf'
+const AUTH_PUBLIC_PATHS = new Set([
+  '/identity/auth/login',
+  '/identity/auth/register',
+  AUTH_REFRESH_PATH,
+])
+const CSRF_EXEMPT_PATHS = new Set([
+  '/identity/auth/login',
+  '/identity/auth/logout',
+  '/identity/auth/register',
+  AUTH_REFRESH_PATH,
+  AUTH_CSRF_PATH,
+])
+const CSRF_HEADER_NAME = 'X-CSRF-Token'
+const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 interface RequestOptions {
   headers?: Record<string, string>
   params?: Record<string, string | number | undefined>
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  options?: RequestOptions,
-): Promise<T> {
-  const token = getToken()
-  const headers: Record<string, string> = {
-    ...(options?.headers || {}),
-  }
+interface ApiEnvelope<T> {
+  success: boolean
+  message?: string
+  data?: T
+}
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
+interface CsrfPayload {
+  csrf?: string
+}
 
-  let url = `${BASE_URL}${path}`
+let refreshPromise: Promise<void> | null = null
+let authGeneration = 0
+let csrfPromise: Promise<void> | null = null
+let csrfValue: string | null = null
 
-  if (options?.params) {
+function buildUrl(path: string, params?: RequestOptions['params']): string {
+  let url = `${API_BASE_URL}${path}`
+
+  if (params) {
     const searchParams = new URLSearchParams()
-    for (const [key, value] of Object.entries(options.params)) {
+    for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== '') {
         searchParams.set(key, String(value))
       }
@@ -36,15 +70,134 @@ async function request<T>(
     if (qs) url += `?${qs}`
   }
 
+  return url
+}
+
+function rememberCsrf(payload: unknown): void {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return
+  const value = (payload as CsrfPayload).csrf
+  if (typeof value === 'string' && value.length > 0) {
+    csrfValue = value
+  }
+}
+
+export function clearCsrfToken(): void {
+  csrfValue = null
+}
+
+export function getCsrfHeaders(method: string): Record<string, string> {
+  if (!CSRF_METHODS.has(method.toUpperCase())) return {}
+  if (!csrfValue) return {}
+
+  return { [CSRF_HEADER_NAME]: csrfValue }
+}
+
+function requiresCsrf(method: string, path: string): boolean {
+  return CSRF_METHODS.has(method.toUpperCase()) && !CSRF_EXEMPT_PATHS.has(path)
+}
+
+function redirectToLogin(): void {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/login'
+  }
+}
+
+export async function ensureCsrfToken(): Promise<void> {
+  if (csrfValue) return
+  if (csrfPromise) return csrfPromise
+
+  csrfPromise = (async () => {
+    const res = await fetch(buildUrl(AUTH_CSRF_PATH), {
+      method: 'GET',
+      credentials: 'include',
+    })
+
+    if (res.status === 401) {
+      throw new UnauthorizedError()
+    }
+
+    let data: ApiEnvelope<CsrfPayload> | null = null
+    try {
+      data = await res.json()
+    } catch {
+      data = null
+    }
+
+    if (!res.ok) {
+      throw new ApiError(data?.message || 'Unable to prepare request security', res.status, data?.data)
+    }
+
+    rememberCsrf(data?.data)
+    if (!csrfValue) {
+      throw new ApiError('Unable to prepare request security', res.status, data?.data)
+    }
+  })().finally(() => {
+    csrfPromise = null
+  })
+
+  return csrfPromise
+}
+
+export async function refreshAuthSession(): Promise<void> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const res = await fetch(buildUrl(AUTH_REFRESH_PATH), {
+      method: 'POST',
+      credentials: 'include',
+    })
+
+    if (res.status === 401) {
+      throw new UnauthorizedError()
+    }
+
+    let data: ApiEnvelope<CsrfPayload> | null = null
+    try {
+      data = await res.json()
+    } catch {
+      data = null
+    }
+
+    if (!res.ok) {
+      throw new ApiError(data?.message || 'Unable to refresh authentication session', res.status, data?.data)
+    }
+
+    rememberCsrf(data?.data)
+    authGeneration += 1
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions,
+  hasRetriedAuth = false,
+): Promise<T> {
+  if (requiresCsrf(method, path) && !csrfValue) {
+    await ensureCsrfToken()
+  }
+
+  const headers: Record<string, string> = {
+    ...(options?.headers || {}),
+    ...getCsrfHeaders(method),
+  }
+
   if (body !== undefined && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
 
+  const requestAuthGeneration = authGeneration
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await fetch(buildUrl(path, options?.params), {
       method,
       headers,
+      credentials: 'include',
       body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     })
   } catch (err) {
@@ -67,16 +220,32 @@ async function request<T>(
     console.log(`[API] ${method} ${path} → ${res.status}${maybeBody ? ` ${maybeBody}` : ''}`)
   }
 
+  if (res.status === 401 && !hasRetriedAuth && !AUTH_PUBLIC_PATHS.has(path)) {
+    try {
+      if (requestAuthGeneration === authGeneration) {
+        clearCsrfToken()
+        await refreshAuthSession()
+      }
+      return request<T>(method, path, body, options, true)
+    } catch {
+      if (import.meta.env.DEV) console.warn('[API] Refresh failed — redirecting to login')
+      redirectToLogin()
+      throw new UnauthorizedError()
+    }
+  }
+
   if (res.status === 401) {
-    if (import.meta.env.DEV) console.warn(`[API] 401 Unauthorized — clearing token and redirecting to login`)
-    clearToken()
-    window.location.href = '/login'
+    if (import.meta.env.DEV) console.warn('[API] 401 Unauthorized — redirecting to login')
+    if (!AUTH_PUBLIC_PATHS.has(path)) {
+      redirectToLogin()
+    }
     throw new UnauthorizedError()
   }
 
-  let data: { success: boolean; message?: string; data?: T } | null = null
+  let data: ApiEnvelope<T> | null = null
   try {
     data = await res.json()
+    rememberCsrf(data?.data)
     if (import.meta.env.DEV && res.ok) {
       const bodyPreview = JSON.stringify(data?.data).slice(0, 100)
       console.log(`[API] ${method} ${path} → OK${bodyPreview ? ` ${bodyPreview}` : ''}`)

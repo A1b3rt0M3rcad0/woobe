@@ -80,6 +80,8 @@ class ListMessagesOutput(BaseModel):
 class ListAgentSessionsInput(BaseModel):
     project_id: UUID
     agent_id: UUID
+    cursor: str | None = None
+    limit: int = Field(default=20, ge=1, le=100)
 
 
 class ListAgentSessionsOutput(BaseModel):
@@ -93,6 +95,12 @@ class ListAgentSessionsOutput(BaseModel):
     message_count: int = 0
 
 
+class ListAgentSessionsPageOutput(BaseModel):
+    items: list[ListAgentSessionsOutput]
+    next_cursor: str | None = None
+    has_next: bool = False
+
+
 class AskInput(BaseModel):
     project_id: UUID
     agent_id: UUID
@@ -101,7 +109,7 @@ class AskInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
-    execution_context: str = "playground"
+    execution_context: str = "production"
     loaded_release_id: UUID | None = None
     snapshot_override: dict | None = None
 
@@ -142,6 +150,10 @@ class AskOutput(BaseModel):
     trace_id: UUID | None = None
     model: str | None = None
     provider: str | None = None
+    provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
     fallback_used: bool = False
     fallback_info: dict | None = None
     latency_ms: int | None = None
@@ -159,6 +171,7 @@ class CreateAskJobInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
+    execution_context: str = "production"
 
 
 class CreateAskJobOutput(BaseModel):

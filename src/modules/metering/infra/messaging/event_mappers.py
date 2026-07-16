@@ -70,9 +70,12 @@ def rabbit_message_to_inbox(message: Any) -> InboxEventModel:
     causation_id_raw = body.get("causation_id")
     causation_id = UUID(causation_id_raw) if causation_id_raw else None
     message_id = message.message_id or str(event_id)
-    payload = body.get("payload")
-    if not isinstance(payload, dict):
+    raw_payload = body.get("payload")
+    if not isinstance(raw_payload, dict):
         raise ValueError("Integration event payload must be an object")
+    payload = dict(raw_payload)
+    if body.get("occurred_at") and not payload.get("occurred_at"):
+        payload["occurred_at"] = body["occurred_at"]
     now = datetime.now(timezone.utc)
 
     return InboxEventModel(

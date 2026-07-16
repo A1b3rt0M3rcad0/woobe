@@ -10,6 +10,9 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecutionError,
     invoke_llm,
 )
+from modules.agent.application.use_cases.runtime_streaming import (
+    runtime_streaming_enabled,
+)
 
 
 async def repair_json_if_needed(
@@ -24,6 +27,7 @@ async def repair_json_if_needed(
     max_tokens: int,
     schema: dict,
     clean_json_answer,
+    pricing_snapshot: dict[str, Any] | None = None,
 ) -> InstrumentedExecution:
     result = execution.result
     answer = result.content if hasattr(result, "content") else str(result)
@@ -41,6 +45,7 @@ async def repair_json_if_needed(
         base_url=base_url,
         temperature=0.0,
         max_tokens=max_tokens,
+        streaming=runtime_streaming_enabled(),
         response_format={"type": "json_object"},
     )
     try:
@@ -60,6 +65,7 @@ async def repair_json_if_needed(
             call_index=call_index + 1,
             provider=provider,
             model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
         )
     except InstrumentedExecutionError as exc:
         raise InstrumentedExecutionError(

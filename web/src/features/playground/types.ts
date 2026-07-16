@@ -9,6 +9,12 @@ export interface SessionListItem {
   message_count: number
 }
 
+export interface SessionListPage {
+  items: SessionListItem[]
+  next_cursor: string | null
+  has_next: boolean
+}
+
 export interface Session {
   id: string
   project_id: string
@@ -78,9 +84,12 @@ export interface UsageInfo {
 export interface FallbackInfo {
   primary_model: string | null
   primary_provider: string | null
+  primary_provider_model_id?: string | null
+  primary_credential_id?: string | null
   primary_error: string
   fallback_model: string | null
   fallback_provider: string | null
+  fallback_provider_model_id?: string | null
   fallback_credential_id: string | null
 }
 
@@ -90,6 +99,39 @@ export interface FallbackEventInfo {
   fallback_provider: string
   fallback_model: string
   error: string
+  primary_provider_model_id?: string | null
+  fallback_provider_model_id?: string | null
+}
+
+export type StreamTokenVisibility = 'assistant' | 'internal' | 'debug'
+export type StreamTokenChannel = 'final' | 'reasoning' | 'tool_planning' | 'system' | string
+
+export interface StreamTokenInfo {
+  content: string
+  visibility: StreamTokenVisibility
+  channel: StreamTokenChannel
+  phase?: string | null
+  provider?: string | null
+  model?: string | null
+  redacted?: boolean | null
+}
+
+export type AgentActivityStatus =
+  | 'thinking'
+  | 'working'
+  | 'planning_tools'
+  | 'calling_tool'
+  | 'processing_tool_result'
+  | 'generating_answer'
+  | 'formatting_response'
+
+export interface AgentActivityInfo {
+  status: AgentActivityStatus | string
+  phase?: string | null
+  message?: string | null
+  tool_name?: string | null
+  provider?: string | null
+  model?: string | null
 }
 
 export interface ExecutionEvent {
@@ -124,6 +166,10 @@ export interface ExecutionDiagnostics {
   tool_call_count: number
   usage_complete: boolean
   cost_status: 'known' | 'unknown'
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
 }
 
 export interface AskResponse {
@@ -136,9 +182,14 @@ export interface AskResponse {
   trace_id: string | null
   model: string | null
   provider: string | null
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
   fallback_used: boolean
   fallback_info?: FallbackInfo | null
   latency_ms: number | null
+  ttft_ms?: number | null
   parsed_output?: Record<string, unknown> | null
   output_parse_error?: string | null
   execution_events?: ExecutionEvent[]
@@ -164,11 +215,13 @@ export interface ChatMessage {
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
   tool_calls?: ToolCallInfo[] | null
+  activity?: AgentActivityInfo | null
   model?: string | null
   provider?: string | null
   latency_ms?: number | null
   trace_id?: string | null
   parsed_output?: Record<string, unknown> | null
+  output_parse_error?: string | null
   created_at?: string | null
 }
 
@@ -186,6 +239,10 @@ export interface TraceItem {
   latency_ms: number | null
   model: string | null
   provider: string | null
+  provider_model_id?: string | null
+  provider_credential_id?: string | null
+  fallback_provider_model_id?: string | null
+  fallback_credential_id?: string | null
   input_tokens: number | null
   output_tokens: number | null
   total_tokens: number | null

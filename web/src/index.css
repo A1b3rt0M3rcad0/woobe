@@ -16,6 +16,7 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.15) transparent;
+    scrollbar-gutter: stable;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -47,114 +48,101 @@
   }
 }
 
+.model-picker-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(148, 163, 184, 0.55) rgba(15, 23, 42, 0.35);
+}
+
+.model-picker-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.model-picker-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 999px;
+}
+
+.model-picker-scroll::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  background-color: rgba(148, 163, 184, 0.5);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.model-picker-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.72);
+}
+
+.model-picker-scroll::-webkit-scrollbar-thumb:active {
+  background-color: rgba(148, 163, 184, 0.9);
+}
+
+/* Overview environment semantics: All is aggregate, Draft is neutral, Staging is operational. */
+.rounded-lg.border.border-border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
+  display: none;
+}
+
+.border-blue-500\/35.bg-blue-500\/10.text-blue-300,
+.border-blue-500\/40.bg-blue-500\/10.text-blue-300 {
+  border-color: rgb(100 116 139 / 0.35) !important;
+  background-color: rgb(100 116 139 / 0.1) !important;
+  color: rgb(203 213 225) !important;
+}
+
+.bg-blue-400 {
+  background-color: rgb(148 163 184) !important;
+}
+
+.border-amber-500\/35.bg-amber-500\/10.text-amber-300,
+.border-amber-500\/40.bg-amber-500\/10.text-amber-300 {
+  border-color: rgb(99 102 241 / 0.4) !important;
+  background-color: rgb(99 102 241 / 0.1) !important;
+  color: rgb(165 180 252) !important;
+}
+
+.bg-amber-400 {
+  background-color: rgb(129 140 248) !important;
+}
+
+.border-slate-600\/70.bg-slate-800\/60.text-slate-100 .bg-slate-300 {
+  display: none;
+}
+
+/* Keep composition segments out of inline baseline layout. */
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
+  display: flex;
+}
+
+.h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 > .inline-block {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Keep large model catalog pickers visually stable while filtering. */
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl {
+  display: flex;
+  height: 24rem;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
+  min-height: 2rem;
+}
+
 /*
- * Project overview is a dense operational dashboard. Keep it fluid instead of
- * centering it inside a fixed desktop width, otherwise browser zoom and ultra
- * wide screens create large empty gutters and make every card look undersized.
+ * The agent playground used to subtract the old topbar height with
+ * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
+ * fullscreen container aligned to the full viewport.
  */
-.project-overview-main > div,
-.project-overview-main > div > div {
-  min-width: 0;
-  width: 100%;
-}
-
-.project-overview-main > div > div {
-  max-width: none !important;
-  margin-inline: 0 !important;
-  padding-right: 0 !important;
-}
-
-.project-overview-main section {
-  min-width: 0;
-}
-
-.project-overview-main [class~='text-[8px]'] {
-  font-size: 0.625rem !important;
-}
-
-.project-overview-main [class~='text-[9px]'] {
-  font-size: 0.6875rem !important;
-}
-
-.project-overview-main [class~='text-[10px]'] {
-  font-size: 0.75rem !important;
-}
-
-.project-overview-main [class~='text-[11px]'] {
-  font-size: 0.8125rem !important;
-}
-
-.project-overview-main [class~='text-[13px]'] {
-  font-size: 0.9375rem !important;
-}
-
-.project-overview-main [class~='space-y-2.5'] > :not([hidden]) ~ :not([hidden]) {
-  margin-top: 0.875rem !important;
-}
-
-@media (min-width: 1536px) {
-  .project-overview-main [class~='text-[8px]'] {
-    font-size: 0.6875rem !important;
-  }
-
-  .project-overview-main [class~='text-[9px]'] {
-    font-size: 0.75rem !important;
-  }
-
-  .project-overview-main [class~='text-[10px]'] {
-    font-size: 0.8125rem !important;
-  }
-
-  .project-overview-main [class~='text-[11px]'] {
-    font-size: 0.875rem !important;
-  }
-
-  .project-overview-main [class~='text-[13px]'] {
-    font-size: 1rem !important;
-  }
-
-  .project-overview-main [class~='min-h-[98px]'] {
-    min-height: 7.75rem !important;
-  }
-
-  .project-overview-main [class~='h-[140px]'] {
-    height: 11.5rem !important;
-  }
-
-  .project-overview-main [class~='h-[126px]'] {
-    height: 10.75rem !important;
-  }
-
-  .project-overview-main [class~='h-[118px]'] {
-    height: 9.5rem !important;
-  }
-
-  .project-overview-main [class~='h-[104px]'] {
-    height: 8.75rem !important;
-  }
-
-  .project-overview-main [class~='space-y-2.5'] > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 1rem !important;
-  }
-}
-
-@media (max-width: 1023px) {
-  .project-overview-main {
-    overflow-y: auto;
-  }
-
-  .project-overview-main > div {
-    height: auto;
-    overflow: visible;
-  }
-}
-
-@media (max-width: 639px) {
-  .project-overview-main [class~='text-[22px]'] {
-    font-size: 1.25rem !important;
-  }
-
-  .project-overview-main [class~='grid-cols-4'] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+.h-\[calc\(100vh-3\.5rem\)\] {
+  height: 100svh !important;
 }

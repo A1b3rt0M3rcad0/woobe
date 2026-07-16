@@ -4,6 +4,7 @@ from enum import StrEnum, auto
 
 
 class UsageEventType(StrEnum):
+    runtime_request = auto()
     llm_request = auto()
     embedding = auto()
     tool_call = auto()

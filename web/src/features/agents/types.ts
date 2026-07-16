@@ -10,6 +10,8 @@ export interface Agent {
   max_output_tokens?: number
   session_mode?: string
   status: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   provider_credential_id?: string
   fallback_provider?: string
   fallback_model?: string
@@ -23,7 +25,9 @@ export interface CreateAgentRequest {
   project_id: string
   name: string
   provider?: string
-  model: string
+  model?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   system_prompt?: string
   description?: string
   temperature?: number
@@ -42,6 +46,8 @@ export interface UpdateAgentRequest {
   system_prompt?: string
   provider?: string
   model?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   provider_credential_id?: string
   fallback_provider?: string
   fallback_model?: string
@@ -195,6 +201,8 @@ export interface AgentRelease {
   contract_version_id?: string
   knowledge_version_id?: string
   model_config_version_id?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   // Snapshot fields — complete agent config
   name?: string
   description?: string
@@ -232,6 +240,8 @@ export interface CreateReleaseRequest {
   contract_version_id?: string
   knowledge_version_id?: string
   model_config_version_id?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   // Snapshot fields — complete agent config
   name?: string
   description?: string

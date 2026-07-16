@@ -1,7 +1,7 @@
 import pytest
 from uuid import UUID
 
-from modules.billing.domain.entities import Plan, Customer, Subscription, PaymentEvent
+from modules.billing.domain.entities import Customer, PaymentEvent
 from modules.billing.domain.enums import SubscriptionStatus
 from modules.billing.service.dtos import (
     CreatePlanInput,

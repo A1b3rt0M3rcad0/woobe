@@ -85,6 +85,11 @@ class UserSessionModel(BaseModel):
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
     refresh_token_hash: Mapped[bytes] = mapped_column(LargeBinary)
+    replaced_by_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("identity.user_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     user_agent: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

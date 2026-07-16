@@ -1,10 +1,9 @@
 import pytest
 from uuid import UUID
 
-from modules.observability.domain.entities import Trace, TraceEvent
+from modules.observability.domain.entities import TraceEvent
 from modules.observability.domain.enums import TraceStatus, TraceEventType
 from modules.observability.domain.repositories import TraceRepository, TraceEventRepository
-from modules.observability.domain.errors import TraceNotFoundError
 from modules.observability.service.dtos import (
     CreateTraceInput,
     CreateTraceOutput,

@@ -6,11 +6,20 @@ from typing import Any, Callable, Coroutine
 from modules.agent.application.use_cases.execution_instrumentation import (
     InstrumentedExecution,
 )
+from modules.agent.application.use_cases.runtime_streaming import (
+    runtime_streaming_enabled,
+)
 from modules.agent.application.use_cases.structured_json_repair import (
     repair_json_if_needed,
 )
 from modules.agent.application.use_cases.tool_execution_loop import run_tool_loop
 from modules.agent.domain.entities import Agent
+
+
+def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
+    settings = agent.settings or {}
+    value = settings.get("model_pricing")
+    return value if isinstance(value, dict) else None
 
 
 async def run_instrumented_execution(
@@ -33,6 +42,13 @@ async def run_instrumented_execution(
         if hasattr(agent.provider, "value")
         else str(agent.provider)
     )
+    pricing_snapshot = _primary_pricing_snapshot(agent)
+    streaming_enabled = runtime_streaming_enabled()
+    base_response_format = (
+        {"type": "json_object"}
+        if json_enabled and not has_tools
+        else None
+    )
     model = llm_factory.create_chat_model(
         provider=provider,
         model=agent.model,
@@ -40,13 +56,22 @@ async def run_instrumented_execution(
         base_url=base_url,
         temperature=agent.temperature or 0.2,
         max_tokens=agent.max_output_tokens or 1000,
-        response_format=(
-            {"type": "json_object"}
-            if json_enabled and not has_tools
-            else None
-        ),
+        streaming=streaming_enabled,
+        response_format=base_response_format,
     )
+    final_model = None
     if has_tools:
+        if streaming_enabled:
+            final_model = llm_factory.create_chat_model(
+                provider=provider,
+                model=agent.model,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=agent.temperature or 0.2,
+                max_tokens=agent.max_output_tokens or 1000,
+                streaming=True,
+                response_format={"type": "json_object"} if json_enabled else None,
+            )
         model = model.bind_tools(agent_tools, tool_choice="auto")
 
     instruction = None
@@ -61,6 +86,7 @@ async def run_instrumented_execution(
 
     execution, call_index = await run_tool_loop(
         model=model,
+        final_model=final_model,
         execute_single_tool=execute_single_tool,
         messages=messages,
         tool_name_to_id=tool_name_to_id,
@@ -68,6 +94,7 @@ async def run_instrumented_execution(
         model_name=agent.model,
         initial_phase="tool_planning" if has_tools else "response_generation",
         final_json_instruction=instruction,
+        pricing_snapshot=pricing_snapshot,
     )
     if not json_enabled:
         return execution
@@ -82,4 +109,5 @@ async def run_instrumented_execution(
         max_tokens=agent.max_output_tokens or 1000,
         schema=response_format.get("schema", {}),
         clean_json_answer=clean_json_answer,
+        pricing_snapshot=pricing_snapshot,
     )

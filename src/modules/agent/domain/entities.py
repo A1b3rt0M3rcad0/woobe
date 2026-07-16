@@ -20,6 +20,7 @@ from modules.agent.domain.enums import (
     ParserType,
     PromptStatus,
     Provider,
+    ProviderModelStatus,
     ReleaseStatus,
     ReleaseTestStatus,
     RiskLevel,
@@ -48,9 +49,24 @@ class ProviderCredential:
 
 
 @dataclass
+class ProviderModel:
+    id: UUID = field(default_factory=uuid6.uuid7)
+    project_id: UUID = field(default_factory=uuid6.uuid7)
+    provider_credential_id: UUID = field(default_factory=uuid6.uuid7)
+    name: str = ""
+    model: str = ""
+    status: ProviderModelStatus = ProviderModelStatus.active
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
 class Agent:
     id: UUID = field(default_factory=uuid6.uuid7)
     project_id: UUID = field(default_factory=uuid6.uuid7)
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     provider_credential_id: UUID | None = None
     fallback_credential_id: UUID | None = None
     name: str = ""
@@ -133,6 +149,8 @@ class AgentRelease:
     contract_version_id: UUID | None = None
     knowledge_version_id: UUID | None = None
     model_config_version_id: UUID | None = None
+    provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None

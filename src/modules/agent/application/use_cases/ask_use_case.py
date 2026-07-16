@@ -39,7 +39,10 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
-from modules.agent.application.tool_converter import agent_tools_to_openai_definitions, _safe_tool_name
+from modules.agent.application.tool_converter import (
+    MCP_PROVIDER_ROUTE_SEPARATOR,
+    agent_tools_to_openai_definitions_and_mapping,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
@@ -246,10 +249,8 @@ class AskAgentUseCase:
                 tool_repo = uow.tools
                 tools = await tool_repo.list_by_agent(agent.id, status="active")
                 if tools:
-                    agent_tools = agent_tools_to_openai_definitions(tools)
-                    for t in tools:
-                        tool_name_to_id[_safe_tool_name(t)] = str(t.id)
-                    has_tools = True
+                    agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
+                    has_tools = bool(agent_tools)
             except Exception as e:
                 logger.warning("Failed to load tools for agent %s: %s", agent.id, e)
 
@@ -528,9 +529,13 @@ class AskAgentUseCase:
             return {"success": False, "error": "Tool execution not available"}
         try:
             args = tool_call.get("args", {}) or {}
+            execution_tool_id = tool_id
+            if MCP_PROVIDER_ROUTE_SEPARATOR in tool_id:
+                execution_tool_id, remote_tool_name = tool_id.split(MCP_PROVIDER_ROUTE_SEPARATOR, 1)
+                args = {**args, "__mcp_tool_name": remote_tool_name}
             if self._tool_executor_factory:
-                return await self._tool_executor_factory(UUID(tool_id), args)
-            return await self._tool_executor.execute_tool(UUID(tool_id), args)
+                return await self._tool_executor_factory(UUID(execution_tool_id), args)
+            return await self._tool_executor.execute_tool(UUID(execution_tool_id), args)
         except Exception as e:
             logger.warning("Tool execution failed: %s", e)
             return {"success": False, "error": str(e)}
@@ -821,7 +826,7 @@ class AskAgentUseCase:
         rag_context: str | None,
         history: list,
         user_message: str,
-        response_format: dict | None = None,
+        response_format: dict | None = None
     ) -> list:
         messages = []
 

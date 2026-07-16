@@ -1,0 +1,19 @@
+from uuid import UUID
+
+from modules.agent.application.use_cases import GetProviderModelUseCase
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
+
+
+class GetProviderModelController(Controller):
+    def __init__(self, use_case: GetProviderModelUseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        provider_model_id = UUID(request.path_params["provider_model_id"])
+        result = await self._use_case.execute(provider_model_id)
+        return Response(
+            status_code=200,
+            body={"success": True, "message": "ok", "data": result.model_dump()},
+        )

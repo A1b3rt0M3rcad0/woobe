@@ -5,9 +5,69 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 
-from shared.infra.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from shared.infra.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    DomainError,
+    NotFoundError,
+    PayloadTooLargeError,
+    RateLimitError,
+    RuntimeTimeoutError,
+    ValidationError,
+)
+from shared.security.redaction import redact_text
 
 logger = logging.getLogger(__name__)
+
+
+async def authentication_handler(
+    request: Request,
+    exc: AuthenticationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"success": False, "message": str(exc), "data": None},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def authorization_handler(
+    request: Request,
+    exc: AuthorizationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=403,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def payload_too_large_handler(
+    request: Request,
+    exc: PayloadTooLargeError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def runtime_timeout_handler(
+    request: Request,
+    exc: RuntimeTimeoutError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=504,
+        content={"success": False, "message": str(exc), "data": None},
+    )
+
+
+async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"success": False, "message": str(exc), "data": None},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
@@ -38,7 +98,10 @@ async def validation_handler(request: Request, exc: ValidationError) -> JSONResp
     )
 
 
-async def pydantic_validation_handler(request: Request, exc: PydanticValidationError) -> JSONResponse:
+async def pydantic_validation_handler(
+    request: Request,
+    exc: PydanticValidationError,
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={
@@ -49,7 +112,10 @@ async def pydantic_validation_handler(request: Request, exc: PydanticValidationE
     )
 
 
-async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def request_validation_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={
@@ -61,7 +127,7 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled exception: %s", exc)
+    logger.exception("Unhandled exception: %s", redact_text(str(exc)))
     cors_origin = "*"
     try:
         settings = request.app.state.settings

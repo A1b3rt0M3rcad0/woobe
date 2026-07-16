@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
 from modules.agent.infra.workers.ask_job_worker import AskJobWorker
 from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxDispatcherWorker
+from modules.agent.infra.workers.vector_snapshot_worker import VectorSnapshotWorker
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -41,6 +42,9 @@ def register_agent_workers(
 
     ask_job_worker = AskJobWorker(async_engine=engine)
     registry.register(ask_job_worker)
+
+    vector_snapshot_worker = VectorSnapshotWorker(async_engine=engine)
+    registry.register(vector_snapshot_worker)
 
 
 assert isinstance(AgentWorkerRegistry, type)
