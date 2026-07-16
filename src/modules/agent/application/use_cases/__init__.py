@@ -38,7 +38,6 @@ from modules.agent.application.use_cases.provider_management_cases import (
 )
 from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase as CreateReleaseUseCase
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase as PromoteReleaseUseCase
-from modules.agent.application.use_cases.release_activation_separation import install_release_activation_separation
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase as DeleteDocumentUseCase
@@ -77,8 +76,6 @@ from modules.agent.application.use_cases.tools_use_cases import (
     UpdateToolStatusUseCase,
     UpdateToolUseCase,
 )
-
-install_release_activation_separation()
 
 __all__ = [
     "ArchiveProviderCredentialUseCase",
