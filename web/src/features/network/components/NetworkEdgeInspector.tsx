@@ -43,7 +43,7 @@ export function NetworkEdgeInspector({
         </div>
       </header>
 
-      <div className="space-y-4">
+      <div className="space-y-4 p-4">
         <section className="rounded-xl border border-border bg-background/30 p-3">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] text-white">
             <span className="truncate">{source?.label}</span>
