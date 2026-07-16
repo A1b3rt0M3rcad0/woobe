@@ -14,7 +14,7 @@ import {
   Info,
   Play,
   Route,
-  TerminalSquare,
+  SquareTerminal,
   Wrench,
   XCircle,
 } from 'lucide-react'
@@ -162,7 +162,7 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onDiagnostics }
         </CollapsibleSection>
       ) : null}
 
-      <button type="button" onClick={onDiagnostics} className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><TerminalSquare className="h-3.5 w-3.5" />View trace evidence</button>
+      <button type="button" onClick={onDiagnostics} className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><SquareTerminal className="h-3.5 w-3.5" />View trace evidence</button>
     </div>
   )
 }
@@ -185,12 +185,15 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const OutcomeIcon = meta.icon
   const selectedInvocation = selectedSpanId ? findNetworkInvocation(trace.execution.root, selectedSpanId) : null
   const totalTokens = trace.usage ? trace.usage.total_tokens ?? ((trace.usage.input_tokens ?? 0) + (trace.usage.output_tokens ?? 0)) : null
-  const technicalIds = useMemo(() => [
-    trace.traceId ? ['trace', trace.traceId] as const : null,
-    ['network session', trace.networkSessionId] as const,
-    ['network', session.networkId] as const,
-    ['project', session.projectId] as const,
-  ].filter((item): item is readonly [string, string] => Boolean(item)), [session.networkId, session.projectId, trace.networkSessionId, trace.traceId])
+  const technicalIds = useMemo<Array<readonly [string, string]>>(() => {
+    const ids: Array<readonly [string, string]> = [
+      ['network session', trace.networkSessionId],
+      ['network', session.networkId],
+      ['project', session.projectId],
+    ]
+    if (trace.traceId) ids.unshift(['trace', trace.traceId])
+    return ids
+  }, [session.networkId, session.projectId, trace.networkSessionId, trace.traceId])
 
   useEffect(() => {
     setView('overview')
@@ -225,7 +228,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         {([
           ['overview', Activity, 'Overview'],
           ['path', Route, 'Path'],
-          ['diagnostics', TerminalSquare, 'Diagnostics'],
+          ['diagnostics', SquareTerminal, 'Diagnostics'],
         ] as const).map(([target, Icon, label]) => <button key={target} type="button" onClick={() => setView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium', view === target || (view === 'agent' && target === 'path') ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}
       </nav>
 
@@ -237,6 +240,11 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
                 <p className="text-[10px] font-medium text-red-300">{trace.execution.root.failure.message}</p>
                 {trace.execution.root.failure.partialResultAvailable ? <p className="mt-1 text-[9px] text-muted">Completed Agent and Tool results remain available.</p> : null}
                 <button type="button" onClick={() => setView('diagnostics')} className="mt-2 text-[9px] font-medium text-red-200 hover:text-white">Review failure</button>
+              </section>
+            ) : outcome === 'completed_with_issues' ? (
+              <section className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                <p className="text-[10px] font-medium text-amber-200">The Network completed, but at least one delegated Agent Run reported an issue.</p>
+                <button type="button" onClick={() => setView('path')} className="mt-2 text-[9px] font-medium text-amber-200 hover:text-white">Review execution path</button>
               </section>
             ) : null}
 
@@ -258,7 +266,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p>
               <div className="mt-2 grid grid-cols-3 gap-3"><MetaItem label="Tools" value={`${tools} calls`} /><MetaItem label="Contexts" value={String(trace.agentContexts.length)} /><MetaItem label="Events" value={String(trace.events.length)} /></div>
-              <button type="button" onClick={() => setView('diagnostics')} className="mt-3 inline-flex items-center gap-1.5 text-[9px] font-medium text-primary-light hover:text-white"><TerminalSquare className="h-3.5 w-3.5" />Open diagnostics</button>
+              <button type="button" onClick={() => setView('diagnostics')} className="mt-3 inline-flex items-center gap-1.5 text-[9px] font-medium text-primary-light hover:text-white"><SquareTerminal className="h-3.5 w-3.5" />Open diagnostics</button>
             </section>
           </>
         ) : null}
