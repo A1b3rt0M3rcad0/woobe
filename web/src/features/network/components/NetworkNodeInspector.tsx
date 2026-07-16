@@ -137,7 +137,7 @@ export function NetworkNodeInspector({
         </div>
       </header>
 
-      <div className="space-y-4">
+      <div className="space-y-4 p-4">
         <section className="space-y-4">
           <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">In this Network</p><Help text="These settings affect only this Network node. Prompt, model, Tools and Knowledge remain owned by the shared Agent." /></div>
           <label className="block text-[10px] text-muted">Node label<input disabled={readOnly} className={networkInspectorInput} value={node.label} onChange={(event) => onChange({ type: 'rename-node', nodeId: node.id, label: event.target.value })} /></label>
