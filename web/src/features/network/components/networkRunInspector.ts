@@ -15,28 +15,17 @@ export interface NetworkToolSummary {
   failed: number
 }
 
-export function flattenNetworkInvocationPath(
-  root: NetworkAgentInvocation,
-): NetworkInvocationPathItem[] {
+export function flattenNetworkInvocationPath(root: NetworkAgentInvocation): NetworkInvocationPathItem[] {
   const items: NetworkInvocationPathItem[] = []
-
   const visit = (invocation: NetworkAgentInvocation, depth: number) => {
-    items.push({
-      invocation,
-      depth,
-      role: depth === 0 ? 'entry' : 'delegated',
-    })
+    items.push({ invocation, depth, role: depth === 0 ? 'entry' : 'delegated' })
     invocation.children.forEach((child) => visit(child, depth + 1))
   }
-
   visit(root, 0)
   return items
 }
 
-export function findNetworkInvocation(
-  root: NetworkAgentInvocation,
-  spanId: string,
-): NetworkAgentInvocation | null {
+export function findNetworkInvocation(root: NetworkAgentInvocation, spanId: string): NetworkAgentInvocation | null {
   if (root.spanId === spanId) return root
   for (const child of root.children) {
     const match = findNetworkInvocation(child, spanId)
@@ -51,14 +40,10 @@ function toolState(tool: ToolCallInfo): 'running' | 'completed' | 'failed' {
   return 'completed'
 }
 
-export function summarizeInvocationTools(
-  invocation: NetworkAgentInvocation,
-  recursive = false,
-): NetworkToolSummary {
+export function summarizeInvocationTools(invocation: NetworkAgentInvocation, recursive = false): NetworkToolSummary {
   const tools = recursive
     ? flattenNetworkInvocationPath(invocation).flatMap((item) => item.invocation.tools)
     : invocation.tools
-
   return tools.reduce<NetworkToolSummary>((summary, tool) => {
     const state = toolState(tool)
     summary.total += 1
@@ -69,6 +54,7 @@ export function summarizeInvocationTools(
 
 export function invocationHasFailure(root: NetworkAgentInvocation): boolean {
   if (root.status === 'error' || root.failure) return true
+  if (root.tools.some((tool) => toolState(tool) === 'failed')) return true
   return root.children.some(invocationHasFailure)
 }
 
