@@ -36,7 +36,7 @@ export function NetworkBindingBadge({
   source,
   version,
   dirty = false,
-  variant = 'badge',
+  variant = 'metadata',
   className,
   title,
 }: {
@@ -55,11 +55,15 @@ export function NetworkBindingBadge({
       <span
         title={title ?? label}
         className={cn(
-          'inline-flex min-w-0 max-w-full items-center justify-between gap-3 text-[8px]',
+          'inline-flex w-full min-w-0 max-w-full items-center gap-3 border-0 bg-transparent p-0 text-[8px]',
           className,
         )}
+        style={{ justifyContent: 'space-between' }}
       >
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-slate-400">
+        <span className={cn(
+          'inline-flex min-w-0 items-center gap-1.5 font-medium',
+          dirty ? 'text-amber-300' : 'text-slate-400',
+        )}>
           <span
             aria-hidden
             className={cn(
@@ -67,7 +71,7 @@ export function NetworkBindingBadge({
               dirty ? 'bg-amber-400' : sourceDotTone[source],
             )}
           />
-          <span className="truncate font-medium normal-case tracking-normal">
+          <span className="truncate normal-case tracking-normal">
             {sourceLabel[source]}{dirty ? ' · unsaved' : ''}
           </span>
         </span>
