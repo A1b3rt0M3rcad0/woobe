@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildExecutionFromRuntimeEvents,
   buildTurnFromRuntimeEvents,
   currentSignature,
   networkLabel,
@@ -215,6 +216,130 @@ describe('Network runtime event projection', () => {
     expect(turn.execution.root.failure?.stage).toBe('provider_request')
     expect(turn.usage).toBeNull()
     expect(turn.execution.costUsd).toBeNull()
+  })
+
+  it('preserves failed Tools, partial-result metadata and per-Agent duration', () => {
+    const records: RuntimeEventRecord[] = [
+      {
+        eventType: 'agent_invocation_started',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'root',
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          sequence: 1,
+          created_at: '2026-07-16T12:00:00.000Z',
+          data: { label: 'Root Agent' },
+        },
+      },
+      {
+        eventType: 'tool_call_started',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'root',
+          sequence: 2,
+          created_at: '2026-07-16T12:00:01.000Z',
+          data: {
+            tool_call_id: 'tool-1',
+            tool_name: 'mcp_deepwiki_ask_question',
+            input: { repoName: 'openclaude' },
+          },
+        },
+      },
+      {
+        eventType: 'tool_call_completed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'root',
+          sequence: 3,
+          created_at: '2026-07-16T12:00:02.000Z',
+          data: {
+            tool_call_id: 'tool-1',
+            tool_name: 'mcp_deepwiki_ask_question',
+            success: false,
+            status: 'error',
+            error_code: 'invalid_repository_identifier',
+            error: 'Invalid repoName format',
+            duration_ms: 1000,
+          },
+        },
+      },
+      {
+        eventType: 'agent_invocation_started',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'child',
+          parent_invocation_id: 'root',
+          node_id: 'node-child',
+          agent_id: 'agent-child',
+          depth: 1,
+          sequence: 4,
+          created_at: '2026-07-16T12:00:02.000Z',
+          data: { label: 'Specialist' },
+        },
+      },
+      {
+        eventType: 'agent_invocation_completed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'child',
+          parent_invocation_id: 'root',
+          node_id: 'node-child',
+          agent_id: 'agent-child',
+          depth: 1,
+          sequence: 5,
+          created_at: '2026-07-16T12:00:05.000Z',
+          data: { output: 'done', tool_calls: [], sources: [] },
+        },
+      },
+      {
+        eventType: 'agent_invocation_failed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-partial',
+          invocation_id: 'root',
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          sequence: 6,
+          created_at: '2026-07-16T12:00:06.000Z',
+          data: {
+            code: 'provider_request_error',
+            stage: 'provider_request',
+            message: 'The model provider rejected the final response request.',
+            retryable: false,
+            phase: 'final_response_generation',
+            partial_result_available: true,
+          },
+        },
+      },
+    ]
+
+    const built = buildExecutionFromRuntimeEvents({
+      records,
+      environment: 'draft',
+      bindings: { 'node-root': binding },
+      executionId: 'execution-partial',
+      answer: '',
+      terminalStatus: 'error',
+    })
+
+    expect(built.execution.root.tools).toEqual([
+      expect.objectContaining({
+        tool_call_id: 'tool-1',
+        success: false,
+        error_code: 'invalid_repository_identifier',
+      }),
+    ])
+    expect(built.execution.root.failure?.partialResultAvailable).toBe(true)
+    expect(built.execution.root.durationMs).toBe(6000)
+    expect(built.execution.root.children[0].durationMs).toBe(3000)
   })
 
   it('signs any dynamic node ids without fixed roles', () => {
