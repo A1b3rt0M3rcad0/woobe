@@ -70,9 +70,11 @@ def test_network_publish_creates_available_release_without_changing_agent_produc
             promoted_by=None,
         )
 
+        assert created is not production
+        assert created is not staging
         assert created.status == "released"
         assert created.snapshot_kind == "release"
-        assert created.id != production.id
+        assert created.system_prompt == "network validated change"
         assert production.status == "production"
         assert production.version == "v1.0.0"
         assert staging.status == "staging"
