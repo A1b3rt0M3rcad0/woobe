@@ -17,6 +17,7 @@ _ERROR_PATTERNS: tuple[tuple[str, str], ...] = (
     ("repository not found", "repository_not_found"),
     ("error processing question", "mcp_application_error"),
 )
+_PROTOCOL_CONTAINER_KEYS = {"output", "body", "mcp"}
 
 
 def _as_text(value: Any) -> str | None:
@@ -36,6 +37,15 @@ def _walk(value: Any, depth: int = 0) -> Iterator[Any]:
     elif isinstance(value, list):
         for child in value:
             yield from _walk(child, depth + 1)
+
+
+def _protocol_candidates(value: Any, depth: int = 0) -> Iterator[dict[str, Any]]:
+    if depth > 6 or not isinstance(value, dict):
+        return
+    yield value
+    for key, child in value.items():
+        if key in _PROTOCOL_CONTAINER_KEYS and isinstance(child, dict):
+            yield from _protocol_candidates(child, depth + 1)
 
 
 def _known_error(value: Any) -> tuple[str, str] | None:
@@ -69,10 +79,7 @@ def _explicit_error(candidate: dict[str, Any]) -> tuple[str | None, str] | None:
 
 
 def _structured_error(value: Any) -> tuple[str | None, str] | None:
-    for candidate in _walk(value):
-        if not isinstance(candidate, dict):
-            continue
-
+    for candidate in _protocol_candidates(value):
         explicit = _explicit_error(candidate)
         if explicit:
             return explicit
@@ -92,7 +99,10 @@ def _structured_error(value: Any) -> tuple[str | None, str] | None:
         status = _as_text(candidate.get("status"))
         if status and status.lower() in {"error", "failed", "failure"}:
             known = _known_error(candidate)
-            message = _as_text(candidate.get("message")) or "The Tool reported a failed result."
+            message = (
+                _as_text(candidate.get("message"))
+                or "The Tool reported a failed result."
+            )
             return (
                 known[0] if known else "tool_application_error",
                 known[1] if known else message,
