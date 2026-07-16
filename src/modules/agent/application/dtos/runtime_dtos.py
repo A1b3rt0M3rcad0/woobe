@@ -137,6 +137,8 @@ class ToolCallInfo(BaseModel):
     output: dict | None = None
     duration_ms: float | None = None
     success: bool = True
+    status: str | None = None
+    error_code: str | None = None
     error: str | None = None
 
 
@@ -177,14 +179,3 @@ class CreateAskJobInput(BaseModel):
 class CreateAskJobOutput(BaseModel):
     job_id: UUID
     status: str = "pending"
-
-
-class GetAskJobOutput(BaseModel):
-    job_id: UUID
-    status: str
-    result: dict | None = None
-    error: str | None = None
-    trace_id: UUID | None = None
-    created_at: datetime | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
