@@ -50,6 +50,17 @@ _RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
     f"{RUNTIME_TOOL_INVENTORY_NAME} before answering."
 )
 
+_TOOL_GROUNDING_RUNTIME_RULES = (
+    "Tool grounding rules:\n"
+    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
+    "tenant IDs, slugs or keys required by a Tool.\n"
+    "- If a qualified identifier is missing, use a real discovery or search Tool "
+    "when one is available.\n"
+    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
+    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
+    "an identifier or reports that a resource was not found."
+)
+
 
 def _id_text(value) -> str | None:
     return str(value) if value else None
@@ -179,6 +190,12 @@ class StructuredOutputAskAgentUseCase(
             updated[8] = mapping
             updated[9] = bool(definitions)
             tool_name_to_id = mapping
+
+        if updated[9]:
+            messages = list(updated[11])
+            insert_at = len(messages) - 1 if messages else 0
+            messages.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
+            updated[11] = messages
 
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])
