@@ -18,6 +18,7 @@ import type {
   NetworkDefinition,
   NetworkEnvironment,
   NetworkResource,
+  NetworkVersion,
   PromoteNetworkInput,
 } from './types'
 import { ApiError } from '@/lib/api/errors'
@@ -105,9 +106,19 @@ export function usePromoteNetwork(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: PromoteNetworkInput) => promoteNetwork(networkId!, projectId!, input),
-    onSuccess: () => {
+    onSuccess: (saved, input) => {
+      queryClient.setQueryData<NetworkVersion[]>(['network-versions', networkId, projectId], (current = []) => {
+        const next = current.filter((version) => version.id !== saved.id)
+        return [saved, ...next]
+      })
+      queryClient.setQueryData<NetworkResource>(['network', projectId], (current) => current ? {
+        ...current,
+        staging_version_id: input.environment === 'staging' ? saved.id : current.staging_version_id,
+        production_version_id: input.environment === 'production' ? saved.id : current.production_version_id,
+      } : current)
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['releases'] })
     },
   })
 }
@@ -116,7 +127,11 @@ export function useActivateNetworkProduction(networkId?: string, projectId?: str
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: ActivateNetworkProductionInput) => activateNetworkProduction(networkId!, projectId!, input),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      queryClient.setQueryData<NetworkResource>(['network', projectId], (current) => current ? {
+        ...current,
+        production_version_id: result.version.id,
+      } : current)
       queryClient.invalidateQueries({ queryKey: ['network', projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
       queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
