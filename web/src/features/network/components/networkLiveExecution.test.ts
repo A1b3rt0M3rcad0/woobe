@@ -74,7 +74,7 @@ describe('networkLiveExecution', () => {
     expect(state.tools).toEqual([
       expect.objectContaining({
         tool_call_id: 'tool-1',
-        tool_name: 'delegate_to_agente_triste',
+        tool_name: 'Delegate to Agente Triste',
         success: true,
         status: 'success',
       }),
