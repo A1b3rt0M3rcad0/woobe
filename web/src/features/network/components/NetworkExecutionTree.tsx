@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Workflow, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucide-react'
 
 import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import type { ChatMessage as PlaygroundChatMessage, SourceInfo, ToolCallInfo } from '@/features/playground/types'
-import { formatLatency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
+import type { LiveNetworkAgent } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import { invocationCount, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 
@@ -23,33 +23,94 @@ function flattenSources(invocation: NetworkAgentInvocation): SourceInfo[] {
   ]
 }
 
-function invocationNames(invocation: NetworkAgentInvocation): Array<{ id?: AgentNodeId; name: string; depth: number }> {
-  const visit = (node: NetworkAgentInvocation, depth: number): Array<{ id?: AgentNodeId; name: string; depth: number }> => [
-    { id: node.nodeId, name: node.agentName, depth },
+function invocationNames(invocation: NetworkAgentInvocation): Array<{
+  id?: AgentNodeId
+  name: string
+  depth: number
+  status: NetworkAgentInvocation['status']
+}> {
+  const visit = (node: NetworkAgentInvocation, depth: number): Array<{
+    id?: AgentNodeId
+    name: string
+    depth: number
+    status: NetworkAgentInvocation['status']
+  }> => [
+    { id: node.nodeId, name: node.agentName, depth, status: node.status },
     ...node.children.flatMap((child) => visit(child, depth + 1)),
   ]
   return visit(invocation, 0)
 }
 
+function AgentStatusIcon({ status }: { status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }) {
+  if (status === 'running' || status === 'pending') {
+    return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary-light" />
+  }
+  if (status === 'error') {
+    return <XCircle className="h-3 w-3 shrink-0 text-red-400" />
+  }
+  return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+}
+
 function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; onSelectAgent: (nodeId: AgentNodeId) => void }) {
   const [open, setOpen] = useState(false)
-  const agents = useMemo(() => invocationNames(root), [root])
-  if (agents.length <= 1) return null
+  const agents = useMemo(() => invocationNames(root).filter((agent) => agent.depth > 0), [root])
+  if (!agents.length) return null
+
+  const singleAgent = agents.length === 1 ? agents[0].name : null
 
   return (
     <div className="pl-8">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        Agents called ({agents.length - 1})
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <span className="truncate">Agents called ({agents.length}){singleAgent ? ` · ${singleAgent}` : ''}</span>
       </button>
       {open ? (
         <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
           {agents.map((agent, index) => agent.id ? (
-            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="block max-w-full truncate text-left text-[9px] text-muted hover:text-white" style={{ paddingLeft: `${Math.min(agent.depth, 3) * 10}px` }}>
-              {agent.name}
+            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-1.5 text-left text-[9px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
             </button>
           ) : (
-            <p key={`${agent.name}-${index}`} className="truncate text-[9px] text-muted" style={{ paddingLeft: `${Math.min(agent.depth, 3) * 10}px` }}>{agent.name}</p>
+            <div key={`${agent.name}-${index}`} className="flex max-w-full items-center gap-1.5 text-[9px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function NetworkLiveAgents({ agents, onSelectAgent }: {
+  agents: LiveNetworkAgent[]
+  onSelectAgent: (nodeId: AgentNodeId) => void
+}) {
+  const [open, setOpen] = useState(true)
+  const calledAgents = useMemo(() => agents.filter((agent) => agent.depth > 0), [agents])
+  if (!calledAgents.length) return null
+
+  const singleAgent = calledAgents.length === 1 ? calledAgents[0].name : null
+
+  return (
+    <div className="pl-8">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <span className="truncate">Agents called ({calledAgents.length}){singleAgent ? ` · ${singleAgent}` : ''}</span>
+      </button>
+      {open ? (
+        <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
+          {calledAgents.map((agent) => agent.nodeId ? (
+            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-1.5 text-left text-[9px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </button>
+          ) : (
+            <div key={agent.invocationId} className="flex max-w-full items-center gap-1.5 text-[9px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </div>
           ))}
         </div>
       ) : null}
@@ -82,18 +143,24 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
 
   return (
     <div className={cn('space-y-1.5', failed && 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2')}>
-      <div className="flex items-center gap-2 pl-8 text-[9px] text-muted">
-        {failed ? <XCircle className="h-3 w-3 text-red-400" /> : <Workflow className="h-3 w-3 text-primary-light" />}
-        <span className="truncate">{networkName}</span>
-      </div>
-      <ChatMessage message={message} agentName={networkName} variant="network" />
+      <ChatMessage
+        message={message}
+        agentName={networkName}
+        variant="network"
+        assistantIcon="network"
+        footerMeta={(
+          <>
+            <span>{agents} Agent{agents === 1 ? '' : 's'}</span>
+            <span>{cost}</span>
+          </>
+        )}
+        footerActions={(
+          <button type="button" onClick={() => onOpenTrace(turn.execution)} className="h-6 rounded-md px-1.5 text-[9px] font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-white">
+            Open Run
+          </button>
+        )}
+      />
       <AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-8 text-[9px] text-muted">
-        <span>{agents} Agent{agents === 1 ? '' : 's'}</span>
-        <span>{formatLatency(turn.execution.durationMs)}</span>
-        <span>{cost}</span>
-        <button type="button" onClick={() => onOpenTrace(turn.execution)} className="font-medium text-primary-light hover:text-white">Open Run</button>
-      </div>
     </div>
   )
 }
