@@ -274,12 +274,14 @@ export function NetworkGraphEditor({
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
         elementsSelectable
+        panOnDrag={[0, 1]}
+        selectionOnDrag={false}
         deleteKeyCode={null}
         minZoom={0.25}
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="rgba(100,116,139,.38)" />
+        <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color="rgba(100,116,139,.52)" />
         <NetworkCanvasChrome
           nodeCount={definition.nodes.length}
           edgeCount={definition.edges.length}
@@ -290,10 +292,15 @@ export function NetworkGraphEditor({
           position="bottom-right"
           pannable
           zoomable
+          inversePan
+          zoomStep={5}
           bgColor="#020817"
           nodeStrokeColor="#64748b"
           nodeColor={(node) => activePathSet.has(node.id) ? '#10b981' : node.id === definition.root_node_id ? '#7c3aed' : '#334155'}
-          maskColor="rgba(2,8,23,.78)"
+          maskColor="rgba(2,8,23,.52)"
+          maskStrokeColor="rgba(96,165,250,.9)"
+          maskStrokeWidth={1.5}
+          ariaLabel="Network overview. Drag to navigate and scroll to zoom."
         />
       </ReactFlow>
 
