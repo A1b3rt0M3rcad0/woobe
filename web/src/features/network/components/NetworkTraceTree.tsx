@@ -86,7 +86,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
   depth: number
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
-  const [open, setOpen] = useState(depth === 0 || invocation.status === 'error')
+  const [open, setOpen] = useState(false)
   const routingEvent = trace.events.find((event) => event.type === 'network.route.selected' && event.spanId === invocation.spanId)
   const statusIcon = invocation.status === 'error'
     ? <XCircle className="h-3.5 w-3.5 text-red-400" />
