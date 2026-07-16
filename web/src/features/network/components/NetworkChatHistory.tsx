@@ -5,9 +5,10 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 
+import type { LiveNetworkExecutionState } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkExecution, NetworkTurn } from './networkChatExecution'
-import { NetworkAnswer } from './NetworkExecutionTree'
+import { NetworkAnswer, NetworkLiveAgents } from './NetworkExecutionTree'
 
 interface NetworkChatHistoryProps {
   scrollRef: Ref<HTMLDivElement>
@@ -17,6 +18,7 @@ interface NetworkChatHistoryProps {
   pendingMessage: string | null
   liveAnswer: string
   liveActivity: string[]
+  liveExecution: LiveNetworkExecutionState
   onScroll?: UIEventHandler<HTMLDivElement>
   onSuggestion: (value: string) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
@@ -28,7 +30,20 @@ const onboardingSuggestions = [
   'Test a request that should require delegation to a specialist.',
 ]
 
-export function NetworkChatHistory({ scrollRef, networkName, turns, running, pendingMessage, liveAnswer, liveActivity, onScroll, onSuggestion, onSelectAgent, onOpenTrace }: NetworkChatHistoryProps) {
+export function NetworkChatHistory({
+  scrollRef,
+  networkName,
+  turns,
+  running,
+  pendingMessage,
+  liveAnswer,
+  liveActivity,
+  liveExecution,
+  onScroll,
+  onSuggestion,
+  onSelectAgent,
+  onOpenTrace,
+}: NetworkChatHistoryProps) {
   const liveMessage: PlaygroundChatMessage = {
     role: 'assistant',
     content: liveAnswer,
@@ -36,6 +51,8 @@ export function NetworkChatHistory({ scrollRef, networkName, turns, running, pen
       status: liveAnswer ? 'generating_answer' : 'working',
       message: liveActivity[liveActivity.length - 1] ?? 'Executing Network composition…',
     },
+    tool_calls: liveExecution.tools,
+    sources: liveExecution.sources,
   }
 
   return (
@@ -60,7 +77,10 @@ export function NetworkChatHistory({ scrollRef, networkName, turns, running, pen
         {running && pendingMessage ? (
           <div className="space-y-4">
             <ChatMessage message={{ role: 'user', content: pendingMessage }} variant="network" />
-            <ChatMessage message={liveMessage} agentName={networkName} variant="network" isStreaming />
+            <div className="space-y-1.5">
+              <ChatMessage message={liveMessage} agentName={networkName} variant="network" assistantIcon="network" isStreaming />
+              <NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />
+            </div>
           </div>
         ) : null}
       </div>
