@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any
 from uuid import UUID, uuid4
 
+from modules.agent.application.http_tool_contract import (
+    HttpToolContractError,
+    compile_http_tool_contract,
+)
+from modules.agent.application.http_tool_renderer import render_http_tool_request
 from modules.agent.application.mcp_permissions import (
     MCP_PERMISSION_ALLOW,
     MCP_PERMISSION_DENY,
@@ -26,7 +30,6 @@ from modules.agent.application.tool_types import (
 
 logger = logging.getLogger(__name__)
 
-_TEMPLATE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 MCP_REMOTE_TOOL_INPUT_KEY = "__mcp_tool_name"
 MCP_AGENT_SESSION_INPUT_KEY = "__projectrai_agent_session_id"
@@ -50,47 +53,12 @@ def _failure(code: str, message: str, protocol: str, *, status_code: int | None 
     return ExecutionResult(success=False, status_code=status_code, duration_ms=duration_ms, error=message, output=_error_output(code, message, protocol))
 
 
-def _replace_template(value: str, variables: dict[str, Any]) -> str:
-    def replace_var(match: re.Match[str]) -> str:
-        var_name = match.group(1)
-        return str(variables.get(var_name, match.group(0)))
-
-    return _TEMPLATE_PATTERN.sub(replace_var, value)
-
-
 def _safe_tool_name(tool: Any) -> str:
     name = str(getattr(tool, "name", "")).lower().strip().replace(" ", "_").replace("-", "_")
     name = "".join(c for c in name if c.isalnum() or c == "_")
     if not name or name[0].isdigit():
         name = f"tool_{name}"
     return name
-
-
-def _extract_template_variables(*templates: str) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for template in templates:
-        for match in _TEMPLATE_PATTERN.findall(template or ""):
-            if match not in seen:
-                seen.add(match)
-                result.append(match)
-    return result
-
-
-def _build_http_input_schema(config: dict[str, Any]) -> dict[str, Any]:
-    body = config.get("body", "")
-    if not isinstance(body, str):
-        body = json.dumps(body)
-    variables = _extract_template_variables(config.get("url", ""), body)
-    return {"type": "object", "properties": {var_name: {"type": "string", "description": f"Parameter {var_name}"} for var_name in variables}, "required": variables}
-
-
-def _coerce_body(body: Any) -> str | None:
-    if body is None:
-        return None
-    if isinstance(body, str):
-        return body
-    return json.dumps(body)
 
 
 def _parse_json_candidate(value: str) -> Any:
@@ -214,26 +182,29 @@ class HttpToolRuntime(ToolRuntimePort):
         self._secret_resolver = secret_resolver
 
     async def execute(self, tool: Any, input_data: dict[str, Any] | None = None) -> ExecutionResult:
-        return await self._execute_config(config=getattr(tool, "config", None) or {}, input_data=input_data or {}, timeout_ms=getattr(tool, "timeout_ms", None) or 30000, project_id=getattr(tool, "project_id", None), resolve_secrets=True, tool_id=str(getattr(tool, "id", "")) or None)
+        return await self._execute_config(config=getattr(tool, "config", None) or {}, input_schema=getattr(tool, "input_schema", None), input_data=input_data or {}, timeout_ms=getattr(tool, "timeout_ms", None) or 30000, project_id=getattr(tool, "project_id", None), resolve_secrets=True, tool_id=str(getattr(tool, "id", "")) or None)
 
     async def test(self, config: dict[str, Any], input_data: dict[str, Any] | None = None, timeout_ms: int = 30000) -> ExecutionResult:
-        return await self._execute_config(config=config or {}, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, resolve_secrets=False, tool_id=None)
+        return await self._execute_config(config=config or {}, input_schema=None, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, resolve_secrets=False, tool_id=None)
 
-    async def _execute_config(self, *, config: dict[str, Any], input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, resolve_secrets: bool, tool_id: str | None) -> ExecutionResult:
-        url = str(config.get("url", ""))
+    async def _execute_config(self, *, config: dict[str, Any], input_schema: dict[str, Any] | None, input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, resolve_secrets: bool, tool_id: str | None) -> ExecutionResult:
         method = str(config.get("method", "GET")).upper()
         raw_headers = config.get("headers", []) or []
-        body = _coerce_body(config.get("body"))
-        variables = config.get("variables", {}) or {}
-        merged_input = {**variables, **input_data}
         if resolve_secrets and self._secret_resolver is not None and project_id is not None:
             headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
         else:
             headers = {h.get("key", ""): h.get("value", "") for h in raw_headers if h.get("key")}
-        url = _replace_template(url, merged_input)
-        if body:
-            body = _replace_template(body, merged_input)
-        logger.info("tool_runtime_start protocol=http tool_id=%s method=%s", tool_id, method)
+        try:
+            contract = compile_http_tool_contract(config, input_schema)
+            url, headers, body = render_http_tool_request(contract, input_data, headers)
+        except HttpToolContractError as exc:
+            output = _error_output(exc.code, str(exc), HTTP_PROTOCOL)
+            if exc.missing:
+                output["missing_parameters"] = exc.missing
+            logger.warning("tool_runtime_invalid_input protocol=http tool_id=%s code=%s", tool_id, exc.code)
+            return ExecutionResult(success=False, error=str(exc), output=output)
+
+        logger.info("tool_runtime_start protocol=http tool_id=%s method=%s contract_hash=%s", tool_id, method, contract.contract_hash)
         result = await self._executor.execute(method=method, url=url, headers=headers, body=body, timeout_ms=timeout_ms)
         if result.success:
             logger.info("tool_runtime_success protocol=http tool_id=%s duration_ms=%s", tool_id, result.duration_ms)
@@ -242,14 +213,16 @@ class HttpToolRuntime(ToolRuntimePort):
         if isinstance(result.output, dict):
             result.output.setdefault("error_code", ERROR_HTTP_ERROR)
             result.output.setdefault("protocol", HTTP_PROTOCOL)
+            result.output.setdefault("tool_contract_hash", contract.contract_hash)
         else:
             result.output = _error_output(ERROR_HTTP_ERROR, result.error or "HTTP tool call failed", HTTP_PROTOCOL)
+            result.output["tool_contract_hash"] = contract.contract_hash
         return result
 
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
         config = getattr(tool, "config", None) or {}
-        input_schema = getattr(tool, "input_schema", None) or _build_http_input_schema(config)
-        return {"type": "function", "function": {"name": _safe_tool_name(tool), "description": getattr(tool, "description", None) or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}", "parameters": input_schema}}
+        contract = compile_http_tool_contract(config, getattr(tool, "input_schema", None))
+        return {"type": "function", "function": {"name": _safe_tool_name(tool), "description": getattr(tool, "description", None) or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}", "parameters": contract.input_schema}}
 
 
 class McpToolRuntime(ToolRuntimePort):
