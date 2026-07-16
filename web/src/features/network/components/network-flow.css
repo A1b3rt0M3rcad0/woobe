@@ -20,10 +20,25 @@
 .network-flow .react-flow__controls,
 .network-flow .react-flow__minimap {
   overflow: hidden;
-  border: 1px solid rgb(51 65 85 / 0.9);
+  border: 1px solid rgb(71 85 105 / 0.9);
   border-radius: 0.75rem;
   background: #020817;
   box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.network-flow .react-flow__minimap {
+  cursor: grab;
+}
+
+.network-flow .react-flow__minimap:hover {
+  border-color: rgb(96 165 250 / 0.55);
+}
+
+.network-flow .react-flow__minimap:active {
+  cursor: grabbing;
 }
 
 .network-flow .react-flow__controls-button {
