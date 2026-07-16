@@ -77,10 +77,14 @@ export function NetworkChatHistory({
         {running && pendingMessage ? (
           <div className="space-y-4">
             <ChatMessage message={{ role: 'user', content: pendingMessage }} variant="network" />
-            <div className="space-y-1.5">
-              <ChatMessage message={liveMessage} agentName={networkName} variant="network" assistantIcon="network" isStreaming />
-              <NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />
-            </div>
+            <ChatMessage
+              message={liveMessage}
+              agentName={networkName}
+              variant="network"
+              assistantIcon="network"
+              details={<NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />}
+              isStreaming
+            />
           </div>
         ) : null}
       </div>
