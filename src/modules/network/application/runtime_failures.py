@@ -19,6 +19,11 @@ class NetworkRuntimeFailure(RuntimeError):
     agent_id: UUID | None = None
     trace_id: UUID | None = None
     agent_session_id: UUID | None = None
+    phase: str | None = None
+    call_index: int | None = None
+    upstream_status: int | None = None
+    upstream_error_code: str | None = None
+    partial_result_available: bool = False
 
     def __post_init__(self) -> None:
         RuntimeError.__init__(self, self.internal_detail)
@@ -55,6 +60,11 @@ class NetworkRuntimeFailure(RuntimeError):
             "stage": self.stage,
             "message": self.safe_message,
             "retryable": self.retryable,
+            "phase": self.phase,
+            "call_index": self.call_index,
+            "upstream_status": self.upstream_status,
+            "upstream_error_code": self.upstream_error_code,
+            "partial_result_available": self.partial_result_available,
             "cause_invocation_id": str(self.invocation_id)
             if self.invocation_id
             else None,
@@ -62,6 +72,34 @@ class NetworkRuntimeFailure(RuntimeError):
             "cause_agent_id": str(self.agent_id) if self.agent_id else None,
             "trace_id": str(self.trace_id) if self.trace_id else None,
         }
+
+
+def _failure_context(chain: list[Exception]) -> dict[str, Any]:
+    for item in chain:
+        value = getattr(item, "failure_context", None)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _failure_fields(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "phase": context.get("phase") if isinstance(context.get("phase"), str) else None,
+        "call_index": context.get("call_index") if isinstance(context.get("call_index"), int) else None,
+        "upstream_status": context.get("upstream_status") if isinstance(context.get("upstream_status"), int) else None,
+        "upstream_error_code": str(context["upstream_error_code"])
+        if context.get("upstream_error_code")
+        else None,
+        "partial_result_available": context.get("partial_result_available") is True,
+    }
+
+
+def _provider_request_message(phase: str | None) -> str:
+    if phase and phase.startswith("tool_followup_"):
+        return "The model provider rejected a Tool follow-up request."
+    if phase == "final_response_generation":
+        return "The model provider rejected the final response request."
+    return "The model provider rejected the Agent request."
 
 
 def classify_runtime_exception(
@@ -74,6 +112,8 @@ def classify_runtime_exception(
 
     chain = list(_exception_chain(exception))
     detail = _internal_exception_detail(chain)
+    context = _failure_context(chain)
+    fields = _failure_fields(context)
     normalized = " ".join(
         f"{item.__class__.__module__}.{item.__class__.__name__} {str(item)}"
         for item in chain
@@ -86,6 +126,7 @@ def classify_runtime_exception(
             safe_message="The Agent provider credential could not be loaded.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "authenticationerror" in normalized
@@ -104,6 +145,7 @@ def classify_runtime_exception(
             safe_message="The model provider rejected the configured authentication.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "provider model" in normalized
@@ -118,6 +160,7 @@ def classify_runtime_exception(
             safe_message="The Agent provider model binding is not ready.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "base_url" in normalized
@@ -131,6 +174,7 @@ def classify_runtime_exception(
             safe_message="The Agent runtime configuration could not be loaded.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "knowledgeversion" in normalized
@@ -144,6 +188,7 @@ def classify_runtime_exception(
             safe_message="The Agent knowledge binding is not ready for this Run.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "selected tool" in normalized
@@ -157,6 +202,7 @@ def classify_runtime_exception(
             safe_message="The Agent tool binding is not ready for this Run.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if "validationerror" in normalized:
         return NetworkRuntimeFailure(
@@ -165,6 +211,7 @@ def classify_runtime_exception(
             safe_message="The Agent runtime configuration could not be loaded.",
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
     if (
         "ratelimiterror" in normalized
@@ -178,6 +225,7 @@ def classify_runtime_exception(
             safe_message="The model provider rate-limited this Agent Run.",
             internal_detail=detail,
             retryable=True,
+            **fields,
         )
     if (
         "apitimeouterror" in normalized
@@ -192,6 +240,7 @@ def classify_runtime_exception(
             safe_message="The model provider did not answer before the timeout.",
             internal_detail=detail,
             retryable=True,
+            **fields,
         )
     if (
         "apiconnectionerror" in normalized
@@ -208,6 +257,7 @@ def classify_runtime_exception(
             safe_message="The Agent worker could not reach the model provider.",
             internal_detail=detail,
             retryable=True,
+            **fields,
         )
     if (
         "internalservererror" in normalized
@@ -226,6 +276,7 @@ def classify_runtime_exception(
             safe_message="The model provider is temporarily unavailable.",
             internal_detail=detail,
             retryable=True,
+            **fields,
         )
     if (
         "instrumentedexecutionerror" in normalized
@@ -244,9 +295,10 @@ def classify_runtime_exception(
         return NetworkRuntimeFailure(
             code="provider_request_error",
             stage="provider_request",
-            safe_message="The model provider rejected the Agent request.",
+            safe_message=_provider_request_message(fields["phase"]),
             internal_detail=detail,
             retryable=False,
+            **fields,
         )
 
     return NetworkRuntimeFailure(
@@ -255,12 +307,12 @@ def classify_runtime_exception(
         safe_message="The Agent Run failed before producing a valid result.",
         internal_detail=detail,
         retryable=False,
+        **fields,
     )
 
 
 def _exception_chain(exception: Exception) -> Iterator[Exception]:
     """Yield an exception and its explicit/implicit causes without looping."""
-
     current: BaseException | None = exception
     seen: set[int] = set()
     while isinstance(current, Exception) and id(current) not in seen:
