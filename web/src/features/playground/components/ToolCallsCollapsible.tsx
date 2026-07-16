@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle, ChevronDown, ChevronRight, Loader2, Wrench, XCircle } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
@@ -15,8 +15,13 @@ export function ToolCallsCollapsible({
   toolCalls,
   variant = 'playground',
 }: ToolCallsCollapsibleProps) {
-  const [open, setOpen] = useState(false)
+  const hasRunningTool = toolCalls.some((toolCall) => toolCall.status === 'running' || toolCall.success == null)
+  const [open, setOpen] = useState(hasRunningTool)
   const compact = variant === 'network'
+
+  useEffect(() => {
+    if (hasRunningTool) setOpen(true)
+  }, [hasRunningTool])
 
   if (!toolCalls || toolCalls.length === 0) return null
 
