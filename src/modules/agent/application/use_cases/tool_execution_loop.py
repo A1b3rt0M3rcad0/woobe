@@ -15,6 +15,9 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     invoke_llm,
 )
 
+MAX_TOOL_ROUNDS = 5
+MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = 2
+
 _TOOL_DECISION_INSTRUCTION = (
     "Tool decision phase only. Decide whether another tool call is required to satisfy "
     "the latest user request. If another tool call is required, call the tool. If no "
@@ -25,9 +28,10 @@ _TOOL_DECISION_INSTRUCTION = (
 _FINAL_RESPONSE_INSTRUCTION = (
     "Generate one single final user-facing answer for the latest user request. "
     "Fulfill every part of that request completely and in the same order the user asked. "
-    "If the user asked for a story and then a calculation, include the full story first "
-    "and then include the calculation result. Use the verified tool results above exactly "
-    "where relevant. Do not call tools. Do not mention internal planning or execution phases."
+    "Use successful Tool results exactly where relevant. Explain failed Tool-dependent "
+    "parts accurately and ask for missing information when required. Do not invent "
+    "identifiers or fabricate successful results. Do not call Tools. Do not mention "
+    "internal planning or execution phases."
 )
 
 
@@ -63,12 +67,7 @@ def _is_tool_message(message: Any) -> bool:
 
 
 def _sanitize_base_messages(messages: list) -> list:
-    """Remove raw historical tool payloads before a new LLM execution.
-
-    The current execution still appends compact ToolMessage objects after fresh tool
-    calls. This only protects the initial conversation history, where persisted raw
-    tool outputs can otherwise be rehydrated into the prompt on later turns.
-    """
+    """Remove raw historical Tool payloads before a new LLM execution."""
     sanitized: list = []
     for message in messages:
         if _is_tool_message(message):
@@ -104,7 +103,6 @@ def _extract_tool_result(output: Any) -> Any:
         return output
     if "result" in output:
         return output["result"]
-
     nested = output.get("output")
     if isinstance(nested, dict):
         if "result" in nested:
@@ -114,32 +112,29 @@ def _extract_tool_result(output: Any) -> Any:
             return body["result"]
         if body is not None:
             return body
-
     return output
 
 
 def _tool_results_summary(tool_calls: list[Any]) -> str:
     if not tool_calls:
         return ""
-
     lines: list[str] = []
     for index, call in enumerate(tool_calls, start=1):
         tool_name = getattr(call, "tool_name", None) or "tool"
         tool_input = getattr(call, "input", None)
         output = getattr(call, "output", None)
         success = getattr(call, "success", None)
+        error_code = getattr(call, "error_code", None)
         error = getattr(call, "error", None)
         result = _extract_tool_result(output)
-
         status = "success" if success is not False else "failed"
         input_preview = _json_preview(tool_input) if tool_input is not None else "{}"
-        if success is False and error:
-            result_preview = f"error: {error}"
+        if success is False:
+            code = f" [{error_code}]" if error_code else ""
+            result_preview = f"error{code}: {error or 'Tool execution failed'}"
         else:
             result_preview = _json_preview(result)
-        lines.append(
-            f"{index}. {tool_name}({input_preview}) -> {status}: {result_preview}"
-        )
+        lines.append(f"{index}. {tool_name}({input_preview}) -> {status}: {result_preview}")
     return "\n".join(lines)
 
 
@@ -152,6 +147,7 @@ def _build_final_response_instruction(
     messages: list,
     final_json_instruction: str | None,
     tool_calls: list[Any],
+    stopped_reason: str | None,
 ) -> str:
     latest_request = _latest_user_request(messages)
     request_block = (
@@ -161,10 +157,17 @@ def _build_final_response_instruction(
     )
     tool_results = _tool_results_summary(tool_calls)
     tool_results_block = (
-        f"\n\nVerified tool results:\n<tool_results>\n{tool_results}\n</tool_results>"
+        f"\n\nTool results:\n<tool_results>\n{tool_results}\n</tool_results>"
         if tool_results
         else ""
     )
+    stopped_block = ""
+    if stopped_reason:
+        stopped_block = (
+            "\n\nTool execution was stopped before another Tool attempt because "
+            f"of: {stopped_reason}. Use available successful results, explain failed "
+            "parts, and request any missing identifier or input. Do not call another Tool."
+        )
     json_block = (
         "\n\nStructured output requirement:\n"
         f"{final_json_instruction}"
@@ -175,12 +178,11 @@ def _build_final_response_instruction(
         f"{_FINAL_RESPONSE_INSTRUCTION}"
         f"{request_block}"
         f"{tool_results_block}"
-        "\n\nUse the verified tool results block as the normalized source of truth for tool "
-        "outputs. The final-response phase intentionally receives compact tool results "
-        "instead of raw tool payloads. Do not omit non-tool parts of the latest user "
-        "request. Do not summarize content the user explicitly asked to be long, "
-        "complete, or detailed. Ignore any text produced during tool decision phases; "
-        "those phases are not user-facing answers."
+        f"{stopped_block}"
+        "\n\nUse the Tool results block as the normalized source of truth. The final "
+        "response phase intentionally receives compact results instead of raw Tool "
+        "payloads. Do not omit non-Tool parts of the latest user request. Ignore any "
+        "text produced during Tool decision phases; those phases are not user-facing."
         f"{json_block}"
     )
 
@@ -189,6 +191,7 @@ def _final_response_messages(
     messages: list,
     final_json_instruction: str | None,
     tool_calls: list[Any],
+    stopped_reason: str | None,
 ) -> list:
     return [
         *messages,
@@ -197,9 +200,21 @@ def _final_response_messages(
                 messages=messages,
                 final_json_instruction=final_json_instruction,
                 tool_calls=tool_calls,
+                stopped_reason=stopped_reason,
             )
         ),
     ]
+
+
+def _failure_context(
+    context: dict[str, Any] | None,
+    *,
+    partial_result_available: bool,
+) -> dict[str, Any]:
+    return {
+        **(context or {}),
+        "partial_result_available": partial_result_available,
+    }
 
 
 async def run_tool_loop(
@@ -221,11 +236,7 @@ async def run_tool_loop(
     call_index = 1
     result, call = await invoke_llm(
         model=model,
-        messages=(
-            _tool_decision_messages(tool_loop_messages)
-            if final_model is not None
-            else tool_loop_messages
-        ),
+        messages=_tool_decision_messages(tool_loop_messages) if final_model is not None else tool_loop_messages,
         phase=initial_phase,
         call_index=call_index,
         provider=provider,
@@ -233,13 +244,14 @@ async def run_tool_loop(
         pricing_snapshot=pricing_snapshot,
     )
     execution.llm_calls.append(call)
-    execution.timeline.append(
-        {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
-    )
+    execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
 
     round_index = 0
     instruction_added = False
-    while _has_tool_calls(result) and round_index < 5:
+    consecutive_failure_rounds = 0
+    stopped_reason: str | None = None
+
+    while _has_tool_calls(result) and round_index < MAX_TOOL_ROUNDS:
         round_index += 1
         tool_loop_messages.append(result)
         tool_calls = list(getattr(result, "tool_calls", None) or [])
@@ -249,23 +261,27 @@ async def run_tool_loop(
                 execute_tool_call(
                     execute=execute_single_tool,
                     tool_call=tool_call,
-                    resolved_tool_id=tool_name_to_id.get(
-                        tool_call["name"], tool_call["name"]
-                    ),
+                    resolved_tool_id=tool_name_to_id.get(tool_call["name"], tool_call["name"]),
                 )
                 for tool_call in tool_calls
             ]
         )
-        execution.tool_wall_latency_ms += round(
-            (time.monotonic() - started) * 1000
-        )
+        execution.tool_wall_latency_ms += round((time.monotonic() - started) * 1000)
+        round_failed = False
         for info, message, payload in results:
             execution.tool_calls.append(info)
             execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
-            execution.timeline.append(
-                {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
-            )
+            execution.timeline.append({"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload})
             tool_loop_messages.append(message)
+            round_failed = round_failed or info.success is False
+
+        consecutive_failure_rounds = consecutive_failure_rounds + 1 if round_failed else 0
+        if consecutive_failure_rounds >= MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS:
+            stopped_reason = "repeated semantic Tool failures"
+            break
+        if round_index >= MAX_TOOL_ROUNDS:
+            stopped_reason = "Tool round limit reached"
+            break
 
         if final_model is None and final_json_instruction and not instruction_added:
             tool_loop_messages.append(SystemMessage(content=final_json_instruction))
@@ -275,11 +291,7 @@ async def run_tool_loop(
         try:
             result, call = await invoke_llm(
                 model=model,
-                messages=(
-                    _tool_decision_messages(tool_loop_messages)
-                    if final_model is not None
-                    else tool_loop_messages
-                ),
+                messages=_tool_decision_messages(tool_loop_messages) if final_model is not None else tool_loop_messages,
                 phase=f"tool_followup_{round_index}",
                 call_index=call_index,
                 provider=provider,
@@ -287,27 +299,29 @@ async def run_tool_loop(
                 pricing_snapshot=pricing_snapshot,
             )
         except InstrumentedExecutionError as exc:
-            raise InstrumentedExecutionError(
-                str(exc),
-                llm_calls=execution.llm_calls + exc.llm_calls,
-                tool_calls=execution.tool_calls,
-                timeline=execution.timeline + exc.timeline,
-                tool_wall_latency_ms=execution.tool_wall_latency_ms,
-                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-            ) from exc
+            execution.llm_calls.extend(exc.llm_calls)
+            execution.timeline.extend(exc.timeline)
+            execution.failure_context = _failure_context(
+                exc.failure_context,
+                partial_result_available=bool(execution.tool_calls),
+            )
+            stopped_reason = "the Tool follow-up request was rejected by the provider"
+            break
         execution.llm_calls.append(call)
-        execution.timeline.append(
-            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
-        )
+        execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
 
-    if _has_tool_calls(result):
+    if _has_tool_calls(result) and final_model is None:
         raise InstrumentedExecutionError(
-            "Tool call round limit exceeded",
+            stopped_reason or "Tool call round limit exceeded",
             llm_calls=execution.llm_calls,
             tool_calls=execution.tool_calls,
             timeline=execution.timeline,
             tool_wall_latency_ms=execution.tool_wall_latency_ms,
             tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            failure_context=_failure_context(
+                execution.failure_context,
+                partial_result_available=bool(execution.tool_calls),
+            ),
         )
 
     if final_model is not None:
@@ -319,6 +333,7 @@ async def run_tool_loop(
                     base_messages,
                     final_json_instruction,
                     execution.tool_calls,
+                    stopped_reason,
                 ),
                 phase="final_response_generation",
                 call_index=call_index,
@@ -334,11 +349,13 @@ async def run_tool_loop(
                 timeline=execution.timeline + exc.timeline,
                 tool_wall_latency_ms=execution.tool_wall_latency_ms,
                 tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+                failure_context=_failure_context(
+                    exc.failure_context or execution.failure_context,
+                    partial_result_available=bool(execution.tool_calls),
+                ),
             ) from exc
         execution.llm_calls.append(call)
-        execution.timeline.append(
-            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
-        )
+        execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
 
     execution.result = result
     return execution, call_index
