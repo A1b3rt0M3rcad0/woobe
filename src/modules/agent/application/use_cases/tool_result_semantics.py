@@ -92,7 +92,7 @@ def normalize_tool_result(output: Any) -> NormalizedToolResult:
         return NormalizedToolResult(
             success=False,
             status="error",
-            error_code=explicit_error[0] if explicit_error else "tool_execution_failed",
+            error_code=(explicit_error[0] if explicit_error else None) or "tool_execution_failed",
             error_message=(explicit_error[1] if explicit_error else _as_text(output.get("error"))) or "Tool execution failed.",
         )
     semantic_error = _structured_error(output)
