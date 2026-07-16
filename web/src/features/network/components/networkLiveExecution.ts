@@ -106,6 +106,7 @@ function mergeCompletedTools(
       duration_ms: asNumber(tool.duration_ms) ?? undefined,
       success: asBoolean(tool.success),
       status: asString(tool.status),
+      error_code: asString(tool.error_code),
       error: asString(tool.error),
       invocationId,
     })
@@ -248,6 +249,7 @@ export function applyNetworkRuntimeEvent(
         duration_ms: asNumber(event.data.duration_ms) ?? undefined,
         success: asBoolean(event.data.success),
         status: asString(event.data.status),
+        error_code: asString(event.data.error_code),
         error: asString(event.data.error),
         invocationId,
       }),
@@ -275,7 +277,7 @@ export function applyNetworkRuntimeEvent(
       )),
       tools: state.tools.map((tool) => (
         tool.status === 'running'
-          ? { ...tool, status: 'error', success: false, error: 'Network execution stopped' }
+          ? { ...tool, status: 'error', success: false, error_code: 'execution_stopped', error: 'Network execution stopped' }
           : tool
       )),
     }
