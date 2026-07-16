@@ -6,7 +6,9 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.http_tool_contract import compile_http_tool_contract
 from modules.agent.application.mcp_permissions import normalize_permission
+from modules.agent.application.tool_types import is_http_tool_type
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
@@ -35,57 +37,56 @@ def _snapshot_index(raw_snapshots: Any) -> dict[str, dict[str, Any]]:
     if not isinstance(raw_snapshots, list):
         return {}
     result: dict[str, dict[str, Any]] = {}
-    for raw_snapshot in raw_snapshots:
-        if not isinstance(raw_snapshot, dict):
-            continue
-        raw_id = raw_snapshot.get("id")
-        if raw_id is None:
-            continue
-        result[str(raw_id)] = raw_snapshot
+    for snapshot in raw_snapshots:
+        if isinstance(snapshot, dict) and snapshot.get("id") is not None:
+            result[str(snapshot["id"])] = snapshot
     return result
 
 
 def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
     if not isinstance(raw_permissions, dict):
         return tool
-
     config = deepcopy(tool.config or {})
     discovered_tools = config.get("discovered_tools")
     if not isinstance(discovered_tools, list):
         return tool
-
     changed = False
     for item in discovered_tools:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
             continue
-        name = item.get("name")
-        if not isinstance(name, str):
-            continue
-        item["permission"] = normalize_permission(raw_permissions.get(name))
+        item["permission"] = normalize_permission(raw_permissions.get(item["name"]))
         changed = True
-
     if not changed:
         return tool
-
     cloned = deepcopy(tool)
     cloned.config = config
     return cloned
 
 
 def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
+    config = deepcopy(tool.config or {})
+    input_schema = deepcopy(tool.input_schema or {})
+    contract = None
+    if is_http_tool_type(tool.type):
+        contract = compile_http_tool_contract(config, input_schema)
+        config = contract.config
+        input_schema = contract.input_schema
     payload: dict[str, Any] = {
         "id": str(tool.id),
         "project_id": str(tool.project_id) if tool.project_id else None,
         "name": tool.name,
         "description": tool.description,
         "type": str(_value(tool.type)),
-        "config": deepcopy(tool.config or {}),
-        "input_schema": deepcopy(tool.input_schema or {}),
+        "config": config,
+        "input_schema": input_schema,
         "output_schema": deepcopy(tool.output_schema) if tool.output_schema is not None else None,
         "risk_level": str(_value(tool.risk_level)),
         "timeout_ms": tool.timeout_ms,
         "status": str(_value(tool.status)),
     }
+    if contract:
+        payload["http_contract_version"] = contract.version
+        payload["http_contract_hash"] = contract.contract_hash
     payload["snapshot_hash"] = _snapshot_hash(payload)
     return payload
 
@@ -101,7 +102,6 @@ def tool_from_release_snapshot(snapshot: dict[str, Any]) -> Tool:
         status = ToolStatus(str(snapshot.get("status") or ToolStatus.ACTIVE.value))
     except (KeyError, TypeError, ValueError) as exc:
         raise ValidationError("Release contains an invalid tool snapshot") from exc
-
     return Tool(
         id=tool_id,
         project_id=project_id,
@@ -110,11 +110,7 @@ def tool_from_release_snapshot(snapshot: dict[str, Any]) -> Tool:
         type=tool_type,
         config=deepcopy(snapshot.get("config") or {}),
         input_schema=deepcopy(snapshot.get("input_schema") or {}),
-        output_schema=(
-            deepcopy(snapshot.get("output_schema"))
-            if snapshot.get("output_schema") is not None
-            else None
-        ),
+        output_schema=deepcopy(snapshot.get("output_schema")) if snapshot.get("output_schema") is not None else None,
         risk_level=risk_level,
         timeout_ms=snapshot.get("timeout_ms"),
         status=status,
@@ -143,16 +139,13 @@ async def build_release_tool_runtime(
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     previous_snapshot_map = _snapshot_index(previous_snapshots)
     snapshots: list[dict[str, Any]] = []
-
     for tool_id in ordered_ids:
         try:
             live_tool = await tool_repo.get_by_id(tool_id)
         except ToolNotFoundError:
             live_tool = None
-
         if live_tool is not None and live_tool.project_id != project_id:
             raise ValidationError("Selected tool does not belong to this Project")
-
         if live_tool is not None and _value(live_tool.status) == ToolStatus.ACTIVE.value:
             source_tool = live_tool
         else:
@@ -161,18 +154,12 @@ async def build_release_tool_runtime(
                 if live_tool is None:
                     raise ValidationError(f"Selected tool was not found: {tool_id}")
                 raise ValidationError(f"Selected tool is not active: {live_tool.name}")
-
             source_tool = tool_from_release_snapshot(previous_snapshot)
             if source_tool.id != tool_id:
                 raise ValidationError("Draft contains a mismatched tool snapshot")
             if source_tool.project_id != project_id:
                 raise ValidationError("Draft tool snapshot does not belong to this Project")
-
-        tool_permissions = permission_map.get(str(tool_id))
-        effective_tool = tool_with_permission_overrides(source_tool, tool_permissions)
+        effective_tool = tool_with_permission_overrides(source_tool, permission_map.get(str(tool_id)))
         snapshots.append(tool_to_release_snapshot(effective_tool))
 
-    return {
-        "tool_ids": [str(tool_id) for tool_id in ordered_ids],
-        "snapshots": snapshots,
-    }
+    return {"tool_ids": [str(tool_id) for tool_id in ordered_ids], "snapshots": snapshots}
