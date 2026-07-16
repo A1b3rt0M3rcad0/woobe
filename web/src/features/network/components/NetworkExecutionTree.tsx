@@ -51,18 +51,28 @@ function AgentStatusIcon({ status }: { status: NetworkAgentInvocation['status'] 
   return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
 }
 
+function agentSummary(agents: Array<{ name: string; status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }>) {
+  const running = agents.filter((agent) => agent.status === 'running' || agent.status === 'pending').length
+  const failed = agents.filter((agent) => agent.status === 'error').length
+  const completed = agents.length - running - failed
+  const singleAgent = agents.length === 1 ? agents[0].name : null
+  const parts = [`Agents called (${agents.length})${singleAgent ? ` · ${singleAgent}` : ''}`]
+  if (running) parts.push(`${running} running`)
+  if (completed) parts.push(`${completed} completed`)
+  if (failed) parts.push(`${failed} failed`)
+  return parts.join(' · ')
+}
+
 function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; onSelectAgent: (nodeId: AgentNodeId) => void }) {
   const [open, setOpen] = useState(false)
   const agents = useMemo(() => invocationNames(root).filter((agent) => agent.depth > 0), [root])
   if (!agents.length) return null
 
-  const singleAgent = agents.length === 1 ? agents[0].name : null
-
   return (
     <div className="pl-8">
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
         {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-        <span className="truncate">Agents called ({agents.length}){singleAgent ? ` · ${singleAgent}` : ''}</span>
+        <span className="truncate">{agentSummary(agents)}</span>
       </button>
       {open ? (
         <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
@@ -87,17 +97,15 @@ export function NetworkLiveAgents({ agents, onSelectAgent }: {
   agents: LiveNetworkAgent[]
   onSelectAgent: (nodeId: AgentNodeId) => void
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const calledAgents = useMemo(() => agents.filter((agent) => agent.depth > 0), [agents])
   if (!calledAgents.length) return null
-
-  const singleAgent = calledAgents.length === 1 ? calledAgents[0].name : null
 
   return (
     <div className="pl-8">
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
         {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-        <span className="truncate">Agents called ({calledAgents.length}){singleAgent ? ` · ${singleAgent}` : ''}</span>
+        <span className="truncate">{agentSummary(calledAgents)}</span>
       </button>
       {open ? (
         <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
@@ -125,9 +133,13 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
   onSelectAgent: (nodeId: AgentNodeId) => void
 }) {
   const failed = turn.execution.status === 'error'
+  const failure = turn.execution.root.failure
+  const fallback = failure?.partialResultAvailable
+    ? `${failure.message}\n\nCompleted Tool and Agent results remain available below.`
+    : failure?.message || 'The Network Run failed before producing a response.'
   const message: PlaygroundChatMessage = {
     role: 'assistant',
-    content: turn.answer || turn.execution.root.failure?.message || 'The Network Run failed before producing a response.',
+    content: turn.answer || fallback,
     usage: turn.usage,
     sources: flattenSources(turn.execution.root),
     tool_calls: flattenTools(turn.execution.root),
