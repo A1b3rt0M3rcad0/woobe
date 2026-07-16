@@ -142,12 +142,13 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
   const cost = turn.execution.costUsd == null ? 'cost unknown' : `$${turn.execution.costUsd.toFixed(3)}`
 
   return (
-    <div className={cn('space-y-1.5', failed && 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2')}>
+    <div className={cn(failed && 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2')}>
       <ChatMessage
         message={message}
         agentName={networkName}
         variant="network"
         assistantIcon="network"
+        details={<AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />}
         footerMeta={(
           <>
             <span>{agents} Agent{agents === 1 ? '' : 's'}</span>
@@ -160,7 +161,6 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
           </button>
         )}
       />
-      <AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />
     </div>
   )
 }
