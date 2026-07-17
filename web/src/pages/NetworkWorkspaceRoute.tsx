@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
@@ -27,9 +28,34 @@ export default function NetworkWorkspaceRoute() {
       }
     : workspace.currentProject
   const networksPath = `/organizations/${organizationId}/projects/${projectId}/networks`
+  const shellStyle = {
+    '--network-workspace-name': JSON.stringify(networkName || 'Network'),
+  } as CSSProperties
 
   return (
-    <div className="relative h-screen overflow-hidden">
+    <div
+      className="network-workspace-shell relative h-screen overflow-hidden"
+      style={shellStyle}
+    >
+      <style>{`
+        .network-workspace-shell > div > header > div > h1 {
+          font-size: 0;
+        }
+        .network-workspace-shell > div > header > div > h1::after {
+          content: var(--network-workspace-name);
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+        }
+        .network-workspace-shell > div > header > div > p {
+          font-size: 0;
+        }
+        .network-workspace-shell > div > header > div > p::after {
+          content: 'Network workspace · isolated within this Project';
+          font-size: 0.625rem;
+          line-height: 0.875rem;
+        }
+      `}</style>
+
       <button
         type="button"
         aria-label="Back to Networks"
