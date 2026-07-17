@@ -270,6 +270,17 @@ export default function NetworkPage() {
   const [selectedTraceIdBySession, setSelectedTraceIdBySession] = useState<Record<string, string | null>>({})
 
   useEffect(() => {
+    setShowLeftPanel(false)
+    setPanelTab('traces')
+    setActiveSessionIdByEnvironment({ draft: null, staging: null, production: null })
+    setSelectedTraceIdBySession({})
+    setTraces([])
+    setSnapshotInspection(null)
+    dispatchWorkspace({ type: 'environment', environment: 'draft', selection: { type: 'network' } })
+    dispatchWorkspace({ type: 'center', mode: 'canvas' })
+  }, [projectId])
+
+  useEffect(() => {
     const remoteSessions = networkSessionsQuery.data
     if (!remoteSessions) return
     const mapSession = (item: NetworkSessionResource): NetworkSession => {
@@ -302,9 +313,9 @@ export default function NetworkPage() {
     const production = remoteSessions.filter((item) => item.environment === 'production').map(mapSession)
     setSessionsByEnvironment({ draft, staging, production })
     setActiveSessionIdByEnvironment((current) => ({
-      draft: draft.some((item) => item.id === current.draft) ? current.draft : draft[0]?.id ?? null,
-      staging: staging.some((item) => item.id === current.staging) ? current.staging : staging[0]?.id ?? null,
-      production: production.some((item) => item.id === current.production) ? current.production : production[0]?.id ?? null,
+      draft: draft.some((item) => item.id === current.draft) ? current.draft : null,
+      staging: staging.some((item) => item.id === current.staging) ? current.staging : null,
+      production: production.some((item) => item.id === current.production) ? current.production : null,
     }))
   }, [editorRevision, networkSessionsQuery.data, network?.id, networkVersions, projectId])
 
@@ -665,6 +676,11 @@ export default function NetworkPage() {
     clearSnapshotInspection()
   }
 
+  const startNewConversation = () => {
+    setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: null }))
+    clearSnapshotInspection()
+  }
+
   const createSession = async (): Promise<NetworkSession | null> => {
     if (!network || !projectId) return null
     if (!environmentReady) {
@@ -699,7 +715,6 @@ export default function NetworkPage() {
       setSessionsByEnvironment((current) => ({ ...current, [environment]: [session, ...current[environment].filter((item) => item.id !== session.id)] }))
       setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: session.id }))
       clearSnapshotInspection()
-      toast.success(`New ${environment} Network Session started`)
       return session
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to create Network Session')
@@ -709,17 +724,12 @@ export default function NetworkPage() {
 
   const startFirstTest = async () => {
     if (savingWorkspace || createNetworkSessionMutation.isPending) return
-    if (activeSession) {
-      try {
-        if (environment === 'draft') await saveWorkspaceDraft()
-        changeCenter('chat')
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to prepare the Network test')
-      }
-      return
+    try {
+      if (environment === 'draft') await saveWorkspaceDraft()
+      changeCenter('chat')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to prepare the Network test')
     }
-    const session = await createSession()
-    if (session) changeCenter('chat')
   }
 
   const selectTrace = (trace: NetworkTraceRecord) => {
@@ -778,8 +788,7 @@ export default function NetworkPage() {
     if (trace.status === 'error') {
       selectTrace(trace)
       setPanelTab('traces')
-      setShowLeftPanel(true)
-      toast.error('Network execution failed. Run details opened for diagnosis.')
+      toast.error('Network execution failed. Run details are available in Runs.')
     } else {
       toast.success('Network execution completed', { description: `${delegationCount(trace.execution.root)} hops · ${trace.durationMs}ms` })
     }
@@ -860,16 +869,8 @@ export default function NetworkPage() {
     <NetworkGraphEditor definition={workspaceDefinition} agents={projectAgents} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} activePath={activePath} inspectionLabel={snapshotInspection?.title ?? null} onClearInspection={clearSnapshotInspection} onChange={changeEditor} onSelect={selectWorkspace} onAddAgent={() => openCatalog('add-specialist')} />
   )
 
-  const chatContent = activeSession ? (
-    <NetworkChatWorkspace key={activeSession.id} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} historyTurns={hydratedHistory.turns} historyLoading={sessionMessagesQuery.isLoading} onBeforeDraftRun={async () => (await saveWorkspaceDraft()).draft_revision} onSelectSession={selectSession} onNewSession={() => { void createSession() }} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} />
-  ) : (
-    <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center">
-      <div>
-        <p className="text-sm font-medium text-white">No {environment} Network Session selected</p>
-        <p className="mt-1 text-[10px] text-muted">The Chat will use {networkLabel(environment, versionLabel)}.</p>
-        <button type="button" onClick={() => { void createSession() }} className="mt-3 rounded-lg bg-primary px-3 py-2 text-[11px] font-medium text-white">Create session</button>
-      </div>
-    </div>
+  const chatContent = (
+    <NetworkChatWorkspace key={environment} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} historyTurns={hydratedHistory.turns} historyLoading={Boolean(activeSession && sessionMessagesQuery.isLoading)} onBeforeDraftRun={async () => (await saveWorkspaceDraft()).draft_revision} onSelectSession={selectSession} onCreateSession={createSession} onStartNewConversation={startNewConversation} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} />
   )
 
   return (
@@ -916,7 +917,7 @@ export default function NetworkPage() {
             <div className="absolute left-1/2 flex -translate-x-1/2 rounded-lg border border-border bg-background/45 p-0.5">
               {([['canvas', Workflow], ['chat', MessageSquare]] as Array<['canvas' | 'chat', LucideIcon]>).map(([mode, Icon]) => <button key={mode} type="button" onClick={() => changeCenter(mode)} className={cn('flex items-center gap-1 rounded-md px-2.5 py-1 capitalize', centerMode === mode ? 'bg-primary/10 text-primary-light' : 'text-muted')}><Icon className="h-3 w-3" />{mode}</button>)}
             </div>
-            <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'No session selected'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
+            <span className="ml-auto truncate">{activeSession ? `Session: ${activeSession.title}` : 'New conversation'} · Max depth {workspaceDefinition.settings.max_depth} · Timeout {workspaceDefinition.settings.timeout_seconds}s</span>
           </>
         )}
       </div>
