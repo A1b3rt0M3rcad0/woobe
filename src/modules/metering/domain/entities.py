@@ -55,10 +55,9 @@ class UsageEvent:
     def __post_init__(self) -> None:
         payload = self.data or {}
         self.network_id = self.network_id or _uuid(payload.get("network_id"))
-        execution_value = payload.get("network_execution_id")
-        if execution_value is None and self.network_id is not None:
-            execution_value = payload.get("execution_id")
-        self.network_execution_id = self.network_execution_id or _uuid(execution_value)
+        self.network_execution_id = self.network_execution_id or _uuid(
+            payload.get("network_execution_id")
+        )
         self.network_version_id = self.network_version_id or _uuid(
             payload.get("network_version_id")
         )
