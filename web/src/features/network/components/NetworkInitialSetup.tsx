@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, MessageSquare, Plus } from 'lucide-react'
+import { Bot, CheckCircle2, Plus } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -86,28 +86,13 @@ export function NetworkInitialSetupInspector() {
   return null
 }
 
-export function NetworkReadyToTest({
-  pending,
-  onTest,
-  onAddSpecialist,
-}: {
+type NetworkReadyToTestProps = {
   pending: boolean
   onTest: () => void
   onAddSpecialist: () => void
-}) {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-4 sm:px-6">
-      <section className="pointer-events-auto flex w-full max-w-2xl flex-col items-stretch gap-4 rounded-2xl border border-primary/25 bg-surface/95 px-5 py-4 shadow-2xl shadow-black/35 backdrop-blur sm:flex-row sm:items-center">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light"><CheckCircle2 className="h-4 w-4" /></div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold text-white">Network ready for the first test</p>
-          <p className="mt-1 text-[9px] leading-4 text-muted">Validate the entry Agent before expanding the composition.</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button type="button" disabled={pending} onClick={onAddSpecialist} className={secondaryAction}><Plus className="h-3.5 w-3.5" />Add specialist</button>
-          <button type="button" disabled={pending} onClick={onTest} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"><MessageSquare className="h-3.5 w-3.5" />{pending ? 'Preparing…' : 'Test Network'}</button>
-        </div>
-      </section>
-    </div>
-  )
+}
+
+export function NetworkReadyToTest(props: NetworkReadyToTestProps) {
+  void props
+  return null
 }
