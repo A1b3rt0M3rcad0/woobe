@@ -35,6 +35,44 @@ class FakeSession:
         return FakeResult(scalar=self.network)
 
 
+class FakeListSession:
+    def __init__(self, networks) -> None:
+        self.networks = list(networks)
+
+    async def execute(self, statement):
+        return FakeResult(values=self.networks)
+
+
+@pytest.mark.asyncio
+async def test_legacy_project_lookup_returns_none_without_networks():
+    repository = NetworkRepository(FakeListSession([]))
+
+    assert await repository.get_by_project(uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_project_lookup_returns_the_only_network():
+    network = SimpleNamespace(id=uuid4())
+    repository = NetworkRepository(FakeListSession([network]))
+
+    assert await repository.get_by_project(uuid4()) is network
+
+
+@pytest.mark.asyncio
+async def test_legacy_project_lookup_rejects_ambiguous_networks():
+    repository = NetworkRepository(
+        FakeListSession(
+            [
+                SimpleNamespace(id=uuid4()),
+                SimpleNamespace(id=uuid4()),
+            ]
+        )
+    )
+
+    with pytest.raises(ConflictError, match="select a Network explicitly"):
+        await repository.get_by_project(uuid4())
+
+
 @pytest.mark.asyncio
 async def test_save_draft_rejects_agent_outside_network_project():
     project_id = uuid4()
