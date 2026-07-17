@@ -20,6 +20,7 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
     NetworkVersionModel,
 )
+from shared.infra.errors import ConflictError
 
 
 class NetworkRepository:
@@ -55,6 +56,32 @@ class NetworkRepository:
         description: str,
         definition: dict[str, Any],
     ) -> NetworkModel | None:
+        network = await self.get(network_id)
+        if network is None:
+            return None
+
+        from modules.agent.infra.database.models import AgentModel
+
+        referenced_agent_ids = {
+            UUID(str(node["agent_id"]))
+            for node in definition.get("nodes", [])
+            if node.get("agent_id")
+        }
+        if referenced_agent_ids:
+            result = await self.session.execute(
+                select(AgentModel.id).where(
+                    AgentModel.id.in_(referenced_agent_ids),
+                    AgentModel.project_id == network.project_id,
+                )
+            )
+            available_agent_ids = set(result.scalars())
+            unavailable_agent_ids = referenced_agent_ids - available_agent_ids
+            if unavailable_agent_ids:
+                joined = ", ".join(sorted(str(agent_id) for agent_id in unavailable_agent_ids))
+                raise ConflictError(
+                    f"Network Draft references Agents unavailable in this Project: {joined}"
+                )
+
         statement = (
             update(NetworkModel)
             .where(

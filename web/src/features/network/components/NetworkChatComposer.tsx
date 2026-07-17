@@ -1,16 +1,18 @@
 import { useRef } from 'react'
-import { Send, Square } from 'lucide-react'
+import { Loader2, Send, Square } from 'lucide-react'
 
 interface NetworkChatComposerProps {
   value: string
   running: boolean
+  preparing?: boolean
   onChange: (value: string) => void
   onSend: () => void
   onStop: () => void
 }
 
-export function NetworkChatComposer({ value, running, onChange, onSend, onStop }: NetworkChatComposerProps) {
+export function NetworkChatComposer({ value, running, preparing = false, onChange, onSend, onStop }: NetworkChatComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const busy = running || preparing
 
   const resetHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -30,19 +32,23 @@ export function NetworkChatComposer({ value, running, onChange, onSend, onStop }
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
-              onSend()
-              resetHeight()
+              if (!busy) {
+                onSend()
+                resetHeight()
+              }
             }
           }}
           rows={1}
-          disabled={running}
+          disabled={busy}
           placeholder="Send a message to the Network…"
           className="max-h-[140px] min-h-[42px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[11px] leading-5 text-white outline-none placeholder:text-muted"
         />
         {running ? (
           <button type="button" onClick={onStop} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 text-red-200" aria-label="Stop Network execution"><Square className="h-3.5 w-3.5 fill-current" /></button>
         ) : (
-          <button type="button" onClick={() => { onSend(); resetHeight() }} disabled={!value.trim()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white disabled:bg-surface disabled:text-muted disabled:opacity-60" aria-label="Send message"><Send className="h-4 w-4" /></button>
+          <button type="button" onClick={() => { onSend(); resetHeight() }} disabled={preparing || !value.trim()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white disabled:bg-surface disabled:text-muted disabled:opacity-60" aria-label={preparing ? 'Preparing Network Session' : 'Send message'}>
+            {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </button>
         )}
       </div>
     </div>

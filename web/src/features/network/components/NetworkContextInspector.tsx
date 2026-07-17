@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowLeft, ExternalLink, LocateFixed, Lock } from 'lucide-react'
 
 import type { Agent } from '@/features/agents/types'
@@ -7,6 +8,7 @@ import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import { NetworkGraphInspector } from './NetworkGraphInspector'
+import { NetworkWorkspaceBootstrap } from './NetworkWorkspaceBootstrap'
 import type { NetworkBinding } from './networkWorkspaceTypes'
 import type { NetworkCenterMode, NetworkInspectionScope, NetworkInspectorContext } from './networkWorkspaceReducer'
 
@@ -64,6 +66,12 @@ export function NetworkContextInspector({
   const showAgent = context === 'agent' && agentEnabled
   const inspecting = inspectionScope.type === 'run' && Boolean(inspectionLabel)
   const canLocate = selection.type !== 'network' && centerMode !== 'canvas'
+  const workspaceBootstrapping = !readOnly && definition.nodes.length === 0
+
+  if (workspaceBootstrapping) {
+    const loading = <NetworkWorkspaceBootstrap networkName={name || 'Project Network'} />
+    return typeof document === 'undefined' ? loading : createPortal(loading, document.body)
+  }
 
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,520px)] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-[520px] xl:bg-surface/80 xl:shadow-none">

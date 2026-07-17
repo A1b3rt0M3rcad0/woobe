@@ -60,9 +60,9 @@ export function NetworkSessionSelector({
         aria-expanded={open}
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-medium text-white">{active?.title ?? 'Select a Network Session'}</p>
+          <p className="truncate text-[11px] font-medium text-white">{active?.title ?? 'New conversation'}</p>
           <p className="mt-0.5 truncate text-[9px] text-muted">
-            {active ? `${environmentLabel(active)} · ${active.messageCount} messages · ${active.traceCount} Runs` : 'Sessions are isolated by environment'}
+            {active ? `${environmentLabel(active)} · ${active.messageCount} messages · ${active.traceCount} Runs` : 'Session created on the first message'}
           </p>
         </div>
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted transition-transform', open && 'rotate-180')} />
@@ -72,7 +72,7 @@ export function NetworkSessionSelector({
         <div className="absolute right-0 top-11 z-40 w-[360px] max-w-[min(90vw,360px)] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/35">
           <div className="border-b border-border/80 px-3 py-2.5">
             <p className="text-[11px] font-semibold text-white">Network Sessions</p>
-            <p className="mt-0.5 text-[9px] text-muted">Only sessions from the active environment.</p>
+            <p className="mt-0.5 text-[9px] text-muted">Select a previous session from the active environment.</p>
           </div>
           <ScrollArea className="max-h-72 p-2">
             <div className="space-y-1">
@@ -100,7 +100,7 @@ export function NetworkSessionSelector({
                 )
               }) : (
                 <div className="p-6 text-center">
-                  <p className="text-[11px] text-muted">No sessions in this environment.</p>
+                  <p className="text-[11px] text-muted">No previous sessions in this environment.</p>
                 </div>
               )}
             </div>

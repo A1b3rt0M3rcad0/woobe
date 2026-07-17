@@ -27,6 +27,7 @@ import {
 } from './api'
 import type { PromoteReleaseOptions } from './api'
 import type {
+  Agent,
   CreateAgentRequest,
   CreateContractRequest,
   CreateKnowledgeVersionRequest,
@@ -46,7 +47,17 @@ export function useAgent(id: string | undefined) {
 }
 export function useCreateAgent(projectId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: (data: CreateAgentRequest) => createAgent(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['agents', projectId] }) } })
+  return useMutation({
+    mutationFn: (data: CreateAgentRequest) => createAgent(data),
+    onSuccess: (agent) => {
+      queryClient.setQueryData<Agent[]>(['agents', projectId], (current = []) => [
+        agent,
+        ...current.filter((item) => item.id !== agent.id),
+      ])
+      queryClient.setQueryData<Agent>(['agent', agent.id], agent)
+      queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
+    },
+  })
 }
 export function useUpdateAgent(agentId?: string) {
   const queryClient = useQueryClient()
