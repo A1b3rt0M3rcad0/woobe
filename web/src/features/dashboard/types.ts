@@ -5,6 +5,11 @@ export type DashboardRangePreset = '24h' | '7d' | '30d'
 export interface ProjectOverviewSummary {
   active_agents: number
   production_agents: number
+  network_count?: number
+  staging_networks?: number
+  production_networks?: number
+  network_runs?: number
+  failed_network_runs?: number
   requests: number
   request_change_percent: number | null
   avg_latency_ms: number | null
