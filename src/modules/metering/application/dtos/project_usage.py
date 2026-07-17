@@ -19,6 +19,7 @@ class ProjectUsageQuery(BaseModel):
     to: datetime | None = None
     bucket: UsageBucket | None = None
     environment: UsageEnvironment = "all"
+    network_id: UUID | None = None
     agent_id: UUID | None = None
     provider_model_id: UUID | None = None
     release_id: UUID | None = None
@@ -107,6 +108,10 @@ class ProjectUsageBreakdownRow(BaseModel):
 
 class ProjectUsageExecution(BaseModel):
     trace_id: UUID
+    network_id: UUID | None = None
+    network_name: str | None = None
+    network_execution_id: UUID | None = None
+    network_version_id: UUID | None = None
     agent_id: UUID | None = None
     agent_name: str | None = None
     environment: str | None = None
