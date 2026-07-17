@@ -69,3 +69,65 @@
 .network-flow .react-flow__minimap-svg {
   background: #020817;
 }
+
+/* The page initially owns an empty local definition while the persisted Network
+   is being resolved. Hide the operational Canvas in that transient state so the
+   user never sees minimap, zoom controls or the legacy empty composition. */
+[data-network-canvas-shell]:not(:has(.react-flow__node)) {
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(59 130 246 / 0.08), transparent 34%),
+    #020817;
+}
+
+[data-network-canvas-shell]:not(:has(.react-flow__node)) > * {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+[data-network-canvas-shell]:not(:has(.react-flow__node))::before {
+  content: '';
+  width: min(42rem, calc(100% - 3rem));
+  height: 18rem;
+  border: 1px solid rgb(51 65 85 / 0.9);
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(90deg, transparent, rgb(96 165 250 / 0.07), transparent),
+    rgb(15 23 41 / 0.92);
+  background-size: 220% 100%, auto;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.28);
+  animation: network-bootstrap-shimmer 1.4s ease-in-out infinite;
+}
+
+[data-network-canvas-shell]:not(:has(.react-flow__node))::after {
+  content: 'Preparing Network';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: rgb(148 163 184 / 0.9);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Suppress the operational rail and inspector while the bootstrap surface is
+   visible. The final setup state is intentionally full-width and centered. */
+.relative.flex.min-h-0.flex-1:has([data-network-canvas-shell]:not(:has(.react-flow__node))) > nav,
+.relative.flex.min-h-0.flex-1:has([data-network-canvas-shell]:not(:has(.react-flow__node))) > aside {
+  display: none;
+}
+
+@keyframes network-bootstrap-shimmer {
+  0% { background-position: 180% 0, 0 0; }
+  100% { background-position: -40% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-network-canvas-shell]:not(:has(.react-flow__node))::before {
+    animation: none;
+  }
+}
