@@ -20,6 +20,9 @@ interface NetworkChatHistoryProps {
   liveAnswer: string
   liveActivity: string[]
   liveExecution: LiveNetworkExecutionState
+  liveResponseCommitted: boolean
+  liveParsedOutput: Record<string, unknown> | null
+  liveOutputParseError: string | null
   onScroll?: UIEventHandler<HTMLDivElement>
   onSuggestion: (value: string) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
@@ -40,6 +43,9 @@ export function NetworkChatHistory({
   liveAnswer,
   liveActivity,
   liveExecution,
+  liveResponseCommitted,
+  liveParsedOutput,
+  liveOutputParseError,
   onScroll,
   onSuggestion,
   onSelectAgent,
@@ -49,6 +55,8 @@ export function NetworkChatHistory({
   const liveMessage: PlaygroundChatMessage = {
     role: 'assistant',
     content: liveAnswer,
+    parsed_output: liveParsedOutput,
+    output_parse_error: liveOutputParseError,
     activity: {
       status: liveAnswer ? 'generating_answer' : 'working',
       message: liveActivity[liveActivity.length - 1] ?? 'Executing Network composition…',
@@ -85,7 +93,7 @@ export function NetworkChatHistory({
               variant="network"
               assistantIcon="network"
               details={<NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />}
-              isStreaming
+              isStreaming={!liveResponseCommitted}
             />
           </div>
         ) : null}
