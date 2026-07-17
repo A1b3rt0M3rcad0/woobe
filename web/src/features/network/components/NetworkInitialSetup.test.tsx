@@ -40,17 +40,13 @@ describe('Network initial setup', () => {
     expect(renderToStaticMarkup(<NetworkInitialSetupInspector />)).toBe('')
   })
 
-  it('makes the first test the primary next action', () => {
-    const markup = renderToStaticMarkup(
+  it('does not render a duplicate ready-to-test banner over the Canvas', () => {
+    expect(renderToStaticMarkup(
       <NetworkReadyToTest
         pending={false}
         onTest={vi.fn()}
         onAddSpecialist={vi.fn()}
       />,
-    )
-
-    expect(markup).toContain('Network ready for the first test')
-    expect(markup).toContain('Test Network')
-    expect(markup).toContain('Add specialist')
+    )).toBe('')
   })
 })
