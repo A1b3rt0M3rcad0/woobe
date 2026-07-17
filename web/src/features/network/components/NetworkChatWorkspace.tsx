@@ -138,8 +138,8 @@ export function NetworkChatWorkspace({
 
   const refreshPersistedSession = async (sessionId: string) => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['network-session-messages', networkId, sessionId, projectId] }),
-      queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['network-session-messages', projectId, networkId, sessionId] }),
+      queryClient.invalidateQueries({ queryKey: ['network-sessions', projectId, networkId] }),
     ])
   }
 
