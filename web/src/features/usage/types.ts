@@ -75,10 +75,10 @@ export interface ProjectUsageBreakdownRow {
 
 export interface ProjectUsageExecution {
   trace_id: string
-  network_id: string | null
-  network_name: string | null
-  network_execution_id: string | null
-  network_version_id: string | null
+  network_id?: string | null
+  network_name?: string | null
+  network_execution_id?: string | null
+  network_version_id?: string | null
   agent_id: string | null
   agent_name: string | null
   environment: string | null
