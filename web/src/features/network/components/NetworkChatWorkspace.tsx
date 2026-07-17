@@ -64,6 +64,13 @@ function isPublicFinalToken(event: NetworkRuntimeEvent) {
   return event.data.visibility === 'assistant' && event.data.channel === 'final'
 }
 
+function parsedOutputFromEvent(event: NetworkRuntimeEvent): Record<string, unknown> | null {
+  const value = event.data.parsed_output
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
 export function NetworkChatWorkspace({
   networkId,
   projectId,
@@ -93,6 +100,9 @@ export function NetworkChatWorkspace({
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
   const [liveExecution, setLiveExecution] = useState(emptyLiveNetworkExecution)
+  const [liveResponseCommitted, setLiveResponseCommitted] = useState(false)
+  const [liveParsedOutput, setLiveParsedOutput] = useState<Record<string, unknown> | null>(null)
+  const [liveOutputParseError, setLiveOutputParseError] = useState<string | null>(null)
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -112,6 +122,9 @@ export function NetworkChatWorkspace({
     setLiveAnswer('')
     setLiveActivity([])
     setLiveExecution(emptyLiveNetworkExecution())
+    setLiveResponseCommitted(false)
+    setLiveParsedOutput(null)
+    setLiveOutputParseError(null)
   }
 
   useLayoutEffect(() => () => abortRef.current?.abort(), [])
@@ -208,6 +221,9 @@ export function NetworkChatWorkspace({
     setLiveAnswer('')
     setLiveActivity([])
     setLiveExecution(emptyLiveNetworkExecution())
+    setLiveResponseCommitted(false)
+    setLiveParsedOutput(null)
+    setLiveOutputParseError(null)
     setLastHeartbeatAt(null)
     shouldStickToBottomRef.current = true
     const controller = new AbortController()
@@ -235,6 +251,10 @@ export function NetworkChatWorkspace({
           executionIdRef.current = id
         },
         onEvent: (eventType, event) => {
+          if (!executionId && event.execution_id) {
+            executionId = event.execution_id
+            executionIdRef.current = event.execution_id
+          }
           records.push({ eventType, event })
           setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
           if (eventType !== 'token' && eventType !== 'token_retract') {
@@ -254,6 +274,15 @@ export function NetworkChatWorkspace({
               setLiveAnswer(answer)
             }
           }
+          if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
+            setLiveParsedOutput(parsedOutputFromEvent(event))
+            setLiveOutputParseError(
+              typeof event.data.output_parse_error === 'string'
+                ? event.data.output_parse_error
+                : null,
+            )
+            setLiveResponseCommitted(true)
+          }
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
@@ -263,11 +292,15 @@ export function NetworkChatWorkspace({
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
 
+      if (!executionId) {
+        throw new Error('Network stream completed without an execution identifier')
+      }
+
       const turn = buildTurnFromRuntimeEvents({
         records,
         environment,
         bindings: executionBindings,
-        executionId: executionId || crypto.randomUUID(),
+        executionId,
         user: content,
         answer,
         fallbackTraceId: traceId,
@@ -308,7 +341,7 @@ export function NetworkChatWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession?.id ?? null} changed={changed} newSessionDisabled={running || creatingSession} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
-      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
+      <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} liveResponseCommitted={liveResponseCommitted} liveParsedOutput={liveParsedOutput} liveOutputParseError={liveOutputParseError} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
       <NetworkChatComposer value={text} running={running} preparing={creatingSession} onChange={setText} onSend={() => { void send() }} onStop={stop} />
     </div>
