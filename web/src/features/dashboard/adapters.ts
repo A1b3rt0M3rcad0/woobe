@@ -4,8 +4,8 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Clock3,
-  Rocket,
   Users,
+  Workflow,
 } from 'lucide-react'
 import type {
   DashboardEnvironment,
@@ -182,27 +182,37 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
   const requestChange = requestChangeDetail(overview.summary.request_change_percent)
   const unknownCostCount = overview.summary.unknown_cost_count ?? 0
   const costHasValue = overview.summary.cost_usd !== null
+  const networkCount = overview.summary.network_count ?? 0
+  const stagingNetworks = overview.summary.staging_networks ?? 0
+  const productionNetworks = overview.summary.production_networks ?? 0
+  const networkRuns = overview.summary.network_runs ?? 0
+  const failedNetworkRuns = overview.summary.failed_network_runs ?? 0
+  const requestDetail = [
+    `${formatInteger(networkRuns)} Network Run${networkRuns === 1 ? '' : 's'}`,
+    requestChange.detail,
+  ].filter(Boolean).join(' · ')
   const metrics: DashboardMetric[] = [
     {
       label: 'Active Agents',
       value: formatInteger(overview.summary.active_agents),
-      detail: null,
+      detail: `${formatInteger(overview.summary.production_agents)} in Production`,
       direction: 'neutral',
       icon: Users,
       tone: 'bg-blue-500/10 text-blue-400',
     },
     {
-      label: 'Production Agents',
-      value: formatInteger(overview.summary.production_agents),
-      detail: null,
+      label: 'Networks',
+      value: formatInteger(networkCount),
+      detail: `${formatInteger(productionNetworks)} Production · ${formatInteger(stagingNetworks)} Staging`,
       direction: 'neutral',
-      icon: Rocket,
+      icon: Workflow,
       tone: 'bg-blue-500/10 text-blue-400',
     },
     {
       label: 'Runtime Requests',
       value: formatInteger(overview.summary.requests),
-      ...requestChange,
+      detail: requestDetail || null,
+      direction: requestChange.direction,
       icon: Activity,
       tone: 'bg-blue-500/10 text-blue-400',
     },
@@ -219,7 +229,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     {
       label: 'Success Rate',
       value: formatPercent(overview.summary.success_rate),
-      detail: `${formatInteger(overview.summary.failed_requests)} failed`,
+      detail: `${formatInteger(overview.summary.failed_requests)} requests failed · ${formatInteger(failedNetworkRuns)} Network Runs failed`,
       direction: 'neutral',
       icon: CheckCircle2,
       tone: 'bg-emerald-500/10 text-emerald-400',
