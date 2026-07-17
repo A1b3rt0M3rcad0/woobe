@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class NetworkAgentUsageReader:
-    """Read-only cross-module guard for Agent lifecycle operations."""
+class SessionProvider(Protocol):
+    @property
+    def session(self) -> AsyncSession: ...
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+
+class SQLAlchemyNetworkAgentUsageReader:
+    """Read Network Draft references using the active Agent unit of work."""
+
+    def __init__(self, session_provider: SessionProvider) -> None:
+        self._session_provider = session_provider
 
     async def list_draft_references(
         self,
@@ -18,7 +24,7 @@ class NetworkAgentUsageReader:
         project_id: UUID,
         agent_id: UUID,
     ) -> list[dict[str, str]]:
-        result = await self._session.execute(
+        result = await self._session_provider.session.execute(
             text(
                 """
                 SELECT network.id, network.name
