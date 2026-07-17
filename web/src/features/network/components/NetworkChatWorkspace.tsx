@@ -25,12 +25,13 @@ interface NetworkChatWorkspaceProps {
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
   sessions: NetworkSession[]
-  activeSession: NetworkSession
+  activeSession: NetworkSession | null
   historyTurns: NetworkTurn[]
   historyLoading: boolean
   onBeforeDraftRun: () => Promise<number>
   onSelectSession: (sessionId: string) => void
-  onNewSession: () => void
+  onCreateSession: () => Promise<NetworkSession | null>
+  onStartNewConversation: () => void
   onRun: (trace: NetworkTraceRecord) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
@@ -77,7 +78,8 @@ export function NetworkChatWorkspace({
   historyLoading,
   onBeforeDraftRun,
   onSelectSession,
-  onNewSession,
+  onCreateSession,
+  onStartNewConversation,
   onRun,
   onSelectAgent,
   onOpenTrace,
@@ -85,6 +87,7 @@ export function NetworkChatWorkspace({
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
+  const [creatingSession, setCreatingSession] = useState(false)
   const [running, setRunning] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [liveAnswer, setLiveAnswer] = useState('')
@@ -95,14 +98,35 @@ export function NetworkChatWorkspace({
   const shouldStickToBottomRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
-  const changed = environment !== 'draft' && activeSession.networkVersion !== currentVersionId
+  const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
+  const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>(
     (result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }),
     { draft: 0, staging: 0, release: 0 },
   )
 
+  const clearLiveState = () => {
+    setRunning(false)
+    setPendingMessage(null)
+    setLiveAnswer('')
+    setLiveActivity([])
+    setLiveExecution(emptyLiveNetworkExecution())
+  }
+
   useLayoutEffect(() => () => abortRef.current?.abort(), [])
+  useLayoutEffect(() => {
+    const nextSessionId = activeSession?.id ?? null
+    if (previousSessionIdRef.current === nextSessionId) return
+    previousSessionIdRef.current = nextSessionId
+    if (running || creatingSession) return
+    abortRef.current?.abort()
+    abortRef.current = null
+    executionIdRef.current = null
+    clearLiveState()
+    setLocalTurns([])
+    setText('')
+  }, [activeSession?.id, creatingSession, running])
   useLayoutEffect(() => {
     const persistedIds = new Set(historyTurns.map((turn) => turn.id))
     if (persistedIds.size) setLocalTurns((current) => current.filter((turn) => !persistedIds.has(turn.id)))
@@ -112,19 +136,11 @@ export function NetworkChatWorkspace({
     if (element && shouldStickToBottomRef.current) element.scrollTop = element.scrollHeight
   }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.tools.length, liveExecution.sources.length])
 
-  const refreshPersistedSession = async () => {
+  const refreshPersistedSession = async (sessionId: string) => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['network-session-messages', networkId, activeSession.id, projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['network-session-messages', networkId, sessionId, projectId] }),
       queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] }),
     ])
-  }
-
-  const clearLiveState = () => {
-    setRunning(false)
-    setPendingMessage(null)
-    setLiveAnswer('')
-    setLiveActivity([])
-    setLiveExecution(emptyLiveNetworkExecution())
   }
 
   const stop = () => {
@@ -138,7 +154,7 @@ export function NetworkChatWorkspace({
       void cancelNetworkExecution(executionId, projectId)
         .then(async () => {
           toast.info('Network execution cancellation requested')
-          await refreshPersistedSession()
+          if (activeSession) await refreshPersistedSession(activeSession.id)
         })
         .catch(() => toast.warning('Connection closed, but cancellation could not be confirmed'))
     } else if (wasRunning) {
@@ -147,17 +163,18 @@ export function NetworkChatWorkspace({
   }
 
   const startNew = () => {
-    if (running) return
+    if (running || creatingSession) return
     abortRef.current?.abort()
     abortRef.current = null
+    executionIdRef.current = null
     clearLiveState()
     setLocalTurns([])
     setText('')
-    onNewSession()
+    onStartNewConversation()
   }
 
   const resetContext = async () => {
-    if (running) return
+    if (running || creatingSession || !activeSession) return
     try {
       await resetNetworkSessionContext(networkId, activeSession.id, projectId)
       toast.success('Agent contexts reset for this Network Session')
@@ -168,11 +185,23 @@ export function NetworkChatWorkspace({
 
   const send = async (suggestion?: string) => {
     const content = (suggestion ?? text).trim()
-    if (!content || running) return
+    if (!content || running || creatingSession) return
     if (changed) {
       toast.warning(`Start a new ${environment} session for the current Network version before sending`)
       return
     }
+
+    let session = activeSession
+    if (!session) {
+      setCreatingSession(true)
+      try {
+        session = await onCreateSession()
+      } finally {
+        setCreatingSession(false)
+      }
+      if (!session) return
+    }
+
     setText('')
     setRunning(true)
     setPendingMessage(content)
@@ -197,7 +226,7 @@ export function NetworkChatWorkspace({
       await streamNetworkExecution({
         networkId,
         projectId,
-        networkSessionId: activeSession.id,
+        networkSessionId: session.id,
         message: content,
         expectedDraftRevision,
       }, {
@@ -250,23 +279,23 @@ export function NetworkChatWorkspace({
         execution: turn.execution,
         environment,
         bindings: executionBindings,
-        networkSessionId: activeSession.id,
+        networkSessionId: session.id,
         title: content,
         userMessage: content,
         answer: turn.answer,
         usage: turn.usage,
-        agentContexts: activeSession.agentContexts,
+        agentContexts: session.agentContexts,
         parsedOutput: turn.parsedOutput,
         source: 'chat',
         runtimeEvents: records,
         networkVersion: environment === 'draft' ? `Draft r${expectedDraftRevision}` : versionLabel,
       }))
-      await refreshPersistedSession()
+      await refreshPersistedSession(session.id)
     } catch (error) {
       if (!controller.signal.aborted) {
         if (!executionId) setText(content)
         toast.error(error instanceof Error ? error.message : 'Network execution failed')
-        if (executionId) await refreshPersistedSession()
+        if (executionId) await refreshPersistedSession(session.id)
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
@@ -277,11 +306,11 @@ export function NetworkChatWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession.id} changed={changed} newSessionDisabled={running} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
+      <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession?.id ?? null} changed={changed} newSessionDisabled={running || creatingSession} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
-      <NetworkChatComposer value={text} running={running} onChange={setText} onSend={() => send()} onStop={stop} />
+      <NetworkChatComposer value={text} running={running} preparing={creatingSession} onChange={setText} onSend={() => { void send() }} onStop={stop} />
     </div>
   )
 }
