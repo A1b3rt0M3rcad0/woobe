@@ -121,6 +121,15 @@ class ApiKeyModel(BaseModel):
             "AND agent_id IS NULL AND environment IN ('staging', 'production'))",
             name="ck_core_api_keys_runtime_binding",
         ),
+        CheckConstraint(
+            "kind <> 'runtime' OR "
+            "(target_type IN ('agent', 'network') AND target_id IS NOT NULL)",
+            name="ck_core_api_keys_runtime_target",
+        ),
+        CheckConstraint(
+            "kind <> 'runtime' OR jsonb_array_length(interfaces) > 0",
+            name="ck_core_api_keys_runtime_interfaces",
+        ),
         {"schema": "core"},
     )
 
