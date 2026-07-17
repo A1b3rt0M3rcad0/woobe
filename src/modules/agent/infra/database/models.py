@@ -132,6 +132,12 @@ class AgentReleaseModel(BaseModel):
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
         Index(
+            "uq_agent_releases_staging",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'staging'"),
+        ),
+        Index(
             "uq_agent_releases_production",
             "agent_id",
             unique=True,
@@ -144,6 +150,7 @@ class AgentReleaseModel(BaseModel):
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="draft")
+    snapshot_kind: Mapped[str] = mapped_column(String(16), default="draft")
     prompt_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_prompts.id")
     )

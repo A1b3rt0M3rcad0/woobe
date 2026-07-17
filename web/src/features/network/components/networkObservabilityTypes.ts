@@ -30,7 +30,7 @@ export interface NetworkTraceEvent {
 
 export interface NetworkTraceRecord {
   id: string
-  traceId: string
+  traceId: string | null
   networkSessionId: string
   source: NetworkTraceSource
   title: string
@@ -45,8 +45,8 @@ export interface NetworkTraceRecord {
   startedAt: string
   completedAt: string | null
   durationMs: number
-  usage: UsageInfo
-  costUsd: number
+  usage: UsageInfo | null
+  costUsd: number | null
   agentContexts: NetworkAgentContext[]
   execution: NetworkExecution
   events: NetworkTraceEvent[]
@@ -77,9 +77,9 @@ export function traceToRun(trace: NetworkTraceRecord): NetworkRun {
     environment: trace.environment,
     status: trace.status,
     duration: `${(trace.durationMs / 1000).toFixed(2)}s`,
-    cost: `$${trace.costUsd.toFixed(3)}`,
+    cost: trace.costUsd == null ? 'Unknown' : `$${trace.costUsd.toFixed(3)}`,
     path: trace.execution.path,
-    traceId: trace.traceId,
+    traceId: trace.traceId ?? undefined,
   }
 }
 

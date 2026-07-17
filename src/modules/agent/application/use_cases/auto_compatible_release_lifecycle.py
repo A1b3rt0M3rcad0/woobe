@@ -88,6 +88,7 @@ def _clone_release_snapshot(
         setattr(clone, field_name, getattr(source, field_name))
     clone.version = version
     clone.status = status
+    clone.snapshot_kind = "release"
     clone.release_notes = release_notes
     clone.created_by = source.created_by
     clone.promoted_by = promoted_by

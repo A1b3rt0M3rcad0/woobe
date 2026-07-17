@@ -3,8 +3,8 @@ import type { Agent } from '@/features/agents/types'
 export type Environment = 'draft' | 'staging' | 'production'
 export type ChatTarget = Environment
 export type BindingSource = 'draft' | 'staging' | 'release'
-export type NodeId = 'entry' | 'coordinator' | 'billing' | 'technical' | 'end'
-export type AgentNodeId = Exclude<NodeId, 'entry' | 'end'>
+export type AgentNodeId = string
+export type NodeId = AgentNodeId | 'entry' | 'end'
 
 export type NetworkSelection = {
   source: BindingSource
@@ -13,6 +13,7 @@ export type NetworkSelection = {
   draftVersion: string
   draftBase?: string
   dirty: boolean
+  snapshotOverride?: Record<string, unknown>
 }
 
 export type NetworkBinding = NetworkSelection & {

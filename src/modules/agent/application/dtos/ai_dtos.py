@@ -189,11 +189,24 @@ class ListAgentsOutput(BaseModel):
     id: UUID
     project_id: UUID
     name: str
+    description: str = ""
+    type: AgentType
+    system_prompt: str = ""
     provider: Provider
     model: str
     provider_model_id: UUID | None = None
+    fallback_provider_model_id: UUID | None = None
+    provider_credential_id: UUID | None = None
+    fallback_credential_id: UUID | None = None
+    fallback_provider: Provider | None = None
+    fallback_model: str | None = None
+    temperature: float | None = None
+    max_output_tokens: int | None = None
+    session_mode: SessionMode
     status: AgentStatus
+    settings: dict[str, Any] = {}
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class GetAgentInput(BaseModel):
@@ -381,6 +394,7 @@ class CreateReleaseOutput(BaseModel):
     agent_id: UUID
     version: str
     status: ReleaseStatus
+    snapshot_kind: str | None = None
     prompt_version_id: UUID | None = None
     contract_version_id: UUID | None = None
     knowledge_version_id: UUID | None = None
@@ -419,6 +433,9 @@ class ListReleasesOutput(CreateReleaseOutput):
 
 
 class PromoteReleaseInput(BaseModel):
+    target_status: str = "production"
+    copy_snapshot: bool = False
+    release_notes: str | None = None
     user_id: UUID | None = None
 
 

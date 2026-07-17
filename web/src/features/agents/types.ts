@@ -190,6 +190,7 @@ export interface CreateKnowledgeVersionRequest {
 // ── Agent Release ──────────────────────────────────────────────
 
 export type ReleaseStatus = 'draft' | 'staging' | 'production' | 'archived' | 'rolled_back'
+export type ReleaseSnapshotKind = 'draft' | 'staging' | 'release'
 
 export interface AgentRelease {
   id: string
@@ -197,6 +198,7 @@ export interface AgentRelease {
   agent_id: string
   version: string
   status: ReleaseStatus
+  snapshot_kind?: ReleaseSnapshotKind
   prompt_version_id?: string
   contract_version_id?: string
   knowledge_version_id?: string

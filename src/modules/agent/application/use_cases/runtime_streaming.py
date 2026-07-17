@@ -25,10 +25,93 @@ _INTERNAL_BLOCK_TYPES = {
     "web_search_call",
 }
 _FINAL_RESPONSE_PHASES = {"response_generation", "final_response_generation"}
+_PROVIDER_CONTROL_TOKENS = (
+    "<｜end▁of▁sentence｜>",
+    "<|endoftext|>",
+    "<|eot_id|>",
+)
 
 
 def _stream_utc_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def normalize_assistant_text(value: str) -> str:
+    normalized = value
+    for token in _PROVIDER_CONTROL_TOKENS:
+        normalized = normalized.replace(token, "")
+    return normalized
+
+
+def _normalize_content_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return normalize_assistant_text(value)
+    if not isinstance(value, list):
+        return value
+
+    normalized_items: list[Any] = []
+    for item in value:
+        if isinstance(item, str):
+            normalized_items.append(normalize_assistant_text(item))
+            continue
+        if not isinstance(item, dict):
+            normalized_items.append(item)
+            continue
+        normalized_item = dict(item)
+        for key in ("text", "content", "delta"):
+            text = normalized_item.get(key)
+            if isinstance(text, str):
+                normalized_item[key] = normalize_assistant_text(text)
+        normalized_items.append(normalized_item)
+    return normalized_items
+
+
+def normalize_llm_result_content(result: Any) -> Any:
+    content = getattr(result, "content", None)
+    normalized = _normalize_content_value(content)
+    if normalized == content:
+        return result
+
+    model_copy = getattr(result, "model_copy", None)
+    if callable(model_copy):
+        return model_copy(update={"content": normalized})
+    try:
+        setattr(result, "content", normalized)
+    except (AttributeError, TypeError, ValueError):
+        return result
+    return result
+
+
+def _longest_control_token_prefix_suffix(value: str) -> int:
+    longest = 0
+    for token in _PROVIDER_CONTROL_TOKENS:
+        max_size = min(len(value), len(token) - 1)
+        for size in range(max_size, 0, -1):
+            if value.endswith(token[:size]):
+                longest = max(longest, size)
+                break
+    return longest
+
+
+class _ProviderControlTokenFilter:
+    def __init__(self) -> None:
+        self._buffer = ""
+
+    def push(self, content: str) -> str:
+        self._buffer = normalize_assistant_text(self._buffer + content)
+        pending_size = _longest_control_token_prefix_suffix(self._buffer)
+        if pending_size:
+            visible = self._buffer[:-pending_size]
+            self._buffer = self._buffer[-pending_size:]
+            return visible
+        visible = self._buffer
+        self._buffer = ""
+        return visible
+
+    def flush(self) -> str:
+        visible = normalize_assistant_text(self._buffer)
+        self._buffer = ""
+        return visible
 
 
 @dataclass(frozen=True)
@@ -215,7 +298,11 @@ def _can_stream_phase_live(phase: str) -> bool:
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
-    return _is_final_response_phase(phase)
+    return (
+        _is_final_response_phase(phase)
+        or phase == "tool_planning"
+        or phase.startswith("tool_followup_")
+    )
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
@@ -261,7 +348,8 @@ async def invoke_model_with_optional_streaming(
     channel = current_runtime_stream.get()
     if channel is None:
         try:
-            return await model.ainvoke(messages)
+            result = await model.ainvoke(messages)
+            return normalize_llm_result_content(result)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -284,23 +372,27 @@ async def invoke_model_with_optional_streaming(
     accumulated = None
     pending_visible_tokens: list[str] = []
     streamed_visible_tokens: list[str] = []
+    control_filter = _ProviderControlTokenFilter()
     try:
         async for chunk in model.astream(messages):
             accumulated = _combine_chunks(accumulated, chunk)
             for part in extract_chunk_text_parts(chunk):
                 if part.visibility != "assistant" or part.channel != "final":
                     continue
+                visible_content = control_filter.push(part.content)
+                if not visible_content:
+                    continue
                 if _can_stream_phase_live(phase):
-                    streamed_visible_tokens.append(part.content)
+                    streamed_visible_tokens.append(visible_content)
                     await _emit_visible_token(
                         channel,
-                        content=part.content,
+                        content=visible_content,
                         phase=phase,
                         provider=provider,
                         model_name=model_name,
                     )
                 else:
-                    pending_visible_tokens.append(part.content)
+                    pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -310,6 +402,20 @@ async def invoke_model_with_optional_streaming(
         )
         raise
 
+    trailing_content = control_filter.flush()
+    if trailing_content:
+        if _can_stream_phase_live(phase):
+            streamed_visible_tokens.append(trailing_content)
+            await _emit_visible_token(
+                channel,
+                content=trailing_content,
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+            )
+        else:
+            pending_visible_tokens.append(trailing_content)
+
     if accumulated is None:
         runtime_metrics.increment_provider_failure(
             provider=provider,
@@ -317,6 +423,7 @@ async def invoke_model_with_optional_streaming(
         )
         raise RuntimeError("Provider stream completed without a response")
 
+    accumulated = normalize_llm_result_content(accumulated)
     if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
         await channel.emit(
             "token_retract",

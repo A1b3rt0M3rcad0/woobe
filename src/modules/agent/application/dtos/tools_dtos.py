@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from modules.agent.application.http_tool_contract import compile_http_tool_contract
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
 
@@ -91,7 +92,13 @@ class CreateToolInput(BaseModel):
         if is_mcp_tool_type(self.type):
             McpToolConfig.model_validate(self.config)
         else:
-            HttpToolConfig.model_validate(self.config)
+            parsed = HttpToolConfig.model_validate(self.config)
+            compiled = compile_http_tool_contract(
+                parsed.model_dump(exclude_none=True),
+                self.input_schema,
+            )
+            self.config = compiled.config
+            self.input_schema = compiled.input_schema
         return self
 
 
@@ -143,12 +150,19 @@ class UpdateToolInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_protocol_config(self) -> "UpdateToolInput":
-        if self.config is None or self.type is None:
+        if self.config is None:
             return self
-        if is_mcp_tool_type(self.type):
+        protocol = self.type or self.config.get("protocol")
+        if is_mcp_tool_type(protocol):
             McpToolConfig.model_validate(self.config)
         else:
-            HttpToolConfig.model_validate(self.config)
+            parsed = HttpToolConfig.model_validate(self.config)
+            compiled = compile_http_tool_contract(
+                parsed.model_dump(exclude_none=True),
+                self.input_schema,
+            )
+            self.config = compiled.config
+            self.input_schema = compiled.input_schema
         return self
 
 

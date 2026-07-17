@@ -106,6 +106,8 @@ class SQLAlchemyApiKeyRepository(
         model.scopes = list(api_key.scopes)
         model.kind = api_key.kind.value
         model.agent_id = api_key.agent_id
+        model.target_type = api_key.target_type.value if api_key.target_type else None
+        model.target_id = api_key.target_id
         model.environment = api_key.environment.value if api_key.environment else None
         model.interfaces = list(api_key.interfaces)
         model.status = api_key.status.value

@@ -12,6 +12,7 @@ from modules.core.domain.enums import (
     ApiKeyStatus,
     ProjectStatus,
     RuntimeEnvironment,
+    RuntimeTargetType,
 )
 
 
@@ -40,6 +41,8 @@ class ApiKey:
     scopes: list[str] = field(default_factory=list)
     kind: ApiKeyKind = ApiKeyKind.project
     agent_id: UUID | None = None
+    target_type: RuntimeTargetType | None = None
+    target_id: UUID | None = None
     environment: RuntimeEnvironment | None = None
     interfaces: list[str] = field(default_factory=list)
     status: ApiKeyStatus = ApiKeyStatus.active

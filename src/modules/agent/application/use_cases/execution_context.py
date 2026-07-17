@@ -38,6 +38,16 @@ class RequestExecutionContext:
     tool_snapshots: dict[str, dict[str, Any]] | None = None
     tool_metadata: dict[str, Any] | None = None
     persisted_sources: list[Any] | None = None
+    network_id: UUID | None = None
+    network_version_id: UUID | None = None
+    network_session_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_invocation_id: UUID | None = None
+    parent_invocation_id: UUID | None = None
+    network_node_id: UUID | None = None
+    depth: int | None = None
+    internal_tool_definitions: list[dict[str, Any]] | None = None
+    internal_tool_name_to_id: dict[str, str] | None = None
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(

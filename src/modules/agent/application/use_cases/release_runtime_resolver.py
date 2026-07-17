@@ -263,6 +263,19 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if runtime_context is not None:
             runtime_context.execution_context = execution_context
 
+        # An explicitly loaded release is an immutable runtime binding. Network
+        # versions rely on this precedence so a session never drifts to a newer
+        # active Staging or Production release after it was created.
+        if input_dto.loaded_release_id and release_repo is not None:
+            release = await release_repo.get_by_id(input_dto.loaded_release_id)
+            if release is None or release.agent_id != agent.id:
+                raise ValidationError("Pinned Agent release was not found")
+            self._bind_release_context(release)
+            agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
+            agent = self._apply_release_snapshot_ids(agent, release)
+            return await self._resolve_provider_model_refs(uow, agent)
+
         if execution_context == "production":
             if release_repo is None:
                 raise ValidationError("Production runtime requires release repository")
@@ -304,15 +317,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             agent = self._apply_runtime_config_snapshot(agent, merged_runtime_config)
             self._apply_snapshot_provider_model_ids(agent, snapshot_override)
             return await self._resolve_provider_model_refs(uow, agent)
-
-        if input_dto.loaded_release_id and release_repo is not None:
-            release = await release_repo.get_by_id(input_dto.loaded_release_id)
-            if release is not None:
-                self._bind_release_context(release)
-                agent = self._apply_release_to_agent(agent, release)
-                agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
-                agent = self._apply_release_snapshot_ids(agent, release)
-                return await self._resolve_provider_model_refs(uow, agent)
 
         if release_repo is not None:
             drafts = await release_repo.list_by_status(agent.id, ReleaseStatus.draft)

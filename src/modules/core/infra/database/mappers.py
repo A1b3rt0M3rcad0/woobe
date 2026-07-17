@@ -4,6 +4,7 @@ from modules.core.domain.enums import (
     ApiKeyStatus,
     ProjectStatus,
     RuntimeEnvironment,
+    RuntimeTargetType,
 )
 from modules.core.infra.database.models import ApiKeyModel, ProjectModel
 
@@ -45,6 +46,14 @@ def api_key_model_to_entity(model: ApiKeyModel) -> ApiKey:
         scopes=model.scopes,
         kind=ApiKeyKind(model.kind),
         agent_id=model.agent_id,
+        target_type=(
+            RuntimeTargetType(model.target_type)
+            if model.target_type
+            else RuntimeTargetType.agent
+            if model.agent_id
+            else None
+        ),
+        target_id=model.target_id or model.agent_id,
         environment=RuntimeEnvironment(model.environment)
         if model.environment
         else None,
@@ -73,6 +82,8 @@ def api_key_entity_to_model(entity: ApiKey) -> ApiKeyModel:
         scopes=entity.scopes,
         kind=entity.kind.value,
         agent_id=entity.agent_id,
+        target_type=entity.target_type.value if entity.target_type else None,
+        target_id=entity.target_id,
         environment=entity.environment.value if entity.environment else None,
         interfaces=entity.interfaces,
         status=entity.status.value,

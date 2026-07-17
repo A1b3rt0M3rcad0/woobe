@@ -107,7 +107,21 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
       <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addTool} />
       <CreateToolModal open={showCreateModal} onClose={() => setShowCreateModal(false)} projectId={projectId} agentId={agentId} onCreated={(tool) => { if (tool) addTool(tool); void refreshTools() }} />
-      <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={() => { setEditingTool(null); void refreshTools() }} />
+      <EditToolModal
+        tool={editingTool}
+        onClose={() => setEditingTool(null)}
+        onSaved={() => {
+          const savedTool = editingTool
+          setEditingTool(null)
+          if (savedTool && savedTool.type !== 'mcp') {
+            const permissions = { ...state.toolPermissions }
+            delete permissions[savedTool.id]
+            setField('toolPermissions', permissions)
+            toast.info('HTTP Tool updated. Save Draft to refresh this Agent snapshot.')
+          }
+          void refreshTools()
+        }}
+      />
     </div>
   )
 }

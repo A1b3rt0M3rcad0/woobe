@@ -72,6 +72,7 @@ export interface ToolCallInfo {
   status?: string | null
   latency_ms?: number | null
   error?: string | null
+  error_code?: string | null
 }
 
 export interface UsageInfo {

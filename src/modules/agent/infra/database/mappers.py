@@ -245,7 +245,7 @@ def agent_model_config_entity_to_model(entity: AgentModelConfig) -> AgentModelCo
 
 
 def agent_release_model_to_entity(model: AgentReleaseModel) -> AgentRelease:
-    return AgentRelease(
+    entity = AgentRelease(
         id=model.id,
         project_id=model.project_id,
         agent_id=model.agent_id,
@@ -281,6 +281,8 @@ def agent_release_model_to_entity(model: AgentReleaseModel) -> AgentRelease:
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
+    entity.snapshot_kind = model.snapshot_kind
+    return entity
 
 
 def agent_release_entity_to_model(entity: AgentRelease) -> AgentReleaseModel:
@@ -290,6 +292,7 @@ def agent_release_entity_to_model(entity: AgentRelease) -> AgentReleaseModel:
         agent_id=entity.agent_id,
         version=entity.version,
         status=entity.status.value,
+        snapshot_kind=getattr(entity, "snapshot_kind", "draft"),
         prompt_version_id=entity.prompt_version_id,
         contract_version_id=entity.contract_version_id,
         knowledge_version_id=entity.knowledge_version_id,

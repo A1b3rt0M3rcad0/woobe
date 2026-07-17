@@ -17,9 +17,7 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 from modules.agent.application.use_cases.instrumented_execution_runner import (
     run_instrumented_execution,
 )
-from modules.agent.application.use_cases.runtime_streaming import (
-    current_runtime_stream,
-)
+from modules.agent.application.use_cases.runtime_streaming import current_runtime_stream
 
 
 class _PrimaryExecutionSuper(Protocol):
@@ -36,17 +34,24 @@ class _PrimaryExecutionHost(Protocol):
 class InstrumentedPrimaryExecutionMixin:
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
-        token = current_execution.set(
-            new_execution_context(
-                metadata.get("server_received_at"),
-                metadata.get("client_sent_at"),
+        existing_context = current_execution.get()
+        token = None
+        if existing_context is None:
+            token = current_execution.set(
+                new_execution_context(
+                    metadata.get("server_received_at"),
+                    metadata.get("client_sent_at"),
+                )
             )
-        )
+        elif existing_context.client_sent_at is None:
+            existing_context.client_sent_at = metadata.get("client_sent_at")
+
         parent = cast(_PrimaryExecutionSuper, super())
         try:
             return await parent.execute(input_dto)
         finally:
-            current_execution.reset(token)
+            if token is not None:
+                current_execution.reset(token)
 
     async def _prepare(self, input_dto: Any) -> Any:
         context = current_execution.get()
@@ -131,6 +136,7 @@ class InstrumentedPrimaryExecutionMixin:
                     timeline=exc.timeline,
                     tool_wall_latency_ms=exc.tool_wall_latency_ms,
                     tool_call_duration_sum_ms=exc.tool_call_duration_sum_ms,
+                    failure_context=exc.failure_context,
                 )
             raise
 
@@ -145,7 +151,11 @@ class InstrumentedPrimaryExecutionMixin:
                     continue
                 tool_name = payload.get("tool_name")
                 route = tool_name_to_id.get(str(tool_name)) if tool_name else None
-                tool_id = route.split(MCP_PROVIDER_ROUTE_SEPARATOR, 1)[0] if route else None
+                tool_id = (
+                    route.split(MCP_PROVIDER_ROUTE_SEPARATOR, 1)[0]
+                    if route
+                    else None
+                )
                 snapshot = snapshots.get(tool_id) if tool_id else None
                 payload["tool_id"] = tool_id
                 payload["tool_runtime_source"] = context.tool_metadata.get("source")
@@ -174,6 +184,9 @@ class InstrumentedPrimaryExecutionMixin:
             "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
         }
-        repaired = any(call.get("phase") == "json_repair" for call in execution.llm_calls)
+        repaired = any(
+            call.get("phase") == "json_repair"
+            for call in execution.llm_calls
+        )
         repair_latency = execution.llm_calls[-1].get("latency_ms") if repaired else None
         return execution.result, execution.tool_calls, bool(execution.tool_calls), repair_latency

@@ -8,6 +8,7 @@ from modules.core.domain.enums import (
     ApiKeyKind,
     ApiKeyStatus,
     RuntimeEnvironment,
+    RuntimeTargetType,
 )
 
 
@@ -81,6 +82,8 @@ class RotateApiKeyOutput(BaseModel):
     scopes: list[str]
     kind: ApiKeyKind = ApiKeyKind.project
     agent_id: UUID | None = None
+    target_type: RuntimeTargetType | None = None
+    target_id: UUID | None = None
     environment: RuntimeEnvironment | None = None
     interfaces: list[str] = Field(default_factory=list)
     status: ApiKeyStatus
@@ -121,5 +124,7 @@ class UpdateApiKeyCredentialOutput(BaseModel):
     description: str | None = None
     kind: ApiKeyKind
     agent_id: UUID | None = None
+    target_type: RuntimeTargetType | None = None
+    target_id: UUID | None = None
     environment: RuntimeEnvironment | None = None
     updated_at: datetime | None = None

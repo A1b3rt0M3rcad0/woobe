@@ -30,6 +30,7 @@ from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
+from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -186,8 +187,14 @@ def create_app() -> FastAPI:
             "X-CSRF-Token",
             "X-Request-ID",
             "X-Correlation-ID",
+            "Last-Event-ID",
+            "Idempotency-Key",
         ],
-        expose_headers=["X-Request-ID", "X-Correlation-ID"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Network-Execution-ID",
+        ],
     )
 
     app.add_exception_handler(
@@ -246,6 +253,7 @@ def create_app() -> FastAPI:
         app.include_router(metering_router)
         app.include_router(billing_router)
         app.include_router(observability_router)
+        app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
