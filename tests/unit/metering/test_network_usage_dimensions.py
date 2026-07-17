@@ -11,7 +11,7 @@ def test_usage_event_derives_network_dimensions_from_payload() -> None:
     event = UsageEvent(
         data={
             "network_id": str(network_id),
-            "execution_id": str(execution_id),
+            "network_execution_id": str(execution_id),
             "network_version_id": str(version_id),
         }
     )
@@ -21,8 +21,13 @@ def test_usage_event_derives_network_dimensions_from_payload() -> None:
     assert event.network_version_id == version_id
 
 
-def test_agent_usage_does_not_treat_execution_id_as_network_execution() -> None:
-    event = UsageEvent(data={"execution_id": str(uuid4())})
+def test_agent_execution_id_is_not_used_as_network_execution_id() -> None:
+    event = UsageEvent(
+        data={
+            "network_id": str(uuid4()),
+            "execution_id": str(uuid4()),
+        }
+    )
 
-    assert event.network_id is None
+    assert event.network_id is not None
     assert event.network_execution_id is None
