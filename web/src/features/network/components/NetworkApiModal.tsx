@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { createRuntimeApiKey } from '@/features/api-keys/api'
 import { getNetworkVersions } from '@/features/network/api'
 import type { NetworkVersion } from '@/features/network/types'
+import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { API_BASE_URL } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
 import type { AgentNodeId, NetworkBinding } from './networkWorkspaceTypes'
@@ -52,11 +53,13 @@ export function NetworkApiModal({
   versions,
   bindings,
 }: Props) {
+  const { currentProject } = useWorkspace()
+  const networkName = `${currentProject?.name || 'Network'}`.replace(/\s+Network$/i, '')
   const [environment, setEnvironment] = useState<'staging' | 'production'>('staging')
   const [creating, setCreating] = useState(false)
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const managedVersions = useQuery({
-    queryKey: ['network-versions', networkId, projectId],
+    queryKey: ['network-versions', projectId, networkId],
     queryFn: () => getNetworkVersions(networkId, projectId),
     enabled: Boolean(open && networkId && projectId && !versions),
   })
@@ -97,7 +100,7 @@ export function NetworkApiModal({
     setCreating(true)
     try {
       const result = await createRuntimeApiKey(projectId, {
-        name: `${environment} Network Runtime`,
+        name: `${networkName} · ${environment} Runtime`,
         target_type: 'network',
         target_id: networkId,
         environment,
@@ -123,7 +126,7 @@ export function NetworkApiModal({
         <div className="flex shrink-0 items-start border-b border-border p-5">
           <div>
             <p className="text-[9px] uppercase tracking-widest text-primary-light">Network runtime</p>
-            <h2 className="mt-1 text-base font-semibold text-white">API Reference</h2>
+            <h2 className="mt-1 text-base font-semibold text-white">{networkName} · API Reference</h2>
             <p className="mt-1 text-[10px] text-muted">The public output contract is inherited and frozen from the entry Agent Release.</p>
           </div>
           <button onClick={onClose} className="ml-auto text-muted"><X className="h-4 w-4" /></button>
@@ -168,7 +171,7 @@ export function NetworkApiModal({
               <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
                 <div className="flex gap-2">
                   <KeyRound className="h-4 w-4 text-primary-light" />
-                  <div className="min-w-0 flex-1"><p className="text-[10px] text-white">{environment} Network Key</p><p className="truncate font-mono text-[9px] text-muted">{createdKey ?? 'Not generated in this view'}</p></div>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] text-white">{networkName} · {environment}</p><p className="truncate font-mono text-[9px] text-muted">{createdKey ?? 'Not generated in this view'}</p></div>
                   {createdKey ? <button onClick={() => copy(createdKey)} className="text-muted"><Copy className="h-3.5 w-3.5" /></button> : null}
                 </div>
                 <p className="mt-2 text-[9px] text-muted">target_type=network · target_id={networkId}</p>
