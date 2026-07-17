@@ -4,7 +4,6 @@ import {
   activateNetworkProduction,
   createNetworkSession,
   ensureNetwork,
-  getNetwork,
   getNetworkProductionActivations,
   getNetworkSessionMessages,
   getNetworkSessions,
@@ -21,7 +20,6 @@ import type {
   NetworkVersion,
   PromoteNetworkInput,
 } from './types'
-import { ApiError } from '@/lib/api/errors'
 
 function sessionTitle(environment: NetworkEnvironment) {
   const timestamp = new Intl.DateTimeFormat(undefined, {
@@ -36,15 +34,9 @@ function sessionTitle(environment: NetworkEnvironment) {
 export function useNetwork(projectId?: string, projectName = 'Project Network') {
   return useQuery({
     queryKey: ['network', projectId],
-    queryFn: async () => {
-      try {
-        return await getNetwork(projectId!)
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 404) throw error
-        return ensureNetwork(projectId!, `${projectName} Network`)
-      }
-    },
+    queryFn: () => ensureNetwork(projectId!, `${projectName} Network`),
     enabled: Boolean(projectId),
+    staleTime: 30_000,
   })
 }
 
