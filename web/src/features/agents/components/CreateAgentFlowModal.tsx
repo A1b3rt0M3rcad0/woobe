@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Plus, RefreshCw, Search, ShieldCheck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Plus, Search, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
+import { AgentCreationLoadError, AgentCreationPreparing } from '@/features/agents/components/AgentCreationBootstrap'
 import {
   providerLabel,
   useAgentCreationFlow,
@@ -108,18 +109,6 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
       .map((model) => ({ id: model.id, title: model.label, subtitle: `${providerLabel(model.provider)} · ${model.id}` }))
   }, [flow.availableModels, query])
 
-  if (flow.inventoryLoading) return <p className="py-10 text-center text-sm text-muted">Loading Project model inventory...</p>
-  if (flow.inventoryError) {
-    return (
-      <div className="rounded-xl border border-border/80 bg-background/45 p-5 text-center">
-        <p className="text-sm font-medium text-white">Could not load Project model inventory</p>
-        <Button type="button" size="sm" variant="outline" className="mt-4" onClick={flow.retryInventory}>
-          <RefreshCw className="mr-2 h-4 w-4" />Retry
-        </Button>
-      </div>
-    )
-  }
-
   if (providerFormVisible) {
     return (
       <div>
@@ -220,14 +209,10 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
 export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: CreateAgentFlowModalProps) {
   const flow = useAgentCreationFlow({ projectId, onCreated, active: open })
 
-  useEffect(() => {
-    if (!open) return
-  }, [open])
-
   const footerPrimary = () => {
     if (flow.step === 'details') {
       return (
-        <Button type="button" onClick={flow.continueFromDetails} disabled={flow.inventoryLoading}>
+        <Button type="button" onClick={flow.continueFromDetails}>
           Continue<ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -248,75 +233,81 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
   return (
     <Dialog open={open} onClose={flow.busy ? () => undefined : onClose} title="Create agent" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
-      <div className="grid max-h-[calc(100svh-8rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-        <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl border border-border/80 bg-background/55 p-2">
-          {(['details', 'model', 'review'] as const).map((step, index) => {
-            const currentIndex = flow.step === 'details' ? 0 : flow.step === 'model' ? 1 : 2
-            const active = step === flow.step
-            const complete = index < currentIndex
-            return (
-              <div key={step} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${active ? 'bg-primary/10 text-white' : complete ? 'text-white/85' : 'text-muted'}`}>
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${active ? 'border-primary' : 'border-border'}`}>
-                  {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                </span>
-                {step === 'details' ? 'Agent details' : step === 'model' ? 'Model' : 'Review'}
-              </div>
-            )
-          })}
-        </div>
+      {flow.inventoryLoading ? (
+        <AgentCreationPreparing />
+      ) : flow.inventoryError ? (
+        <AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} />
+      ) : (
+        <div className="grid min-h-[520px] max-h-[calc(100svh-8rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+          <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl border border-border/80 bg-background/55 p-2">
+            {(['details', 'model', 'review'] as const).map((step, index) => {
+              const currentIndex = flow.step === 'details' ? 0 : flow.step === 'model' ? 1 : 2
+              const active = step === flow.step
+              const complete = index < currentIndex
+              return (
+                <div key={step} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${active ? 'bg-primary/10 text-white' : complete ? 'text-white/85' : 'text-muted'}`}>
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${active ? 'border-primary' : 'border-border'}`}>
+                    {complete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                  </span>
+                  {step === 'details' ? 'Agent details' : step === 'model' ? 'Model' : 'Review'}
+                </div>
+              )
+            })}
+          </div>
 
-        <ScrollArea className="min-h-0 pr-1">
-          {flow.step === 'details' && (
-            <div className="space-y-4 rounded-xl border border-border/80 bg-surface/65 p-5">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-muted">Name</label>
-                <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
+          <ScrollArea className="min-h-0 pr-1">
+            {flow.step === 'details' && (
+              <div className="space-y-4 rounded-xl border border-border/80 bg-surface/65 p-5">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-muted">Name</label>
+                  <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-muted">Description <span className="font-normal text-muted/70">(optional)</span></label>
+                  <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-muted">Instructions</label>
+                  <Textarea value={flow.agentInstructions} onChange={(event) => flow.setAgentInstructions(event.target.value)} rows={7} placeholder="You are a customer support Agent. Answer clearly and do not invent information." />
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-muted">Description <span className="font-normal text-muted/70">(optional)</span></label>
-                <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-muted">Instructions</label>
-                <Textarea value={flow.agentInstructions} onChange={(event) => flow.setAgentInstructions(event.target.value)} rows={7} placeholder="You are a customer support Agent. Answer clearly and do not invent information." />
-              </div>
-            </div>
-          )}
-
-          {flow.step === 'model' && <ModalModelStep flow={flow} projectId={projectId} />}
-
-          {flow.step === 'review' && flow.selectedModel && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <section className="rounded-xl border border-border/80 bg-background/45 p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-muted">Agent</p>
-                <p className="mt-2 text-base font-semibold text-white">{flow.agentName}</p>
-                <p className="mt-2 text-sm text-muted">{flow.agentDescription || 'No description'}</p>
-              </section>
-              <section className="rounded-xl border border-border/80 bg-background/45 p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-muted">Model</p>
-                <p className="mt-2 text-base font-semibold text-white">{flow.selectedModel.name}</p>
-                <p className="mt-2 truncate text-xs text-muted">{providerLabel(flow.selectedModel.provider)} · {flow.selectedModel.model}</p>
-              </section>
-              <section className="rounded-xl border border-border/80 bg-background/45 p-5 sm:col-span-2">
-                <p className="text-xs uppercase tracking-[0.16em] text-muted">Instructions</p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-white/90">{flow.agentInstructions}</p>
-              </section>
-            </div>
-          )}
-        </ScrollArea>
-
-        <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
-          <div className="flex gap-2">
-            {flow.step !== 'details' && (
-              <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
-                <ArrowLeft className="mr-2 h-4 w-4" />Back
-              </Button>
             )}
-            {footerPrimary()}
+
+            {flow.step === 'model' && <ModalModelStep flow={flow} projectId={projectId} />}
+
+            {flow.step === 'review' && flow.selectedModel && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <section className="rounded-xl border border-border/80 bg-background/45 p-5">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Agent</p>
+                  <p className="mt-2 text-base font-semibold text-white">{flow.agentName}</p>
+                  <p className="mt-2 text-sm text-muted">{flow.agentDescription || 'No description'}</p>
+                </section>
+                <section className="rounded-xl border border-border/80 bg-background/45 p-5">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Model</p>
+                  <p className="mt-2 text-base font-semibold text-white">{flow.selectedModel.name}</p>
+                  <p className="mt-2 truncate text-xs text-muted">{providerLabel(flow.selectedModel.provider)} · {flow.selectedModel.model}</p>
+                </section>
+                <section className="rounded-xl border border-border/80 bg-background/45 p-5 sm:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted">Instructions</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-white/90">{flow.agentInstructions}</p>
+                </section>
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
+            <div className="flex gap-2">
+              {flow.step !== 'details' && (
+                <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />Back
+                </Button>
+              )}
+              {footerPrimary()}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </Dialog>
   )
 }
