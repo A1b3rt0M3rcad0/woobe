@@ -25,29 +25,39 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - name: Capture frontend build and tests
+      - name: Capture frontend dependency, build and test diagnostics
         shell: bash
         run: |
           set +e
-          npm run build > frontend-build.log 2>&1
-          build_status=$?
-          npm run test:run > frontend-test.log 2>&1
-          test_status=$?
-          printf 'build=%s\ntest=%s\n' "$build_status" "$test_status" > frontend-status.txt
-          cat frontend-build.log
-          cat frontend-test.log
+          npm ci > frontend-install.log 2>&1
+          install_status=$?
+          if [[ "$install_status" -eq 0 ]]; then
+            npm run build > frontend-build.log 2>&1
+            build_status=$?
+            npm run test:run > frontend-test.log 2>&1
+            test_status=$?
+          else
+            build_status=99
+            test_status=99
+            echo "Skipped because npm ci failed" > frontend-build.log
+            echo "Skipped because npm ci failed" > frontend-test.log
+          fi
+          printf 'install=%s\nbuild=%s\ntest=%s\n' "$install_status" "$build_status" "$test_status" > frontend-status.txt
+          for file in frontend-install.log frontend-build.log frontend-test.log; do
+            echo "===== $file ====="
+            cat "$file"
+          done
           exit 0
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: pr80-frontend-diagnostics
           path: |
+            web/frontend-install.log
             web/frontend-build.log
             web/frontend-test.log
             web/frontend-status.txt
-          if-no-files-found: error
+          if-no-files-found: warn
 
   backend-diagnostics:
     runs-on: ubuntu-latest
@@ -97,36 +107,52 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - run: uv sync --frozen --all-groups --extra test
-      - name: Capture backend checks
+      - name: Capture backend dependency and quality diagnostics
         shell: bash
         run: |
           set +e
-          uv run ruff check src tests > ruff.log 2>&1
-          ruff_status=$?
-          uv run pyright src migrations > pyright.log 2>&1
-          pyright_status=$?
-          uv run alembic heads > alembic-heads.log 2>&1
-          heads_status=$?
-          uv run alembic upgrade head > alembic-upgrade.log 2>&1
-          upgrade_status=$?
-          uv run alembic current > alembic-current.log 2>&1
-          current_status=$?
-          uv run alembic check > alembic-check.log 2>&1
-          check_status=$?
-          uv run python -m pytest -q > pytest.log 2>&1
-          pytest_status=$?
-          printf 'ruff=%s\npyright=%s\nheads=%s\nupgrade=%s\ncurrent=%s\ncheck=%s\npytest=%s\n' \
-            "$ruff_status" "$pyright_status" "$heads_status" "$upgrade_status" "$current_status" "$check_status" "$pytest_status" > backend-status.txt
-          for file in ruff.log pyright.log alembic-heads.log alembic-upgrade.log alembic-current.log alembic-check.log pytest.log; do
+          uv sync --frozen --all-groups --extra test > uv-sync.log 2>&1
+          sync_status=$?
+          if [[ "$sync_status" -eq 0 ]]; then
+            uv run ruff check src tests > ruff.log 2>&1
+            ruff_status=$?
+            uv run pyright src migrations > pyright.log 2>&1
+            pyright_status=$?
+            uv run alembic heads > alembic-heads.log 2>&1
+            heads_status=$?
+            uv run alembic upgrade head > alembic-upgrade.log 2>&1
+            upgrade_status=$?
+            uv run alembic current > alembic-current.log 2>&1
+            current_status=$?
+            uv run alembic check > alembic-check.log 2>&1
+            check_status=$?
+            uv run python -m pytest -q > pytest.log 2>&1
+            pytest_status=$?
+          else
+            ruff_status=99
+            pyright_status=99
+            heads_status=99
+            upgrade_status=99
+            current_status=99
+            check_status=99
+            pytest_status=99
+            for file in ruff.log pyright.log alembic-heads.log alembic-upgrade.log alembic-current.log alembic-check.log pytest.log; do
+              echo "Skipped because uv sync failed" > "$file"
+            done
+          fi
+          printf 'sync=%s\nruff=%s\npyright=%s\nheads=%s\nupgrade=%s\ncurrent=%s\ncheck=%s\npytest=%s\n' \
+            "$sync_status" "$ruff_status" "$pyright_status" "$heads_status" "$upgrade_status" "$current_status" "$check_status" "$pytest_status" > backend-status.txt
+          for file in uv-sync.log ruff.log pyright.log alembic-heads.log alembic-upgrade.log alembic-current.log alembic-check.log pytest.log; do
             echo "===== $file ====="
             cat "$file"
           done
           exit 0
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: pr80-backend-diagnostics
           path: |
+            uv-sync.log
             ruff.log
             pyright.log
             alembic-heads.log
@@ -135,4 +161,4 @@ jobs:
             alembic-check.log
             pytest.log
             backend-status.txt
-          if-no-files-found: error
+          if-no-files-found: warn
