@@ -14,6 +14,9 @@ class UsageEvent:
     id: UUID = field(default_factory=uuid6.uuid7)
     project_id: UUID = field(default_factory=uuid6.uuid7)
     agent_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_version_id: UUID | None = None
     source_event_id: UUID | None = None
     occurred_at: datetime | None = None
     trace_id: UUID | None = None

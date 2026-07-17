@@ -27,14 +27,36 @@ class NetworkRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_by_project(self, project_id: UUID) -> NetworkModel | None:
+    async def list_by_project(self, project_id: UUID) -> list[NetworkModel]:
         result = await self.session.execute(
-            select(NetworkModel).where(NetworkModel.project_id == project_id)
+            select(NetworkModel)
+            .where(NetworkModel.project_id == project_id)
+            .order_by(NetworkModel.updated_at.desc(), NetworkModel.created_at.desc())
         )
-        return result.scalar_one_or_none()
+        return list(result.scalars())
+
+    async def get_by_project(self, project_id: UUID) -> NetworkModel | None:
+        networks = await self.list_by_project(project_id)
+        if not networks:
+            return None
+        if len(networks) > 1:
+            raise ConflictError(
+                "Multiple Networks exist in this Project; select a Network explicitly"
+            )
+        return networks[0]
 
     async def get(self, network_id: UUID) -> NetworkModel | None:
         return await self.session.get(NetworkModel, network_id)
+
+    async def get_for_project(
+        self, network_id: UUID, project_id: UUID
+    ) -> NetworkModel | None:
+        return await self.session.scalar(
+            select(NetworkModel).where(
+                NetworkModel.id == network_id,
+                NetworkModel.project_id == project_id,
+            )
+        )
 
     async def get_version(self, version_id: UUID) -> NetworkVersionModel | None:
         return await self.session.get(NetworkVersionModel, version_id)
@@ -62,30 +84,39 @@ class NetworkRepository:
 
         from modules.agent.infra.database.models import AgentModel
 
-        referenced_agent_ids = {
+        node_agent_ids = [
             UUID(str(node["agent_id"]))
             for node in definition.get("nodes", [])
             if node.get("agent_id")
-        }
+        ]
+        if len(node_agent_ids) != len(set(node_agent_ids)):
+            raise ConflictError(
+                "The same Agent cannot appear more than once in a Network Draft"
+            )
+        referenced_agent_ids = set(node_agent_ids)
         if referenced_agent_ids:
             result = await self.session.execute(
                 select(AgentModel.id).where(
                     AgentModel.id.in_(referenced_agent_ids),
                     AgentModel.project_id == network.project_id,
+                    AgentModel.status == "active",
                 )
             )
             available_agent_ids = set(result.scalars())
             unavailable_agent_ids = referenced_agent_ids - available_agent_ids
             if unavailable_agent_ids:
-                joined = ", ".join(sorted(str(agent_id) for agent_id in unavailable_agent_ids))
+                joined = ", ".join(
+                    sorted(str(agent_id) for agent_id in unavailable_agent_ids)
+                )
                 raise ConflictError(
-                    f"Network Draft references Agents unavailable in this Project: {joined}"
+                    f"Network Draft references inactive or unavailable Agents: {joined}"
                 )
 
         statement = (
             update(NetworkModel)
             .where(
                 NetworkModel.id == network_id,
+                NetworkModel.project_id == network.project_id,
                 NetworkModel.draft_revision == expected_revision,
             )
             .values(
