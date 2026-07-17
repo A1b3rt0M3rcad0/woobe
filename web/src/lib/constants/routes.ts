@@ -41,8 +41,9 @@ export const ROUTES = {
 } as const
 
 export function orgProjectPath(orgId: string | undefined, projectId: string, ...segments: string[]): string {
+  const normalizedSegments = segments.length === 1 && segments[0] === 'network' ? ['networks'] : segments
   if (orgId) {
-    return `/organizations/${orgId}/projects/${projectId}${segments.length ? '/' + segments.join('/') : ''}`
+    return `/organizations/${orgId}/projects/${projectId}${normalizedSegments.length ? '/' + normalizedSegments.join('/') : ''}`
   }
-  return `/projects/${projectId}${segments.length ? '/' + segments.join('/') : ''}`
+  return `/projects/${projectId}${normalizedSegments.length ? '/' + normalizedSegments.join('/') : ''}`
 }
