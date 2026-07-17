@@ -1,16 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'react-router-dom'
 
 import {
   activateNetworkProduction,
+  createNetwork,
   createNetworkSession,
-  ensureNetwork,
+  getNetwork,
   getNetworkProductionActivations,
   getNetworkSessionMessages,
   getNetworkSessions,
   getNetworkVersions,
+  listNetworks,
   promoteNetwork,
   rollbackNetworkProduction,
   saveNetworkDraft,
+  updateNetworkMetadata,
 } from './api'
 import type {
   ActivateNetworkProductionInput,
@@ -31,18 +35,50 @@ function sessionTitle(environment: NetworkEnvironment) {
   return `${environment.charAt(0).toUpperCase()}${environment.slice(1)} · ${timestamp}`
 }
 
-export function useNetwork(projectId?: string, projectName = 'Project Network') {
+export function useNetworks(projectId?: string) {
   return useQuery({
-    queryKey: ['network', projectId],
-    queryFn: () => ensureNetwork(projectId!, `${projectName} Network`),
+    queryKey: ['networks', projectId],
+    queryFn: () => listNetworks(projectId!),
     enabled: Boolean(projectId),
+    staleTime: 30_000,
+  })
+}
+
+export function useCreateNetwork(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { name: string; description?: string }) => createNetwork(projectId!, input),
+    onSuccess: (created) => {
+      queryClient.setQueryData<NetworkResource[]>(['networks', projectId], (current = []) => [created, ...current])
+      queryClient.setQueryData<NetworkResource>(['network', projectId, created.id], created)
+    },
+  })
+}
+
+export function useUpdateNetworkMetadata(projectId?: string, networkId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { name?: string; description?: string }) => updateNetworkMetadata(projectId!, networkId!, input),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<NetworkResource>(['network', projectId, networkId], updated)
+      queryClient.setQueryData<NetworkResource[]>(['networks', projectId], (current = []) => current.map((item) => item.id === updated.id ? updated : item))
+    },
+  })
+}
+
+export function useNetwork(projectId?: string, _projectName = 'Project Network') {
+  const { networkId } = useParams<{ networkId: string }>()
+  return useQuery({
+    queryKey: ['network', projectId, networkId],
+    queryFn: () => getNetwork(projectId!, networkId!),
+    enabled: Boolean(projectId && networkId),
     staleTime: 30_000,
   })
 }
 
 export function useNetworkVersions(networkId?: string, projectId?: string) {
   return useQuery({
-    queryKey: ['network-versions', networkId, projectId],
+    queryKey: ['network-versions', projectId, networkId],
     queryFn: () => getNetworkVersions(networkId!, projectId!),
     enabled: Boolean(networkId && projectId),
   })
@@ -50,7 +86,7 @@ export function useNetworkVersions(networkId?: string, projectId?: string) {
 
 export function useNetworkProductionActivations(networkId?: string, projectId?: string) {
   return useQuery({
-    queryKey: ['network-production-activations', networkId, projectId],
+    queryKey: ['network-production-activations', projectId, networkId],
     queryFn: () => getNetworkProductionActivations(networkId!, projectId!),
     enabled: Boolean(networkId && projectId),
   })
@@ -58,7 +94,7 @@ export function useNetworkProductionActivations(networkId?: string, projectId?: 
 
 export function useNetworkSessions(networkId?: string, projectId?: string) {
   return useQuery({
-    queryKey: ['network-sessions', networkId, projectId],
+    queryKey: ['network-sessions', projectId, networkId],
     queryFn: () => getNetworkSessions(networkId!, projectId!),
     enabled: Boolean(networkId && projectId),
   })
@@ -66,7 +102,7 @@ export function useNetworkSessions(networkId?: string, projectId?: string) {
 
 export function useNetworkSessionMessages(networkId?: string, sessionId?: string, projectId?: string) {
   return useQuery({
-    queryKey: ['network-session-messages', networkId, sessionId, projectId],
+    queryKey: ['network-session-messages', projectId, networkId, sessionId],
     queryFn: () => getNetworkSessionMessages(networkId!, sessionId!, projectId!),
     enabled: Boolean(networkId && sessionId && projectId),
   })
@@ -88,8 +124,9 @@ export function useSaveNetworkDraft(networkId?: string, projectId?: string) {
       definition: input.definition,
     }),
     onSuccess: (saved) => {
-      queryClient.setQueryData<NetworkResource>(['network', projectId], saved)
-      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
+      queryClient.setQueryData<NetworkResource>(['network', projectId, networkId], saved)
+      queryClient.setQueryData<NetworkResource[]>(['networks', projectId], (current = []) => current.map((item) => item.id === saved.id ? saved : item))
+      queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
     },
   })
 }
@@ -99,17 +136,18 @@ export function usePromoteNetwork(networkId?: string, projectId?: string) {
   return useMutation({
     mutationFn: (input: PromoteNetworkInput) => promoteNetwork(networkId!, projectId!, input),
     onSuccess: (saved, input) => {
-      queryClient.setQueryData<NetworkVersion[]>(['network-versions', networkId, projectId], (current = []) => {
+      queryClient.setQueryData<NetworkVersion[]>(['network-versions', projectId, networkId], (current = []) => {
         const next = current.filter((version) => version.id !== saved.id)
         return [saved, ...next]
       })
-      queryClient.setQueryData<NetworkResource>(['network', projectId], (current) => current ? {
+      queryClient.setQueryData<NetworkResource>(['network', projectId, networkId], (current) => current ? {
         ...current,
         staging_version_id: input.environment === 'staging' ? saved.id : current.staging_version_id,
         production_version_id: input.environment === 'production' ? saved.id : current.production_version_id,
       } : current)
-      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
       queryClient.invalidateQueries({ queryKey: ['releases'] })
     },
   })
@@ -120,13 +158,14 @@ export function useActivateNetworkProduction(networkId?: string, projectId?: str
   return useMutation({
     mutationFn: (input: ActivateNetworkProductionInput) => activateNetworkProduction(networkId!, projectId!, input),
     onSuccess: (result) => {
-      queryClient.setQueryData<NetworkResource>(['network', projectId], (current) => current ? {
+      queryClient.setQueryData<NetworkResource>(['network', projectId, networkId], (current) => current ? {
         ...current,
         production_version_id: result.version.id,
       } : current)
-      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-production-activations', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['network-production-activations', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
     },
   })
 }
@@ -136,8 +175,9 @@ export function useRollbackNetworkProduction(networkId?: string, projectId?: str
   return useMutation({
     mutationFn: (targetVersionId: string) => rollbackNetworkProduction(networkId!, projectId!, targetVersionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['network', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['network-versions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
     },
   })
 }
@@ -151,7 +191,7 @@ export function useCreateNetworkSession(networkId?: string, projectId?: string) 
       title: sessionTitle(environment),
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['network-sessions', networkId, projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-sessions', projectId, networkId] })
     },
   })
 }

@@ -7,6 +7,8 @@ export const ROUTES = {
   ORG_PROJECTS: (orgId: string) => `/organizations/${orgId}/projects`,
   ORG_OVERVIEW: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
   ORG_PROJECT_DETAIL: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
+  ORG_NETWORKS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/networks`,
+  ORG_NETWORK: (orgId: string, projectId: string, networkId: string) => `/organizations/${orgId}/projects/${projectId}/networks/${networkId}`,
   ORG_AGENTS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents`,
   ORG_CREATE_AGENT: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents/new`,
   ORG_AGENT_DETAIL: (orgId: string, projectId: string, agentId: string) => `/organizations/${orgId}/projects/${projectId}/agents/${agentId}`,
@@ -21,6 +23,8 @@ export const ROUTES = {
 
   PROJECTS: '/projects',
   PROJECT_DETAIL: (id: string) => `/projects/${id}`,
+  NETWORKS: (id: string) => `/projects/${id}/networks`,
+  NETWORK: (projectId: string, networkId: string) => `/projects/${projectId}/networks/${networkId}`,
   API_KEYS: (id: string) => `/projects/${id}/api-keys`,
   AGENTS: (id: string) => `/projects/${id}/agents`,
   CREATE_AGENT: (id: string) => `/projects/${id}/agents/new`,

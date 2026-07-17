@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute, PublicRoute } from '@/features/auth/ProtectedRoute'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useAgents } from '@/features/agents/hooks'
+import { useNetworks } from '@/features/network/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { LoadingState } from '@/components/common/LoadingState'
 
@@ -19,7 +20,8 @@ import FirstRunSetupPage from '@/pages/FirstRunSetupPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
 import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
-import NetworkPage from '@/pages/NetworkPage'
+import NetworksPage from '@/pages/NetworksPage'
+import NetworkWorkspaceRoute from '@/pages/NetworkWorkspaceRoute'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
 import ModelsPage from '@/pages/ModelsPage'
@@ -187,6 +189,18 @@ function AgentPlaygroundRedirect() {
   return <Navigate to={`/organizations/${organizationId}/projects/${projectId}/agents/${agentId}/playground`} replace />
 }
 
+function LegacyNetworkRedirect() {
+  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const networksQuery = useNetworks(projectId)
+  if (!organizationId || !projectId) return <Navigate to="/organizations" replace />
+  if (networksQuery.isLoading) return <LoadingState message="Opening Networks" />
+  const networks = networksQuery.data ?? []
+  if (networks.length === 1) {
+    return <Navigate to={`/organizations/${organizationId}/projects/${projectId}/networks/${networks[0].id}`} replace />
+  }
+  return <Navigate to={`/organizations/${organizationId}/projects/${projectId}/networks`} replace />
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -210,7 +224,9 @@ export function AppRouter() {
             <Route path="/organizations/:organizationId/projects/:projectId" element={<DashboardPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/setup" element={<FirstRunSetupPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/settings" element={<OrgProjectDetailPage />} />
-            <Route path="/organizations/:organizationId/projects/:projectId/network" element={<NetworkPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/network" element={<LegacyNetworkRedirect />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/networks" element={<NetworksPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/networks/:networkId" element={<NetworkWorkspaceRoute />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents" element={<AgentsPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents/new" element={<AgentListRedirect />} />
             <Route path="/organizations/:organizationId/projects/:projectId/agents/:agentId" element={<AgentPlaygroundRedirect />} />
@@ -230,6 +246,8 @@ export function AppRouter() {
           <Route path="/projects" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/network" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/networks" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/networks/:networkId" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/new" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/agents/:agentId" element={<LegacyProjectRedirect />} />
