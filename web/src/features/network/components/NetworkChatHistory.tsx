@@ -2,6 +2,7 @@ import type { Ref, UIEventHandler } from 'react'
 import { Workflow } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
+import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 
@@ -44,6 +45,7 @@ export function NetworkChatHistory({
   onSelectAgent,
   onOpenTrace,
 }: NetworkChatHistoryProps) {
+  const exactNetworkName = useNetworkIdentity() ?? networkName
   const liveMessage: PlaygroundChatMessage = {
     role: 'assistant',
     content: liveAnswer,
@@ -70,7 +72,7 @@ export function NetworkChatHistory({
         {turns.map((turn) => (
           <div key={turn.id} className="space-y-4">
             <ChatMessage message={{ role: 'user', content: turn.user }} variant="network" />
-            <NetworkAnswer networkName={networkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} />
+            <NetworkAnswer networkName={exactNetworkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} />
           </div>
         ))}
 
@@ -79,7 +81,7 @@ export function NetworkChatHistory({
             <ChatMessage message={{ role: 'user', content: pendingMessage }} variant="network" />
             <ChatMessage
               message={liveMessage}
-              agentName={networkName}
+              agentName={exactNetworkName}
               variant="network"
               assistantIcon="network"
               details={<NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />}
