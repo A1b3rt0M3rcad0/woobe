@@ -1,0 +1,135 @@
+name: PR 80 diagnostics
+
+on:
+  push:
+    branches:
+      - agent/multiple-networks-per-project
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    env:
+      VITE_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Capture frontend build and tests
+        shell: bash
+        run: |
+          set +e
+          npm run build > frontend-build.log 2>&1
+          build_status=$?
+          npm run test:run > frontend-test.log 2>&1
+          test_status=$?
+          printf 'build=%s\ntest=%s\n' "$build_status" "$test_status" > frontend-status.txt
+          cat frontend-build.log
+          cat frontend-test.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr80-frontend-diagnostics
+          path: |
+            web/frontend-build.log
+            web/frontend-test.log
+            web/frontend-status.txt
+          if-no-files-found: error
+
+  backend-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: projectrai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d projectrai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: projectrai
+          RABBITMQ_DEFAULT_PASS: projectrai
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: src
+      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
+      PROJECTRAI_SECRET_KEY: ci-secret-key-at-least-32-characters
+      PROJECTRAI_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
+      PROJECTRAI_RABBITMQ_URL: amqp://projectrai:projectrai@localhost:5672/
+      PROJECTRAI_ENVIRONMENT: test
+      PROJECTRAI_DEBUG: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --all-groups --extra test
+      - name: Capture backend checks
+        shell: bash
+        run: |
+          set +e
+          uv run ruff check src tests > ruff.log 2>&1
+          ruff_status=$?
+          uv run pyright src migrations > pyright.log 2>&1
+          pyright_status=$?
+          uv run alembic heads > alembic-heads.log 2>&1
+          heads_status=$?
+          uv run alembic upgrade head > alembic-upgrade.log 2>&1
+          upgrade_status=$?
+          uv run alembic current > alembic-current.log 2>&1
+          current_status=$?
+          uv run alembic check > alembic-check.log 2>&1
+          check_status=$?
+          uv run python -m pytest -q > pytest.log 2>&1
+          pytest_status=$?
+          printf 'ruff=%s\npyright=%s\nheads=%s\nupgrade=%s\ncurrent=%s\ncheck=%s\npytest=%s\n' \
+            "$ruff_status" "$pyright_status" "$heads_status" "$upgrade_status" "$current_status" "$check_status" "$pytest_status" > backend-status.txt
+          for file in ruff.log pyright.log alembic-heads.log alembic-upgrade.log alembic-current.log alembic-check.log pytest.log; do
+            echo "===== $file ====="
+            cat "$file"
+          done
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr80-backend-diagnostics
+          path: |
+            ruff.log
+            pyright.log
+            alembic-heads.log
+            alembic-upgrade.log
+            alembic-current.log
+            alembic-check.log
+            pytest.log
+            backend-status.txt
+          if-no-files-found: error
