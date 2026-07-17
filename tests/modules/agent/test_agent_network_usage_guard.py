@@ -9,7 +9,7 @@ from tests.helpers import make_agent
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_status", [AgentStatus.inactive, AgentStatus.archived])
-async def test_disabling_agent_used_by_network_draft_is_blocked(
+async def test_disabling_active_agent_used_by_network_draft_is_blocked(
     mocker,
     target_status: AgentStatus,
 ) -> None:
