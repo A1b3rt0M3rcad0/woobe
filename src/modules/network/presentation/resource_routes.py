@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 from modules.core.infra.database.models import ProjectModel
 from modules.network.infra.database.models import NetworkModel
-from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError, ValidationError
+from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
@@ -183,7 +183,7 @@ async def update_project_network_metadata(
         )
         if network is None:
             raise NotFoundError("Network not found")
-        if payload.name is not None and payload.name.lower() != network.name.strip().lower():
+        if payload.name is not None:
             duplicate = await session.scalar(
                 select(NetworkModel.id).where(
                     NetworkModel.project_id == project_id,
