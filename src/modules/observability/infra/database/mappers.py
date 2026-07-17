@@ -1,18 +1,36 @@
+from typing import Any
+from uuid import UUID
+
 from modules.observability.domain.entities import Trace, TraceEvent
 from modules.observability.domain.enums import TraceEventType, TraceStatus
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 
 
+def _uuid(value: Any) -> UUID | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def trace_entity_to_model(entity: Trace) -> TraceModel:
+    data = entity.data or {}
     return TraceModel(
         id=entity.id,
         project_id=entity.project_id,
         agent_id=entity.agent_id,
         session_id=entity.session_id,
-        network_id=entity.network_id,
-        network_execution_id=entity.network_execution_id,
-        network_session_id=entity.network_session_id,
-        network_version_id=entity.network_version_id,
+        network_id=entity.network_id or _uuid(data.get("network_id")),
+        network_execution_id=entity.network_execution_id
+        or _uuid(data.get("network_execution_id")),
+        network_session_id=entity.network_session_id
+        or _uuid(data.get("network_session_id")),
+        network_version_id=entity.network_version_id
+        or _uuid(data.get("network_version_id")),
         external_session_id=entity.external_session_id,
         tenant_id=entity.tenant_id,
         user_id=entity.user_id,
