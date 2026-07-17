@@ -26,10 +26,10 @@ function shouldRetryTrace(failureCount: number, error: Error): boolean {
     && failureCount < TRACE_NOT_FOUND_RETRIES
 }
 
-export function useTraces(projectId?: string) {
+export function useTraces(projectId?: string, networkId?: string) {
   return useQuery({
-    queryKey: ['traces', { projectId }],
-    queryFn: () => getTraces({ projectId }),
+    queryKey: ['traces', { projectId, networkId }],
+    queryFn: () => getTraces({ projectId, networkId }),
     enabled: Boolean(projectId),
     refetchInterval: TRACE_LIST_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
