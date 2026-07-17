@@ -112,6 +112,9 @@ class NetworkRepository:
                     f"Network Draft references inactive or unavailable Agents: {joined}"
                 )
 
+        # Network metadata is persisted through the dedicated resource endpoint.
+        # Draft saves only mutate the versioned composition and its revision.
+        _ = (name, description)
         statement = (
             update(NetworkModel)
             .where(
@@ -120,8 +123,6 @@ class NetworkRepository:
                 NetworkModel.draft_revision == expected_revision,
             )
             .values(
-                name=name,
-                description=description,
                 draft_definition=definition,
                 draft_revision=NetworkModel.draft_revision + 1,
             )

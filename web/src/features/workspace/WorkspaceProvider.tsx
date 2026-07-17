@@ -5,7 +5,7 @@ import { getOrganizations } from '@/features/auth/api'
 import { getProjects } from '@/features/projects/api'
 import type { WorkspaceContextValue, OrgShape, ProjectShape } from './types'
 
-const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
+export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
 const STORED_ORG_KEY = 'projectrai_org'
 const STORED_PROJECT_KEY = 'projectrai_project'
