@@ -7,11 +7,12 @@ def _script_directory() -> ScriptDirectory:
 
 
 def test_migration_graph_has_one_head() -> None:
-    heads = _script_directory().get_heads()
-    assert heads == ["0042"]
+    assert _script_directory().get_heads() == ["0050"]
 
 
 def test_revision_identifiers_are_unique() -> None:
-    revisions = list(_script_directory().walk_revisions(base="base", head="heads"))
+    revisions = list(
+        _script_directory().walk_revisions(base="base", head="heads")
+    )
     identifiers = [revision.revision for revision in revisions]
     assert len(identifiers) == len(set(identifiers))
