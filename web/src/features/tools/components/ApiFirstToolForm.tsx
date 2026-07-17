@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { toast } from 'sonner'
+import { inspectHttpToolContract } from '@/features/tools/httpToolContract'
 import type { CreateToolRequest, HttpHeader, HttpToolConfig, McpToolConfig, ToolConfig, ToolProtocol } from '@/features/tools/types'
 
 export type ApiFirstToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
@@ -135,12 +136,19 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
       toast.error(error)
       return
     }
+    const config = buildConfig()
+    const contract = protocol === 'http' ? inspectHttpToolContract(config as HttpToolConfig) : null
+    if (contract?.errors.length) {
+      toast.error(contract.errors[0])
+      return
+    }
     const resolvedName = name.trim() || (protocol === 'mcp' ? serverName(mcpUrl.trim()) : 'HTTP Tool')
     await onSubmit({
       name: resolvedName,
       description: description.trim() || (protocol === 'mcp' ? 'MCP provider saved. Public tools load automatically; protected providers require Connect.' : undefined),
       type: protocol as ToolProtocol,
-      config: buildConfig(),
+      config,
+      input_schema: contract?.inputSchema,
       risk_level: riskLevel,
       timeout_ms: timeoutMs,
     })
@@ -163,7 +171,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
 
       {protocol === 'http' ? (
         <div className="space-y-3 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_130px]"><div><label className="mb-1 block text-xs font-medium text-muted">URL *</label><Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.example.com/items" /></div><div><label className="mb-1 block text-xs font-medium text-muted">Method</label><Select value={method} onChange={(event) => setMethod(event.target.value)} options={METHODS} /></div></div>
+          <div className="grid gap-3 md:grid-cols-[1fr_130px]"><div><label className="mb-1 block text-xs font-medium text-muted">URL *</label><Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.example.com/items" /><p className="mt-1 text-[10px] text-muted">Use {'{{parameterName}}'} in URL, Headers or Body.</p></div><div><label className="mb-1 block text-xs font-medium text-muted">Method</label><Select value={method} onChange={(event) => setMethod(event.target.value)} options={METHODS} /></div></div>
           <div className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Headers</p>
@@ -178,7 +186,7 @@ export function ApiFirstToolForm({ submitLabel = 'Create', cancelLabel = 'Cancel
               </div>
             ))}
           </div>
-          {['POST', 'PUT', 'PATCH'].includes(method) ? <div><label className="mb-1 block text-xs font-medium text-muted">Body</label><Textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder='{"key":"value"}' className="min-h-[90px] font-mono text-xs" /></div> : null}
+          {['POST', 'PUT', 'PATCH'].includes(method) ? <div><label className="mb-1 block text-xs font-medium text-muted">Body</label><Textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder='{"expr":"{{a}} + {{b}}"}' className="min-h-[90px] font-mono text-xs" /></div> : null}
         </div>
       ) : (
         <div className="space-y-3 rounded-2xl border border-border/80 bg-card/40 p-4">

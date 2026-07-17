@@ -16,6 +16,7 @@ import type {
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
 const FINAL_PHASES = new Set(['response_generation', 'final_response_generation'])
+const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -54,6 +55,13 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function sanitizeAssistantContent(value: string): string {
+  return PROVIDER_CONTROL_TOKENS.reduce(
+    (content, token) => content.split(token).join(''),
+    value,
+  )
+}
+
 function usageOf(value: unknown): UsageInfo | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const item = value as Record<string, unknown>
@@ -67,7 +75,7 @@ function usageOf(value: unknown): UsageInfo | null {
 
 function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
   return {
-    content: typeof item.content === 'string' ? item.content : '',
+    content: typeof item.content === 'string' ? sanitizeAssistantContent(item.content) : '',
     visibility: item.visibility === 'internal' || item.visibility === 'debug' ? item.visibility : 'assistant',
     channel: typeof item.channel === 'string' ? item.channel : 'final',
     phase: typeof item.phase === 'string' ? item.phase : null,
@@ -77,12 +85,20 @@ function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
   }
 }
 
+function isFinalPhase(phase: string): boolean {
+  return (
+    FINAL_PHASES.has(phase)
+    || phase === 'tool_planning'
+    || phase.startsWith('tool_followup_')
+  )
+}
+
 function isFinalStreamText(item: StreamTokenInfo): boolean {
   return (
     item.visibility === 'assistant' &&
     item.channel === 'final' &&
     typeof item.phase === 'string' &&
-    FINAL_PHASES.has(item.phase)
+    isFinalPhase(item.phase)
   )
 }
 
@@ -135,7 +151,7 @@ function toolOf(item: Record<string, unknown>): ToolCallInfo {
 
 function responseOf(item: Record<string, unknown>): AskResponse {
   return {
-    answer: typeof item.answer === 'string' ? item.answer : '',
+    answer: typeof item.answer === 'string' ? sanitizeAssistantContent(item.answer) : '',
     session_id: stringOrNull(item.session_id),
     message_id: stringOrNull(item.message_id),
     usage: usageOf(item.usage),

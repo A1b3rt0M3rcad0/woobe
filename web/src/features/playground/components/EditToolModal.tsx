@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/Select'
 import { Plus, X, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpdateTool } from '@/features/tools/hooks'
+import { inspectHttpToolContract } from '@/features/tools/httpToolContract'
 import type { HttpToolConfig, Tool } from '@/features/tools/types'
 
 interface EditToolModalProps {
@@ -150,13 +151,20 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
       return
     }
 
+    const config = canEditHttpConfig ? buildHttpConfig() : null
+    const contract = config ? inspectHttpToolContract(config, tool.input_schema) : null
+    if (contract?.errors.length) {
+      toast.error(contract.errors[0])
+      return
+    }
+
     try {
       await updateTool.mutateAsync({
         toolId: tool.id,
         data: {
           name: name.trim(),
           description: description.trim() || undefined,
-          ...(canEditHttpConfig ? { type: 'http', config: buildHttpConfig() } : {}),
+          ...(config ? { type: 'http', config, input_schema: contract?.inputSchema } : {}),
           risk_level: riskLevel,
           timeout_ms: timeoutMs,
         },
@@ -190,22 +198,10 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
           )}
 
           <div className="mt-4 space-y-3 rounded-xl border border-border/80 bg-background/45 p-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Name *</label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder={isMcpTool ? 'My MCP Tool' : 'My HTTP Tool'} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Description</label>
-              <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Risk Level</label>
-              <Select value={riskLevel} onChange={e => setRiskLevel(e.target.value)} options={RISK_LEVELS} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Timeout (ms)</label>
-              <Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} />
-            </div>
+            <div><label className="mb-1 block text-xs font-medium text-muted">Name *</label><Input value={name} onChange={e => setName(e.target.value)} placeholder={isMcpTool ? 'My MCP Tool' : 'My HTTP Tool'} /></div>
+            <div><label className="mb-1 block text-xs font-medium text-muted">Description</label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" /></div>
+            <div><label className="mb-1 block text-xs font-medium text-muted">Risk Level</label><Select value={riskLevel} onChange={e => setRiskLevel(e.target.value)} options={RISK_LEVELS} /></div>
+            <div><label className="mb-1 block text-xs font-medium text-muted">Timeout (ms)</label><Input type="number" value={timeoutMs} onChange={e => setTimeoutMs(Number(e.target.value))} min={1000} max={120000} /></div>
           </div>
         </aside>
 
@@ -217,69 +213,31 @@ export function EditToolModal({ tool, onClose, onSaved }: EditToolModalProps) {
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted">URL *</label>
                     <Input value={url} onChange={e => handleUrlChange(e.target.value)} placeholder="https://api.example.com/users/{{userId}}" />
-                    <p className="mt-1 text-[10px] text-muted">Use {'{{variableName}}'} for dynamic values in the URL.</p>
+                    <p className="mt-1 text-[10px] text-muted">Use {'{{parameterName}}'} in URL, Headers or Body.</p>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted">HTTP Method</label>
-                    <Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} />
-                  </div>
+                  <div><label className="mb-1 block text-xs font-medium text-muted">HTTP Method</label><Select value={method} onChange={e => setMethod(e.target.value)} options={HTTP_METHODS} /></div>
                 </div>
 
                 {urlVariables.length > 0 && (
                   <div className="rounded-xl border border-border/80 bg-background/45 p-3 space-y-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">URL Variables</p>
-                    {urlVariables.map(v => (
-                      <div key={v} className="flex items-center gap-2">
-                        <span className="min-w-[100px] text-xs font-mono text-muted">{'{{'}{v}{'}}'}</span>
-                        <Input value={variableValues[v] || ''} onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))} placeholder={`Default value for ${v}`} className="flex-1" />
-                      </div>
-                    ))}
+                    {urlVariables.map(v => <div key={v} className="flex items-center gap-2"><span className="min-w-[100px] text-xs font-mono text-muted">{'{{'}{v}{'}}'}</span><Input value={variableValues[v] || ''} onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))} placeholder={`Default value for ${v}`} className="flex-1" /></div>)}
                   </div>
                 )}
 
                 <div className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Headers</p>
-                    <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add Header
-                    </Button>
-                  </div>
-                  {headers.length === 0 ? (
-                    <p className="text-xs italic text-muted">No headers configured</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {headers.map(h => (
-                        <div key={h.id} className="flex items-center gap-1.5">
-                          <Input value={h.key} onChange={e => updateHeaderKey(h.id, e.target.value)} placeholder="Key" className="flex-1" />
-                          <Input value={h.value} onChange={e => updateHeaderValue(h.id, e.target.value)} placeholder="Value" className="flex-1" />
-                          <Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}>
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Headers</p><Button type="button" size="sm" variant="ghost" onClick={addHeader}><Plus className="h-3 w-3 mr-1" />Add Header</Button></div>
+                  {headers.length === 0 ? <p className="text-xs italic text-muted">No headers configured</p> : <div className="space-y-1.5">{headers.map(h => <div key={h.id} className="flex items-center gap-1.5"><Input value={h.key} onChange={e => updateHeaderKey(h.id, e.target.value)} placeholder="Key" className="flex-1" /><Input value={h.value} onChange={e => updateHeaderValue(h.id, e.target.value)} placeholder="Value" className="flex-1" /><Button type="button" size="sm" variant="ghost" className="shrink-0 text-red-400 hover:text-red-300" onClick={() => removeHeader(h.id)}><X className="h-3 w-3" /></Button></div>)}</div>}
                 </div>
 
-                {showBody && (
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted">Body</label>
-                    <Textarea value={body} onChange={e => setBody(e.target.value)} placeholder='{"key": "value"}' className="min-h-[140px] font-mono text-xs" />
-                  </div>
-                )}
+                {showBody && <div><label className="mb-1 block text-xs font-medium text-muted">Body</label><Textarea value={body} onChange={e => setBody(e.target.value)} placeholder='{"expr": "{{a}} + {{b}}"}' className="min-h-[140px] font-mono text-xs" /></div>}
               </div>
             ) : (
-              <div className="rounded-xl border border-border/80 bg-background/45 p-4 text-sm text-muted">
-                MCP provider server configuration is not edited in this HTTP form. Use Manage tools to control discovered remote tool permissions.
-              </div>
+              <div className="rounded-xl border border-border/80 bg-background/45 p-4 text-sm text-muted">MCP provider server configuration is not edited in this HTTP form. Use Manage tools to control discovered remote tool permissions.</div>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={updateTool.isPending}>Save</Button>
-          </div>
+          <div className="flex justify-end gap-2 border-t border-border/90 bg-background/20 p-4"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit" loading={updateTool.isPending}>Save</Button></div>
         </section>
       </form>
     </Dialog>
