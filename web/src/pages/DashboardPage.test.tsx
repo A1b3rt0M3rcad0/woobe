@@ -6,7 +6,6 @@ import {
   DashboardDataState,
   DashboardErrorState,
   DashboardLoadingState,
-  dashboardRowTarget,
 } from './DashboardPage'
 
 function cloneFixture() {
@@ -15,42 +14,36 @@ function cloneFixture() {
 
 describe('DashboardPage states', () => {
   it('renders loading and retryable error states', () => {
-    expect(renderToStaticMarkup(<DashboardLoadingState />)).toContain('Loading dashboard')
+    expect(renderToStaticMarkup(<DashboardLoadingState />)).toContain('Loading project overview')
     const retry = vi.fn()
     const errorMarkup = renderToStaticMarkup(<DashboardErrorState message="API unavailable" onRetry={retry} />)
-    expect(errorMarkup).toContain('Dashboard unavailable')
+    expect(errorMarkup).toContain('Overview unavailable')
     expect(errorMarkup).toContain('Retry')
   })
 
-  it('renders an execution empty state without replacing live project totals', () => {
+  it('renders a Run empty state without replacing live project totals', () => {
     const fixture = cloneFixture()
-    fixture.summary.requests = 0
+    fixture.summary.agent_runs = 0
+    fixture.summary.network_runs = 0
     fixture.timeseries = []
-    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} />)
-    expect(markup).toContain('No executions in this interval')
+    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
+    expect(markup).toContain('No Agent Runs or Network Runs in this interval')
     expect(markup).toContain('Open Knowledge')
   })
 
-  it('renders populated data and hides unavailable capability panels', () => {
-    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} />)
+  it('renders populated Run data and project assets', () => {
+    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
     expect(markup).toContain('Support Agent')
-    expect(markup).toContain('Recent Traces')
-    expect(markup).not.toContain('Sessions &amp; Jobs')
-    expect(markup).not.toContain('Ingestion Pipeline')
-    expect(markup).not.toContain('Recent Activity')
+    expect(markup).toContain('Support Network')
+    expect(markup).toContain('Recent Runs')
+    expect(markup).toContain('Runtime Assets')
   })
 
-  it('shows capability panels only when the API enables them', () => {
-    const fixture = cloneFixture()
-    fixture.capabilities = { sessions_jobs: true, ingestion_pipeline: true, activity_feed: true }
-    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} />)
-    expect(markup).toContain('Sessions &amp; Jobs')
-    expect(markup).toContain('Ingestion Pipeline')
-    expect(markup).toContain('Recent Activity')
-  })
-
-  it('routes release and trace rows to their dedicated screens', () => {
-    expect(dashboardRowTarget('release')).toBe('agents')
-    expect(dashboardRowTarget('trace')).toBe('traces')
+  it('keeps Agent Runs and Network Runs separate in the charts', () => {
+    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
+    expect(markup).toContain('Run Volume')
+    expect(markup).toContain('Agent Runs')
+    expect(markup).toContain('Network Runs')
+    expect(markup).toContain('Execution Time')
   })
 })
