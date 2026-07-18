@@ -158,3 +158,5 @@ def test_contextual_reader_sources_changes_from_real_versioned_state() -> None:
     assert "network.draft_revision" in source
     assert "draft_updated" in source
     assert "rolled_back" in source
+    assert ":environment IN" not in source
+    assert ":environment = 'all' OR :environment = 'draft'" in source
