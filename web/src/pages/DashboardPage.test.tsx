@@ -30,6 +30,7 @@ describe('DashboardPage states', () => {
     fixture.timeseries = []
     const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(fixture)} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
     expect(markup).toContain('No Agent Runs or Network Runs in this interval')
+    expect(markup).toContain('What changed')
     expect(markup).toContain('Changes across all environments')
     expect(markup).toContain('Current Project State')
     expect(markup).toContain('Open Knowledge')
@@ -38,7 +39,7 @@ describe('DashboardPage states', () => {
   it('renders the story in the intended vertical order', () => {
     const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
     const activityIndex = markup.indexOf('What happened')
-    const changesIndex = markup.indexOf('Changes across all environments')
+    const changesIndex = markup.indexOf('What changed')
     const currentStateIndex = markup.indexOf('Current Project State')
     const recentIndex = markup.indexOf('Recent Runs')
 
