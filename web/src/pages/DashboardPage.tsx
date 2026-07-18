@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
@@ -23,16 +22,17 @@ import {
 } from 'lucide-react'
 import {
   adaptProjectOverview,
+  environmentLabel,
   formatCost,
   formatPercent,
   rangeLabel,
 } from '@/features/dashboard/adapters'
 import type {
-  DashboardAgentReleaseRow,
+  DashboardChangeRow,
   DashboardMetric,
-  DashboardNetworkReleaseRow,
   DashboardReliabilityGroup,
   DashboardRunRow,
+  DashboardSeriesPoint,
   DashboardViewModel,
 } from '@/features/dashboard/adapters'
 import { useProjectOverview } from '@/features/dashboard/hooks'
@@ -63,7 +63,7 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
           <h2 className="truncate text-sm font-semibold text-white">{title}</h2>
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted" />
         </div>
-        {subtitle && <p className="mt-1 text-xs text-muted">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -72,11 +72,9 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
 
 function StorySectionHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex flex-col gap-1 pt-2 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h2 className="text-sm font-semibold text-white">{title}</h2>
-        <p className="mt-1 text-xs text-muted">{description}</p>
-      </div>
+    <div className="pt-2">
+      <h2 className="text-sm font-semibold text-white">{title}</h2>
+      <p className="mt-1 text-xs text-slate-400">{description}</p>
     </div>
   )
 }
@@ -94,15 +92,25 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
   const detailTone = metric.direction === 'up' ? 'text-emerald-300' : metric.direction === 'down' ? 'text-red-300' : 'text-muted'
   return (
     <Panel className="min-h-[128px] p-4">
-      <div className="flex h-full flex-col justify-between gap-5">
+      <div className="flex h-full flex-col justify-between gap-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-medium uppercase tracking-[0.14em] text-muted">{metric.label}</p>
-            <p className="mt-3 text-2xl font-semibold leading-none tracking-tight text-white">{metric.value}</p>
+            {metric.comparison ? (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {[metric.comparison.agent, metric.comparison.network].map((item) => (
+                  <div key={item.label} className="min-w-0 border-l border-border/80 pl-2 first:border-l-0 first:pl-0">
+                    <p className={`truncate text-[10px] font-medium uppercase tracking-wide ${item.tone}`}>{item.label}</p>
+                    <p className="mt-1 truncate text-lg font-semibold text-white">{item.value}</p>
+                    <p className="mt-1 text-[10px] text-muted">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-3 text-2xl font-semibold leading-none tracking-tight text-white">{metric.value}</p>}
           </div>
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background/70 ${metric.tone}`}><Icon className="h-5 w-5" /></div>
         </div>
-        <p className={`min-h-4 text-xs leading-5 ${detailTone}`}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
+        <p className={`min-h-4 text-[11px] leading-4 ${detailTone}`} title={metric.comparison ? metric.detail ?? undefined : undefined}>{metric.detail ?? 'No terminal Runs in this interval'}</p>
       </div>
     </Panel>
   )
@@ -117,7 +125,7 @@ export function DashboardLoadingState() {
     <div aria-label="Loading project overview" className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <SkeletonPanel key={index} className="min-h-[128px]" />)}</div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><SkeletonPanel className="min-h-[330px] xl:col-span-8" /><SkeletonPanel className="min-h-[330px] xl:col-span-4" /></div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2"><SkeletonPanel className="min-h-[260px]" /><SkeletonPanel className="min-h-[260px]" /></div>
+      <SkeletonPanel className="min-h-[120px]" />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><SkeletonPanel className="min-h-[250px]" /><SkeletonPanel className="min-h-[250px]" /><SkeletonPanel className="min-h-[250px]" /></div>
     </div>
   )
@@ -136,7 +144,7 @@ export function DashboardErrorState({ message, onRetry }: { message: string; onR
 
 function EmptyExecutionState() {
   return (
-    <Panel className="flex min-h-[220px] flex-col items-center justify-center p-7 text-center">
+    <Panel className="flex min-h-[180px] flex-col items-center justify-center p-7 text-center">
       <Activity className="h-9 w-9 text-muted" />
       <h2 className="mt-3 text-sm font-semibold text-white">No Agent Runs or Network Runs in this interval</h2>
       <p className="mt-1 max-w-lg text-xs leading-5 text-muted">The selected environment and time range returned no runtime activity. Changes and current Project state remain available below.</p>
@@ -168,6 +176,21 @@ function buildPath(values: number[], maxValue: number): string {
   return values.map((value, index) => `${index === 0 ? 'M' : 'L'} ${pointX(index, values.length).toFixed(2)} ${pointY(value, maxValue).toFixed(2)}`).join(' ')
 }
 
+function buildAreaPath(values: number[], maxValue: number): string {
+  if (values.length === 0) return ''
+  const baseline = CHART_HEIGHT - CHART_PADDING
+  const line = buildPath(values, maxValue)
+  return `${line} L ${pointX(values.length - 1, values.length).toFixed(2)} ${baseline} L ${pointX(0, values.length).toFixed(2)} ${baseline} Z`
+}
+
+function latestActivityIndex(series: DashboardSeriesPoint[]): number {
+  for (let index = series.length - 1; index >= 0; index -= 1) {
+    const point = series[index]
+    if (point && point.agentRuns + point.networkRuns + point.agentErrors + point.networkErrors > 0) return index
+  }
+  return Math.max(series.length - 1, 0)
+}
+
 function ChartTicks({ model }: { model: DashboardViewModel }) {
   const ticks = getTickIndexes(model.series.length)
   return (
@@ -182,45 +205,59 @@ function ChartGrid() {
 }
 
 function RunActivityChart({ model }: { model: DashboardViewModel }) {
-  const [activeIndex, setActiveIndex] = useState(() => Math.max(model.series.length - 1, 0))
+  const [selectedIndex, setSelectedIndex] = useState(() => latestActivityIndex(model.series))
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const activeIndex = hoverIndex ?? selectedIndex
   const agentValues = model.series.map((point) => point.agentRuns)
   const networkValues = model.series.map((point) => point.networkRuns)
   const maxValue = Math.max(...agentValues, ...networkValues, 1)
   const agentPath = buildPath(agentValues, maxValue)
-  const networkPath = buildPath(networkValues, maxValue)
+  const agentAreaPath = buildAreaPath(agentValues, maxValue)
+  const hasNetworkActivity = networkValues.some((value) => value > 0)
   const activePoint = model.series[activeIndex] ?? null
+  const bucketWidth = model.series.length > 0 ? (CHART_WIDTH - CHART_PADDING * 2) / model.series.length : 0
+  const networkBarWidth = Math.min(Math.max(bucketWidth * 0.34, 4), 16)
 
   useEffect(() => {
-    setActiveIndex(Math.max(model.series.length - 1, 0))
-  }, [model.series.length])
+    setSelectedIndex(latestActivityIndex(model.series))
+    setHoverIndex(null)
+  }, [model.series])
 
   return (
     <Panel className="h-full min-h-[330px]">
       <PanelHeader
         title="Run Activity"
-        subtitle="When the selected Project activity happened"
-        action={<span className="rounded-full border border-border bg-background/70 px-2.5 py-1 text-xs text-muted">{sum(agentValues).toLocaleString()} Agent · {sum(networkValues).toLocaleString()} Network</span>}
+        subtitle="When activity and execution errors occurred in the selected period"
+        action={<div className="rounded-full border border-border bg-background/70 px-3 py-1 text-right text-[10px] text-muted"><span className="block uppercase tracking-wide">Period total</span><b className="text-xs font-medium text-slate-200">{sum(agentValues).toLocaleString()} Agent Runs · {sum(networkValues).toLocaleString()} Network Runs</b></div>}
       />
       <div className="px-5 pb-5">
         <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted">
           <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-blue-500" />Agent Runs</span>
-          <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-violet-500" />Network Runs</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Errors in bucket</span>
+          {hasNetworkActivity && <span className="flex items-center gap-1.5"><span className="h-3 w-2 rounded-sm bg-violet-500/80" />Network Runs</span>}
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Errors</span>
         </div>
         <div className="relative h-[190px]">
           <ChartGrid />
-          <svg className="absolute inset-x-0 top-0 h-[166px] w-full" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-label="Agent Run and Network Run activity">
+          <svg onMouseLeave={() => setHoverIndex(null)} className="absolute inset-x-0 top-0 h-[166px] w-full" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-label="Agent Run line and Network Run bars by time bucket">
+            <defs><linearGradient id="agent-run-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" /><stop offset="100%" stopColor="#3b82f6" stopOpacity="0" /></linearGradient></defs>
+            {hasNetworkActivity && model.series.map((point, index) => {
+              if (point.networkRuns <= 0) return null
+              const x = pointX(index, model.series.length)
+              const y = pointY(point.networkRuns, maxValue)
+              const baseline = CHART_HEIGHT - CHART_PADDING
+              return <rect key={`network-bar-${point.bucketStart}`} x={x - networkBarWidth / 2} y={y} width={networkBarWidth} height={Math.max(baseline - y, 1)} rx="2" fill="#8b5cf6" fillOpacity="0.72" />
+            })}
+            {agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
             {agentPath && <path d={agentPath} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
-            {networkPath && <path d={networkPath} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {model.series.map((point, index) => {
               const x = pointX(index, model.series.length)
               const hasErrors = point.agentErrors + point.networkErrors > 0
+              const isActive = activeIndex === index
               return (
-                <g key={point.bucketStart} onMouseEnter={() => setActiveIndex(index)} onClick={() => setActiveIndex(index)} className="cursor-pointer">
+                <g key={point.bucketStart} onMouseEnter={() => setHoverIndex(index)} onClick={() => setSelectedIndex(index)} className="cursor-pointer">
                   <rect x={Math.max(x - 11, 0)} y={0} width={22} height={CHART_HEIGHT} fill="transparent" />
-                  {activeIndex === index && <line x1={x} x2={x} y1={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke="#64748b" strokeDasharray="3 4" strokeWidth="1" />}
-                  <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={activeIndex === index ? 4 : 2.5} fill="#3b82f6" />
-                  <circle cx={x} cy={pointY(point.networkRuns, maxValue)} r={activeIndex === index ? 4 : 2.5} fill="#8b5cf6" />
+                  {isActive && <line x1={x} x2={x} y1={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke="#94a3b8" strokeOpacity="0.45" strokeWidth="1" />}
+                  {(point.agentRuns > 0 || isActive) && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
                   {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r={3} fill="#f87171" />}
                 </g>
               )
@@ -229,14 +266,14 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
           <ChartTicks model={model} />
         </div>
         {activePoint && (
-          <div className="grid gap-2 rounded-xl border border-border/80 bg-background/45 p-3 sm:grid-cols-2">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{activePoint.label} · Agent Runs</p>
-              <div className="mt-2 grid grid-cols-4 gap-2 text-xs"><span><b className="block text-white">{activePoint.agentRuns}</b><span className="text-muted">Runs</span></span><span><b className="block text-emerald-300">{activePoint.agentSuccess}</b><span className="text-muted">Success</span></span><span><b className="block text-red-300">{activePoint.agentErrors}</b><span className="text-muted">Errors</span></span><span><b className="block text-white">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</b><span className="text-muted">Cost</span></span></div>
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{activePoint.label} · Network Runs</p>
-              <div className="mt-2 grid grid-cols-4 gap-2 text-xs"><span><b className="block text-white">{activePoint.networkRuns}</b><span className="text-muted">Runs</span></span><span><b className="block text-emerald-300">{activePoint.networkSuccess}</b><span className="text-muted">Success</span></span><span><b className="block text-red-300">{activePoint.networkErrors}</b><span className="text-muted">Errors</span></span><span><b className="block text-white">{formatPercent(activePoint.networkSuccessRate)}</b><span className="text-muted">Success rate</span></span></div>
+          <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-[150px]"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Selected interval</p><p className="mt-1 text-xs font-medium text-white">{activePoint.label}</p></div>
+            <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
+              <div><p className="text-[10px] text-muted">Agent Runs</p><p className="mt-1 text-sm font-semibold text-blue-300">{activePoint.agentRuns}</p></div>
+              <div><p className="text-[10px] text-muted">Network Runs</p><p className="mt-1 text-sm font-semibold text-violet-300">{activePoint.networkRuns}</p></div>
+              <div><p className="text-[10px] text-muted">Successful</p><p className="mt-1 text-sm font-semibold text-emerald-300">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
+              <div><p className="text-[10px] text-muted">Errors</p><p className="mt-1 text-sm font-semibold text-red-300">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
+              <div><p className="text-[10px] text-muted">Runtime cost</p><p className="mt-1 text-sm font-semibold text-white">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
             </div>
           </div>
         )}
@@ -254,12 +291,13 @@ function ReliabilityDistribution({ group }: { group: DashboardReliabilityGroup }
     { key: 'errors', value: errors, className: 'bg-red-500', label: 'Errors' },
     { key: 'cancelled', value: group.cancelled, className: 'bg-slate-500', label: 'Cancelled' },
   ]
+  const activeSegments = segments.filter((segment) => segment.value > 0)
   return (
     <div>
       <div className="flex h-2.5 overflow-hidden rounded-full bg-background ring-1 ring-border/80">
-        {group.terminalRuns === 0 ? <span className="h-full w-full bg-muted/20" /> : segments.filter((segment) => segment.value > 0).map((segment) => <span key={segment.key} title={`${segment.label}: ${segment.value}`} className={segment.className} style={{ width: `${(segment.value / denominator) * 100}%` }} />)}
+        {group.terminalRuns === 0 ? <span className="h-full w-full bg-muted/20" /> : activeSegments.map((segment) => <span key={segment.key} title={`${segment.label}: ${segment.value}`} className={segment.className} style={{ width: `${(segment.value / denominator) * 100}%` }} />)}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">{segments.map((segment) => <span key={segment.key} className="flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${segment.className}`} />{segment.label} {segment.value}</span>)}</div>
+      {activeSegments.length > 1 && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">{activeSegments.map((segment) => <span key={segment.key} className="flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${segment.className}`} />{segment.label} {segment.value}</span>)}</div>}
     </div>
   )
 }
@@ -269,15 +307,14 @@ function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
   return (
     <div className="rounded-xl border border-border/80 bg-background/45 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-xs font-semibold text-white">{group.label}</p><p className="mt-1 text-[10px] text-muted">{group.terminalRuns} terminal · {group.running} running</p></div>
+        <div><p className="text-xs font-semibold text-white">{group.label}</p><p className="mt-1 text-[11px] text-slate-400">{group.successful} successful · {errors} errors · {group.running} running</p></div>
         <div className="text-right"><p className={`text-lg font-semibold ${group.successRate !== null && group.successRate >= 99 ? 'text-emerald-300' : errors > 0 ? 'text-amber-300' : 'text-white'}`}>{formatPercent(group.successRate)}</p><p className="text-[10px] text-muted">success</p></div>
       </div>
       <div className="mt-3"><ReliabilityDistribution group={group} /></div>
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-        <span className="flex justify-between gap-2 text-muted">Errors <b className="text-red-300">{errors}</b></span>
-        <span className="flex justify-between gap-2 text-muted">Error rate <b className="text-white">{formatPercent(group.errorRate)}</b></span>
-        <span className="flex justify-between gap-2 text-muted">Average <b className="text-white">{group.averageDurationLabel}</b></span>
-        <span className="flex justify-between gap-2 text-muted">p95 <b className="text-white">{group.p95DurationLabel}</b></span>
+      <div className="mt-3 grid grid-cols-3 gap-x-3 text-xs">
+        <span className="text-muted">Error rate <b className="mt-1 block text-white">{formatPercent(group.errorRate)}</b></span>
+        <span className="text-muted">Average <b className="mt-1 block text-white">{group.averageDurationLabel}</b></span>
+        <span className="text-muted" title="95% of terminal Runs completed within this duration">p95 <b className="mt-1 block text-white">{group.p95DurationLabel}</b></span>
       </div>
     </div>
   )
@@ -286,7 +323,7 @@ function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
 function ReliabilityPanel({ model }: { model: DashboardViewModel }) {
   return (
     <Panel className="h-full min-h-[330px]">
-      <PanelHeader title="Reliability & Performance" subtitle="Whether the Runs in this period completed correctly" />
+      <PanelHeader title="Reliability & Performance" subtitle="Whether Agent Runs and Network Runs completed correctly" />
       <div className="space-y-3 px-5 pb-5"><ReliabilityGroupView group={model.reliability.agent} /><ReliabilityGroupView group={model.reliability.network} /></div>
     </Panel>
   )
@@ -294,27 +331,29 @@ function ReliabilityPanel({ model }: { model: DashboardViewModel }) {
 
 function OperationalIssues({ model }: { model: DashboardViewModel }) {
   if (!model.issues.hasIssues) return null
+  const totalIssues = model.issues.totalAgentErrors + model.issues.totalNetworkErrors
+  const firstEntity = model.issues.topAgents[0] ?? model.issues.topNetworks[0]
+  const firstCode = model.issues.topCodes[0]
+
+  if (totalIssues <= 2) {
+    return (
+      <Panel className="border-red-500/15 bg-red-500/[0.018] px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" /><div><p className="text-sm font-semibold text-white">{totalIssues} operational {totalIssues === 1 ? 'issue' : 'issues'} in this period</p><p className="mt-1 text-xs text-slate-400">{model.issues.summary.join(' · ')}</p></div></div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="text-muted">Affected <b className="ml-1 text-white">{firstEntity?.name ?? 'Unknown'}</b></span><span className="text-muted">Failure code <b className="ml-1 font-mono text-red-200">{firstCode?.code ?? 'unknown'}</b></span>{model.issues.peakLabel && <span className="text-muted">Occurred <b className="ml-1 text-white">{model.issues.peakLabel}</b></span>}</div>
+        </div>
+      </Panel>
+    )
+  }
+
   return (
     <Panel className="border-red-500/20 bg-red-500/[0.025]">
       <PanelHeader title="Operational Issues" subtitle="Errors detected in the selected period" action={<AlertTriangle className="h-4 w-4 text-red-300" />} />
       <div className="grid gap-4 px-5 pb-5 xl:grid-cols-12">
-        <div className="xl:col-span-4">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">What happened</p>
-          <div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-red-200">{item}</div>)}</div>
-          {model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-white">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}
-        </div>
-        <div className="xl:col-span-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Agents</p>
-          <div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div>
-        </div>
-        <div className="xl:col-span-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Networks</p>
-          <div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div>
-        </div>
-        <div className="xl:col-span-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Failure codes</p>
-          <div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-[10px] text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-red-300">{item.failure_count}</p></div>)}</div>
-        </div>
+        <div className="xl:col-span-4"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-red-200">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-white">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
+        <div className="xl:col-span-3"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div></div>
+        <div className="xl:col-span-3"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Networks</p><div className="mt-2 space-y-2">{model.issues.topNetworks.length === 0 ? <p className="text-xs text-muted">No Network failures.</p> : model.issues.topNetworks.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div></div>
+        <div className="xl:col-span-2"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Failure codes</p><div className="mt-2 space-y-2">{model.issues.topCodes.map((item) => <div key={item.code} className="rounded-lg border border-border/70 bg-background/45 px-3 py-2"><p className="truncate font-mono text-[10px] text-slate-200">{item.code}</p><p className="mt-1 text-xs font-semibold text-red-300">{item.failure_count}</p></div>)}</div></div>
       </div>
     </Panel>
   )
@@ -331,35 +370,34 @@ function StatusBadge({ value }: { value: string }) {
   return <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${classes}`}>{value}</span>
 }
 
-function AgentReleaseItem({ release, onOpen }: { release: DashboardAgentReleaseRow; onOpen: () => void }) {
-  return (
-    <button type="button" onClick={onOpen} className="w-full rounded-xl border border-border/80 bg-background/45 p-3 text-left transition-colors hover:border-primary/25 hover:bg-background/75">
-      <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><Bot className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><b className="truncate text-sm text-white">{release.agent_name}</b><EnvironmentBadge value={release.environmentLabel} /></span><span className="mt-1 block text-xs text-muted">Version {release.version} · {release.occurredLabel}</span><span className="mt-2 block line-clamp-2 text-xs leading-5 text-slate-300">{release.description}</span></span></div>
-    </button>
-  )
+function changeContext(environment: DashboardEnvironment) {
+  if (environment === 'draft') return { title: 'Draft activity', description: 'Mutable Agent and Network Draft updates in the selected period.', empty: 'No Draft changes in the selected period.' }
+  if (environment === 'staging') return { title: 'Staging changes', description: 'Agent and Network versions published to Staging in the selected period.', empty: 'No Staging changes in the selected period.' }
+  if (environment === 'production') return { title: 'Production releases', description: 'Immutable releases, rollbacks, and reactivations in the selected period.', empty: 'No Production releases in the selected period.' }
+  return { title: 'Changes across all environments', description: 'Draft updates, Staging versions, and Production releases in chronological order.', empty: 'No changes recorded in the selected period.' }
 }
 
-function NetworkReleaseItem({ release, onOpen }: { release: DashboardNetworkReleaseRow; onOpen: () => void }) {
+function ChangeItem({ change, onOpen }: { change: DashboardChangeRow; onOpen: () => void }) {
+  const Icon = change.resourceType === 'agent' ? Bot : Network
   return (
-    <button type="button" onClick={onOpen} className="w-full rounded-xl border border-border/80 bg-background/45 p-3 text-left transition-colors hover:border-primary/25 hover:bg-background/75">
-      <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-violet-300"><Network className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><b className="truncate text-sm text-white">{release.network_name}</b><EnvironmentBadge value={release.environmentLabel} /></span><span className="mt-1 block text-xs text-muted">Version {release.version} · {release.agent_count} Agents · {release.occurredLabel}</span><span className="mt-2 block line-clamp-2 text-xs leading-5 text-slate-300">{release.description}</span>{release.activationLabel && <span className="mt-2 inline-flex rounded-md border border-border bg-surface px-2 py-0.5 text-[10px] text-muted">{release.activationLabel}</span>}</span></div>
+    <button type="button" onClick={onOpen} className="grid w-full gap-3 rounded-xl border border-border/80 bg-background/45 p-3 text-left transition-colors hover:border-primary/25 hover:bg-background/75 md:grid-cols-[40px_minmax(0,1fr)_auto] md:items-center">
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface ${change.resourceType === 'agent' ? 'text-blue-300' : 'text-violet-300'}`}><Icon className="h-4 w-4" /></span>
+      <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><b className="truncate text-sm text-white">{change.resourceName}</b><span className="rounded-md border border-border bg-surface px-2 py-0.5 text-[10px] text-slate-300">{change.resourceLabel}</span><EnvironmentBadge value={change.environmentLabel} /></span><span className="mt-1 block text-xs text-slate-300">{change.actionLabel}{change.versionLabel ? ` · ${change.versionLabel}` : ''}</span><span className="mt-1 block truncate text-xs text-muted">{change.description}</span></span>
+      <span className="text-xs text-muted md:text-right">{change.occurredLabel}</span>
     </button>
   )
 }
 
 function ChangesInPeriod({ model, environment, onNavigate }: { model: DashboardViewModel; environment: DashboardEnvironment; onNavigate: (segment: string) => void }) {
-  const draftMessage = environment === 'draft' ? 'Draft changes are mutable and are not presented as releases.' : 'No releases in this period.'
+  const context = changeContext(environment)
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <Panel className="min-h-[250px]">
-        <PanelHeader title="Agent Releases" subtitle="Immutable Agent changes in the selected period" />
-        <div className="space-y-2 px-5 pb-5">{model.agentReleases.length === 0 ? <p className="py-8 text-center text-sm text-muted">{draftMessage}</p> : model.agentReleases.map((release) => <AgentReleaseItem key={release.id} release={release} onOpen={() => onNavigate('agents')} />)}<MiniLink label="View all Agent releases" onClick={() => onNavigate('agents')} /></div>
-      </Panel>
-      <Panel className="min-h-[250px]">
-        <PanelHeader title="Network Releases" subtitle="Immutable Network changes in the selected period" />
-        <div className="space-y-2 px-5 pb-5">{model.networkReleases.length === 0 ? <p className="py-8 text-center text-sm text-muted">{draftMessage}</p> : model.networkReleases.map((release) => <NetworkReleaseItem key={release.id} release={release} onOpen={() => onNavigate(`networks/${release.network_id}`)} />)}<MiniLink label="View all Networks" onClick={() => onNavigate('networks')} /></div>
-      </Panel>
-    </div>
+    <Panel>
+      <PanelHeader title={context.title} subtitle={context.description} />
+      <div className="space-y-2 px-5 pb-4">
+        {model.changes.length === 0 ? <div className="rounded-xl border border-dashed border-border/80 bg-background/25 px-4 py-5 text-center text-sm text-muted">{context.empty}</div> : model.changes.map((change) => <ChangeItem key={`${change.resourceType}-${change.id}`} change={change} onOpen={() => onNavigate(change.resourceType === 'agent' ? `agents/${change.resourceId}` : `networks/${change.resourceId}`)} />)}
+        <div className="flex flex-wrap gap-4 pt-2"><MiniLink label="View Agent history" onClick={() => onNavigate('agents')} /><MiniLink label="View Network history" onClick={() => onNavigate('networks')} /></div>
+      </div>
+    </Panel>
   )
 }
 
@@ -376,7 +414,7 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
   return (
     <Panel className="h-full min-h-[250px]">
       <PanelHeader title="Runtime Assets" subtitle="Current deployable state" />
-      <div className="space-y-1 px-5 pb-5">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between rounded-lg px-1 py-2 text-sm"><span className="text-slate-200">{label}</span><span className="font-semibold text-white">{value}</span></div>)}</div>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-1 px-5 pb-5">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 text-xs last:border-b-0"><span className="text-slate-300">{label}</span><span className="font-semibold text-white">{value}</span></div>)}</div>
     </Panel>
   )
 }
@@ -417,12 +455,12 @@ function keyboardActivate(event: KeyboardEvent<HTMLElement>, action: () => void)
   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); action() }
 }
 
-function RecentRuns({ model, onOpen }: { model: DashboardViewModel; onOpen: (run: DashboardRunRow) => void }) {
+function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; onOpen: (run: DashboardRunRow) => void; onViewAll: () => void }) {
   return (
     <Panel className="overflow-hidden">
-      <PanelHeader title="Recent Runs" subtitle="The three latest primary executions in the selected period" />
+      <PanelHeader title="Recent Runs" subtitle="The three latest primary executions in the selected period" action={<MiniLink label="View all Runs" onClick={onViewAll} />} />
       <div className="px-5 pb-5">
-        {model.runs.length === 0 ? <p className="py-8 text-center text-sm text-muted">No Runs in this interval.</p> : (
+        {model.runs.length === 0 ? <p className="py-6 text-center text-sm text-muted">No Runs in this interval.</p> : (
           <div className="space-y-2">
             <div className="hidden grid-cols-[110px_minmax(220px,1fr)_100px_125px_165px_90px_155px] gap-3 px-3 text-[10px] font-medium uppercase tracking-wide text-muted xl:grid"><span>Type</span><span>Name</span><span>Environment</span><span>Status</span><span>Started</span><span className="text-right">Duration</span><span className="text-right">Cost</span></div>
             {model.runs.map((run) => {
@@ -447,6 +485,7 @@ function RecentRuns({ model, onOpen }: { model: DashboardViewModel; onOpen: (run
 }
 
 export function DashboardDataState({ model, environment = 'all', onNavigate, onOpenRun }: { model: DashboardViewModel; environment?: DashboardEnvironment; onNavigate: (segment: string) => void; onOpenRun: (run: DashboardRunRow) => void }) {
+  const change = changeContext(environment)
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
@@ -455,14 +494,14 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
       {model.isExecutionEmpty ? <EmptyExecutionState /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><div className="xl:col-span-8"><RunActivityChart model={model} /></div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>}
       <OperationalIssues model={model} />
 
-      <StorySectionHeader title="Changes in this period" description="Immutable Agent and Network releases that may explain changes in runtime behavior." />
+      <StorySectionHeader title={change.title} description={change.description} />
       <ChangesInPeriod model={model} environment={environment} onNavigate={onNavigate} />
 
       <StorySectionHeader title="Current Project State" description="Current deployable resources. Knowledge and Tools are Project-wide, not historical environment snapshots." />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
 
       <StorySectionHeader title="Latest executions" description="A compact operational handoff to the detailed Agent or Network workspace." />
-      <RecentRuns model={model} onOpen={onOpenRun} />
+      <RecentRuns model={model} onOpen={onOpenRun} onViewAll={() => onNavigate('traces')} />
     </div>
   )
 }
@@ -470,15 +509,12 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
 export default function DashboardPage() {
   const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [environment, setEnvironment] = useState<DashboardEnvironment>('all')
   const [range, setRange] = useState<DashboardRangePreset>('24h')
-  const [windowAnchor, setWindowAnchor] = useState(() => new Date())
-  const query = useProjectOverview({ projectId, environment, range, now: windowAnchor })
+  const query = useProjectOverview({ projectId, environment, range })
   const model = useMemo(() => query.data ? adaptProjectOverview(query.data) : null, [query.data])
-
-  useEffect(() => { const interval = window.setInterval(() => setWindowAnchor(new Date()), 60_000); return () => window.clearInterval(interval) }, [])
-  useEffect(() => queryClient.getMutationCache().subscribe((event: any) => { if (event.type === 'updated' && event.mutation.state.status === 'success') setWindowAnchor(new Date()) }), [queryClient])
+  const isInitialLoading = query.isPending && !query.data
+  const isUpdating = query.isFetching && Boolean(query.data)
 
   const goTo = (segment: string) => {
     if (!projectId) return
@@ -501,11 +537,12 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin">
-      <div className="min-w-0 space-y-5 pb-6 pr-1">
-        <header className="rounded-xl border border-border/80 bg-surface/50 p-5">
+      <div className="min-w-0 space-y-5 pb-6 pr-1" aria-busy={isUpdating}>
+        <header className="relative overflow-hidden rounded-xl border border-border/80 bg-surface/50 p-5">
+          {isUpdating && <div className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70" />}
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-primary-light" /><h1 className="text-2xl font-semibold tracking-tight text-white">Project Overview</h1></div>
+              <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-primary-light" /><h1 className="text-2xl font-semibold tracking-tight text-white">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
               <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300" aria-live="polite">{model?.narrative ?? 'Operational health across Agent Runs, Network Runs, releases, Knowledge, and Tools.'}</p>
               {model && <p className="mt-2 text-xs text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
@@ -513,11 +550,22 @@ export default function DashboardPage() {
               <label className="sr-only" htmlFor="dashboard-range">Dashboard range</label>
               <select id="dashboard-range" value={range} onChange={(event: ChangeEvent<HTMLSelectElement>) => setRange(event.target.value as DashboardRangePreset)} className="h-9 rounded-lg border border-border bg-background/70 px-3 text-sm text-slate-300 outline-none transition-colors focus:ring-1 focus:ring-primary/60">{RANGES.map((item) => <option key={item} value={item}>{rangeLabel(item)}</option>)}</select>
               <div className="flex max-w-full overflow-x-auto rounded-lg border border-border bg-background/50 p-1 scrollbar-thin">{ENVIRONMENTS.map((item) => <button type="button" key={item.value} onClick={() => setEnvironment(item.value)} aria-pressed={environment === item.value} className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium transition-colors ${environment === item.value ? item.tone : 'border-transparent text-muted hover:bg-surface hover:text-white'}`}><span className={`h-1.5 w-1.5 rounded-full ${item.dot}`} />{item.label}</button>)}</div>
-              <button type="button" onClick={() => setWindowAnchor(new Date())} disabled={query.isFetching} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-sm font-medium text-slate-300 transition-colors hover:border-primary/35 hover:text-white disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />Refresh</button>
+              <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-sm font-medium text-slate-300 transition-colors hover:border-primary/35 hover:text-white disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />Refresh</button>
             </div>
           </div>
         </header>
-        {!projectId ? <DashboardErrorState message="Project identifier is missing from the route." onRetry={() => window.location.reload()} /> : query.isPending ? <DashboardLoadingState /> : query.isError ? <DashboardErrorState message={query.error instanceof Error ? query.error.message : 'Unable to load project overview.'} onRetry={() => query.refetch()} /> : model ? <DashboardDataState model={model} environment={environment} onNavigate={goTo} onOpenRun={openRun} /> : <DashboardErrorState message="The overview endpoint returned no data." onRetry={() => query.refetch()} />}
+
+        {query.isError && model && <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs text-amber-200">The latest refresh failed. Showing the last available Overview data.</div>}
+
+        {!projectId
+          ? <DashboardErrorState message="Project identifier is missing from the route." onRetry={() => window.location.reload()} />
+          : isInitialLoading
+            ? <DashboardLoadingState />
+            : !model && query.isError
+              ? <DashboardErrorState message={query.error instanceof Error ? query.error.message : 'Unable to load project overview.'} onRetry={() => query.refetch()} />
+              : model
+                ? <DashboardDataState model={model} environment={environment} onNavigate={goTo} onOpenRun={openRun} />
+                : <DashboardErrorState message="The overview endpoint returned no data." onRetry={() => query.refetch()} />}
       </div>
     </div>
   )
