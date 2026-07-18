@@ -213,6 +213,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
   const maxValue = Math.max(...agentValues, ...networkValues, 1)
   const agentPath = buildPath(agentValues, maxValue)
   const agentAreaPath = buildAreaPath(agentValues, maxValue)
+  const hasAgentActivity = agentValues.some((value) => value > 0)
   const hasNetworkActivity = networkValues.some((value) => value > 0)
   const activePoint = model.series[activeIndex] ?? null
   const bucketWidth = model.series.length > 0 ? (CHART_WIDTH - CHART_PADDING * 2) / model.series.length : 0
@@ -232,7 +233,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
       />
       <div className="px-5 pb-5">
         <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted">
-          <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-blue-500" />Agent Runs</span>
+          {hasAgentActivity && <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-blue-500" />Agent Runs</span>}
           {hasNetworkActivity && <span className="flex items-center gap-1.5"><span className="h-3 w-2 rounded-sm bg-violet-500/80" />Network Runs</span>}
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Errors</span>
         </div>
@@ -247,8 +248,8 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
               const baseline = CHART_HEIGHT - CHART_PADDING
               return <rect key={`network-bar-${point.bucketStart}`} x={x - networkBarWidth / 2} y={y} width={networkBarWidth} height={Math.max(baseline - y, 1)} rx="2" fill="#8b5cf6" fillOpacity="0.72" />
             })}
-            {agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
-            {agentPath && <path d={agentPath} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
+            {hasAgentActivity && agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
+            {hasAgentActivity && agentPath && <path d={agentPath} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
             {model.series.map((point, index) => {
               const x = pointX(index, model.series.length)
               const hasErrors = point.agentErrors + point.networkErrors > 0
@@ -257,7 +258,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
                 <g key={point.bucketStart} onMouseEnter={() => setHoverIndex(index)} onClick={() => setSelectedIndex(index)} className="cursor-pointer">
                   <rect x={Math.max(x - 11, 0)} y={0} width={22} height={CHART_HEIGHT} fill="transparent" />
                   {isActive && <line x1={x} x2={x} y1={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke="#94a3b8" strokeOpacity="0.45" strokeWidth="1" />}
-                  {(point.agentRuns > 0 || isActive) && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
+                  {hasAgentActivity && (point.agentRuns > 0 || isActive) && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
                   {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r={3} fill="#f87171" />}
                 </g>
               )
@@ -485,7 +486,6 @@ function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; o
 }
 
 export function DashboardDataState({ model, environment = 'all', onNavigate, onOpenRun }: { model: DashboardViewModel; environment?: DashboardEnvironment; onNavigate: (segment: string) => void; onOpenRun: (run: DashboardRunRow) => void }) {
-  const change = changeContext(environment)
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{model.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
@@ -494,7 +494,7 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
       {model.isExecutionEmpty ? <EmptyExecutionState /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-12"><div className="xl:col-span-8"><RunActivityChart model={model} /></div><div className="xl:col-span-4"><ReliabilityPanel model={model} /></div></div>}
       <OperationalIssues model={model} />
 
-      <StorySectionHeader title={change.title} description={change.description} />
+      <StorySectionHeader title="What changed" description="Configuration and release activity for the selected environment and period." />
       <ChangesInPeriod model={model} environment={environment} onNavigate={onNavigate} />
 
       <StorySectionHeader title="Current Project State" description="Current deployable resources. Knowledge and Tools are Project-wide, not historical environment snapshots." />
