@@ -9,6 +9,7 @@ function cloneFixture() {
 describe('adaptProjectOverview', () => {
   it('maps the operational story to the Overview view model', () => {
     const model = adaptProjectOverview(cloneFixture())
+    const averageRunTimeMetric = model.metrics[model.metrics.length - 1]
 
     expect(model.metrics.map((metric) => metric.label)).toEqual([
       'Agent Runs',
@@ -18,8 +19,8 @@ describe('adaptProjectOverview', () => {
       'Network Run Success',
       'Average Run Time',
     ])
-    expect(model.metrics.at(-1)?.comparison?.agent.label).toBe('Agent Run')
-    expect(model.metrics.at(-1)?.comparison?.network.label).toBe('Network Run')
+    expect(averageRunTimeMetric?.comparison?.agent.label).toBe('Agent Run')
+    expect(averageRunTimeMetric?.comparison?.network.label).toBe('Network Run')
     expect(model.narrative).toContain('12 Agent Runs')
     expect(model.narrative).toContain('2 Network Runs')
     expect(model.series).toHaveLength(2)
