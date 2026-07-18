@@ -18,6 +18,14 @@ OverviewRunSource = Literal[
     "schedule",
     "unknown",
 ]
+OverviewChangeResource = Literal["agent", "network"]
+OverviewChangeAction = Literal[
+    "draft_updated",
+    "staged",
+    "released",
+    "rolled_back",
+    "reactivated",
+]
 
 
 class ProjectOverviewQuery(BaseModel):
@@ -182,6 +190,20 @@ class ProjectOverviewNetworkRelease(BaseModel):
     created_at: datetime
 
 
+class ProjectOverviewChange(BaseModel):
+    id: UUID
+    resource_type: OverviewChangeResource
+    resource_id: UUID
+    resource_name: str
+    environment: Literal["draft", "staging", "production"]
+    action: OverviewChangeAction
+    version: str | None = None
+    revision: int | None = None
+    description: str | None = None
+    occurred_at: datetime
+    immutable: bool
+
+
 class ProjectOverviewTrace(BaseModel):
     id: UUID
     agent_id: UUID | None = None
@@ -281,6 +303,7 @@ class ProjectOverviewOutput(BaseModel):
     recent_network_releases: list[ProjectOverviewNetworkRelease] = Field(
         default_factory=list
     )
+    recent_changes: list[ProjectOverviewChange] = Field(default_factory=list)
     recent_traces: list[ProjectOverviewTrace]
     recent_network_runs: list[ProjectOverviewNetworkRun] = Field(default_factory=list)
     operational_issues: ProjectOverviewOperationalIssues = Field(
