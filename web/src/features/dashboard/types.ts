@@ -1,15 +1,35 @@
 export type DashboardEnvironment = 'all' | 'draft' | 'staging' | 'production'
 export type DashboardBucket = 'hour' | 'day'
 export type DashboardRangePreset = '24h' | '7d' | '30d'
+export type OverviewRunSource = 'playground' | 'api' | 'job' | 'network' | 'event' | 'schedule' | 'unknown'
 
 export interface ProjectOverviewSummary {
   active_agents: number
   production_agents: number
-  network_count?: number
-  staging_networks?: number
-  production_networks?: number
-  network_runs?: number
-  failed_network_runs?: number
+  network_count: number
+  staging_networks: number
+  production_networks: number
+
+  agent_runs: number
+  direct_agent_runs: number
+  network_agent_runs: number
+  running_agent_runs: number
+  failed_agent_runs: number
+  agent_run_change_percent: number | null
+  avg_agent_run_duration_ms: number | null
+  p95_agent_run_duration_ms: number | null
+  agent_run_success_rate: number | null
+  agent_run_cost_usd: number | null
+  unknown_agent_run_cost_count: number
+
+  network_runs: number
+  running_network_runs: number
+  failed_network_runs: number
+  network_run_success_rate: number | null
+  avg_network_run_duration_ms: number | null
+  p95_network_run_duration_ms: number | null
+  avg_agent_runs_per_network_run: number | null
+
   requests: number
   request_change_percent: number | null
   avg_latency_ms: number | null
@@ -22,15 +42,24 @@ export interface ProjectOverviewSummary {
 
 export interface ProjectOverviewTimeseriesPoint {
   bucket_start: string
+  agent_runs: number
+  agent_run_success: number
+  agent_run_failed: number
+  avg_agent_run_duration_ms: number | null
+  p95_agent_run_duration_ms: number | null
+  network_runs: number
+  network_run_success: number
+  network_run_failed: number
+  avg_network_run_duration_ms: number | null
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number | null
+  unknown_cost_count: number
   requests: number
   success: number
   failed: number
   avg_latency_ms: number | null
   p95_latency_ms: number | null
-  input_tokens: number
-  output_tokens: number
-  cost_usd: number | null
-  unknown_cost_count: number
 }
 
 export interface ProjectEnvironmentDistribution {
@@ -53,13 +82,26 @@ export interface ProjectOverviewTrace {
   id: string
   agent_id: string | null
   agent_name: string | null
-  environment: Exclude<DashboardEnvironment, 'all'> | null
+  environment: Exclude<DashboardEnvironment, 'all'> | 'playground' | null
+  source?: OverviewRunSource
   status: string
   latency_ms: number | null
   total_tokens: number | null
   cost_usd: number | null
   cost_known: boolean
   started_at: string | null
+}
+
+export interface ProjectOverviewNetworkRun {
+  id: string
+  network_id: string
+  network_name: string
+  environment: Exclude<DashboardEnvironment, 'all'>
+  status: string
+  duration_ms: number | null
+  root_trace_id: string | null
+  started_at: string | null
+  completed_at: string | null
 }
 
 export interface ProjectKnowledgeSummary {
@@ -103,6 +145,7 @@ export interface ProjectOverview {
   environment_distribution: ProjectEnvironmentDistribution
   recent_releases: ProjectOverviewRelease[]
   recent_traces: ProjectOverviewTrace[]
+  recent_network_runs: ProjectOverviewNetworkRun[]
   knowledge_summary: ProjectKnowledgeSummary
   tools_summary: ProjectToolsSummary
   capabilities: ProjectOverviewCapabilities
