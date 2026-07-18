@@ -61,8 +61,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
   if (!activeTab) return null
 
   if (activeTab === 'traces') {
-    const selectedTrace = selectedTraceId
-      ? traces.find(trace => trace.id === selectedTraceId) ?? null
+    const selectedRun = selectedTraceId
+      ? traces.find(run => run.id === selectedTraceId) ?? null
       : null
 
     return (
@@ -80,33 +80,20 @@ export function OperationsPanel(props: OperationsPanelProps) {
           />
         </ScrollArea>
         <ScrollArea className="flex-1 min-h-0">
-          {selectedTrace ? (
+          {selectedRun ? (
             <>
               <div className="flex items-center justify-between border-b border-border/90 bg-background/25 px-4 py-3">
-                <h3 className="text-sm font-medium text-white">Trace Detail</h3>
-                <button
-                  type="button"
-                  onClick={() => onSelectTrace(null)}
-                  className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white"
-                  aria-label="Close trace details"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div>
+                  <h3 className="text-sm font-medium text-white">Agent Run Detail</h3>
+                  <p className="mt-0.5 text-[10px] text-muted">Overview, activity, and diagnostic trace evidence</p>
+                </div>
+                <button type="button" onClick={() => onSelectTrace(null)} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" aria-label="Close Agent Run details"><X className="h-4 w-4" /></button>
               </div>
-              <TraceDiagnosticsPanel traceId={selectedTrace.id} />
-              <div className="trace-details-embedded">
-                <TraceDetails
-                  trace={selectedTrace}
-                  onBack={() => onSelectTrace(null)}
-                />
-              </div>
+              <TraceDiagnosticsPanel traceId={selectedRun.id} />
+              <div className="trace-details-embedded"><TraceDetails trace={selectedRun} onBack={() => onSelectTrace(null)} /></div>
             </>
           ) : (
-            <div className="p-4 text-center">
-              <div className="rounded-xl border border-border/80 bg-background/45 px-4 py-8">
-                <p className="text-sm text-muted">Select a trace to view details.</p>
-              </div>
-            </div>
+            <div className="p-4 text-center"><div className="rounded-xl border border-border/80 bg-background/45 px-4 py-8"><p className="text-sm text-muted">Select an Agent Run to inspect its result and diagnostics.</p></div></div>
           )}
         </ScrollArea>
       </div>
@@ -116,25 +103,19 @@ export function OperationsPanel(props: OperationsPanelProps) {
   const content = activeTab === 'debug'
     ? <DebugView lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} />
     : (
-        <SessionsPanel
-          sessions={sessions}
-          currentSessionId={sessionId}
-          sessionMode={sessionMode}
-          onNewSession={onNewSession}
-          onSelectSession={onSelectSession}
-          onLoadMoreSessions={onLoadMoreSessions}
-          hasMoreSessions={hasMoreSessions}
-          isInitialLoading={sessionsLoading}
-          isLoadingMore={sessionsLoadingMore}
-          isCreatingSession={creatingSession}
-        />
-      )
+      <SessionsPanel
+        sessions={sessions}
+        currentSessionId={sessionId}
+        sessionMode={sessionMode}
+        onNewSession={onNewSession}
+        onSelectSession={onSelectSession}
+        onLoadMoreSessions={onLoadMoreSessions}
+        hasMoreSessions={hasMoreSessions}
+        isInitialLoading={sessionsLoading}
+        isLoadingMore={sessionsLoadingMore}
+        isCreatingSession={creatingSession}
+      />
+    )
 
-  return (
-    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5">
-      <ScrollArea className="h-full min-h-0">
-        {content}
-      </ScrollArea>
-    </div>
-  )
+  return <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5"><ScrollArea className="h-full min-h-0">{content}</ScrollArea></div>
 }
