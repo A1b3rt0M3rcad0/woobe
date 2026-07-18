@@ -155,7 +155,7 @@ function PlaygroundContent() {
   const [rawEvents, setRawEvents] = useState<RawStreamEvent[]>([])
   const rawEventsRef = useRef<RawStreamEvent[]>([])
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
-  const [showLeftPanel, setShowLeftPanel] = useState(true)
+  const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [showRightPanel, setShowRightPanel] = useState(true)
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)

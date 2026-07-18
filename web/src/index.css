@@ -166,6 +166,11 @@ div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.s
   min-height: 2rem;
 }
 
+/* Keep the Playground loading geometry aligned with the collapsed Current Run rail. */
+div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden > div:nth-child(2).w-\[400px\].p-4 {
+  display: none;
+}
+
 /*
  * The agent playground used to subtract the old topbar height with
  * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
