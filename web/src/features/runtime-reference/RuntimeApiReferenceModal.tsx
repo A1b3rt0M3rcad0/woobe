@@ -119,12 +119,7 @@ export function RuntimeApiReferenceModal({
 
   useEffect(() => {
     if (!open) return
-    const nextEnvironment = environments.production.available
-      ? 'production'
-      : environments.staging.available
-        ? 'staging'
-        : 'production'
-    setEnvironment(nextEnvironment)
+    setEnvironment(environments.production.available ? 'production' : environments.staging.available ? 'staging' : 'production')
     setSection('http')
     setLanguage('curl')
   }, [environments.production.available, environments.staging.available, open])
@@ -155,16 +150,15 @@ export function RuntimeApiReferenceModal({
 
   const reference = environments[environment]
   const selectedKey = compatibleKeys.find((key) => key.id === selectedKeyId) ?? null
-  const activeRuntimeInterface: PublicRuntimeInterface = section === 'stream' ? 'stream' : 'http'
-  const requestBody = reference.requestWithSession ?? reference.request
+  const runtimeInterface: PublicRuntimeInterface = section === 'stream' ? 'stream' : 'http'
   const snippet = buildRuntimeSnippet({
     language,
-    runtimeInterface: activeRuntimeInterface,
+    runtimeInterface,
     baseUrl: API_BASE_URL,
-    body: requestBody,
+    body: reference.request,
     includeIdempotencyKey: targetType === 'network',
   })
-  const endpointPath = activeRuntimeInterface === 'stream' ? '/v1/run/stream' : '/v1/run'
+  const endpointPath = runtimeInterface === 'stream' ? '/v1/run/stream' : '/v1/run'
   const targetLabel = targetType === 'network' ? 'Network' : 'Agent'
   const TargetIcon = targetType === 'network' ? Network : Bot
   const managePath = `${manageKeysPath}?type=runtime&targetType=${targetType}&target=${encodeURIComponent(targetId)}&environment=${environment}${selectedKey ? `&credential=${encodeURIComponent(selectedKey.credential_id)}` : ''}`
@@ -197,9 +191,7 @@ export function RuntimeApiReferenceModal({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{targetLabel}</p>
                   <div className="mt-2 rounded-xl border border-border/80 bg-background/45 p-3">
                     <div className="flex items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
-                        <TargetIcon className="h-4 w-4" />
-                      </span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light"><TargetIcon className="h-4 w-4" /></span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-white">{targetName}</p>
                         <code className="mt-1 block truncate text-[10px] text-muted">{targetId}</code>
@@ -212,25 +204,20 @@ export function RuntimeApiReferenceModal({
                 <section>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(['production', 'staging'] as RuntimeEnvironment[]).map((item) => {
-                      const itemReference = environments[item]
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => { setEnvironment(item); setSelectedKeyId(null) }}
-                          className={cn(
-                            'rounded-xl border p-3 text-left transition-colors',
-                            item === environment
-                              ? 'border-primary/40 bg-primary/10'
-                              : 'border-border/80 bg-background/45 hover:border-primary/25',
-                          )}
-                        >
-                          <p className="text-xs font-semibold text-white">{environmentLabels[item]}</p>
-                          <p className="mt-1 truncate font-mono text-[10px] text-muted">{itemReference.version ?? 'Not deployed'}</p>
-                        </button>
-                      )
-                    })}
+                    {(['production', 'staging'] as RuntimeEnvironment[]).map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => { setEnvironment(item); setSelectedKeyId(null) }}
+                        className={cn(
+                          'rounded-xl border p-3 text-left transition-colors',
+                          item === environment ? 'border-primary/40 bg-primary/10' : 'border-border/80 bg-background/45 hover:border-primary/25',
+                        )}
+                      >
+                        <p className="text-xs font-semibold text-white">{environmentLabels[item]}</p>
+                        <p className="mt-1 truncate font-mono text-[10px] text-muted">{environments[item].version ?? 'Not deployed'}</p>
+                      </button>
+                    ))}
                   </div>
                 </section>
 
@@ -242,9 +229,7 @@ export function RuntimeApiReferenceModal({
                     </div>
                     <span className={cn(
                       'rounded-full border px-2 py-1 text-[10px] font-medium',
-                      reference.available
-                        ? 'border-primary/25 bg-primary/10 text-primary-light'
-                        : 'border-border bg-background text-muted',
+                      reference.available ? 'border-primary/25 bg-primary/10 text-primary-light' : 'border-border bg-background text-muted',
                     )}>
                       {reference.version ?? 'not deployed'}
                     </span>
@@ -264,9 +249,7 @@ export function RuntimeApiReferenceModal({
                 {reference.outputContract != null && (
                   <section className="rounded-xl border border-border/80 bg-background/45 p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Public output contract</p>
-                    <div className="mt-2">
-                      <JsonCodeBlock value={reference.outputContract} maxHeight={220} actions={['copy', 'format']} />
-                    </div>
+                    <div className="mt-2"><JsonCodeBlock value={reference.outputContract} maxHeight={220} actions={['copy', 'format']} /></div>
                   </section>
                 )}
 
@@ -290,25 +273,16 @@ export function RuntimeApiReferenceModal({
                 <section>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{targetLabel} Runtime Key</p>
-                    <button type="button" onClick={() => setShowCreateKey(true)} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-light hover:text-white">
-                      <Plus className="h-3.5 w-3.5" /> Create
-                    </button>
+                    <button type="button" onClick={() => setShowCreateKey(true)} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-light hover:text-white"><Plus className="h-3.5 w-3.5" /> Create</button>
                   </div>
                   {compatibleKeys.length > 0 ? (
                     <div className="mt-2 space-y-2">
-                      <select
-                        value={selectedKeyId ?? ''}
-                        onChange={(event) => setSelectedKeyId(event.target.value || null)}
-                        className="h-10 w-full rounded-lg border border-border/80 bg-background/70 px-3 text-xs text-white outline-none focus:border-primary/40"
-                      >
+                      <select value={selectedKeyId ?? ''} onChange={(event) => setSelectedKeyId(event.target.value || null)} className="h-10 w-full rounded-lg border border-border/80 bg-background/70 px-3 text-xs text-white outline-none focus:border-primary/40">
                         {compatibleKeys.map((key) => <option key={key.id} value={key.id}>{key.name}</option>)}
                       </select>
                       {selectedKey && (
                         <div className="rounded-lg border border-border/80 bg-background/45 p-2.5">
-                          <div className="flex items-center gap-2">
-                            <KeyRound className="h-3.5 w-3.5 text-primary-light" />
-                            <code className="min-w-0 flex-1 truncate text-[11px] text-white">{selectedKey.key_prefix}...</code>
-                          </div>
+                          <div className="flex items-center gap-2"><KeyRound className="h-3.5 w-3.5 text-primary-light" /><code className="min-w-0 flex-1 truncate text-[11px] text-white">{selectedKey.key_prefix}...</code></div>
                           <p className="mt-1 text-[10px] text-muted">{selectedKey.interfaces.join(' · ')}</p>
                         </div>
                       )}
@@ -317,9 +291,7 @@ export function RuntimeApiReferenceModal({
                     <div className="mt-2 rounded-xl border border-dashed border-border/80 bg-background/35 p-3">
                       <p className="text-xs font-medium text-white">No compatible Runtime Key</p>
                       <p className="mt-1 text-[11px] leading-4 text-muted">Create a key bound to this {targetLabel.toLowerCase()} and {environmentLabels[environment]}.</p>
-                      <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreateKey(true)}>
-                        <Plus className="mr-2 h-3.5 w-3.5" /> Create {targetLabel} Key
-                      </Button>
+                      <Button className="mt-3 w-full" size="sm" onClick={() => setShowCreateKey(true)}><Plus className="mr-2 h-3.5 w-3.5" /> Create {targetLabel} Key</Button>
                     </div>
                   )}
                   <Link to={managePath} className="mt-2 inline-flex text-[11px] text-muted hover:text-white">Manage this {targetLabel}&apos;s keys</Link>
@@ -330,19 +302,14 @@ export function RuntimeApiReferenceModal({
 
           <section className="flex min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-1 border-b border-border/90 bg-surface/70 p-1.5">
-              {([
-                ['http', 'HTTP'],
-                ['stream', 'Streaming'],
-              ] as Array<[ApiSection, string]>).map(([id, label]) => (
+              {([['http', 'HTTP'], ['stream', 'Streaming']] as Array<[ApiSection, string]>).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setSection(id)}
                   className={cn(
                     'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-                    section === id
-                      ? 'border-primary/35 bg-primary/10 text-primary-light'
-                      : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
+                    section === id ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
                   )}
                 >
                   {label}
@@ -355,16 +322,10 @@ export function RuntimeApiReferenceModal({
 
             <ScrollArea className="min-h-0 flex-1">
               <div className="space-y-5 p-5">
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted">Endpoint</p>
-                  <Endpoint path={endpointPath} />
-                </div>
+                <div><p className="mb-2 text-xs font-medium text-muted">Endpoint</p><Endpoint path={endpointPath} /></div>
 
                 <div className="grid gap-4 xl:grid-cols-2">
-                  <div>
-                    <p className="mb-2 text-xs font-medium text-muted">Minimal request</p>
-                    <JsonCodeBlock value={reference.request} maxHeight={260} actions={['copy', 'format']} />
-                  </div>
+                  <div><p className="mb-2 text-xs font-medium text-muted">Minimal request</p><JsonCodeBlock value={reference.request} maxHeight={260} actions={['copy', 'format']} /></div>
                   <div>
                     <p className="mb-2 text-xs font-medium text-muted">Continue a session</p>
                     {reference.requestWithSession ? (
@@ -384,9 +345,7 @@ export function RuntimeApiReferenceModal({
                         onClick={() => setLanguage(item.value)}
                         className={cn(
                           'rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                          language === item.value
-                            ? 'border-primary/35 bg-primary/10 text-primary-light'
-                            : 'border-border/70 bg-background/45 text-muted hover:text-white',
+                          language === item.value ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border/70 bg-background/45 text-muted hover:text-white',
                         )}
                       >
                         {item.label}
