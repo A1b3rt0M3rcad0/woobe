@@ -14,7 +14,7 @@ All timestamps are UTC ISO 8601 values. The response is aggregate-only and never
 - `to`: exclusive UTC timestamp. Defaults to the current UTC time.
 - `bucket`: `hour` or `day`. Defaults to `hour` for ranges up to 48 hours and `day` otherwise.
 - `environment`: `all`, `draft`, `staging`, or `production`. Defaults to `all`.
-- `recent_limit`: maximum number of recent releases, Agent Runs, and Network Runs. Integer from 1 to 20, default 5.
+- `recent_limit`: maximum number of recent changes, releases, Agent Runs, and Network Runs. Integer from 1 to 20, default 5.
 
 The maximum supported range is 30 days. Hour buckets are limited to seven days. Invalid timestamps, reversed ranges, unsupported buckets, unsupported environments, and excessive ranges return HTTP 422.
 
@@ -126,12 +126,28 @@ Every requested bucket is returned, including empty buckets. Each point separate
 
 Bucket boundaries are calculated in UTC. `from` is inclusive and `to` is exclusive.
 
-## Changes in the selected period
+## Changes in the selected context
 
-- `recent_releases`: immutable Staging or Production Agent releases created or promoted inside the selected interval, including release notes.
-- `recent_network_releases`: immutable Staging or Production Network versions created inside the selected interval, including change description, activation kind, rollback reference, and Agent count.
+`recent_changes` is a chronological, environment-aware timeline with:
 
-Draft mutation timestamps are not fabricated as releases. When Draft is selected, these collections may be empty.
+- resource type and identity;
+- environment;
+- action;
+- version or Draft revision;
+- description;
+- occurrence timestamp;
+- whether the change is immutable.
+
+The environment filter changes the semantics:
+
+- `draft`: mutable Agent Draft snapshots and Network `draft_revision` updates;
+- `staging`: Agent releases and Network versions published to Staging;
+- `production`: immutable releases, rollbacks, and reactivations;
+- `all`: all of the above in one chronological list.
+
+Draft activity is never labeled as a release. The read model reports the latest persisted Draft mutation timestamp available in the selected window; it does not fabricate a complete audit history.
+
+`recent_releases` and `recent_network_releases` remain available for compatibility with existing consumers.
 
 ## Recent Runs
 
