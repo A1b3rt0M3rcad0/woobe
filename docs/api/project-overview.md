@@ -4,7 +4,9 @@
 
 `GET /core/projects/{project_id}/overview`
 
-The endpoint returns one authorized, tenant-scoped read model for the dashboard. All timestamps are UTC ISO 8601 values. The response is intentionally aggregate-only and never includes provider credentials, API keys, prompts, document content, tool configuration, trace payloads, or user-identifying fields.
+The endpoint returns one authorized, tenant-scoped operational read model for the Project Overview. The public language is based on **Agent Runs** and **Network Runs**. Traces remain diagnostic evidence and are not presented as the primary business unit.
+
+All timestamps are UTC ISO 8601 values. The response is aggregate-only and never includes provider credentials, API keys, prompts, document content, Tool configuration, full trace payloads, or user-identifying fields.
 
 ## Query parameters
 
@@ -12,55 +14,90 @@ The endpoint returns one authorized, tenant-scoped read model for the dashboard.
 - `to`: exclusive UTC timestamp. Defaults to the current UTC time.
 - `bucket`: `hour` or `day`. Defaults to `hour` for ranges up to 48 hours and `day` otherwise.
 - `environment`: `all`, `draft`, `staging`, or `production`. Defaults to `all`.
-- `recent_limit`: maximum number of recent releases and traces. Integer from 1 to 20, default 5.
+- `recent_limit`: maximum number of recent releases, Agent Runs, and Network Runs. Integer from 1 to 20, default 5.
 
 The maximum supported range is 30 days. Hour buckets are limited to seven days. Invalid timestamps, reversed ranges, unsupported buckets, unsupported environments, and excessive ranges return HTTP 422.
 
+## Operational definitions
+
+### Agent Run
+
+An Agent Run represents one execution of one Agent. Direct Runtime API, Playground, Job, and Network-invoked executions are counted as Agent Runs. Session is optional and does not define whether the Run exists.
+
+The current read model derives Agent Run metrics from persisted execution traces while keeping Trace as a diagnostic concept in the UI. The compatibility fields based on `requests` remain available temporarily for older consumers.
+
+### Network Run
+
+A Network Run represents one execution of one Network and is read directly from `network.network_executions`. Its internal Agent executions are measured from Network invocations and Agent execution traces. Agent Run and Network Run counts are not additive business totals because a Network Run contains Agent Runs.
+
+### Cost
+
+Project runtime cost is the sum of known Agent Run costs. Network Run cost is an aggregation of its Agent Runs and must not be added again to the Project total.
+
 ## Environment semantics
 
-Each agent is assigned one current environment from its latest release ordered by `COALESCE(promoted_at, created_at)` and then `created_at`:
+Each Agent is assigned one current environment from its latest active release slot:
 
 - latest status `production` -> `production`;
 - latest status `staging` -> `staging`;
-- latest status `draft`, `archived`, `rolled_back`, or no release -> `draft`.
+- latest status `draft`, archived states, or no release -> `draft`.
 
-The environment filter applies to request metrics, timeseries, recent traces, and active agent count. `production_agents` always reports the total number of agents currently assigned to production in the project.
+`playground` is an execution source, not an environment. Existing trace records that historically expose `playground` are normalized by consumers to Draft plus Playground source.
 
-## Summary metric definitions
+## Summary metrics
 
-- `active_agents`: agents with status `active`, restricted by the requested environment when one is selected.
-- `production_agents`: agents whose current environment is production.
-- `requests`: terminal traces in the requested window. Terminal states are `completed`, `failed`, and `cancelled`.
-- `request_change_percent`: percentage change versus the immediately preceding window of equal duration. It is `0` when both windows have zero requests and `null` when the previous window is zero but the current window is non-zero.
-- `avg_latency_ms`: average `total_latency_ms` across terminal traces with known latency.
-- `p95_latency_ms`: PostgreSQL continuous percentile 0.95 across terminal traces with known latency.
-- `success_rate`: `completed / (completed + failed + cancelled) * 100`. It is `null` when there are no terminal traces.
-- `failed_requests`: traces with status `failed` or `cancelled`.
-- `cost_usd`: sum of known trace costs. It is `0` for an empty window, `null` when requests exist but every cost is unknown, and the known subtotal when known and unknown costs coexist.
-- `unknown_cost_count`: terminal traces whose `total_cost_usd` is null.
+### Agent Runs
 
-Pending and running traces are excluded from terminal metrics.
+- `agent_runs`: all Agent executions started in the requested window.
+- `direct_agent_runs`: Agent Runs without a Network execution.
+- `network_agent_runs`: Agent Runs associated with a Network execution.
+- `running_agent_runs`: Agent Runs in pending, queued, running, or processing states.
+- `failed_agent_runs`: failed or cancelled Agent Runs.
+- `agent_run_change_percent`: percentage change versus the immediately preceding equal window.
+- `avg_agent_run_duration_ms`: average duration of terminal Agent Runs with known duration.
+- `p95_agent_run_duration_ms`: continuous p95 duration of terminal Agent Runs.
+- `agent_run_success_rate`: completed divided by terminal Agent Runs.
+- `agent_run_cost_usd`: sum of known terminal Agent Run costs.
+- `unknown_agent_run_cost_count`: terminal Agent Runs without consolidated cost.
 
-## Timeseries definitions
+### Network Runs
 
-Every requested bucket is returned, including empty buckets. Each point contains:
+- `network_runs`: Network executions accepted in the requested window.
+- `running_network_runs`: queued, running, or cancellation-requested Network Runs.
+- `failed_network_runs`: failed, timed out, uncertain, or cancelled Network Runs.
+- `network_run_success_rate`: completed divided by terminal Network Runs.
+- `avg_network_run_duration_ms`: average completed Network Run duration.
+- `p95_network_run_duration_ms`: continuous p95 completed Network Run duration.
+- `avg_agent_runs_per_network_run`: average persisted Network invocations per non-queued Network Run.
 
-- `requests`, `success`, and `failed` using the terminal-state definitions above;
-- `avg_latency_ms` and `p95_latency_ms` for known latency values;
-- `input_tokens` and `output_tokens` from persisted trace execution data;
-- `cost_usd`, which is null when a non-empty bucket contains only unknown costs;
-- `unknown_cost_count`.
+### Compatibility fields
+
+`requests`, `request_change_percent`, `avg_latency_ms`, `p95_latency_ms`, `success_rate`, `failed_requests`, `cost_usd`, and `unknown_cost_count` remain in the response for transitional compatibility. New consumers must use the Run-oriented fields.
+
+## Timeseries
+
+Every requested bucket is returned, including empty buckets. Each point separates:
+
+- Agent Run volume, success, failures, average duration, and p95 duration;
+- Network Run volume, success, failures, and average duration;
+- tokens, known cost subtotal, and unknown cost count.
 
 Bucket boundaries are calculated in UTC. `from` is inclusive and `to` is exclusive.
 
+## Recent activity
+
+- `recent_traces`: lightweight Agent execution records consumed as recent Agent Runs; Trace details remain diagnostic evidence.
+- `recent_network_runs`: Network Run identity, Network, environment, status, duration, root trace, and timestamps.
+- `recent_releases`: minimal Agent release identity, environment, version, and timestamps.
+
+The frontend merges recent Agent Runs and Network Runs into one Recent Runs timeline and navigates to the corresponding Agent Playground or Network workspace.
+
 ## Other sections
 
-- `environment_distribution`: current agent counts for draft, staging, and production.
-- `recent_releases`: minimal release identity, agent, environment, version, and timestamps.
-- `recent_traces`: minimal trace identity, agent, environment, terminal status, latency, token total, known cost, and start time.
-- `knowledge_summary`: collection count, document count, indexed, failed, pending, and total stored bytes.
-- `tools_summary`: total, active, inactive, and up to five recent failed tool executions when trace events provide a real source.
-- `capabilities`: `sessions_jobs`, `ingestion_pipeline`, and `activity_feed` remain `false` until dedicated read models exist. Consumers must hide or mark those panels unavailable rather than inventing data.
+- `environment_distribution`: current Agent counts for Draft, Staging, and Production.
+- `knowledge_summary`: Collection and active Document counts, indexing health, and storage.
+- `tools_summary`: Tool state and recent failures when real execution evidence exists.
+- `capabilities`: panels without dedicated read models remain disabled instead of displaying fabricated data.
 
 ## Authorization and caching
 
@@ -68,4 +105,4 @@ Project authorization is completed before the read-model repository runs. Every 
 
 ## Performance target
 
-The repository executes a constant number of aggregate queries independent of agent count. The acceptance target is p95 below 500 ms without network latency for a representative local PostgreSQL fixture covering 30 days of traces. Query plans for the summary/timeseries query must use the project/time trace index once the fixture is large enough for the planner to prefer it.
+The read model must execute a bounded number of aggregate queries independent of Agent count. The acceptance target remains p95 below 500 ms without network latency for a representative local PostgreSQL fixture covering 30 days. Agent Run queries must use the Project/time trace index, and Network Run queries must use the Project/status/time execution indexes.
