@@ -68,19 +68,33 @@ class ProjectOverviewSummary(BaseModel):
     agent_runs: int = 0
     direct_agent_runs: int = 0
     network_agent_runs: int = 0
-    running_agent_runs: int = 0
+    terminal_agent_runs: int = 0
+    successful_agent_runs: int = 0
+    completed_with_issues_agent_runs: int = 0
     failed_agent_runs: int = 0
+    timed_out_agent_runs: int = 0
+    cancelled_agent_runs: int = 0
+    running_agent_runs: int = 0
     agent_run_change_percent: float | None = None
     avg_agent_run_duration_ms: float | None = None
     p95_agent_run_duration_ms: float | None = None
     agent_run_success_rate: float | None = None
+    agent_run_error_rate: float | None = None
     agent_run_cost_usd: float | None = 0.0
+    priced_agent_runs: int = 0
     unknown_agent_run_cost_count: int = 0
 
     network_runs: int = 0
-    running_network_runs: int = 0
+    terminal_network_runs: int = 0
+    successful_network_runs: int = 0
+    completed_with_issues_network_runs: int = 0
     failed_network_runs: int = 0
+    timed_out_network_runs: int = 0
+    uncertain_network_runs: int = 0
+    cancelled_network_runs: int = 0
+    running_network_runs: int = 0
     network_run_success_rate: float | None = None
+    network_run_error_rate: float | None = None
     avg_network_run_duration_ms: float | None = None
     p95_network_run_duration_ms: float | None = None
     avg_agent_runs_per_network_run: float | None = None
@@ -101,13 +115,24 @@ class ProjectOverviewTimeseriesPoint(BaseModel):
 
     agent_runs: int = 0
     agent_run_success: int = 0
+    agent_run_completed_with_issues: int = 0
     agent_run_failed: int = 0
+    agent_run_timed_out: int = 0
+    agent_run_cancelled: int = 0
+    agent_run_running: int = 0
+    agent_run_success_rate: float | None = None
     avg_agent_run_duration_ms: float | None = None
     p95_agent_run_duration_ms: float | None = None
 
     network_runs: int = 0
     network_run_success: int = 0
+    network_run_completed_with_issues: int = 0
     network_run_failed: int = 0
+    network_run_timed_out: int = 0
+    network_run_uncertain: int = 0
+    network_run_cancelled: int = 0
+    network_run_running: int = 0
+    network_run_success_rate: float | None = None
     avg_network_run_duration_ms: float | None = None
 
     input_tokens: int = 0
@@ -139,8 +164,22 @@ class ProjectOverviewRelease(BaseModel):
     agent_name: str
     version: str
     environment: Literal["draft", "staging", "production"]
+    release_notes: str | None = None
     created_at: datetime
     promoted_at: datetime | None = None
+
+
+class ProjectOverviewNetworkRelease(BaseModel):
+    id: UUID
+    network_id: UUID
+    network_name: str
+    version: str
+    environment: Literal["staging", "production"]
+    change_description: str | None = None
+    activation_kind: str | None = None
+    rollback_of_version_id: UUID | None = None
+    agent_count: int = 0
+    created_at: datetime
 
 
 class ProjectOverviewTrace(BaseModel):
@@ -164,9 +203,37 @@ class ProjectOverviewNetworkRun(BaseModel):
     environment: Literal["draft", "staging", "production"]
     status: str
     duration_ms: float | None = None
+    cost_usd: float | None = None
+    cost_known: bool = False
+    priced_agent_runs: int = 0
+    total_agent_runs: int = 0
+    unknown_cost_count: int = 0
     root_trace_id: UUID | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+
+
+class ProjectOverviewIssueEntity(BaseModel):
+    entity_id: UUID | None = None
+    name: str
+    failure_count: int
+
+
+class ProjectOverviewFailureCode(BaseModel):
+    code: str
+    failure_count: int
+
+
+class ProjectOverviewFailurePeak(BaseModel):
+    bucket_start: datetime
+    failure_count: int
+
+
+class ProjectOverviewOperationalIssues(BaseModel):
+    top_agent_failures: list[ProjectOverviewIssueEntity] = Field(default_factory=list)
+    top_network_failures: list[ProjectOverviewIssueEntity] = Field(default_factory=list)
+    top_failure_codes: list[ProjectOverviewFailureCode] = Field(default_factory=list)
+    failure_peak: ProjectOverviewFailurePeak | None = None
 
 
 class ProjectKnowledgeSummary(BaseModel):
@@ -211,8 +278,14 @@ class ProjectOverviewOutput(BaseModel):
     timeseries: list[ProjectOverviewTimeseriesPoint]
     environment_distribution: ProjectEnvironmentDistribution
     recent_releases: list[ProjectOverviewRelease]
+    recent_network_releases: list[ProjectOverviewNetworkRelease] = Field(
+        default_factory=list
+    )
     recent_traces: list[ProjectOverviewTrace]
     recent_network_runs: list[ProjectOverviewNetworkRun] = Field(default_factory=list)
+    operational_issues: ProjectOverviewOperationalIssues = Field(
+        default_factory=ProjectOverviewOperationalIssues
+    )
     knowledge_summary: ProjectKnowledgeSummary
     tools_summary: ProjectToolsSummary
     capabilities: ProjectOverviewCapabilities = Field(
