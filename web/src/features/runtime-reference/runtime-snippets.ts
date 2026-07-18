@@ -53,8 +53,10 @@ function pythonSnippet(input: BuildRuntimeSnippetInput): string {
     ? "\n    'Idempotency-Key': str(uuid.uuid4()),"
     : ''
   const uuidImport = input.includeIdempotencyKey ? 'import uuid\n' : ''
+  const payload = JSON.stringify(compactJson(input.body))
   if (input.runtimeInterface === 'stream') {
-    return `${uuidImport}import os
+    return `${uuidImport}import json
+import os
 import requests
 
 url = '${endpoint(input.baseUrl, input.runtimeInterface)}'
@@ -62,7 +64,7 @@ headers = {
     'Authorization': f"Bearer {os.environ['WOOBE_API_KEY']}",
     'Content-Type': 'application/json',${idempotency}
 }
-payload = ${prettyJson(input.body)}
+payload = json.loads(${payload})
 
 with requests.post(url, headers=headers, json=payload, stream=True, timeout=120) as response:
     response.raise_for_status()
@@ -70,7 +72,8 @@ with requests.post(url, headers=headers, json=payload, stream=True, timeout=120)
         if line:
             print(line)`
   }
-  return `${uuidImport}import os
+  return `${uuidImport}import json
+import os
 import requests
 
 url = '${endpoint(input.baseUrl, input.runtimeInterface)}'
@@ -78,7 +81,7 @@ headers = {
     'Authorization': f"Bearer {os.environ['WOOBE_API_KEY']}",
     'Content-Type': 'application/json',${idempotency}
 }
-payload = ${prettyJson(input.body)}
+payload = json.loads(${payload})
 
 response = requests.post(url, headers=headers, json=payload, timeout=120)
 response.raise_for_status()
@@ -201,9 +204,9 @@ puts JSON.pretty_generate(JSON.parse(response.body))`
 function goSnippet(input: BuildRuntimeSnippetInput): string {
   const json = JSON.stringify(compactJson(input.body))
   const idempotency = input.includeIdempotencyKey
-    ? '\n\treq.Header.Set("Idempotency-Key", uuid.NewString())'
+    ? '\n\treq.Header.Set("Idempotency-Key", fmt.Sprintf("woobe-%d", time.Now().UnixNano()))'
     : ''
-  const uuidImport = input.includeIdempotencyKey ? '\n\t"github.com/google/uuid"' : ''
+  const timeImport = input.includeIdempotencyKey ? '\n\t"time"' : ''
   const bodyReader = input.runtimeInterface === 'stream'
     ? `scanner := bufio.NewScanner(response.Body)
 \tfor scanner.Scan() {
@@ -225,7 +228,7 @@ import (
 \t"fmt"
 \t"log"
 \t"net/http"
-\t"os"${uuidImport}
+\t"os"${timeImport}
 )
 
 func main() {
