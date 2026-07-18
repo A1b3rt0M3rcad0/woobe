@@ -10,6 +10,7 @@ import {
 import type {
   DashboardEnvironment,
   DashboardRangePreset,
+  OverviewChangeAction,
   OverviewRunSource,
   ProjectOverview,
   ProjectOverviewNetworkRelease,
@@ -19,6 +20,14 @@ import type {
 } from './types'
 
 const OVERVIEW_RECENT_ROW_LIMIT = 3
+const OVERVIEW_CHANGE_ROW_LIMIT = 5
+
+export interface DashboardMetricComparisonItem {
+  label: string
+  value: string
+  detail: string
+  tone: string
+}
 
 export interface DashboardMetric {
   label: string
@@ -27,6 +36,10 @@ export interface DashboardMetric {
   direction: 'up' | 'down' | 'neutral'
   icon: LucideIcon
   tone: string
+  comparison?: {
+    agent: DashboardMetricComparisonItem
+    network: DashboardMetricComparisonItem
+  }
 }
 
 export interface DashboardSeriesPoint {
@@ -66,6 +79,21 @@ export interface DashboardNetworkReleaseRow extends ProjectOverviewNetworkReleas
   occurredLabel: string
   description: string
   activationLabel: string | null
+}
+
+export interface DashboardChangeRow {
+  id: string
+  resourceType: 'agent' | 'network'
+  resourceId: string
+  resourceName: string
+  resourceLabel: string
+  environmentLabel: string
+  actionLabel: string
+  versionLabel: string | null
+  description: string
+  occurredLabel: string
+  occurredAt: string
+  immutable: boolean
 }
 
 export type DashboardRunKind = 'agent' | 'network'
@@ -129,6 +157,7 @@ export interface DashboardViewModel {
   environmentTotal: number
   agentReleases: DashboardAgentReleaseRow[]
   networkReleases: DashboardNetworkReleaseRow[]
+  changes: DashboardChangeRow[]
   runs: DashboardRunRow[]
   assets: {
     activeAgents: string
@@ -247,7 +276,6 @@ function sourceLabel(source: OverviewRunSource | undefined, environment: Project
   if (value === 'job') return 'Job'
   if (value === 'event') return 'Event'
   if (value === 'schedule') return 'Schedule'
-  if (value === 'api') return 'Runtime API'
   return 'Runtime API'
 }
 
@@ -273,8 +301,8 @@ function buildNarrative(overview: ProjectOverview): string {
     ? 'Runtime cost is not fully known.'
     : `Recorded runtime cost was ${formatCost(summary.agent_run_cost_usd)}.`
   const reliability: string[] = []
-  if (summary.agent_run_success_rate !== null) reliability.push(`Agent Runs completed at ${formatPercent(summary.agent_run_success_rate)} success`)
-  if (summary.network_run_success_rate !== null) reliability.push(`Network Runs at ${formatPercent(summary.network_run_success_rate)}`)
+  if (summary.agent_run_success_rate !== null) reliability.push(`Agent success ${formatPercent(summary.agent_run_success_rate)}`)
+  if (summary.network_run_success_rate !== null) reliability.push(`Network success ${formatPercent(summary.network_run_success_rate)}`)
   const totalErrors = summary.failed_agent_runs
     + summary.timed_out_agent_runs
     + summary.failed_network_runs
@@ -282,7 +310,7 @@ function buildNarrative(overview: ProjectOverview): string {
     + summary.uncertain_network_runs
   const health = reliability.length === 0
     ? 'There are no terminal Runs yet.'
-    : `${reliability.join(' and ')}; ${totalErrors === 0 ? 'no execution errors were recorded' : `${formatInteger(totalErrors)} operational errors were recorded`}.`
+    : `${reliability.join(' · ')} · ${totalErrors === 0 ? 'no execution errors' : `${formatInteger(totalErrors)} operational errors`}.`
   return `${prefix}, this Project executed ${volume} ${cost} ${health}`
 }
 
@@ -337,6 +365,14 @@ function reliabilityTone(rate: number | null): string {
   if (rate >= 99) return 'bg-emerald-500/10 text-emerald-400'
   if (rate >= 95) return 'bg-amber-500/10 text-amber-300'
   return 'bg-red-500/10 text-red-300'
+}
+
+function actionLabel(action: OverviewChangeAction): string {
+  if (action === 'draft_updated') return 'Draft updated'
+  if (action === 'staged') return 'Published to Staging'
+  if (action === 'released') return 'Released to Production'
+  if (action === 'rolled_back') return 'Rolled back'
+  return 'Reactivated'
 }
 
 export function adaptProjectOverview(overview: ProjectOverview): DashboardViewModel {
@@ -398,12 +434,26 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       tone: reliabilityTone(summary.network_run_success_rate),
     },
     {
-      label: 'Execution Time',
-      value: `Agent ${formatLatency(summary.avg_agent_run_duration_ms)}`,
-      detail: `Network ${formatLatency(summary.avg_network_run_duration_ms)} · p95 Agent ${formatLatency(summary.p95_agent_run_duration_ms)} · Network ${formatLatency(summary.p95_network_run_duration_ms)}`,
+      label: 'Average Run Time',
+      value: '',
+      detail: 'p95 is the duration not exceeded by 95% of terminal Runs',
       direction: 'neutral',
       icon: Clock3,
       tone: 'bg-slate-500/10 text-slate-300',
+      comparison: {
+        agent: {
+          label: 'Agent Run',
+          value: formatLatency(summary.avg_agent_run_duration_ms),
+          detail: `p95 ${formatLatency(summary.p95_agent_run_duration_ms)}`,
+          tone: 'text-blue-300',
+        },
+        network: {
+          label: 'Network Run',
+          value: formatLatency(summary.avg_network_run_duration_ms),
+          detail: `p95 ${formatLatency(summary.p95_network_run_duration_ms)}`,
+          tone: 'text-violet-300',
+        },
+      },
     },
   ]
 
@@ -453,6 +503,27 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       ? release.activation_kind[0].toUpperCase() + release.activation_kind.slice(1)
       : null,
   }))
+
+  const changes = (overview.recent_changes ?? [])
+    .slice(0, OVERVIEW_CHANGE_ROW_LIMIT)
+    .map((change): DashboardChangeRow => ({
+      id: change.id,
+      resourceType: change.resource_type,
+      resourceId: change.resource_id,
+      resourceName: change.resource_name,
+      resourceLabel: change.resource_type === 'agent' ? 'Agent' : 'Network',
+      environmentLabel: environmentLabel(change.environment),
+      actionLabel: actionLabel(change.action),
+      versionLabel: change.revision !== null
+        ? `Draft revision ${formatInteger(change.revision)}`
+        : change.version
+          ? `Version ${change.version}`
+          : null,
+      description: change.description?.trim() || (change.immutable ? 'No change description provided.' : 'Mutable Draft state updated.'),
+      occurredLabel: safeDateLabel(change.occurred_at),
+      occurredAt: change.occurred_at,
+      immutable: change.immutable,
+    }))
 
   const runs = [
     ...overview.recent_traces.map(agentRunRow),
@@ -524,6 +595,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     environmentTotal,
     agentReleases,
     networkReleases,
+    changes,
     runs,
     assets: {
       activeAgents: formatInteger(summary.active_agents),
