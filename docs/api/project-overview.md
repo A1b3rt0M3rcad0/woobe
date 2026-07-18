@@ -18,6 +18,8 @@ All timestamps are UTC ISO 8601 values. The response is aggregate-only and never
 
 The maximum supported range is 30 days. Hour buckets are limited to seven days. Invalid timestamps, reversed ranges, unsupported buckets, unsupported environments, and excessive ranges return HTTP 422.
 
+The frontend keeps a stable query identity per Project, environment, and range. The rolling `from` and `to` values are calculated at request time so background refreshes update the interval without replacing the entire page with a new initial-loading state.
+
 ## Operational definitions
 
 ### Agent Run
