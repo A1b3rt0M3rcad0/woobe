@@ -2,6 +2,8 @@ export type DashboardEnvironment = 'all' | 'draft' | 'staging' | 'production'
 export type DashboardBucket = 'hour' | 'day'
 export type DashboardRangePreset = '24h' | '7d' | '30d'
 export type OverviewRunSource = 'playground' | 'api' | 'job' | 'network' | 'event' | 'schedule' | 'unknown'
+export type OverviewChangeResource = 'agent' | 'network'
+export type OverviewChangeAction = 'draft_updated' | 'staged' | 'released' | 'rolled_back' | 'reactivated'
 
 export interface ProjectOverviewSummary {
   active_agents: number
@@ -117,6 +119,20 @@ export interface ProjectOverviewNetworkRelease {
   created_at: string
 }
 
+export interface ProjectOverviewChange {
+  id: string
+  resource_type: OverviewChangeResource
+  resource_id: string
+  resource_name: string
+  environment: Exclude<DashboardEnvironment, 'all'>
+  action: OverviewChangeAction
+  version: string | null
+  revision: number | null
+  description: string | null
+  occurred_at: string
+  immutable: boolean
+}
+
 export interface ProjectOverviewTrace {
   id: string
   agent_id: string | null
@@ -212,6 +228,7 @@ export interface ProjectOverview {
   environment_distribution: ProjectEnvironmentDistribution
   recent_releases: ProjectOverviewRelease[]
   recent_network_releases: ProjectOverviewNetworkRelease[]
+  recent_changes: ProjectOverviewChange[]
   recent_traces: ProjectOverviewTrace[]
   recent_network_runs: ProjectOverviewNetworkRun[]
   operational_issues: ProjectOverviewOperationalIssues
