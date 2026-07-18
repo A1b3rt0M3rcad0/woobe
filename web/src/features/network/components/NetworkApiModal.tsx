@@ -173,9 +173,7 @@ export function NetworkApiModal({
         streamEvents,
         outputContract: version?.public_output_contract ?? null,
         manifest,
-        warning: versionId
-          ? null
-          : `Requests return 409 until a ${environment === 'production' ? 'Production' : 'Staging'} Network Release is deployed.`,
+        warning: null,
         note: `The Runtime Key remains bound to this Network and always resolves the active ${environment === 'production' ? 'Production' : 'Staging'} Release.`,
       }
       return [environment, reference]
