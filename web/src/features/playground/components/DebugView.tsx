@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Activity, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Copy, XCircle } from 'lucide-react'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens, formatCurrency, formatLatency } from '@/lib/formatters/number'
@@ -10,7 +10,7 @@ interface DebugViewProps {
   rawEvents?: RawStreamEvent[]
 }
 
-function CollapsibleSection({ title, badge, children, defaultOpen = false }: { title: string; badge?: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function CollapsibleSection({ title, badge, children, defaultOpen = false }: { title: string; badge?: string; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section className="border-t border-border/70 first:border-t-0">
