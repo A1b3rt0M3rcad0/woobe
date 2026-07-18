@@ -16,13 +16,16 @@ describe('adaptProjectOverview', () => {
       'Runtime Cost',
       'Agent Run Success',
       'Network Run Success',
-      'Execution Time',
+      'Average Run Time',
     ])
+    expect(model.metrics.at(-1)?.comparison?.agent.label).toBe('Agent Run')
+    expect(model.metrics.at(-1)?.comparison?.network.label).toBe('Network Run')
     expect(model.narrative).toContain('12 Agent Runs')
     expect(model.narrative).toContain('2 Network Runs')
     expect(model.series).toHaveLength(2)
-    expect(model.agentReleases[0]?.environmentLabel).toBe('Production')
-    expect(model.networkReleases[0]?.environmentLabel).toBe('Production')
+    expect(model.changes).toHaveLength(2)
+    expect(model.changes.map((change) => change.resourceLabel)).toContain('Agent')
+    expect(model.changes.map((change) => change.resourceLabel)).toContain('Network')
     expect(model.runs.map((run) => run.typeLabel)).toContain('Agent Run')
     expect(model.runs.map((run) => run.typeLabel)).toContain('Network Run')
     expect(model.runs).toHaveLength(2)
@@ -107,5 +110,30 @@ describe('adaptProjectOverview', () => {
     expect(networkRun?.costLabel).not.toBe('Unknown')
     expect(networkRun?.costDetail).toContain('Partial')
     expect(networkRun?.costDetail).toContain('1/2')
+  })
+
+  it('distinguishes mutable Draft changes from immutable releases', () => {
+    const fixture = cloneFixture()
+    fixture.recent_changes = [
+      {
+        id: '88888888-8888-8888-8888-888888888888',
+        resource_type: 'network',
+        resource_id: '66666666-6666-6666-6666-666666666666',
+        resource_name: 'Support Network',
+        environment: 'draft',
+        action: 'draft_updated',
+        version: null,
+        revision: 14,
+        description: null,
+        occurred_at: '2026-06-20T11:30:00Z',
+        immutable: false,
+      },
+    ]
+
+    const model = adaptProjectOverview(fixture)
+
+    expect(model.changes[0]?.actionLabel).toBe('Draft updated')
+    expect(model.changes[0]?.versionLabel).toBe('Draft revision 14')
+    expect(model.changes[0]?.immutable).toBe(false)
   })
 })
