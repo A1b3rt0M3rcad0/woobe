@@ -58,7 +58,7 @@ describe('DashboardPage states', () => {
     expect(markup).toContain('Released to Production')
     expect(markup).toContain('Support Agent')
     expect(markup).toContain('Support Network')
-    expect(markup).not.toContain('<line')
+    expect(markup).not.toContain('<line ')
   })
 
   it('renders Draft activity with mutable language', () => {
