@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Activity, Bug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,13 +22,6 @@ const items = [
 ]
 
 export function NetworkOperationsRail({ activeTab, onTabChange }: { activeTab: PanelTab | null; onTabChange: (tab: PanelTab) => void }) {
-  const openedInitially = useRef(false)
-  useEffect(() => {
-    if (openedInitially.current) return
-    openedInitially.current = true
-    onTabChange('traces')
-  }, [onTabChange])
-
   return <nav className="relative z-40 flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-surface/75 py-3">{items.map((item) => {
     const Icon = item.icon
     const active = activeTab === item.id
