@@ -17,6 +17,8 @@ class GetProjectUsageController(Controller):
             "to",
             "bucket",
             "environment",
+            "operation",
+            "network_id",
             "agent_id",
             "provider_model_id",
             "release_id",
