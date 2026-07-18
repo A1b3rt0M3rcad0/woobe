@@ -41,9 +41,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
         response: reference.sync_response_example,
         streamEvents: reference.stream_events,
         outputContract: reference.structured_output.enabled ? reference.structured_output : null,
-        warning: reference.available
-          ? null
-          : `Requests return 409 until a ${slot === 'production' ? 'Production' : 'Staging'} Agent Release is deployed.`,
+        warning: null,
         note: `This Runtime Key always resolves the current ${slot === 'production' ? 'Production' : 'Staging'} Agent Release. Deploys and rollbacks do not require changing the key.`,
       }
       return [slot, value]
