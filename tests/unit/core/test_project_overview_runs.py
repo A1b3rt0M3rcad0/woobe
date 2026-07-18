@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from modules.core.application.dtos.project_overview import (
+    ProjectOverviewChange,
     ProjectOverviewNetworkRelease,
     ProjectOverviewNetworkRun,
     ProjectOverviewOperationalIssues,
@@ -13,6 +14,9 @@ from modules.core.application.dtos.project_overview import (
 )
 from modules.core.infra.database.active_project_overview_reader import (
     ActiveDocumentProjectOverviewReader,
+)
+from modules.core.infra.database.contextual_project_overview_reader import (
+    ContextualProjectOverviewReader,
 )
 
 
@@ -102,6 +106,25 @@ def test_network_release_contract_preserves_change_context() -> None:
     assert release.change_description
 
 
+def test_contextual_change_distinguishes_mutable_draft_from_release() -> None:
+    change = ProjectOverviewChange(
+        id=uuid4(),
+        resource_type="network",
+        resource_id=uuid4(),
+        resource_name="Support Network",
+        environment="draft",
+        action="draft_updated",
+        revision=14,
+        occurred_at=datetime.now(UTC),
+        immutable=False,
+    )
+
+    assert change.environment == "draft"
+    assert change.action == "draft_updated"
+    assert change.revision == 14
+    assert change.immutable is False
+
+
 def test_operational_issues_default_to_no_fabricated_findings() -> None:
     issues = ProjectOverviewOperationalIssues()
 
@@ -125,3 +148,13 @@ def test_reader_uses_canonical_sources_without_overwriting_agent_breakdown() -> 
     assert "recent_network_releases" in source
     assert "unknown_cost_count" in source
     assert "operational_issues" in source
+
+
+def test_contextual_reader_sources_changes_from_real_versioned_state() -> None:
+    source = inspect.getsource(ContextualProjectOverviewReader)
+
+    assert "agent.agent_releases" in source
+    assert "network.network_versions" in source
+    assert "network.draft_revision" in source
+    assert "draft_updated" in source
+    assert "rolled_back" in source
