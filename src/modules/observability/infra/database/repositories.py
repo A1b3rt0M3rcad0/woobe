@@ -70,6 +70,26 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
         result = await self._session.execute(stmt)
         return [trace_model_to_entity(m) for m in result.scalars().all()]
 
+    async def list_by_project_and_network(
+        self,
+        project_id: UUID,
+        network_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Trace]:
+        stmt = (
+            select(TraceModel)
+            .where(
+                TraceModel.project_id == project_id,
+                TraceModel.network_id == network_id,
+            )
+            .order_by(TraceModel.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [trace_model_to_entity(m) for m in result.scalars().all()]
+
     async def list_by_session(
         self, session_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:

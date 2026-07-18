@@ -27,6 +27,12 @@ def test_project_usage_uses_hour_bucket_for_short_window():
     assert query.bucket == "hour"
 
 
+def test_project_usage_preserves_network_scope():
+    network_id = uuid4()
+    query = ProjectUsageQuery(project_id=uuid4(), network_id=network_id)
+    assert query.network_id == network_id
+
+
 def test_project_usage_rejects_ranges_above_ninety_days():
     end = datetime.now(UTC)
     with pytest.raises(ValidationError):

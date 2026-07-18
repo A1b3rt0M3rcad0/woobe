@@ -144,7 +144,7 @@ function AssistantContent({
   }
 
   const { isPureJson, segments } = parseAssistantMessageContent(message.content)
-  if (isPureJson && segments[0].type === 'json') {
+  if (!isStreaming && isPureJson && segments[0].type === 'json') {
     return (
       <StructuredJsonResponse
         value={segments[0].value}
@@ -290,7 +290,7 @@ export function ChatMessage({
             </p>
           )}
           <AssistantContent message={message} isStreaming={isStreaming} variant={variant} />
-          {isStreaming && message.content && message.activity && (
+          {isStreaming && message.content && message.activity && !compact && (
             <ActivityBubble activity={message.activity} variant={variant} />
           )}
         </div>

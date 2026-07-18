@@ -12,6 +12,7 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Select } from '@/components/ui/Select'
+import { useNetworks } from '@/features/network/hooks'
 import { resolveUsageWindow, useProjectUsage } from '@/features/usage/hooks'
 import { UsageMetricGrid } from '@/features/usage/components/UsageMetricGrid'
 import { UsageOperations } from '@/features/usage/components/UsageOperations'
@@ -102,11 +103,13 @@ function ScopeChip({
 
 export default function UsagePage() {
   const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const networksQuery = useNetworks(projectId)
   const [range, setRange] = useState<UsageRange>('30d')
   const [environment, setEnvironment] = useState<UsageEnvironment>('all')
   const [lens, setLens] = useState<UsageLens>('agent')
   const [comparison, setComparison] = useState<UsageComparison>('none')
   const [trendMode, setTrendMode] = useState<UsageTrendMode>('cost')
+  const [networkScope, setNetworkScope] = useState<ScopeSelection | null>(null)
   const [agentScope, setAgentScope] = useState<ScopeSelection | null>(null)
   const [modelScope, setModelScope] = useState<ScopeSelection | null>(null)
   const [releaseScope, setReleaseScope] = useState<ScopeSelection | null>(null)
@@ -121,6 +124,7 @@ export default function UsagePage() {
   const scopeSummary = [
     rangeLabels[range],
     environmentLabels[environment],
+    networkScope?.label ?? 'All Networks',
     agentScope?.label ?? 'All agents',
     modelScope?.label,
     releaseScope ? `Release ${releaseScope.label}` : null,
@@ -142,6 +146,7 @@ export default function UsagePage() {
       ...window,
       environment,
       group_by: groupBy,
+      network_id: networkScope?.id,
       agent_id: agentScope?.id,
       provider_model_id: modelScope?.id,
       release_id: releaseScope?.id,
@@ -153,6 +158,7 @@ export default function UsagePage() {
     environment,
     groupBy,
     modelScope?.id,
+    networkScope?.id,
     projectId,
     range,
     releaseScope?.id,
@@ -173,6 +179,17 @@ export default function UsagePage() {
     setAnchor(new Date())
   }
 
+  const selectNetwork = (networkId: string) => {
+    if (!networkId) {
+      setNetworkScope(null)
+      setAnchor(new Date())
+      return
+    }
+    const network = (networksQuery.data ?? []).find((item) => item.id === networkId)
+    setNetworkScope(network ? { id: network.id, label: network.name } : null)
+    setAnchor(new Date())
+  }
+
   const clearAgentScope = () => {
     setAgentScope(null)
     setReleaseScope(null)
@@ -181,6 +198,7 @@ export default function UsagePage() {
 
   const clearAllScopes = () => {
     setEnvironment('all')
+    setNetworkScope(null)
     setAgentScope(null)
     setModelScope(null)
     setReleaseScope(null)
@@ -226,6 +244,7 @@ export default function UsagePage() {
 
   const activeScopeCount = [
     environment !== 'all',
+    Boolean(networkScope),
     Boolean(agentScope),
     Boolean(modelScope),
     Boolean(releaseScope),
@@ -288,8 +307,18 @@ export default function UsagePage() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="flex items-center gap-2 text-xs font-medium text-muted">
                 <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
-                Analyze by
+                Scope and analysis
               </div>
+              <Select
+                id="usage-network-scope"
+                value={networkScope?.id ?? ''}
+                onChange={(event) => selectNetwork(event.target.value)}
+                className="min-w-[200px] bg-background/35"
+                options={[
+                  { value: '', label: 'All Networks' },
+                  ...(networksQuery.data ?? []).map((network) => ({ value: network.id, label: network.name })),
+                ]}
+              />
               <Select
                 id="usage-analyze-by"
                 value={lens}
@@ -299,13 +328,13 @@ export default function UsagePage() {
                 }}
                 className="min-w-[180px] bg-background/35"
                 options={[
-                  { value: 'agent', label: 'Agent' },
-                  { value: 'model', label: 'Model' },
-                  { value: 'provider', label: 'Provider' },
+                  { value: 'agent', label: 'Analyze by Agent' },
+                  { value: 'model', label: 'Analyze by Model' },
+                  { value: 'provider', label: 'Analyze by Provider' },
                 ]}
               />
               <p className="text-[10px] leading-4 text-muted">
-                Environment is a scope filter. Release comparison becomes available after selecting an agent.
+                Network and environment constrain the dataset. Agent, model and provider explain cost drivers inside that scope.
               </p>
             </div>
 
@@ -359,6 +388,7 @@ export default function UsagePage() {
               {environment !== 'all' && (
                 <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} />
               )}
+              {networkScope && <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} />}
               {agentScope && <ScopeChip label="Agent" value={agentScope.label} onRemove={clearAgentScope} />}
               {modelScope && <ScopeChip label="Model" value={modelScope.label} onRemove={() => setModelScope(null)} />}
               {releaseScope && (
@@ -392,7 +422,7 @@ export default function UsagePage() {
         <ResourceEmptyState
           icon={<BarChart3 className="h-4 w-4" />}
           title="No runtime usage in this scope"
-          description="Usage appears after an Agent reaches a terminal runtime state. Widen the period or remove a scope filter if executions already exist."
+          description="Usage appears after an Agent or Network reaches a terminal runtime state. Widen the period or remove a scope filter if executions already exist."
         />
       ) : (
         <div className="space-y-4">

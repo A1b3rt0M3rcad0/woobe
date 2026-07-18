@@ -1,4 +1,4 @@
-import { get, patch, post, put } from '@/lib/api/client'
+import { get, patch, post } from '@/lib/api/client'
 
 import type {
   ActivateNetworkProductionInput,
@@ -16,12 +16,27 @@ import type {
   PromotionPreview,
 } from './types'
 
-export function ensureNetwork(projectId: string, name: string): Promise<NetworkResource> {
-  return put<NetworkResource>(`/network/projects/${projectId}`, { name })
+export function listNetworks(projectId: string): Promise<NetworkResource[]> {
+  return get<NetworkResource[]>(`/network/projects/${projectId}/networks`)
 }
 
-export function getNetwork(projectId: string): Promise<NetworkResource> {
-  return get<NetworkResource>(`/network/projects/${projectId}`)
+export function createNetwork(
+  projectId: string,
+  input: { name: string; description?: string },
+): Promise<NetworkResource> {
+  return post<NetworkResource>(`/network/projects/${projectId}/networks`, input)
+}
+
+export function getNetwork(projectId: string, networkId: string): Promise<NetworkResource> {
+  return get<NetworkResource>(`/network/projects/${projectId}/networks/${networkId}`)
+}
+
+export function updateNetworkMetadata(
+  projectId: string,
+  networkId: string,
+  input: { name?: string; description?: string },
+): Promise<NetworkResource> {
+  return patch<NetworkResource>(`/network/projects/${projectId}/networks/${networkId}`, input)
 }
 
 export function saveNetworkDraft(

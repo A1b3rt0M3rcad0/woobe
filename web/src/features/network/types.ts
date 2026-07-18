@@ -44,6 +44,7 @@ export interface NetworkResource {
   draft_revision: number
   staging_version_id: string | null
   production_version_id: string | null
+  agent_count?: number
   created_at: string
   updated_at: string
 }

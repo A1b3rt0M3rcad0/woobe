@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -110,6 +111,24 @@ class ApiKeyModel(BaseModel):
             "target_id",
             "environment",
             "status",
+        ),
+        CheckConstraint(
+            "(kind = 'project' AND agent_id IS NULL AND target_type IS NULL "
+            "AND target_id IS NULL AND environment IS NULL) OR "
+            "(kind = 'runtime' AND target_type = 'agent' AND target_id IS NOT NULL "
+            "AND agent_id = target_id AND environment IN ('staging', 'production')) OR "
+            "(kind = 'runtime' AND target_type = 'network' AND target_id IS NOT NULL "
+            "AND agent_id IS NULL AND environment IN ('staging', 'production'))",
+            name="ck_core_api_keys_runtime_binding",
+        ),
+        CheckConstraint(
+            "kind <> 'runtime' OR "
+            "(target_type IN ('agent', 'network') AND target_id IS NOT NULL)",
+            name="ck_core_api_keys_runtime_target",
+        ),
+        CheckConstraint(
+            "kind <> 'runtime' OR jsonb_array_length(interfaces) > 0",
+            name="ck_core_api_keys_runtime_interfaces",
         ),
         {"schema": "core"},
     )

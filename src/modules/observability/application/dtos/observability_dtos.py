@@ -124,6 +124,10 @@ class CreateTraceInput(BaseModel):
     project_id: UUID
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_session_id: UUID | None = None
+    network_version_id: UUID | None = None
     external_session_id: str | None = None
     tenant_id: str | None = None
     user_id: str | None = None
@@ -192,6 +196,10 @@ class TraceSummaryResponse(BaseModel):
     project_id: UUID
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_session_id: UUID | None = None
+    network_version_id: UUID | None = None
     status: str
     started_at: datetime | None = None
     ended_at: datetime | None = None
@@ -224,6 +232,10 @@ class TraceListItemResponse(BaseModel):
     project_id: UUID
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_session_id: UUID | None = None
+    network_version_id: UUID | None = None
     status: str
     provider: str | None = None
     model: str | None = None
@@ -245,5 +257,6 @@ class ListTracesInput(BaseModel):
     project_id: UUID | None = None
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    network_id: UUID | None = None
     limit: int = 100
     offset: int = 0

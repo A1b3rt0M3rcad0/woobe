@@ -26,7 +26,17 @@ from shared.infra.database.outbox import OutboxEventModel as BaseOutboxEventMode
 class NetworkModel(BaseModel):
     __tablename__ = "networks"
     __table_args__ = (
-        UniqueConstraint("project_id", name="uq_networks_project_id"),
+        Index("ix_networks_project_updated", "project_id", "updated_at"),
+        Index(
+            "uq_networks_project_normalized_name",
+            "project_id",
+            text("lower(btrim(name))"),
+            unique=True,
+        ),
+        CheckConstraint(
+            "char_length(btrim(name)) BETWEEN 1 AND 255",
+            name="ck_networks_name_not_blank",
+        ),
         {"schema": "network"},
     )
 

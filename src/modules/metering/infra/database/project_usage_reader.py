@@ -69,6 +69,7 @@ AND trace.started_at >= :start
 AND trace.started_at < :end
 AND trace.status IN ('completed', 'failed', 'cancelled')
 AND (:environment = 'all' OR {_ENVIRONMENT_SQL} = :environment)
+AND (CAST(:network_id AS uuid) IS NULL OR trace.network_id = CAST(:network_id AS uuid))
 AND (CAST(:agent_id AS uuid) IS NULL OR trace.agent_id = CAST(:agent_id AS uuid))
 AND (
     CAST(:provider_model_id AS uuid) IS NULL
@@ -84,6 +85,10 @@ AND (
 
 _TRACE_FIELDS_SQL = f"""
 trace.id AS trace_id,
+trace.network_id,
+network.name AS network_name,
+trace.network_execution_id,
+trace.network_version_id,
 trace.agent_id,
 agent.name AS agent_name,
 trace.status,
@@ -168,6 +173,7 @@ class SQLAlchemyProjectUsageReader:
             "end": query.to,
             "previous_start": query.from_ - duration,
             "environment": query.environment,
+            "network_id": query.network_id,
             "agent_id": query.agent_id,
             "provider_model_id": query.provider_model_id,
             "release_id": query.release_id,
@@ -281,6 +287,7 @@ class SQLAlchemyProjectUsageReader:
                 SELECT {_TRACE_FIELDS_SQL}
                 FROM observability.traces AS trace
                 LEFT JOIN agent.agents AS agent ON agent.id = trace.agent_id
+                LEFT JOIN network.networks AS network ON network.id = trace.network_id
                 WHERE {_BASE_FILTER_SQL}
             ),
             previous_traces AS (
@@ -291,6 +298,7 @@ class SQLAlchemyProjectUsageReader:
                   AND trace.started_at < :start
                   AND trace.status IN ('completed', 'failed', 'cancelled')
                   AND (:environment = 'all' OR {_ENVIRONMENT_SQL} = :environment)
+                  AND (CAST(:network_id AS uuid) IS NULL OR trace.network_id = CAST(:network_id AS uuid))
                   AND (CAST(:agent_id AS uuid) IS NULL OR trace.agent_id = CAST(:agent_id AS uuid))
                   AND (
                     CAST(:provider_model_id AS uuid) IS NULL
@@ -491,6 +499,7 @@ class SQLAlchemyProjectUsageReader:
                 SELECT {_TRACE_FIELDS_SQL}
                 FROM observability.traces AS trace
                 LEFT JOIN agent.agents AS agent ON agent.id = trace.agent_id
+                LEFT JOIN network.networks AS network ON network.id = trace.network_id
                 WHERE {_BASE_FILTER_SQL}
             )
             SELECT
@@ -544,6 +553,7 @@ class SQLAlchemyProjectUsageReader:
             SELECT {_TRACE_FIELDS_SQL}
             FROM observability.traces AS trace
             LEFT JOIN agent.agents AS agent ON agent.id = trace.agent_id
+            LEFT JOIN network.networks AS network ON network.id = trace.network_id
             WHERE {_BASE_FILTER_SQL}
             ORDER BY trace.total_cost_usd DESC NULLS LAST, trace.started_at DESC
             LIMIT :top_limit
@@ -561,6 +571,10 @@ class SQLAlchemyProjectUsageReader:
             results.append(
                 {
                     "trace_id": row["trace_id"],
+                    "network_id": row["network_id"],
+                    "network_name": row["network_name"],
+                    "network_execution_id": row["network_execution_id"],
+                    "network_version_id": row["network_version_id"],
                     "agent_id": row["agent_id"],
                     "agent_name": row["agent_name"],
                     "environment": row["environment"],

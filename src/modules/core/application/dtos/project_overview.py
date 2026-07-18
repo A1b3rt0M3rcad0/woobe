@@ -52,6 +52,11 @@ class ProjectOverviewQuery(BaseModel):
 class ProjectOverviewSummary(BaseModel):
     active_agents: int = 0
     production_agents: int = 0
+    network_count: int = 0
+    staging_networks: int = 0
+    production_networks: int = 0
+    network_runs: int = 0
+    failed_network_runs: int = 0
     requests: int = 0
     request_change_percent: float | None = None
     avg_latency_ms: float | None = None

@@ -29,6 +29,16 @@ interface ParsedSseEvent {
   data: string
 }
 
+const TERMINAL_NETWORK_EVENTS = new Set([
+  'execution_completed',
+  'execution_failed',
+  'execution_cancelled',
+])
+
+export function isTerminalNetworkEvent(eventType: string) {
+  return TERMINAL_NETWORK_EVENTS.has(eventType)
+}
+
 export function parseSseBlock(block: string): ParsedSseEvent | null {
   let event = 'message'
   let id: string | undefined
@@ -87,31 +97,40 @@ async function requestStream(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let terminalEventReceived = false
+
+  const dispatchBlock = (block: string): boolean => {
+    const parsed = parseSseBlock(block)
+    if (!parsed) return false
+    const event = JSON.parse(parsed.data) as NetworkRuntimeEvent
+    if (parsed.id) {
+      input.lastEventId = Number(parsed.id)
+      if (event.sequence == null) event.sequence = input.lastEventId
+    }
+    if (parsed.event === 'heartbeat') {
+      callbacks.onHeartbeat?.(event)
+      return false
+    }
+    callbacks.onEvent(parsed.event, event)
+    return isTerminalNetworkEvent(parsed.event)
+  }
+
   while (true) {
     const { value, done } = await reader.read()
     buffer += decoder.decode(value, { stream: !done })
     const blocks = buffer.split(/\r?\n\r?\n/)
     buffer = blocks.pop() ?? ''
+
     for (const block of blocks) {
-      const parsed = parseSseBlock(block)
-      if (!parsed) continue
-      const event = JSON.parse(parsed.data) as NetworkRuntimeEvent
-      if (parsed.id) {
-        input.lastEventId = Number(parsed.id)
-        if (event.sequence == null) event.sequence = input.lastEventId
-      }
-      if (parsed.event === 'heartbeat') callbacks.onHeartbeat?.(event)
-      else {
-        callbacks.onEvent(parsed.event, event)
-        if (['execution_completed', 'execution_failed', 'execution_cancelled'].includes(parsed.event)) {
-          terminalEventReceived = true
-        }
-      }
+      if (!dispatchBlock(block)) continue
+      await reader.cancel().catch(() => undefined)
+      return true
     }
+
+    if (done && buffer.trim() && dispatchBlock(buffer)) return true
     if (done) break
   }
-  return terminalEventReceived
+
+  return false
 }
 
 export async function streamNetworkExecution(

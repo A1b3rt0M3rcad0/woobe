@@ -18,15 +18,42 @@ const agent = {
   model: 'gpt-4o-mini', temperature: 0.2, max_output_tokens: 128,
   session_mode: 'stateful', status: 'active', settings: {},
 }
+const emptyNetworkDefinition = {
+  schema_version: 2,
+  root_node_id: '',
+  nodes: [],
+  edges: [],
+  settings: {
+    session_mode: 'stateful',
+    max_depth: 8,
+    max_invocations: 32,
+    timeout_seconds: 120,
+  },
+}
+const networks = [
+  {
+    id: 'network-support', project_id: project.id, name: 'Customer Support',
+    description: 'Handles customer requests.', draft_definition: emptyNetworkDefinition,
+    draft_revision: 0, staging_version_id: null, production_version_id: null,
+    agent_count: 0, created_at: now, updated_at: now,
+  },
+  {
+    id: 'network-onboarding', project_id: project.id, name: 'Customer Onboarding',
+    description: 'Guides new customers.', draft_definition: emptyNetworkDefinition,
+    draft_revision: 0, staging_version_id: null, production_version_id: null,
+    agent_count: 0, created_at: now, updated_at: now,
+  },
+]
 
 const overview = {
   project_id: project.id, generated_at: now, from: now, to: now,
   bucket: 'hour', environment: 'all',
   summary: {
-    active_agents: 1, production_agents: 1, requests: 2,
-    request_change_percent: 100, avg_latency_ms: 42, p95_latency_ms: 50,
-    success_rate: 100, failed_requests: 0, cost_usd: 0.001,
-    unknown_cost_count: 0,
+    active_agents: 1, production_agents: 1, network_count: networks.length,
+    staging_networks: 0, production_networks: 0, network_runs: 0,
+    failed_network_runs: 0, requests: 2, request_change_percent: 100,
+    avg_latency_ms: 42, p95_latency_ms: 50, success_rate: 100,
+    failed_requests: 0, cost_usd: 0.001, unknown_cost_count: 0,
   },
   timeseries: [{
     bucket_start: now, requests: 2, success: 2, failed: 0,
@@ -63,7 +90,7 @@ async function installApi(page: Page) {
     const request = route.request()
     const path = new URL(request.url()).pathname
     const method = request.method()
-    const prefixes = ['/identity', '/core', '/ai', '/runtime', '/observability', '/knowledge', '/tools']
+    const prefixes = ['/identity', '/core', '/ai', '/runtime', '/observability', '/knowledge', '/tools', '/network']
     if (!prefixes.some((prefix) => path.startsWith(prefix))) {
       await route.continue()
       return
@@ -85,6 +112,16 @@ async function installApi(page: Page) {
       await respond(route, project)
     } else if (path === `/core/projects/${project.id}/overview`) {
       await respond(route, overview)
+    } else if (path === `/network/projects/${project.id}/networks` && method === 'GET') {
+      await respond(route, networks)
+    } else if (path.startsWith(`/network/projects/${project.id}/networks/`) && method === 'GET') {
+      const networkId = path.split('/').at(-1)
+      const network = networks.find((item) => item.id === networkId)
+      await respond(route, network ?? null, network ? 200 : 404)
+    } else if (/^\/network\/[^/]+\/management\/(versions|activations)$/.test(path)) {
+      await respond(route, [])
+    } else if (/^\/network\/[^/]+\/sessions$/.test(path)) {
+      await respond(route, [])
     } else if (path === '/ai/credentials') {
       await respond(route, [credential])
     } else if (path === '/ai/agents' && method === 'POST') {
@@ -191,6 +228,27 @@ test('creates an agent streams reloads history and creates an API key', async ({
   await page.getByPlaceholder('Key name').fill('Release key')
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText('release-key-visible-once')).toBeVisible()
+})
+
+test('lists and opens multiple Networks without an implicit default', async ({ page }) => {
+  await installApi(page)
+  await authenticate(page)
+  await page.goto('/organizations/org-a/projects/project-a/networks')
+
+  await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible()
+  await expect(page.getByText('Customer Support', { exact: true })).toBeVisible()
+  await expect(page.getByText('Customer Onboarding', { exact: true })).toBeVisible()
+
+  await page.locator('article').filter({ hasText: 'Customer Support' })
+    .getByRole('button', { name: 'Open workspace' }).click()
+  await expect(page).toHaveURL(/\/networks\/network-support$/)
+
+  await page.getByRole('button', { name: 'Back to Networks' }).click()
+  await expect(page).toHaveURL(/\/projects\/project-a\/networks$/)
+
+  await page.locator('article').filter({ hasText: 'Customer Onboarding' })
+    .getByRole('button', { name: 'Open workspace' }).click()
+  await expect(page).toHaveURL(/\/networks\/network-onboarding$/)
 })
 
 test('returns not found for a foreign project without tenant leakage', async ({ page }) => {

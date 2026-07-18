@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Eye, FilePenLine, GitBranch, History, Layers3, Network, Rocket, ShieldCheck } from 'lucide-react'
+import { Activity, Eye, FilePenLine, History, Layers3, Network, Rocket, ShieldCheck } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Dialog } from '@/components/ui/Dialog'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { Agent } from '@/features/agents/types'
-import { getNetwork, getNetworkProductionActivations } from '@/features/network/api'
+import { getNetworkProductionActivations } from '@/features/network/api'
 import type { NetworkDefinition, NetworkProductionActivation, NetworkVersion } from '@/features/network/types'
 import { cn } from '@/lib/utils'
 import { NetworkBindingBadge } from './NetworkBindingBadge'
@@ -67,9 +67,8 @@ function ActivityList({ activations, versions }: { activations: NetworkProductio
 }
 
 export function NetworkVersionsModal({ open, networkName, initialSection, initialMode = 'browse', draftDefinition, draftRevision, draftDirty, stagingVersion, productionVersion, versions, agents, pending, onClose, onStage, onPublish, onViewVersion, onActivate }: NetworkVersionsModalProps) {
-  const { projectId } = useParams<{ projectId: string }>()
-  const networkQuery = useQuery({ queryKey: ['network-version-modal-resource', projectId], queryFn: () => getNetwork(projectId!), enabled: Boolean(open && projectId) })
-  const activationsQuery = useQuery({ queryKey: ['network-production-activations', networkQuery.data?.id, projectId], queryFn: () => getNetworkProductionActivations(networkQuery.data!.id, projectId!), enabled: Boolean(open && projectId && networkQuery.data?.id) })
+  const { projectId, networkId } = useParams<{ projectId: string; networkId: string }>()
+  const activationsQuery = useQuery({ queryKey: ['network-production-activations', projectId, networkId], queryFn: () => getNetworkProductionActivations(networkId!, projectId!), enabled: Boolean(open && projectId && networkId) })
   const releases = useMemo(() => versions.filter((version) => version.kind === 'release').sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()), [versions])
   const rollbackCandidates = useMemo(() => releases.filter((version) => version.id !== productionVersion?.id), [productionVersion?.id, releases])
   const [section, setSection] = useState<Section>(initialMode === 'rollback' ? 'releases' : initialSection)

@@ -10,6 +10,7 @@ export interface ProjectUsageParams {
   bucket: UsageBucket
   environment: UsageEnvironment
   group_by: UsageGroupBy
+  network_id?: string
   agent_id?: string
   provider_model_id?: string
   release_id?: string
@@ -74,6 +75,10 @@ export interface ProjectUsageBreakdownRow {
 
 export interface ProjectUsageExecution {
   trace_id: string
+  network_id?: string | null
+  network_name?: string | null
+  network_execution_id?: string | null
+  network_version_id?: string | null
   agent_id: string | null
   agent_name: string | null
   environment: string | null
