@@ -55,7 +55,7 @@ function Panel({ children, className = '' }: { children: ReactNode; className?: 
   return <section className={`rounded-xl border border-border/90 bg-surface/70 shadow-lg shadow-black/5 ${className}`}>{children}</section>
 }
 
-function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+function PanelHeader({ title, subtitle: _subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-4">
       <div className="min-w-0">
@@ -63,18 +63,16 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
           <h2 className="truncate text-sm font-semibold text-white">{title}</h2>
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted" />
         </div>
-        {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
       </div>
       {action}
     </div>
   )
 }
 
-function StorySectionHeader({ title, description }: { title: string; description: string }) {
+function StorySectionHeader({ title, description: _description }: { title: string; description: string }) {
   return (
     <div className="pt-2">
       <h2 className="text-sm font-semibold text-white">{title}</h2>
-      <p className="mt-1 text-xs text-slate-400">{description}</p>
     </div>
   )
 }
@@ -147,7 +145,7 @@ function EmptyExecutionState() {
     <Panel className="flex min-h-[180px] flex-col items-center justify-center p-7 text-center">
       <Activity className="h-9 w-9 text-muted" />
       <h2 className="mt-3 text-sm font-semibold text-white">No Agent Runs or Network Runs in this interval</h2>
-      <p className="mt-1 max-w-lg text-xs leading-5 text-muted">The selected environment and time range returned no runtime activity. Changes and current Project state remain available below.</p>
+      <p className="mt-1 max-w-lg text-xs leading-5 text-muted">The selected environment and time range returned no runtime activity.</p>
     </Panel>
   )
 }
@@ -228,7 +226,6 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
     <Panel className="h-full min-h-[330px]">
       <PanelHeader
         title="Run Activity"
-        subtitle="When activity and execution errors occurred in the selected period"
         action={<div className="rounded-full border border-border bg-background/70 px-3 py-1 text-right text-[10px] text-muted"><span className="block uppercase tracking-wide">Period total</span><b className="text-xs font-medium text-slate-200">{sum(agentValues).toLocaleString()} Agent Runs · {sum(networkValues).toLocaleString()} Network Runs</b></div>}
       />
       <div className="px-5 pb-5">
@@ -257,8 +254,7 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
               return (
                 <g key={point.bucketStart} onMouseEnter={() => setHoverIndex(index)} onClick={() => setSelectedIndex(index)} className="cursor-pointer">
                   <rect x={Math.max(x - 11, 0)} y={0} width={22} height={CHART_HEIGHT} fill="transparent" />
-                  {isActive && <line x1={x} x2={x} y1={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke="#94a3b8" strokeOpacity="0.45" strokeWidth="1" />}
-                  {hasAgentActivity && (point.agentRuns > 0 || isActive) && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
+                  {hasAgentActivity && point.agentRuns > 0 && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
                   {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r={3} fill="#f87171" />}
                 </g>
               )
@@ -324,7 +320,7 @@ function ReliabilityGroupView({ group }: { group: DashboardReliabilityGroup }) {
 function ReliabilityPanel({ model }: { model: DashboardViewModel }) {
   return (
     <Panel className="h-full min-h-[330px]">
-      <PanelHeader title="Reliability & Performance" subtitle="Whether Agent Runs and Network Runs completed correctly" />
+      <PanelHeader title="Reliability & Performance" />
       <div className="space-y-3 px-5 pb-5"><ReliabilityGroupView group={model.reliability.agent} /><ReliabilityGroupView group={model.reliability.network} /></div>
     </Panel>
   )
@@ -349,7 +345,7 @@ function OperationalIssues({ model }: { model: DashboardViewModel }) {
 
   return (
     <Panel className="border-red-500/20 bg-red-500/[0.025]">
-      <PanelHeader title="Operational Issues" subtitle="Errors detected in the selected period" action={<AlertTriangle className="h-4 w-4 text-red-300" />} />
+      <PanelHeader title="Operational Issues" action={<AlertTriangle className="h-4 w-4 text-red-300" />} />
       <div className="grid gap-4 px-5 pb-5 xl:grid-cols-12">
         <div className="xl:col-span-4"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">What happened</p><div className="mt-2 space-y-2">{model.issues.summary.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-background/45 px-3 py-2 text-xs text-red-200">{item}</div>)}</div>{model.issues.peakLabel && <p className="mt-3 text-xs text-muted">Failure peak: <span className="font-medium text-white">{model.issues.peakLabel}</span> · {model.issues.peakCount} errors</p>}</div>
         <div className="xl:col-span-3"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Most affected Agents</p><div className="mt-2 space-y-2">{model.issues.topAgents.length === 0 ? <p className="text-xs text-muted">No Agent failures.</p> : model.issues.topAgents.map((item) => <div key={`${item.entity_id}-${item.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-xs"><span className="truncate text-slate-200">{item.name}</span><b className="text-red-300">{item.failure_count}</b></div>)}</div></div>
@@ -393,7 +389,7 @@ function ChangesInPeriod({ model, environment, onNavigate }: { model: DashboardV
   const context = changeContext(environment)
   return (
     <Panel>
-      <PanelHeader title={context.title} subtitle={context.description} />
+      <PanelHeader title={context.title} />
       <div className="space-y-2 px-5 pb-4">
         {model.changes.length === 0 ? <div className="rounded-xl border border-dashed border-border/80 bg-background/25 px-4 py-5 text-center text-sm text-muted">{context.empty}</div> : model.changes.map((change) => <ChangeItem key={`${change.resourceType}-${change.id}`} change={change} onOpen={() => onNavigate(change.resourceType === 'agent' ? `agents/${change.resourceId}` : `networks/${change.resourceId}`)} />)}
         <div className="flex flex-wrap gap-4 pt-2"><MiniLink label="View Agent history" onClick={() => onNavigate('agents')} /><MiniLink label="View Network history" onClick={() => onNavigate('networks')} /></div>
@@ -414,7 +410,7 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
   ]
   return (
     <Panel className="h-full min-h-[250px]">
-      <PanelHeader title="Runtime Assets" subtitle="Current deployable state" />
+      <PanelHeader title="Runtime Assets" />
       <div className="grid grid-cols-2 gap-x-5 gap-y-1 px-5 pb-5">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 text-xs last:border-b-0"><span className="text-slate-300">{label}</span><span className="font-semibold text-white">{value}</span></div>)}</div>
     </Panel>
   )
@@ -431,7 +427,7 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
   ]
   return (
     <Panel className="h-full min-h-[250px]">
-      <PanelHeader title="Knowledge" subtitle="Current Project-wide state" />
+      <PanelHeader title="Knowledge" />
       <div className="grid grid-cols-2 gap-2 px-5 pb-5">{entries.map((entry) => { const Icon = entry.icon; return <div key={entry.label} className="rounded-xl border border-border/80 bg-background/50 p-3"><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${entry.tone}`} /><p className="truncate text-xs text-muted">{entry.label}</p></div><p className={`mt-2 text-lg font-semibold ${entry.tone}`}>{entry.value}</p></div> })}<div className="col-span-2 pt-1"><MiniLink label="Open Knowledge" onClick={onOpen} /></div></div>
     </Panel>
   )
@@ -446,7 +442,7 @@ function ToolsIntegrations({ model, onOpen }: { model: DashboardViewModel; onOpe
   ]
   return (
     <Panel className="h-full min-h-[250px]">
-      <PanelHeader title="Tools" subtitle="Current Project-wide state" />
+      <PanelHeader title="Tools" />
       <div className="space-y-1 px-5 pb-5">{items.map((item) => { const Icon = item.icon; return <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg px-1 py-2.5 text-sm"><span className="flex items-center gap-2 text-slate-200"><Icon className={`h-4 w-4 ${item.tone}`} />{item.label}</span><span className={`font-semibold ${item.tone}`}>{item.value}</span></div> })}<div className="pt-2"><MiniLink label="Manage Tools" onClick={onOpen} /></div></div>
     </Panel>
   )
@@ -459,7 +455,7 @@ function keyboardActivate(event: KeyboardEvent<HTMLElement>, action: () => void)
 function RecentRuns({ model, onOpen, onViewAll }: { model: DashboardViewModel; onOpen: (run: DashboardRunRow) => void; onViewAll: () => void }) {
   return (
     <Panel className="overflow-hidden">
-      <PanelHeader title="Recent Runs" subtitle="The three latest primary executions in the selected period" action={<MiniLink label="View all Runs" onClick={onViewAll} />} />
+      <PanelHeader title="Recent Runs" action={<MiniLink label="View all Runs" onClick={onViewAll} />} />
       <div className="px-5 pb-5">
         {model.runs.length === 0 ? <p className="py-6 text-center text-sm text-muted">No Runs in this interval.</p> : (
           <div className="space-y-2">
@@ -543,7 +539,6 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-primary-light" /><h1 className="text-2xl font-semibold tracking-tight text-white">Project Overview</h1>{isUpdating && <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] text-primary-light">Updating {environmentLabel(environment)} overview…</span>}</div>
-              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300" aria-live="polite">{model?.narrative ?? 'Operational health across Agent Runs, Network Runs, releases, Knowledge, and Tools.'}</p>
               {model && <p className="mt-2 text-xs text-muted">Interval: {model.intervalLabel} · {model.timezoneLabel} · Last refreshed {model.generatedAtLabel}</p>}
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-end">
