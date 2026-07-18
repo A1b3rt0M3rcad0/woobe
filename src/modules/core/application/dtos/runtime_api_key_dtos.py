@@ -44,7 +44,12 @@ class CreateRuntimeApiKeyInput(BaseModel):
     def normalize_interfaces(
         cls, value: list[RuntimeInterface]
     ) -> list[RuntimeInterface]:
-        return list(dict.fromkeys(value))
+        normalized = list(dict.fromkeys(value))
+        if RuntimeInterface.jobs in normalized:
+            raise ValueError(
+                "Jobs are coming soon and cannot be enabled on Runtime Keys"
+            )
+        return normalized
 
     @model_validator(mode="after")
     def validate_binding_and_expiration(self) -> "CreateRuntimeApiKeyInput":
