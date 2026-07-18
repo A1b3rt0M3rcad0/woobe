@@ -9,6 +9,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 OverviewBucket = Literal["hour", "day"]
 OverviewEnvironment = Literal["all", "draft", "staging", "production"]
 OverviewTraceEnvironment = Literal["draft", "staging", "production", "playground"]
+OverviewRunSource = Literal[
+    "playground",
+    "api",
+    "job",
+    "network",
+    "event",
+    "schedule",
+    "unknown",
+]
 
 
 class ProjectOverviewQuery(BaseModel):
@@ -55,8 +64,28 @@ class ProjectOverviewSummary(BaseModel):
     network_count: int = 0
     staging_networks: int = 0
     production_networks: int = 0
+
+    agent_runs: int = 0
+    direct_agent_runs: int = 0
+    network_agent_runs: int = 0
+    running_agent_runs: int = 0
+    failed_agent_runs: int = 0
+    agent_run_change_percent: float | None = None
+    avg_agent_run_duration_ms: float | None = None
+    p95_agent_run_duration_ms: float | None = None
+    agent_run_success_rate: float | None = None
+    agent_run_cost_usd: float | None = 0.0
+    unknown_agent_run_cost_count: int = 0
+
     network_runs: int = 0
+    running_network_runs: int = 0
     failed_network_runs: int = 0
+    network_run_success_rate: float | None = None
+    avg_network_run_duration_ms: float | None = None
+    p95_network_run_duration_ms: float | None = None
+    avg_agent_runs_per_network_run: float | None = None
+
+    # Deprecated compatibility fields. New consumers must use the Run fields above.
     requests: int = 0
     request_change_percent: float | None = None
     avg_latency_ms: float | None = None
@@ -69,15 +98,29 @@ class ProjectOverviewSummary(BaseModel):
 
 class ProjectOverviewTimeseriesPoint(BaseModel):
     bucket_start: datetime
+
+    agent_runs: int = 0
+    agent_run_success: int = 0
+    agent_run_failed: int = 0
+    avg_agent_run_duration_ms: float | None = None
+    p95_agent_run_duration_ms: float | None = None
+
+    network_runs: int = 0
+    network_run_success: int = 0
+    network_run_failed: int = 0
+    avg_network_run_duration_ms: float | None = None
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float | None = 0.0
+    unknown_cost_count: int = 0
+
+    # Deprecated compatibility fields.
     requests: int = 0
     success: int = 0
     failed: int = 0
     avg_latency_ms: float | None = None
     p95_latency_ms: float | None = None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost_usd: float | None = 0.0
-    unknown_cost_count: int = 0
 
 
 class ProjectEnvironmentDistribution(BaseModel):
@@ -105,12 +148,25 @@ class ProjectOverviewTrace(BaseModel):
     agent_id: UUID | None = None
     agent_name: str | None = None
     environment: OverviewTraceEnvironment | None = None
+    source: OverviewRunSource = "unknown"
     status: str
     latency_ms: float | None = None
     total_tokens: int | None = None
     cost_usd: float | None = None
     cost_known: bool
     started_at: datetime | None = None
+
+
+class ProjectOverviewNetworkRun(BaseModel):
+    id: UUID
+    network_id: UUID
+    network_name: str
+    environment: Literal["draft", "staging", "production"]
+    status: str
+    duration_ms: float | None = None
+    root_trace_id: UUID | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class ProjectKnowledgeSummary(BaseModel):
@@ -156,6 +212,7 @@ class ProjectOverviewOutput(BaseModel):
     environment_distribution: ProjectEnvironmentDistribution
     recent_releases: list[ProjectOverviewRelease]
     recent_traces: list[ProjectOverviewTrace]
+    recent_network_runs: list[ProjectOverviewNetworkRun] = Field(default_factory=list)
     knowledge_summary: ProjectKnowledgeSummary
     tools_summary: ProjectToolsSummary
     capabilities: ProjectOverviewCapabilities = Field(
