@@ -114,7 +114,7 @@ class ContextualProjectOverviewReader(ActiveDocumentProjectOverviewReader):
                     FALSE AS immutable
                 FROM network.networks AS network
                 WHERE network.project_id = :project_id
-                  AND :environment IN ('all', 'draft')
+                  AND (:environment = 'all' OR :environment = 'draft')
                   AND network.updated_at >= :start
                   AND network.updated_at < :end
 
