@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { NetworkIdentityProvider } from '@/features/network/NetworkIdentityContext'
 import { useNetwork } from '@/features/network/hooks'
@@ -13,6 +13,7 @@ export default function NetworkWorkspaceRoute() {
     projectId: string
     networkId: string
   }>()
+  const location = useLocation()
   const navigate = useNavigate()
   const workspace = useWorkspace()
   const networkQuery = useNetwork(projectId)
@@ -69,7 +70,7 @@ export default function NetworkWorkspaceRoute() {
         </button>
 
         <WorkspaceContext.Provider value={{ ...workspace, currentProject: displayProject }}>
-          <NetworkPage key={networkId} />
+          <NetworkPage key={`${networkId}:${location.key}`} />
         </WorkspaceContext.Provider>
       </div>
     </NetworkIdentityProvider>
