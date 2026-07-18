@@ -58,6 +58,7 @@ describe('DashboardPage states', () => {
     expect(markup).toContain('Released to Production')
     expect(markup).toContain('Support Agent')
     expect(markup).toContain('Support Network')
+    expect(markup).not.toContain('<line')
   })
 
   it('renders Draft activity with mutable language', () => {
@@ -85,12 +86,16 @@ describe('DashboardPage states', () => {
     expect(markup).not.toContain('Production releases')
   })
 
-  it('keeps Recent Runs compact and removes token columns', () => {
-    const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
-    expect(markup).toContain('The three latest primary executions')
+  it('keeps Recent Runs compact and removes guidance copy and token columns', () => {
+    const model = adaptProjectOverview(cloneFixture())
+    const markup = renderToStaticMarkup(<DashboardDataState model={model} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
+
+    expect(markup).toContain('Recent Runs')
     expect(markup).toContain('View all Runs')
     expect(markup).toContain('Duration')
     expect(markup).toContain('Cost')
+    expect(markup).not.toContain('The three latest primary executions')
+    expect(markup).not.toContain('Volume, reliability, performance, and cost in the selected period.')
     expect(markup).not.toContain('Tokens')
   })
 })
