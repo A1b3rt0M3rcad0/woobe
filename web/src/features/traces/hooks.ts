@@ -64,7 +64,9 @@ export function usePlaygroundTraces(
         agentId: sessionId ? undefined : agentId,
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
-    enabled: Boolean(projectId) && Boolean(sessionId),
+    // Agent Runs exist independently of Sessions. Stateless Agents must still
+    // expose their Runs through the Agent filter.
+    enabled: Boolean(projectId) && Boolean(agentId),
     refetchInterval: TRACE_LIST_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,
   })
