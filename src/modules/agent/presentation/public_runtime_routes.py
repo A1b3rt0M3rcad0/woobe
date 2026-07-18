@@ -1,14 +1,10 @@
-from fastapi import APIRouter, Request as FastAPIRequest
+from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
 from modules.agent.application.composers.public_runtime_composers import (
-    public_create_job_composer,
-    public_get_job_composer,
     public_run_composer,
     public_stream_composer,
 )
 from modules.network.presentation.public_runtime import (
-    create_network_job,
-    get_network_job,
     is_network_runtime_request,
     run_network_http,
     stream_network_http,
@@ -35,19 +31,18 @@ async def run_stream(request: FastAPIRequest):
     return await handler(request)
 
 
-@router.post("/jobs", status_code=201)
-async def create_job(request: FastAPIRequest):
-    if is_network_runtime_request(request):
-        return await create_network_job(request)
-    handler = public_create_job_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+@router.post("/jobs", status_code=501)
+async def create_job(_: FastAPIRequest):
+    raise HTTPException(
+        status_code=501,
+        detail="Runtime Jobs are coming soon and are not enabled in the MVP",
+    )
 
 
-@router.get("/jobs/{job_id}")
-async def get_job(request: FastAPIRequest):
-    if is_network_runtime_request(request):
-        return await get_network_job(request)
-    handler = public_get_job_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+@router.get("/jobs/{job_id}", status_code=501)
+async def get_job(_: FastAPIRequest, job_id: str):
+    del job_id
+    raise HTTPException(
+        status_code=501,
+        detail="Runtime Jobs are coming soon and are not enabled in the MVP",
+    )
