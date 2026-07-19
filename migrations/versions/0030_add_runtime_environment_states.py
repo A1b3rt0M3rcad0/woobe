@@ -115,6 +115,11 @@ def upgrade() -> None:
         """
     )
 
+    # Runtime availability now lives in the environment-state table. Keep the
+    # legacy Agent row active so immutable Agent snapshots used by Networks are
+    # not blocked by a standalone operational switch.
+    op.execute("UPDATE agent.agents SET status = 'active' WHERE status = 'inactive'")
+
     # Legacy releases inherited the mutable Agent field. Freeze the currently
     # effective value so future changes cannot alter historical snapshots.
     op.execute(
