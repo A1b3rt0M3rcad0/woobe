@@ -10,11 +10,10 @@ from modules.agent.application.dtos import AskInput
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 
 
-def _sse_type(chunk: str) -> str | None:
-    for line in chunk.splitlines():
-        if line.startswith("event:"):
-            event_type = line.removeprefix("event:").strip()
-            return event_type or None
+_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+
+
+def _sse_payload(chunk: str) -> dict[str, Any] | None:
     for line in chunk.splitlines():
         if not line.startswith("data:"):
             continue
@@ -22,9 +21,31 @@ def _sse_type(chunk: str) -> str | None:
             payload = json.loads(line.removeprefix("data:").strip())
         except (json.JSONDecodeError, TypeError):
             return None
-        event_type = payload.get("type") if isinstance(payload, dict) else None
-        return event_type if isinstance(event_type, str) else None
+        return payload if isinstance(payload, dict) else None
     return None
+
+
+def _sse_type(chunk: str) -> str | None:
+    for line in chunk.splitlines():
+        if line.startswith("event:"):
+            event_type = line.removeprefix("event:").strip()
+            return event_type or None
+    payload = _sse_payload(chunk)
+    event_type = payload.get("type") if payload else None
+    return event_type if isinstance(event_type, str) else None
+
+
+def _is_public_stream_chunk(chunk: str) -> bool:
+    if _sse_type(chunk) != "token":
+        return True
+    payload = _sse_payload(chunk)
+    if payload is None:
+        return False
+    return (
+        payload.get("visibility", "assistant") == "assistant"
+        and payload.get("channel", "final") == "final"
+        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
+    )
 
 
 async def commit_safe_stream(
@@ -44,7 +65,8 @@ async def commit_safe_stream(
         if event_type in {"done", "error", "cancelled"}:
             pending_terminal = chunk
             continue
-        yield chunk
+        if _is_public_stream_chunk(chunk):
+            yield chunk
 
     if pending_terminal is not None:
         yield pending_terminal
