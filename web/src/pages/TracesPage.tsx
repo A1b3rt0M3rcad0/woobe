@@ -73,6 +73,7 @@ type RunEntry =
   | { key: string; kind: 'agent'; trace: Trace; sortAt: number }
 
 const panelScrollClass = 'scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border hover:scrollbar-thumb-muted [scrollbar-color:rgb(51_65_85)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-border/70 [&::-webkit-scrollbar-thumb]:bg-clip-padding hover:[&::-webkit-scrollbar-thumb]:bg-muted'
+const runRowGridClass = 'xl:grid-cols-[32px_minmax(0,1.45fr)_minmax(0,.9fr)_140px_145px_20px]'
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -240,12 +241,26 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
   )
 }
 
-function AgentRunRow({ trace, agentName, networkName, selected, nested = false, onSelect }: {
+function RunTreeSlot({ nested, isLastNested }: { nested: boolean; isLastNested: boolean }) {
+  return (
+    <span aria-hidden className="relative hidden h-full min-h-10 w-8 xl:block">
+      {nested ? (
+        <>
+          <span className={cn('absolute left-1/2 top-0 w-px -translate-x-1/2 bg-border/70', isLastNested ? 'h-1/2' : 'h-full')} />
+          <span className="absolute left-1/2 top-1/2 h-px w-1/2 bg-border/70" />
+        </>
+      ) : null}
+    </span>
+  )
+}
+
+function AgentRunRow({ trace, agentName, networkName, selected, nested = false, isLastNested = false, onSelect }: {
   trace: Trace
   agentName: string
   networkName?: string | null
   selected: boolean
   nested?: boolean
+  isLastNested?: boolean
   onSelect: () => void
 }) {
   const data = traceData(trace)
@@ -261,17 +276,20 @@ function AgentRunRow({ trace, agentName, networkName, selected, nested = false, 
       type="button"
       onClick={onSelect}
       className={cn(
-        'group grid w-full gap-3 border-b border-border/70 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-background/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,.9fr)_110px_145px_20px] xl:items-center',
-        nested && 'border-l-2 border-l-primary/15 bg-background/20 pl-7',
+        'group grid w-full gap-3 border-b border-border/70 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-background/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:items-center',
+        runRowGridClass,
+        nested && 'bg-background/20',
         selected && 'bg-primary/10 hover:bg-primary/10',
       )}
     >
+      <RunTreeSlot nested={nested} isLastNested={isLastNested} />
+
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Bot className="h-3.5 w-3.5 text-primary-light" />
           <span className="truncate text-sm font-medium text-white">{agentName}</span>
           <ResourcePill>Agent Run</ResourcePill>
-          {networkName ? <ResourcePill tone="primary">{networkName}</ResourcePill> : null}
+          {!nested && networkName ? <ResourcePill tone="primary">{networkName}</ResourcePill> : null}
           {trace.fallback_used ? <ResourcePill tone="primary">Fallback</ResourcePill> : null}
         </div>
         <p className="mt-1 truncate text-xs text-muted">{preview ?? `Run ${compactId(trace.id)}`}</p>
@@ -307,10 +325,18 @@ function NetworkRunRow({ group, agentNames, selectedKey, expanded, onToggle, onS
 }) {
   const failedChildren = group.traces.filter((trace) => normalizedStatus(trace.status) === 'failed').length
   const toolCalls = group.traces.reduce((total, trace) => total + (asNumber(traceData(trace).tool_call_count ?? asRecord(traceData(trace).diagnostics).tool_call_count) ?? 0), 0)
+  const sortedTraces = group.traces.slice().sort((left, right) => timestamp(traceStartedAt(left)) - timestamp(traceStartedAt(right)))
+
   return (
     <div className="border-b border-border/75 last:border-b-0">
-      <div className={cn('grid gap-3 px-4 py-3 transition-colors hover:bg-background/50 xl:grid-cols-[32px_minmax(0,1.45fr)_minmax(0,.9fr)_140px_145px_20px] xl:items-center', selectedKey === `network:${group.id}` && 'bg-primary/10 hover:bg-primary/10')}>
-        <button type="button" onClick={onToggle} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/80 bg-background/50 text-muted hover:border-primary/30 hover:text-white" aria-label={expanded ? 'Collapse Network Run' : 'Expand Network Run'}>
+      <div className={cn('grid gap-3 px-4 py-3 transition-colors hover:bg-background/50 xl:items-center', runRowGridClass, selectedKey === `network:${group.id}` && 'bg-primary/10 hover:bg-primary/10')}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/80 bg-background/50 text-muted hover:border-primary/30 hover:text-white"
+          aria-label={expanded ? 'Collapse Network Run' : 'Expand Network Run'}
+          aria-expanded={expanded}
+        >
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
 
@@ -342,20 +368,17 @@ function NetworkRunRow({ group, agentNames, selectedKey, expanded, onToggle, onS
 
       {expanded ? (
         <div className="border-t border-border/60 bg-background/15">
-          {group.traces
-            .slice()
-            .sort((left, right) => timestamp(traceStartedAt(left)) - timestamp(traceStartedAt(right)))
-            .map((trace) => (
-              <AgentRunRow
-                key={trace.id}
-                trace={trace}
-                agentName={trace.agent_id ? agentNames.get(trace.agent_id) ?? `Agent ${compactId(trace.agent_id)}` : 'Agent Run'}
-                networkName={group.networkName}
-                nested
-                selected={selectedKey === `agent:${trace.id}`}
-                onSelect={() => onSelectAgent(trace)}
-              />
-            ))}
+          {sortedTraces.map((trace, index) => (
+            <AgentRunRow
+              key={trace.id}
+              trace={trace}
+              agentName={trace.agent_id ? agentNames.get(trace.agent_id) ?? `Agent ${compactId(trace.agent_id)}` : 'Agent Run'}
+              nested
+              isLastNested={index === sortedTraces.length - 1}
+              selected={selectedKey === `agent:${trace.id}`}
+              onSelect={() => onSelectAgent(trace)}
+            />
+          ))}
         </div>
       ) : null}
     </div>
