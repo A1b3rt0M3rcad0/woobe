@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, ChevronDown, Copy, KeyRound, Network, Plus, X } from 'lucide-react'
+import {
+  Bot,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  KeyRound,
+  Network,
+  Plus,
+  UserRound,
+  X,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { CopyButton } from '@/components/common/CopyButton'
@@ -69,10 +79,38 @@ function runtimeKeyTargetId(key: ApiKey): string | null {
   return key.target_id ?? key.agent_id ?? null
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function publicResultFromResponse(value: unknown): unknown {
+  const root = asRecord(value)
+  const data = asRecord(root?.data) ?? root
+  return data?.parsed_output ?? data?.result ?? data?.answer ?? '<assistant answer>'
+}
+
+function requestMessage(value: Record<string, unknown>): string {
+  return typeof value.message === 'string' && value.message.trim()
+    ? value.message
+    : 'Hello!'
+}
+
+function formatPublicResult(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 function CodeBlock({ value }: { value: string }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border/80 bg-background/60">
-      <div className="flex items-center justify-end border-b border-border/60 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+        <span className="text-[10px] font-medium text-muted">Copy, paste, and run</span>
         <button
           type="button"
           onClick={() => void navigator.clipboard?.writeText(value)}
@@ -95,6 +133,68 @@ function Endpoint({ path }: { path: string }) {
       <code className="min-w-0 flex-1 truncate text-xs text-white">{path}</code>
       <CopyButton text={path} />
     </div>
+  )
+}
+
+function ExpectedResult({
+  prompt,
+  result,
+  targetName,
+  targetType,
+  streaming,
+}: {
+  prompt: string
+  result: unknown
+  targetName: string
+  targetType: RuntimeTargetType
+  streaming: boolean
+}) {
+  const TargetIcon = targetType === 'network' ? Network : Bot
+
+  return (
+    <section>
+      <div className="mb-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Expected result</p>
+        <p className="mt-1 text-[11px] text-muted">
+          {streaming
+            ? 'Only the final public answer is printed while it is generated.'
+            : 'The example prints the public answer instead of the complete response envelope.'}
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-border/75 bg-background/35">
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/75 bg-background/65 text-muted">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 max-w-[82%]">
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">You</p>
+              <div className="rounded-xl rounded-tl-sm border border-border/70 bg-surface/70 px-3.5 py-2.5 text-xs leading-5 text-slate-200">
+                {prompt}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
+              <TargetIcon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 max-w-[88%]">
+              <p className="mb-1.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-primary-light">{targetName}</p>
+              <pre className="whitespace-pre-wrap rounded-xl rounded-tl-sm border border-primary/15 bg-primary/[0.055] px-3.5 py-2.5 font-sans text-xs leading-5 text-slate-100">
+                {formatPublicResult(result)}
+              </pre>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border/65 px-4 py-2.5 text-[10px] text-muted">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          <span>Completed · {targetType === 'network' ? 'Network Run' : 'Agent Run'}</span>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -137,7 +237,7 @@ export function RuntimeApiReferenceModal({
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('production')
   const [section, setSection] = useState<PublicRuntimeInterface>('http')
   const [requestMode, setRequestMode] = useState<RequestMode>('minimal')
-  const [language, setLanguage] = useState<RuntimeCodeLanguage>('curl')
+  const [language, setLanguage] = useState<RuntimeCodeLanguage>('python')
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null)
   const [showCreateKey, setShowCreateKey] = useState(false)
 
@@ -146,7 +246,7 @@ export function RuntimeApiReferenceModal({
     setEnvironment(environments.production.available ? 'production' : environments.staging.available ? 'staging' : 'production')
     setSection('http')
     setRequestMode('minimal')
-    setLanguage('curl')
+    setLanguage('python')
   }, [environments.production.available, environments.staging.available, open])
 
   useEffect(() => {
@@ -202,7 +302,7 @@ export function RuntimeApiReferenceModal({
           <div className="min-w-0">
             <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary-light">{targetLabel} runtime</p>
             <h2 className="mt-1 truncate text-base font-semibold text-white">{targetName} · API Reference</h2>
-            <p className="mt-1 text-[11px] text-muted">Integrate the active deployment using a Runtime Key bound to this {targetLabel.toLowerCase()}.</p>
+            <p className="mt-1 text-[11px] text-muted">Copy a minimal example, run it, and inspect the protocol only when needed.</p>
           </div>
           <button type="button" onClick={onClose} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-background/70 hover:text-white">
             <X className="h-4 w-4" />
@@ -357,7 +457,7 @@ export function RuntimeApiReferenceModal({
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Request</p>
-                      <p className="mt-1 text-[11px] text-muted">Choose the payload that matches the integration flow.</p>
+                      <p className="mt-1 text-[11px] text-muted">Start with one message. Add a session only when continuing a conversation.</p>
                     </div>
                     <div className="inline-flex rounded-lg border border-border/70 bg-background/35 p-0.5">
                       <button
@@ -386,14 +486,14 @@ export function RuntimeApiReferenceModal({
                       )}
                     </div>
                   </div>
-                  <JsonCodeBlock value={requestPayload} maxHeight={260} actions={['copy', 'format']} />
+                  <JsonCodeBlock value={requestPayload} maxHeight={220} actions={['copy', 'format']} />
                 </section>
 
                 <section>
                   <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Code example</p>
-                      <p className="mt-1 text-[11px] text-muted">Uses the selected interface and request payload.</p>
+                      <p className="mt-1 text-[11px] text-muted">The default example prints only the public result.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1">
                       {RUNTIME_CODE_LANGUAGES.map((item) => (
@@ -416,9 +516,19 @@ export function RuntimeApiReferenceModal({
                   <CodeBlock value={snippet} />
                 </section>
 
+                <ExpectedResult
+                  prompt={requestMessage(requestPayload)}
+                  result={publicResultFromResponse(reference.response)}
+                  targetName={targetName}
+                  targetType={targetType}
+                  streaming={section === 'stream'}
+                />
+
                 <DetailPanel
-                  title={section === 'stream' ? 'Server-Sent Events' : 'Response example'}
-                  description={section === 'stream' ? 'Inspect the event envelope emitted during the Run.' : 'Inspect the public response returned after execution.'}
+                  title={section === 'stream' ? 'Raw streaming events' : 'Raw response envelope'}
+                  description={section === 'stream'
+                    ? 'Advanced protocol details for custom clients, tracing, and debugging.'
+                    : 'Complete HTTP payload with session, usage, trace, and structured output fields.'}
                 >
                   <JsonCodeBlock value={section === 'stream' ? reference.streamEvents : reference.response} maxHeight={520} actions={['copy', 'format']} />
                 </DetailPanel>
@@ -427,7 +537,7 @@ export function RuntimeApiReferenceModal({
                   <section className="space-y-2">
                     <div className="pb-1">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Advanced reference</p>
-                      <p className="mt-1 text-[11px] text-muted">Deployment contracts and operational details remain available without competing with the integration flow.</p>
+                      <p className="mt-1 text-[11px] text-muted">Deployment contracts and operational details remain available without competing with the first integration.</p>
                     </div>
 
                     {reference.outputContract != null && (
@@ -461,7 +571,7 @@ export function RuntimeApiReferenceModal({
                     {targetType === 'network' && (
                       <DetailPanel title="Network Run semantics" description="How the Network execution relates to delegated Agent Runs.">
                         <p className="text-[11px] leading-5 text-muted">
-                          Every request creates one Network Run. The response exposes the Network execution identity, while delegated Agent Runs remain attributable inside the Network Run and its Trace.
+                          Every request creates one Network Run. The public result belongs to the Network, while delegated Agent Runs remain attributable inside its Trace.
                         </p>
                       </DetailPanel>
                     )}
