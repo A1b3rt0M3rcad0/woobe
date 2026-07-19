@@ -23,6 +23,34 @@ function prettyJson(body: Record<string, unknown>): string {
   return JSON.stringify(body, null, 2)
 }
 
+function pythonLiteral(value: unknown, indent = 0): string {
+  if (value === null) return 'None'
+  if (value === true) return 'True'
+  if (value === false) return 'False'
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'number') return String(value)
+
+  const currentIndent = ' '.repeat(indent)
+  const childIndent = ' '.repeat(indent + 4)
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]'
+    return `[
+${value.map((item) => `${childIndent}${pythonLiteral(item, indent + 4)},`).join('\n')}
+${currentIndent}]`
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length === 0) return '{}'
+    return `{
+${entries.map(([key, item]) => `${childIndent}${JSON.stringify(key)}: ${pythonLiteral(item, indent + 4)},`).join('\n')}
+${currentIndent}}`
+  }
+
+  return 'None'
+}
+
 function curlSnippet(input: BuildRuntimeSnippetInput): string {
   const idempotency = input.includeIdempotencyKey
     ? ' \\\n  -H "Idempotency-Key: $(uuidgen)"'
@@ -39,6 +67,7 @@ function pythonSnippet(input: BuildRuntimeSnippetInput): string {
   const idempotency = input.includeIdempotencyKey
     ? '\n        "Idempotency-Key": str(uuid.uuid4()),'
     : ''
+  const payload = pythonLiteral(input.body)
 
   if (input.runtimeInterface === 'stream') {
     return `${uuidImport}import json
@@ -46,6 +75,7 @@ import os
 
 import requests
 
+payload = ${payload}
 response_started = False
 event_name = None
 
@@ -54,7 +84,7 @@ with requests.post(
     headers={
         "Authorization": f"Bearer {os.environ['WOOBE_API_KEY']}",${idempotency}
     },
-    json=${prettyJson(input.body).replace(/true/g, 'True').replace(/false/g, 'False').replace(/null/g, 'None')},
+    json=payload,
     stream=True,
     timeout=120,
 ) as response:
@@ -73,19 +103,20 @@ with requests.post(
             continue
 
         payload = json.loads(line.removeprefix("data:").strip())
+        current_event = event_name or payload.get("type")
         data = payload.get("data", payload)
 
-        if event_name == "token" and data.get("phase") in {
+        if current_event == "token" and data.get("phase") in {
             "response_generation",
             "final_response_generation",
         }:
             print(data.get("content", ""), end="", flush=True)
             response_started = True
 
-        elif event_name in {"error", "execution_failed"}:
+        elif current_event in {"error", "execution_failed"}:
             raise RuntimeError(data.get("message", "Woobe execution failed."))
 
-        elif not response_started and event_name in {"done", "network_result"}:
+        elif not response_started and current_event in {"done", "network_result"}:
             result = data.get("parsed_output") or data.get("result") or data.get("answer")
             if isinstance(result, (dict, list)):
                 print(json.dumps(result, ensure_ascii=False, indent=2), end="")
@@ -100,12 +131,14 @@ print()`
 
 import requests
 
+payload = ${payload}
+
 response = requests.post(
     "${endpoint(input.baseUrl, input.runtimeInterface)}",
     headers={
         "Authorization": f"Bearer {os.environ['WOOBE_API_KEY']}",${idempotency}
     },
-    json=${prettyJson(input.body).replace(/true/g, 'True').replace(/false/g, 'False').replace(/null/g, 'None')},
+    json=payload,
     timeout=120,
 )
 response.raise_for_status()
@@ -146,15 +179,16 @@ while (true) {
   if (done) break
 
   buffer += decoder.decode(value, { stream: true })
-  const frames = buffer.split('\\n\\n')
+  const frames = buffer.split(/\\r?\\n\\r?\\n/)
   buffer = frames.pop() ?? ''
 
   for (const frame of frames) {
-    const eventName = frame.match(/^event:\\s*(.+)$/m)?.[1]?.trim()
+    const declaredEvent = frame.match(/^event:\\s*(.+)$/m)?.[1]?.trim()
     const dataLine = frame.match(/^data:\\s*(.+)$/m)?.[1]
-    if (!eventName || !dataLine) continue
+    if (!dataLine) continue
 
     const payload = JSON.parse(dataLine)
+    const eventName = declaredEvent ?? payload.type
     const data = payload.data ?? payload
 
     if (
