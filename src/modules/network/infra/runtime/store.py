@@ -89,35 +89,6 @@ class SQLNetworkExecutionStore:
                 if context is not None:
                     context.agent_session_id = result.session_id
 
-            if invocation.parent_invocation_id is None:
-                execution = await session.get(
-                    NetworkExecutionModel,
-                    invocation.network_execution_id,
-                    with_for_update=True,
-                )
-                if execution is not None:
-                    execution.parsed_output = result.parsed_output
-                    execution.output_parse_error = result.output_parse_error
-                    await NetworkRuntimeRepository(session).append_event(
-                        execution,
-                        "network_result",
-                        {
-                            "answer": result.answer,
-                            "result": result.parsed_output
-                            if result.parsed_output is not None
-                            else result.answer,
-                            "parsed_output": result.parsed_output,
-                            "output_parse_error": result.output_parse_error,
-                            "result_type": "structured"
-                            if result.parsed_output is not None
-                            else "text",
-                            "trace_id": str(result.trace_id)
-                            if result.trace_id
-                            else None,
-                        },
-                        invocation=invocation,
-                    )
-
     async def persist_execution_output(
         self,
         execution_id: UUID,
@@ -203,9 +174,37 @@ class SQLNetworkExecutionStore:
                 if invocation_id
                 else None
             )
-            await NetworkRuntimeRepository(session).append_event(
+            repository = NetworkRuntimeRepository(session)
+            await repository.append_event(
                 execution,
                 event_type,
                 payload,
                 invocation=invocation,
             )
+            if (
+                event_type == "agent_invocation_completed"
+                and invocation is not None
+                and invocation.parent_invocation_id is None
+            ):
+                parsed_output = payload.get("parsed_output")
+                output_parse_error = payload.get("output_parse_error")
+                answer = payload.get("output")
+                execution.parsed_output = parsed_output
+                execution.output_parse_error = output_parse_error
+                await repository.append_event(
+                    execution,
+                    "network_result",
+                    {
+                        "answer": answer,
+                        "result": parsed_output
+                        if parsed_output is not None
+                        else answer,
+                        "parsed_output": parsed_output,
+                        "output_parse_error": output_parse_error,
+                        "result_type": "structured"
+                        if parsed_output is not None
+                        else "text",
+                        "trace_id": payload.get("trace_id"),
+                    },
+                    invocation=invocation,
+                )
