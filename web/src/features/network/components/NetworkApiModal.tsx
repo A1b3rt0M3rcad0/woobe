@@ -116,8 +116,8 @@ export function NetworkApiModal({
             created_at: '<iso datetime>',
           },
         },
-        invocation_completed: {
-          event: 'invocation_completed',
+        agent_invocation_completed: {
+          event: 'agent_invocation_completed',
           data: {
             protocol_version: 1,
             sequence: 2,
@@ -127,8 +127,15 @@ export function NetworkApiModal({
             parent_invocation_id: '<uuid | null>',
             node_id: '<uuid>',
             agent_id: '<uuid>',
-            depth: 1,
-            data: { status: 'completed' },
+            depth: 0,
+            data: {
+              trace_id: '<uuid | null>',
+              provider: '<provider | null>',
+              model: '<model | null>',
+              output: parsedOutput ? JSON.stringify(parsedOutput) : '<agent answer>',
+              parsed_output: parsedOutput,
+              output_parse_error: null,
+            },
             created_at: '<iso datetime>',
           },
         },
@@ -139,7 +146,26 @@ export function NetworkApiModal({
             sequence: 3,
             execution_id: '<uuid>',
             network_session_id: '<uuid>',
-            data: response.data,
+            invocation_id: '<root invocation uuid>',
+            data: {
+              answer: response.data.answer,
+              result: response.data.result,
+              parsed_output: response.data.parsed_output,
+              output_parse_error: null,
+              result_type: parsedOutput ? 'structured' : 'text',
+              trace_id: '<uuid | null>',
+            },
+            created_at: '<iso datetime>',
+          },
+        },
+        execution_completed: {
+          event: 'execution_completed',
+          data: {
+            protocol_version: 1,
+            sequence: 4,
+            execution_id: '<uuid>',
+            network_session_id: '<uuid>',
+            data: { trace_id: '<uuid | null>' },
             created_at: '<iso datetime>',
           },
         },
@@ -174,7 +200,7 @@ export function NetworkApiModal({
         outputContract: version?.public_output_contract ?? null,
         manifest,
         warning: null,
-        note: `The Runtime Key remains bound to this Network and always resolves the active ${environment === 'production' ? 'Production' : 'Staging'} Release.`,
+        note: `The Runtime Key remains bound to this Network and always resolves the active ${environment === 'production' ? 'Production' : 'Staging'} Release. A completed Run always contains a public answer or a valid structured result; empty model output fails explicitly.`,
       }
       return [environment, reference]
     })) as Record<RuntimeEnvironment, RuntimeEnvironmentReference>
