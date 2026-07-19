@@ -11,10 +11,6 @@ const languages = RUNTIME_CODE_LANGUAGES.map((item) => item.value)
 const baseInput = {
   baseUrl: 'https://api.example.com',
   body: { message: 'Hello!' },
-  targetType: 'network',
-  targetName: 'Support Network',
-  environment: 'staging',
-  version: 'staging-r1',
   includeIdempotencyKey: true,
 } as const
 
@@ -23,7 +19,7 @@ describe('runtime API snippets', () => {
     expect(languages).toEqual(['python', 'javascript', 'curl'])
   })
 
-  it.each(languages)('generates an authenticated HTTP example for %s', (language) => {
+  it.each(languages)('generates a concise authenticated HTTP example for %s', (language) => {
     const snippet = buildRuntimeSnippet({
       ...baseInput,
       language: language as RuntimeCodeLanguage,
@@ -34,62 +30,44 @@ describe('runtime API snippets', () => {
     expect(snippet).toContain('paste_your_runtime_key_here')
     expect(snippet).toContain('Idempotency-Key')
     expect(snippet).not.toContain('/v1/jobs')
+    expect(snippet).not.toContain('Structured result')
+    expect(snippet).not.toContain('print_run')
   })
 
-  it('prints a limited Network Run summary in Python', () => {
+  it('prints the complete HTTP response in Python', () => {
     const snippet = buildRuntimeSnippet({
       ...baseInput,
       language: 'python',
       runtimeInterface: 'http',
     })
 
-    expect(snippet).toContain('✓ {run_label} completed')
-    expect(snippet).toContain('print_field("Run ID", run.get("execution_id"))')
-    expect(snippet).toContain('print_field("Session"')
-    expect(snippet).toContain('print_field("Trace"')
-    expect(snippet).toContain('Structured result')
-    expect(snippet).not.toContain('print(response.json())')
+    expect(snippet).toContain('print(response.json())')
+    expect(snippet).not.toContain('print_field')
   })
 
-  it('prints Agent provider, model, usage, and public result', () => {
+  it('prints raw SSE events in Python', () => {
     const snippet = buildRuntimeSnippet({
       ...baseInput,
-      targetType: 'agent',
-      targetName: 'Support Agent',
-      version: 'staging-r2',
+      language: 'python',
+      runtimeInterface: 'stream',
+    })
+
+    expect(snippet).toContain('for line in response.iter_lines')
+    expect(snippet).toContain('print(line)')
+    expect(snippet).toContain('Each SSE frame')
+    expect(snippet).not.toContain('final_response_generation')
+  })
+
+  it('prints raw SSE frames in JavaScript', () => {
+    const snippet = buildRuntimeSnippet({
+      ...baseInput,
       language: 'javascript',
-      runtimeInterface: 'http',
-      includeIdempotencyKey: false,
-    })
-
-    expect(snippet).toContain("printField('Provider', run.provider)")
-    expect(snippet).toContain("printField('Model', run.model)")
-    expect(snippet).toContain("printField('Tokens', run.usage?.total_tokens)")
-    expect(snippet).toContain('printResult(run)')
-  })
-
-  it('filters Python streaming output to public final phases and prints completion metadata', () => {
-    const snippet = buildRuntimeSnippet({
-      ...baseInput,
-      language: 'python',
       runtimeInterface: 'stream',
     })
 
-    expect(snippet).toContain('final_response_generation')
-    expect(snippet).toContain('network_result')
-    expect(snippet).toContain('print_stream_completion(terminal)')
-    expect(snippet).not.toContain('print(line)')
-  })
-
-  it('documents raw SSE only for cURL streaming', () => {
-    const snippet = buildRuntimeSnippet({
-      ...baseInput,
-      language: 'curl',
-      runtimeInterface: 'stream',
-    })
-
-    expect(snippet).toContain('raw SSE protocol')
-    expect(snippet).toContain('curl -sS -N')
+    expect(snippet).toContain('process.stdout.write')
+    expect(snippet).toContain('raw SSE frames')
+    expect(snippet).not.toContain('network_result')
   })
 
   it.each(languages)('generates a streaming example for %s', (language) => {
