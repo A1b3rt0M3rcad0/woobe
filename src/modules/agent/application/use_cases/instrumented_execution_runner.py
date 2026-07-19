@@ -61,17 +61,16 @@ async def run_instrumented_execution(
     )
     final_model = None
     if has_tools:
-        if json_enabled:
-            final_model = llm_factory.create_chat_model(
-                provider=provider,
-                model=agent.model,
-                api_key=api_key,
-                base_url=base_url,
-                temperature=agent.temperature or 0.2,
-                max_tokens=agent.max_output_tokens or 1000,
-                streaming=streaming_enabled,
-                response_format={"type": "json_object"},
-            )
+        final_model = llm_factory.create_chat_model(
+            provider=provider,
+            model=agent.model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=agent.temperature or 0.2,
+            max_tokens=agent.max_output_tokens or 1000,
+            streaming=streaming_enabled,
+            response_format={"type": "json_object"} if json_enabled else None,
+        )
         model = model.bind_tools(agent_tools, tool_choice="auto")
 
     instruction = None
