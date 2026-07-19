@@ -58,10 +58,10 @@ ${currentIndent}}`
 }
 
 function pythonHelpers(input: BuildRuntimeSnippetInput): string {
-  return `TARGET_TYPE = ${JSON.stringify(input.targetType)}
-TARGET_NAME = ${JSON.stringify(input.targetName)}
-ENVIRONMENT = ${JSON.stringify(input.environment === 'production' ? 'Production' : 'Staging')}
-VERSION = ${JSON.stringify(input.version ?? null)}
+  return `TARGET_TYPE = ${pythonLiteral(input.targetType)}
+TARGET_NAME = ${pythonLiteral(input.targetName)}
+ENVIRONMENT = ${pythonLiteral(input.environment === 'production' ? 'Production' : 'Staging')}
+VERSION = ${pythonLiteral(input.version ?? null)}
 
 
 def print_field(label, value):
@@ -111,7 +111,7 @@ def print_execution(run):
     print_field("Tokens", usage.get("total_tokens"))
     cost = usage.get("cost_usd")
     if isinstance(cost, (int, float)):
-        print_field("Cost", f"${cost:.6f}")
+        print_field("Cost", "$" + f"{cost:.6f}")
     if run.get("fallback_used") is True:
         print_field("Fallback", "used")
 
@@ -123,21 +123,24 @@ def print_result(run):
         print(json.dumps(parsed_output, ensure_ascii=False, indent=2))
         return
 
-    result = run.get("result") or run.get("answer")
     print("Response")
-    if result:
-        print(str(result))
+    print(str(run.get("result") or run.get("answer") or ""))
 
 
-def print_run(run, include_result=True):
+def print_run(run):
     run_label = "Network Run" if TARGET_TYPE == "network" else "Agent Run"
     print(f"✓ {run_label} completed\n")
     print_identity()
     print()
     print_execution(run)
-    if include_result:
-        print()
-        print_result(run)`
+    print()
+    print_result(run)
+
+
+def print_stream_completion(run):
+    run_label = "Network Run" if TARGET_TYPE == "network" else "Agent Run"
+    print(f"✓ {run_label} completed\n")
+    print_execution(run)`
 }
 
 function pythonSnippet(input: BuildRuntimeSnippetInput): string {
@@ -176,11 +179,8 @@ with requests.post(
     timeout=120,
 ) as response:
     if not response.ok:
-        try:
-            error = response.json()
-            raise RuntimeError(error.get("message", response.text))
-        except ValueError as exc:
-            raise RuntimeError(response.text) from exc
+        error = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        raise RuntimeError(error.get("message", response.text))
 
     for line in response.iter_lines(decode_unicode=True):
         if not line:
@@ -194,9 +194,9 @@ with requests.post(
         if not line.startswith("data:"):
             continue
 
-        payload = json.loads(line.removeprefix("data:").strip())
-        current_event = event_name or payload.get("type")
-        data = payload.get("data", payload)
+        event_payload = json.loads(line.removeprefix("data:").strip())
+        current_event = event_name or event_payload.get("type")
+        data = event_payload.get("data", event_payload)
 
         if current_event == "token" and data.get("phase") in {
             "response_generation",
@@ -204,18 +204,16 @@ with requests.post(
         }:
             print(data.get("content", ""), end="", flush=True)
             response_started = True
-
         elif current_event in {"error", "execution_failed"}:
             raise RuntimeError(data.get("message", "Woobe execution failed."))
-
         elif current_event in {"done", "network_result"}:
-            terminal = {**payload, **data}
+            terminal = {**event_payload, **data}
 
 if not response_started:
     print_result(terminal)
 
 print("\n")
-print_run(terminal, include_result=False)`
+print_stream_completion(terminal)`
   }
 
   return `${uuidImport}import json
@@ -238,11 +236,8 @@ response = requests.post(
 )
 
 if not response.ok:
-    try:
-        error = response.json()
-        raise RuntimeError(error.get("message", response.text))
-    except ValueError as exc:
-        raise RuntimeError(response.text) from exc
+    error = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+    raise RuntimeError(error.get("message", response.text))
 
 print_run(response.json()["data"])`
 }
@@ -304,15 +299,18 @@ function printResult(run) {
   console.log(run.result ?? run.answer ?? '')
 }
 
-function printRun(run, includeResult = true) {
+function printRun(run) {
   console.log(\`✓ \${TARGET_TYPE === 'network' ? 'Network Run' : 'Agent Run'} completed\\n\`)
   printIdentity()
   console.log('')
   printExecution(run)
-  if (includeResult) {
-    console.log('')
-    printResult(run)
-  }
+  console.log('')
+  printResult(run)
+}
+
+function printStreamCompletion(run) {
+  console.log(\`✓ \${TARGET_TYPE === 'network' ? 'Network Run' : 'Agent Run'} completed\\n\`)
+  printExecution(run)
 }`
 }
 
@@ -371,9 +369,9 @@ while (true) {
     const dataLine = frame.match(/^data:\\s*(.+)$/m)?.[1]
     if (!dataLine) continue
 
-    const payload = JSON.parse(dataLine)
-    const eventName = declaredEvent ?? payload.type
-    const data = payload.data ?? payload
+    const eventPayload = JSON.parse(dataLine)
+    const eventName = declaredEvent ?? eventPayload.type
+    const data = eventPayload.data ?? eventPayload
 
     if (
       eventName === 'token'
@@ -384,14 +382,14 @@ while (true) {
     } else if (['error', 'execution_failed'].includes(eventName)) {
       throw new Error(data.message ?? 'Woobe execution failed.')
     } else if (['done', 'network_result'].includes(eventName)) {
-      terminal = { ...payload, ...data }
+      terminal = { ...eventPayload, ...data }
     }
   }
 }
 
 if (!responseStarted) printResult(terminal)
 process.stdout.write('\\n\\n')
-printRun(terminal, false)`
+printStreamCompletion(terminal)`
   }
 
   return `${helpers}
@@ -408,9 +406,12 @@ function shellQuote(value: string): string {
 function curlSummaryFilter(input: BuildRuntimeSnippetInput): string {
   const targetLabel = input.targetType === 'network' ? 'Network' : 'Agent'
   const runLabel = input.targetType === 'network' ? 'Network Run' : 'Agent Run'
+  const name = JSON.stringify(`  Name: ${input.targetName}`)
+  const environment = JSON.stringify(`  Environment: ${input.environment === 'production' ? 'Production' : 'Staging'}`)
+  const version = JSON.stringify(`  Version: ${input.version ?? '-'}`)
   const identityFields = input.targetType === 'network'
-    ? `"  Name: ${input.targetName}", "  Environment: ${input.environment === 'production' ? 'Production' : 'Staging'}", "  Version: ${input.version ?? '-'}"`
-    : `"  Name: ${input.targetName}", "  Environment: ${input.environment === 'production' ? 'Production' : 'Staging'}", (if $run.provider then "  Provider: \\($run.provider)" else empty end), (if $run.model then "  Model: \\($run.model)" else empty end)`
+    ? `${name}, ${environment}, ${version}`
+    : `${name}, ${environment}, (if $run.provider then "  Provider: \\($run.provider)" else empty end), (if $run.model then "  Model: \\($run.model)" else empty end)`
   const executionFields = input.targetType === 'network'
     ? `(if $run.execution_id then "  Run ID: \\($run.execution_id)" else empty end), (if $run.session_id then "  Session: \\($run.session_id)" else empty end), (if $run.trace_id then "  Trace: \\($run.trace_id)" else empty end)`
     : `(if $run.session_id then "  Session: \\($run.session_id)" else empty end), (if $run.trace_id then "  Trace: \\($run.trace_id)" else empty end), (if $run.latency_ms then "  Duration: \\($run.latency_ms / 1000)s" else empty end), (if $run.usage.total_tokens then "  Tokens: \\($run.usage.total_tokens)" else empty end), (if $run.usage.cost_usd then "  Cost: $\\($run.usage.cost_usd)" else empty end)`
@@ -441,8 +442,8 @@ function curlSnippet(input: BuildRuntimeSnippetInput): string {
   if (input.runtimeInterface === 'stream') {
     return `WOOBE_API_KEY="paste_your_runtime_key_here"
 
-# Streaming output is formatted most clearly by the Python or JavaScript example.
-# This cURL example intentionally exposes the raw SSE protocol for low-level clients.
+# Use Python or JavaScript for a formatted streaming summary.
+# cURL intentionally exposes the raw SSE protocol.
 ${request}`
   }
 
