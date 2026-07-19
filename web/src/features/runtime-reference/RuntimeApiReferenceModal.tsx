@@ -185,10 +185,6 @@ export function RuntimeApiReferenceModal({
     runtimeInterface: section,
     baseUrl: API_BASE_URL,
     body: requestPayload,
-    targetType,
-    targetName,
-    environment,
-    version: reference.version,
     includeIdempotencyKey: targetType === 'network',
   })
   const endpointPath = section === 'stream' ? '/v1/run/stream' : '/v1/run'
@@ -207,7 +203,7 @@ export function RuntimeApiReferenceModal({
           <div className="min-w-0">
             <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary-light">{targetLabel} runtime</p>
             <h2 className="mt-1 truncate text-base font-semibold text-white">{targetName} · API Reference</h2>
-            <p className="mt-1 text-[11px] text-muted">Copy the example, paste your Runtime Key, and inspect a readable Run summary.</p>
+            <p className="mt-1 text-[11px] text-muted">Copy a short request and use the documented response format to process the result.</p>
           </div>
           <button type="button" onClick={onClose} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-background/70 hover:text-white">
             <X className="h-4 w-4" />
@@ -335,117 +331,135 @@ export function RuntimeApiReferenceModal({
                 </section>
 
                 <section>
-                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                  <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Code example</p>
-                      <p className="mt-1 text-[11px] text-muted">The code prints the real Run result as a limited operational summary.</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Request</p>
+                      <p className="mt-1 text-[11px] text-muted">This JSON body is already included in the code example.</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex rounded-lg border border-border/70 bg-background/35 p-0.5">
+                    <div className="inline-flex rounded-lg border border-border/70 bg-background/35 p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setRequestMode('minimal')}
+                        className={cn(
+                          'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                          requestMode === 'minimal' ? 'bg-primary/12 text-primary-light' : 'text-muted hover:text-white',
+                        )}
+                      >
+                        First Run
+                      </button>
+                      {sessionRequestAvailable ? (
                         <button
                           type="button"
-                          onClick={() => setRequestMode('minimal')}
+                          onClick={() => setRequestMode('session')}
                           className={cn(
                             'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                            requestMode === 'minimal' ? 'bg-primary/12 text-primary-light' : 'text-muted hover:text-white',
+                            requestMode === 'session' ? 'bg-primary/12 text-primary-light' : 'text-muted hover:text-white',
                           )}
                         >
-                          First Run
+                          Continue session
                         </button>
-                        {sessionRequestAvailable ? (
-                          <button
-                            type="button"
-                            onClick={() => setRequestMode('session')}
-                            className={cn(
-                              'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                              requestMode === 'session' ? 'bg-primary/12 text-primary-light' : 'text-muted hover:text-white',
-                            )}
-                          >
-                            Continue session
-                          </button>
-                        ) : (
-                          <span className="px-2.5 py-1.5 text-[10px] text-muted/60">Stateless</span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {RUNTIME_CODE_LANGUAGES.map((item) => (
-                          <button
-                            key={item.value}
-                            type="button"
-                            onClick={() => setLanguage(item.value)}
-                            className={cn(
-                              'rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                              language === item.value
-                                ? 'border-primary/30 bg-primary/10 text-primary-light'
-                                : 'border-border/65 bg-background/30 text-muted hover:text-white',
-                            )}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
+                      ) : (
+                        <span className="px-2.5 py-1.5 text-[10px] text-muted/60">Stateless</span>
+                      )}
                     </div>
                   </div>
+                  <JsonCodeBlock value={requestPayload} maxHeight={220} actions={['copy', 'format']} />
+                </section>
 
+                <section>
+                  <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Code example</p>
+                      <p className="mt-1 text-[11px] text-muted">
+                        {section === 'stream'
+                          ? 'Reads and prints each SSE event exactly as the Runtime emits it.'
+                          : 'Sends one request and prints the complete HTTP response.'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {RUNTIME_CODE_LANGUAGES.map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setLanguage(item.value)}
+                          className={cn(
+                            'rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                            language === item.value
+                              ? 'border-primary/30 bg-primary/10 text-primary-light'
+                              : 'border-border/65 bg-background/30 text-muted hover:text-white',
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <CodeBlock value={snippet} />
                   <p className="mt-2 text-[10px] leading-4 text-muted">Do not commit Runtime Keys to source control.</p>
                 </section>
 
-                <section className="space-y-2">
-                  <div className="pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Advanced</p>
-                    <p className="mt-1 text-[11px] text-muted">Open these details only when implementing a custom client or debugging the protocol.</p>
+                <section>
+                  <div className="mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+                      {section === 'stream' ? 'Event format' : 'Response format'}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-4 text-muted">
+                      {section === 'stream'
+                        ? 'Each SSE frame has an event name and a JSON data payload. Route behavior by event and parse data as JSON.'
+                        : 'The HTTP endpoint returns one JSON envelope. The public answer and structured output are inside data.'}
+                    </p>
                   </div>
-
-                  <DetailPanel title="Request payload" description="JSON body already included in the selected code example.">
-                    <JsonCodeBlock value={requestPayload} maxHeight={220} actions={['copy', 'format']} />
-                  </DetailPanel>
-
-                  <DetailPanel
-                    title={section === 'stream' ? 'Raw streaming events' : 'Raw response envelope'}
-                    description={section === 'stream'
-                      ? 'Complete SSE envelopes for custom clients, tracing, and debugging.'
-                      : 'Complete HTTP response with session, usage, trace, and structured output fields.'}
-                  >
-                    <JsonCodeBlock value={section === 'stream' ? reference.streamEvents : reference.response} maxHeight={520} actions={['copy', 'format']} />
-                  </DetailPanel>
-
-                  {reference.outputContract != null && (
-                    <DetailPanel title="Public output contract" description="Schema enforced when structured output is enabled.">
-                      <JsonCodeBlock value={reference.outputContract} maxHeight={360} actions={['copy', 'format']} />
-                    </DetailPanel>
-                  )}
-
-                  {reference.manifest && reference.manifest.length > 0 && (
-                    <DetailPanel title="Agent Release manifest" description="Immutable Agent Releases included in this Network deployment.">
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {reference.manifest.map((item) => (
-                          <div key={item.id} className="rounded-xl border border-border/70 bg-background/35 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate text-[11px] font-medium text-white">{item.name}</p>
-                              <code className="shrink-0 text-[9px] text-primary-light">{item.version}</code>
-                            </div>
-                            {item.role && <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted">{item.role}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    </DetailPanel>
-                  )}
-
-                  {reference.note && (
-                    <DetailPanel title="Runtime behavior" description="How the Runtime Key resolves releases and deployment changes.">
-                      <p className="text-[11px] leading-5 text-muted">{reference.note}</p>
-                    </DetailPanel>
-                  )}
-
-                  {targetType === 'network' && (
-                    <DetailPanel title="Network Run semantics" description="Relationship between the Network Run and delegated Agent Runs.">
-                      <p className="text-[11px] leading-5 text-muted">
-                        Every request creates one Network Run. The public result belongs to the Network, while delegated Agent Runs remain attributable inside its Trace.
-                      </p>
-                    </DetailPanel>
-                  )}
+                  <JsonCodeBlock
+                    value={section === 'stream' ? reference.streamEvents : reference.response}
+                    maxHeight={520}
+                    actions={['copy', 'format']}
+                  />
                 </section>
+
+                {(reference.outputContract != null || reference.manifest?.length || reference.note || targetType === 'network') && (
+                  <section className="space-y-2">
+                    <div className="pb-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Advanced</p>
+                      <p className="mt-1 text-[11px] text-muted">Deployment contracts and operational semantics.</p>
+                    </div>
+
+                    {reference.outputContract != null && (
+                      <DetailPanel title="Public output contract" description="Schema enforced when structured output is enabled.">
+                        <JsonCodeBlock value={reference.outputContract} maxHeight={360} actions={['copy', 'format']} />
+                      </DetailPanel>
+                    )}
+
+                    {reference.manifest && reference.manifest.length > 0 && (
+                      <DetailPanel title="Agent Release manifest" description="Immutable Agent Releases included in this Network deployment.">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {reference.manifest.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-border/70 bg-background/35 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="truncate text-[11px] font-medium text-white">{item.name}</p>
+                                <code className="shrink-0 text-[9px] text-primary-light">{item.version}</code>
+                              </div>
+                              {item.role && <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted">{item.role}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </DetailPanel>
+                    )}
+
+                    {reference.note && (
+                      <DetailPanel title="Runtime behavior" description="How the Runtime Key resolves releases and deployment changes.">
+                        <p className="text-[11px] leading-5 text-muted">{reference.note}</p>
+                      </DetailPanel>
+                    )}
+
+                    {targetType === 'network' && (
+                      <DetailPanel title="Network Run semantics" description="Relationship between the Network Run and delegated Agent Runs.">
+                        <p className="text-[11px] leading-5 text-muted">
+                          Every request creates one Network Run. The public result belongs to the Network, while delegated Agent Runs remain attributable inside its Trace.
+                        </p>
+                      </DetailPanel>
+                    )}
+                  </section>
+                )}
               </div>
             </ScrollArea>
           </section>
