@@ -40,6 +40,8 @@ export interface Trace {
   total_cost_usd?: number | null
   error?: string
   data?: Record<string, unknown>
+  started_at?: string | null
+  ended_at?: string | null
   created_at?: string
 }
 
