@@ -3,6 +3,7 @@ from modules.agent.application.use_cases.runtime_output_validation import (
 )
 from modules.network.infra.runtime.agent_invoker import (
     _caused_by_empty_model_output,
+    _is_public_runtime_token,
 )
 from modules.network.presentation.public_runtime import _public_failure_message
 
@@ -33,3 +34,23 @@ def test_public_network_failure_message_is_explicit() -> None:
     assert _public_failure_message("empty_model_output") == (
         "The Agent completed without producing a public result."
     )
+
+
+def test_network_stream_rejects_tool_planning_tokens() -> None:
+    assert _is_public_runtime_token(
+        {
+            "visibility": "assistant",
+            "channel": "final",
+            "phase": "tool_planning",
+        }
+    ) is False
+
+
+def test_network_stream_accepts_final_response_tokens() -> None:
+    assert _is_public_runtime_token(
+        {
+            "visibility": "assistant",
+            "channel": "final",
+            "phase": "final_response_generation",
+        }
+    ) is True
