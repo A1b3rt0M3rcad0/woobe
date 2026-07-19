@@ -54,6 +54,17 @@ from shared.infra.config import Settings
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
+def _caused_by_empty_model_output(exception: Exception) -> bool:
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while isinstance(current, Exception) and id(current) not in seen:
+        if isinstance(current, EmptyModelOutputError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
 class ProjectRAIAgentInvoker:
     """Invokes the existing Agent runtime in-process with Network-only tools."""
 
@@ -214,22 +225,20 @@ class ProjectRAIAgentInvoker:
                         if event.event_type not in {"done", "error", "cancelled"}:
                             await stream_handler(event.event_type, payload)
                     output = await execution_task
-            except EmptyModelOutputError as exc:
-                failure = NetworkRuntimeFailure(
-                    code="empty_model_output",
-                    stage="output_validation",
-                    safe_message=(
-                        "The Agent completed without producing a public result."
-                    ),
-                    internal_detail=str(exc),
-                    retryable=False,
-                ).with_agent_context(
-                    trace_id=context.trace_id,
-                    agent_session_id=context.session_id,
-                )
-                raise failure from exc
             except Exception as exc:
-                failure = classify_runtime_exception(exc).with_agent_context(
+                if _caused_by_empty_model_output(exc):
+                    failure = NetworkRuntimeFailure(
+                        code="empty_model_output",
+                        stage="output_validation",
+                        safe_message=(
+                            "The Agent completed without producing a public result."
+                        ),
+                        internal_detail=str(exc),
+                        retryable=False,
+                    )
+                else:
+                    failure = classify_runtime_exception(exc)
+                failure = failure.with_agent_context(
                     trace_id=context.trace_id,
                     agent_session_id=context.session_id,
                 )
