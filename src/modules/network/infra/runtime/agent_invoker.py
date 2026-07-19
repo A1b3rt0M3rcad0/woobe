@@ -53,6 +53,8 @@ from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 
+_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+
 
 def _caused_by_empty_model_output(exception: Exception) -> bool:
     current: BaseException | None = exception
@@ -63,6 +65,14 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
         seen.add(id(current))
         current = current.__cause__ or current.__context__
     return False
+
+
+def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    return (
+        payload.get("visibility") == "assistant"
+        and payload.get("channel") == "final"
+        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
+    )
 
 
 class ProjectRAIAgentInvoker:
@@ -216,10 +226,7 @@ class ProjectRAIAgentInvoker:
                             continue
                         payload = dict(event.payload)
                         if event.event_type == "token":
-                            if (
-                                payload.get("visibility") != "assistant"
-                                or payload.get("channel") != "final"
-                            ):
+                            if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
                         if event.event_type not in {"done", "error", "cancelled"}:
