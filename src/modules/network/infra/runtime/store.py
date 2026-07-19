@@ -89,6 +89,35 @@ class SQLNetworkExecutionStore:
                 if context is not None:
                     context.agent_session_id = result.session_id
 
+            if invocation.parent_invocation_id is None:
+                execution = await session.get(
+                    NetworkExecutionModel,
+                    invocation.network_execution_id,
+                    with_for_update=True,
+                )
+                if execution is not None:
+                    execution.parsed_output = result.parsed_output
+                    execution.output_parse_error = result.output_parse_error
+                    await NetworkRuntimeRepository(session).append_event(
+                        execution,
+                        "network_result",
+                        {
+                            "answer": result.answer,
+                            "result": result.parsed_output
+                            if result.parsed_output is not None
+                            else result.answer,
+                            "parsed_output": result.parsed_output,
+                            "output_parse_error": result.output_parse_error,
+                            "result_type": "structured"
+                            if result.parsed_output is not None
+                            else "text",
+                            "trace_id": str(result.trace_id)
+                            if result.trace_id
+                            else None,
+                        },
+                        invocation=invocation,
+                    )
+
     async def persist_execution_output(
         self,
         execution_id: UUID,
@@ -109,11 +138,15 @@ class SQLNetworkExecutionStore:
                 "network_result",
                 {
                     "answer": result.answer,
+                    "result": result.parsed_output
+                    if result.parsed_output is not None
+                    else result.answer,
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
                     "result_type": "structured"
                     if result.parsed_output is not None
                     else "text",
+                    "trace_id": str(result.trace_id) if result.trace_id else None,
                 },
             )
 
