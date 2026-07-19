@@ -129,7 +129,7 @@ def print_result(run):
 
 def print_run(run):
     run_label = "Network Run" if TARGET_TYPE == "network" else "Agent Run"
-    print(f"✓ {run_label} completed\n")
+    print(f"✓ {run_label} completed\\n")
     print_identity()
     print()
     print_execution(run)
@@ -139,7 +139,7 @@ def print_run(run):
 
 def print_stream_completion(run):
     run_label = "Network Run" if TARGET_TYPE == "network" else "Agent Run"
-    print(f"✓ {run_label} completed\n")
+    print(f"✓ {run_label} completed\\n")
     print_execution(run)`
 }
 
@@ -167,7 +167,7 @@ response_started = False
 event_name = None
 
 print_identity()
-print("\nResponse")
+print("\\nResponse")
 
 with requests.post(
     "${endpoint(input.baseUrl, input.runtimeInterface)}",
@@ -212,7 +212,7 @@ with requests.post(
 if not response_started:
     print_result(terminal)
 
-print("\n")
+print("\\n")
 print_stream_completion(terminal)`
   }
 
