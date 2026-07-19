@@ -23,6 +23,9 @@ from modules.agent.application.use_cases.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.use_cases.runtime_output_validation import (
+    EmptyModelOutputError,
+)
 from modules.agent.application.use_cases.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
@@ -42,7 +45,10 @@ from modules.network.application.runtime import (
     AgentInvocationResult,
     InternalDelegationTool,
 )
-from modules.network.application.runtime_failures import classify_runtime_exception
+from modules.network.application.runtime_failures import (
+    NetworkRuntimeFailure,
+    classify_runtime_exception,
+)
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -208,6 +214,20 @@ class ProjectRAIAgentInvoker:
                         if event.event_type not in {"done", "error", "cancelled"}:
                             await stream_handler(event.event_type, payload)
                     output = await execution_task
+            except EmptyModelOutputError as exc:
+                failure = NetworkRuntimeFailure(
+                    code="empty_model_output",
+                    stage="output_validation",
+                    safe_message=(
+                        "The Agent completed without producing a public result."
+                    ),
+                    internal_detail=str(exc),
+                    retryable=False,
+                ).with_agent_context(
+                    trace_id=context.trace_id,
+                    agent_session_id=context.session_id,
+                )
+                raise failure from exc
             except Exception as exc:
                 failure = classify_runtime_exception(exc).with_agent_context(
                     trace_id=context.trace_id,
