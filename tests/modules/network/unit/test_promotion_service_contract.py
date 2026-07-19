@@ -1,3 +1,4 @@
+from copy import deepcopy
 from inspect import signature
 from uuid import uuid4
 
@@ -31,7 +32,8 @@ def test_public_network_service_accepts_preview_concurrency_inputs() -> None:
 
 def test_contract_change_changes_network_promotion_action_id() -> None:
     before = _draft({"message": "string"})
-    after = AgentRelease(**{**before.__dict__, "output_schema": {"message": "string", "confidence": "number"}})
+    after = deepcopy(before)
+    after.output_schema = {"message": "string", "confidence": "number"}
     after.response_format = {
         "enabled": True,
         "type": "json",
