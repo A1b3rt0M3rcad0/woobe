@@ -59,9 +59,10 @@ function pythonSnippet(input: BuildRuntimeSnippetInput): string {
   const payload = pythonLiteral(input.body)
   const request = `${uuidImport}import requests
 
+API_KEY = "paste_your_runtime_key_here"
 url = "${endpoint(input.baseUrl, input.runtimeInterface)}"
 headers = {
-    "Authorization": "Bearer paste_your_runtime_key_here",${idempotency}
+    "Authorization": f"Bearer {API_KEY}",${idempotency}
 }
 payload = ${payload}`
 
@@ -76,7 +77,9 @@ with requests.post(
     stream=True,
     timeout=120,
 ) as response:
-    response.raise_for_status()
+    if not response.ok:
+        print(f"HTTP {response.status_code}: {response.text}")
+        response.raise_for_status()
 
     for line in response.iter_lines(decode_unicode=True):
         if line:
@@ -86,7 +89,10 @@ with requests.post(
   return `${request}
 
 response = requests.post(url, headers=headers, json=payload, timeout=120)
-response.raise_for_status()
+if not response.ok:
+    print(f"HTTP {response.status_code}: {response.text}")
+    response.raise_for_status()
+
 print(response.json())`
 }
 
@@ -94,17 +100,19 @@ function javascriptSnippet(input: BuildRuntimeSnippetInput): string {
   const idempotency = input.includeIdempotencyKey
     ? "\n    'Idempotency-Key': crypto.randomUUID(),"
     : ''
-  const request = `const response = await fetch('${endpoint(input.baseUrl, input.runtimeInterface)}', {
+  const request = `const API_KEY = 'paste_your_runtime_key_here'
+
+const response = await fetch('${endpoint(input.baseUrl, input.runtimeInterface)}', {
   method: 'POST',
   headers: {
-    Authorization: 'Bearer paste_your_runtime_key_here',
+    Authorization: \`Bearer \${API_KEY}\`,
     'Content-Type': 'application/json',${idempotency}
   },
   body: JSON.stringify(${prettyJson(input.body)}),
 })
 
 if (!response.ok) {
-  throw new Error(\`Woobe request failed: \${response.status} \${await response.text()}\`)
+  throw new Error(\`Woobe request failed (\${response.status}): \${await response.text()}\`)
 }`
 
   if (input.runtimeInterface === 'stream') {
@@ -137,8 +145,10 @@ function curlSnippet(input: BuildRuntimeSnippetInput): string {
     ? ' \\\n  -H "Idempotency-Key: $(uuidgen)"'
     : ''
 
-  return `curl ${input.runtimeInterface === 'stream' ? '-N ' : ''}-X POST "${endpoint(input.baseUrl, input.runtimeInterface)}" \\
-  -H "Authorization: Bearer paste_your_runtime_key_here" \\
+  return `WOOBE_API_KEY="paste_your_runtime_key_here"
+
+curl ${input.runtimeInterface === 'stream' ? '-N ' : ''}-X POST "${endpoint(input.baseUrl, input.runtimeInterface)}" \\
+  -H "Authorization: Bearer $WOOBE_API_KEY" \\
   -H "Content-Type: application/json"${idempotency} \\
   -d ${shellQuote(prettyJson(input.body))}`
 }
