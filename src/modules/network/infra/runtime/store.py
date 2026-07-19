@@ -174,37 +174,9 @@ class SQLNetworkExecutionStore:
                 if invocation_id
                 else None
             )
-            repository = NetworkRuntimeRepository(session)
-            await repository.append_event(
+            await NetworkRuntimeRepository(session).append_event(
                 execution,
                 event_type,
                 payload,
                 invocation=invocation,
             )
-            if (
-                event_type == "agent_invocation_completed"
-                and invocation is not None
-                and invocation.parent_invocation_id is None
-            ):
-                parsed_output = payload.get("parsed_output")
-                output_parse_error = payload.get("output_parse_error")
-                answer = payload.get("output")
-                execution.parsed_output = parsed_output
-                execution.output_parse_error = output_parse_error
-                await repository.append_event(
-                    execution,
-                    "network_result",
-                    {
-                        "answer": answer,
-                        "result": parsed_output
-                        if parsed_output is not None
-                        else answer,
-                        "parsed_output": parsed_output,
-                        "output_parse_error": output_parse_error,
-                        "result_type": "structured"
-                        if parsed_output is not None
-                        else "text",
-                        "trace_id": payload.get("trace_id"),
-                    },
-                    invocation=invocation,
-                )
