@@ -16,6 +16,7 @@ from modules.agent.application.mcp_permissions import (
     normalize_discovered_tools,
     normalize_permission,
 )
+from modules.agent.application.mcp_readiness import classify_mcp_discovery_status
 from modules.agent.application.ports import ToolExecutionPort
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.entities import Tool
@@ -109,15 +110,12 @@ def _diagnostic(output: McpDiscoverOutput, *, server_url: str, status: str) -> d
 
 
 def _status_from_discovery(output: McpDiscoverOutput) -> str:
-    if not output.error and output.tools:
-        return "ready"
-    if output.http_status == 401:
-        return "needs_connection"
-    if output.http_status == 403:
-        return "scope_denied"
-    if output.error:
-        return "discovery_failed"
-    return "no_tools"
+    return classify_mcp_discovery_status(
+        has_tools=bool(output.tools),
+        error=output.error,
+        http_status=output.http_status,
+        www_authenticate=output.www_authenticate,
+    )
 
 
 class McpToolBootstrapper:
@@ -219,32 +217,62 @@ class McpToolBootstrapper:
                 phase=output.phase,
             )
 
-        if status == "needs_connection":
-            config["mcp_readiness"] = _readiness(
-                state="needs_connection",
-                label="Connect",
-                message="This MCP provider requires OAuth before its tools can be loaded.",
-                action="connect",
-                discovered_tools=existing_tools,
-            )
-        elif status == "no_tools":
-            config["mcp_readiness"] = _readiness(
-                state="no_tools",
-                label="No tools",
-                message="The MCP provider responded but did not return any tools.",
-                action="refresh",
-                discovered_tools=existing_tools,
-            )
-        else:
-            if output.error:
-                config["oauth_discovery_error"] = output.error
-            config["mcp_readiness"] = _readiness(
-                state="discovery_failed",
-                label="Discovery failed",
-                message="ProjectRAI could not load this MCP provider. Retry loading tools or edit the provider configuration.",
-                action="refresh",
-                discovered_tools=existing_tools,
-            )
+        readiness_by_status: dict[str, tuple[str, str, str, str]] = {
+            "oauth_required": (
+                "needs_connection",
+                "Connect",
+                "This MCP provider advertised a compatible OAuth flow. Connect before loading its tools.",
+                "connect",
+            ),
+            "needs_credentials": (
+                "needs_credentials",
+                "Credentials required",
+                "The server rejected the request without advertising MCP OAuth. Configure the required API key or headers, or use the provider-managed connection URL.",
+                "configure_credentials",
+            ),
+            "scope_denied": (
+                "scope_denied",
+                "Permission denied",
+                "The server accepted the credential but denied access. Review scopes, permissions, or API key policy.",
+                "configure_credentials",
+            ),
+            "invalid_endpoint": (
+                "invalid_endpoint",
+                "Invalid endpoint",
+                "The host responded, but this URL is not accepting MCP requests. Verify the MCP path, commonly /mcp.",
+                "edit_endpoint",
+            ),
+            "unavailable": (
+                "unavailable",
+                "Unavailable",
+                "The MCP server is temporarily unavailable. Retry discovery after the provider recovers.",
+                "refresh",
+            ),
+            "empty": (
+                "no_tools",
+                "No tools",
+                "The MCP provider responded but did not return any tools.",
+                "refresh",
+            ),
+        }
+        readiness_state, label, message, action = readiness_by_status.get(
+            status,
+            (
+                "discovery_failed",
+                "Discovery failed",
+                "ProjectRAI could not load this MCP provider. Retry loading tools or edit the provider configuration.",
+                "refresh",
+            ),
+        )
+        if output.error:
+            config["oauth_discovery_error"] = output.error
+        config["mcp_readiness"] = _readiness(
+            state=readiness_state,
+            label=label,
+            message=message,
+            action=action,
+            discovered_tools=existing_tools,
+        )
 
         tool.config = config
         return McpToolBootstrapResult(
