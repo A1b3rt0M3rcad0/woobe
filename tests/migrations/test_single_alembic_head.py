@@ -7,7 +7,7 @@ def _script_directory() -> ScriptDirectory:
 
 
 def test_migration_graph_has_one_head() -> None:
-    assert _script_directory().get_heads() == ["0050"]
+    assert _script_directory().get_heads() == ["0051"]
 
 
 def test_revision_identifiers_are_unique() -> None:

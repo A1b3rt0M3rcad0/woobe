@@ -1,15 +1,15 @@
 """add runtime environment states
 
-Revision ID: 0030
-Revises: 0029
+Revision ID: 0051
+Revises: 0050
 """
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0030"
-down_revision = "0029"
+revision = "0051"
+down_revision = "0050"
 branch_labels = None
 depends_on = None
 
