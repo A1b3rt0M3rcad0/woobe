@@ -91,6 +91,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
               </div>
               {row('Name', state.name || 'Untitled agent')}
               {row('Model', modelLabel(state))}
+              {row('Session', state.sessionMode)}
               {row('Temp', state.temperature)}
               {row('Tokens', state.maxOutputTokens)}
               {row('Response', responseFormatLabel(state))}
