@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, History, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,6 +18,7 @@ type ProductionChangesModalProps = {
   agentId: string
   activations: AgentReleaseActivation[]
   releases: AgentRelease[]
+  initialActivation?: AgentReleaseActivation | null
   onClose: () => void
 }
 
@@ -27,7 +28,14 @@ function badgeVariant(action: AgentReleaseActivation['action']) {
   return 'secondary' as const
 }
 
-export function ProductionChangesModal({ open, agentId, activations, releases, onClose }: ProductionChangesModalProps) {
+export function ProductionChangesModal({
+  open,
+  agentId,
+  activations,
+  releases,
+  initialActivation = null,
+  onClose,
+}: ProductionChangesModalProps) {
   const releasesById = useMemo(
     () => new Map(releases.map((release) => [release.id, release])),
     [releases],
@@ -36,24 +44,9 @@ export function ProductionChangesModal({ open, agentId, activations, releases, o
   const [currentRelease, setCurrentRelease] = useState<AgentRelease | null>(null)
   const [previousRelease, setPreviousRelease] = useState<AgentRelease | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [initialApplied, setInitialApplied] = useState(false)
 
-  if (!open) return null
-
-  const close = () => {
-    setSelected(null)
-    setCurrentRelease(null)
-    setPreviousRelease(null)
-    setLoadingId(null)
-    onClose()
-  }
-
-  const back = () => {
-    setSelected(null)
-    setCurrentRelease(null)
-    setPreviousRelease(null)
-  }
-
-  const view = async (activation: AgentReleaseActivation) => {
+  const view = useCallback(async (activation: AgentReleaseActivation) => {
     setLoadingId(activation.id)
     try {
       const [current, previous] = await Promise.all([
@@ -70,6 +63,34 @@ export function ProductionChangesModal({ open, agentId, activations, releases, o
     } finally {
       setLoadingId(null)
     }
+  }, [agentId])
+
+  useEffect(() => {
+    if (!open) {
+      setInitialApplied(false)
+      return
+    }
+    if (initialActivation && !initialApplied) {
+      setInitialApplied(true)
+      void view(initialActivation)
+    }
+  }, [initialActivation, initialApplied, open, view])
+
+  if (!open) return null
+
+  const close = () => {
+    setSelected(null)
+    setCurrentRelease(null)
+    setPreviousRelease(null)
+    setLoadingId(null)
+    setInitialApplied(false)
+    onClose()
+  }
+
+  const back = () => {
+    setSelected(null)
+    setCurrentRelease(null)
+    setPreviousRelease(null)
   }
 
   const changes = describeReleaseChanges(previousRelease, currentRelease)
