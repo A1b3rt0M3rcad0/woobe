@@ -1,3 +1,4 @@
+from dataclasses import replace
 from uuid import uuid4
 
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
@@ -27,6 +28,12 @@ def make_release(*, session_mode: str, version: str = "v1.0.0") -> AgentRelease:
     return release
 
 
+def clone_release(release: AgentRelease, *, session_mode: str) -> AgentRelease:
+    clone = replace(release, id=uuid4(), session_mode=session_mode)
+    clone.snapshot_kind = getattr(release, "snapshot_kind", None)
+    return clone
+
+
 def test_release_list_payload_preserves_snapshot_kind_and_session_mode() -> None:
     release = make_release(session_mode="stateless")
 
@@ -40,26 +47,20 @@ def test_release_list_payload_preserves_snapshot_kind_and_session_mode() -> None
 
 def test_stateful_and_stateless_snapshots_are_not_equivalent() -> None:
     stateful = make_release(session_mode="stateful")
-    stateless = AgentRelease(**stateful.__dict__)
-    stateless.id = uuid4()
-    stateless.session_mode = "stateless"
+    stateless = clone_release(stateful, session_mode="stateless")
 
     assert not _execution_snapshot_equal(stateful, stateless)
 
 
 def test_stateful_to_stateless_is_compatibility_change() -> None:
     previous = make_release(session_mode="stateful")
-    candidate = AgentRelease(**previous.__dict__)
-    candidate.id = uuid4()
-    candidate.session_mode = "stateless"
+    candidate = clone_release(previous, session_mode="stateless")
 
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
 
 
 def test_stateless_to_stateful_is_compatibility_change() -> None:
     previous = make_release(session_mode="stateless")
-    candidate = AgentRelease(**previous.__dict__)
-    candidate.id = uuid4()
-    candidate.session_mode = "stateful"
+    candidate = clone_release(previous, session_mode="stateful")
 
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
