@@ -195,11 +195,15 @@ class SQLNetworkExecutionStore:
                 "network_result",
                 {
                     "answer": result.answer,
+                    "result": result.parsed_output
+                    if result.parsed_output is not None
+                    else result.answer,
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
                     "result_type": "structured"
                     if result.parsed_output is not None
                     else "text",
+                    "trace_id": str(result.trace_id) if result.trace_id else None,
                 },
             )
 
