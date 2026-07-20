@@ -34,6 +34,27 @@ class _PrimaryExecutionHost(Protocol):
     def _clean_json_answer(self, answer: str) -> str: ...
 
 
+def _tool_runtime_output(payload: dict[str, Any]) -> dict[str, Any]:
+    output = payload.get("output")
+    if not isinstance(output, dict):
+        return {}
+    nested = output.get("output")
+    return nested if isinstance(nested, dict) else output
+
+
+def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
+    runtime_output = _tool_runtime_output(payload)
+    for key in (
+        "http_route_id",
+        "http_operation_id",
+        "http_method",
+        "tool_contract_hash",
+    ):
+        value = runtime_output.get(key)
+        if value is not None:
+            payload[key] = value
+
+
 class InstrumentedPrimaryExecutionMixin:
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
@@ -162,6 +183,7 @@ class InstrumentedPrimaryExecutionMixin:
                 snapshot = snapshots.get(tool_id) if tool_id else None
                 payload["tool_id"] = tool_id
                 payload["tool_runtime_source"] = context.tool_metadata.get("source")
+                _copy_http_route_metadata(payload)
                 if snapshot and snapshot.get("snapshot_hash"):
                     payload["tool_snapshot_hash"] = snapshot["snapshot_hash"]
 
