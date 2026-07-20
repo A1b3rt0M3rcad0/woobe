@@ -3,6 +3,7 @@ import { ChevronLeft } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import { NetworkIdentityProvider } from '@/features/network/NetworkIdentityContext'
+import { NetworkRuntimeControlsPopover } from '@/features/network/components/NetworkRuntimeControlsPopover'
 import { useNetwork } from '@/features/network/hooks'
 import { WorkspaceContext, useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import NetworkPage from '@/pages/NetworkPage'
@@ -40,6 +41,9 @@ export default function NetworkWorkspaceRoute() {
         style={shellStyle}
       >
         <style>{`
+          .network-workspace-shell > div > header {
+            padding-right: 7.5rem;
+          }
           .network-workspace-shell > div > header > div > h1 {
             font-size: 0;
           }
@@ -67,6 +71,10 @@ export default function NetworkWorkspaceRoute() {
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
+
+        <div className="absolute right-3 top-3 z-[220]">
+          <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} />
+        </div>
 
         <WorkspaceContext.Provider value={{ ...workspace, currentProject: displayProject }}>
           <NetworkPage key={networkId} />
