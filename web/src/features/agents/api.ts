@@ -1,5 +1,5 @@
 import { get, post, patch, del } from '@/lib/api/client'
-import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseTest, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
+import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseActivation, AgentReleaseTest, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
 
 export async function getAgents(projectId?: string): Promise<Agent[]> { return get<Agent[]>('/ai/agents', { params: { project_id: projectId } }) }
 export async function getAgent(id: string): Promise<Agent> { return get<Agent>(`/ai/agents/${id}`) }
@@ -21,8 +21,9 @@ export async function getKnowledgeVersions(agentId: string): Promise<KnowledgeVe
 export async function createKnowledgeVersion(agentId: string, data: CreateKnowledgeVersionRequest): Promise<KnowledgeVersion> { return post<KnowledgeVersion>(`/knowledge/agents/${agentId}/knowledge-versions`, data) }
 export async function getReleases(agentId: string): Promise<AgentRelease[]> { return get<AgentRelease[]>(`/ai/agents/${agentId}/releases`) }
 export async function getRelease(agentId: string, releaseId: string): Promise<AgentRelease> { return get<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}`) }
+export async function getReleaseActivations(agentId: string): Promise<AgentReleaseActivation[]> { return get<AgentReleaseActivation[]>(`/ai/agents/${agentId}/release-activations`) }
 export async function createRelease(agentId: string, data: CreateReleaseRequest): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases`, data) }
-export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string }
+export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'released' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string }
 export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
   const isLegacy = typeof options === 'string'
   const payload: Record<string, unknown> = {
