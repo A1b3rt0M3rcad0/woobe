@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,6 +25,31 @@ class SQLNetworkExecutionStore:
                 "cancel_requested",
                 "cancelled",
             }
+
+    async def resolve_agent_session_mode(
+        self,
+        *,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+    ) -> str:
+        if isinstance(snapshot_override, dict):
+            session_mode = snapshot_override.get("session_mode")
+            if session_mode in {"stateful", "stateless"}:
+                return str(session_mode)
+            raise RuntimeError("Agent Draft snapshot has no valid session_mode")
+
+        if release_id is None:
+            raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
+
+        from modules.agent.infra.database.models import AgentReleaseModel
+
+        async with self._session_factory() as session:
+            release = await session.get(AgentReleaseModel, release_id)
+        if release is None:
+            raise RuntimeError("Pinned Agent release was not found")
+        if release.session_mode not in {"stateful", "stateless"}:
+            raise RuntimeError("Pinned Agent release has no valid session_mode")
+        return str(release.session_mode)
 
     async def start_invocation(
         self,
