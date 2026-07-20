@@ -35,8 +35,8 @@ interface DialogProps {
 }
 
 const INTERNAL_SCROLLBAR = [
-  'scrollbar-thin',
-  '[scrollbar-color:rgb(var(--border))_transparent]',
+  '[scrollbar-width:thin]',
+  '[scrollbar-color:var(--border)_transparent]',
   '[&::-webkit-scrollbar]:w-2',
   '[&::-webkit-scrollbar-track]:bg-transparent',
   '[&::-webkit-scrollbar-thumb]:rounded-full',
