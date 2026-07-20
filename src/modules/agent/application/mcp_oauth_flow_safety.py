@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from modules.agent.application import mcp_oauth_flows as _flows
 from modules.agent.application.mcp_oauth import McpOAuthMetadataResolver
+from modules.agent.application.mcp_readiness import has_mcp_oauth_challenge
 from modules.agent.application.ports import ToolExecutionPort
 from modules.agent.domain.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
@@ -78,6 +79,31 @@ def _unsupported_pkce_message(metadata: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _input_has_explicit_oauth(input_dto: _flows.McpOAuthStartInput) -> bool:
+    return any(
+        value
+        for value in (
+            input_dto.authorization_endpoint,
+            input_dto.token_endpoint,
+            input_dto.registration_endpoint,
+            input_dto.authorization_server_issuer,
+            input_dto.client_id,
+        )
+    )
+
+
+def _config_advertises_oauth(config: dict[str, Any]) -> bool:
+    diagnostic = config.get("mcp_discovery") if isinstance(config.get("mcp_discovery"), dict) else {}
+    protected_metadata = config.get("mcp_resource_metadata")
+    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
+    if oauth.get("authorization_endpoint") and oauth.get("token_endpoint"):
+        return True
+    return has_mcp_oauth_challenge(
+        diagnostic.get("www_authenticate"),
+        protected_metadata if isinstance(protected_metadata, dict) else None,
+    )
+
+
 class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase):
     def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
         super().__init__(tool_repo=tool_repo, executor=executor, cipher=cipher)
@@ -93,6 +119,10 @@ class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase
         server_url = str(server.get("url") or config.get("url") or "")
         if not server_url:
             raise ValueError("MCP server.url is required before OAuth connect")
+        if not _input_has_explicit_oauth(input_dto) and not _config_advertises_oauth(config):
+            raise ValueError(
+                "This MCP server did not advertise a compatible OAuth flow. Configure the required API key or headers, or use the provider-managed connection details instead."
+            )
         metadata = await McpOAuthMetadataResolver(self._safe_executor).resolve(
             server_url=server_url,
             authorization_endpoint=input_dto.authorization_endpoint,
