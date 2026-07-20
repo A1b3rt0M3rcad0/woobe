@@ -9,6 +9,9 @@ from modules.network.presentation.public_runtime import (
     run_network_http,
     stream_network_http,
 )
+from modules.network.presentation.runtime_environment_dependency import (
+    enforce_public_network_runtime_environment,
+)
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/v1", tags=["public-runtime"])
@@ -17,6 +20,7 @@ router = APIRouter(prefix="/v1", tags=["public-runtime"])
 @router.post("/run")
 async def run(request: FastAPIRequest):
     if is_network_runtime_request(request):
+        await enforce_public_network_runtime_environment(request)
         return await run_network_http(request)
     handler = public_run_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
@@ -26,6 +30,7 @@ async def run(request: FastAPIRequest):
 @router.post("/run/stream")
 async def run_stream(request: FastAPIRequest):
     if is_network_runtime_request(request):
+        await enforce_public_network_runtime_environment(request)
         return await stream_network_http(request)
     handler = public_stream_composer(request.app.state.session_factory)
     return await handler(request)

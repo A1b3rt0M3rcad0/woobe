@@ -1,5 +1,6 @@
 import { get, patch, post } from '@/lib/api/client'
 
+import type { RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates } from '@/features/agents/types'
 import type {
   ActivateNetworkProductionInput,
   ActivateNetworkProductionResult,
@@ -29,6 +30,24 @@ export function createNetwork(
 
 export function getNetwork(projectId: string, networkId: string): Promise<NetworkResource> {
   return get<NetworkResource>(`/network/projects/${projectId}/networks/${networkId}`)
+}
+
+export function getNetworkRuntimeEnvironments(networkId: string, projectId: string): Promise<RuntimeEnvironmentStates> {
+  return get<RuntimeEnvironmentStates>(`/network/${networkId}/runtime-environments`, {
+    params: { project_id: projectId },
+  })
+}
+
+export function updateNetworkRuntimeEnvironment(
+  networkId: string,
+  projectId: string,
+  environment: RuntimeEnvironment,
+  enabled: boolean,
+): Promise<RuntimeEnvironmentState & { environment: RuntimeEnvironment }> {
+  return patch<RuntimeEnvironmentState & { environment: RuntimeEnvironment }>(
+    `/network/${networkId}/runtime-environments/${environment}`,
+    { project_id: projectId, enabled },
+  )
 }
 
 export function updateNetworkMetadata(

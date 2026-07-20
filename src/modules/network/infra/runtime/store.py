@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -11,6 +12,14 @@ from modules.network.infra.database.models import (
     NetworkInvocationModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
+
+
+def should_persist_agent_context(
+    *,
+    network_persists_context: bool,
+    agent_session_mode: str,
+) -> bool:
+    return network_persists_context and agent_session_mode == "stateful"
 
 
 class SQLNetworkExecutionStore:
@@ -25,6 +34,60 @@ class SQLNetworkExecutionStore:
                 "cancelled",
             }
 
+    @staticmethod
+    async def _resolve_agent_session_mode(
+        session: AsyncSession,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+        binding_session_mode: str | None = None,
+    ) -> str:
+        if binding_session_mode is not None:
+            if binding_session_mode in {"stateful", "stateless"}:
+                return binding_session_mode
+            raise RuntimeError("Pinned Agent binding has no valid session_mode")
+
+        if isinstance(snapshot_override, dict):
+            session_mode = snapshot_override.get("session_mode")
+            if session_mode in {"stateful", "stateless"}:
+                return str(session_mode)
+            raise RuntimeError("Agent Draft snapshot has no valid session_mode")
+
+        if release_id is None:
+            raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
+
+        from modules.agent.infra.database.models import AgentReleaseModel
+
+        release = await session.get(AgentReleaseModel, release_id)
+        if release is None:
+            raise RuntimeError("Pinned Agent release was not found")
+        if release.project_id != project_id or release.agent_id != agent_id:
+            raise RuntimeError("Pinned Agent release does not belong to this Network node")
+        if release.session_mode not in {"stateful", "stateless"}:
+            raise RuntimeError("Pinned Agent release has no valid session_mode")
+        return str(release.session_mode)
+
+    async def resolve_agent_session_mode(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+        binding_session_mode: str | None = None,
+    ) -> str:
+        async with self._session_factory() as session:
+            return await self._resolve_agent_session_mode(
+                session,
+                project_id=project_id,
+                agent_id=agent_id,
+                release_id=release_id,
+                snapshot_override=snapshot_override,
+                binding_session_mode=binding_session_mode,
+            )
+
     async def start_invocation(
         self,
         *,
@@ -37,18 +100,22 @@ class SQLNetworkExecutionStore:
         persist_context: bool,
     ) -> NetworkInvocationModel:
         async with self._session_factory() as session, session.begin():
+            persisted_execution = await session.get(NetworkExecutionModel, execution.id)
+            if persisted_execution is None:
+                raise RuntimeError("Network execution was not found")
+
             repository = NetworkRuntimeRepository(session)
             context = (
                 await repository.get_or_create_agent_context(
-                    network_session_id=execution.network_session_id,
+                    network_session_id=persisted_execution.network_session_id,
                     node_id=node_id,
                     agent_id=agent_id,
                 )
                 if persist_context
                 else None
             )
-            invocation = await repository.create_invocation(
-                execution=execution,
+            return await repository.create_invocation(
+                execution=persisted_execution,
                 node_id=node_id,
                 agent_id=agent_id,
                 depth=depth,
@@ -56,7 +123,6 @@ class SQLNetworkExecutionStore:
                 parent_invocation_id=parent_invocation_id,
                 agent_session_id=context.agent_session_id if context else None,
             )
-            return invocation
 
     async def complete_invocation(
         self,

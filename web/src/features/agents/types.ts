@@ -1,3 +1,13 @@
+export type RuntimeEnvironment = 'draft' | 'staging' | 'production'
+
+export interface RuntimeEnvironmentState {
+  enabled: boolean
+  updated_by?: string | null
+  updated_at?: string | null
+}
+
+export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
+
 export interface Agent {
   id: string
   project_id: string
@@ -10,6 +20,7 @@ export interface Agent {
   max_output_tokens?: number
   session_mode?: string
   status: string
+  runtime_environments?: RuntimeEnvironmentStates
   provider_model_id?: string
   fallback_provider_model_id?: string
   provider_credential_id?: string
@@ -189,7 +200,7 @@ export interface CreateKnowledgeVersionRequest {
 
 // ── Agent Release ──────────────────────────────────────────────
 
-export type ReleaseStatus = 'draft' | 'staging' | 'production' | 'archived' | 'rolled_back'
+export type ReleaseStatus = 'draft' | 'staging' | 'released' | 'production' | 'archived' | 'rolled_back'
 export type ReleaseSnapshotKind = 'draft' | 'staging' | 'release'
 
 export interface AgentRelease {
@@ -232,6 +243,17 @@ export interface AgentRelease {
   promoted_at?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface AgentReleaseActivation {
+  id: string
+  project_id: string
+  agent_id: string
+  release_id: string
+  previous_release_id?: string | null
+  action: 'deploy' | 'reactivate' | 'rollback'
+  created_by?: string | null
+  created_at?: string
 }
 
 export interface CreateReleaseRequest {

@@ -9,6 +9,7 @@ import type { ReleaseStatus } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
   agent: Agent
+  projectId: string
   showLeftPanel: boolean
   showRightPanel: boolean
   onToggleLeftPanel: () => void
@@ -21,6 +22,7 @@ interface PlaygroundHeaderProps {
 
 export function PlaygroundHeader({
   agent,
+  projectId,
   showLeftPanel,
   showRightPanel,
   onToggleLeftPanel,
@@ -30,7 +32,7 @@ export function PlaygroundHeader({
   releaseStatus,
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
-  const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
+  const { organizationId } = useParams<{ organizationId?: string; projectId: string }>()
 
   const handleBackToProject = () => {
     if (organizationId && projectId) {
@@ -84,7 +86,7 @@ export function PlaygroundHeader({
           API
         </Button>
 
-        <AgentControlsPopover agent={agent} />
+        <AgentControlsPopover agent={agent} projectId={projectId} />
 
         <button
           onClick={onToggleRightPanel}

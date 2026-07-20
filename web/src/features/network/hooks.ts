@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
+import type { RuntimeEnvironment, RuntimeEnvironmentStates } from '@/features/agents/types'
 import {
   activateNetworkProduction,
   createNetwork,
   createNetworkSession,
   getNetwork,
   getNetworkProductionActivations,
+  getNetworkRuntimeEnvironments,
   getNetworkSessionMessages,
   getNetworkSessions,
   getNetworkVersions,
@@ -15,6 +17,7 @@ import {
   rollbackNetworkProduction,
   saveNetworkDraft,
   updateNetworkMetadata,
+  updateNetworkRuntimeEnvironment,
 } from './api'
 import type {
   ActivateNetworkProductionInput,
@@ -73,6 +76,33 @@ export function useNetwork(projectId?: string, _projectName = 'Project Network')
     queryFn: () => getNetwork(projectId!, networkId!),
     enabled: Boolean(projectId && networkId),
     staleTime: 30_000,
+  })
+}
+
+export function useNetworkRuntimeEnvironments(networkId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: ['network-runtime-environments', projectId, networkId],
+    queryFn: () => getNetworkRuntimeEnvironments(networkId!, projectId!),
+    enabled: Boolean(networkId && projectId),
+    staleTime: 15_000,
+  })
+}
+
+export function useUpdateNetworkRuntimeEnvironment(networkId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ environment, enabled }: { environment: RuntimeEnvironment; enabled: boolean }) => updateNetworkRuntimeEnvironment(networkId!, projectId!, environment, enabled),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<RuntimeEnvironmentStates>(['network-runtime-environments', projectId, networkId], (current) => current ? {
+        ...current,
+        [updated.environment]: {
+          enabled: updated.enabled,
+          updated_by: updated.updated_by,
+          updated_at: updated.updated_at,
+        },
+      } : current)
+      queryClient.invalidateQueries({ queryKey: ['network-runtime-environments', projectId, networkId] })
+    },
   })
 }
 

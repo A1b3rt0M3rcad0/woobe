@@ -94,6 +94,7 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
         name: canonicalSnapshot.name,
         description: canonicalSnapshot.description,
         system_prompt: canonicalSnapshot.system_prompt,
+        session_mode: canonicalSnapshot.session_mode,
         provider_model_id: canonicalSnapshot.provider_model_id,
         provider: canonicalSnapshot.provider,
         model: canonicalSnapshot.model,

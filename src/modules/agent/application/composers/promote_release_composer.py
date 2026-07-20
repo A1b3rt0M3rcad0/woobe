@@ -12,6 +12,11 @@ def promote_release_composer(
 ) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
     validator = KnowledgeReleaseValidator(uow.knowledge_versions, uow.vector_snapshots)
-    use_case = KnowledgeSafeReleaseLifecycleUseCase(uow.releases, validator)
+    use_case = KnowledgeSafeReleaseLifecycleUseCase(
+        uow.releases,
+        validator,
+        uow.release_activations,
+        activation_action="reactivate",
+    )
     controller = PromoteReleaseController(use_case)
     return TransactionalHandler(uow, controller.handle)

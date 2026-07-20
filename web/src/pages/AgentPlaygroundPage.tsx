@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent, useReleases } from '@/features/agents/hooks'
+import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -88,9 +88,7 @@ function AgentPlaygroundSkeleton() {
           </div>
         </div>
         <div className="w-[400px] shrink-0 border-l border-border bg-surface/75">
-          <div className="border-b border-border/90 px-3 py-3">
-            <SkeletonLine className="h-3 w-20" />
-          </div>
+          <div className="border-b border-border/90 px-3 py-3"><SkeletonLine className="h-3 w-20" /></div>
           <div className="space-y-3 p-4">
             <SkeletonLine className="h-3 w-24" />
             <div className="rounded-xl border border-border/70 bg-background/35 p-3">
@@ -109,23 +107,20 @@ function AgentPlaygroundSkeleton() {
   )
 }
 
-function normalizeSessionMode(value?: string): 'stateful' | 'stateless' {
-  return value === 'stateless' ? 'stateless' : 'stateful'
-}
-
 function PlaygroundContent() {
   const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
   const { data: releases = [] } = useReleases(agentId)
+  const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
   const { state, toSnapshot, isDirty } = useAgentEditor()
   const { stream, cancel: cancelStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
 
-  const agentSessionMode = normalizeSessionMode(agent?.session_mode)
+  const agentSessionMode = state.sessionMode
   const isStateless = agentSessionMode === 'stateless'
-  const isAgentInactive = agent?.status === 'inactive'
+  const runtimeEnabled = runtimeStatesQuery.data?.draft?.enabled ?? true
 
   const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
   const productionRelease = releases.find(r => r.status === 'production')
@@ -176,9 +171,7 @@ function PlaygroundContent() {
   const { data: historyMessages, isFetching } = useSessionMessages(activeSessionId ?? undefined)
   const isSessionLoading = messages.length === 0 && Boolean(activeSessionId) && isFetching && syncedSessionRef.current !== activeSessionId
 
-  useEffect(() => {
-    setPlaygroundSessionId(activeSessionId)
-  }, [activeSessionId])
+  useEffect(() => { setPlaygroundSessionId(activeSessionId) }, [activeSessionId])
 
   useEffect(() => {
     if (!isStateless || !sessionIdState) return
@@ -223,8 +216,12 @@ function PlaygroundContent() {
 
   const handleNewSession = useCallback(async () => {
     if (!projectId || !agentId || creatingSession) return
+    if (!runtimeEnabled) {
+      toast.error('Draft runtime is off')
+      return
+    }
     if (isStateless) {
-      toast.info('Stateless agents do not create persistent sessions')
+      toast.info('Stateless Agents do not create persistent Sessions')
       return
     }
     cancelStream()
@@ -247,9 +244,9 @@ function PlaygroundContent() {
       setIsSending(false)
       queryClient.invalidateQueries({ queryKey: ['session-messages', created.id] })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create session')
+      toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, cancelStream, createRuntimeSession, creatingSession, isStateless, projectId, queryClient])
+  }, [agentId, cancelStream, createRuntimeSession, creatingSession, isStateless, projectId, queryClient, runtimeEnabled])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -262,8 +259,8 @@ function PlaygroundContent() {
 
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
-    if (isAgentInactive) {
-      toast.error('Agent is inactive')
+    if (!runtimeEnabled) {
+      toast.error('Draft runtime is off')
       return
     }
 
@@ -383,21 +380,21 @@ function PlaygroundContent() {
   }, [backendTraces])
 
   if (agentLoading) return <AgentPlaygroundSkeleton />
-  if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
+  if (agentError) return <ErrorState message="Failed to load Agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
   const statusLabel = isDirty ? 'Using: Draft (unsaved)' : 'Using: Current Draft'
-  const runtimeBlockReason = isAgentInactive ? 'Agent is inactive. Activate it in Runtime to run tests.' : undefined
+  const runtimeBlockReason = runtimeEnabled ? undefined : 'Draft runtime is off. Editing and release management remain available.'
 
   return (
     <ErrorBoundary>
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
-        <PlaygroundHeader agent={agent} showLeftPanel={showLeftPanel} showRightPanel={showRightPanel} onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)} onToggleRightPanel={() => setShowRightPanel(!showRightPanel)} onApiClick={() => setShowApiModal(true)} onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))} releaseVersion={productionRelease?.version} releaseStatus={productionRelease?.status} />
-        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30"><span className="text-muted font-medium">{statusLabel}</span>{isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}<span className="ml-2 text-muted">· {agentSessionMode}</span>{isAgentInactive && <span className="ml-2 text-red-400 font-medium">· inactive</span>}<span className="ml-auto text-muted">{state.provider}/{state.model}</span></div>
+        <PlaygroundHeader agent={agent} projectId={projectId!} showLeftPanel={showLeftPanel} showRightPanel={showRightPanel} onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)} onToggleRightPanel={() => setShowRightPanel(!showRightPanel)} onApiClick={() => setShowApiModal(true)} onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))} releaseVersion={productionRelease?.version} releaseStatus={productionRelease?.status} />
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30"><span className="text-muted font-medium">{statusLabel}</span>{isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}{!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· Draft runtime off</span>}<span className="ml-auto text-muted">{state.provider}/{state.model}</span></div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} onTabChange={handleLeftPanelTabChange} />
           {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={agentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
-          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent?.name} runtimeBlocked={isAgentInactive} runtimeBlockReason={runtimeBlockReason} /></div>
+          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>

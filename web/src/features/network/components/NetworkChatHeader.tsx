@@ -18,18 +18,7 @@ interface NetworkChatHeaderProps {
   onResetContext: () => void
 }
 
-export function NetworkChatHeader({
-  environment,
-  counts,
-  sessions,
-  activeSessionId,
-  versionLabel,
-  changed,
-  newSessionDisabled = false,
-  onSelectSession,
-  onNew,
-  onResetContext,
-}: NetworkChatHeaderProps) {
+export function NetworkChatHeader({ environment, counts, sessions, activeSessionId, versionLabel, changed, newSessionDisabled = false, onSelectSession, onNew, onResetContext }: NetworkChatHeaderProps) {
   const readOnly = environment !== 'draft'
   const immutableSnapshotChanged = environment !== 'draft' && changed
   return (
@@ -57,16 +46,8 @@ export function NetworkChatHeader({
         <button type="button" disabled={!activeSessionId} onClick={onResetContext} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[9px] text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40" title={activeSessionId ? 'Start fresh Agent contexts in this Network Session' : 'Send the first message before resetting session context'}><RotateCcw className="h-3 w-3" />Reset context</button>
       </div>
 
-      {!activeSessionId ? (
-        <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-slate-300">
-          New conversation. A Network Session will be created automatically when you send the first message.
-        </div>
-      ) : null}
-      {environment === 'draft' && counts.draft > 0 ? (
-        <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[10px] text-blue-100/80">
-          Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.
-        </div>
-      ) : null}
+      {!activeSessionId ? <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-slate-300">New conversation. A Network Session will be created automatically when you send the first message.</div> : null}
+      {environment === 'draft' && counts.draft > 0 ? <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[10px] text-blue-100/80">Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.</div> : null}
       {immutableSnapshotChanged ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />

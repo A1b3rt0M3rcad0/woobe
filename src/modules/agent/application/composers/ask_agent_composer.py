@@ -12,6 +12,9 @@ from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolU
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.use_cases.runtime_environment_guard import (
+    AgentRuntimeEnvironmentGuard,
+)
 from modules.agent.application.use_cases.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
@@ -94,4 +97,9 @@ def ask_agent_composer(
     )
     use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     use_case.configure_runtime_tool_reader(read_runtime_tools)
-    return AskAgentController(use_case).handle
+    guarded_use_case = AgentRuntimeEnvironmentGuard(
+        use_case,
+        session_factory,
+        default_environment="production",
+    )
+    return AskAgentController(guarded_use_case).handle
