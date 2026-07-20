@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions, write_mcp_readiness
+from modules.agent.application.mcp_readiness import classify_mcp_discovery_status
 from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
@@ -122,16 +123,17 @@ async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dic
         return {}
 
 
-def _discovery_status(output: McpDiscoverOutput) -> str:
-    if not output.error and output.tools:
-        return "ready"
-    if output.http_status == 401:
-        return "token_invalid"
-    if output.http_status == 403:
-        return "scope_denied"
-    if output.error:
-        return "discovery_failed"
-    return "empty"
+def _discovery_status(output: McpDiscoverOutput, *, config: dict[str, Any]) -> str:
+    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
+    protected_metadata = config.get("mcp_resource_metadata")
+    return classify_mcp_discovery_status(
+        has_tools=bool(output.tools),
+        error=output.error,
+        http_status=output.http_status,
+        www_authenticate=output.www_authenticate,
+        oauth_connected=oauth.get("status") == "connected",
+        protected_resource_metadata=protected_metadata if isinstance(protected_metadata, dict) else None,
+    )
 
 
 def _safe_www_authenticate(value: str | None) -> str | None:
@@ -141,7 +143,7 @@ def _safe_www_authenticate(value: str | None) -> str | None:
 
 
 def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutput, *, now: datetime, server_url: str) -> str:
-    status = _discovery_status(output)
+    status = _discovery_status(output, config=config)
     config["mcp_status"] = status
     config["mcp_discovery"] = {
         "status": status,
