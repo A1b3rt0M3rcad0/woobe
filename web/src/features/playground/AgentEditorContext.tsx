@@ -15,12 +15,14 @@ export type ResponseFormat = {
   repair_attempts?: number
 }
 
+export type AgentSessionMode = 'stateful' | 'stateless'
 export type AgentToolPermissions = Record<string, Record<string, McpToolPermission>>
 
 export type AgentEditorState = {
   name: string
   description: string
   systemPrompt: string
+  sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
   provider: string
@@ -162,6 +164,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     name: agent.name || '',
     description: agent.description || '',
     systemPrompt: agent.system_prompt || '',
+    sessionMode: agent.session_mode === 'stateless' ? 'stateless' : 'stateful',
     responseFormat: {
       enabled: Boolean(responseFormat.enabled && responseFormat.type === 'json'),
       type: responseFormat.type === 'json' ? 'json' : 'text',
@@ -197,6 +200,11 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
     name: release.name ?? current.name,
     description: release.description ?? current.description,
     systemPrompt: release.system_prompt ?? current.systemPrompt,
+    sessionMode: release.session_mode === 'stateless'
+      ? 'stateless'
+      : release.session_mode === 'stateful'
+        ? 'stateful'
+        : current.sessionMode,
     provider: release.provider ?? current.provider,
     model: release.model ?? current.model,
     providerModelId: release.provider_model_id ?? current.providerModelId,
@@ -233,6 +241,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     name: state.name,
     description: state.description,
     system_prompt: state.systemPrompt,
+    session_mode: state.sessionMode,
     response_format: {
       enabled: state.responseFormat.enabled,
       type: state.responseFormat.type,
