@@ -19,6 +19,7 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.presentation.credential_routes import router as credential_router
 from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
 from modules.agent.presentation.public_runtime_routes import router as public_runtime_router
+from modules.agent.presentation.release_activation_routes import router as release_activation_router
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -244,6 +245,7 @@ def create_app() -> FastAPI:
         app.include_router(public_runtime_router)
         app.include_router(credential_router)
         app.include_router(runtime_environment_router)
+        app.include_router(release_activation_router)
         app.include_router(agent_router)
         app.include_router(agent_ai_router)
         app.include_router(agent_knowledge_router)
