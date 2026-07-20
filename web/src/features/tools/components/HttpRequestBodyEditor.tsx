@@ -122,11 +122,18 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
   }
 
   const insertParameterExample = () => {
-    if (!value.trim()) {
-      onChange(JSON.stringify({ parameter: '{{parameter}}' }, null, 2))
+    const parsed = parseObject(value)
+    if (!parsed) {
+      toast.error('The body must be a JSON object before inserting a parameter.')
       return
     }
-    onChange(`${value}\n{{parameter}}`)
+    let index = 1
+    let key = 'parameter'
+    while (Object.prototype.hasOwnProperty.call(parsed, key)) {
+      index += 1
+      key = `parameter_${index}`
+    }
+    onChange(JSON.stringify({ ...parsed, [key]: `{{${key}}}` }, null, 2))
   }
 
   return (
