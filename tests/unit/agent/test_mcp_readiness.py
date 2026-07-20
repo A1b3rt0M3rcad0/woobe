@@ -76,6 +76,22 @@ def test_unauthorized_without_oauth_metadata_requires_static_credentials() -> No
     assert readiness["label"] == "Credentials required"
 
 
+def test_legacy_needs_connection_without_oauth_metadata_is_reclassified() -> None:
+    readiness = build_mcp_readiness({
+        "protocol": "mcp",
+        "mcp_status": "needs_connection",
+        "discovered_tools": [],
+        "mcp_discovery": {
+            "status": "needs_connection",
+            "http_status": 401,
+            "www_authenticate": None,
+        },
+    })
+
+    assert readiness["state"] == "needs_credentials"
+    assert readiness["action"] == "configure_credentials"
+
+
 def test_basic_auth_challenge_is_not_treated_as_mcp_oauth() -> None:
     assert has_mcp_oauth_challenge('Basic realm="provider"') is False
     assert classify_mcp_discovery_status(
