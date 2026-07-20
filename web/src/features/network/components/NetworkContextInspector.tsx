@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, ExternalLink, LocateFixed, Lock } from 'lucide-react'
-import { useParams } from 'react-router-dom'
 
 import type { Agent } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
@@ -9,7 +8,6 @@ import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import { NetworkGraphInspector } from './NetworkGraphInspector'
-import { NetworkRuntimeControlsPopover } from './NetworkRuntimeControlsPopover'
 import { NetworkWorkspaceBootstrap } from './NetworkWorkspaceBootstrap'
 import type { NetworkBinding } from './networkWorkspaceTypes'
 import type { NetworkCenterMode, NetworkInspectionScope, NetworkInspectorContext } from './networkWorkspaceReducer'
@@ -57,7 +55,6 @@ export function NetworkContextInspector({
   onMetadata,
   onChange,
 }: NetworkContextInspectorProps) {
-  const { projectId, networkId } = useParams<{ projectId: string; networkId: string }>()
   const selectedNode = selection.type === 'node'
     ? definition.nodes.find((node) => node.id === selection.id) ?? null
     : null
@@ -78,14 +75,6 @@ export function NetworkContextInspector({
 
   return (
     <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,520px)] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-[520px] xl:bg-surface/80 xl:shadow-none">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/25 px-3 py-2">
-        <div className="min-w-0">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted">Network runtime</p>
-          <p className="truncate text-[9px] text-slate-300">Draft, Staging and Production are controlled independently</p>
-        </div>
-        {projectId && networkId ? <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} /> : null}
-      </div>
-
       {inspecting ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/35 px-3 py-2 text-[9px] text-muted">
           <Lock className="h-3 w-3 shrink-0 text-primary-light" />
