@@ -34,6 +34,12 @@ function formatValue(value: unknown): string {
   return formatJson(value)
 }
 
+function sessionModeValue(value?: string) {
+  if (value === 'stateful') return 'Stateful'
+  if (value === 'stateless') return 'Stateless'
+  return 'Unknown'
+}
+
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
@@ -74,6 +80,7 @@ export function ReleaseSnapshotModal({ open, title, description, release, confir
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300"><FileText className="h-3.5 w-3.5" />Snapshot</div>
             {row('Name', release.name)}
             {row('Model', `${release.provider ?? '—'}/${release.model ?? '—'}`)}
+            {row('Session Mode', sessionModeValue(release.session_mode))}
             {row('Temp', release.temperature)}
             {row('Tokens', release.max_output_tokens)}
             {row('Knowledge', knowledgeVersion?.version ?? release.knowledge_version_id)}
