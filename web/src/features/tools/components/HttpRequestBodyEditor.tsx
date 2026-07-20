@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Braces, Plus, WandSparkles, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { toast } from 'sonner'
 
 type BodyMode = 'fields' | 'raw'
 type BodyFieldType = 'text' | 'number' | 'boolean' | 'parameter' | 'json'
@@ -22,11 +22,11 @@ interface HttpRequestBodyEditorProps {
 }
 
 const FIELD_TYPES = [
+  { value: 'parameter', label: 'Agent input' },
   { value: 'text', label: 'Text' },
-  { value: 'parameter', label: 'Agent parameter' },
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
-  { value: 'json', label: 'JSON' },
+  { value: 'json', label: 'JSON object' },
 ]
 
 function parseObject(value: string): Record<string, unknown> | null {
@@ -87,7 +87,7 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
 
   const useFieldsMode = () => {
     if (!parsedFields) {
-      toast.error('The current body must be a JSON object before using the field editor.')
+      toast.error('Use a JSON object before switching to the field editor.')
       return
     }
     setMode('fields')
@@ -121,10 +121,10 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
     }
   }
 
-  const insertParameterExample = () => {
+  const insertParameter = () => {
     const parsed = parseObject(value)
     if (!parsed) {
-      toast.error('The body must be a JSON object before inserting a parameter.')
+      toast.error('Use a JSON object before inserting an Agent input.')
       return
     }
     let index = 1
@@ -137,13 +137,13 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/80 bg-background/45 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-3 border-t border-border/70 pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Request body</p>
-          <p className="mt-1 text-[11px] text-muted">Build a JSON object visually or edit the raw payload.</p>
+          <p className="text-sm font-medium text-white">Request body</p>
+          <p className="mt-0.5 text-xs text-muted">Add fields visually or edit the JSON payload.</p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-background/60 p-1">
+        <div className="flex items-center rounded-lg border border-border/80 bg-background/45 p-1">
           <Button type="button" size="sm" variant={mode === 'fields' ? 'secondary' : 'ghost'} onClick={useFieldsMode}>Fields</Button>
           <Button type="button" size="sm" variant={mode === 'raw' ? 'secondary' : 'ghost'} onClick={() => setMode('raw')}>Raw JSON</Button>
         </div>
@@ -151,18 +151,9 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
 
       {mode === 'fields' ? (
         <div className="space-y-2">
-          {fields.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border/80 p-4 text-center text-xs text-muted">
-              No body fields yet.
-            </div>
-          ) : fields.map((field, index) => (
-            <div key={`${field.key}-${index}`} className="grid gap-2 rounded-lg border border-border/70 bg-surface/50 p-2 md:grid-cols-[minmax(120px,0.8fr)_150px_minmax(160px,1.4fr)_32px]">
-              <Input
-                value={field.key}
-                onChange={(event) => updateField(index, { key: event.target.value })}
-                placeholder="Field name"
-                className="font-mono text-xs"
-              />
+          {fields.map((field, index) => (
+            <div key={`${field.key}-${index}`} className="grid gap-2 rounded-lg border border-border/70 bg-background/25 p-2 sm:grid-cols-[minmax(110px,0.8fr)_145px_minmax(150px,1.3fr)_32px]">
+              <Input value={field.key} onChange={(event) => updateField(index, { key: event.target.value })} placeholder="Field name" className="font-mono text-xs" />
               <Select
                 value={field.type}
                 onChange={(event) => updateField(index, {
@@ -181,21 +172,21 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
                 <Input
                   value={field.value}
                   onChange={(event) => updateField(index, { value: event.target.value })}
-                  placeholder={field.type === 'parameter' ? 'parameter_name' : field.type === 'json' ? '{"nested":true}' : 'Value'}
+                  placeholder={field.type === 'parameter' ? 'input_name' : field.type === 'json' ? '{"nested":true}' : 'Value'}
                   className={field.type === 'parameter' || field.type === 'json' ? 'font-mono text-xs' : undefined}
                 />
               )}
-              <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeField(index)}>
+              <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeField(index)} aria-label="Remove body field">
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           ))}
-          <Button type="button" size="sm" variant="outline" onClick={addField}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Add body field
-          </Button>
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-2 text-[11px] leading-5 text-muted">
-            Agent parameters are saved as <code>{'{{parameter_name}}'}</code> and automatically become inputs in the route contract.
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" size="sm" variant="outline" onClick={addField}>
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add field
+            </Button>
+            {fields.length === 0 ? <span className="text-xs text-muted">No body fields configured.</span> : null}
           </div>
         </div>
       ) : (
@@ -204,16 +195,16 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={'{\n  "query": "{{query}}",\n  "limit": 10\n}'}
-            className="min-h-[180px] font-mono text-xs"
+            className="min-h-[170px] font-mono text-xs"
           />
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={formatRaw}>
               <WandSparkles className="mr-1.5 h-3.5 w-3.5" />
               Format JSON
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={insertParameterExample}>
+            <Button type="button" size="sm" variant="ghost" onClick={insertParameter}>
               <Braces className="mr-1.5 h-3.5 w-3.5" />
-              Insert parameter
+              Insert Agent input
             </Button>
           </div>
         </div>
