@@ -6,9 +6,9 @@ Revises: 0052
 
 from __future__ import annotations
 
-from copy import deepcopy
 import hashlib
 import json
+from copy import deepcopy
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -42,16 +42,18 @@ def _uuid(value: object, *, label: str, version_id: object, node_id: str) -> UUI
 
 def upgrade() -> None:
     connection = op.get_bind()
-    versions = connection.execute(
-        sa.text(
-            """
-            SELECT id, project_id, definition, resolved_bindings
-            FROM network.network_versions
-            WHERE resolved_bindings IS NOT NULL
-            ORDER BY created_at ASC
-            """
-        )
-    ).mappings()
+    versions = list(
+        connection.execute(
+            sa.text(
+                """
+                SELECT id, project_id, definition, resolved_bindings
+                FROM network.network_versions
+                WHERE resolved_bindings IS NOT NULL
+                ORDER BY created_at ASC
+                """
+            )
+        ).mappings()
+    )
 
     for version in versions:
         bindings = deepcopy(version["resolved_bindings"] or {})
@@ -142,16 +144,18 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     connection = op.get_bind()
-    versions = connection.execute(
-        sa.text(
-            """
-            SELECT id, definition, resolved_bindings
-            FROM network.network_versions
-            WHERE resolved_bindings IS NOT NULL
-            ORDER BY created_at ASC
-            """
-        )
-    ).mappings()
+    versions = list(
+        connection.execute(
+            sa.text(
+                """
+                SELECT id, definition, resolved_bindings
+                FROM network.network_versions
+                WHERE resolved_bindings IS NOT NULL
+                ORDER BY created_at ASC
+                """
+            )
+        ).mappings()
+    )
 
     for version in versions:
         bindings = deepcopy(version["resolved_bindings"] or {})
