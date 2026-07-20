@@ -32,7 +32,8 @@ function NetworkHeaderRuntimeControls({
       if (!(actionGroup instanceof HTMLElement)) return
 
       let nextHost = actionGroup.querySelector<HTMLDivElement>(':scope > [data-network-runtime-host]')
-      const releaseAction = Array.from(actionGroup.children).findLast((element) => element !== nextHost) ?? null
+      const actionChildren = Array.from(actionGroup.children).filter((element) => element !== nextHost)
+      const releaseAction = actionChildren.length > 0 ? actionChildren[actionChildren.length - 1] : null
 
       if (!nextHost) {
         nextHost = document.createElement('div')
