@@ -27,7 +27,14 @@ export function EditHttpGroupModal({ tool, onClose, onSaved }: EditHttpGroupModa
   }
 
   return (
-    <Dialog open onClose={onClose} title={`Edit HTTP API: ${tool.name}`} className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-y-auto bg-surface/95">
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Edit HTTP API: ${tool.name}`}
+      className="max-w-3xl bg-surface/95"
+      contentClassName="p-0"
+      scrollMode="content"
+    >
       <ApiFirstToolForm
         initialTool={tool}
         submitLabel="Save changes"
