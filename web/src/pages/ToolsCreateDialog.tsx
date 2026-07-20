@@ -25,16 +25,21 @@ export function ToolsCreateDialog({ open, projectId, agentId = null, formKey = '
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-y-auto bg-surface/95">
-      <div className="rounded-xl border border-border/80 bg-background/25 p-4">
-        <ApiFirstToolForm
-          key={open ? `${formKey}-open` : `${formKey}-closed`}
-          submitLabel="Create"
-          loading={createTool.isPending}
-          onSubmit={handleSubmit}
-          onCancel={onClose}
-        />
-      </div>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={title}
+      className="max-w-3xl bg-surface/95"
+      contentClassName="p-0"
+      scrollMode="content"
+    >
+      <ApiFirstToolForm
+        key={open ? `${formKey}-open` : `${formKey}-closed`}
+        submitLabel="Create"
+        loading={createTool.isPending}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+      />
     </Dialog>
   )
 }
