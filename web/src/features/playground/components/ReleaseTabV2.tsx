@@ -25,8 +25,29 @@ function formatDate(value?: string) {
   }).format(date).replace(',', '')
 }
 
+function sessionModeLabel(mode?: string) {
+  if (mode === 'stateful') return 'Stateful'
+  if (mode === 'stateless') return 'Stateless'
+  return 'Mode unknown'
+}
+
+function SessionModeBadge({ mode }: { mode?: string }) {
+  if (mode === 'stateful') {
+    return <Badge variant="outline" className="border-indigo-400/25 bg-indigo-500/10 text-[9px] text-indigo-300">Stateful</Badge>
+  }
+  if (mode === 'stateless') {
+    return <Badge variant="outline" className="border-cyan-400/25 bg-cyan-500/10 text-[9px] text-cyan-300">Stateless</Badge>
+  }
+  return <Badge variant="outline" className="text-[9px] text-muted">Mode unknown</Badge>
+}
+
 function SnapshotMeta({ release }: { release: AgentRelease }) {
-  return <p className="mt-1 text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatDate(release.created_at)}</p>
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatDate(release.created_at)}</span>
+      <SessionModeBadge mode={release.session_mode} />
+    </div>
+  )
 }
 
 function historyLabel(release: AgentRelease) {
@@ -76,6 +97,13 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
   const releasesById = useMemo(
     () => new Map(releases.map((release) => [release.id, release])),
     [releases],
+  )
+  const sessionModeChange = Boolean(
+    staging
+    && production
+    && staging.session_mode
+    && production.session_mode
+    && staging.session_mode !== production.session_mode,
   )
 
   const stageDraft = async () => {
@@ -184,7 +212,13 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       <section className="rounded-xl border border-border bg-surface/45 p-3">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/40"><FileText className="h-4 w-4 text-primary-light" /></div>
-          <div className="min-w-0 flex-1"><p className="text-xs font-medium text-white">Current Draft</p><p className="mt-1 text-[10px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</p></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-white">Current Draft</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</span>
+              <SessionModeBadge mode={state.sessionMode} />
+            </div>
+          </div>
           <Button size="sm" className="h-8 text-[10px]" onClick={() => setStageOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Stage</Button>
         </div>
       </section>
@@ -281,7 +315,9 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         open={Boolean(publishAction)}
         title={publishAction === 'deploy' ? 'Create Release and deploy?' : 'Create immutable Release?'}
         description={publishAction === 'deploy'
-          ? 'Create an immutable Release from current Staging and activate it in Agent Playground Production.'
+          ? sessionModeChange
+            ? `Compatibility change: Session Mode will change from ${sessionModeLabel(production?.session_mode)} to ${sessionModeLabel(staging?.session_mode)}. A new major Release will be created and deployed.`
+            : 'Create an immutable Release from current Staging and activate it in Agent Playground Production.'
           : 'Create an immutable Release from current Staging without changing the active Production deployment.'}
         release={staging}
         confirmLabel={publishAction === 'deploy' ? 'Create Release & Deploy' : 'Create Release'}
