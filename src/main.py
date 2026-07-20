@@ -61,6 +61,7 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
+from shared.runtime_environment_routes import router as runtime_environment_router
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
@@ -242,6 +243,7 @@ def create_app() -> FastAPI:
         app.include_router(core_router)
         app.include_router(public_runtime_router)
         app.include_router(credential_router)
+        app.include_router(runtime_environment_router)
         app.include_router(agent_router)
         app.include_router(agent_ai_router)
         app.include_router(agent_knowledge_router)

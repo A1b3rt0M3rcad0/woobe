@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -9,8 +10,17 @@ from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
+    NetworkVersionModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
+
+
+def should_persist_agent_context(
+    *,
+    network_persists_context: bool,
+    agent_session_mode: str,
+) -> bool:
+    return network_persists_context and agent_session_mode == "stateful"
 
 
 class SQLNetworkExecutionStore:
@@ -25,6 +35,62 @@ class SQLNetworkExecutionStore:
                 "cancelled",
             }
 
+    @staticmethod
+    async def _resolve_agent_session_mode(
+        session: AsyncSession,
+        *,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+    ) -> str:
+        if isinstance(snapshot_override, dict):
+            session_mode = snapshot_override.get("session_mode")
+            if session_mode in {"stateful", "stateless"}:
+                return str(session_mode)
+            raise RuntimeError("Agent Draft snapshot has no valid session_mode")
+
+        if release_id is None:
+            raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
+
+        from modules.agent.infra.database.models import AgentReleaseModel
+
+        release = await session.get(AgentReleaseModel, release_id)
+        if release is None:
+            raise RuntimeError("Pinned Agent release was not found")
+        if release.session_mode not in {"stateful", "stateless"}:
+            raise RuntimeError("Pinned Agent release has no valid session_mode")
+        return str(release.session_mode)
+
+    async def resolve_agent_session_mode(
+        self,
+        *,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+    ) -> str:
+        async with self._session_factory() as session:
+            return await self._resolve_agent_session_mode(
+                session,
+                release_id=release_id,
+                snapshot_override=snapshot_override,
+            )
+
+    @staticmethod
+    async def _binding_for_invocation(
+        session: AsyncSession,
+        *,
+        execution: NetworkExecutionModel,
+        node_id: UUID,
+    ) -> dict[str, Any]:
+        bindings = execution.resolved_bindings_snapshot
+        if bindings is None and execution.network_version_id is not None:
+            version = await session.get(NetworkVersionModel, execution.network_version_id)
+            bindings = version.resolved_bindings if version is not None else None
+        if not isinstance(bindings, dict):
+            raise RuntimeError("Network execution has no resolved Agent bindings")
+        binding = bindings.get(str(node_id))
+        if not isinstance(binding, dict):
+            raise RuntimeError(f"Network node {node_id} has no resolved Agent binding")
+        return binding
+
     async def start_invocation(
         self,
         *,
@@ -37,6 +103,26 @@ class SQLNetworkExecutionStore:
         persist_context: bool,
     ) -> NetworkInvocationModel:
         async with self._session_factory() as session, session.begin():
+            binding = await self._binding_for_invocation(
+                session,
+                execution=execution,
+                node_id=node_id,
+            )
+            raw_release_id = binding.get("release_id")
+            release_id = UUID(str(raw_release_id)) if raw_release_id else None
+            snapshot_override = binding.get("snapshot_override")
+            agent_session_mode = await self._resolve_agent_session_mode(
+                session,
+                release_id=release_id,
+                snapshot_override=snapshot_override
+                if isinstance(snapshot_override, dict)
+                else None,
+            )
+            persist_agent_context = should_persist_agent_context(
+                network_persists_context=persist_context,
+                agent_session_mode=agent_session_mode,
+            )
+
             repository = NetworkRuntimeRepository(session)
             context = (
                 await repository.get_or_create_agent_context(
@@ -44,7 +130,7 @@ class SQLNetworkExecutionStore:
                     node_id=node_id,
                     agent_id=agent_id,
                 )
-                if persist_context
+                if persist_agent_context
                 else None
             )
             invocation = await repository.create_invocation(

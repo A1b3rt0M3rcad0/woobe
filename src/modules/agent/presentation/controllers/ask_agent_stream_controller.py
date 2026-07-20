@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos import AskInput
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from shared.runtime_environment import assert_runtime_environment_enabled
 
 
 _PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
@@ -83,6 +84,15 @@ async def handle_ask_stream(
     metadata["server_received_at"] = received_at
     body["metadata"] = metadata
     input_dto = AskInput(**body)
+
+    async with fastapi_request.app.state.session_factory() as session, session.begin():
+        await assert_runtime_environment_enabled(
+            session,
+            target_type="agent",
+            target_id=input_dto.agent_id,
+            project_id=input_dto.project_id,
+            environment=input_dto.execution_context,
+        )
 
     return StreamingResponse(
         commit_safe_stream(service, input_dto, fastapi_request),

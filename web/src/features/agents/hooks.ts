@@ -9,6 +9,7 @@ import {
   createReleaseTest,
   deleteRelease,
   getAgent,
+  getAgentRuntimeEnvironments,
   getAgents,
   getContract,
   getContracts,
@@ -23,6 +24,7 @@ import {
   promoteRelease,
   rollbackRelease,
   updateAgent,
+  updateAgentRuntimeEnvironment,
   updateContract,
 } from './api'
 import type { PromoteReleaseOptions } from './api'
@@ -35,6 +37,8 @@ import type {
   CreatePromptRequest,
   CreateReleaseRequest,
   CreateReleaseTestRequest,
+  RuntimeEnvironment,
+  RuntimeEnvironmentStates,
   UpdateAgentRequest,
   UpdateContractRequest,
 } from './types'
@@ -44,6 +48,33 @@ export function useAgents(projectId?: string) {
 }
 export function useAgent(id: string | undefined) {
   return useQuery({ queryKey: ['agent', id], queryFn: () => getAgent(id!), enabled: Boolean(id) })
+}
+export function useAgentRuntimeEnvironments(agentId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: ['agent-runtime-environments', projectId, agentId],
+    queryFn: () => getAgentRuntimeEnvironments(agentId!, projectId!),
+    enabled: Boolean(agentId && projectId),
+    staleTime: 15_000,
+  })
+}
+export function useUpdateAgentRuntimeEnvironment(agentId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ environment, enabled }: { environment: RuntimeEnvironment; enabled: boolean }) => updateAgentRuntimeEnvironment(agentId!, projectId!, environment, enabled),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<RuntimeEnvironmentStates>(['agent-runtime-environments', projectId, agentId], (current) => current ? {
+        ...current,
+        [updated.environment]: {
+          enabled: updated.enabled,
+          updated_by: updated.updated_by,
+          updated_at: updated.updated_at,
+        },
+      } : current)
+      queryClient.invalidateQueries({ queryKey: ['agent-runtime-environments', projectId, agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
+    },
+  })
 }
 export function useCreateAgent(projectId?: string) {
   const queryClient = useQueryClient()

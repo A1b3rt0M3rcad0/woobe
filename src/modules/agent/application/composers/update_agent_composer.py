@@ -1,6 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.use_cases import UpdateAgentUseCase
+from modules.agent.application.use_cases.legacy_runtime_status_adapter import (
+    LegacyRuntimeStatusUpdateAdapter,
+)
 from modules.agent.infra.database.network_agent_usage_reader import (
     SQLAlchemyNetworkAgentUsageReader,
 )
@@ -19,12 +22,13 @@ def update_agent_composer(
     provider_model_repo = uow.provider_models
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     network_usage_reader = SQLAlchemyNetworkAgentUsageReader(uow)
-    use_case = UpdateAgentUseCase(
+    update_use_case = UpdateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
         provider_model_repo,
         network_usage_reader,
     )
+    use_case = LegacyRuntimeStatusUpdateAdapter(update_use_case, uow)
     controller = UpdateAgentController(use_case)
     return TransactionalHandler(uow, controller.handle)

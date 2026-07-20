@@ -1,3 +1,13 @@
+export type RuntimeEnvironment = 'draft' | 'staging' | 'production'
+
+export interface RuntimeEnvironmentState {
+  enabled: boolean
+  updated_by?: string | null
+  updated_at?: string | null
+}
+
+export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
+
 export interface Agent {
   id: string
   project_id: string
@@ -10,6 +20,7 @@ export interface Agent {
   max_output_tokens?: number
   session_mode?: string
   status: string
+  runtime_environments?: RuntimeEnvironmentStates
   provider_model_id?: string
   fallback_provider_model_id?: string
   provider_credential_id?: string
