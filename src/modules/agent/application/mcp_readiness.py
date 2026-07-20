@@ -6,6 +6,8 @@ from typing import Any
 CREDENTIAL_REQUIRED_STATES = {"needs_credentials", "unauthorized"}
 TOKEN_REJECTED_STATES = {"token_invalid", "token_rejected"}
 PROVIDER_REJECTED_STATES = {"provider_client_rejected"}
+PROVIDER_MANAGED_STATES = {"provider_managed"}
+OAUTH_METADATA_INVALID_STATES = {"oauth_metadata_invalid"}
 INVALID_ENDPOINT_STATES = {"invalid_endpoint"}
 UNAVAILABLE_STATES = {"unavailable"}
 SCOPE_DENIED_STATES = {"scope_denied"}
@@ -80,6 +82,19 @@ def has_mcp_oauth_challenge(
     )
 
 
+def has_valid_mcp_oauth_metadata(config: dict[str, Any] | None) -> bool:
+    cfg = config or {}
+    oauth = cfg.get("oauth") if isinstance(cfg.get("oauth"), dict) else {}
+    if oauth.get("authorization_endpoint") and oauth.get("token_endpoint"):
+        return True
+    discovery = cfg.get("mcp_oauth_discovery") if isinstance(cfg.get("mcp_oauth_discovery"), dict) else {}
+    return (
+        discovery.get("status") == "valid"
+        and bool(discovery.get("authorization_endpoint"))
+        and bool(discovery.get("token_endpoint"))
+    )
+
+
 def classify_mcp_discovery_status(
     *,
     has_tools: bool,
@@ -119,6 +134,11 @@ def _has_device_code_hint(config: dict[str, Any], diagnostic: dict[str, Any]) ->
     metadata = config.get("mcp_resource_metadata")
     if isinstance(metadata, dict):
         sources.append(metadata.get("authorization_hints"))
+    oauth_discovery = config.get("mcp_oauth_discovery")
+    if isinstance(oauth_discovery, dict):
+        protected = oauth_discovery.get("protected_resource_metadata")
+        if isinstance(protected, dict):
+            sources.append(protected.get("authorization_hints"))
     for source in sources:
         if not isinstance(source, dict):
             continue
@@ -133,18 +153,16 @@ def _provider_advertises_client_capability(config: dict[str, Any], diagnostic: d
     metadata = config.get("mcp_resource_metadata")
     if isinstance(metadata, dict):
         sources.append(metadata.get("authorization_hints"))
+    oauth_discovery = config.get("mcp_oauth_discovery")
+    if isinstance(oauth_discovery, dict):
+        protected = oauth_discovery.get("protected_resource_metadata")
+        if isinstance(protected, dict):
+            sources.append(protected.get("authorization_hints"))
     return any("client_capability_based" in str(source).lower() for source in sources if source)
 
 
 def _has_auth_challenge(config: dict[str, Any], diagnostic: dict[str, Any]) -> bool:
-    metadata = config.get("mcp_resource_metadata")
-    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
-    if oauth.get("authorization_endpoint") and oauth.get("token_endpoint"):
-        return True
-    return has_mcp_oauth_challenge(
-        diagnostic.get("www_authenticate"),
-        metadata if isinstance(metadata, dict) else None,
-    )
+    return has_valid_mcp_oauth_metadata(config)
 
 
 def _has_loaded_tools(discovered_count: int) -> bool:
@@ -155,6 +173,7 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     cfg = dict(config or {})
     oauth = cfg.get("oauth") if isinstance(cfg.get("oauth"), dict) else {}
     diagnostic = cfg.get("mcp_discovery") if isinstance(cfg.get("mcp_discovery"), dict) else {}
+    oauth_discovery = cfg.get("mcp_oauth_discovery") if isinstance(cfg.get("mcp_oauth_discovery"), dict) else {}
     discovered_tools = cfg.get("discovered_tools") if isinstance(cfg.get("discovered_tools"), list) else []
 
     discovered_count = len(discovered_tools)
@@ -162,17 +181,29 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     oauth_status = str(oauth.get("status") or "disconnected")
     mcp_status = str(cfg.get("mcp_status") or diagnostic.get("status") or "")
     discovery_status = str(diagnostic.get("status") or "")
+    oauth_metadata_status = str(oauth_discovery.get("status") or diagnostic.get("oauth_metadata_status") or "")
     http_status = diagnostic.get("http_status")
     supports_device_code = _has_device_code_hint(cfg, diagnostic)
     auth_required = _has_auth_challenge(cfg, diagnostic)
     credentials_required = (
         mcp_status in CREDENTIAL_REQUIRED_STATES
         or discovery_status in CREDENTIAL_REQUIRED_STATES
-        or (http_status == 401 and oauth_status != "connected" and not auth_required)
+        or (http_status == 401 and oauth_status != "connected" and not has_mcp_oauth_challenge(diagnostic.get("www_authenticate")))
     )
     token_rejected = (http_status == 401 and oauth_status == "connected") or mcp_status in TOKEN_REJECTED_STATES or discovery_status in TOKEN_REJECTED_STATES
     provider_client_rejected = discovery_status in PROVIDER_REJECTED_STATES or mcp_status in PROVIDER_REJECTED_STATES or (
         http_status == 401 and _provider_advertises_client_capability(cfg, diagnostic)
+    )
+    provider_managed = (
+        mcp_status in PROVIDER_MANAGED_STATES
+        or discovery_status in PROVIDER_MANAGED_STATES
+        or oauth_metadata_status == "provider_managed"
+    )
+    oauth_metadata_invalid = (
+        mcp_status in OAUTH_METADATA_INVALID_STATES
+        or discovery_status in OAUTH_METADATA_INVALID_STATES
+        or oauth_metadata_status == "invalid_metadata"
+        or (mcp_status == "oauth_required" and oauth_status != "connected" and not auth_required)
     )
     scope_denied = mcp_status in SCOPE_DENIED_STATES or discovery_status in SCOPE_DENIED_STATES
     invalid_endpoint = mcp_status in INVALID_ENDPOINT_STATES or discovery_status in INVALID_ENDPOINT_STATES
@@ -190,10 +221,23 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
         message = "The provider rejected the current OAuth token. Disconnect and reconnect with an accepted OAuth client."
         action = "disconnect"
         can_use_tools = False
+    elif provider_managed:
+        provider = str(oauth_discovery.get("provider") or diagnostic.get("managed_provider") or "provider")
+        state = "provider_managed"
+        label = "Managed connection required"
+        message = f"This MCP endpoint is managed by {provider}. Use the provider-issued connection details instead of direct MCP OAuth discovery."
+        action = "provider_credentials"
+        can_use_tools = False
+    elif oauth_metadata_invalid:
+        state = "oauth_metadata_invalid"
+        label = "OAuth metadata invalid"
+        message = "The server advertised OAuth, but Woobe could not validate both authorization_endpoint and token_endpoint. Verify the MCP URL or use the provider-managed connection flow."
+        action = "review_provider"
+        can_use_tools = False
     elif oauth_status != "connected" and auth_required:
         state = "needs_connection"
         label = "Connect"
-        message = "This MCP provider advertised a compatible OAuth flow. Connect before loading its tools."
+        message = "This MCP provider exposed a complete OAuth configuration. Connect before loading its tools."
         action = "connect"
         can_use_tools = False
     elif credentials_required:
@@ -262,7 +306,7 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
         "discovered_count": discovered_count,
         "exposed_count": exposed_count,
         "supports_device_code": supports_device_code,
-        "needs_provider_client": state == "provider_not_supported",
+        "needs_provider_client": state in {"provider_not_supported", "provider_managed"},
     }
 
 
