@@ -28,29 +28,30 @@ function oauthConnected(tool: Tool): boolean {
   return oauth?.status === 'connected'
 }
 
-function headerAdvertisesOAuth(value?: string | null): boolean {
-  if (!value) return false
-  const header = value.trim()
-  if (!header.toLowerCase().startsWith('bearer')) return false
-  return /(?:^|,)\s*resource_metadata\s*=\s*(?:"[^"]+"|[^,\s]+)/i.test(header.slice(6))
-}
-
-function hasOAuthChallenge(tool: Tool): boolean {
+function hasValidatedOAuth(tool: Tool): boolean {
   const config = mcpConfig(tool) as McpToolConfig & {
-    mcp_discovery?: { www_authenticate?: string | null }
-    mcp_resource_metadata?: { authorization_servers?: unknown[] }
-    oauth?: { authorization_endpoint?: string; token_endpoint?: string }
+    mcp_oauth_discovery?: {
+      status?: string | null
+      authorization_endpoint?: string | null
+      token_endpoint?: string | null
+    }
+    oauth?: {
+      authorization_endpoint?: string | null
+      token_endpoint?: string | null
+    }
   }
   const oauth = config.oauth
-  return headerAdvertisesOAuth(config.mcp_discovery?.www_authenticate)
-    || Boolean(config.mcp_resource_metadata?.authorization_servers?.length)
-    || Boolean(oauth?.authorization_endpoint && oauth?.token_endpoint)
+  if (oauth?.authorization_endpoint && oauth?.token_endpoint) return true
+  const discovery = config.mcp_oauth_discovery
+  return discovery?.status === 'valid'
+    && Boolean(discovery.authorization_endpoint)
+    && Boolean(discovery.token_endpoint)
 }
 
 function shouldShowConnect(tool: Tool, state: McpReadiness, discovered: DiscoveredMcpTool[]): boolean {
   if (oauthConnected(tool)) return false
-  if (discovered.length > 0 && !hasOAuthChallenge(tool)) return false
-  return state.action === 'connect' && hasOAuthChallenge(tool)
+  if (discovered.length > 0 && !hasValidatedOAuth(tool)) return false
+  return state.action === 'connect' && hasValidatedOAuth(tool)
 }
 
 function permissionMode(tool: DiscoveredMcpTool): McpToolPermissionMode {
@@ -72,7 +73,7 @@ function fallbackReadiness(tool: Tool): McpReadiness {
   const config = mcpConfig(tool)
   const status = String(config.mcp_status || '')
   const ready = status === 'ready'
-  const authRequired = hasOAuthChallenge(tool)
+  const authRequired = hasValidatedOAuth(tool)
 
   const state = connected && ready && counts.allow > 0
     ? 'ready'
@@ -80,23 +81,27 @@ function fallbackReadiness(tool: Tool): McpReadiness {
       ? 'ready'
       : discovered.length > 0
         ? 'needs_permission'
-        : authRequired
-          ? 'needs_connection'
-          : status === 'provider_client_rejected'
-            ? 'provider_not_supported'
-            : status === 'needs_credentials' || status === 'unauthorized'
-              ? 'needs_credentials'
-              : status === 'scope_denied'
-                ? 'scope_denied'
-                : status === 'invalid_endpoint'
-                  ? 'invalid_endpoint'
-                  : status === 'unavailable'
-                    ? 'unavailable'
-                    : status === 'discovery_failed'
-                      ? 'discovery_failed'
-                      : status === 'empty' || status === 'no_tools'
-                        ? 'no_tools'
-                        : 'needs_discovery'
+        : status === 'provider_client_rejected'
+          ? 'provider_not_supported'
+          : status === 'provider_managed'
+            ? 'provider_managed'
+            : status === 'oauth_metadata_invalid' || (status === 'oauth_required' && !authRequired)
+              ? 'oauth_metadata_invalid'
+              : authRequired
+                ? 'needs_connection'
+                : status === 'needs_credentials' || status === 'unauthorized'
+                  ? 'needs_credentials'
+                  : status === 'scope_denied'
+                    ? 'scope_denied'
+                    : status === 'invalid_endpoint'
+                      ? 'invalid_endpoint'
+                      : status === 'unavailable'
+                        ? 'unavailable'
+                        : status === 'discovery_failed'
+                          ? 'discovery_failed'
+                          : status === 'empty' || status === 'no_tools'
+                            ? 'no_tools'
+                            : 'needs_discovery'
 
   const labels: Record<string, string> = {
     ready: 'Ready',
@@ -104,6 +109,8 @@ function fallbackReadiness(tool: Tool): McpReadiness {
     needs_discovery: 'Load tools',
     needs_connection: 'Connect',
     provider_not_supported: 'Provider setup needed',
+    provider_managed: 'Managed connection required',
+    oauth_metadata_invalid: 'OAuth metadata invalid',
     needs_credentials: 'Credentials required',
     scope_denied: 'Permission denied',
     invalid_endpoint: 'Invalid endpoint',
@@ -115,8 +122,10 @@ function fallbackReadiness(tool: Tool): McpReadiness {
     ready: `${counts.allow} tools available to this agent.`,
     needs_permission: 'Choose which MCP tools this agent can use.',
     needs_discovery: 'Load this MCP provider to see its tools.',
-    needs_connection: 'This provider advertised a compatible OAuth flow. Connect before loading protected tools.',
+    needs_connection: 'This provider exposed a complete OAuth configuration. Connect before loading protected tools.',
     provider_not_supported: 'This provider needs a provider-issued client or alternate OAuth flow.',
+    provider_managed: 'This endpoint requires a provider-managed MCP connection instead of direct OAuth discovery.',
+    oauth_metadata_invalid: 'The server advertised OAuth, but Woobe could not validate authorization_endpoint and token_endpoint. Verify the MCP URL or use the provider-managed connection flow.',
     needs_credentials: 'The server rejected the request without advertising MCP OAuth. Configure the required API key or headers, or use the provider-managed connection URL.',
     scope_denied: 'The configured credential was accepted but does not have permission to access this MCP server.',
     invalid_endpoint: 'This host responded, but the URL is not accepting MCP requests. Verify the endpoint path, commonly /mcp.',
@@ -129,6 +138,8 @@ function fallbackReadiness(tool: Tool): McpReadiness {
     ready: 'manage_tools',
     needs_permission: 'manage_tools',
     provider_not_supported: 'provider_credentials',
+    provider_managed: 'provider_credentials',
+    oauth_metadata_invalid: 'review_provider',
     needs_credentials: 'configure_credentials',
     scope_denied: 'configure_credentials',
     invalid_endpoint: 'edit_endpoint',
@@ -149,7 +160,7 @@ function fallbackReadiness(tool: Tool): McpReadiness {
     discovered_count: discovered.length,
     exposed_count: counts.allow,
     supports_device_code: false,
-    needs_provider_client: state === 'provider_not_supported',
+    needs_provider_client: state === 'provider_not_supported' || state === 'provider_managed',
   }
 }
 
@@ -158,7 +169,17 @@ function readiness(tool: Tool): McpReadiness {
 }
 
 function ReadinessPill({ state, label }: { state: string; label: string }) {
-  const warningStates = new Set(['provider_not_supported', 'token_rejected', 'needs_credentials', 'scope_denied', 'invalid_endpoint', 'unavailable', 'discovery_failed'])
+  const warningStates = new Set([
+    'provider_not_supported',
+    'provider_managed',
+    'oauth_metadata_invalid',
+    'token_rejected',
+    'needs_credentials',
+    'scope_denied',
+    'invalid_endpoint',
+    'unavailable',
+    'discovery_failed',
+  ])
   const tone = state === 'ready'
     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
     : warningStates.has(state)
@@ -286,7 +307,16 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
 
   if (!isMcpProviderTool(tool)) return null
 
-  const diagnosticStates = new Set(['provider_not_supported', 'needs_credentials', 'scope_denied', 'invalid_endpoint', 'unavailable', 'discovery_failed'])
+  const diagnosticStates = new Set([
+    'provider_not_supported',
+    'provider_managed',
+    'oauth_metadata_invalid',
+    'needs_credentials',
+    'scope_denied',
+    'invalid_endpoint',
+    'unavailable',
+    'discovery_failed',
+  ])
 
   return (
     <div className="space-y-3 rounded-xl border border-border/70 bg-background/55 p-3">
@@ -311,6 +341,7 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
         {showConnect ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
         {showLoadTools ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
         {state.state === 'provider_not_supported' ? <Button size="sm" variant="outline" disabled>Provider setup needed</Button> : null}
+        {state.state === 'provider_managed' ? <Button size="sm" variant="outline" disabled>Managed connection required</Button> : null}
         {discovered.length > 0 ? (
           <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setManageOpen(true)}>
             <Settings2 className="mr-1.5 h-3.5 w-3.5" />
