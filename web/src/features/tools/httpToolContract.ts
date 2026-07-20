@@ -1,4 +1,4 @@
-import type { HttpToolConfig } from './types'
+import type { HttpHeader, HttpRouteConfig, HttpToolConfig } from './types'
 
 const PLACEHOLDER_PATTERN = /\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g
 const SINGLE_BRACE_PATTERN = /(^|[^\{])\{([A-Za-z_][A-Za-z0-9_]*)\}([^\}]|$)/
@@ -9,16 +9,51 @@ export interface HttpToolContractPreview {
   errors: string[]
 }
 
-function templateSources(config: HttpToolConfig): string[] {
-  return [config.url || '', typeof config.body === 'string' ? config.body : config.body ? JSON.stringify(config.body) : '', ...(config.headers || []).map((header) => header.value || '')]
+export function isHttpToolGroup(config: HttpToolConfig | Record<string, unknown> | undefined): config is HttpToolConfig {
+  if (!config || typeof config !== 'object') return false
+  const raw = config as HttpToolConfig
+  return raw.mode === 'group' || (Boolean(raw.base_url) && Array.isArray(raw.routes))
 }
 
-function hasDefault(config: HttpToolConfig, name: string): boolean {
+function bodyText(body: HttpRouteConfig['body'] | HttpToolConfig['body']): string {
+  if (typeof body === 'string') return body
+  return body == null ? '' : JSON.stringify(body)
+}
+
+function templateSources(config: { url?: string; body?: HttpToolConfig['body']; headers?: HttpHeader[] }): string[] {
+  return [
+    config.url || '',
+    bodyText(config.body),
+    ...(config.headers || []).map((header) => header.value || ''),
+  ]
+}
+
+function hasDefault(config: { variables?: Record<string, string> }, name: string): boolean {
   const value = config.variables?.[name]
   return value !== undefined && value !== null && value !== ''
 }
 
-export function inspectHttpToolContract(config: HttpToolConfig, declaredSchema?: Record<string, unknown>): HttpToolContractPreview {
+function mergeHeaders(shared: HttpHeader[] = [], route: HttpHeader[] = []): HttpHeader[] {
+  const result: HttpHeader[] = []
+  const indexes = new Map<string, number>()
+  for (const header of [...shared, ...route]) {
+    const key = header.key.trim()
+    if (!key) continue
+    const normalized = key.toLowerCase()
+    const existing = indexes.get(normalized)
+    if (existing !== undefined) result[existing] = { ...header, key }
+    else {
+      indexes.set(normalized, result.length)
+      result.push({ ...header, key })
+    }
+  }
+  return result
+}
+
+function inspectContract(
+  config: { url?: string; body?: HttpToolConfig['body']; headers?: HttpHeader[]; variables?: Record<string, string> },
+  declaredSchema?: Record<string, unknown>,
+): HttpToolContractPreview {
   const errors: string[] = []
   const parameterNames: string[] = []
   for (const source of templateSources(config)) {
@@ -47,4 +82,34 @@ export function inspectHttpToolContract(config: HttpToolConfig, declaredSchema?:
     if (!hasDefault(config, name) && !required.includes(name)) required.push(name)
   })
   return { parameterNames, inputSchema: { ...schema, type: 'object', properties, required, additionalProperties: false }, errors }
+}
+
+export function inspectHttpRouteContract(config: HttpToolConfig, route: HttpRouteConfig): HttpToolContractPreview {
+  const baseUrl = String(config.base_url || '').replace(/\/+$/, '')
+  const path = String(route.path || '').replace(/^\/+/, '')
+  return inspectContract(
+    {
+      url: `${baseUrl}/${path}`,
+      body: route.body,
+      headers: mergeHeaders(config.headers || [], route.headers || []),
+      variables: route.variables,
+    },
+    route.input_schema,
+  )
+}
+
+export function inspectHttpToolContract(config: HttpToolConfig, declaredSchema?: Record<string, unknown>): HttpToolContractPreview {
+  if (isHttpToolGroup(config)) {
+    const errors: string[] = []
+    for (const route of config.routes || []) {
+      const preview = inspectHttpRouteContract(config, route)
+      errors.push(...preview.errors.map((error) => `${route.name || route.operation_id}: ${error}`))
+    }
+    return {
+      parameterNames: [],
+      inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+      errors,
+    }
+  }
+  return inspectContract(config, declaredSchema)
 }
