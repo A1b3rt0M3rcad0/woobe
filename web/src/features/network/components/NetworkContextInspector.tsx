@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeft, ExternalLink, LocateFixed, Lock } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import type { Agent, RuntimeEnvironment } from '@/features/agents/types'
+import type { Agent } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
 
 import type { NetworkDefinition } from '../types'
@@ -34,14 +34,6 @@ interface NetworkContextInspectorProps {
   onSelect: (selection: NetworkEditorSelection) => void
   onMetadata: (metadata: { name?: string; description?: string }) => void
   onChange: (change: NetworkDefinitionChange) => void
-}
-
-function inferEnvironment(readOnly: boolean, bindings: Record<string, NetworkBinding>): RuntimeEnvironment {
-  if (!readOnly) return 'draft'
-  const sources = Object.values(bindings).map((binding) => binding.source)
-  if (sources.some((source) => source === 'staging')) return 'staging'
-  if (sources.length > 0 && sources.every((source) => source === 'draft')) return 'draft'
-  return 'production'
 }
 
 export function NetworkContextInspector({
@@ -78,7 +70,6 @@ export function NetworkContextInspector({
   const inspecting = inspectionScope.type === 'run' && Boolean(inspectionLabel)
   const canLocate = selection.type !== 'network' && centerMode !== 'canvas'
   const workspaceBootstrapping = !readOnly && definition.nodes.length === 0
-  const environment = inferEnvironment(readOnly, bindings)
 
   if (workspaceBootstrapping) {
     const loading = <NetworkWorkspaceBootstrap networkName={name || 'Project Network'} />
@@ -90,9 +81,9 @@ export function NetworkContextInspector({
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/25 px-3 py-2">
         <div className="min-w-0">
           <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted">Network runtime</p>
-          <p className="truncate text-[9px] text-slate-300">{environment.charAt(0).toUpperCase() + environment.slice(1)} · controls the complete Network</p>
+          <p className="truncate text-[9px] text-slate-300">Draft, Staging and Production are controlled independently</p>
         </div>
-        {projectId && networkId ? <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} environment={environment} /> : null}
+        {projectId && networkId ? <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} /> : null}
       </div>
 
       {inspecting ? (
