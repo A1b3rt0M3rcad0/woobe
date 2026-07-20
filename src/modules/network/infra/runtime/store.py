@@ -15,6 +15,14 @@ from modules.network.infra.database.models import (
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
 
 
+def should_persist_agent_context(
+    *,
+    network_persists_context: bool,
+    agent_session_mode: str,
+) -> bool:
+    return network_persists_context and agent_session_mode == "stateful"
+
+
 class SQLNetworkExecutionStore:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -110,7 +118,10 @@ class SQLNetworkExecutionStore:
                 if isinstance(snapshot_override, dict)
                 else None,
             )
-            persist_agent_context = persist_context and agent_session_mode == "stateful"
+            persist_agent_context = should_persist_agent_context(
+                network_persists_context=persist_context,
+                agent_session_mode=agent_session_mode,
+            )
 
             repository = NetworkRuntimeRepository(session)
             context = (
