@@ -3,7 +3,7 @@ import { Pencil, Shield, Trash2 } from 'lucide-react'
 
 import { HttpProviderPanel, isHttpProviderTool } from '@/features/tools/components/HttpProviderPanel'
 import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
-import type { McpToolPermission, Tool } from '@/features/tools/types'
+import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 import { cn } from '@/lib/utils'
 
 export type AgentToolCardContext = 'playground' | 'network'
@@ -29,6 +29,16 @@ function riskScore(risk?: string | null): number {
   if (normalized === 'medium') return 2
   if (normalized === 'low') return 1
   return 0
+}
+
+function effectiveRisk(tool: Tool): string | null | undefined {
+  if (!isHttpProviderTool(tool)) return tool.risk_level
+  const config = (tool.config || {}) as HttpToolConfig
+  const activeRoutes = (config.routes || []).filter((route) => route.status !== 'inactive')
+  if (activeRoutes.length === 0) return tool.risk_level
+  return activeRoutes.reduce<string>((highest, route) => (
+    riskScore(route.risk_level) > riskScore(highest) ? String(route.risk_level) : highest
+  ), 'low')
 }
 
 function riskDotTone(risk?: string | null): string {
@@ -130,6 +140,7 @@ export function AgentToolCard({
   const isRetired = tool.status === 'deprecated'
   const isMcp = isMcpProviderTool(tool)
   const isHttpProvider = isHttpProviderTool(tool)
+  const risk = effectiveRisk(tool)
 
   return (
     <article className={cn(
@@ -155,7 +166,7 @@ export function AgentToolCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <ToolTypeBadge type={toolTypeLabel(tool)} />
-        <RiskIndicator risk={tool.risk_level} />
+        <RiskIndicator risk={risk} />
       </div>
 
       {isMcp ? (
