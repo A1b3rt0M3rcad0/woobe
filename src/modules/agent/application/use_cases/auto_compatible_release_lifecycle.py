@@ -41,6 +41,11 @@ _EXECUTION_FIELDS = (
 )
 
 
+def _release_time(release: AgentRelease) -> float:
+    value = release.created_at or release.promoted_at
+    return value.timestamp() if value is not None else 0.0
+
+
 class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
     async def execute(
         self,
@@ -53,6 +58,9 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
         copy_snapshot: bool = False,
         change_kind: str = "change",
     ):
+        if input_dto is not None and user_id is None:
+            user_id = getattr(input_dto, "user_id", None)
+
         release = await self._release_repo.get_by_id(release_id)
         target_value = getattr(target_status, "value", target_status)
 
@@ -79,7 +87,6 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
                 existing = await self._find_equivalent_release(release)
                 if existing is not None:
                     release_id = existing.id
-                    release = existing
                     copy_snapshot = False
                 else:
                     copy_snapshot = True
@@ -114,8 +121,11 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
             version=version,
             status=ReleaseStatus.released,
             release_notes=release_notes,
-            promoted_by=user_id,
+            promoted_by=None,
         )
+        clone.created_by = user_id or release.created_by
+        clone.promoted_by = None
+        clone.promoted_at = None
         return await self._release_repo.save(clone)
 
     async def _find_equivalent_release(self, source: AgentRelease) -> AgentRelease | None:
@@ -126,12 +136,7 @@ class AutoCompatibleReleaseLifecycleUseCase(ReleaseLifecycleUseCase):
             if getattr(item, "snapshot_kind", None) == "release"
             and _execution_snapshot_equal(item, source)
         ]
-        if not equivalent:
-            return None
-        return max(
-            equivalent,
-            key=lambda item: item.created_at or item.promoted_at or datetime.min.replace(tzinfo=timezone.utc),
-        )
+        return max(equivalent, key=_release_time) if equivalent else None
 
     async def _copy_to_production_release(
         self,
@@ -177,7 +182,7 @@ def _clone_release_snapshot(
     clone.release_notes = release_notes
     clone.created_by = source.created_by
     clone.promoted_by = promoted_by
-    clone.promoted_at = datetime.now(timezone.utc)
+    clone.promoted_at = datetime.now(timezone.utc) if promoted_by is not None else None
     clone.created_at = None
     clone.updated_at = None
     return clone
