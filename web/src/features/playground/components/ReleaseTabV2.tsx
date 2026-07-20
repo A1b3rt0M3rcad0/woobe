@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Copy, Eye, FileText, Package, Rocket, Upload } from 'lucide-react'
+import { ArrowRight, Copy, Eye, FileText, History, Package, Rocket, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { getRelease } from '@/features/agents/api'
-import { useCreateRelease, usePromoteRelease, useReleases } from '@/features/agents/hooks'
-import type { AgentRelease } from '@/features/agents/types'
+import { useCreateRelease, usePromoteRelease, useReleaseActivations, useReleases } from '@/features/agents/hooks'
+import type { AgentRelease, AgentReleaseActivation } from '@/features/agents/types'
 import { releaseToEditorState, useAgentEditor } from '../AgentEditorContext'
 import { ReleaseSnapshotModal } from './ReleaseSnapshotModal'
 import { StageDraftSnapshotModal } from './StageDraftSnapshotModal'
@@ -29,13 +29,31 @@ function SnapshotMeta({ release }: { release: AgentRelease }) {
   return <p className="mt-1 text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatDate(release.created_at)}</p>
 }
 
+function historyLabel(release: AgentRelease) {
+  if (release.status === 'production') return { label: 'Active Production', variant: 'success' as const }
+  if (release.status === 'staging') return { label: 'Current Staging', variant: 'secondary' as const }
+  if (release.snapshot_kind === 'staging') return { label: 'Archived Staging', variant: 'outline' as const }
+  if (release.status === 'released') return { label: 'Available Release', variant: 'default' as const }
+  if (release.status === 'rolled_back') return { label: 'Rolled back', variant: 'warning' as const }
+  return { label: 'Historical Release', variant: 'outline' as const }
+}
+
+function activationLabel(action: AgentReleaseActivation['action']) {
+  if (action === 'rollback') return 'Rollback'
+  if (action === 'reactivate') return 'Reactivated'
+  return 'Deployed'
+}
+
+type PublishAction = 'release' | 'deploy' | null
+
 export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
   const { data: releases = [], isLoading } = useReleases(agentId)
+  const { data: activations = [], isLoading: activationsLoading } = useReleaseActivations(agentId)
   const createRelease = useCreateRelease(agentId)
   const promoteRelease = usePromoteRelease(agentId)
   const { state, setState, toSnapshot, setLoadedRelease } = useAgentEditor()
   const [stageOpen, setStageOpen] = useState(false)
-  const [publishOpen, setPublishOpen] = useState(false)
+  const [publishAction, setPublishAction] = useState<PublishAction>(null)
   const [releaseDescription, setReleaseDescription] = useState('')
   const [activationTarget, setActivationTarget] = useState<AgentRelease | null>(null)
   const [snapshot, setSnapshot] = useState<AgentRelease | null>(null)
@@ -49,10 +67,14 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     () => releases.find((item) => item.status === 'production') ?? null,
     [releases],
   )
-  const available = useMemo(
+  const immutableHistory = useMemo(
     () => releases
-      .filter((item) => item.snapshot_kind === 'release' && item.status !== 'production')
+      .filter((item) => item.snapshot_kind === 'staging' || item.snapshot_kind === 'release')
       .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()),
+    [releases],
+  )
+  const releasesById = useMemo(
+    () => new Map(releases.map((release) => [release.id, release])),
     [releases],
   )
 
@@ -64,32 +86,46 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
         version: 'draft',
         ...toSnapshot(),
       } as any)
-      await promoteRelease.mutateAsync({
+      const staged = await promoteRelease.mutateAsync({
         releaseId: draft.id,
         targetStatus: 'staging',
         copySnapshot: true,
       })
       setStageOpen(false)
-      toast.success('Current Draft promoted to Staging')
+      toast.success(`${staged.version} created as current Staging`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to promote Draft to Staging')
     }
   }
 
-  const publishAndActivate = async () => {
-    if (!staging) return
+  const createFromStaging = async () => {
+    if (!staging || !publishAction) return
+    const deploy = publishAction === 'deploy'
+    const existingIds = new Set(releases.map((release) => release.id))
     try {
-      await promoteRelease.mutateAsync({
+      const result = await promoteRelease.mutateAsync({
         releaseId: staging.id,
-        targetStatus: 'production',
+        targetStatus: deploy ? 'production' : 'released',
         copySnapshot: true,
         releaseNotes: releaseDescription.trim() || undefined,
       })
-      setPublishOpen(false)
+      const reused = existingIds.has(result.id)
+      setPublishAction(null)
       setReleaseDescription('')
-      toast.success('Agent Release created and activated in Playground Production')
+
+      if (deploy) {
+        toast.success(
+          reused
+            ? `${result.version} reused and deployed to Production`
+            : `${result.version} created and deployed to Production`,
+        )
+      } else if (result.status === 'production') {
+        toast.info(`Equivalent Release already exists as ${result.version} and is active in Production`)
+      } else {
+        toast.success(reused ? `Equivalent Release already exists as ${result.version}` : `${result.version} created without deployment`)
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to publish Agent Release')
+      toast.error(error instanceof Error ? error.message : 'Failed to create Agent Release')
     }
   }
 
@@ -142,7 +178,7 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     <div className="space-y-4 p-4">
       <div>
         <h2 className="text-sm font-medium text-white">Versions</h2>
-        <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → Release. Production is an explicit activation of an existing Release.</p>
+        <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → immutable Release. Deployment to Production is a separate, recorded action.</p>
       </div>
 
       <section className="rounded-xl border border-border bg-surface/45 p-3">
@@ -154,27 +190,108 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
       </section>
 
       <section>
-        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Staging</h3>
-        {staging ? <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/[0.04] p-3">
-          <div className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="font-mono text-xs text-white">{staging.version}</p><SnapshotMeta release={staging} /><p className="mt-2 text-[10px] leading-4 text-muted">Immutable validation snapshot.</p></div><Badge variant="secondary" className="border-indigo-500/30 text-indigo-300">Staging</Badge></div>
-          <div className="mt-3 flex gap-2"><Button size="sm" variant="outline" onClick={() => void viewSnapshot(staging)} loading={loadingId === staging.id}><Eye className="mr-1 h-3.5 w-3.5" />View</Button><Button size="sm" onClick={() => setPublishOpen(true)}><Rocket className="mr-1 h-3.5 w-3.5" />Create Release and activate</Button></div>
-        </div> : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Staging snapshot.</div>}
-      </section>
-
-      <section>
-        <div className="mb-2 flex items-center gap-2"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted">Available Releases</h3><span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted">{available.length}</span></div>
-        <p className="mb-2 text-[10px] leading-4 text-muted">Releases created by a Network appear here, but do not change Agent Playground Production.</p>
-        {available.length ? <div className="space-y-2">{available.map((release) => <article key={release.id} className="rounded-xl border border-border bg-background/35 p-3"><div className="flex items-start gap-3"><Package className="mt-0.5 h-4 w-4 text-primary-light" /><div className="min-w-0 flex-1"><p className="font-mono text-xs text-white">{release.version}</p><SnapshotMeta release={release} /><p className="mt-1 text-[9px] text-slate-300">Available · not active in Playground</p></div><Button size="sm" onClick={() => setActivationTarget(release)}>Set as Production</Button></div><div className="mt-2 flex gap-2"><Button size="sm" variant="outline" onClick={() => void viewSnapshot(release)} loading={loadingId === release.id}><Eye className="mr-1 h-3 w-3" />View</Button><Button size="sm" variant="outline" onClick={() => void copyToDraft(release)} loading={loadingId === release.id}><Copy className="mr-1 h-3 w-3" />Copy to Draft</Button></div></article>)}</div> : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No available Releases.</div>}
+        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Current Staging</h3>
+        {staging ? (
+          <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/[0.04] p-3">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-xs text-white">{staging.version}</p>
+                <SnapshotMeta release={staging} />
+                <p className="mt-2 text-[10px] leading-4 text-muted">Immutable validation snapshot. Create a Release without changing Production, or create and deploy it.</p>
+              </div>
+              <Badge variant="secondary" className="border-indigo-500/30 text-indigo-300">Staging</Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void viewSnapshot(staging)} loading={loadingId === staging.id}><Eye className="mr-1 h-3.5 w-3.5" />View</Button>
+              <Button size="sm" variant="outline" onClick={() => setPublishAction('release')}><Package className="mr-1 h-3.5 w-3.5" />Create Release</Button>
+              <Button size="sm" onClick={() => setPublishAction('deploy')}><Rocket className="mr-1 h-3.5 w-3.5" />Create & Deploy</Button>
+            </div>
+          </div>
+        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Staging snapshot.</div>}
       </section>
 
       <section>
         <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Production</h3>
-        {production ? <article className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3"><div className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="font-mono text-xs text-white">{production.version}</p><SnapshotMeta release={production} /><p className="mt-1 text-[9px] text-emerald-300">Active in Agent Playground runtime</p></div><Badge variant="success">Production</Badge></div><div className="mt-2"><Button size="sm" variant="outline" onClick={() => void viewSnapshot(production)} loading={loadingId === production.id}><Eye className="mr-1 h-3 w-3" />View snapshot</Button></div></article> : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Playground Production is active.</div>}
+        {production ? (
+          <article className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1"><p className="font-mono text-xs text-white">{production.version}</p><SnapshotMeta release={production} /><p className="mt-1 text-[9px] text-emerald-300">Active in Agent Playground runtime</p></div>
+              <Badge variant="success">Production</Badge>
+            </div>
+            <div className="mt-2"><Button size="sm" variant="outline" onClick={() => void viewSnapshot(production)} loading={loadingId === production.id}><Eye className="mr-1 h-3 w-3" />View snapshot</Button></div>
+          </article>
+        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Playground Production is active.</div>}
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center gap-2"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted">Version history</h3><span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted">{immutableHistory.length}</span></div>
+        {immutableHistory.length ? (
+          <div className="space-y-2">
+            {immutableHistory.map((release) => {
+              const status = historyLabel(release)
+              const canDeploy = release.snapshot_kind === 'release' && release.status !== 'production'
+              return (
+                <article key={release.id} className="rounded-xl border border-border bg-background/35 p-3">
+                  <div className="flex items-start gap-3">
+                    {release.snapshot_kind === 'staging' ? <Upload className="mt-0.5 h-4 w-4 text-indigo-300" /> : <Package className="mt-0.5 h-4 w-4 text-primary-light" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-white">{release.version}</p>
+                      <SnapshotMeta release={release} />
+                      {release.release_notes ? <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-slate-300">{release.release_notes}</p> : null}
+                    </div>
+                    <Badge variant={status.variant} className="shrink-0 text-[9px]">{status.label}</Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void viewSnapshot(release)} loading={loadingId === release.id}><Eye className="mr-1 h-3 w-3" />View</Button>
+                    <Button size="sm" variant="outline" onClick={() => void copyToDraft(release)} loading={loadingId === release.id}><Copy className="mr-1 h-3 w-3" />Copy to Draft</Button>
+                    {canDeploy ? <Button size="sm" onClick={() => setActivationTarget(release)}>Deploy</Button> : null}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No immutable Agent snapshots yet.</div>}
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center gap-2"><History className="h-3.5 w-3.5 text-muted" /><h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted">Production deployments</h3></div>
+        {activationsLoading ? <Skeleton className="h-16 w-full rounded-lg" /> : activations.length ? (
+          <div className="space-y-2">
+            {activations.map((activation) => {
+              const release = releasesById.get(activation.release_id)
+              const previous = activation.previous_release_id ? releasesById.get(activation.previous_release_id) : null
+              return (
+                <article key={activation.id} className="rounded-xl border border-border bg-background/30 p-3">
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <Badge variant={activation.action === 'rollback' ? 'warning' : activation.action === 'deploy' ? 'success' : 'secondary'} className="text-[9px]">{activationLabel(activation.action)}</Badge>
+                    <span className="font-mono text-slate-200">{previous?.version ?? 'No Production'}</span>
+                    <ArrowRight className="h-3 w-3 text-muted" />
+                    <span className="font-mono text-white">{release?.version ?? activation.release_id.slice(0, 8)}</span>
+                  </div>
+                  <p className="mt-2 text-[9px] text-muted">{formatDate(activation.created_at)}</p>
+                </article>
+              )
+            })}
+          </div>
+        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Production deployment events recorded.</div>}
       </section>
 
       <StageDraftSnapshotModal open={stageOpen} state={state} snapshot={toSnapshot()} currentStaging={staging} isConfirming={createRelease.isPending || promoteRelease.isPending} onClose={() => setStageOpen(false)} onConfirm={() => void stageDraft()} />
-      <ReleaseSnapshotModal open={publishOpen} title="Create and activate Agent Release?" description="A new immutable Release will be created from Staging and explicitly activated in Agent Playground Production." release={staging} confirmLabel="Create Release and activate" isConfirming={promoteRelease.isPending} onConfirm={() => void publishAndActivate()} onClose={() => setPublishOpen(false)} releaseDescription={releaseDescription} onReleaseDescriptionChange={setReleaseDescription} />
-      <ReleaseSnapshotModal open={Boolean(activationTarget)} title="Set Release as Agent Production?" description="This changes only the standalone Agent Playground runtime. Existing Network Releases remain pinned to their stored Agent Release IDs." release={activationTarget} confirmLabel="Set as Production" isConfirming={promoteRelease.isPending} onConfirm={() => void activateRelease()} onClose={() => setActivationTarget(null)} />
+      <ReleaseSnapshotModal
+        open={Boolean(publishAction)}
+        title={publishAction === 'deploy' ? 'Create Release and deploy?' : 'Create immutable Release?'}
+        description={publishAction === 'deploy'
+          ? 'Create an immutable Release from current Staging and activate it in Agent Playground Production.'
+          : 'Create an immutable Release from current Staging without changing the active Production deployment.'}
+        release={staging}
+        confirmLabel={publishAction === 'deploy' ? 'Create Release & Deploy' : 'Create Release'}
+        isConfirming={promoteRelease.isPending}
+        onConfirm={() => void createFromStaging()}
+        onClose={() => { setPublishAction(null); setReleaseDescription('') }}
+        releaseDescription={releaseDescription}
+        onReleaseDescriptionChange={setReleaseDescription}
+      />
+      <ReleaseSnapshotModal open={Boolean(activationTarget)} title="Deploy Release to Agent Production?" description="This changes only the standalone Agent Playground runtime. Existing Network Releases remain pinned to their stored Agent Release IDs." release={activationTarget} confirmLabel="Deploy Release" isConfirming={promoteRelease.isPending} onConfirm={() => void activateRelease()} onClose={() => setActivationTarget(null)} />
       <ReleaseSnapshotModal open={Boolean(snapshot)} title="Agent Release snapshot" description="Immutable configuration stored for this version." release={snapshot} onClose={() => setSnapshot(null)} />
     </div>
   )
