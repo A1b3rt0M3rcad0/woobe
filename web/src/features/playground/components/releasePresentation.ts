@@ -51,6 +51,17 @@ export function activationLabel(action: AgentReleaseActivation['action']) {
   return 'Deployed'
 }
 
+export function activationSummary(
+  activation: AgentReleaseActivation,
+  release: AgentRelease | null,
+) {
+  if (release?.release_notes) return release.release_notes
+  if (activation.action === 'rollback') return 'A previous stable Release was restored to Production.'
+  if (activation.action === 'reactivate') return 'An existing Release was returned to Production.'
+  if (!activation.previous_release_id) return 'The first Release was activated in Production.'
+  return 'A new Release was activated in Production.'
+}
+
 export function describeReleaseChanges(
   previous: AgentRelease | null,
   current: AgentRelease | null,
