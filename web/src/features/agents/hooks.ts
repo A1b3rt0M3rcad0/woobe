@@ -19,6 +19,7 @@ import {
   getPrompt,
   getPrompts,
   getRelease,
+  getReleaseActivations,
   getReleaseTests,
   getReleases,
   promoteRelease,
@@ -30,6 +31,7 @@ import {
 import type { PromoteReleaseOptions } from './api'
 import type {
   Agent,
+  AgentReleaseActivation,
   CreateAgentRequest,
   CreateContractRequest,
   CreateKnowledgeVersionRequest,
@@ -129,6 +131,13 @@ export function useCreateKnowledgeVersion(agentId?: string) {
 export function useReleases(agentId: string | undefined) {
   return useQuery({ queryKey: ['releases', agentId], queryFn: () => getReleases(agentId!), enabled: Boolean(agentId) })
 }
+export function useReleaseActivations(agentId: string | undefined) {
+  return useQuery<AgentReleaseActivation[]>({
+    queryKey: ['release-activations', agentId],
+    queryFn: () => getReleaseActivations(agentId!),
+    enabled: Boolean(agentId),
+  })
+}
 export function useRelease(agentId: string | undefined, releaseId: string | undefined) {
   return useQuery({ queryKey: ['release', agentId, releaseId], queryFn: () => getRelease(agentId!, releaseId!), enabled: Boolean(agentId) && Boolean(releaseId) })
 }
@@ -148,6 +157,7 @@ export function usePromoteRelease(agentId?: string) {
     mutationFn: ({ releaseId, ...options }: { releaseId: string } & PromoteReleaseOptions) => promoteRelease(agentId!, releaseId, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
     },
@@ -155,7 +165,7 @@ export function usePromoteRelease(agentId?: string) {
 }
 export function useRollbackRelease(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) => rollbackRelease(agentId!, releaseId, userId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); queryClient.invalidateQueries({ queryKey: ['agent', agentId] }) } })
+  return useMutation({ mutationFn: ({ releaseId, userId }: { releaseId: string; userId?: string }) => rollbackRelease(agentId!, releaseId, userId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); queryClient.invalidateQueries({ queryKey: ['release-activations', agentId] }); queryClient.invalidateQueries({ queryKey: ['agent', agentId] }) } })
 }
 export function useReleaseTests(agentId: string | undefined, releaseId: string | undefined) {
   return useQuery({ queryKey: ['release-tests', agentId, releaseId], queryFn: () => getReleaseTests(agentId!, releaseId!), enabled: Boolean(agentId) && Boolean(releaseId) })
