@@ -86,7 +86,7 @@ export function PlaygroundHeader({
           API
         </Button>
 
-        <AgentControlsPopover agent={agent} projectId={projectId} environment="draft" />
+        <AgentControlsPopover agent={agent} projectId={projectId} />
 
         <button
           onClick={onToggleRightPanel}
