@@ -247,12 +247,15 @@ async def _discover_and_persist_tool(
         tool.config = config
         tool.updated_at = now
         await tool_repo.update(tool)
+        result_error = None if status == "oauth_required" else (
+            oauth_validation.error if oauth_validation and oauth_validation.error else output.error
+        )
         return RefreshMcpProviderToolsOutput(
             tool_id=tool.id,
             discovered_count=0,
             initialized=output.initialized,
             status=status,
-            error=oauth_validation.error if oauth_validation and oauth_validation.error else output.error,
+            error=result_error,
             http_status=output.http_status,
             phase=output.phase,
         )
