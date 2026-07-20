@@ -20,12 +20,12 @@ export function ToolsCreateDialog({ open, projectId, agentId = null, formKey = '
   const handleSubmit = async (value: ApiFirstToolFormSubmitValue) => {
     const tool = await createTool.mutateAsync({ project_id: projectId, agent_id: agentId, ...value })
     await onCreated?.(tool)
-    toast.success('Tool created')
+    toast.success(value.type === 'http' ? 'HTTP API created' : 'MCP provider created')
     onClose()
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="max-w-4xl bg-surface/95">
+    <Dialog open={open} onClose={onClose} title={title} className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-y-auto bg-surface/95">
       <div className="rounded-xl border border-border/80 bg-background/25 p-4">
         <ApiFirstToolForm
           key={open ? `${formKey}-open` : `${formKey}-closed`}
