@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pencil, Shield, Trash2 } from 'lucide-react'
 
+import { HttpProviderPanel, isHttpProviderTool } from '@/features/tools/components/HttpProviderPanel'
 import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
 import type { McpToolPermission, Tool } from '@/features/tools/types'
 import { cn } from '@/lib/utils'
@@ -41,6 +42,7 @@ function riskDotTone(risk?: string | null): string {
 function toolTypeLabel(tool: Tool): string {
   const config = (tool.config || {}) as Record<string, unknown>
   if (String(tool.type).toLowerCase() === 'mcp' || config.protocol === 'mcp') return 'MCP'
+  if (isHttpProviderTool(tool)) return 'HTTP API'
   if (String(tool.type).toLowerCase().includes('http')) return 'HTTP'
   return String(tool.type || 'Tool').replace(/_/g, ' ').toUpperCase()
 }
@@ -127,6 +129,7 @@ export function AgentToolCard({
   const isActive = tool.status === 'active'
   const isRetired = tool.status === 'deprecated'
   const isMcp = isMcpProviderTool(tool)
+  const isHttpProvider = isHttpProviderTool(tool)
 
   return (
     <article className={cn(
@@ -164,6 +167,14 @@ export function AgentToolCard({
             onPermissionOverridesChange={onPermissionOverridesChange}
           />
         </div>
+      ) : null}
+
+      {isHttpProvider ? (
+        <HttpProviderPanel
+          tool={tool}
+          permissionOverrides={permissionOverrides}
+          onPermissionOverridesChange={onPermissionOverridesChange}
+        />
       ) : null}
     </article>
   )
