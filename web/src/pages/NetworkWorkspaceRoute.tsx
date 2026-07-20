@@ -1,4 +1,5 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft } from 'lucide-react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
@@ -7,6 +8,29 @@ import { NetworkRuntimeControlsPopover } from '@/features/network/components/Net
 import { useNetwork } from '@/features/network/hooks'
 import { WorkspaceContext, useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import NetworkPage from '@/pages/NetworkPage'
+
+function NetworkHeaderRuntimeControls({
+  networkId,
+  projectId,
+}: {
+  networkId: string
+  projectId: string
+}) {
+  const [header, setHeader] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setHeader(document.querySelector<HTMLElement>('.network-workspace-shell > div > header'))
+  }, [networkId])
+
+  if (!header) return null
+
+  return createPortal(
+    <div className="shrink-0">
+      <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} />
+    </div>,
+    header,
+  )
+}
 
 export default function NetworkWorkspaceRoute() {
   const { organizationId, projectId, networkId } = useParams<{
@@ -42,7 +66,7 @@ export default function NetworkWorkspaceRoute() {
       >
         <style>{`
           .network-workspace-shell > div > header {
-            padding-right: 7.5rem;
+            overflow-x: auto;
           }
           .network-workspace-shell > div > header > div > h1 {
             font-size: 0;
@@ -72,13 +96,11 @@ export default function NetworkWorkspaceRoute() {
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        <div className="absolute right-3 top-3 z-[220]">
-          <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} />
-        </div>
-
         <WorkspaceContext.Provider value={{ ...workspace, currentProject: displayProject }}>
           <NetworkPage key={networkId} />
         </WorkspaceContext.Provider>
+
+        <NetworkHeaderRuntimeControls networkId={networkId} projectId={projectId} />
       </div>
     </NetworkIdentityProvider>
   )
