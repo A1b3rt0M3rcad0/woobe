@@ -29,6 +29,21 @@ def test_stateful_agent_persists_only_in_stateful_network() -> None:
 
 
 @pytest.mark.asyncio
+async def test_binding_snapshot_defines_agent_session_mode_without_release_lookup() -> None:
+    session = AsyncMock()
+
+    mode = await SQLNetworkExecutionStore._resolve_agent_session_mode(
+        session,
+        release_id=uuid4(),
+        snapshot_override=None,
+        binding_session_mode="stateless",
+    )
+
+    assert mode == "stateless"
+    session.get.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_draft_snapshot_defines_agent_session_mode() -> None:
     session = AsyncMock()
 
@@ -43,7 +58,7 @@ async def test_draft_snapshot_defines_agent_session_mode() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pinned_release_defines_agent_session_mode() -> None:
+async def test_pinned_release_defines_agent_session_mode_for_legacy_binding() -> None:
     session = AsyncMock()
     session.get.return_value = SimpleNamespace(session_mode="stateful")
 
@@ -54,6 +69,33 @@ async def test_pinned_release_defines_agent_session_mode() -> None:
     )
 
     assert mode == "stateful"
+
+
+@pytest.mark.asyncio
+async def test_binding_is_loaded_from_persisted_execution() -> None:
+    session = AsyncMock()
+    execution_id = uuid4()
+    version_id = uuid4()
+    node_id = uuid4()
+    persisted_execution = SimpleNamespace(
+        id=execution_id,
+        resolved_bindings_snapshot=None,
+        network_version_id=version_id,
+    )
+    version = SimpleNamespace(
+        resolved_bindings={str(node_id): {"session_mode": "stateful"}}
+    )
+    session.get.side_effect = [persisted_execution, version]
+
+    loaded_execution, binding = await SQLNetworkExecutionStore._binding_for_invocation(
+        session,
+        execution=SimpleNamespace(id=execution_id),
+        node_id=node_id,
+    )
+
+    assert loaded_execution is persisted_execution
+    assert binding == {"session_mode": "stateful"}
+    assert session.get.await_count == 2
 
 
 @pytest.mark.asyncio
