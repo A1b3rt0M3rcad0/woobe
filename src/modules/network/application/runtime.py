@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Protocol
 from uuid import UUID, uuid5
 
-from modules.network.application.runtime_failures import classify_runtime_exception
+from modules.network.application.runtime_failures import (
+    NetworkRuntimeFailure,
+    classify_runtime_exception,
+)
 from modules.network.domain.entities import NetworkDefinition, NetworkNode
 from modules.network.domain.graph import delegation_tool_name
 from modules.network.infra.database.models import (
@@ -126,6 +129,16 @@ class AgentInvoker(Protocol):
 class NetworkExecutionStore(Protocol):
     async def is_cancel_requested(self, execution_id: UUID) -> bool: ...
 
+    async def resolve_agent_session_mode(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+        binding_session_mode: str | None = None,
+    ) -> str: ...
+
     async def start_invocation(
         self,
         *,
@@ -164,6 +177,35 @@ class NetworkExecutionStore(Protocol):
         *,
         invocation_id: UUID | None = None,
     ) -> None: ...
+
+
+def _preparation_failure(
+    exception: Exception,
+    *,
+    code: str,
+    stage: str,
+    message: str,
+    node: NetworkNode,
+    invocation_id: UUID | None = None,
+) -> NetworkRuntimeFailure:
+    classified = classify_runtime_exception(exception, stage=stage)
+    return NetworkRuntimeFailure(
+        code=code,
+        stage=stage,
+        safe_message=message,
+        internal_detail=classified.internal_detail,
+        retryable=False,
+        invocation_id=invocation_id,
+        node_id=node.id,
+        agent_id=node.agent_id,
+        trace_id=classified.trace_id,
+        agent_session_id=classified.agent_session_id,
+        phase=classified.phase,
+        call_index=classified.call_index,
+        upstream_status=classified.upstream_status,
+        upstream_error_code=classified.upstream_error_code,
+        partial_result_available=classified.partial_result_available,
+    )
 
 
 class NetworkExecutor:
@@ -219,50 +261,118 @@ class NetworkExecutor:
             node = nodes[node_id]
             binding = resolved_bindings.get(str(node_id)) or {}
             release_id = binding.get("release_id")
+            release_uuid = UUID(str(release_id)) if release_id else None
             snapshot_override = binding.get("snapshot_override")
             if runtime_environment == "draft" and not isinstance(
                 snapshot_override, dict
             ):
-                raise RuntimeError(f"Node {node_id} has no Agent Draft snapshot")
-            if runtime_environment != "draft" and not release_id:
-                raise RuntimeError(
-                    f"Node {node_id} has no immutable Agent release binding"
+                raise _preparation_failure(
+                    RuntimeError(f"Node {node_id} has no Agent Draft snapshot"),
+                    code="agent_binding_error",
+                    stage="agent_binding_resolution",
+                    message="The Agent Draft snapshot could not be resolved for this Network Run.",
+                    node=node,
+                )
+            if runtime_environment != "draft" and release_uuid is None:
+                raise _preparation_failure(
+                    RuntimeError(
+                        f"Node {node_id} has no immutable Agent release binding"
+                    ),
+                    code="agent_binding_error",
+                    stage="agent_binding_resolution",
+                    message="The Agent snapshot pinned by this Network Version could not be resolved.",
+                    node=node,
                 )
 
-            invocation = await self._store.start_invocation(
-                execution=execution,
-                node_id=node.id,
-                agent_id=node.agent_id,
-                depth=depth,
-                message=message,
-                parent_invocation_id=parent_invocation_id,
-                persist_context=definition.session_mode == "stateful",
-            )
-            await self._store.emit(
-                execution.id,
-                "agent_invocation_started",
-                {
-                    "label": node.label,
-                    "invocation_count": invocation_count,
-                    "provider": snapshot_override.get("provider")
-                    if isinstance(snapshot_override, dict)
-                    else None,
-                    "model": snapshot_override.get("model")
-                    if isinstance(snapshot_override, dict)
-                    else None,
-                    "source": "draft"
-                    if runtime_environment == "draft"
-                    else "release"
-                    if runtime_environment == "production"
-                    else "staging",
-                    "version": (
-                        f"r{execution.draft_revision}"
-                        if runtime_environment == "draft"
-                        else binding.get("release_version")
+            raw_binding_session_mode = binding.get("session_mode")
+            try:
+                agent_session_mode = await self._store.resolve_agent_session_mode(
+                    project_id=execution.project_id,
+                    agent_id=node.agent_id,
+                    release_id=release_uuid,
+                    snapshot_override=(
+                        snapshot_override
+                        if isinstance(snapshot_override, dict)
+                        else None
                     ),
-                },
-                invocation_id=invocation.id,
+                    binding_session_mode=(
+                        str(raw_binding_session_mode)
+                        if raw_binding_session_mode is not None
+                        else None
+                    ),
+                )
+            except Exception as exc:
+                raise _preparation_failure(
+                    exc,
+                    code="agent_binding_error",
+                    stage="agent_binding_resolution",
+                    message="The Agent Session Mode pinned by this Network Version could not be resolved.",
+                    node=node,
+                ) from exc
+
+            persist_agent_context = (
+                definition.session_mode == "stateful"
+                and agent_session_mode == "stateful"
             )
+            try:
+                invocation = await self._store.start_invocation(
+                    execution=execution,
+                    node_id=node.id,
+                    agent_id=node.agent_id,
+                    depth=depth,
+                    message=message,
+                    parent_invocation_id=parent_invocation_id,
+                    persist_context=persist_agent_context,
+                )
+            except Exception as exc:
+                raise _preparation_failure(
+                    exc,
+                    code="agent_context_error",
+                    stage="agent_context_preparation",
+                    message="The Agent runtime context could not be prepared for this Network Run.",
+                    node=node,
+                ) from exc
+
+            try:
+                await self._store.emit(
+                    execution.id,
+                    "agent_invocation_started",
+                    {
+                        "label": node.label,
+                        "invocation_count": invocation_count,
+                        "provider": snapshot_override.get("provider")
+                        if isinstance(snapshot_override, dict)
+                        else None,
+                        "model": snapshot_override.get("model")
+                        if isinstance(snapshot_override, dict)
+                        else None,
+                        "session_mode": agent_session_mode,
+                        "context_state": "created"
+                        if persist_agent_context
+                        else "stateless",
+                        "source": "draft"
+                        if runtime_environment == "draft"
+                        else "release"
+                        if runtime_environment == "production"
+                        else "staging",
+                        "version": (
+                            f"r{execution.draft_revision}"
+                            if runtime_environment == "draft"
+                            else binding.get("release_version")
+                        ),
+                    },
+                    invocation_id=invocation.id,
+                )
+            except Exception as exc:
+                await self._store.fail_invocation(invocation.id, str(exc))
+                raise _preparation_failure(
+                    exc,
+                    code="agent_context_error",
+                    stage="agent_invocation_start",
+                    message="The Agent invocation could not be started for this Network Run.",
+                    node=node,
+                    invocation_id=invocation.id,
+                ) from exc
 
             tools: list[InternalDelegationTool] = []
             for target_id in outgoing[node_id]:
@@ -371,7 +481,7 @@ class NetworkExecutor:
                 result = await self._invoker.invoke(
                     project_id=execution.project_id,
                     agent_id=node.agent_id,
-                    release_id=UUID(str(release_id)) if release_id else None,
+                    release_id=release_uuid,
                     snapshot_override=snapshot_override,
                     message=message,
                     agent_session_id=invocation.agent_session_id,
@@ -443,7 +553,7 @@ class NetworkExecutor:
                     failure.internal_detail,
                     trace_id=failure.trace_id,
                     agent_session_id=failure.agent_session_id,
-                    persist_context=definition.session_mode == "stateful",
+                    persist_context=persist_agent_context,
                 )
                 await self._store.emit(
                     execution.id,
@@ -456,7 +566,7 @@ class NetworkExecutor:
             await self._store.complete_invocation(
                 invocation.id,
                 result=result,
-                persist_context=definition.session_mode == "stateful",
+                persist_context=persist_agent_context,
             )
             if await self._store.is_cancel_requested(execution.id):
                 raise NetworkExecutionCancelled("Network execution was cancelled")
