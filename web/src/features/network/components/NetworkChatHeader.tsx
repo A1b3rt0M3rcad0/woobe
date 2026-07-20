@@ -1,10 +1,8 @@
 import { AlertTriangle, Lock, MessageSquarePlus, Network, PencilLine, RotateCcw } from 'lucide-react'
-import { useParams } from 'react-router-dom'
 
 import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { networkLabel } from './networkChatExecution'
 import type { NetworkSession } from './networkSessionTypes'
-import { NetworkRuntimeControlsPopover } from './NetworkRuntimeControlsPopover'
 import { NetworkSessionSelector } from './NetworkSessionSelector'
 
 interface NetworkChatHeaderProps {
@@ -21,7 +19,6 @@ interface NetworkChatHeaderProps {
 }
 
 export function NetworkChatHeader({ environment, counts, sessions, activeSessionId, versionLabel, changed, newSessionDisabled = false, onSelectSession, onNew, onResetContext }: NetworkChatHeaderProps) {
-  const { projectId, networkId } = useParams<{ projectId: string; networkId: string }>()
   const readOnly = environment !== 'draft'
   const immutableSnapshotChanged = environment !== 'draft' && changed
   return (
@@ -42,7 +39,6 @@ export function NetworkChatHeader({ environment, counts, sessions, activeSession
             <p className="mt-0.5 text-[10px] text-muted">{networkLabel(environment, versionLabel)} · {counts.draft} Draft · {counts.staging} Staging · {counts.release} Release</p>
           </div>
         </div>
-        {projectId && networkId ? <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} environment={environment} /> : null}
         <div className="flex items-center gap-1.5">
           <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} />
           <button type="button" disabled={newSessionDisabled} onClick={onNew} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/55 text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45" title="New Network conversation" aria-label="New Network conversation"><MessageSquarePlus className="h-3.5 w-3.5" /></button>
