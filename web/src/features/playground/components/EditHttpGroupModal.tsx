@@ -32,7 +32,7 @@ export function EditHttpGroupModal({ tool, onClose, onSaved }: EditHttpGroupModa
       onClose={onClose}
       title={`Edit HTTP API: ${tool.name}`}
       className="max-w-3xl bg-surface/95"
-      contentClassName="p-0"
+      contentClassName="p-0 [&>form]:flex [&>form]:min-h-full [&>form]:flex-col [&>form>div:first-child]:flex-1"
       scrollMode="content"
     >
       <ApiFirstToolForm
