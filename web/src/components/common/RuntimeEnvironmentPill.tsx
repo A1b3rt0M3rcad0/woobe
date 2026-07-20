@@ -28,41 +28,46 @@ export function RuntimeEnvironmentPill({
   enabled,
   available = true,
   loading = false,
+  unknown = false,
 }: {
   environment: OperationalEnvironment
   enabled?: boolean
   available?: boolean
   loading?: boolean
+  unknown?: boolean
 }) {
   const label = environmentLabels[environment]
-  const live = available && enabled === true
-  const off = available && enabled === false
+  const live = available && enabled === true && !unknown
+  const off = available && enabled === false && !unknown
+  const neutral = loading || unknown
   const text = loading
     ? `${label}…`
-    : !available
-      ? `No ${label}`
-      : live
-        ? `${label} Live`
-        : `${label} Off`
+    : unknown
+      ? `${label} Unknown`
+      : !available
+        ? `No ${label}`
+        : live
+          ? `${label} Live`
+          : `${label} Off`
 
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium',
-        loading && 'border-border/80 bg-background/55 text-muted',
-        !loading && !available && 'border-border/70 bg-background/35 text-muted/80',
-        !loading && off && 'border-slate-500/25 bg-slate-500/[0.08] text-slate-300',
-        !loading && live && liveStyles[environment].pill,
+        neutral && 'border-border/80 bg-background/55 text-muted',
+        !neutral && !available && 'border-border/70 bg-background/35 text-muted/80',
+        !neutral && off && 'border-slate-500/25 bg-slate-500/[0.08] text-slate-300',
+        !neutral && live && liveStyles[environment].pill,
       )}
       aria-label={text}
     >
       <span
         className={cn(
           'h-1.5 w-1.5 shrink-0 rounded-full',
-          loading && 'bg-slate-500',
-          !loading && !available && 'bg-slate-600',
-          !loading && off && 'bg-slate-400',
-          !loading && live && liveStyles[environment].dot,
+          neutral && 'bg-slate-500',
+          !neutral && !available && 'bg-slate-600',
+          !neutral && off && 'bg-slate-400',
+          !neutral && live && liveStyles[environment].dot,
         )}
         aria-hidden="true"
       />
