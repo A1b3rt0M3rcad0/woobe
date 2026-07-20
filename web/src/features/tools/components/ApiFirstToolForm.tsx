@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Globe2, Plus, Route, Server, X } from 'lucide-react'
+import type { FormEvent, ReactNode } from 'react'
+import { ArrowLeft, ChevronDown, Globe2, Plus, Route, Server, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -18,15 +19,20 @@ import type {
   ToolConfig,
   ToolProtocol,
 } from '@/features/tools/types'
-import { toast } from 'sonner'
 
 export type ApiFirstToolFormSubmitValue = Omit<CreateToolRequest, 'project_id'>
 
 type Protocol = 'http' | 'mcp'
+type FormStep = 'type' | 'details' | 'route'
 type HeaderDraft = { id: string; key: string; value: string; sensitive?: boolean }
 type RouteDraft = Omit<HttpRouteConfig, 'headers' | 'body'> & {
   headers: HeaderDraft[]
   body: string
+}
+
+interface RouteEditorState {
+  draft: RouteDraft
+  isNew: boolean
 }
 
 interface ApiFirstToolFormProps {
@@ -37,11 +43,6 @@ interface ApiFirstToolFormProps {
   onSubmit: (value: ApiFirstToolFormSubmitValue) => Promise<void>
   onCancel: () => void
 }
-
-const PROTOCOLS = [
-  { value: 'http', label: 'HTTP API' },
-  { value: 'mcp', label: 'MCP Server' },
-]
 
 const METHODS = [
   { value: 'GET', label: 'GET' },
@@ -62,12 +63,6 @@ const RISKS = [
 const ROUTE_STATUSES = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
-]
-
-const PERMISSIONS = [
-  { value: 'review', label: 'Review by default' },
-  { value: 'allow', label: 'Allowed by default' },
-  { value: 'deny', label: 'Denied by default' },
 ]
 
 let nextLocalId = 1
@@ -116,11 +111,11 @@ function operationId(value: string): string {
   return normalized && !/^\d/.test(normalized) ? normalized : `route_${normalized || 'operation'}`
 }
 
-function defaultRoute(index = 1, riskLevel = 'low'): RouteDraft {
+function defaultRoute(index = 1): RouteDraft {
   return {
     id: stableRouteId(),
     operation_id: `route_${index}`,
-    name: `Route ${index}`,
+    name: '',
     description: '',
     method: 'GET',
     path: '/',
@@ -129,7 +124,7 @@ function defaultRoute(index = 1, riskLevel = 'low'): RouteDraft {
     variables: {},
     input_schema: undefined,
     output_schema: undefined,
-    risk_level: riskLevel,
+    risk_level: 'low',
     status: 'active',
     default_permission: 'review',
   }
@@ -140,7 +135,7 @@ function routeFromConfig(route: HttpRouteConfig, index: number): RouteDraft {
     ...route,
     id: route.id || stableRouteId(),
     operation_id: route.operation_id || `route_${index + 1}`,
-    name: route.name || `Route ${index + 1}`,
+    name: route.name || '',
     description: route.description || '',
     method: route.method || 'GET',
     path: route.path || '/',
@@ -159,27 +154,62 @@ function initialHttpConfig(tool?: Tool | null): HttpToolConfig | null {
 }
 
 function serverName(value: string): string {
-  try {
-    return `MCP ${new URL(value).hostname}`
-  } catch {
-    return 'MCP Server'
-  }
+  try { return `MCP ${new URL(value).hostname}` } catch { return '' }
 }
 
 function groupName(value: string): string {
-  try {
-    return new URL(value).hostname
-  } catch {
-    return 'HTTP API'
-  }
+  try { return new URL(value).hostname } catch { return '' }
+}
+
+function riskScore(risk?: string | null): number {
+  const normalized = String(risk || '').toLowerCase()
+  if (normalized === 'critical') return 4
+  if (normalized === 'high') return 3
+  if (normalized === 'medium') return 2
+  return 1
+}
+
+function highestRouteRisk(routes: RouteDraft[]): string {
+  return routes
+    .filter((route) => route.status !== 'inactive')
+    .reduce((highest, route) => riskScore(route.risk_level) > riskScore(highest) ? String(route.risk_level) : highest, 'low')
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <p className="mt-1 text-[11px] text-red-300">{message}</p> : null
+}
+
+function AdvancedSection({
+  open,
+  onToggle,
+  label = 'Advanced settings',
+  children,
+}: {
+  open: boolean
+  onToggle: () => void
+  label?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded-xl border border-border/80 bg-background/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-sm font-medium text-white">{label}</span>
+        <ChevronDown className={`h-4 w-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? <div className="space-y-4 border-t border-border/70 px-4 py-4">{children}</div> : null}
+    </div>
+  )
 }
 
 function HeadersEditor({
-  title,
   headers,
   onChange,
 }: {
-  title: string
   headers: HeaderDraft[]
   onChange: (headers: HeaderDraft[]) => void
 }) {
@@ -190,21 +220,24 @@ function HeadersEditor({
   const removeHeader = (id: string) => onChange(headers.filter((header) => header.id !== id))
 
   return (
-    <div className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{title}</p>
+        <div>
+          <p className="text-xs font-medium text-white">Headers</p>
+          <p className="mt-0.5 text-[11px] text-muted">Use a secret reference for sensitive values.</p>
+        </div>
         <Button type="button" size="sm" variant="ghost" onClick={addHeader}>
-          <Plus className="mr-1 h-3 w-3" />
+          <Plus className="mr-1 h-3.5 w-3.5" />
           Add header
         </Button>
       </div>
-      {headers.length === 0 ? <p className="text-xs italic text-muted">No headers configured.</p> : null}
+      {headers.length === 0 ? <p className="text-xs text-muted">No headers configured.</p> : null}
       {headers.map((header) => (
-        <div key={header.id} className="grid gap-2 md:grid-cols-[minmax(120px,0.8fr)_minmax(180px,1.2fr)_32px]">
+        <div key={header.id} className="grid gap-2 sm:grid-cols-[minmax(120px,0.8fr)_minmax(180px,1.2fr)_32px]">
           <Input value={header.key} onChange={(event) => updateHeader(header.id, 'key', event.target.value)} placeholder="Header name" />
           <Input value={header.value} onChange={(event) => updateHeader(header.id, 'value', event.target.value)} placeholder="Value or {{secret:name}}" className="font-mono text-xs" />
-          <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeHeader(header.id)}>
-            <X className="h-3.5 w-3.5" />
+          <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeHeader(header.id)} aria-label="Remove header">
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       ))}
@@ -224,24 +257,22 @@ export function ApiFirstToolForm({
   const initialMcp = initialTool?.type === 'mcp' ? (initialTool.config || {}) as McpToolConfig : null
   const initialProtocol: Protocol = initialMcp ? 'mcp' : 'http'
 
+  const [step, setStep] = useState<FormStep>(initialTool ? 'details' : 'type')
   const [protocol, setProtocol] = useState<Protocol>(initialProtocol)
   const [name, setName] = useState(initialTool?.name || '')
+  const [nameTouched, setNameTouched] = useState(Boolean(initialTool?.name))
   const [description, setDescription] = useState(initialTool?.description || '')
-  const [riskLevel, setRiskLevel] = useState(initialTool?.risk_level || 'low')
   const [timeoutMs, setTimeoutMs] = useState(initialTool?.timeout_ms || initialHttp?.timeout_ms || initialMcp?.timeout_ms || 30000)
   const [baseUrl, setBaseUrl] = useState(initialHttp?.base_url || '')
   const [sharedHeaders, setSharedHeaders] = useState<HeaderDraft[]>((initialHttp?.headers || []).map((header) => headerDraft(header)))
-  const [routes, setRoutes] = useState<RouteDraft[]>(
-    initialHttp?.routes?.length
-      ? initialHttp.routes.map(routeFromConfig)
-      : [defaultRoute(1, initialTool?.risk_level || 'low')],
-  )
-  const [activeRouteId, setActiveRouteId] = useState(routes[0]?.id || '')
+  const [routes, setRoutes] = useState<RouteDraft[]>(initialHttp?.routes?.map(routeFromConfig) || [])
   const [mcpUrl, setMcpUrl] = useState(initialMcp?.server?.url || '')
   const [mcpHeaders, setMcpHeaders] = useState<HeaderDraft[]>((initialMcp?.server?.headers || []).map((header) => headerDraft(header)))
-
-  const activeRoute = routes.find((route) => route.id === activeRouteId) || routes[0]
-  const activeRouteIndex = Math.max(0, routes.findIndex((route) => route.id === activeRoute?.id))
+  const [detailsAdvancedOpen, setDetailsAdvancedOpen] = useState(false)
+  const [routeAdvancedOpen, setRouteAdvancedOpen] = useState(false)
+  const [routeEditor, setRouteEditor] = useState<RouteEditorState | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [routeErrors, setRouteErrors] = useState<Record<string, string>>({})
 
   const groupConfigPreview = useMemo<HttpToolConfig>(() => ({
     protocol: 'http',
@@ -257,32 +288,103 @@ export function ApiFirstToolForm({
     })),
   }), [baseUrl, routes, sharedHeaders, timeoutMs])
 
-  const routeContract = activeRoute
-    ? inspectHttpRouteContract(groupConfigPreview, {
-      ...activeRoute,
-      headers: normalizeHeaders(activeRoute.headers),
-      body: activeRoute.body || undefined,
+  const routeContract = useMemo(() => {
+    if (!routeEditor) return null
+    return inspectHttpRouteContract(groupConfigPreview, {
+      ...routeEditor.draft,
+      headers: normalizeHeaders(routeEditor.draft.headers),
+      body: routeEditor.draft.body || undefined,
     })
-    : null
+  }, [groupConfigPreview, routeEditor])
 
-  const updateRoute = (routeId: string, patch: Partial<RouteDraft>) => {
-    setRoutes((current) => current.map((route) => route.id === routeId ? { ...route, ...patch } : route))
+  const updateBaseUrl = (value: string) => {
+    setBaseUrl(value)
+    if (!nameTouched) setName(groupName(value))
+    setErrors((current) => ({ ...current, baseUrl: '' }))
+  }
+
+  const updateMcpUrl = (value: string) => {
+    setMcpUrl(value)
+    if (!nameTouched) setName(serverName(value))
+    setErrors((current) => ({ ...current, mcpUrl: '' }))
+  }
+
+  const selectProtocol = (nextProtocol: Protocol) => {
+    setProtocol(nextProtocol)
+    setName('')
+    setNameTouched(false)
+    setDescription('')
+    setErrors({})
+    setStep('details')
+  }
+
+  const editRoute = (route: RouteDraft) => {
+    setRouteEditor({
+      draft: {
+        ...route,
+        headers: route.headers.map((header) => headerDraft(header)),
+      },
+      isNew: false,
+    })
+    setRouteErrors({})
+    setRouteAdvancedOpen(false)
+    setStep('route')
   }
 
   const addRoute = () => {
-    const route = defaultRoute(routes.length + 1, riskLevel)
-    setRoutes((current) => [...current, route])
-    setActiveRouteId(route.id)
+    setRouteEditor({ draft: defaultRoute(routes.length + 1), isNew: true })
+    setRouteErrors({})
+    setRouteAdvancedOpen(false)
+    setStep('route')
   }
 
   const removeRoute = (routeId: string) => {
-    if (routes.length === 1) {
-      toast.error('HTTP API group requires at least one route.')
-      return
+    setRoutes((current) => current.filter((route) => route.id !== routeId))
+  }
+
+  const updateRouteDraft = (patch: Partial<RouteDraft>) => {
+    setRouteEditor((current) => current ? { ...current, draft: { ...current.draft, ...patch } } : current)
+  }
+
+  const validateRoute = (route: RouteDraft): boolean => {
+    const nextErrors: Record<string, string> = {}
+    const resolvedOperationId = operationId(route.operation_id || route.name)
+    if (!route.path.trim()) nextErrors.path = 'Relative path is required.'
+    else if (/^https?:\/\//i.test(route.path.trim())) nextErrors.path = 'Use a path relative to the Base URL.'
+    if (!route.name.trim()) nextErrors.name = 'Route name is required.'
+    if (!route.description.trim()) nextErrors.description = 'Describe when the Agent should use this route.'
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(resolvedOperationId)) nextErrors.operationId = 'Operation ID is invalid.'
+    const duplicate = routes.some((item) => item.id !== route.id && item.operation_id === resolvedOperationId)
+    if (duplicate) nextErrors.operationId = 'Operation ID is already used by another route.'
+    if (!['GET', 'HEAD'].includes(route.method) && route.body.trim()) {
+      try { JSON.parse(route.body) } catch { nextErrors.body = 'Request body must be valid JSON.' }
     }
-    const next = routes.filter((route) => route.id !== routeId)
-    setRoutes(next)
-    if (activeRouteId === routeId) setActiveRouteId(next[0]?.id || '')
+    const preview = inspectHttpRouteContract(groupConfigPreview, {
+      ...route,
+      operation_id: resolvedOperationId,
+      headers: normalizeHeaders(route.headers),
+      body: route.body || undefined,
+    })
+    if (preview.errors.length && !nextErrors.body) nextErrors.body = preview.errors[0]
+    setRouteErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  const saveRoute = () => {
+    if (!routeEditor) return
+    const draft = {
+      ...routeEditor.draft,
+      operation_id: operationId(routeEditor.draft.operation_id || routeEditor.draft.name),
+      status: routeEditor.draft.status || 'active',
+      default_permission: routeEditor.draft.default_permission || 'review',
+    }
+    if (!validateRoute(draft)) return
+    setRoutes((current) => routeEditor.isNew
+      ? [...current, draft]
+      : current.map((route) => route.id === draft.id ? draft : route))
+    setRouteEditor(null)
+    setRouteErrors({})
+    setStep('details')
   }
 
   const normalizeRoute = (route: RouteDraft): HttpRouteConfig => {
@@ -299,7 +401,7 @@ export function ApiFirstToolForm({
     )
     return {
       id: route.id,
-      operation_id: route.operation_id.trim(),
+      operation_id: operationId(route.operation_id || route.name),
       name: route.name.trim(),
       description: route.description.trim(),
       method: route.method,
@@ -309,7 +411,7 @@ export function ApiFirstToolForm({
       variables: route.variables || {},
       input_schema: preview.inputSchema,
       output_schema: route.output_schema,
-      risk_level: route.risk_level || riskLevel,
+      risk_level: route.risk_level || 'low',
       status: route.status || 'active',
       default_permission: route.default_permission || 'review',
       permission: route.permission,
@@ -344,189 +446,305 @@ export function ApiFirstToolForm({
     } satisfies HttpToolConfig
   }
 
-  const validate = (): string | null => {
+  const validateDetails = (): boolean => {
+    const nextErrors: Record<string, string> = {}
     if (protocol === 'mcp') {
-      if (!mcpUrl.trim()) return 'MCP server URL is required'
-      try { new URL(mcpUrl.trim()) } catch { return 'MCP server URL is invalid' }
-      return null
+      if (!mcpUrl.trim()) nextErrors.mcpUrl = 'MCP Server URL is required.'
+      else {
+        try {
+          const parsed = new URL(mcpUrl.trim())
+          if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.mcpUrl = 'Use an HTTP or HTTPS URL.'
+        } catch { nextErrors.mcpUrl = 'Enter a valid MCP Server URL.' }
+      }
+      if (!name.trim()) nextErrors.name = 'Display name is required.'
+    } else {
+      if (!baseUrl.trim()) nextErrors.baseUrl = 'Base URL is required.'
+      else {
+        try {
+          const parsed = new URL(baseUrl.trim())
+          if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.baseUrl = 'Use an HTTP or HTTPS URL.'
+          else if (parsed.search || parsed.hash) nextErrors.baseUrl = 'Base URL cannot contain query parameters or fragments.'
+        } catch { nextErrors.baseUrl = 'Enter a valid Base URL.' }
+      }
+      if (!name.trim()) nextErrors.name = 'Display name is required.'
+      if (!description.trim()) nextErrors.description = 'Describe what this API provides to Agents.'
+      if (routes.length === 0) nextErrors.routes = 'Add at least one route.'
     }
-
-    if (!description.trim()) return 'HTTP API group description is required'
-    if (!baseUrl.trim()) return 'HTTP API base URL is required'
-    try {
-      const parsed = new URL(baseUrl.trim())
-      if (!['http:', 'https:'].includes(parsed.protocol)) return 'HTTP API base URL must use HTTP or HTTPS'
-      if (parsed.search || parsed.hash) return 'HTTP API base URL cannot contain query parameters or fragments'
-    } catch {
-      return 'HTTP API base URL is invalid'
-    }
-    if (routes.length === 0) return 'At least one HTTP route is required'
-    const operationIds = new Set<string>()
-    for (const route of routes) {
-      if (!route.name.trim()) return 'Every HTTP route requires a name'
-      if (!route.description.trim()) return `Route "${route.name || 'Unnamed'}" requires a description`
-      if (!route.path.trim()) return `Route "${route.name}" requires a relative path`
-      if (/^https?:\/\//i.test(route.path.trim())) return `Route "${route.name}" path must be relative to the base URL`
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(route.operation_id.trim())) return `Route "${route.name}" has an invalid operation ID`
-      if (operationIds.has(route.operation_id.trim())) return `Operation ID "${route.operation_id}" is duplicated`
-      operationIds.add(route.operation_id.trim())
-      const preview = inspectHttpRouteContract(groupConfigPreview, {
-        ...route,
-        headers: normalizeHeaders(route.headers),
-        body: route.body || undefined,
-      })
-      if (preview.errors.length) return `${route.name}: ${preview.errors[0]}`
-    }
-    return null
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    const error = validate()
-    if (error) {
-      toast.error(error)
-      return
-    }
+  const submitDetails = async () => {
+    if (!validateDetails()) return
     const config = buildConfig()
     const contract = protocol === 'http' ? inspectHttpToolContract(config as HttpToolConfig) : null
     if (contract?.errors.length) {
       toast.error(contract.errors[0])
       return
     }
-    const resolvedName = name.trim() || (protocol === 'mcp' ? serverName(mcpUrl.trim()) : groupName(baseUrl.trim()))
     await onSubmit({
-      name: resolvedName,
+      name: name.trim(),
       description: description.trim() || (protocol === 'mcp'
         ? 'MCP provider. Woobe loads public tools automatically and identifies authentication requirements.'
         : undefined),
       type: protocol as ToolProtocol,
       config,
       input_schema: contract?.inputSchema,
-      risk_level: riskLevel,
+      risk_level: protocol === 'http' ? highestRouteRisk(routes) : initialTool?.risk_level || 'low',
       timeout_ms: timeoutMs,
     })
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-5">
-      {!initialTool ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          {PROTOCOLS.map((item) => {
-            const active = protocol === item.value
-            const Icon = item.value === 'http' ? Globe2 : Server
-            return (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => setProtocol(item.value as Protocol)}
-                className={`rounded-xl border p-4 text-left transition-colors ${active ? 'border-primary/50 bg-primary/10' : 'border-border/80 bg-background/40 hover:bg-background/70'}`}
-              >
-                <Icon className="h-4 w-4 text-primary-light" />
-                <p className="mt-3 text-sm font-semibold text-white">{item.label}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{item.value === 'http' ? 'Group several routes from one API domain.' : 'Connect a remote MCP server and discover tools.'}</p>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (step === 'route') {
+      saveRoute()
+      return
+    }
+    if (step === 'details') await submitDetails()
+  }
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_160px]">
-        <div><label className="mb-1 block text-xs font-medium text-muted">Display name</label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder={protocol === 'mcp' ? 'Auto-filled from URL' : 'Portal da Transparência'} /></div>
-        <div><label className="mb-1 block text-xs font-medium text-muted">Default risk</label><Select value={riskLevel} onChange={(event) => setRiskLevel(event.target.value)} options={RISKS} /></div>
-        <div><label className="mb-1 block text-xs font-medium text-muted">Timeout (ms)</label><Input type="number" value={timeoutMs} min={1000} max={120000} onChange={(event) => setTimeoutMs(Number(event.target.value))} /></div>
+  const cancelCurrentStep = () => {
+    if (step === 'route') {
+      setRouteEditor(null)
+      setRouteErrors({})
+      setStep('details')
+      return
+    }
+    onCancel()
+  }
+
+  const primaryDisabled = step === 'route'
+    ? !routeEditor?.draft.name.trim() || !routeEditor.draft.description.trim() || !routeEditor.draft.path.trim()
+    : protocol === 'http'
+      ? !baseUrl.trim() || !name.trim() || !description.trim() || routes.length === 0
+      : !mcpUrl.trim() || !name.trim()
+
+  const primaryLabel = step === 'route'
+    ? 'Save route'
+    : initialTool
+      ? 'Save changes'
+      : protocol === 'mcp'
+        ? 'Create & discover'
+        : submitLabel === 'Create' ? 'Create API' : submitLabel
+
+  return (
+    <form onSubmit={submit} className="min-h-full">
+      <div className="space-y-5 p-6">
+        {step === 'type' ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">What are you connecting?</h3>
+              <p className="mt-1 text-sm text-muted">Choose a provider type. Configuration appears only after selection.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => selectProtocol('http')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
+                <Globe2 className="h-4 w-4 text-primary-light" />
+                <p className="mt-3 text-sm font-semibold text-white">HTTP API</p>
+                <p className="mt-1 text-xs leading-5 text-muted">Connect one API domain and expose its routes.</p>
+              </button>
+              <button type="button" onClick={() => selectProtocol('mcp')} className="rounded-xl border border-border/80 bg-background/35 p-4 text-left transition-colors hover:border-primary/45 hover:bg-primary/5">
+                <Server className="h-4 w-4 text-primary-light" />
+                <p className="mt-3 text-sm font-semibold text-white">MCP Server</p>
+                <p className="mt-1 text-xs leading-5 text-muted">Connect a remote server and discover its tools.</p>
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 'details' ? (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3">
+              {!initialTool ? (
+                <Button type="button" size="sm" variant="ghost" className="mt-0.5 px-2" onClick={() => setStep('type')}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              ) : null}
+              <div>
+                <h3 className="text-base font-semibold text-white">{protocol === 'http' ? (initialTool ? 'Edit HTTP API' : 'Create HTTP API') : 'Connect MCP Server'}</h3>
+                <p className="mt-1 text-sm text-muted">{protocol === 'http' ? 'Connect the API first, then add only the routes the Agent needs.' : 'Tools are discovered automatically after creation.'}</p>
+              </div>
+            </div>
+
+            {protocol === 'http' ? (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
+                  <Input autoFocus value={baseUrl} onChange={(event) => updateBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" className="font-mono text-xs" />
+                  <p className="mt-1 text-[11px] text-muted">All routes remain under this domain and base path.</p>
+                  <FieldError message={errors.baseUrl} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Display name *</label>
+                  <Input value={name} onChange={(event) => { setNameTouched(true); setName(event.target.value); setErrors((current) => ({ ...current, name: '' })) }} placeholder="Public data API" />
+                  <FieldError message={errors.name} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Description *</label>
+                  <Textarea value={description} onChange={(event) => { setDescription(event.target.value); setErrors((current) => ({ ...current, description: '' })) }} placeholder="Explain what this API provides so Agents understand its domain." className="min-h-[88px]" />
+                  <FieldError message={errors.description} />
+                </div>
+
+                <div className="space-y-3 border-t border-border/70 pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">Routes</p>
+                      <p className="mt-0.5 text-xs text-muted">Each route becomes an independent capability for the Agent.</p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={addRoute}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add route
+                    </Button>
+                  </div>
+                  {routes.length === 0 ? (
+                    <button type="button" onClick={addRoute} className="w-full rounded-xl border border-dashed border-border/80 px-4 py-7 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                      <Route className="mx-auto h-5 w-5 text-primary-light" />
+                      <p className="mt-2 text-sm font-medium text-white">Add the first route</p>
+                      <p className="mt-1 text-xs text-muted">Start with the endpoint the Agent needs most.</p>
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {routes.map((route) => (
+                        <div key={route.id} className="flex items-center gap-3 rounded-xl border border-border/75 bg-background/30 px-3 py-3">
+                          <span className="shrink-0 rounded-md border border-border/80 bg-background px-2 py-1 font-mono text-[10px] font-semibold text-primary-light">{route.method}</span>
+                          <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
+                            <p className="truncate text-sm font-medium text-white">{route.name}</p>
+                            <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
+                          </button>
+                          <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <FieldError message={errors.routes} />
+                </div>
+
+                <AdvancedSection open={detailsAdvancedOpen} onToggle={() => setDetailsAdvancedOpen((current) => !current)}>
+                  <HeadersEditor headers={sharedHeaders} onChange={setSharedHeaders} />
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Request timeout (ms)</label>
+                    <Input type="number" value={timeoutMs} min={1000} max={120000} onChange={(event) => setTimeoutMs(Number(event.target.value))} />
+                  </div>
+                </AdvancedSection>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label>
+                  <Input autoFocus value={mcpUrl} onChange={(event) => updateMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" />
+                  <p className="mt-1 text-[11px] text-muted">Public tools are loaded automatically after creation.</p>
+                  <FieldError message={errors.mcpUrl} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Display name *</label>
+                  <Input value={name} onChange={(event) => { setNameTouched(true); setName(event.target.value); setErrors((current) => ({ ...current, name: '' })) }} placeholder="Auto-filled from URL" />
+                  <FieldError message={errors.name} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Description</label>
+                  <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this MCP provider does" className="min-h-[80px]" />
+                </div>
+                <AdvancedSection open={detailsAdvancedOpen} onToggle={() => setDetailsAdvancedOpen((current) => !current)}>
+                  <HeadersEditor headers={mcpHeaders} onChange={setMcpHeaders} />
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Connection timeout (ms)</label>
+                    <Input type="number" value={timeoutMs} min={1000} max={120000} onChange={(event) => setTimeoutMs(Number(event.target.value))} />
+                  </div>
+                </AdvancedSection>
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {step === 'route' && routeEditor ? (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3">
+              <Button type="button" size="sm" variant="ghost" className="mt-0.5 px-2" onClick={cancelCurrentStep}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div>
+                <h3 className="text-base font-semibold text-white">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
+                <p className="mt-1 text-sm text-muted">Define the request first. Technical identifiers remain optional.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[130px_minmax(0,1fr)]">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Method</label>
+                <Select value={routeEditor.draft.method} onChange={(event) => updateRouteDraft({ method: event.target.value })} options={METHODS} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Relative path *</label>
+                <Input autoFocus value={routeEditor.draft.path} onChange={(event) => { updateRouteDraft({ path: event.target.value }); setRouteErrors((current) => ({ ...current, path: '' })) }} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" />
+                <FieldError message={routeErrors.path} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Route name *</label>
+              <Input value={routeEditor.draft.name} onChange={(event) => {
+                const nextName = event.target.value
+                updateRouteDraft({
+                  name: nextName,
+                  operation_id: routeEditor.draft.operation_id.startsWith('route_') ? operationId(nextName) : routeEditor.draft.operation_id,
+                })
+                setRouteErrors((current) => ({ ...current, name: '' }))
+              }} placeholder="Search employees" />
+              <FieldError message={routeErrors.name} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted">Route description *</label>
+              <Textarea value={routeEditor.draft.description} onChange={(event) => { updateRouteDraft({ description: event.target.value }); setRouteErrors((current) => ({ ...current, description: '' })) }} placeholder="Explain exactly when the Agent should call this route." className="min-h-[92px]" />
+              <FieldError message={routeErrors.description} />
+            </div>
+            <div className="max-w-[220px]">
+              <label className="mb-1 block text-xs font-medium text-muted">Risk</label>
+              <Select value={routeEditor.draft.risk_level || 'low'} onChange={(event) => updateRouteDraft({ risk_level: event.target.value })} options={RISKS} />
+            </div>
+
+            {!['GET', 'HEAD'].includes(routeEditor.draft.method) ? (
+              <div>
+                <HttpRequestBodyEditor value={routeEditor.draft.body} onChange={(body) => { updateRouteDraft({ body }); setRouteErrors((current) => ({ ...current, body: '' })) }} />
+                <FieldError message={routeErrors.body} />
+              </div>
+            ) : null}
+
+            {routeContract?.parameterNames.length ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span>Agent inputs</span>
+                {routeContract.parameterNames.map((parameter) => <span key={parameter} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] text-white">{parameter}</span>)}
+              </div>
+            ) : null}
+
+            <AdvancedSection open={routeAdvancedOpen} onToggle={() => setRouteAdvancedOpen((current) => !current)}>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">Operation ID</label>
+                <Input value={routeEditor.draft.operation_id} onChange={(event) => { updateRouteDraft({ operation_id: operationId(event.target.value) }); setRouteErrors((current) => ({ ...current, operationId: '' })) }} placeholder="search_employees" className="font-mono text-xs" />
+                <p className="mt-1 text-[11px] text-muted">Generated automatically from the route name.</p>
+                <FieldError message={routeErrors.operationId} />
+              </div>
+              <HeadersEditor headers={routeEditor.draft.headers} onChange={(headers) => updateRouteDraft({ headers })} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted">Route timeout override (ms)</label>
+                  <Input type="number" value={routeEditor.draft.timeout_ms || ''} min={1000} max={120000} onChange={(event) => updateRouteDraft({ timeout_ms: event.target.value ? Number(event.target.value) : undefined })} placeholder="Use group timeout" />
+                </div>
+                {initialTool ? (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Status</label>
+                    <Select value={routeEditor.draft.status || 'active'} onChange={(event) => updateRouteDraft({ status: event.target.value })} options={ROUTE_STATUSES} />
+                  </div>
+                ) : null}
+              </div>
+            </AdvancedSection>
+          </div>
+        ) : null}
       </div>
 
-      <div><label className="mb-1 block text-xs font-medium text-muted">Description {protocol === 'http' ? '*' : ''}</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder={protocol === 'http' ? 'Explain what this API group provides so Agents understand its domain.' : 'What this MCP provider does'} className="min-h-[72px]" /></div>
-
-      {protocol === 'http' ? (
-        <div className="grid min-h-[560px] overflow-hidden rounded-2xl border border-border/80 bg-card/40 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="space-y-4 border-b border-border/80 p-4 lg:border-b-0 lg:border-r">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
-              <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" className="font-mono text-xs" />
-              <p className="mt-1 text-[10px] leading-4 text-muted">All routes must remain under this domain and base path.</p>
-            </div>
-            <HeadersEditor title="Shared headers" headers={sharedHeaders} onChange={setSharedHeaders} />
-            <div className="rounded-xl border border-border/80 bg-background/45 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs font-semibold text-white">Routes</p>
-                  <p className="mt-0.5 text-[10px] text-muted">{routes.length} configured</p>
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={addRoute}><Plus className="mr-1 h-3 w-3" />Add</Button>
-              </div>
-              <div className="mt-3 space-y-2">
-                {routes.map((route, index) => (
-                  <button
-                    key={route.id}
-                    type="button"
-                    onClick={() => setActiveRouteId(route.id)}
-                    className={`w-full rounded-lg border p-2 text-left transition-colors ${route.id === activeRoute?.id ? 'border-primary/45 bg-primary/10' : 'border-border/70 bg-surface/50 hover:bg-surface'}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="rounded bg-background px-1.5 py-0.5 font-mono text-[9px] font-semibold text-primary-light">{route.method}</span>
-                      <span className="text-[9px] text-muted">#{index + 1}</span>
-                    </div>
-                    <p className="mt-2 truncate text-xs font-medium text-white">{route.name || 'Unnamed route'}</p>
-                    <p className="mt-1 truncate font-mono text-[10px] text-muted">{route.path || '/'}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          {activeRoute ? (
-            <section className="min-w-0 space-y-4 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2"><Route className="h-4 w-4 text-primary-light" /><h3 className="text-sm font-semibold text-white">Route {activeRouteIndex + 1}</h3></div>
-                  <p className="mt-1 text-xs text-muted">Each route becomes an independent function available to the Agent.</p>
-                </div>
-                <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(activeRoute.id)}><X className="mr-1 h-3.5 w-3.5" />Remove</Button>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div><label className="mb-1 block text-xs font-medium text-muted">Route name *</label><Input value={activeRoute.name} onChange={(event) => updateRoute(activeRoute.id, { name: event.target.value, operation_id: activeRoute.operation_id.startsWith('route_') ? operationId(event.target.value) : activeRoute.operation_id })} placeholder="Search employees" /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted">Operation ID *</label><Input value={activeRoute.operation_id} onChange={(event) => updateRoute(activeRoute.id, { operation_id: operationId(event.target.value) })} placeholder="search_employees" className="font-mono text-xs" /></div>
-              </div>
-              <div><label className="mb-1 block text-xs font-medium text-muted">Route description *</label><Textarea value={activeRoute.description} onChange={(event) => updateRoute(activeRoute.id, { description: event.target.value })} placeholder="Explain exactly when the Agent should call this route." className="min-h-[72px]" /></div>
-              <div className="grid gap-3 md:grid-cols-[130px_minmax(0,1fr)]">
-                <div><label className="mb-1 block text-xs font-medium text-muted">Method</label><Select value={activeRoute.method} onChange={(event) => updateRoute(activeRoute.id, { method: event.target.value })} options={METHODS} /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted">Relative path *</label><Input value={activeRoute.path} onChange={(event) => updateRoute(activeRoute.id, { path: event.target.value })} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" /></div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div><label className="mb-1 block text-xs font-medium text-muted">Route risk</label><Select value={activeRoute.risk_level || riskLevel} onChange={(event) => updateRoute(activeRoute.id, { risk_level: event.target.value })} options={RISKS} /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted">Status</label><Select value={activeRoute.status || 'active'} onChange={(event) => updateRoute(activeRoute.id, { status: event.target.value })} options={ROUTE_STATUSES} /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted">Default permission</label><Select value={activeRoute.default_permission || 'review'} onChange={(event) => updateRoute(activeRoute.id, { default_permission: event.target.value as 'allow' | 'review' | 'deny' })} options={PERMISSIONS} /></div>
-              </div>
-              <HeadersEditor title="Route headers" headers={activeRoute.headers} onChange={(headers) => updateRoute(activeRoute.id, { headers })} />
-
-              {!['GET', 'HEAD'].includes(activeRoute.method) ? (
-                <HttpRequestBodyEditor value={activeRoute.body} onChange={(body) => updateRoute(activeRoute.id, { body })} />
-              ) : null}
-
-              <div className="rounded-xl border border-border/80 bg-background/45 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Detected Agent inputs</p>
-                {routeContract?.parameterNames.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {routeContract.parameterNames.map((parameter) => <span key={parameter} className="rounded-md border border-border bg-surface px-2 py-1 font-mono text-[10px] text-white">{parameter}</span>)}
-                  </div>
-                ) : <p className="mt-2 text-xs text-muted">No {'{{parameter}}'} placeholders detected.</p>}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      ) : (
-        <div className="space-y-4 rounded-2xl border border-border/80 bg-card/40 p-4">
-          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 text-xs leading-5 text-muted">Woobe loads public MCP tools after creation and classifies OAuth, credentials and provider-managed connection requirements.</div>
-          <div><label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label><Input value={mcpUrl} onChange={(event) => setMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" /></div>
-          <HeadersEditor title="Connection headers" headers={mcpHeaders} onChange={setMcpHeaders} />
-        </div>
-      )}
-
-      <div className="flex flex-col justify-end gap-2 border-t border-border pt-4 sm:flex-row">
-        <Button type="button" variant="outline" onClick={onCancel}>{cancelLabel}</Button>
-        <Button type="submit" loading={loading}>{submitLabel}</Button>
+      <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-surface/95 px-6 py-4 backdrop-blur">
+        <Button type="button" variant="outline" onClick={cancelCurrentStep}>{step === 'route' ? 'Cancel' : cancelLabel}</Button>
+        {step !== 'type' ? <Button type="submit" loading={loading} disabled={primaryDisabled}>{primaryLabel}</Button> : null}
       </div>
     </form>
   )
