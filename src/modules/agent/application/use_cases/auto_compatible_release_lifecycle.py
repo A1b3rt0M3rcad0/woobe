@@ -182,7 +182,7 @@ def _clone_release_snapshot(
     clone.release_notes = release_notes
     clone.created_by = source.created_by
     clone.promoted_by = promoted_by
-    clone.promoted_at = datetime.now(timezone.utc) if promoted_by is not None else None
+    clone.promoted_at = datetime.now(timezone.utc) if status == ReleaseStatus.production else None
     clone.created_at = None
     clone.updated_at = None
     return clone
