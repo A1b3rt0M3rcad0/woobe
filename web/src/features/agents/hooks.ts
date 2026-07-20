@@ -134,13 +134,23 @@ export function useRelease(agentId: string | undefined, releaseId: string | unde
 }
 export function useCreateRelease(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }) } })
+  return useMutation({
+    mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
+    },
+  })
 }
 export function usePromoteRelease(agentId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ releaseId, ...options }: { releaseId: string } & PromoteReleaseOptions) => promoteRelease(agentId!, releaseId, options),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }); queryClient.invalidateQueries({ queryKey: ['agent', agentId] }) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
+    },
   })
 }
 export function useRollbackRelease(agentId?: string) {
@@ -152,7 +162,13 @@ export function useReleaseTests(agentId: string | undefined, releaseId: string |
 }
 export function useDeleteRelease(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: ({ releaseId }: { releaseId: string }) => deleteRelease(agentId!, releaseId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['releases', agentId] }) } })
+  return useMutation({
+    mutationFn: ({ releaseId }: { releaseId: string }) => deleteRelease(agentId!, releaseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
+    },
+  })
 }
 export function useCreateReleaseTest(agentId?: string) {
   const queryClient = useQueryClient()
