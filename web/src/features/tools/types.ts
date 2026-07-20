@@ -1,5 +1,6 @@
 export type ToolProtocol = 'http' | 'mcp' | 'http_mcp' | 'api' | 'webhook' | string
-export type McpToolPermissionMode = 'allow' | 'deny' | 'review'
+export type ToolChildPermissionMode = 'allow' | 'deny' | 'review'
+export type McpToolPermissionMode = ToolChildPermissionMode
 
 export interface HttpHeader {
   key: string
@@ -12,12 +13,44 @@ export interface HttpAuth {
   credentials?: string[]
 }
 
+export interface ToolChildPermission {
+  mode: ToolChildPermissionMode
+  risk_level?: string | null
+}
+
+export type McpToolPermission = ToolChildPermission
+
+export interface HttpRouteConfig {
+  id: string
+  operation_id: string
+  name: string
+  description: string
+  method: string
+  path: string
+  headers?: HttpHeader[]
+  body?: string | Record<string, unknown> | unknown[]
+  variables?: Record<string, string>
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  risk_level?: string
+  status?: 'active' | 'inactive' | string
+  default_permission?: ToolChildPermissionMode
+  permission?: ToolChildPermission
+  timeout_ms?: number
+  contract_version?: number
+  contract_hash?: string
+}
+
 export interface HttpToolConfig {
   protocol?: 'http'
-  url: string
-  method: string
+  mode?: 'single' | 'group'
+  schema_version?: number
+  base_url?: string
+  routes?: HttpRouteConfig[]
+  url?: string
+  method?: string
   headers: HttpHeader[]
-  body?: string
+  body?: string | Record<string, unknown> | unknown[]
   variables?: Record<string, string>
   auth?: HttpAuth
   timeout_ms?: number
@@ -31,11 +64,6 @@ export interface McpServerConfig {
   headers?: HttpHeader[]
   env_secret_refs?: Record<string, string>
   name?: string
-}
-
-export interface McpToolPermission {
-  mode: McpToolPermissionMode
-  risk_level?: string | null
 }
 
 export interface McpProtectedResourceMetadata {
