@@ -6,7 +6,8 @@ import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import { RuntimeEnvironmentPill } from '@/components/common/RuntimeEnvironmentPill'
 import {
   ResourceEmptyState,
   ResourcePage,
@@ -18,7 +19,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { useCreateNetwork, useNetworks, useUpdateNetworkMetadata } from '@/features/network/hooks'
+import { useCreateNetwork, useNetworkRuntimeEnvironments, useNetworks, useUpdateNetworkMetadata } from '@/features/network/hooks'
 import type { NetworkResource } from '@/features/network/types'
 
 type NetworkMaturityFilter = 'all' | 'draft' | 'staging' | 'production'
@@ -34,8 +35,92 @@ function networkAgentCount(network: NetworkResource) {
   return Number(network.agent_count ?? draftDefinition.nodes?.length ?? 0)
 }
 
+function networkDelegationCount(network: NetworkResource) {
+  const draftDefinition = network.draft_definition as { edges?: unknown[] }
+  return Number(draftDefinition.edges?.length ?? 0)
+}
+
 function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleString() : 'Not recorded'
+}
+
+function NetworkOperationalCard({
+  network,
+  projectId,
+  onOpen,
+  onEdit,
+}: {
+  network: NetworkResource
+  projectId: string
+  onOpen: () => void
+  onEdit: () => void
+}) {
+  const runtimeQuery = useNetworkRuntimeEnvironments(network.id, projectId)
+  const runtimeStates = runtimeQuery.data
+  const runtimeUnknown = runtimeQuery.isError && !runtimeStates
+  const agentCount = networkAgentCount(network)
+  const delegationCount = networkDelegationCount(network)
+  const hasStaging = Boolean(network.staging_version_id)
+  const hasProduction = Boolean(network.production_version_id)
+
+  return (
+    <div className="relative h-full">
+      <ResourceCard
+        aria-label={`Open Network workspace for ${network.name}`}
+        onClick={onOpen}
+        icon={<Network className="h-4 w-4" />}
+        title={network.name}
+        subtitle={network.description || 'No description configured.'}
+        metadata={(
+          <>
+            <RuntimeEnvironmentPill
+              environment="draft"
+              enabled={runtimeStates?.draft.enabled}
+              loading={runtimeQuery.isLoading && !runtimeStates}
+              unknown={runtimeUnknown}
+            />
+            <RuntimeEnvironmentPill
+              environment="staging"
+              enabled={runtimeStates?.staging.enabled}
+              available={hasStaging}
+              loading={runtimeQuery.isLoading && !runtimeStates}
+              unknown={runtimeUnknown}
+            />
+            <RuntimeEnvironmentPill
+              environment="production"
+              enabled={runtimeStates?.production.enabled}
+              available={hasProduction}
+              loading={runtimeQuery.isLoading && !runtimeStates}
+              unknown={runtimeUnknown}
+            />
+          </>
+        )}
+        footer={(
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-8">
+            <span>{agentCount} {agentCount === 1 ? 'Agent' : 'Agents'}</span>
+            <span aria-hidden="true">·</span>
+            <span>{delegationCount} {delegationCount === 1 ? 'delegation' : 'delegations'}</span>
+            <span aria-hidden="true">·</span>
+            <span>{network.draft_revision > 0 ? `Draft r${network.draft_revision}` : 'Draft setup'}</span>
+            <span aria-hidden="true">·</span>
+            <span>Updated · {formatDate(network.updated_at || network.created_at)}</span>
+          </span>
+        )}
+        className="h-full w-full pr-12"
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute bottom-2 right-2 h-7 w-7 text-muted hover:text-white"
+        onClick={onEdit}
+        aria-label={`Edit Network ${network.name}`}
+        title="Edit Network metadata"
+      >
+        <PencilLine className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
 }
 
 function NetworkModal({
@@ -200,47 +285,15 @@ export default function NetworksPage() {
           />
         ) : visibleNetworks.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {visibleNetworks.map((network) => {
-              const agentCount = networkAgentCount(network)
-              return (
-                <div key={network.id} className="relative h-full">
-                  <ResourceCard
-                    aria-label={`Open Network workspace for ${network.name}`}
-                    onClick={() => openNetwork(network.id)}
-                    icon={<Network className="h-4 w-4" />}
-                    title={network.name}
-                    subtitle={network.description || 'No description configured.'}
-                    metadata={(
-                      <>
-                        <ResourcePill>{agentCount} {agentCount === 1 ? 'Agent' : 'Agents'}</ResourcePill>
-                        <ResourcePill tone="primary">
-                          {network.draft_revision > 0 ? `Draft r${network.draft_revision}` : 'Draft setup'}
-                        </ResourcePill>
-                        <ResourcePill tone={network.staging_version_id ? 'primary' : 'default'}>
-                          {network.staging_version_id ? 'Staging ready' : 'No Staging'}
-                        </ResourcePill>
-                        <ResourcePill tone={network.production_version_id ? 'success' : 'default'}>
-                          {network.production_version_id ? 'Production live' : 'No Production'}
-                        </ResourcePill>
-                      </>
-                    )}
-                    footer={`Updated · ${formatDate(network.updated_at || network.created_at)}`}
-                    className="h-full w-full pr-12"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute bottom-2 right-2 h-7 w-7 text-muted hover:text-white"
-                    onClick={() => setEditing(network)}
-                    aria-label={`Edit Network ${network.name}`}
-                    title="Edit Network metadata"
-                  >
-                    <PencilLine className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )
-            })}
+            {visibleNetworks.map((network) => (
+              <NetworkOperationalCard
+                key={network.id}
+                network={network}
+                projectId={projectId}
+                onOpen={() => openNetwork(network.id)}
+                onEdit={() => setEditing(network)}
+              />
+            ))}
           </div>
         ) : (
           <ResourceEmptyState
