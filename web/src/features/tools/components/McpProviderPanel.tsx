@@ -7,8 +7,7 @@ import { PlugZap, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
-const MCP_AUTH_REQUIRED_STATES = new Set(['needs_connection', 'oauth_required', 'metadata_required'])
-const MCP_TOKEN_REJECTED_STATES = new Set(['token_invalid', 'token_rejected'])
+const MCP_REFRESHABLE_STATES = new Set(['needs_discovery', 'discovery_failed', 'no_tools', 'unavailable'])
 
 export function isMcpProviderTool(tool: Tool): boolean {
   const config = (tool.config || {}) as Record<string, unknown>
@@ -29,24 +28,29 @@ function oauthConnected(tool: Tool): boolean {
   return oauth?.status === 'connected'
 }
 
-function hasAuthChallenge(tool: Tool): boolean {
+function headerAdvertisesOAuth(value?: string | null): boolean {
+  if (!value) return false
+  const header = value.trim()
+  if (!header.toLowerCase().startsWith('bearer')) return false
+  return /(?:^|,)\s*resource_metadata\s*=\s*(?:"[^"]+"|[^,\s]+)/i.test(header.slice(6))
+}
+
+function hasOAuthChallenge(tool: Tool): boolean {
   const config = mcpConfig(tool) as McpToolConfig & {
-    mcp_discovery?: { http_status?: number; www_authenticate?: string | null; status?: string | null }
-    mcp_resource_metadata?: { resource?: string; authorization_servers?: unknown[] }
+    mcp_discovery?: { www_authenticate?: string | null }
+    mcp_resource_metadata?: { authorization_servers?: unknown[] }
+    oauth?: { authorization_endpoint?: string; token_endpoint?: string }
   }
-  const diagnostic = config.mcp_discovery
-  const status = String(config.mcp_status || diagnostic?.status || '')
-  return MCP_AUTH_REQUIRED_STATES.has(status)
-    || MCP_TOKEN_REJECTED_STATES.has(status)
-    || diagnostic?.http_status === 401
-    || Boolean(diagnostic?.www_authenticate)
-    || Boolean(config.mcp_resource_metadata?.resource || config.mcp_resource_metadata?.authorization_servers?.length)
+  const oauth = config.oauth
+  return headerAdvertisesOAuth(config.mcp_discovery?.www_authenticate)
+    || Boolean(config.mcp_resource_metadata?.authorization_servers?.length)
+    || Boolean(oauth?.authorization_endpoint && oauth?.token_endpoint)
 }
 
 function shouldShowConnect(tool: Tool, state: McpReadiness, discovered: DiscoveredMcpTool[]): boolean {
   if (oauthConnected(tool)) return false
-  if (discovered.length > 0 && !hasAuthChallenge(tool)) return false
-  return state.action === 'connect' && hasAuthChallenge(tool)
+  if (discovered.length > 0 && !hasOAuthChallenge(tool)) return false
+  return state.action === 'connect' && hasOAuthChallenge(tool)
 }
 
 function permissionMode(tool: DiscoveredMcpTool): McpToolPermissionMode {
@@ -68,7 +72,7 @@ function fallbackReadiness(tool: Tool): McpReadiness {
   const config = mcpConfig(tool)
   const status = String(config.mcp_status || '')
   const ready = status === 'ready'
-  const authRequired = hasAuthChallenge(tool)
+  const authRequired = hasOAuthChallenge(tool)
 
   const state = connected && ready && counts.allow > 0
     ? 'ready'
@@ -80,13 +84,65 @@ function fallbackReadiness(tool: Tool): McpReadiness {
           ? 'needs_connection'
           : status === 'provider_client_rejected'
             ? 'provider_not_supported'
-            : 'needs_discovery'
+            : status === 'needs_credentials' || status === 'unauthorized'
+              ? 'needs_credentials'
+              : status === 'scope_denied'
+                ? 'scope_denied'
+                : status === 'invalid_endpoint'
+                  ? 'invalid_endpoint'
+                  : status === 'unavailable'
+                    ? 'unavailable'
+                    : status === 'discovery_failed'
+                      ? 'discovery_failed'
+                      : status === 'empty' || status === 'no_tools'
+                        ? 'no_tools'
+                        : 'needs_discovery'
+
+  const labels: Record<string, string> = {
+    ready: 'Ready',
+    needs_permission: 'Needs permission',
+    needs_discovery: 'Load tools',
+    needs_connection: 'Connect',
+    provider_not_supported: 'Provider setup needed',
+    needs_credentials: 'Credentials required',
+    scope_denied: 'Permission denied',
+    invalid_endpoint: 'Invalid endpoint',
+    unavailable: 'Unavailable',
+    discovery_failed: 'Discovery failed',
+    no_tools: 'No tools',
+  }
+  const messages: Record<string, string> = {
+    ready: `${counts.allow} tools available to this agent.`,
+    needs_permission: 'Choose which MCP tools this agent can use.',
+    needs_discovery: 'Load this MCP provider to see its tools.',
+    needs_connection: 'This provider advertised a compatible OAuth flow. Connect before loading protected tools.',
+    provider_not_supported: 'This provider needs a provider-issued client or alternate OAuth flow.',
+    needs_credentials: 'The server rejected the request without advertising MCP OAuth. Configure the required API key or headers, or use the provider-managed connection URL.',
+    scope_denied: 'The configured credential was accepted but does not have permission to access this MCP server.',
+    invalid_endpoint: 'This host responded, but the URL is not accepting MCP requests. Verify the endpoint path, commonly /mcp.',
+    unavailable: 'The MCP server is temporarily unavailable. Retry after the provider recovers.',
+    discovery_failed: 'ProjectRAI could not complete MCP discovery. Review the endpoint and configured headers.',
+    no_tools: 'The MCP server connected, but did not expose any tools.',
+  }
+  const actions: Record<string, string> = {
+    needs_connection: 'connect',
+    ready: 'manage_tools',
+    needs_permission: 'manage_tools',
+    provider_not_supported: 'provider_credentials',
+    needs_credentials: 'configure_credentials',
+    scope_denied: 'configure_credentials',
+    invalid_endpoint: 'edit_endpoint',
+    unavailable: 'refresh',
+    discovery_failed: 'refresh',
+    no_tools: 'refresh',
+    needs_discovery: 'refresh',
+  }
 
   return {
     state,
-    label: state === 'ready' ? 'Ready' : state === 'needs_permission' ? 'Needs permission' : state === 'needs_discovery' ? 'Load tools' : state === 'needs_connection' ? 'Connect' : state === 'provider_not_supported' ? 'Provider setup needed' : 'Not ready',
-    message: state === 'ready' ? `${counts.allow} tools available to this agent.` : state === 'needs_permission' ? 'Choose which MCP tools this agent can use.' : state === 'needs_discovery' ? 'Load this MCP provider to see its tools.' : state === 'needs_connection' ? 'Connect this provider to load protected MCP tools.' : state === 'provider_not_supported' ? 'This provider needs a provider-issued client or alternate OAuth flow.' : 'MCP tools are not available yet.',
-    action: state === 'needs_connection' ? 'connect' : state === 'needs_permission' || state === 'ready' ? 'manage_tools' : state === 'provider_not_supported' ? 'provider_credentials' : 'refresh',
+    label: labels[state] || 'Not ready',
+    message: messages[state] || 'MCP tools are not available yet.',
+    action: actions[state] || 'refresh',
     can_use_tools: state === 'ready',
     oauth_connected: connected,
     mcp_ready: ready || discovered.length > 0,
@@ -102,9 +158,10 @@ function readiness(tool: Tool): McpReadiness {
 }
 
 function ReadinessPill({ state, label }: { state: string; label: string }) {
+  const warningStates = new Set(['provider_not_supported', 'token_rejected', 'needs_credentials', 'scope_denied', 'invalid_endpoint', 'unavailable', 'discovery_failed'])
   const tone = state === 'ready'
     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-    : state === 'provider_not_supported' || state === 'token_rejected'
+    : warningStates.has(state)
       ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
       : state === 'needs_permission'
         ? 'border-blue-500/30 bg-blue-500/10 text-blue-300'
@@ -142,7 +199,7 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
   const counts = summary(discovered)
   const state = draftPermissionMode ? fallbackReadiness(effectiveTool) : readiness(tool)
   const showConnect = shouldShowConnect(tool, state, discovered)
-  const showLoadTools = !showConnect && discovered.length === 0 && state.state !== 'provider_not_supported'
+  const showLoadTools = !showConnect && discovered.length === 0 && MCP_REFRESHABLE_STATES.has(state.state)
   const visibleLabel = showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label
   const visibleState = discovered.length > 0 && counts.allow > 0 ? 'ready' : state.state
 
@@ -229,6 +286,8 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
 
   if (!isMcpProviderTool(tool)) return null
 
+  const diagnosticStates = new Set(['provider_not_supported', 'needs_credentials', 'scope_denied', 'invalid_endpoint', 'unavailable', 'discovery_failed'])
+
   return (
     <div className="space-y-3 rounded-xl border border-border/70 bg-background/55 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -262,7 +321,7 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
         {state.oauth_connected ? <Button size="sm" variant="ghost" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
       </div>
 
-      {state.state === 'provider_not_supported' ? <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">This provider does not accept the normal ProjectRAI connection. Use a provider-issued client or device-code flow.</p> : null}
+      {diagnosticStates.has(state.state) ? <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">{state.message}</p> : null}
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`}>
         <div className="space-y-4">
@@ -313,7 +372,7 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
             </div>
           ) : (
             <div className="rounded-md border border-border/70 bg-background/70 p-4 text-xs text-muted">
-              No MCP tools have been loaded yet. Refresh tools or connect the provider if OAuth is required.
+              No MCP tools have been loaded yet. Review the provider status above before retrying discovery.
             </div>
           )}
 
