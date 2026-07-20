@@ -87,7 +87,6 @@ def _input_has_explicit_oauth(input_dto: _flows.McpOAuthStartInput) -> bool:
             input_dto.token_endpoint,
             input_dto.registration_endpoint,
             input_dto.authorization_server_issuer,
-            input_dto.client_id,
         )
     )
 
