@@ -185,6 +185,7 @@ def _public_failure_message(code: str | None) -> str | None:
         "runtime_configuration_error": "The Agent runtime configuration is not ready.",
         "provider_rate_limited": "The model provider rate-limited this request.",
         "provider_timeout": "The model provider did not answer before the timeout.",
+        "empty_model_output": "The Agent completed without producing a public result.",
         "budget_exceeded": "The Network runtime budget was exceeded.",
         "worker_lease_expired": "The Network worker stopped before completion.",
     }

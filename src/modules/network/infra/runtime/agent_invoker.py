@@ -23,6 +23,9 @@ from modules.agent.application.use_cases.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.use_cases.runtime_output_validation import (
+    EmptyModelOutputError,
+)
 from modules.agent.application.use_cases.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
@@ -42,10 +45,34 @@ from modules.network.application.runtime import (
     AgentInvocationResult,
     InternalDelegationTool,
 )
-from modules.network.application.runtime_failures import classify_runtime_exception
+from modules.network.application.runtime_failures import (
+    NetworkRuntimeFailure,
+    classify_runtime_exception,
+)
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+
+
+def _caused_by_empty_model_output(exception: Exception) -> bool:
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while isinstance(current, Exception) and id(current) not in seen:
+        if isinstance(current, EmptyModelOutputError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    return (
+        payload.get("visibility") == "assistant"
+        and payload.get("channel") == "final"
+        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
+    )
 
 
 class ProjectRAIAgentInvoker:
@@ -199,17 +226,26 @@ class ProjectRAIAgentInvoker:
                             continue
                         payload = dict(event.payload)
                         if event.event_type == "token":
-                            if (
-                                payload.get("visibility") != "assistant"
-                                or payload.get("channel") != "final"
-                            ):
+                            if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
                         if event.event_type not in {"done", "error", "cancelled"}:
                             await stream_handler(event.event_type, payload)
                     output = await execution_task
             except Exception as exc:
-                failure = classify_runtime_exception(exc).with_agent_context(
+                if _caused_by_empty_model_output(exc):
+                    failure = NetworkRuntimeFailure(
+                        code="empty_model_output",
+                        stage="output_validation",
+                        safe_message=(
+                            "The Agent completed without producing a public result."
+                        ),
+                        internal_detail=str(exc),
+                        retryable=False,
+                    )
+                else:
+                    failure = classify_runtime_exception(exc)
+                failure = failure.with_agent_context(
                     trace_id=context.trace_id,
                     agent_session_id=context.session_id,
                 )

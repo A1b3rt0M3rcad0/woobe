@@ -17,6 +17,9 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 from modules.agent.application.use_cases.instrumented_execution_runner import (
     run_instrumented_execution,
 )
+from modules.agent.application.use_cases.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
 from modules.agent.application.use_cases.runtime_streaming import current_runtime_stream
 
 
@@ -178,6 +181,7 @@ class InstrumentedPrimaryExecutionMixin:
             )
         if context:
             context.execution = execution
+        ensure_model_result_has_public_output(execution.result)
         usage, _, _ = aggregate_usage(execution.llm_calls)
         execution.result.usage_metadata = {
             "input_tokens": usage.input_tokens,
