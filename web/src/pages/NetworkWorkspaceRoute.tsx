@@ -16,19 +16,63 @@ function NetworkHeaderRuntimeControls({
   networkId: string
   projectId: string
 }) {
-  const [header, setHeader] = useState<HTMLElement | null>(null)
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    setHeader(document.querySelector<HTMLElement>('.network-workspace-shell > div > header'))
+    let currentHost: HTMLDivElement | null = null
+    let frame = 0
+
+    function attachToHeaderActions() {
+      const header = document.querySelector<HTMLElement>('.network-workspace-shell > div > header')
+      if (!header) return
+
+      const actionGroup = Array.from(header.children).find(
+        (element) => element instanceof HTMLElement && element.classList.contains('ml-auto'),
+      )
+      if (!(actionGroup instanceof HTMLElement)) return
+
+      let nextHost = actionGroup.querySelector<HTMLDivElement>(':scope > [data-network-runtime-host]')
+      const releaseAction = Array.from(actionGroup.children).findLast((element) => element !== nextHost) ?? null
+
+      if (!nextHost) {
+        nextHost = document.createElement('div')
+        nextHost.dataset.networkRuntimeHost = 'true'
+        nextHost.className = 'shrink-0'
+      }
+
+      if (releaseAction && nextHost.nextElementSibling !== releaseAction) {
+        actionGroup.insertBefore(nextHost, releaseAction)
+      } else if (!releaseAction && nextHost.parentElement !== actionGroup) {
+        actionGroup.appendChild(nextHost)
+      }
+
+      currentHost = nextHost
+      setHost(nextHost)
+    }
+
+    function scheduleAttach() {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(attachToHeaderActions)
+    }
+
+    scheduleAttach()
+
+    const shell = document.querySelector('.network-workspace-shell')
+    const observer = new MutationObserver(scheduleAttach)
+    if (shell) observer.observe(shell, { childList: true, subtree: true })
+
+    return () => {
+      observer.disconnect()
+      window.cancelAnimationFrame(frame)
+      currentHost?.remove()
+    }
   }, [networkId])
 
-  if (!header) return null
+  if (!host) return null
 
   return createPortal(
-    <div className="shrink-0">
-      <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} />
-    </div>,
-    header,
+    <NetworkRuntimeControlsPopover networkId={networkId} projectId={projectId} />,
+    host,
   )
 }
 
@@ -67,6 +111,7 @@ export default function NetworkWorkspaceRoute() {
         <style>{`
           .network-workspace-shell > div > header {
             overflow-x: auto;
+            overflow-y: hidden;
           }
           .network-workspace-shell > div > header > div > h1 {
             font-size: 0;
