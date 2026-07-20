@@ -200,7 +200,7 @@ export interface CreateKnowledgeVersionRequest {
 
 // ── Agent Release ──────────────────────────────────────────────
 
-export type ReleaseStatus = 'draft' | 'staging' | 'production' | 'archived' | 'rolled_back'
+export type ReleaseStatus = 'draft' | 'staging' | 'released' | 'production' | 'archived' | 'rolled_back'
 export type ReleaseSnapshotKind = 'draft' | 'staging' | 'release'
 
 export interface AgentRelease {
@@ -243,6 +243,17 @@ export interface AgentRelease {
   promoted_at?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface AgentReleaseActivation {
+  id: string
+  project_id: string
+  agent_id: string
+  release_id: string
+  previous_release_id?: string | null
+  action: 'deploy' | 'reactivate' | 'rollback'
+  created_by?: string | null
+  created_at?: string
 }
 
 export interface CreateReleaseRequest {
