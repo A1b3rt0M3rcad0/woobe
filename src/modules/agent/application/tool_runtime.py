@@ -7,7 +7,11 @@ from uuid import UUID, uuid4
 
 from modules.agent.application.http_tool_contract import (
     HttpToolContractError,
+    compile_http_group_route_contract,
     compile_http_tool_contract,
+    http_group_route,
+    http_route_permission_mode,
+    is_http_tool_group,
 )
 from modules.agent.application.http_tool_renderer import render_http_tool_request
 from modules.agent.application.mcp_permissions import (
@@ -36,6 +40,9 @@ MCP_AGENT_SESSION_INPUT_KEY = "__projectrai_agent_session_id"
 
 ERROR_UNSUPPORTED_RUNTIME = "UNSUPPORTED_RUNTIME"
 ERROR_HTTP_ERROR = "HTTP_ERROR"
+ERROR_HTTP_ROUTE_CONFIG_ERROR = "HTTP_ROUTE_CONFIG_ERROR"
+ERROR_HTTP_ROUTE_DENIED_BY_POLICY = "HTTP_ROUTE_DENIED_BY_POLICY"
+ERROR_HTTP_ROUTE_REQUIRES_POLICY = "HTTP_ROUTE_REQUIRES_POLICY"
 ERROR_MCP_UNSUPPORTED_TRANSPORT = "MCP_UNSUPPORTED_TRANSPORT"
 ERROR_MCP_CONFIG_ERROR = "MCP_CONFIG_ERROR"
 ERROR_MCP_INITIALIZE_FAILED = "MCP_INITIALIZE_FAILED"
@@ -162,6 +169,24 @@ def _mcp_policy_failure(config: dict[str, Any], tool_name: str) -> ExecutionResu
     return _failure(ERROR_MCP_TOOL_REQUIRES_POLICY, f"MCP tool '{tool_name}' must be allowed before execution", MCP_PROTOCOL)
 
 
+def _http_route_policy_failure(route: dict[str, Any]) -> ExecutionResult | None:
+    mode = http_route_permission_mode(route)
+    route_name = str(route.get("operation_id") or route.get("name") or route.get("id") or "route")
+    if mode == MCP_PERMISSION_ALLOW:
+        return None
+    if mode == MCP_PERMISSION_DENY:
+        return _failure(
+            ERROR_HTTP_ROUTE_DENIED_BY_POLICY,
+            f"HTTP route '{route_name}' is denied by policy",
+            HTTP_PROTOCOL,
+        )
+    return _failure(
+        ERROR_HTTP_ROUTE_REQUIRES_POLICY,
+        f"HTTP route '{route_name}' must be allowed before execution",
+        HTTP_PROTOCOL,
+    )
+
+
 class UnsupportedToolRuntime(ToolRuntimePort):
     def __init__(self, protocol: str) -> None:
         self._protocol = protocol
@@ -188,39 +213,89 @@ class HttpToolRuntime(ToolRuntimePort):
         return await self._execute_config(config=config or {}, input_schema=None, input_data=input_data or {}, timeout_ms=timeout_ms, project_id=None, resolve_secrets=False, tool_id=None)
 
     async def _execute_config(self, *, config: dict[str, Any], input_schema: dict[str, Any] | None, input_data: dict[str, Any], timeout_ms: int, project_id: UUID | None, resolve_secrets: bool, tool_id: str | None) -> ExecutionResult:
-        method = str(config.get("method", "GET")).upper()
-        raw_headers = config.get("headers", []) or []
-        if resolve_secrets and self._secret_resolver is not None and project_id is not None:
-            headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
-        else:
-            headers = {h.get("key", ""): h.get("value", "") for h in raw_headers if h.get("key")}
+        call_input = dict(input_data or {})
+        route_id: str | None = None
+        route: dict[str, Any] | None = None
         try:
-            contract = compile_http_tool_contract(config, input_schema)
-            url, headers, body = render_http_tool_request(contract, input_data, headers)
+            if is_http_tool_group(config):
+                route_id = str(call_input.pop(MCP_REMOTE_TOOL_INPUT_KEY, "") or "")
+                if not route_id:
+                    return _failure(
+                        ERROR_HTTP_ROUTE_CONFIG_ERROR,
+                        "HTTP route id is required for grouped HTTP Tools",
+                        HTTP_PROTOCOL,
+                    )
+                route = http_group_route(config, route_id)
+                if route is None:
+                    return _failure(
+                        ERROR_HTTP_ROUTE_CONFIG_ERROR,
+                        f"HTTP route '{route_id}' was not found",
+                        HTTP_PROTOCOL,
+                    )
+                policy_failure = _http_route_policy_failure(route)
+                if policy_failure is not None:
+                    return policy_failure
+                contract = compile_http_group_route_contract(config, route_id)
+                effective_timeout_ms = int(route.get("timeout_ms") or config.get("timeout_ms") or timeout_ms)
+            else:
+                contract = compile_http_tool_contract(config, input_schema)
+                effective_timeout_ms = int(config.get("timeout_ms") or timeout_ms)
+
+            method = str(contract.config.get("method", "GET")).upper()
+            raw_headers = contract.config.get("headers", []) or []
+            if resolve_secrets and self._secret_resolver is not None and project_id is not None:
+                headers = await self._secret_resolver.resolve_headers(raw_headers, project_id)
+            else:
+                headers = {h.get("key", ""): h.get("value", "") for h in raw_headers if h.get("key")}
+            url, headers, body = render_http_tool_request(contract, call_input, headers)
         except HttpToolContractError as exc:
             output = _error_output(exc.code, str(exc), HTTP_PROTOCOL)
             if exc.missing:
                 output["missing_parameters"] = exc.missing
-            logger.warning("tool_runtime_invalid_input protocol=http tool_id=%s code=%s", tool_id, exc.code)
+            if route_id:
+                output["http_route_id"] = route_id
+            logger.warning("tool_runtime_invalid_input protocol=http tool_id=%s route_id=%s code=%s", tool_id, route_id, exc.code)
             return ExecutionResult(success=False, error=str(exc), output=output)
 
-        logger.info("tool_runtime_start protocol=http tool_id=%s method=%s contract_hash=%s", tool_id, method, contract.contract_hash)
-        result = await self._executor.execute(method=method, url=url, headers=headers, body=body, timeout_ms=timeout_ms)
+        logger.info(
+            "tool_runtime_start protocol=http tool_id=%s route_id=%s method=%s contract_hash=%s",
+            tool_id,
+            route_id,
+            method,
+            contract.contract_hash,
+        )
+        result = await self._executor.execute(method=method, url=url, headers=headers, body=body, timeout_ms=effective_timeout_ms)
+        if isinstance(result.output, dict):
+            result.output.setdefault("tool_contract_hash", contract.contract_hash)
+            if route is not None:
+                result.output.setdefault("http_route_id", str(route.get("id") or route_id))
+                result.output.setdefault("http_operation_id", str(route.get("operation_id") or ""))
+                result.output.setdefault("http_method", method)
         if result.success:
-            logger.info("tool_runtime_success protocol=http tool_id=%s duration_ms=%s", tool_id, result.duration_ms)
+            logger.info("tool_runtime_success protocol=http tool_id=%s route_id=%s duration_ms=%s", tool_id, route_id, result.duration_ms)
             return result
-        logger.warning("tool_runtime_failure protocol=http tool_id=%s status_code=%s error=%s", tool_id, result.status_code, result.error)
+        logger.warning("tool_runtime_failure protocol=http tool_id=%s route_id=%s status_code=%s error=%s", tool_id, route_id, result.status_code, result.error)
         if isinstance(result.output, dict):
             result.output.setdefault("error_code", ERROR_HTTP_ERROR)
             result.output.setdefault("protocol", HTTP_PROTOCOL)
-            result.output.setdefault("tool_contract_hash", contract.contract_hash)
         else:
             result.output = _error_output(ERROR_HTTP_ERROR, result.error or "HTTP tool call failed", HTTP_PROTOCOL)
             result.output["tool_contract_hash"] = contract.contract_hash
+            if route_id:
+                result.output["http_route_id"] = route_id
         return result
 
     def to_openai_definition(self, tool: Any) -> dict[str, Any]:
         config = getattr(tool, "config", None) or {}
+        if is_http_tool_group(config):
+            return {
+                "type": "function",
+                "function": {
+                    "name": _safe_tool_name(tool),
+                    "description": getattr(tool, "description", None) or "Grouped HTTP API",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            }
         contract = compile_http_tool_contract(config, getattr(tool, "input_schema", None))
         return {"type": "function", "function": {"name": _safe_tool_name(tool), "description": getattr(tool, "description", None) or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}", "parameters": contract.input_schema}}
 

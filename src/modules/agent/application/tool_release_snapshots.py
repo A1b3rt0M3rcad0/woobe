@@ -6,7 +6,11 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
-from modules.agent.application.http_tool_contract import compile_http_tool_contract
+from modules.agent.application.http_tool_contract import (
+    compile_http_tool_group_contract,
+    compile_http_tool_contract,
+    is_http_tool_group,
+)
 from modules.agent.application.mcp_permissions import normalize_permission
 from modules.agent.application.tool_types import is_http_tool_type
 from modules.agent.domain.entities import Tool
@@ -43,19 +47,78 @@ def _snapshot_index(raw_snapshots: Any) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _apply_child_permissions(items: Any, raw_permissions: dict[str, Any], *, keys: tuple[str, ...]) -> bool:
+    if not isinstance(items, list):
+        return False
+    changed = False
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        identifiers = [str(item.get(key) or "") for key in keys]
+        identifier = next((value for value in identifiers if value and value in raw_permissions), None)
+        if identifier is None:
+            continue
+        item["permission"] = normalize_permission(raw_permissions.get(identifier))
+        changed = True
+    return changed
+
+
+def _collect_child_permissions(items: Any, *, keys: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    if not isinstance(items, list):
+        return {}
+    permissions: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        identifier = next(
+            (
+                str(item.get(key) or "").strip()
+                for key in keys
+                if str(item.get(key) or "").strip()
+            ),
+            None,
+        )
+        if not identifier:
+            continue
+        raw_permission = item.get("permission")
+        if raw_permission is None:
+            raw_permission = {
+                "mode": item.get("default_permission") or "review",
+                "risk_level": item.get("risk_level"),
+            }
+        permissions[identifier] = normalize_permission(raw_permission)
+    return permissions
+
+
+def _tool_child_permissions(tool: Tool) -> dict[str, dict[str, Any]]:
+    config = tool.config or {}
+    permissions = _collect_child_permissions(
+        config.get("discovered_tools"),
+        keys=("name",),
+    )
+    permissions.update(
+        _collect_child_permissions(
+            config.get("routes"),
+            keys=("id", "operation_id"),
+        )
+    )
+    return permissions
+
+
 def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
     if not isinstance(raw_permissions, dict):
         return tool
     config = deepcopy(tool.config or {})
-    discovered_tools = config.get("discovered_tools")
-    if not isinstance(discovered_tools, list):
-        return tool
-    changed = False
-    for item in discovered_tools:
-        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
-            continue
-        item["permission"] = normalize_permission(raw_permissions.get(item["name"]))
-        changed = True
+    changed = _apply_child_permissions(
+        config.get("discovered_tools"),
+        raw_permissions,
+        keys=("name",),
+    )
+    changed = _apply_child_permissions(
+        config.get("routes"),
+        raw_permissions,
+        keys=("id", "operation_id"),
+    ) or changed
     if not changed:
         return tool
     cloned = deepcopy(tool)
@@ -67,10 +130,21 @@ def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
     config = deepcopy(tool.config or {})
     input_schema = deepcopy(tool.input_schema or {})
     contract = None
+    group_contract = None
     if is_http_tool_type(tool.type):
-        contract = compile_http_tool_contract(config, input_schema)
-        config = contract.config
-        input_schema = contract.input_schema
+        if is_http_tool_group(config):
+            group_contract = compile_http_tool_group_contract(config)
+            config = group_contract.config
+            input_schema = {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            }
+        else:
+            contract = compile_http_tool_contract(config, input_schema)
+            config = contract.config
+            input_schema = contract.input_schema
     payload: dict[str, Any] = {
         "id": str(tool.id),
         "project_id": str(tool.project_id) if tool.project_id else None,
@@ -87,6 +161,13 @@ def tool_to_release_snapshot(tool: Tool) -> dict[str, Any]:
     if contract:
         payload["http_contract_version"] = contract.version
         payload["http_contract_hash"] = contract.contract_hash
+    if group_contract:
+        payload["http_group_contract_version"] = group_contract.version
+        payload["http_group_contract_hash"] = group_contract.contract_hash
+        payload["http_route_contract_hashes"] = {
+            route_id: compiled.contract_hash
+            for route_id, compiled in group_contract.route_contracts.items()
+        }
     payload["snapshot_hash"] = _snapshot_hash(payload)
     return payload
 
@@ -139,6 +220,7 @@ async def build_release_tool_runtime(
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     previous_snapshot_map = _snapshot_index(previous_snapshots)
     snapshots: list[dict[str, Any]] = []
+    effective_permissions: dict[str, dict[str, dict[str, Any]]] = {}
     for tool_id in ordered_ids:
         try:
             live_tool = await tool_repo.get_by_id(tool_id)
@@ -161,5 +243,10 @@ async def build_release_tool_runtime(
                 raise ValidationError("Draft tool snapshot does not belong to this Project")
         effective_tool = tool_with_permission_overrides(source_tool, permission_map.get(str(tool_id)))
         snapshots.append(tool_to_release_snapshot(effective_tool))
+        effective_permissions[str(tool_id)] = _tool_child_permissions(effective_tool)
 
-    return {"tool_ids": [str(tool_id) for tool_id in ordered_ids], "snapshots": snapshots}
+    return {
+        "tool_ids": [str(tool_id) for tool_id in ordered_ids],
+        "permissions": effective_permissions,
+        "snapshots": snapshots,
+    }

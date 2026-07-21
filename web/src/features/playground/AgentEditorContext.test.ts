@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Agent } from '@/features/agents/types'
-import { agentToEditorState, canonicalSnapshot, releaseToEditorState } from './AgentEditorContext'
+import {
+  agentToEditorState,
+  canonicalSnapshot,
+  childPermissionsFromToolConfig,
+  releaseToEditorState,
+  toolPermissionsFromSnapshots,
+} from './AgentEditorContext'
 
 const agent: Agent = {
   id: 'agent-1',
@@ -34,5 +40,74 @@ describe('AgentEditorContext session mode', () => {
     }, current)
 
     expect(state.sessionMode).toBe('stateless')
+  })
+})
+
+describe('AgentEditorContext Tool permissions', () => {
+  it('reads HTTP route permissions from a Tool snapshot', () => {
+    const permissions = toolPermissionsFromSnapshots([
+      {
+        id: 'tool-http',
+        config: {
+          protocol: 'http',
+          mode: 'group',
+          routes: [
+            {
+              id: 'route-search',
+              operation_id: 'search_employee',
+              permission: { mode: 'allow', risk_level: 'low' },
+            },
+            {
+              id: 'route-delete',
+              operation_id: 'delete_employee',
+              permission: { mode: 'deny', risk_level: 'high' },
+            },
+          ],
+        },
+      },
+    ])
+
+    expect(permissions).toEqual({
+      'tool-http': {
+        'route-search': { mode: 'allow', risk_level: 'low' },
+        'route-delete': { mode: 'deny', risk_level: 'high' },
+      },
+    })
+  })
+
+  it('uses the route default only when the snapshot has no explicit permission', () => {
+    const permissions = childPermissionsFromToolConfig({
+      protocol: 'http',
+      mode: 'group',
+      routes: [
+        {
+          id: 'route-review',
+          default_permission: 'review',
+          risk_level: 'medium',
+        },
+      ],
+    })
+
+    expect(permissions['route-review']).toEqual({
+      mode: 'review',
+      risk_level: 'medium',
+    })
+  })
+
+  it('continues to read MCP discovered Tool permissions', () => {
+    const permissions = childPermissionsFromToolConfig({
+      protocol: 'mcp',
+      discovered_tools: [
+        {
+          name: 'search_documents',
+          permission: { mode: 'allow', risk_level: 'low' },
+        },
+      ],
+    })
+
+    expect(permissions.search_documents).toEqual({
+      mode: 'allow',
+      risk_level: 'low',
+    })
   })
 })

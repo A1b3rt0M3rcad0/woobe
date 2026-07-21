@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from modules.agent.application.mcp_readiness import build_mcp_readiness
 from modules.agent.domain.repositories import ToolRepository
 
 McpPermissionMode = Literal["allow", "deny", "review"]
@@ -12,7 +13,6 @@ MCP_PERMISSION_ALLOW = "allow"
 MCP_PERMISSION_DENY = "deny"
 MCP_PERMISSION_REVIEW = "review"
 MCP_PERMISSION_MODES = {MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW}
-MCP_CONNECTION_STATES = {"needs_connection", "oauth_required", "metadata_required"}
 
 
 class McpToolPermissionInput(BaseModel):
@@ -114,79 +114,8 @@ def allowed_mcp_discovered_tools(config: dict[str, Any]) -> list[dict[str, Any]]
     ]
 
 
-def _permission_counts(discovered_tools: list[dict[str, Any]]) -> dict[str, int]:
-    counts = {MCP_PERMISSION_ALLOW: 0, MCP_PERMISSION_DENY: 0, MCP_PERMISSION_REVIEW: 0}
-    for item in discovered_tools:
-        mode = normalize_permission(item.get("permission"))["mode"]
-        counts[mode] += 1
-    return counts
-
-
 def write_mcp_readiness(config: dict[str, Any]) -> None:
-    discovered_tools = normalize_discovered_tools(config.get("discovered_tools"))
-    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
-    oauth_connected = oauth.get("status") == "connected" if isinstance(oauth, dict) else False
-    status = str(config.get("mcp_status") or "")
-    mcp_ready = status == "ready"
-    counts = _permission_counts(discovered_tools)
-
-    if discovered_tools and counts[MCP_PERMISSION_ALLOW] > 0:
-        state = "ready"
-        label = "Ready"
-        message = f"{counts[MCP_PERMISSION_ALLOW]} MCP tools are available to agents."
-        action = "manage_tools"
-        can_use_tools = True
-    elif discovered_tools:
-        state = "needs_permission"
-        label = "Needs permission"
-        message = "MCP tools were loaded. Choose which tools agents can use."
-        action = "configure_permissions"
-        can_use_tools = False
-    elif status in MCP_CONNECTION_STATES:
-        state = "needs_connection"
-        label = "Connect"
-        message = "This MCP provider requires OAuth before its tools can be loaded."
-        action = "connect"
-        can_use_tools = False
-    elif status == "provider_client_rejected":
-        state = "provider_not_supported"
-        label = "Provider setup needed"
-        message = "This provider needs a provider-issued client or alternate OAuth flow."
-        action = "provider_credentials"
-        can_use_tools = False
-    elif status in {"empty", "no_tools"}:
-        state = "no_tools"
-        label = "No tools"
-        message = "The MCP provider responded but did not return any tools."
-        action = "refresh"
-        can_use_tools = False
-    elif status == "discovery_failed":
-        state = "discovery_failed"
-        label = "Discovery failed"
-        message = "ProjectRAI could not load this MCP provider. Retry loading tools or edit the provider configuration."
-        action = "refresh"
-        can_use_tools = False
-    else:
-        existing = config.get("mcp_readiness") if isinstance(config.get("mcp_readiness"), dict) else {}
-        state = str(existing.get("state") or "not_ready")
-        label = str(existing.get("label") or "Not ready")
-        message = str(existing.get("message") or "MCP tools are not available yet.")
-        action = str(existing.get("action") or "refresh")
-        can_use_tools = False
-
-    config["mcp_readiness"] = {
-        "state": state,
-        "label": label,
-        "message": message,
-        "action": action,
-        "can_use_tools": can_use_tools,
-        "oauth_connected": oauth_connected,
-        "mcp_ready": mcp_ready,
-        "discovered_count": len(discovered_tools),
-        "exposed_count": counts[MCP_PERMISSION_ALLOW],
-        "supports_device_code": False,
-        "needs_provider_client": False,
-    }
+    config["mcp_readiness"] = build_mcp_readiness(config)
 
 
 def _permissions_output(tool_id: UUID, discovered_tools: list[dict[str, Any]]) -> McpToolPermissionsOutput:
