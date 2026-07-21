@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.infra.database.models import (
+    AgentModel,
     AgentToolModel,
     DocumentChunkModel,
     DocumentCollectionModel,
@@ -18,6 +19,8 @@ from modules.agent.infra.database.models import (
 )
 from modules.evaluation.application.target_resolver import ResolvedEvaluationTarget
 from modules.evaluation.application.token_budget import BudgetedPayload, budget_sections
+from modules.network.infra.database.models import NetworkModel
+from shared.infra.errors import ValidationError
 
 
 @dataclass(frozen=True)
@@ -149,13 +152,23 @@ class EvaluationContextPackBuilder:
         self,
         session: AsyncSession,
         *,
-        project_id: UUID,
         target: ResolvedEvaluationTarget,
         objective: str,
         maximum_input_tokens: int,
         reserved_output_tokens: int,
         context_window: int,
+        project_id: UUID | None = None,
     ) -> EvaluationContextPack:
+        if project_id is None:
+            owner = (
+                await session.get(AgentModel, target.entity_id)
+                if target.target_type == "agent"
+                else await session.get(NetworkModel, target.entity_id)
+            )
+            project_id = owner.project_id if owner is not None else None
+        if project_id is None:
+            raise ValidationError("Unable to resolve Project ownership for Evaluation context")
+
         tool_ids, collection_ids = _snapshot_refs(target)
         tools: list[AgentToolModel] = []
         if tool_ids:
