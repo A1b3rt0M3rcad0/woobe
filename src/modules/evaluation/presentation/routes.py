@@ -7,8 +7,7 @@ from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
 from modules.evaluation.application.service import EvaluationApplicationService
-from shared.infra.errors import AuthorizationError
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
@@ -20,11 +19,11 @@ class EvaluationCaseRequest(BaseModel):
     input_payload: dict[str, Any] | None = None
     initial_context: dict[str, Any] | None = None
     expected_contract: dict[str, Any] = Field(default_factory=dict)
-    severity: str = "normal"
-    weight: float = Field(default=1.0, gt=0)
+    severity: Literal["low", "normal", "high", "critical"] = "normal"
+    weight: float = Field(default=1.0, gt=0, le=100)
     blocking: bool = False
-    tags: list[str] = Field(default_factory=list)
-    production_frequency: float | None = Field(default=None, ge=0)
+    tags: list[str] = Field(default_factory=list, max_length=50)
+    production_frequency: float | None = Field(default=None, ge=0, le=1)
 
 
 class CreateDatasetRequest(BaseModel):
@@ -46,12 +45,24 @@ class CreateSuiteRequest(BaseModel):
     dataset_version_id: UUID
     judge_provider_model_id: UUID
     judge_config: dict[str, Any] = Field(
-        default_factory=lambda: {"temperature": 0, "max_tokens": 1600}
+        default_factory=lambda: {
+            "temperature": 0,
+            "max_tokens": 1600,
+            "timeout_seconds": 90,
+            "maximum_cost_usd": None,
+        }
     )
     rubric: dict[str, Any] = Field(default_factory=dict)
     deterministic_checks: dict[str, Any] = Field(default_factory=dict)
     acceptance_policy: dict[str, Any] = Field(
-        default_factory=lambda: {"minimum_score": 70, "minimum_pass_rate": 80}
+        default_factory=lambda: {
+            "minimum_score": 70,
+            "minimum_pass_rate": 80,
+            "minimum_paired_n": 3,
+            "maximum_score_regression": 0,
+            "maximum_latency_regression_percent": None,
+            "maximum_cost_regression_percent": None,
+        }
     )
     repetition_policy: dict[str, Any] = Field(
         default_factory=lambda: {"default_repetitions": 3, "maximum_repetitions": 25}
@@ -73,21 +84,15 @@ class EvaluationRunRequest(BaseModel):
     repetitions: int = Field(default=3, ge=1, le=25)
     candidate: EvaluationTargetRequest
     baseline: EvaluationTargetRequest | None = None
+    acknowledge_tool_side_effects: bool = False
+    approved_high_risk_tool_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=255)
 
-
-def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
-    principal = getattr(request.state, "principal", None)
-    if isinstance(principal, ProjectApiPrincipal):
-        if principal.project_id != project_id:
-            raise AuthorizationError("Runtime key does not belong to this Project")
-        return None
-    if isinstance(principal, AuthenticatedPrincipal):
-        return principal.user_id
-    raise AuthorizationError("Authentication required")
 
 
 def _service(request: Request) -> EvaluationApplicationService:
     return EvaluationApplicationService(request.app.state.session_factory)
+
 
 
 def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
@@ -100,7 +105,7 @@ async def create_dataset(
     payload: CreateDatasetRequest,
     request: Request,
 ):
-    user_id = _authorize_project(request, project_id)
+    user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_dataset(
         project_id=project_id,
         name=payload.name,
@@ -114,7 +119,7 @@ async def create_dataset(
 
 @router.get("/datasets")
 async def list_datasets(project_id: UUID, request: Request):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).list_datasets(project_id),
@@ -123,7 +128,7 @@ async def list_datasets(project_id: UUID, request: Request):
 
 @router.get("/datasets/{dataset_id}")
 async def get_dataset(project_id: UUID, dataset_id: UUID, request: Request):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).get_dataset(project_id, dataset_id),
@@ -140,7 +145,7 @@ async def create_dataset_version(
     payload: CreateDatasetVersionRequest,
     request: Request,
 ):
-    user_id = _authorize_project(request, project_id)
+    user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_dataset_version(
         project_id=project_id,
         dataset_id=dataset_id,
@@ -157,7 +162,7 @@ async def create_suite(
     payload: CreateSuiteRequest,
     request: Request,
 ):
-    user_id = _authorize_project(request, project_id)
+    user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_suite(
         project_id=project_id,
         name=payload.name,
@@ -178,7 +183,7 @@ async def create_suite(
 
 @router.get("/suites")
 async def list_suites(project_id: UUID, request: Request):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).list_suites(project_id),
@@ -191,13 +196,15 @@ async def preview_run(
     payload: EvaluationRunRequest,
     request: Request,
 ):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     data = await _service(request).preview_run(
         project_id=project_id,
         suite_version_id=payload.suite_version_id,
         repetitions=payload.repetitions,
         candidate=payload.candidate.model_dump(mode="json"),
         baseline=payload.baseline.model_dump(mode="json") if payload.baseline else None,
+        acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
+        approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
     )
     return {"success": True, "data": data}
 
@@ -208,7 +215,7 @@ async def create_run(
     payload: EvaluationRunRequest,
     request: Request,
 ):
-    user_id = _authorize_project(request, project_id)
+    user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_run(
         project_id=project_id,
         suite_version_id=payload.suite_version_id,
@@ -216,6 +223,9 @@ async def create_run(
         candidate=payload.candidate.model_dump(mode="json"),
         baseline=payload.baseline.model_dump(mode="json") if payload.baseline else None,
         requested_by=user_id,
+        acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
+        approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
+        idempotency_key=payload.idempotency_key,
     )
     return {"success": True, "data": data}
 
@@ -226,7 +236,7 @@ async def list_runs(
     request: Request,
     limit: int = Query(default=100, ge=1, le=200),
 ):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).list_runs(project_id, limit=limit),
@@ -235,7 +245,7 @@ async def list_runs(
 
 @router.get("/runs/{run_id}")
 async def get_run(project_id: UUID, run_id: UUID, request: Request):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).get_run(project_id, run_id),
@@ -244,7 +254,7 @@ async def get_run(project_id: UUID, run_id: UUID, request: Request):
 
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(project_id: UUID, run_id: UUID, request: Request):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).cancel_run(project_id, run_id),
@@ -258,7 +268,7 @@ async def list_qualifications(
     target_type: Literal["agent", "network"] | None = None,
     entity_id: UUID | None = None,
 ):
-    _authorize_project(request, project_id)
+    require_evaluation_user(request, project_id)
     return {
         "success": True,
         "data": await _service(request).list_qualifications(
