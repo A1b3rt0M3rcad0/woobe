@@ -56,8 +56,9 @@ def _apply_child_permissions(items: Any, raw_permissions: dict[str, Any], *, key
             continue
         identifiers = [str(item.get(key) or "") for key in keys]
         identifier = next((value for value in identifiers if value and value in raw_permissions), None)
-        raw_permission = raw_permissions.get(identifier) if identifier is not None else None
-        item["permission"] = normalize_permission(raw_permission)
+        if identifier is None:
+            continue
+        item["permission"] = normalize_permission(raw_permissions.get(identifier))
         changed = True
     return changed
 
@@ -79,7 +80,13 @@ def _collect_child_permissions(items: Any, *, keys: tuple[str, ...]) -> dict[str
         )
         if not identifier:
             continue
-        permissions[identifier] = normalize_permission(item.get("permission"))
+        raw_permission = item.get("permission")
+        if raw_permission is None:
+            raw_permission = {
+                "mode": item.get("default_permission") or "review",
+                "risk_level": item.get("risk_level"),
+            }
+        permissions[identifier] = normalize_permission(raw_permission)
     return permissions
 
 
