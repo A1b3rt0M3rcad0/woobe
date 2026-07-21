@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from modules.evaluation.application.metering import record_evaluation_model_usage
 from modules.evaluation.application.runtime_gateway import EvaluationRuntimeCancelled
 from modules.evaluation.domain.enums import EvaluationRunStatus, EvaluationTrialStatus
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTargetModel,
     EvaluationTrialModel,
+    EvaluatorModelCallModel,
 )
 from modules.evaluation.infra.workers.outcome_worker import (
     OutcomeAwareEvaluationRunProcessor,
@@ -100,6 +101,33 @@ class ConcurrentOutcomeAwareEvaluationRunProcessor(OutcomeAwareEvaluationRunProc
             if run is not None and run.cancel_requested_at is not None:
                 raise EvaluationRuntimeCancelled("Evaluation Run was cancelled before Judge execution")
         await super()._mark_judge_started(trial_id)
+
+    async def _persist_final_result(self, **kwargs) -> None:
+        trial = kwargs["trial"]
+        await super()._persist_final_result(**kwargs)
+        async with self._session_factory() as session, session.begin():
+            call = await session.scalar(
+                select(EvaluatorModelCallModel).where(
+                    EvaluatorModelCallModel.evaluation_trial_id == trial.id
+                )
+            )
+            if call is not None:
+                await record_evaluation_model_usage(
+                    session,
+                    source_id=call.id,
+                    project_id=call.project_id,
+                    usage_subtype="judge",
+                    provider=call.provider,
+                    model=call.model,
+                    provider_model_id=call.provider_model_id,
+                    input_tokens=call.input_tokens,
+                    output_tokens=call.output_tokens,
+                    cost_usd=float(call.cost_usd) if call.cost_usd is not None else None,
+                    pricing_snapshot=call.pricing_snapshot,
+                    evaluation_run_id=call.evaluation_run_id,
+                    evaluation_trial_id=call.evaluation_trial_id,
+                    data={"judge_status": call.status},
+                )
 
     async def _mark_trial_cancelled(self, trial_id: UUID, detail: str) -> None:
         async with self._session_factory() as session, session.begin():
