@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from modules.evaluation.application.hardened_service import (
     HardenedEvaluationApplicationService,
 )
+from modules.evaluation.domain.contracts import normalize_test_case
 from modules.evaluation.infra.database.models import (
     EvaluationDatasetVersionModel,
     EvaluationSuiteVersionModel,
@@ -18,7 +19,44 @@ from modules.evaluation.infra.database.models import (
 
 
 class EnrichedEvaluationApplicationService(HardenedEvaluationApplicationService):
-    """Read-model enrichment for authoring provenance and Trial evidence."""
+    """Evaluation service with canonical authoring contracts and enriched evidence."""
+
+    async def _create_dataset_version(
+        self,
+        session,
+        *,
+        dataset,
+        project_id: UUID,
+        cases: list[dict[str, Any]],
+        change_description: str | None,
+        created_by: UUID | None,
+    ):
+        normalized = [
+            normalize_test_case(item, position=index)
+            for index, item in enumerate(cases, start=1)
+        ]
+        version = await super()._create_dataset_version(
+            session,
+            dataset=dataset,
+            project_id=project_id,
+            cases=normalized,
+            change_description=change_description,
+            created_by=created_by,
+        )
+        await session.flush()
+        rows = list(
+            (
+                await session.scalars(
+                    select(EvaluationTestCaseModel)
+                    .where(EvaluationTestCaseModel.dataset_version_id == version.id)
+                    .order_by(EvaluationTestCaseModel.position)
+                )
+            ).all()
+        )
+        for row, item in zip(rows, normalized, strict=False):
+            row.case_type = item["case_type"]
+            row.expected_contract = item["expected_contract"]
+        return version
 
     async def list_suites(self, project_id: UUID) -> list[dict[str, Any]]:
         payload = await super().list_suites(project_id)
