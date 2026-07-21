@@ -1,4 +1,5 @@
 import { get, post } from '@/lib/api/client'
+import type { EvaluationAuthoringCall, ValidateSuiteDraftInput } from './authoringTypes'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
@@ -6,6 +7,7 @@ import type {
   CreateEvaluationSuiteInput,
   EvaluationCaseInput,
   EvaluationDataset,
+  EvaluationEstimate,
   EvaluationPreview,
   EvaluationQualification,
   EvaluationRun,
@@ -13,10 +15,8 @@ import type {
   EvaluationTargetInput,
   EvaluationTargetType,
   GenerateSuiteDraftInput,
-  GeneratedSuiteDraft,
   SuiteContextPreview,
   SuiteValidationResult,
-  EvaluatorSuiteDraft,
 } from './types'
 
 function base(projectId: string) {
@@ -34,10 +34,23 @@ function normalizeAuthoredCase(value: any): EvaluationCaseInput {
   }
 }
 
-function normalizeValidation(value: SuiteValidationResult): SuiteValidationResult {
+function normalizeValidation(value: SuiteValidationResult | null): SuiteValidationResult | null {
+  if (!value) return null
   return {
     ...value,
     cases: (value.cases || []).map(normalizeAuthoredCase),
+  }
+}
+
+function normalizeAuthoringCall(value: EvaluationAuthoringCall): EvaluationAuthoringCall {
+  const validation = normalizeValidation(value.validation)
+  return {
+    ...value,
+    validation,
+    draft: value.draft ? {
+      ...value.draft,
+      cases: (validation?.cases || value.draft.cases || []).map(normalizeAuthoredCase),
+    } : null,
   }
 }
 
@@ -61,6 +74,14 @@ export function createEvaluationDatasetVersion(
   return post<EvaluationDataset>(`${base(projectId)}/datasets/${datasetId}/versions`, input)
 }
 
+export function archiveEvaluationDataset(projectId: string, datasetId: string) {
+  return post<EvaluationDataset>(`${base(projectId)}/datasets/${datasetId}/archive`)
+}
+
+export function restoreEvaluationDataset(projectId: string, datasetId: string) {
+  return post<EvaluationDataset>(`${base(projectId)}/datasets/${datasetId}/restore`)
+}
+
 export function getEvaluationSuites(projectId: string) {
   return get<EvaluationSuite[]>(`${base(projectId)}/suites`)
 }
@@ -77,6 +98,14 @@ export function createEvaluationSuiteVersion(
   return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, input)
 }
 
+export function archiveEvaluationSuite(projectId: string, suiteId: string) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/archive`)
+}
+
+export function restoreEvaluationSuite(projectId: string, suiteId: string) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/restore`)
+}
+
 export function previewSuiteAuthoringContext(
   projectId: string,
   input: Pick<GenerateSuiteDraftInput, 'target' | 'generator_provider_model_id' | 'objective' | 'case_count' | 'maximum_input_tokens'>,
@@ -85,21 +114,28 @@ export function previewSuiteAuthoringContext(
 }
 
 export async function generateEvaluatorSuiteDraft(projectId: string, input: GenerateSuiteDraftInput) {
-  const result = await post<GeneratedSuiteDraft>(`${base(projectId)}/suite-authoring/generate`, input)
-  const validation = normalizeValidation(result.validation)
-  return {
-    ...result,
-    validation,
-    draft: {
-      ...result.draft,
-      cases: validation.cases,
-    },
-  }
+  const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/generate`, input)
+  return normalizeAuthoringCall(result)
 }
 
-export async function validateEvaluatorSuiteDraft(projectId: string, draft: EvaluatorSuiteDraft) {
-  const result = await post<SuiteValidationResult>(`${base(projectId)}/suite-authoring/validate`, { draft })
-  return normalizeValidation(result)
+export async function getEvaluatorSuiteAuthoringCall(projectId: string, callId: string) {
+  const result = await get<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/calls/${callId}`)
+  return normalizeAuthoringCall(result)
+}
+
+export async function cancelEvaluatorSuiteAuthoringCall(projectId: string, callId: string) {
+  const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/calls/${callId}/cancel`)
+  return normalizeAuthoringCall(result)
+}
+
+export async function retryEvaluatorSuiteAuthoringCall(projectId: string, callId: string) {
+  const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/calls/${callId}/retry`)
+  return normalizeAuthoringCall(result)
+}
+
+export async function validateEvaluatorSuiteDraft(projectId: string, input: ValidateSuiteDraftInput) {
+  const result = await post<SuiteValidationResult>(`${base(projectId)}/suite-authoring/validate`, input)
+  return normalizeValidation(result) as SuiteValidationResult
 }
 
 export function createComposedEvaluatorSuite(projectId: string, input: CreateComposedSuiteInput) {
@@ -124,6 +160,18 @@ export function createEvaluationRun(projectId: string, input: CreateEvaluationRu
 
 export function cancelEvaluationRun(projectId: string, runId: string) {
   return post<EvaluationRun>(`${base(projectId)}/runs/${runId}/cancel`)
+}
+
+export function createEvaluationEstimate(
+  projectId: string,
+  runId: string,
+  volume: number,
+  volumeUnit = 'runs_per_month',
+) {
+  return post<EvaluationEstimate[]>(`${base(projectId)}/runs/${runId}/estimates`, {
+    volume,
+    volume_unit: volumeUnit,
+  })
 }
 
 export function getEvaluationQualifications(
