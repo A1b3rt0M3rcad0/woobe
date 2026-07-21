@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
+import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { AgentControlsPopover } from './AgentControlsPopover'
+import { AgentEvaluationsModal } from '@/features/evaluations/components/AgentEvaluationsModal'
 import type { Agent } from '@/features/agents/types'
 import type { ReleaseStatus } from '@/features/agents/types'
 
@@ -33,6 +35,7 @@ export function PlaygroundHeader({
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId?: string; projectId: string }>()
+  const [evaluationsOpen, setEvaluationsOpen] = useState(false)
 
   const handleBackToProject = () => {
     if (organizationId && projectId) {
@@ -43,59 +46,74 @@ export function PlaygroundHeader({
   }
 
   return (
-    <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm`}>
-      <div className="flex items-center gap-3 min-w-0">
-        <button
-          onClick={handleBackToProject}
-          className="flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-xs font-medium text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors shrink-0"
-          title="Back to project"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Project</span>
-        </button>
-        <div className="h-8 w-px bg-border/80" />
-        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5 min-w-0">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-light shrink-0">
-            <Bot className="h-3.5 w-3.5" />
+    <>
+      <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={handleBackToProject}
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-xs font-medium text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors shrink-0"
+            title="Back to project"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Project</span>
+          </button>
+          <div className="h-8 w-px bg-border/80" />
+          <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5 min-w-0">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-light shrink-0">
+              <Bot className="h-3.5 w-3.5" />
+            </span>
+            <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            {releaseVersion && releaseStatus && (
+              <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
+                {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
+              </Badge>
+            )}
+          </div>
+          <span className="hidden max-w-[180px] truncate rounded-md border border-border/70 bg-background/45 px-2 py-1 font-mono text-[11px] text-muted md:inline">
+            {agent.provider}/{agent.model}
           </span>
-          <span className="truncate text-sm font-semibold text-white max-w-[240px]">{agent.name}</span>
         </div>
-        <div className="flex items-center gap-2 min-w-0">
-          {releaseVersion && releaseStatus && (
-            <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'secondary'}>
-              {releaseStatus === 'production' ? '● ' : ''}{releaseVersion}
-            </Badge>
-          )}
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleLeftPanel}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showLeftPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
+            title={showLeftPanel ? 'Hide operations' : 'Show operations'}
+          >
+            <PanelLeft className={`h-4 w-4 transition-opacity ${showLeftPanel ? 'opacity-100' : 'opacity-50'}`} />
+          </button>
+
+          <Button variant="outline" size="sm" onClick={() => setEvaluationsOpen(true)} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
+            <ShieldCheck className="mr-1 h-4 w-4" />
+            Evaluate
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={onApiClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
+            <Code2 className="mr-1 h-4 w-4" />
+            API
+          </Button>
+
+          <AgentControlsPopover agent={agent} projectId={projectId} />
+
+          <button
+            onClick={onToggleRightPanel}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showRightPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
+            title={showRightPanel ? 'Hide inspector' : 'Show inspector'}
+          >
+            <PanelRight className={`h-4 w-4 transition-opacity ${showRightPanel ? 'opacity-100' : 'opacity-50'}`} />
+          </button>
         </div>
-        <span className="hidden max-w-[180px] truncate rounded-md border border-border/70 bg-background/45 px-2 py-1 font-mono text-[11px] text-muted md:inline">
-          {agent.provider}/{agent.model}
-        </span>
-      </div>
+      </header>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onToggleLeftPanel}
-          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showLeftPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
-          title={showLeftPanel ? 'Hide operations' : 'Show operations'}
-        >
-          <PanelLeft className={`h-4 w-4 transition-opacity ${showLeftPanel ? 'opacity-100' : 'opacity-50'}`} />
-        </button>
-
-        <Button variant="outline" size="sm" onClick={onApiClick} className="border-border/80 bg-background/55 hover:border-primary/35 hover:bg-primary/5">
-          <Code2 className="mr-1 h-4 w-4" />
-          API
-        </Button>
-
-        <AgentControlsPopover agent={agent} projectId={projectId} />
-
-        <button
-          onClick={onToggleRightPanel}
-          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showRightPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
-          title={showRightPanel ? 'Hide inspector' : 'Show inspector'}
-        >
-          <PanelRight className={`h-4 w-4 transition-opacity ${showRightPanel ? 'opacity-100' : 'opacity-50'}`} />
-        </button>
-      </div>
-    </header>
+      <AgentEvaluationsModal
+        open={evaluationsOpen}
+        onClose={() => setEvaluationsOpen(false)}
+        projectId={projectId}
+        agentId={agent.id}
+        agentName={agent.name}
+      />
+    </>
   )
 }
