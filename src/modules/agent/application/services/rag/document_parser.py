@@ -13,7 +13,6 @@ from shared.infra.errors import ValidationError
 
 PAGE_SEPARATOR = "\n<<<PAGE_BREAK>>>\n"
 _WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-_XML_NS = "http://www.w3.org/XML/1998/namespace"
 _NS = {"w": _WORD_NS}
 
 
@@ -106,7 +105,9 @@ class DocumentParser:
         except ValidationError:
             raise
         except Exception as exc:
-            raise ValidationError("PDF document is invalid or could not be parsed") from exc
+            raise ValidationError(
+                "PDF document is invalid or could not be parsed"
+            ) from exc
 
         separator = PAGE_SEPARATOR if preserve_page_boundaries else "\n\n"
         text = separator.join(pages)
@@ -172,11 +173,7 @@ class DocumentParser:
         parts: list[str] = []
         for node in paragraph.iter():
             if node.tag == _word_tag("t"):
-                value = node.text or ""
-                if node.attrib.get(f"{{{_XML_NS}}}space") == "preserve":
-                    parts.append(value)
-                else:
-                    parts.append(value.strip())
+                parts.append(node.text or "")
             elif node.tag == _word_tag("tab"):
                 parts.append("\t")
             elif node.tag == _word_tag("br"):
