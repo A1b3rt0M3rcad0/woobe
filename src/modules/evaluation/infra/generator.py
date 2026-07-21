@@ -164,6 +164,8 @@ class SuiteGeneratorGateway:
             model=model,
             metadata=model_metadata,
         )
+        started_at = datetime.now(timezone.utc)
+        started = time.monotonic()
         estimated_cost = calculate_llm_cost(
             input_tokens=_estimated_input_tokens(context_pack),
             output_tokens=output_tokens,
@@ -174,8 +176,21 @@ class SuiteGeneratorGateway:
             and estimated_cost["cost_usd"] is not None
             and float(estimated_cost["cost_usd"]) > float(maximum_cost_usd)
         ):
-            raise ValidationError(
-                "Estimated Suite generation cost exceeds the configured cost limit"
+            completed_at = datetime.now(timezone.utc)
+            return SuiteGeneratorResult(
+                provider_model_id=provider_model.id,
+                provider_credential_id=credential.id,
+                provider=provider,
+                model=model,
+                payload=None,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                pricing_snapshot=pricing_snapshot,
+                latency_ms=round((time.monotonic() - started) * 1000),
+                error="estimated_generation_cost_limit_exceeded",
+                started_at=started_at,
+                completed_at=completed_at,
             )
 
         system_prompt = (
@@ -198,8 +213,6 @@ class SuiteGeneratorGateway:
             "language": language,
             "target_context": context_pack,
         }
-        started_at = datetime.now(timezone.utc)
-        started = time.monotonic()
         response_format = True
         previous_invalid: str | None = None
         total_input: int | None = None
