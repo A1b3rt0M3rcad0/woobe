@@ -8,6 +8,7 @@ import pytest
 
 from modules.agent.application.http_tool_contract import (
     HttpToolContractError,
+    compile_http_group_route_contract,
     compile_http_tool_group_contract,
 )
 from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
@@ -119,6 +120,28 @@ def test_group_contract_compiles_each_route_and_keeps_shared_base_url() -> None:
     assert search["contract_hash"] == compiled.route_contracts["route-search"].contract_hash
 
 
+def test_group_contract_generates_stable_unique_operation_ids() -> None:
+    config = group_config()
+    config["routes"][0].pop("operation_id")
+    config["routes"][0]["name"] = "Consultar remuneração"
+    config["routes"][1].pop("operation_id")
+    config["routes"][1]["name"] = "Consultar remuneração"
+
+    compiled = compile_http_tool_group_contract(config)
+
+    assert compiled.config["routes"][0]["operation_id"] == "consultar_remuneracao"
+    assert compiled.config["routes"][1]["operation_id"] == "consultar_remuneracao_2"
+
+
+def test_group_contract_preserves_explicit_operation_id() -> None:
+    config = group_config()
+    config["routes"][0]["name"] = "Find public employees"
+
+    compiled = compile_http_tool_group_contract(config)
+
+    assert compiled.config["routes"][0]["operation_id"] == "search_employee"
+
+
 def test_group_contract_rejects_duplicate_operation_ids() -> None:
     config = group_config()
     config["routes"][1]["operation_id"] = "search_employee"
@@ -127,6 +150,77 @@ def test_group_contract_rejects_duplicate_operation_ids() -> None:
         compile_http_tool_group_contract(config)
 
     assert exc.value.code == "HTTP_TOOL_OPERATION_ID_DUPLICATE"
+
+
+def test_route_headers_override_shared_headers_case_insensitively() -> None:
+    config = group_config()
+    config["headers"] = [
+        {"key": "Authorization", "value": "Bearer shared"},
+        {"key": "Accept", "value": "application/json"},
+    ]
+    config["routes"][0]["headers"] = [
+        {"key": "authorization", "value": "Bearer route", "mode": "set"},
+    ]
+
+    compiled = compile_http_tool_group_contract(config)
+    route_contract = compile_http_group_route_contract(compiled.config, "route-search")
+    headers = {item["key"].lower(): item["value"] for item in route_contract.config["headers"]}
+
+    assert headers["authorization"] == "Bearer route"
+    assert headers["accept"] == "application/json"
+
+
+def test_route_can_remove_inherited_header() -> None:
+    config = group_config()
+    config["headers"] = [
+        {"key": "Authorization", "value": "Bearer shared"},
+        {"key": "Accept", "value": "application/json"},
+    ]
+    config["routes"][0]["headers"] = [
+        {"key": "Authorization", "mode": "remove"},
+        {"key": "X-Route", "value": "route"},
+    ]
+
+    compiled = compile_http_tool_group_contract(config)
+    route_contract = compile_http_group_route_contract(compiled.config, "route-search")
+    headers = {item["key"].lower(): item.get("value") for item in route_contract.config["headers"]}
+
+    assert "authorization" not in headers
+    assert headers["accept"] == "application/json"
+    assert headers["x-route"] == "route"
+
+
+def test_group_contract_rejects_duplicate_headers_in_same_layer() -> None:
+    config = group_config()
+    config["headers"] = [
+        {"key": "Accept", "value": "application/json"},
+        {"key": "accept", "value": "text/plain"},
+    ]
+
+    with pytest.raises(HttpToolContractError) as exc:
+        compile_http_tool_group_contract(config)
+
+    assert exc.value.code == "HTTP_TOOL_HEADER_DUPLICATE"
+
+
+def test_group_contract_rejects_reserved_headers() -> None:
+    config = group_config()
+    config["routes"][0]["headers"] = [{"key": "Content-Length", "value": "100"}]
+
+    with pytest.raises(HttpToolContractError) as exc:
+        compile_http_tool_group_contract(config)
+
+    assert exc.value.code == "HTTP_TOOL_HEADER_RESERVED"
+
+
+def test_shared_headers_cannot_use_remove_mode() -> None:
+    config = group_config()
+    config["headers"] = [{"key": "Authorization", "mode": "remove"}]
+
+    with pytest.raises(HttpToolContractError) as exc:
+        compile_http_tool_group_contract(config)
+
+    assert exc.value.code == "HTTP_TOOL_HEADER_REMOVE_INVALID"
 
 
 def test_converter_exposes_only_allowed_routes() -> None:
@@ -166,6 +260,32 @@ async def test_runtime_executes_selected_route_with_shared_and_route_headers() -
     assert json.loads(call["body"]) == {"name": "Maria Silva", "limit": 10}
     assert result.output["http_route_id"] == "route-search"
     assert result.output["http_operation_id"] == "search_employee"
+
+
+@pytest.mark.asyncio
+async def test_runtime_uses_effective_headers_after_override_and_removal() -> None:
+    config = group_config()
+    config["headers"] = [
+        {"key": "Authorization", "value": "Bearer shared"},
+        {"key": "Accept", "value": "application/json"},
+    ]
+    config["routes"][0]["headers"] = [
+        {"key": "authorization", "value": "Bearer route"},
+        {"key": "Accept", "mode": "remove"},
+    ]
+    compiled = compile_http_tool_group_contract(config)
+    executor = FakeExecutor()
+    runtime = HttpToolRuntime(executor)
+
+    result = await runtime.execute(
+        FakeTool(config=compiled.config),
+        {MCP_REMOTE_TOOL_INPUT_KEY: "route-search", "name": "Maria"},
+    )
+
+    assert result.success is True
+    headers = {key.lower(): value for key, value in executor.calls[0]["headers"].items()}
+    assert headers["authorization"] == "Bearer route"
+    assert "accept" not in headers
 
 
 @pytest.mark.asyncio
