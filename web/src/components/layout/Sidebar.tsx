@@ -11,6 +11,7 @@ import {
   Key,
   BarChart3,
   Activity,
+  Beaker,
   CreditCard,
   Settings,
   Play,
@@ -48,6 +49,7 @@ const operateNavItems: NavItem[] = [
   { label: 'API Keys', icon: Key, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'api-keys') },
   { label: 'Usage', icon: BarChart3, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'usage') },
   { label: 'Traces', icon: Activity, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'traces') },
+  { label: 'Evaluations', icon: Beaker, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'evaluations') },
 ]
 
 const accountNavItems: NavItem[] = [
