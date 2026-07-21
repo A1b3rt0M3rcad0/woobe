@@ -196,7 +196,7 @@ describe('MarkdownMessage', () => {
   it('escapes raw html instead of injecting it', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'<script>alert(1)</script>'} />)
 
-    expect(html).toContain('&lt;script&gt;alert(1)</script>')
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(html).not.toContain('<script>alert(1)</script>')
   })
 })
