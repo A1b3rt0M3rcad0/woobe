@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   archiveEvaluationDataset,
   archiveEvaluationSuite,
@@ -13,11 +18,8 @@ import {
   createEvaluationSuiteVersion,
   generateEvaluatorSuiteDraft,
   getEvaluationDataset,
-  getEvaluationDatasets,
   getEvaluationQualifications,
   getEvaluationRun,
-  getEvaluationRuns,
-  getEvaluationSuites,
   getEvaluatorSuiteAuthoringCall,
   previewEvaluationRun,
   previewSuiteAuthoringContext,
@@ -27,11 +29,17 @@ import {
   validateEvaluatorSuiteDraft,
 } from './api'
 import type { ValidateSuiteDraftInput } from './authoringTypes'
+import {
+  getEvaluationDatasetsPage,
+  getEvaluationRunsPage,
+  getEvaluationSuitesPage,
+} from './paginationApi'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
   CreateEvaluationSuiteInput,
+  EvaluationRun,
   EvaluationTargetType,
   EvaluatorSuiteDraft,
   GenerateSuiteDraftInput,
@@ -48,10 +56,21 @@ const activeStatuses = new Set([
 
 const activeAuthoringStatuses = new Set(['queued', 'running', 'cancel_requested'])
 
+function runValues(value: unknown): EvaluationRun[] {
+  if (Array.isArray(value)) return value as EvaluationRun[]
+  const pages = (value as any)?.pages
+  return Array.isArray(pages)
+    ? pages.flatMap((page: any) => Array.isArray(page?.items) ? page.items : [])
+    : []
+}
+
 export function useEvaluationDatasets(projectId?: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['evaluation-datasets', projectId],
-    queryFn: () => getEvaluationDatasets(projectId as string),
+    queryFn: ({ pageParam }) => getEvaluationDatasetsPage(projectId as string, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    select: (data) => data.pages.flatMap((page) => page.items),
     enabled: Boolean(projectId),
   })
 }
@@ -65,9 +84,12 @@ export function useEvaluationDataset(projectId?: string, datasetId?: string | nu
 }
 
 export function useEvaluationSuites(projectId?: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['evaluation-suites', projectId],
-    queryFn: () => getEvaluationSuites(projectId as string),
+    queryFn: ({ pageParam }) => getEvaluationSuitesPage(projectId as string, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    select: (data) => data.pages.flatMap((page) => page.items),
     enabled: Boolean(projectId),
   })
 }
@@ -85,14 +107,18 @@ export function useEvaluationQualifications(
 }
 
 export function useEvaluationRuns(projectId?: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['evaluation-runs', projectId],
-    queryFn: () => getEvaluationRuns(projectId as string),
+    queryFn: ({ pageParam }) => getEvaluationRunsPage(projectId as string, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    select: (data) => data.pages.flatMap((page) => page.items),
     enabled: Boolean(projectId),
-    refetchInterval: (query) => {
-      const values = query.state.data ?? []
-      return values.some((item) => activeStatuses.has(item.status)) ? 2500 : false
-    },
+    refetchInterval: (query) => (
+      runValues(query.state.data).some((item) => activeStatuses.has(item.status))
+        ? 2500
+        : false
+    ),
   })
 }
 
