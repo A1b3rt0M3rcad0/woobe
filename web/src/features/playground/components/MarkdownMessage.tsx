@@ -209,17 +209,14 @@ function splitTableCells(line: string): string[] {
   const withoutOuterPipes = trimmed.replace(/^\|/, '').replace(/\|$/, '')
   const cells: string[] = []
   let current = ''
-  let escaped = false
 
-  for (const char of withoutOuterPipes) {
-    if (escaped) {
-      current += char
-      escaped = false
-      continue
-    }
+  for (let index = 0; index < withoutOuterPipes.length; index++) {
+    const char = withoutOuterPipes[index]
+    const next = withoutOuterPipes[index + 1]
 
-    if (char === '\\') {
-      escaped = true
+    if (char === '\\' && next === '|') {
+      current += '|'
+      index += 1
       continue
     }
 
