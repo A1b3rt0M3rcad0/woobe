@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from modules.evaluation.application.processor import (
     EvaluationRunProcessor,
     EvaluationRunWorker,
+    _message_from_case,
     _utc_now,
 )
 from modules.evaluation.domain.enums import (
@@ -18,6 +20,7 @@ from modules.evaluation.domain.enums import (
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTargetModel,
+    EvaluationTestCaseModel,
     EvaluationTrialModel,
 )
 from shared.infra.config import Settings
@@ -54,6 +57,61 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             if run is not None and run.lease_owner:
                 run.lease_expires_at = _utc_now() + timedelta(minutes=30)
         return state
+
+    async def _execute_agent(
+        self,
+        trial: EvaluationTrialModel,
+        target: EvaluationTargetModel,
+        case: EvaluationTestCaseModel,
+    ) -> tuple[dict[str, Any], dict[str, Any], None, UUID | None]:
+        started = _utc_now()
+        result = await self._agent_invoker.invoke(
+            project_id=trial.project_id,
+            agent_id=target.entity_id,
+            release_id=target.agent_release_id,
+            snapshot_override=target.snapshot if target.source_type == "draft" else None,
+            message=_message_from_case(case),
+            agent_session_id=None,
+            execution_context="playground",
+            internal_tools=[],
+            network_context={
+                "run_purpose": "evaluation",
+                "evaluation_run_id": str(trial.evaluation_run_id),
+                "evaluation_trial_id": str(trial.id),
+                "comparison_pair_id": trial.pair_key,
+                "target_side": target.side,
+            },
+        )
+        elapsed_ms = round((_utc_now() - started).total_seconds() * 1000)
+        usage = result.usage or {}
+        output = {
+            "answer": result.answer,
+            "parsed_output": result.parsed_output,
+            "output_parse_error": result.output_parse_error,
+            "tool_calls": result.tool_calls,
+            "sources": result.sources,
+        }
+        metrics = {
+            "latency_ms": elapsed_ms,
+            "cost_usd": usage.get("cost_usd"),
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "tool_call_count": len(result.tool_calls),
+            "source_count": len(result.sources),
+            "fallback_used": False,
+            "agent_run_count": 1,
+            "provider": result.provider,
+            "model": result.model,
+            "run_purpose": "evaluation",
+            "evaluation_run_id": str(trial.evaluation_run_id),
+            "evaluation_trial_id": str(trial.id),
+            "comparison_pair_id": trial.pair_key,
+            "target_side": target.side,
+        }
+        # Direct Agent execution does not yet have a canonical persisted AgentRun row.
+        # The Evaluation Trial and real Trace are the stable identities; never expose a
+        # synthetic UUID as if it were an operational Run.
+        return output, metrics, None, result.trace_id
 
     async def _aggregate(self, run_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
