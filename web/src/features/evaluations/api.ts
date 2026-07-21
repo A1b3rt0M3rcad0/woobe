@@ -5,8 +5,10 @@ import type {
   CreateEvaluationSuiteInput,
   EvaluationDataset,
   EvaluationPreview,
+  EvaluationQualification,
   EvaluationRun,
   EvaluationSuite,
+  EvaluationTargetType,
 } from './types'
 
 function base(projectId: string) {
@@ -67,4 +69,16 @@ export function createEvaluationRun(projectId: string, input: CreateEvaluationRu
 
 export function cancelEvaluationRun(projectId: string, runId: string) {
   return post<EvaluationRun>(`${base(projectId)}/runs/${runId}/cancel`)
+}
+
+export function getEvaluationQualifications(
+  projectId: string,
+  targetType?: EvaluationTargetType,
+  entityId?: string,
+) {
+  const query = new URLSearchParams()
+  if (targetType) query.set('target_type', targetType)
+  if (entityId) query.set('entity_id', entityId)
+  const suffix = query.size ? `?${query.toString()}` : ''
+  return get<EvaluationQualification[]>(`${base(projectId)}/qualifications${suffix}`)
 }
