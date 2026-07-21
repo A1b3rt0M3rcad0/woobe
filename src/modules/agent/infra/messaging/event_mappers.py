@@ -62,19 +62,29 @@ _NETWORK_CONTEXT_FIELDS = (
     "depth",
 )
 
+_EVALUATION_CONTEXT_FIELDS = (
+    "run_purpose",
+    "evaluation_run_id",
+    "evaluation_trial_id",
+    "comparison_pair_id",
+    "target_side",
+)
 
-def _active_network_context_payload() -> dict[str, Any]:
-    """Return Network runtime identity without coupling event callers to Network."""
+
+def _active_runtime_context_payload() -> dict[str, Any]:
+    """Return runtime identities without coupling event callers to other modules."""
     from modules.agent.application.use_cases.execution_context import current_execution
 
     context = current_execution.get()
-    if context is None or context.network_id is None:
+    if context is None:
         return {}
     payload: dict[str, Any] = {}
-    for field_name in _NETWORK_CONTEXT_FIELDS:
+    for field_name in (*_NETWORK_CONTEXT_FIELDS, *_EVALUATION_CONTEXT_FIELDS):
         value = getattr(context, field_name, None)
         if value is not None:
             payload[field_name] = str(value) if isinstance(value, UUID) else value
+    if payload.get("run_purpose") is None:
+        payload["run_purpose"] = "operational"
     return payload
 
 
@@ -118,14 +128,7 @@ def _execution_occurrence(event: AgentDomainEvent) -> str:
 
 
 def _mutation_occurrence(event: AgentDomainEvent) -> str:
-    """Return the identifier for one concrete mutation occurrence.
-
-    Update-style events are repeatable for the same aggregate. Their domain-level
-    idempotency key is intentionally stable, but the outbox unique constraint
-    must distinguish separate successful mutations. A caller-provided operation
-    or request identifier takes precedence; otherwise the immutable event id is
-    used. Mapping the same event object twice still produces the same key.
-    """
+    """Return the identifier for one concrete mutation occurrence."""
     metadata = event.metadata or {}
     occurrence = (
         event.payload.get("operation_id")
@@ -138,13 +141,7 @@ def _mutation_occurrence(event: AgentDomainEvent) -> str:
 
 
 def _effective_idempotency_key(event: AgentDomainEvent) -> str:
-    """Build an idempotency key for one concrete event occurrence.
-
-    Execution events are scoped by trace. Event types that can occur more than
-    once in the same trace also include their call identifier. Repeatable
-    mutation events are scoped by operation occurrence so distinct updates of
-    the same aggregate do not collide with the outbox unique constraint.
-    """
+    """Build an idempotency key for one concrete event occurrence."""
     if event.event_type.startswith("agent.execution."):
         occurrence = _execution_occurrence(event)
         raw = f"agent:{event.event_type}:{occurrence}"
@@ -168,7 +165,7 @@ def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
     )
     payload = dict(event.payload)
     if event.event_type.startswith("agent.execution."):
-        payload = {**_active_network_context_payload(), **payload}
+        payload = {**_active_runtime_context_payload(), **payload}
     aggregate_type = payload.get("aggregate_type", "")
     aggregate_id = payload.get("aggregate_id")
     if not aggregate_type:
