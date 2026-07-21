@@ -16,13 +16,29 @@ def test_budget_preserves_required_sections() -> None:
         ],
         maximum_input_tokens=2_000,
         reserved_output_tokens=500,
+        safety_margin_tokens=500,
         context_window=8_000,
     )
 
     assert "test_case" in result.payload
     assert "target_output" in result.payload
+    assert result.report.maximum_input_tokens == 1_500
+    assert result.report.safety_margin_tokens == 500
     assert result.report.estimated_input_tokens <= result.report.maximum_input_tokens
     assert result.report.truncation_applied is True
+
+
+def test_context_window_can_reduce_configured_payload_budget() -> None:
+    result = budget_sections(
+        [("required", "x" * 100_000, 10, True)],
+        maximum_input_tokens=16_000,
+        reserved_output_tokens=3_000,
+        safety_margin_tokens=1_000,
+        context_window=8_000,
+    )
+
+    assert result.report.maximum_input_tokens == 4_000
+    assert result.report.estimated_input_tokens <= 4_000
 
 
 def test_generation_output_reserve_scales_with_case_count() -> None:
