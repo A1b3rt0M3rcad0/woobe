@@ -58,6 +58,42 @@ class EnrichedEvaluationApplicationService(HardenedEvaluationApplicationService)
             row.expected_contract = item["expected_contract"]
         return version
 
+    async def list_datasets(self, project_id: UUID) -> list[dict[str, Any]]:
+        payload = await super().list_datasets(project_id)
+        version_ids = [
+            UUID(str(item["current_version_id"]))
+            for item in payload
+            if item.get("current_version_id")
+        ]
+        if not version_ids:
+            return payload
+        async with self._session_factory() as session:
+            versions = list(
+                (
+                    await session.scalars(
+                        select(EvaluationDatasetVersionModel).where(
+                            EvaluationDatasetVersionModel.id.in_(version_ids),
+                            EvaluationDatasetVersionModel.project_id == project_id,
+                        )
+                    )
+                ).all()
+            )
+            by_id = {str(item.id): item for item in versions}
+            for item in payload:
+                version = by_id.get(str(item.get("current_version_id")))
+                if version is None:
+                    continue
+                item.update(
+                    {
+                        "authoring_source": version.authoring_source,
+                        "source_snapshot_hash": version.source_snapshot_hash,
+                        "source_context_hash": version.source_context_hash,
+                        "authoring_metadata": version.authoring_metadata,
+                        "reviewed_at": version.reviewed_at,
+                    }
+                )
+        return payload
+
     async def list_suites(self, project_id: UUID) -> list[dict[str, Any]]:
         payload = await super().list_suites(project_id)
         async with self._session_factory() as session:
@@ -83,6 +119,11 @@ class EnrichedEvaluationApplicationService(HardenedEvaluationApplicationService)
                 )
                 item.update(
                     {
+                        "dataset_id": (
+                            str(dataset_version.dataset_id)
+                            if dataset_version is not None
+                            else None
+                        ),
                         "deterministic_checks": version.deterministic_checks,
                         "case_count": case_count,
                         "authoring_source": (
@@ -154,6 +195,24 @@ class EnrichedEvaluationApplicationService(HardenedEvaluationApplicationService)
                         "reviewed_at": current.reviewed_at,
                     }
                 )
+                cases = list(
+                    (
+                        await session.scalars(
+                            select(EvaluationTestCaseModel).where(
+                                EvaluationTestCaseModel.dataset_version_id == current.id,
+                                EvaluationTestCaseModel.project_id == project_id,
+                            )
+                        )
+                    ).all()
+                )
+                cases_by_id = {str(item.id): item for item in cases}
+                for item in payload.get("cases", []):
+                    row = cases_by_id.get(str(item.get("id")))
+                    if row is not None:
+                        item["case_type"] = row.case_type
+                        item["expected_outcome"] = (
+                            (row.expected_contract or {}).get("expected_outcome")
+                        )
         return payload
 
     async def get_run(self, project_id: UUID, run_id: UUID) -> dict[str, Any]:
@@ -200,6 +259,9 @@ class EnrichedEvaluationApplicationService(HardenedEvaluationApplicationService)
                 )
                 if isinstance(item.get("case"), dict) and case is not None:
                     item["case"]["case_type"] = case.case_type
+                    item["case"]["expected_outcome"] = (
+                        (case.expected_contract or {}).get("expected_outcome")
+                    )
 
             calls = list(
                 (
