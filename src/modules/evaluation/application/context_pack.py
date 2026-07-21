@@ -82,27 +82,34 @@ def _uuid(value: Any) -> UUID | None:
         return None
 
 
-def _runtime_tool_ids(runtime_config: Any) -> set[UUID]:
+def _runtime_tool_refs(
+    runtime_config: Any,
+) -> tuple[set[UUID], dict[UUID, dict[str, Any]]]:
     if not isinstance(runtime_config, dict):
-        return set()
+        return set(), {}
     tools = runtime_config.get("tools")
     if not isinstance(tools, dict):
-        return set()
-    result: set[UUID] = set()
+        return set(), {}
+    ids: set[UUID] = set()
+    snapshots: dict[UUID, dict[str, Any]] = {}
     for raw in tools.get("tool_ids") or []:
         value = _uuid(raw)
         if value:
-            result.add(value)
-    for snapshot in tools.get("snapshots") or []:
-        if isinstance(snapshot, dict):
-            value = _uuid(snapshot.get("id"))
-            if value:
-                result.add(value)
-    return result
+            ids.add(value)
+    for raw_snapshot in tools.get("snapshots") or []:
+        if not isinstance(raw_snapshot, dict):
+            continue
+        value = _uuid(raw_snapshot.get("id"))
+        if value:
+            ids.add(value)
+            snapshots[value] = dict(raw_snapshot)
+    return ids, snapshots
 
 
-def _snapshot_refs(target: ResolvedEvaluationTarget) -> tuple[set[UUID], set[UUID]]:
-    tools = _runtime_tool_ids(target.snapshot.get("runtime_config"))
+def _snapshot_refs(
+    target: ResolvedEvaluationTarget,
+) -> tuple[set[UUID], dict[UUID, dict[str, Any]], set[UUID]]:
+    tools, tool_snapshots = _runtime_tool_refs(target.snapshot.get("runtime_config"))
     collections = {
         value
         for raw in target.snapshot.get("collection_ids") or []
@@ -115,13 +122,49 @@ def _snapshot_refs(target: ResolvedEvaluationTarget) -> tuple[set[UUID], set[UUI
                 continue
             override = binding.get("snapshot_override")
             if isinstance(override, dict):
-                tools.update(_runtime_tool_ids(override.get("runtime_config")))
+                binding_ids, binding_snapshots = _runtime_tool_refs(
+                    override.get("runtime_config")
+                )
+                tools.update(binding_ids)
+                tool_snapshots.update(binding_snapshots)
                 collections.update(
                     value
                     for raw in override.get("collection_ids") or []
                     if (value := _uuid(raw)) is not None
                 )
-    return tools, collections
+    return tools, tool_snapshots, collections
+
+
+def _snapshot_tool_payload(tool_id: UUID, snapshot: dict[str, Any]) -> dict[str, Any]:
+    risk = str(snapshot.get("risk_level") or "low").lower()
+    return {
+        "id": str(tool_id),
+        "name": str(snapshot.get("name") or tool_id),
+        "description": snapshot.get("description"),
+        "type": snapshot.get("type"),
+        "risk_level": risk,
+        "input_schema": _redact(snapshot.get("input_schema") or {}),
+        "output_schema": _redact(snapshot.get("output_schema") or {}),
+        "timeout_ms": snapshot.get("timeout_ms"),
+        "side_effects_possible": risk in {"medium", "high"},
+        "source": "immutable_snapshot",
+    }
+
+
+def _live_tool_payload(item: AgentToolModel) -> dict[str, Any]:
+    risk = str(item.risk_level or "low").lower()
+    return {
+        "id": str(item.id),
+        "name": item.name,
+        "description": item.description,
+        "type": item.type,
+        "risk_level": risk,
+        "input_schema": _redact(item.input_schema or {}),
+        "output_schema": _redact(item.output_schema or {}),
+        "timeout_ms": item.timeout_ms,
+        "side_effects_possible": risk in {"medium", "high"},
+        "source": "current_registry_fallback",
+    }
 
 
 def _objective_terms(objective: str) -> set[str]:
@@ -169,34 +212,30 @@ class EvaluationContextPackBuilder:
         if project_id is None:
             raise ValidationError("Unable to resolve Project ownership for Evaluation context")
 
-        tool_ids, collection_ids = _snapshot_refs(target)
-        tools: list[AgentToolModel] = []
-        if tool_ids:
-            tools = list(
+        tool_ids, tool_snapshots, collection_ids = _snapshot_refs(target)
+        tool_payload_by_id = {
+            tool_id: _snapshot_tool_payload(tool_id, snapshot)
+            for tool_id, snapshot in tool_snapshots.items()
+        }
+        live_ids = [tool_id for tool_id in tool_ids if tool_id not in tool_payload_by_id]
+        if live_ids:
+            live_tools = list(
                 (
                     await session.scalars(
                         select(AgentToolModel).where(
-                            AgentToolModel.id.in_(tool_ids),
+                            AgentToolModel.id.in_(live_ids),
                             AgentToolModel.project_id == project_id,
                             AgentToolModel.status == "active",
                         )
                     )
                 ).all()
             )
-        tool_payload = [
-            {
-                "id": str(item.id),
-                "name": item.name,
-                "description": item.description,
-                "type": item.type,
-                "risk_level": item.risk_level,
-                "input_schema": _redact(item.input_schema or {}),
-                "output_schema": _redact(item.output_schema or {}),
-                "timeout_ms": item.timeout_ms,
-                "side_effects_possible": item.risk_level in {"medium", "high"},
-            }
-            for item in tools
-        ]
+            for item in live_tools:
+                tool_payload_by_id[item.id] = _live_tool_payload(item)
+        tool_payload = sorted(
+            tool_payload_by_id.values(),
+            key=lambda item: (str(item.get("risk_level")), str(item.get("name"))),
+        )
 
         collection_payload: list[dict[str, Any]] = []
         sample_payload: list[dict[str, Any]] = []
