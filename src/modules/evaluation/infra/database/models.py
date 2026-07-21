@@ -28,12 +28,7 @@ class EvaluationDatasetModel(BaseModel):
     __tablename__ = "datasets"
     __table_args__ = (
         Index("ix_evaluation_datasets_project_status", "project_id", "status", "updated_at"),
-        Index(
-            "uq_evaluation_datasets_project_name",
-            "project_id",
-            text("lower(btrim(name))"),
-            unique=True,
-        ),
+        Index("uq_evaluation_datasets_project_name", "project_id", text("lower(btrim(name))"), unique=True),
         {"schema": "evaluation"},
     )
 
@@ -64,18 +59,17 @@ class EvaluationDatasetVersionModel(BaseModel):
 class EvaluationTestCaseModel(BaseModel):
     __tablename__ = "test_cases"
     __table_args__ = (
-        UniqueConstraint(
-            "dataset_version_id",
-            "position",
-            name="uq_evaluation_test_cases_position",
-        ),
+        UniqueConstraint("dataset_version_id", "position", name="uq_evaluation_test_cases_position"),
         Index("ix_evaluation_test_cases_version", "dataset_version_id", "position"),
+        CheckConstraint("weight > 0", name="ck_evaluation_test_cases_weight"),
+        CheckConstraint(
+            "production_frequency IS NULL OR (production_frequency >= 0 AND production_frequency <= 1)",
+            name="ck_evaluation_test_cases_frequency",
+        ),
         {"schema": "evaluation"},
     )
 
-    dataset_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.dataset_versions.id")
-    )
+    dataset_version_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.dataset_versions.id"))
     project_id: Mapped[UUID]
     position: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String(255))
@@ -93,12 +87,7 @@ class EvaluationSuiteModel(BaseModel):
     __tablename__ = "suites"
     __table_args__ = (
         Index("ix_evaluation_suites_project_status", "project_id", "status", "updated_at"),
-        Index(
-            "uq_evaluation_suites_project_name",
-            "project_id",
-            text("lower(btrim(name))"),
-            unique=True,
-        ),
+        Index("uq_evaluation_suites_project_name", "project_id", text("lower(btrim(name))"), unique=True),
         {"schema": "evaluation"},
     )
 
@@ -122,9 +111,7 @@ class EvaluationSuiteVersionModel(BaseModel):
     suite_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.suites.id"))
     project_id: Mapped[UUID]
     version: Mapped[str] = mapped_column(String(64))
-    dataset_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.dataset_versions.id")
-    )
+    dataset_version_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.dataset_versions.id"))
     judge_provider_model_id: Mapped[UUID]
     judge_config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     rubric: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -141,24 +128,28 @@ class EvaluationRunModel(BaseModel):
     __table_args__ = (
         Index("ix_evaluation_runs_project_created", "project_id", "created_at"),
         Index("ix_evaluation_runs_status_created", "status", "created_at"),
+        Index(
+            "uq_evaluation_runs_project_idempotency",
+            "project_id",
+            "request_idempotency_key",
+            unique=True,
+            postgresql_where=text("request_idempotency_key IS NOT NULL"),
+        ),
         CheckConstraint("repetitions BETWEEN 1 AND 25", name="ck_evaluation_runs_repetitions"),
         {"schema": "evaluation"},
     )
 
     project_id: Mapped[UUID]
-    suite_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.suite_versions.id")
-    )
+    suite_version_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.suite_versions.id"))
     mode: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="queued")
     repetitions: Mapped[int] = mapped_column(Integer, default=1)
     execution_order: Mapped[str] = mapped_column(String(32), default="paired_interleaved")
     randomization_seed: Mapped[int] = mapped_column(Integer)
+    request_idempotency_key: Mapped[str | None] = mapped_column(String(255))
     candidate_target_id: Mapped[UUID | None]
     baseline_target_id: Mapped[UUID | None]
-    parent_run_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("evaluation.runs.id"), nullable=True
-    )
+    parent_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("evaluation.runs.id"), nullable=True)
     requested_by: Mapped[UUID | None]
     qualification_status: Mapped[str | None] = mapped_column(String(64))
     overall_score: Mapped[float | None] = mapped_column(Float)
@@ -203,13 +194,7 @@ class EvaluationTargetModel(BaseModel):
 class EvaluationTrialModel(BaseModel):
     __tablename__ = "trials"
     __table_args__ = (
-        UniqueConstraint(
-            "evaluation_run_id",
-            "evaluation_target_id",
-            "test_case_id",
-            "repetition",
-            name="uq_evaluation_trials_identity",
-        ),
+        UniqueConstraint("evaluation_run_id", "evaluation_target_id", "test_case_id", "repetition", name="uq_evaluation_trials_identity"),
         Index("ix_evaluation_trials_run_status", "evaluation_run_id", "status", "created_at"),
         Index("ix_evaluation_trials_pair", "evaluation_run_id", "pair_key"),
         {"schema": "evaluation"},
@@ -223,6 +208,7 @@ class EvaluationTrialModel(BaseModel):
     pair_key: Mapped[str] = mapped_column(String(255))
     execution_order: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempt: Mapped[int] = mapped_column(Integer, default=0)
     agent_run_id: Mapped[UUID | None]
     network_execution_id: Mapped[UUID | None]
     root_trace_id: Mapped[UUID | None]
@@ -233,19 +219,21 @@ class EvaluationTrialModel(BaseModel):
     failure_code: Mapped[str | None] = mapped_column(String(128))
     failure_detail: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    runtime_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    judge_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    judge_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EvaluationCheckResultModel(BaseModel):
     __tablename__ = "check_results"
     __table_args__ = (
+        UniqueConstraint("evaluation_trial_id", "evaluator_type", "evaluator_key", name="uq_evaluation_check_results_identity"),
         Index("ix_evaluation_check_results_trial", "evaluation_trial_id", "created_at"),
         {"schema": "evaluation"},
     )
 
-    evaluation_trial_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.trials.id")
-    )
+    evaluation_trial_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.trials.id"))
     project_id: Mapped[UUID]
     evaluator_key: Mapped[str] = mapped_column(String(128))
     evaluator_type: Mapped[str] = mapped_column(String(32))
@@ -261,6 +249,7 @@ class EvaluationCheckResultModel(BaseModel):
 class EvaluatorModelCallModel(BaseModel):
     __tablename__ = "model_calls"
     __table_args__ = (
+        UniqueConstraint("evaluation_trial_id", name="uq_evaluation_model_calls_trial"),
         Index("ix_evaluation_model_calls_run", "evaluation_run_id", "created_at"),
         Index("ix_evaluation_model_calls_trial", "evaluation_trial_id"),
         {"schema": "evaluation"},
@@ -292,6 +281,7 @@ class EvaluatorModelCallModel(BaseModel):
 class EstimateRunModel(BaseModel):
     __tablename__ = "estimate_runs"
     __table_args__ = (
+        UniqueConstraint("evaluation_run_id", "target_id", name="uq_evaluation_estimates_run_target"),
         Index("ix_evaluation_estimates_run", "evaluation_run_id", "created_at"),
         {"schema": "evaluation"},
     )
@@ -313,13 +303,8 @@ class EstimateRunModel(BaseModel):
 class ReleaseQualificationModel(BaseModel):
     __tablename__ = "release_qualifications"
     __table_args__ = (
-        Index(
-            "ix_evaluation_qualifications_target",
-            "project_id",
-            "target_type",
-            "entity_id",
-            "created_at",
-        ),
+        UniqueConstraint("evaluation_run_id", "target_snapshot_hash", name="uq_evaluation_qualification_run_target"),
+        Index("ix_evaluation_qualifications_target", "project_id", "target_type", "entity_id", "created_at"),
         Index("ix_evaluation_qualifications_snapshot", "project_id", "target_snapshot_hash"),
         {"schema": "evaluation"},
     )
@@ -330,12 +315,8 @@ class ReleaseQualificationModel(BaseModel):
     target_snapshot_hash: Mapped[str] = mapped_column(String(64))
     agent_release_id: Mapped[UUID | None]
     network_version_id: Mapped[UUID | None]
-    suite_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.suite_versions.id")
-    )
-    dataset_version_id: Mapped[UUID] = mapped_column(
-        ForeignKey("evaluation.dataset_versions.id")
-    )
+    suite_version_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.suite_versions.id"))
+    dataset_version_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.dataset_versions.id"))
     evaluation_run_id: Mapped[UUID] = mapped_column(ForeignKey("evaluation.runs.id"))
     status: Mapped[str] = mapped_column(String(64))
     score: Mapped[float | None] = mapped_column(Float)
