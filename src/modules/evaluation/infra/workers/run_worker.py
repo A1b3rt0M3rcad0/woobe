@@ -13,6 +13,10 @@ from modules.evaluation.application.processor import (
     _message_from_case,
     _utc_now,
 )
+from modules.evaluation.application.runtime_gateway import (
+    EvaluationNetworkRuntimeGateway,
+    EvaluationRuntimeCancelled,
+)
 from modules.evaluation.domain.enums import (
     EvaluationRunStatus,
     EvaluationTrialStatus,
@@ -23,12 +27,32 @@ from modules.evaluation.infra.database.models import (
     EvaluationTestCaseModel,
     EvaluationTrialModel,
 )
+from modules.observability.infra.database.models import TraceModel
 from shared.infra.config import Settings
 
 
 class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
+    def __init__(
+        self,
+        session_factory: async_sessionmaker,
+        *,
+        settings: Settings | None = None,
+    ) -> None:
+        super().__init__(session_factory, settings=settings)
+        self._network_gateway = EvaluationNetworkRuntimeGateway(session_factory)
+
     async def _prepare_trials(self, run_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
+            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
+            if run is not None and run.mode == "absolute":
+                target = await session.scalar(
+                    select(EvaluationTargetModel).where(
+                        EvaluationTargetModel.evaluation_run_id == run.id,
+                        EvaluationTargetModel.side == "single",
+                    )
+                )
+                if target is not None:
+                    target.side = "candidate"
             await session.execute(
                 update(EvaluationTrialModel)
                 .where(
@@ -41,6 +65,7 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                         }
                     ),
                     EvaluationTrialModel.completed_at.is_(None),
+                    EvaluationTrialModel.network_execution_id.is_(None),
                 )
                 .values(
                     status=EvaluationTrialStatus.PENDING.value,
@@ -64,6 +89,7 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
         target: EvaluationTargetModel,
         case: EvaluationTestCaseModel,
     ) -> tuple[dict[str, Any], dict[str, Any], None, UUID | None]:
+        await self._ensure_not_cancelled(trial.evaluation_run_id)
         started = _utc_now()
         result = await self._agent_invoker.invoke(
             project_id=trial.project_id,
@@ -80,52 +106,119 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 "evaluation_trial_id": str(trial.id),
                 "comparison_pair_id": trial.pair_key,
                 "target_side": target.side,
+                "initial_context": case.initial_context,
             },
         )
         elapsed_ms = round((_utc_now() - started).total_seconds() * 1000)
         usage = result.usage or {}
+        trace = None
+        if result.trace_id is not None:
+            async with self._session_factory() as session:
+                trace = await session.get(TraceModel, result.trace_id)
         output = {
             "answer": result.answer,
             "parsed_output": result.parsed_output,
             "output_parse_error": result.output_parse_error,
-            "tool_calls": result.tool_calls,
-            "sources": result.sources,
+            "tool_calls": result.tool_calls or [],
+            "sources": result.sources or [],
         }
         metrics = {
-            "latency_ms": elapsed_ms,
-            "cost_usd": usage.get("cost_usd"),
+            "latency_ms": (
+                trace.total_latency_ms
+                if trace is not None and trace.total_latency_ms is not None
+                else elapsed_ms
+            ),
+            "cost_usd": (
+                trace.total_cost_usd
+                if trace is not None and trace.total_cost_usd is not None
+                else usage.get("cost_usd")
+            ),
             "input_tokens": usage.get("input_tokens"),
             "output_tokens": usage.get("output_tokens"),
-            "tool_call_count": len(result.tool_calls),
-            "source_count": len(result.sources),
-            "fallback_used": False,
+            "tool_call_count": len(result.tool_calls or []),
+            "source_count": len(result.sources or []),
+            "fallback_used": bool(trace.fallback_used) if trace is not None else None,
             "agent_run_count": 1,
             "provider": result.provider,
             "model": result.model,
+            "pricing_coverage": (
+                "complete"
+                if trace is not None and trace.total_cost_usd is not None
+                else "partial"
+                if usage.get("cost_usd") is not None
+                else "unknown"
+            ),
             "run_purpose": "evaluation",
             "evaluation_run_id": str(trial.evaluation_run_id),
             "evaluation_trial_id": str(trial.id),
             "comparison_pair_id": trial.pair_key,
             "target_side": target.side,
+            "case_weight": float(case.weight or 1.0),
+            "production_frequency": case.production_frequency,
+            "case_severity": case.severity,
+            "case_blocking": bool(case.blocking),
         }
-        # Direct Agent execution does not yet have a canonical persisted AgentRun row.
-        # The Evaluation Trial and real Trace are the stable identities; never expose a
-        # synthetic UUID as if it were an operational Run.
         return output, metrics, None, result.trace_id
 
+    async def _execute_network(
+        self,
+        trial: EvaluationTrialModel,
+        target: EvaluationTargetModel,
+        case: EvaluationTestCaseModel,
+    ) -> tuple[dict[str, Any], dict[str, Any], UUID, UUID | None]:
+        evidence = await self._network_gateway.execute(
+            evaluation_run_id=trial.evaluation_run_id,
+            evaluation_trial_id=trial.id,
+            pair_key=trial.pair_key,
+            target_side=target.side,
+            project_id=trial.project_id,
+            target=target,
+            message=_message_from_case(case),
+            initial_context=case.initial_context,
+        )
+        metrics = {
+            **evidence.metrics,
+            "evaluation_run_id": str(trial.evaluation_run_id),
+            "evaluation_trial_id": str(trial.id),
+            "comparison_pair_id": trial.pair_key,
+            "target_side": target.side,
+            "case_weight": float(case.weight or 1.0),
+            "production_frequency": case.production_frequency,
+            "case_severity": case.severity,
+            "case_blocking": bool(case.blocking),
+        }
+        return (
+            evidence.output,
+            metrics,
+            evidence.network_execution_id,
+            evidence.root_trace_id,
+        )
+
     async def _aggregate(self, run_id: UUID) -> None:
-        async with self._session_factory() as session, session.begin():
-            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
-            if run is not None and run.mode == "absolute":
-                target = await session.scalar(
-                    select(EvaluationTargetModel).where(
-                        EvaluationTargetModel.evaluation_run_id == run.id,
-                        EvaluationTargetModel.side == "single",
-                    )
-                )
-                if target is not None:
-                    target.side = "candidate"
+        preserved: dict[str, Any] = {}
+        async with self._session_factory() as session:
+            run = await session.get(EvaluationRunModel, run_id)
+            if run is not None and isinstance(run.aggregate_result, dict):
+                preserved = {
+                    key: run.aggregate_result[key]
+                    for key in ("_request", "preflight")
+                    if key in run.aggregate_result
+                }
         await super()._aggregate(run_id)
+        if preserved:
+            async with self._session_factory() as session, session.begin():
+                run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
+                if run is not None:
+                    run.aggregate_result = {
+                        **preserved,
+                        **(run.aggregate_result or {}),
+                    }
+
+    async def _ensure_not_cancelled(self, run_id: UUID) -> None:
+        async with self._session_factory() as session:
+            run = await session.get(EvaluationRunModel, run_id)
+            if run is not None and run.cancel_requested_at is not None:
+                raise EvaluationRuntimeCancelled("Evaluation Run was cancelled")
 
 
 class ResumableEvaluationRunWorker(EvaluationRunWorker):
