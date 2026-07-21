@@ -62,6 +62,42 @@ def _apply_child_permissions(items: Any, raw_permissions: dict[str, Any], *, key
     return changed
 
 
+def _collect_child_permissions(items: Any, *, keys: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    if not isinstance(items, list):
+        return {}
+    permissions: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        identifier = next(
+            (
+                str(item.get(key) or "").strip()
+                for key in keys
+                if str(item.get(key) or "").strip()
+            ),
+            None,
+        )
+        if not identifier:
+            continue
+        permissions[identifier] = normalize_permission(item.get("permission"))
+    return permissions
+
+
+def _tool_child_permissions(tool: Tool) -> dict[str, dict[str, Any]]:
+    config = tool.config or {}
+    permissions = _collect_child_permissions(
+        config.get("discovered_tools"),
+        keys=("name",),
+    )
+    permissions.update(
+        _collect_child_permissions(
+            config.get("routes"),
+            keys=("id", "operation_id"),
+        )
+    )
+    return permissions
+
+
 def tool_with_permission_overrides(tool: Tool, raw_permissions: Any) -> Tool:
     if not isinstance(raw_permissions, dict):
         return tool
@@ -177,6 +213,7 @@ async def build_release_tool_runtime(
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     previous_snapshot_map = _snapshot_index(previous_snapshots)
     snapshots: list[dict[str, Any]] = []
+    effective_permissions: dict[str, dict[str, dict[str, Any]]] = {}
     for tool_id in ordered_ids:
         try:
             live_tool = await tool_repo.get_by_id(tool_id)
@@ -199,5 +236,10 @@ async def build_release_tool_runtime(
                 raise ValidationError("Draft tool snapshot does not belong to this Project")
         effective_tool = tool_with_permission_overrides(source_tool, permission_map.get(str(tool_id)))
         snapshots.append(tool_to_release_snapshot(effective_tool))
+        effective_permissions[str(tool_id)] = _tool_child_permissions(effective_tool)
 
-    return {"tool_ids": [str(tool_id) for tool_id in ordered_ids], "snapshots": snapshots}
+    return {
+        "tool_ids": [str(tool_id) for tool_id in ordered_ids],
+        "permissions": effective_permissions,
+        "snapshots": snapshots,
+    }
