@@ -1,5 +1,6 @@
 import { get, post } from '@/lib/api/client'
 import type {
+  CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
   CreateEvaluationSuiteInput,
@@ -8,7 +9,13 @@ import type {
   EvaluationQualification,
   EvaluationRun,
   EvaluationSuite,
+  EvaluationTargetInput,
   EvaluationTargetType,
+  GenerateSuiteDraftInput,
+  GeneratedSuiteDraft,
+  SuiteContextPreview,
+  SuiteValidationResult,
+  EvaluatorSuiteDraft,
 } from './types'
 
 function base(projectId: string) {
@@ -51,6 +58,25 @@ export function createEvaluationSuiteVersion(
   return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, input)
 }
 
+export function previewSuiteAuthoringContext(
+  projectId: string,
+  input: Pick<GenerateSuiteDraftInput, 'target' | 'generator_provider_model_id' | 'objective' | 'case_count' | 'maximum_input_tokens'>,
+) {
+  return post<SuiteContextPreview>(`${base(projectId)}/suite-authoring/context-preview`, input)
+}
+
+export function generateEvaluatorSuiteDraft(projectId: string, input: GenerateSuiteDraftInput) {
+  return post<GeneratedSuiteDraft>(`${base(projectId)}/suite-authoring/generate`, input)
+}
+
+export function validateEvaluatorSuiteDraft(projectId: string, draft: EvaluatorSuiteDraft) {
+  return post<SuiteValidationResult>(`${base(projectId)}/suite-authoring/validate`, { draft })
+}
+
+export function createComposedEvaluatorSuite(projectId: string, input: CreateComposedSuiteInput) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/composed`, input)
+}
+
 export function getEvaluationRuns(projectId: string) {
   return get<EvaluationRun[]>(`${base(projectId)}/runs`)
 }
@@ -83,3 +109,5 @@ export function getEvaluationQualifications(
   const suffix = queryString ? `?${queryString}` : ''
   return get<EvaluationQualification[]>(`${base(projectId)}/qualifications${suffix}`)
 }
+
+export type { EvaluationTargetInput }
