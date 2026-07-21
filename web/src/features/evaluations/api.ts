@@ -79,6 +79,7 @@ export function getEvaluationQualifications(
   const query = new URLSearchParams()
   if (targetType) query.set('target_type', targetType)
   if (entityId) query.set('entity_id', entityId)
-  const suffix = query.size ? `?${query.toString()}` : ''
+  const queryString = query.toString()
+  const suffix = queryString ? `?${queryString}` : ''
   return get<EvaluationQualification[]>(`${base(projectId)}/qualifications${suffix}`)
 }
