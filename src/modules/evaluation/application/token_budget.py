@@ -90,7 +90,10 @@ def _compact_value(value: Any, target_tokens: int, *, depth: int = 0) -> Any:
             return []
         maximum_items = max(1, min(len(value), target_tokens // 40 or 1))
         per_item = max(20, target_tokens // maximum_items)
-        result = [_compact_value(item, per_item, depth=depth + 1) for item in value[:maximum_items]]
+        result = [
+            _compact_value(item, per_item, depth=depth + 1)
+            for item in value[:maximum_items]
+        ]
         if maximum_items < len(value):
             result.append({"truncated_items": len(value) - maximum_items})
         return result
@@ -115,10 +118,13 @@ def budget_sections(
     context_window: int | None = None,
 ) -> BudgetedPayload:
     window = max(int(context_window or 32_000), 4096)
-    hard_input_limit = min(
-        max(int(maximum_input_tokens), 1000),
-        max(window - max(reserved_output_tokens, 128) - max(safety_margin_tokens, 0), 1000),
-    )
+    safety_margin = max(int(safety_margin_tokens), 0)
+    output_reserve = max(int(reserved_output_tokens), 128)
+    configured_input_limit = max(int(maximum_input_tokens), 1000)
+    configured_payload_limit = max(configured_input_limit - safety_margin, 1000)
+    window_payload_limit = max(window - output_reserve - safety_margin, 1000)
+    hard_input_limit = min(configured_payload_limit, window_payload_limit)
+
     normalized = list(sections)
     total_weight = sum(max(weight, 1) for _, _, weight, _ in normalized)
     payload: dict[str, Any] = {}
@@ -131,7 +137,10 @@ def budget_sections(
     remaining = hard_input_limit
 
     for name, value, weight, _ in required:
-        desired = max(required_floor, hard_input_limit * max(weight, 1) // max(total_weight, 1))
+        desired = max(
+            required_floor,
+            hard_input_limit * max(weight, 1) // max(total_weight, 1),
+        )
         desired = min(desired, remaining)
         compacted = _compact_value(value, desired)
         used = estimate_tokens(compacted)
@@ -170,8 +179,8 @@ def budget_sections(
     report = TokenBudgetReport(
         estimated_input_tokens=estimated,
         maximum_input_tokens=hard_input_limit,
-        reserved_output_tokens=reserved_output_tokens,
-        safety_margin_tokens=safety_margin_tokens,
+        reserved_output_tokens=output_reserve,
+        safety_margin_tokens=safety_margin,
         truncation_applied=bool(truncated),
         truncated_sections=tuple(dict.fromkeys(truncated)),
         preserved_sections=tuple(dict.fromkeys(preserved)),
