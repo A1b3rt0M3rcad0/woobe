@@ -3,7 +3,7 @@ from __future__ import annotations
 import mimetypes
 import zipfile
 from io import BytesIO
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 
 from modules.agent.application.dtos.knowledge_dtos import (
     UploadDocumentFileInput,
