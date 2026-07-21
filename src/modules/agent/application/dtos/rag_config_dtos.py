@@ -13,8 +13,11 @@ GroundingPolicy = Literal["optional", "required"]
 
 
 class RAGParserConfig(BaseModel):
+    implementation: str = "woobe-document-parser"
+    version: str = "2"
     normalize_whitespace: bool = True
     preserve_page_boundaries: bool = True
+    include_docx_tables: bool = True
 
 
 class RAGChunkingConfig(BaseModel):
