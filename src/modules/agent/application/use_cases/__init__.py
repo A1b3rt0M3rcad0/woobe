@@ -53,10 +53,10 @@ from modules.agent.application.use_cases.knowledge_use_cases import (
     ListDocumentsUseCase,
     ListKnowledgeVersionsUseCase,
     SearchChunksUseCase,
-    UploadDocumentUseCase,
 )
 from modules.agent.application.use_cases.validated_document_upload_use_case import (
     UploadDocumentFileUseCase,
+    UploadDocumentUseCase,
 )
 from modules.agent.application.use_cases.runtime_use_cases import (
     CreateAskJobUseCase,
