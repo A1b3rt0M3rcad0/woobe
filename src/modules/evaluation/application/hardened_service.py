@@ -56,6 +56,11 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
             suite = await session.get(EvaluationSuiteVersionModel, suite_version_id)
             if suite is None or suite.project_id != project_id:
                 raise NotFoundError("Evaluation Suite version not found")
+            suite_root = await session.get(EvaluationSuiteModel, suite.suite_id)
+            if suite_root is None or suite_root.project_id != project_id:
+                raise NotFoundError("Evaluation Suite not found")
+            if suite_root.status == "archived":
+                raise ConflictError("Archived Evaluation Suite cannot start new Runs")
             maximum_repetitions = int(
                 (suite.repetition_policy or {}).get("maximum_repetitions", 25)
             )
@@ -159,6 +164,8 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 suite_root = await session.get(EvaluationSuiteModel, suite.suite_id)
                 if suite_root is None or suite_root.project_id != project_id:
                     raise NotFoundError("Evaluation Suite not found")
+                if suite_root.status == "archived":
+                    raise ConflictError("Archived Evaluation Suite cannot start new Runs")
                 candidate_target = await self._resolve_target_dict(
                     session,
                     project_id=project_id,
@@ -203,6 +210,10 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                     status=EvaluationRunStatus.QUEUED.value,
                     repetitions=repetitions,
                     execution_order="paired_interleaved",
+                    execution_policy={
+                        "requested_parallel_pairs": 3,
+                        "pair_members_serialized": True,
+                    },
                     randomization_seed=random.SystemRandom().randint(1, 2_147_483_647),
                     request_idempotency_key=normalized_key,
                     requested_by=requested_by,
