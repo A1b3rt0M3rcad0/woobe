@@ -6,6 +6,7 @@ def test_evaluation_migrations_are_linear() -> None:
     hardening = import_module("migrations.versions.0055_evaluation_execution_hardening")
     attribution = import_module("migrations.versions.0056_evaluation_runtime_attribution")
     authoring = import_module("migrations.versions.0057_evaluation_suite_authoring")
+    completion = import_module("migrations.versions.0058_evaluation_operational_completion")
 
     assert base.revision == "0054"
     assert base.down_revision == "0053"
@@ -15,3 +16,5 @@ def test_evaluation_migrations_are_linear() -> None:
     assert attribution.down_revision == "0055"
     assert authoring.revision == "0057"
     assert authoring.down_revision == "0056"
+    assert completion.revision == "0058"
+    assert completion.down_revision == "0057"
