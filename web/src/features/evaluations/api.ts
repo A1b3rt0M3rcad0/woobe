@@ -41,6 +41,14 @@ export function createEvaluationSuite(projectId: string, input: CreateEvaluation
   return post<EvaluationSuite>(`${base(projectId)}/suites`, input)
 }
 
+export function createEvaluationSuiteVersion(
+  projectId: string,
+  suiteId: string,
+  input: Omit<CreateEvaluationSuiteInput, 'name' | 'description' | 'target_type'>,
+) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, input)
+}
+
 export function getEvaluationRuns(projectId: string) {
   return get<EvaluationRun[]>(`${base(projectId)}/runs`)
 }
