@@ -33,6 +33,11 @@ class UsageEvent:
     trace_id: UUID | None = None
     call_id: str | None = None
     environment: str | None = None
+    run_purpose: str = "operational"
+    evaluation_run_id: UUID | None = None
+    evaluation_trial_id: UUID | None = None
+    comparison_pair_id: str | None = None
+    target_side: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
     provider: str | None = None
@@ -61,6 +66,19 @@ class UsageEvent:
         self.network_version_id = self.network_version_id or _uuid(
             payload.get("network_version_id")
         )
+        self.run_purpose = str(
+            self.run_purpose or payload.get("run_purpose") or "operational"
+        )
+        self.evaluation_run_id = self.evaluation_run_id or _uuid(
+            payload.get("evaluation_run_id")
+        )
+        self.evaluation_trial_id = self.evaluation_trial_id or _uuid(
+            payload.get("evaluation_trial_id")
+        )
+        self.comparison_pair_id = self.comparison_pair_id or payload.get(
+            "comparison_pair_id"
+        )
+        self.target_side = self.target_side or payload.get("target_side")
 
 
 @dataclass
