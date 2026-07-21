@@ -6,12 +6,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from pypdf import PdfWriter
 
+from modules.agent.application.dtos.knowledge_dtos import UploadDocumentFileInput
 from modules.agent.application.services.rag.document_parser import DocumentParser
 from modules.agent.application.use_cases.validated_document_upload_use_case import (
     UploadDocumentFileUseCase,
 )
-from modules.agent.application.dtos.knowledge_dtos import UploadDocumentFileInput
 from modules.agent.domain.entities import DocumentCollection
 from modules.agent.domain.enums import ParserType
 from shared.infra.errors import NotFoundError, ValidationError
@@ -47,6 +48,14 @@ def _docx_bytes(document_xml: str = _WORD_DOCUMENT) -> bytes:
             "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"/>",
         )
         package.writestr("word/document.xml", document_xml)
+    return buffer.getvalue()
+
+
+def _blank_pdf_bytes() -> bytes:
+    buffer = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    writer.write(buffer)
     return buffer.getvalue()
 
 
@@ -100,6 +109,15 @@ def test_docx_parser_rejects_documents_without_extractable_text() -> None:
         )
 
 
+def test_pdf_parser_reports_scanned_or_empty_documents() -> None:
+    with pytest.raises(ValidationError, match="scanned PDFs require OCR"):
+        DocumentParser().parse(
+            content=_blank_pdf_bytes(),
+            parser=ParserType.PDF,
+            file_name="scan.pdf",
+        )
+
+
 def test_docx_upload_validation_checks_package_structure() -> None:
     use_case = _upload_use_case()
 
@@ -116,6 +134,14 @@ def test_docx_upload_validation_checks_package_structure() -> None:
 
     with pytest.raises(ValidationError, match="valid DOCX"):
         use_case._validate_content(b"not-a-docx", ".docx")
+
+
+def test_pdf_upload_validation_checks_magic_bytes() -> None:
+    use_case = _upload_use_case()
+
+    use_case._validate_content(_blank_pdf_bytes(), ".pdf")
+    with pytest.raises(ValidationError, match="valid PDF"):
+        use_case._validate_content(b"not-a-pdf", ".pdf")
 
 
 def test_docx_upload_validation_rejects_excessive_package_entries() -> None:
