@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -29,6 +30,16 @@ def _now() -> datetime:
 
 class ConcurrentOutcomeAwareEvaluationRunProcessor(OutcomeAwareEvaluationRunProcessor):
     """Runs different pair groups concurrently while serializing each pair."""
+
+    def __init__(
+        self,
+        session_factory: async_sessionmaker,
+        *,
+        settings: Settings | None = None,
+    ) -> None:
+        super().__init__(session_factory, settings=settings)
+        self._judge_semaphore = asyncio.Semaphore(2)
+        self._judge_slots: set[UUID] = set()
 
     async def process(self, run_id: UUID) -> None:
         await self._prepare_trials(run_id)
@@ -68,11 +79,25 @@ class ConcurrentOutcomeAwareEvaluationRunProcessor(OutcomeAwareEvaluationRunProc
                 ).all()
             )
             request = run.execution_policy or {}
-            requested = max(1, min(int(request.get("requested_parallel_pairs") or 3), 5))
+            requested = max(
+                1,
+                min(int(request.get("requested_parallel_pairs") or 3), 5),
+            )
             aggregate = run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
-            preflight = aggregate.get("preflight") if isinstance(aggregate.get("preflight"), dict) else {}
-            risk_counts = preflight.get("risk_counts") if isinstance(preflight.get("risk_counts"), dict) else {}
-            if int(risk_counts.get("medium") or 0) > 0 or int(risk_counts.get("high") or 0) > 0:
+            preflight = (
+                aggregate.get("preflight")
+                if isinstance(aggregate.get("preflight"), dict)
+                else {}
+            )
+            risk_counts = (
+                preflight.get("risk_counts")
+                if isinstance(preflight.get("risk_counts"), dict)
+                else {}
+            )
+            if (
+                int(risk_counts.get("medium") or 0) > 0
+                or int(risk_counts.get("high") or 0) > 0
+            ):
                 effective = 1
                 reason = "side_effecting_tools"
             elif any(item.target_type == "network" for item in targets):
@@ -85,60 +110,105 @@ class ConcurrentOutcomeAwareEvaluationRunProcessor(OutcomeAwareEvaluationRunProc
                 **request,
                 "requested_parallel_pairs": requested,
                 "effective_parallel_pairs": effective,
+                "maximum_concurrent_judges": 2,
                 "reason": reason,
                 "pair_members_serialized": True,
             }
             return effective
 
     async def _mark_judge_started(self, trial_id: UUID) -> None:
-        async with self._session_factory() as session:
-            trial = await session.get(EvaluationTrialModel, trial_id)
-            run = (
-                await session.get(EvaluationRunModel, trial.evaluation_run_id)
-                if trial is not None
-                else None
-            )
-            if run is not None and run.cancel_requested_at is not None:
-                raise EvaluationRuntimeCancelled("Evaluation Run was cancelled before Judge execution")
-        await super()._mark_judge_started(trial_id)
+        await self._judge_semaphore.acquire()
+        self._judge_slots.add(trial_id)
+        try:
+            async with self._session_factory() as session:
+                trial = await session.get(EvaluationTrialModel, trial_id)
+                run = (
+                    await session.get(EvaluationRunModel, trial.evaluation_run_id)
+                    if trial is not None
+                    else None
+                )
+                if run is not None and run.cancel_requested_at is not None:
+                    raise EvaluationRuntimeCancelled(
+                        "Evaluation Run was cancelled before Judge execution"
+                    )
+            await super()._mark_judge_started(trial_id)
+        except Exception:
+            self._release_judge_slot(trial_id)
+            raise
 
     async def _persist_final_result(self, **kwargs) -> None:
         trial = kwargs["trial"]
-        await super()._persist_final_result(**kwargs)
-        async with self._session_factory() as session, session.begin():
-            call = await session.scalar(
-                select(EvaluatorModelCallModel).where(
-                    EvaluatorModelCallModel.evaluation_trial_id == trial.id
+        try:
+            await super()._persist_final_result(**kwargs)
+            async with self._session_factory() as session, session.begin():
+                call = await session.scalar(
+                    select(EvaluatorModelCallModel).where(
+                        EvaluatorModelCallModel.evaluation_trial_id == trial.id
+                    )
                 )
+                if call is not None:
+                    await record_evaluation_model_usage(
+                        session,
+                        source_id=call.id,
+                        project_id=call.project_id,
+                        usage_subtype="judge",
+                        provider=call.provider,
+                        model=call.model,
+                        provider_model_id=call.provider_model_id,
+                        input_tokens=call.input_tokens,
+                        output_tokens=call.output_tokens,
+                        cost_usd=(
+                            float(call.cost_usd)
+                            if call.cost_usd is not None
+                            else None
+                        ),
+                        pricing_snapshot=call.pricing_snapshot,
+                        evaluation_run_id=call.evaluation_run_id,
+                        evaluation_trial_id=call.evaluation_trial_id,
+                        data={"judge_status": call.status},
+                    )
+        finally:
+            self._release_judge_slot(trial.id)
+
+    async def _persist_inconclusive_outcome(
+        self,
+        trial_id: UUID,
+        observed: dict[str, Any],
+        output: dict[str, Any],
+        metrics: dict[str, Any],
+    ) -> None:
+        try:
+            await super()._persist_inconclusive_outcome(
+                trial_id,
+                observed,
+                output,
+                metrics,
             )
-            if call is not None:
-                await record_evaluation_model_usage(
-                    session,
-                    source_id=call.id,
-                    project_id=call.project_id,
-                    usage_subtype="judge",
-                    provider=call.provider,
-                    model=call.model,
-                    provider_model_id=call.provider_model_id,
-                    input_tokens=call.input_tokens,
-                    output_tokens=call.output_tokens,
-                    cost_usd=float(call.cost_usd) if call.cost_usd is not None else None,
-                    pricing_snapshot=call.pricing_snapshot,
-                    evaluation_run_id=call.evaluation_run_id,
-                    evaluation_trial_id=call.evaluation_trial_id,
-                    data={"judge_status": call.status},
-                )
+        finally:
+            self._release_judge_slot(trial_id)
+
+    def _release_judge_slot(self, trial_id: UUID) -> None:
+        if trial_id in self._judge_slots:
+            self._judge_slots.remove(trial_id)
+            self._judge_semaphore.release()
 
     async def _mark_trial_cancelled(self, trial_id: UUID, detail: str) -> None:
-        async with self._session_factory() as session, session.begin():
-            row = await session.get(EvaluationTrialModel, trial_id, with_for_update=True)
-            if row is not None:
-                row.status = EvaluationTrialStatus.CANCELLED.value
-                row.failure_code = "evaluation_cancelled"
-                row.failure_detail = detail[:2000]
-                row.score = None
-                row.passed = None
-                row.completed_at = _now()
+        try:
+            async with self._session_factory() as session, session.begin():
+                row = await session.get(
+                    EvaluationTrialModel,
+                    trial_id,
+                    with_for_update=True,
+                )
+                if row is not None:
+                    row.status = EvaluationTrialStatus.CANCELLED.value
+                    row.failure_code = "evaluation_cancelled"
+                    row.failure_detail = detail[:2000]
+                    row.score = None
+                    row.passed = None
+                    row.completed_at = _now()
+        finally:
+            self._release_judge_slot(trial_id)
 
     async def _run_cancelled(self, run_id: UUID) -> bool:
         async with self._session_factory() as session:
@@ -182,7 +252,11 @@ class ConcurrentOutcomeAwareEvaluationRunProcessor(OutcomeAwareEvaluationRunProc
                 run.completed_at = _now()
                 run.lease_owner = None
                 run.lease_expires_at = None
-                aggregate = run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
+                aggregate = (
+                    run.aggregate_result
+                    if isinstance(run.aggregate_result, dict)
+                    else {}
+                )
                 run.aggregate_result = {
                     **aggregate,
                     "cancellation": {
