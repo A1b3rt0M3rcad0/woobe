@@ -32,6 +32,11 @@ class RequestExecutionContext:
     strict_json: bool = False
     execution: InstrumentedExecution | None = None
     execution_context: str | None = None
+    run_purpose: str = "operational"
+    evaluation_run_id: UUID | None = None
+    evaluation_trial_id: UUID | None = None
+    comparison_pair_id: str | None = None
+    target_side: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
     rag_metadata: dict[str, Any] | None = None
