@@ -29,6 +29,7 @@ import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
+import EvaluationsPage from '@/pages/EvaluationsPage'
 import BillingPage from '@/pages/BillingPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
@@ -239,6 +240,7 @@ export function AppRouter() {
             <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/evaluations" element={<EvaluationsPage />} />
           </Route>
 
           <Route path="/mcp/oauth/callback" element={<McpConnectCallbackPage />} />
@@ -260,6 +262,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/api-keys" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/evaluations" element={<LegacyProjectRedirect />} />
 
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
