@@ -4,8 +4,9 @@ export type McpToolPermissionMode = ToolChildPermissionMode
 
 export interface HttpHeader {
   key: string
-  value: string
+  value?: string
   sensitive?: boolean
+  mode?: 'set' | 'remove'
 }
 
 export interface HttpAuth {
@@ -22,7 +23,7 @@ export type McpToolPermission = ToolChildPermission
 
 export interface HttpRouteConfig {
   id: string
-  operation_id: string
+  operation_id?: string
   name: string
   description: string
   method: string
