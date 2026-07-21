@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   cancelEvaluationRun,
   createEvaluationDataset,
+  createEvaluationDatasetVersion,
   createEvaluationRun,
   createEvaluationSuite,
+  createEvaluationSuiteVersion,
+  getEvaluationDataset,
   getEvaluationDatasets,
   getEvaluationRun,
   getEvaluationRuns,
@@ -30,6 +33,14 @@ export function useEvaluationDatasets(projectId?: string) {
     queryKey: ['evaluation-datasets', projectId],
     queryFn: () => getEvaluationDatasets(projectId as string),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useEvaluationDataset(projectId?: string, datasetId?: string | null) {
+  return useQuery({
+    queryKey: ['evaluation-dataset', projectId, datasetId],
+    queryFn: () => getEvaluationDataset(projectId as string, datasetId as string),
+    enabled: Boolean(projectId && datasetId),
   })
 }
 
@@ -72,10 +83,31 @@ export function useCreateEvaluationDataset(projectId?: string) {
   })
 }
 
+export function useCreateEvaluationDatasetVersion(projectId?: string, datasetId?: string | null) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Pick<CreateEvaluationDatasetInput, 'change_description' | 'cases'>) =>
+      createEvaluationDatasetVersion(projectId as string, datasetId as string, input),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['evaluation-datasets', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-dataset', projectId, datasetId] })
+    },
+  })
+}
+
 export function useCreateEvaluationSuite(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateEvaluationSuiteInput) => createEvaluationSuite(projectId as string, input),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] }),
+  })
+}
+
+export function useCreateEvaluationSuiteVersion(projectId?: string, suiteId?: string | null) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Omit<CreateEvaluationSuiteInput, 'name' | 'description' | 'target_type'>) =>
+      createEvaluationSuiteVersion(projectId as string, suiteId as string, input),
     onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] }),
   })
 }
