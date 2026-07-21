@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from modules.agent.infra.database.models import ProviderCredentialModel
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
 from modules.evaluation.application.context_pack import EvaluationContextPackBuilder
 from modules.evaluation.application.target_resolver import EvaluationTargetResolver
@@ -82,6 +83,65 @@ def _allocate_coverage(
     return {key: value for key, value in result.items() if value > 0}
 
 
+def _tool_names_from_context(context_pack: dict[str, Any]) -> set[str]:
+    values = context_pack.get("tools")
+    if not isinstance(values, list):
+        return set()
+    return {
+        str(item.get("name") or "").strip().lower()
+        for item in values
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    }
+
+
+def _validate_tool_references(
+    validation: dict[str, Any],
+    *,
+    context_pack: dict[str, Any],
+) -> dict[str, Any]:
+    known = _tool_names_from_context(context_pack)
+    errors = list(validation.get("errors") or [])
+    warnings = list(validation.get("warnings") or [])
+    for index, case in enumerate(validation.get("cases") or []):
+        contract = case.get("expected_contract") if isinstance(case, dict) else None
+        tools = contract.get("tools") if isinstance(contract, dict) else None
+        if not isinstance(tools, dict):
+            continue
+        for field in ("required", "forbidden"):
+            values = tools.get(field)
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                name = str(value).strip()
+                if not name:
+                    continue
+                if not known:
+                    warnings.append(
+                        {
+                            "path": f"cases[{index}].expected_contract.tools.{field}",
+                            "code": "tool_catalog_unavailable",
+                            "message": (
+                                f"Tool '{name}' could not be verified because the selected "
+                                "snapshot exposes no Tool catalog."
+                            ),
+                        }
+                    )
+                elif name.lower() not in known:
+                    errors.append(
+                        {
+                            "path": f"cases[{index}].expected_contract.tools.{field}",
+                            "code": "unknown_tool",
+                            "message": f"Tool '{name}' is not available in the selected snapshot.",
+                        }
+                    )
+    return {
+        **validation,
+        "valid": not errors,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
 class EvaluationSuiteAuthoringService:
     def __init__(self, session_factory: async_sessionmaker) -> None:
         self._session_factory = session_factory
@@ -100,11 +160,19 @@ class EvaluationSuiteAuthoringService:
         maximum_input_tokens: int,
     ) -> dict[str, Any]:
         case_count = self._validate_case_count(case_count)
+        objective = objective.strip()
+        if len(objective) < 10:
+            raise ValidationError("Suite generation objective must contain at least 10 characters")
         async with self._session_factory() as session:
             provider_model = await self._provider_model(
                 session,
                 project_id=project_id,
                 provider_model_id=generator_provider_model_id,
+            )
+            credential = await self._provider_credential(
+                session,
+                project_id=project_id,
+                credential_id=provider_model.provider_credential_id,
             )
             resolved = await self._target_resolver.resolve(
                 session,
@@ -118,8 +186,9 @@ class EvaluationSuiteAuthoringService:
             context_window = context_window_from_metadata(provider_model.meta or {})
             pack = await self._context_builder.build(
                 session,
+                project_id=project_id,
                 target=resolved,
-                objective=objective.strip(),
+                objective=objective,
                 maximum_input_tokens=maximum_input_tokens,
                 reserved_output_tokens=output_tokens,
                 context_window=context_window,
@@ -127,7 +196,7 @@ class EvaluationSuiteAuthoringService:
             pricing = provider_model_pricing_snapshot(
                 provider_model_id=provider_model.id,
                 provider_credential_id=provider_model.provider_credential_id,
-                provider=str((provider_model.meta or {}).get("provider") or "unknown"),
+                provider=credential.provider,
                 model=provider_model.model,
                 metadata=provider_model.meta or {},
             )
@@ -145,9 +214,15 @@ class EvaluationSuiteAuthoringService:
                     "display_version": resolved.display_version,
                     "snapshot_hash": resolved.snapshot_hash,
                 },
+                "generator": {
+                    "provider_model_id": str(provider_model.id),
+                    "provider": credential.provider,
+                    "model": provider_model.model,
+                },
                 "context_hash": pack.context_hash,
                 "context_budget": pack.budget,
                 "context_sections": list(pack.payload.keys()),
+                "available_tools": sorted(_tool_names_from_context(pack.payload)),
                 "reserved_output_tokens": output_tokens,
                 "context_window": context_window,
                 "estimated_cost_usd": estimate["cost_usd"],
@@ -183,6 +258,11 @@ class EvaluationSuiteAuthoringService:
                 project_id=project_id,
                 provider_model_id=generator_provider_model_id,
             )
+            credential = await self._provider_credential(
+                session,
+                project_id=project_id,
+                credential_id=provider_model.provider_credential_id,
+            )
             resolved = await self._target_resolver.resolve(
                 session,
                 project_id=project_id,
@@ -195,6 +275,7 @@ class EvaluationSuiteAuthoringService:
             context_window = context_window_from_metadata(provider_model.meta or {})
             pack = await self._context_builder.build(
                 session,
+                project_id=project_id,
                 target=resolved,
                 objective=objective,
                 maximum_input_tokens=maximum_input_tokens,
@@ -210,7 +291,7 @@ class EvaluationSuiteAuthoringService:
                 target_snapshot_hash=resolved.snapshot_hash,
                 generator_provider_model_id=provider_model.id,
                 generator_provider_credential_id=provider_model.provider_credential_id,
-                provider=str((provider_model.meta or {}).get("provider") or "pending"),
+                provider=credential.provider,
                 model=provider_model.model,
                 objective=objective,
                 requested_case_count=case_count,
@@ -248,26 +329,44 @@ class EvaluationSuiteAuthoringService:
             )
 
         payload = generated.payload or {}
-        validation = validate_suite_draft(payload) if generated.payload else {
-            "valid": False,
-            "errors": [{"path": "generator", "message": generated.error or "Generator returned no payload"}],
-            "warnings": [],
-            "coverage": {},
-            "case_count": 0,
-            "cases": [],
-        }
+        validation = (
+            validate_suite_draft(payload)
+            if generated.payload
+            else {
+                "valid": False,
+                "errors": [
+                    {
+                        "path": "generator",
+                        "message": generated.error or "Generator returned no payload",
+                    }
+                ],
+                "warnings": [],
+                "coverage": {},
+                "case_count": 0,
+                "cases": [],
+            }
+        )
+        if generated.payload:
+            validation = _validate_tool_references(validation, context_pack=pack_payload)
         if validation["valid"] and validation["case_count"] != case_count:
             validation["warnings"] = [
                 *validation["warnings"],
                 {
                     "code": "case_count_mismatch",
-                    "message": f"Generator returned {validation['case_count']} of {case_count} requested cases",
+                    "message": (
+                        f"Generator returned {validation['case_count']} of "
+                        f"{case_count} requested cases"
+                    ),
                 },
             ]
         draft = {
             "schema_version": 1,
             "suite": payload.get("suite") if isinstance(payload.get("suite"), dict) else {},
-            "coverage": payload.get("coverage") if isinstance(payload.get("coverage"), dict) else allocation,
+            "coverage": (
+                payload.get("coverage")
+                if isinstance(payload.get("coverage"), dict)
+                else allocation
+            ),
             "cases": validation["cases"],
         }
 
@@ -276,7 +375,9 @@ class EvaluationSuiteAuthoringService:
             if row is not None:
                 row.provider = generated.provider
                 row.model = generated.model
-                row.status = "completed" if generated.payload and validation["valid"] else "failed"
+                row.status = (
+                    "completed" if generated.payload and validation["valid"] else "failed"
+                )
                 row.input_tokens = generated.input_tokens
                 row.output_tokens = generated.output_tokens
                 row.cost_usd = generated.cost_usd
@@ -345,6 +446,7 @@ class EvaluationSuiteAuthoringService:
             raise ValidationError("Evaluator Suite name is required")
         dataset_name = f"{normalized_name} · Questions"
         now = datetime.now(timezone.utc)
+        metadata = dict(authoring_metadata or {})
 
         async with self._session_factory() as session, session.begin():
             await self._provider_model(
@@ -352,10 +454,53 @@ class EvaluationSuiteAuthoringService:
                 project_id=project_id,
                 provider_model_id=judge_provider_model_id,
             )
+            if authoring_source == "ai_generated":
+                call_id = metadata.get("authoring_call_id")
+                if not call_id:
+                    raise ValidationError("AI-generated Suite requires authoring_call_id")
+                try:
+                    parsed_call_id = UUID(str(call_id))
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError("authoring_call_id is invalid") from exc
+                call = await session.get(EvaluationAuthoringCallModel, parsed_call_id)
+                if (
+                    call is None
+                    or call.project_id != project_id
+                    or call.status != "completed"
+                ):
+                    raise ValidationError(
+                        "AI authoring call was not completed for this Project"
+                    )
+                if source_snapshot_hash != call.target_snapshot_hash:
+                    raise ValidationError(
+                        "Suite source_snapshot_hash does not match its authoring call"
+                    )
+                if source_context_hash != call.context_hash:
+                    raise ValidationError(
+                        "Suite source_context_hash does not match its authoring call"
+                    )
+                metadata.update(
+                    {
+                        "authoring_call_id": str(call.id),
+                        "generator_provider_model_id": str(
+                            call.generator_provider_model_id
+                        ),
+                        "generator_model": call.model,
+                        "generator_provider": call.provider,
+                        "generator_prompt_version": call.prompt_version,
+                        "generation_input_tokens": call.input_tokens,
+                        "generation_output_tokens": call.output_tokens,
+                        "generation_cost_usd": (
+                            float(call.cost_usd) if call.cost_usd is not None else None
+                        ),
+                    }
+                )
+
             existing_suite = await session.scalar(
                 select(EvaluationSuiteModel).where(
                     EvaluationSuiteModel.project_id == project_id,
-                    func.lower(func.btrim(EvaluationSuiteModel.name)) == normalized_name.lower(),
+                    func.lower(func.btrim(EvaluationSuiteModel.name))
+                    == normalized_name.lower(),
                 )
             )
             if existing_suite is not None:
@@ -363,16 +508,22 @@ class EvaluationSuiteAuthoringService:
             existing_dataset = await session.scalar(
                 select(EvaluationDatasetModel).where(
                     EvaluationDatasetModel.project_id == project_id,
-                    func.lower(func.btrim(EvaluationDatasetModel.name)) == dataset_name.lower(),
+                    func.lower(func.btrim(EvaluationDatasetModel.name))
+                    == dataset_name.lower(),
                 )
             )
             if existing_dataset is not None:
-                raise ConflictError("An internal Evaluation Dataset with this name already exists")
+                raise ConflictError(
+                    "An internal Evaluation Dataset with this name already exists"
+                )
 
             dataset = EvaluationDatasetModel(
                 project_id=project_id,
                 name=dataset_name,
-                description=description.strip() or f"Question set managed by {normalized_name}",
+                description=(
+                    description.strip()
+                    or f"Question set managed by {normalized_name}"
+                ),
                 status="active",
                 created_by=created_by,
             )
@@ -389,7 +540,7 @@ class EvaluationSuiteAuthoringService:
                 source_snapshot_hash=source_snapshot_hash,
                 source_context_hash=source_context_hash,
                 authoring_metadata={
-                    **(authoring_metadata or {}),
+                    **metadata,
                     "validation": {
                         "warnings": validation["warnings"],
                         "coverage": validation["coverage"],
@@ -433,12 +584,19 @@ class EvaluationSuiteAuthoringService:
             )
             session.add(suite)
             await session.flush()
+            requested_output = int(judge_config.get("max_tokens", 800))
+            requested_input = int(judge_config.get("maximum_input_tokens", 8000))
             normalized_judge_config = {
-                "temperature": 0,
-                "max_tokens": 800,
-                "timeout_seconds": 90,
-                "maximum_input_tokens": 8000,
                 **judge_config,
+                "temperature": max(
+                    0.0, min(float(judge_config.get("temperature", 0)), 1.0)
+                ),
+                "max_tokens": max(256, min(requested_output, 1200)),
+                "timeout_seconds": max(
+                    10.0,
+                    min(float(judge_config.get("timeout_seconds", 90)), 180.0),
+                ),
+                "maximum_input_tokens": max(2000, min(requested_input, 32_000)),
             }
             suite_version = EvaluationSuiteVersionModel(
                 suite_id=suite.id,
@@ -493,6 +651,8 @@ class EvaluationSuiteAuthoringService:
                 "authoring_source": authoring_source,
                 "source_snapshot_hash": source_snapshot_hash,
                 "source_context_hash": source_context_hash,
+                "authoring_metadata": dataset_version.authoring_metadata,
+                "reviewed_at": dataset_version.reviewed_at,
                 "created_at": suite.created_at,
                 "updated_at": suite.updated_at,
             }
@@ -501,15 +661,38 @@ class EvaluationSuiteAuthoringService:
     def _validate_case_count(case_count: int) -> int:
         value = int(case_count)
         if value < 5 or value > 50:
-            raise ValidationError("AI Suite generation supports between 5 and 50 Test Cases")
+            raise ValidationError(
+                "AI Suite generation supports between 5 and 50 Test Cases"
+            )
         return value
 
     @staticmethod
-    async def _provider_model(session, *, project_id: UUID, provider_model_id: UUID):
+    async def _provider_model(
+        session,
+        *,
+        project_id: UUID,
+        provider_model_id: UUID,
+    ) -> ProviderModelModel:
         model = await session.get(ProviderModelModel, provider_model_id)
         if model is None or model.project_id != project_id or model.status != "active":
             raise NotFoundError("Provider Model not found or inactive")
         return model
+
+    @staticmethod
+    async def _provider_credential(
+        session,
+        *,
+        project_id: UUID,
+        credential_id: UUID,
+    ) -> ProviderCredentialModel:
+        credential = await session.get(ProviderCredentialModel, credential_id)
+        if (
+            credential is None
+            or credential.project_id != project_id
+            or credential.status != "active"
+        ):
+            raise NotFoundError("Provider Credential not found or inactive")
+        return credential
 
 
 __all__ = ["EvaluationSuiteAuthoringService"]
