@@ -97,11 +97,12 @@ class DocumentParser:
             if reader.is_encrypted:
                 raise ValidationError("Encrypted PDF documents are not supported")
             pages: list[str] = []
+            has_extractable_text = False
             for page in reader.pages:
                 text = page.extract_text() or ""
                 text = _normalize_text(text) if normalize_whitespace else text.strip()
-                if text:
-                    pages.append(text)
+                pages.append(text)
+                has_extractable_text = has_extractable_text or bool(text)
         except ValidationError:
             raise
         except Exception as exc:
@@ -109,12 +110,12 @@ class DocumentParser:
                 "PDF document is invalid or could not be parsed"
             ) from exc
 
-        separator = PAGE_SEPARATOR if preserve_page_boundaries else "\n\n"
-        text = separator.join(pages)
-        if not text.strip():
+        if not has_extractable_text:
             raise ValidationError(
                 "PDF did not contain extractable text; scanned PDFs require OCR"
             )
+        separator = PAGE_SEPARATOR if preserve_page_boundaries else "\n\n"
+        text = separator.join(pages)
         return ParsedDocument(text=text, page_count=len(reader.pages))
 
     def _parse_docx(
