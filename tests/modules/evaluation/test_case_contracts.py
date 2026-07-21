@@ -4,6 +4,7 @@ import pytest
 
 from modules.evaluation.domain.contracts import (
     assess_expected_outcome,
+    classify_runtime_failure,
     normalize_test_case,
     validate_suite_draft,
 )
@@ -63,6 +64,38 @@ def test_expected_failure_requires_observable_constraint() -> None:
             },
             position=1,
         )
+
+
+def test_success_case_requires_observable_criteria() -> None:
+    with pytest.raises(ValidationError):
+        normalize_test_case(
+            {
+                "name": "No expected behavior",
+                "case_type": "success",
+                "message": "Hello",
+            },
+            position=1,
+        )
+
+
+def test_tool_timeout_is_normalized_to_stable_code() -> None:
+    observed = classify_runtime_failure(
+        RuntimeError("Tool invoice_lookup timed out after 5000ms")
+    )
+
+    assert observed["failure_origin"] == "tool"
+    assert observed["failure_stage"] == "tool_execution"
+    assert observed["failure_code"] == "tool_timeout"
+
+
+def test_database_failure_is_platform_persistence_error() -> None:
+    observed = classify_runtime_failure(
+        RuntimeError("Database transaction commit failed")
+    )
+
+    assert observed["failure_origin"] == "platform"
+    assert observed["failure_stage"] == "persistence"
+    assert observed["failure_code"] == "persistence_error"
 
 
 def test_suite_validation_warns_without_negative_cases() -> None:
