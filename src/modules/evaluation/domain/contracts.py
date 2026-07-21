@@ -20,6 +20,7 @@ PLATFORM_FAILURE_CODES = {
     "evaluation_reference_missing",
     "worker_unavailable",
     "snapshot_corrupted",
+    "snapshot_unavailable",
     "persistence_error",
     "lease_lost",
     "internal_error",
@@ -42,6 +43,10 @@ def _strings(value: Any) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
+def _normalized_strings(value: Any) -> list[str]:
+    return [item.lower() for item in _strings(value)]
+
+
 def normalize_expected_outcome(case_type: str, raw: Any) -> dict[str, Any]:
     normalized_type = str(case_type or "success").strip().lower()
     if normalized_type not in CASE_TYPES:
@@ -51,9 +56,9 @@ def normalize_expected_outcome(case_type: str, raw: Any) -> dict[str, Any]:
     if outcome_type != normalized_type:
         raise ValidationError("expected_outcome.type must match case_type")
 
-    origins = _strings(value.get("allowed_failure_origins"))
-    stages = _strings(value.get("allowed_failure_stages"))
-    codes = _strings(value.get("allowed_failure_codes"))
+    origins = _normalized_strings(value.get("allowed_failure_origins"))
+    stages = _normalized_strings(value.get("allowed_failure_stages"))
+    codes = _normalized_strings(value.get("allowed_failure_codes"))
     invalid_origins = sorted(set(origins) - FAILURE_ORIGINS)
     invalid_stages = sorted(set(stages) - FAILURE_STAGES)
     if invalid_origins:
@@ -113,6 +118,15 @@ def normalize_test_case(raw: dict[str, Any], *, position: int) -> dict[str, Any]
     expected_contract["semantic_criteria"] = [
         str(item).strip() for item in semantic if str(item).strip()
     ]
+    if (
+        case_type != "expected_failure"
+        and not expected_contract["semantic_criteria"]
+        and not expected_outcome["required_behavior"]
+        and not expected_outcome["forbidden_behavior"]
+    ):
+        raise ValidationError(
+            f"Test Case {position} requires observable grading criteria or behavior"
+        )
 
     output_contract = expected_contract.get("output_contract")
     if not isinstance(output_contract, dict):
@@ -215,21 +229,67 @@ def classify_runtime_failure(exc: Exception) -> dict[str, Any]:
     lowered = f"{name} {message}".lower()
     origin = "platform"
     stage = "runtime"
-    code = name
+    code = "internal_error"
 
     if "cancel" in lowered:
         origin, stage, code = "cancelled", "runtime", "evaluation_cancelled"
+    elif any(token in lowered for token in ("database", "sqlalchemy", "sql ", "transaction", "commit")):
+        origin, stage, code = "platform", "persistence", "persistence_error"
+    elif "lease" in lowered:
+        origin, stage, code = "platform", "runtime", "lease_lost"
+    elif "worker" in lowered:
+        origin, stage, code = "platform", "runtime", "worker_unavailable"
+    elif any(token in lowered for token in ("snapshot", "reference missing", "not found: evaluation")):
+        origin, stage, code = "platform", "snapshot", "snapshot_unavailable"
     elif "tool" in lowered:
         origin, stage = "tool", "tool_execution"
-    elif any(token in lowered for token in ("provider", "model", "rate limit", "429", "timeout")):
+        if "timeout" in lowered or "timed out" in lowered:
+            code = "tool_timeout"
+        elif any(token in lowered for token in ("429", "rate limit", "ratelimit")):
+            code = "tool_rate_limited"
+        elif any(token in lowered for token in ("401", "403", "unauthorized", "forbidden")):
+            code = "tool_unauthorized"
+        elif any(token in lowered for token in ("404", "not found")):
+            code = "tool_not_found"
+        elif any(token in lowered for token in ("http", "status code", "connection")):
+            code = "tool_http_error"
+        else:
+            code = "tool_execution_failed"
+    elif any(
+        token in lowered
+        for token in (
+            "provider",
+            "model call",
+            "llm",
+            "openai",
+            "anthropic",
+            "gemini",
+            "rate limit",
+            "ratelimit",
+            "429",
+            "502",
+            "503",
+            "504",
+            "timeout",
+        )
+    ):
         origin, stage = "provider", "provider_call"
+        if "timeout" in lowered or "timed out" in lowered:
+            code = "provider_timeout"
+        elif any(token in lowered for token in ("429", "rate limit", "ratelimit")):
+            code = "provider_rate_limited"
+        elif any(token in lowered for token in ("502", "503", "504", "unavailable")):
+            code = "provider_unavailable"
+        elif any(token in lowered for token in ("401", "403", "unauthorized")):
+            code = "provider_unauthorized"
+        else:
+            code = "provider_call_failed"
     elif any(token in lowered for token in ("schema", "parse", "contract", "validation")):
-        origin, stage = "contract", "output_validation"
-    elif any(token in lowered for token in ("policy", "forbidden", "not allowed")):
-        origin, stage = "policy", "runtime"
-    elif any(token in lowered for token in ("worker", "database", "sql", "reference", "snapshot")):
-        origin = "platform"
-        stage = "persistence" if any(token in lowered for token in ("database", "sql")) else "snapshot"
+        origin, stage, code = "contract", "output_validation", "output_contract_violation"
+    elif any(token in lowered for token in ("policy", "forbidden", "not allowed", "denied")):
+        origin, stage, code = "policy", "runtime", "policy_denied"
+    elif any(token in lowered for token in ("target", "agent execution", "network execution")):
+        origin, stage, code = "target", "runtime", "target_execution_failed"
 
     return {
         "type": "failure",
@@ -237,6 +297,7 @@ def classify_runtime_failure(exc: Exception) -> dict[str, Any]:
         "failure_stage": stage,
         "failure_code": code,
         "failure_detail": message,
+        "exception_type": name,
     }
 
 
@@ -249,10 +310,10 @@ def assess_expected_outcome(
 ) -> OutcomeAssessment:
     expected = normalize_expected_outcome(case_type, expected_outcome)
     observed = observed_outcome or {"type": "success"}
-    observed_type = str(observed.get("type") or "success")
-    origin = str(observed.get("failure_origin") or "")
-    stage = str(observed.get("failure_stage") or "")
-    code = str(observed.get("failure_code") or "")
+    observed_type = str(observed.get("type") or "success").lower()
+    origin = str(observed.get("failure_origin") or "").lower()
+    stage = str(observed.get("failure_stage") or "").lower()
+    code = str(observed.get("failure_code") or "").lower()
     evidence = {"expected": expected, "observed": observed}
 
     if origin == "platform" or code in PLATFORM_FAILURE_CODES:
