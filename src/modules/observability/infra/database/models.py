@@ -30,6 +30,18 @@ class TraceModel(BaseModel):
         Index("ix_observability_traces_provider_model_id", "provider_model_id"),
         Index("ix_observability_traces_provider_credential_id", "provider_credential_id"),
         Index("ix_observability_traces_fallback_provider_model_id", "fallback_provider_model_id"),
+        Index(
+            "ix_observability_traces_project_purpose_started",
+            "project_id",
+            "run_purpose",
+            "started_at",
+        ),
+        Index(
+            "ix_observability_traces_evaluation_run",
+            "evaluation_run_id",
+            "evaluation_trial_id",
+            postgresql_where=text("evaluation_run_id IS NOT NULL"),
+        ),
         {"schema": "observability"},
     )
 
@@ -43,6 +55,11 @@ class TraceModel(BaseModel):
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(255))
+    run_purpose: Mapped[str] = mapped_column(String(32), default="operational")
+    evaluation_run_id: Mapped[UUID | None]
+    evaluation_trial_id: Mapped[UUID | None]
+    comparison_pair_id: Mapped[str | None] = mapped_column(String(255))
+    target_side: Mapped[str | None] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="pending")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
