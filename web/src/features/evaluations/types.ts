@@ -57,6 +57,17 @@ export interface SuiteValidationIssue {
   positions?: number[]
 }
 
+export interface SuiteValidationReference {
+  mode: 'generic' | 'target_bound'
+  target_type?: EvaluationTargetType
+  source_type?: EvaluationSourceType
+  entity_id?: string
+  display_name?: string
+  display_version?: string
+  snapshot_hash?: string | null
+  context_hash?: string | null
+}
+
 export interface SuiteValidationResult {
   valid: boolean
   errors: SuiteValidationIssue[]
@@ -64,6 +75,7 @@ export interface SuiteValidationResult {
   coverage: Record<string, number>
   case_count: number
   cases: EvaluationCaseInput[]
+  reference?: SuiteValidationReference
 }
 
 export interface SuiteContextPreview {
@@ -167,6 +179,12 @@ export interface EvaluationDataset {
   current_version: string | null
   content_hash: string | null
   case_count: number
+  authoring_source?: SuiteAuthoringSource
+  source_snapshot_hash?: string | null
+  source_context_hash?: string | null
+  authoring_metadata?: Record<string, unknown> | null
+  archived_at?: string | null
+  archived_by?: string | null
   created_at: string
   updated_at: string
   versions?: EvaluationDatasetVersion[]
@@ -184,6 +202,16 @@ export interface EvaluationDataset {
     tags: string[]
     production_frequency?: number | null
   }>
+}
+
+export interface EvaluationSuiteStaleness {
+  status: 'generic' | 'current' | 'stale' | 'target_unavailable' | 'current_unknown'
+  source_snapshot_hash: string | null
+  current_snapshot_hash: string | null
+  target_type?: EvaluationTargetType
+  entity_id?: string
+  source_type?: EvaluationSourceType
+  display_version?: string
 }
 
 export interface EvaluationSuite {
@@ -209,6 +237,12 @@ export interface EvaluationSuite {
   authoring_source?: SuiteAuthoringSource
   source_snapshot_hash?: string | null
   source_context_hash?: string | null
+  authoring_metadata?: Record<string, unknown> | null
+  parent_version_id?: string | null
+  change_description?: string | null
+  archived_at?: string | null
+  archived_by?: string | null
+  staleness?: EvaluationSuiteStaleness
   created_at: string
   updated_at: string
 }
@@ -264,6 +298,10 @@ export interface EvaluationCheck {
   evidence?: Record<string, unknown> | null
 }
 
+export type EvaluationExecutionReference =
+  | { kind: 'agent_trace'; trace_id: string }
+  | { kind: 'network_execution'; network_execution_id: string; trace_id?: string | null }
+
 export interface EvaluationTrial {
   id: string
   target_id: string
@@ -276,6 +314,7 @@ export interface EvaluationTrial {
   trace_id: string | null
   agent_run_id: string | null
   network_execution_id: string | null
+  execution_reference?: EvaluationExecutionReference | null
   output?: Record<string, any> | null
   metrics?: Record<string, any> | null
   observed_outcome?: Record<string, any> | null
@@ -294,6 +333,13 @@ export interface EvaluationTrial {
   checks?: EvaluationCheck[]
 }
 
+export interface EvaluationExecutionPolicy {
+  requested_parallel_pairs?: number
+  effective_parallel_pairs?: number
+  reason?: string
+  pair_members_serialized?: boolean
+}
+
 export interface EvaluationRun {
   id: string
   project_id: string
@@ -301,6 +347,7 @@ export interface EvaluationRun {
   mode: 'absolute' | 'comparison'
   status: EvaluationRunStatus
   repetitions: number
+  execution_policy?: EvaluationExecutionPolicy
   qualification_status: string | null
   overall_score: number | null
   pass_rate: number | null
