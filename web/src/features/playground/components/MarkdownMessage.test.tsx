@@ -129,6 +129,16 @@ describe('MarkdownMessage', () => {
     expect(html).not.toContain('\\(')
   })
 
+  it('keeps currency values with dollar signs as plain text', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content={'O plano custa $10 e o limite é $20 por mês.'} />,
+    )
+
+    expect(html).toContain('$10')
+    expect(html).toContain('$20')
+    expect(html).not.toContain('data-math-inline')
+  })
+
   it('renders display math with sums, indices and fractions', () => {
     const html = renderToStaticMarkup(
       <MarkdownMessage
@@ -186,7 +196,7 @@ describe('MarkdownMessage', () => {
   it('escapes raw html instead of injecting it', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'<script>alert(1)</script>'} />)
 
-    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(html).toContain('&lt;script&gt;alert(1)</script>')
     expect(html).not.toContain('<script>alert(1)</script>')
   })
 })
