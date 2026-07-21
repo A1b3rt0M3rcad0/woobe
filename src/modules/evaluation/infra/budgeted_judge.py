@@ -32,9 +32,31 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
         context_window = context_window_from_metadata(metadata or {})
         configured_input = int(judge_config.get("maximum_input_tokens", 8000))
         configured_output = min(int(judge_config.get("max_tokens", 800)), 1200)
+        case_with_policy = {
+            **case_payload,
+            "outcome_judging_policy": {
+                "success": "Judge the public response against the expected behavior.",
+                "refusal": (
+                    "A safe, policy-compliant refusal is the intended successful behavior "
+                    "when it matches the supplied criteria."
+                ),
+                "handled_error": (
+                    "A controlled public error or recovery response is the intended successful "
+                    "behavior when it matches the supplied criteria."
+                ),
+                "expected_failure": (
+                    "A runtime failure may be correct only when its observed origin, stage and "
+                    "code satisfy the explicit expected_outcome contract."
+                ),
+                "platform_failure": (
+                    "Worker, persistence, snapshot, lease, cancellation or internal platform "
+                    "failures must be inconclusive and never passed."
+                ),
+            },
+        }
         budgeted = budget_sections(
             [
-                ("test_case", case_payload, 10, True),
+                ("test_case", case_with_policy, 10, True),
                 ("target_output", target_output, 10, True),
                 ("rubric", rubric, 8, True),
                 ("operational_evidence", operational_evidence, 5, False),
@@ -64,8 +86,16 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
             provider_model_id=provider_model_id,
             rubric=payload.get("rubric") if isinstance(payload.get("rubric"), dict) else rubric,
             judge_config=normalized_config,
-            case_payload=payload.get("test_case") if isinstance(payload.get("test_case"), dict) else case_payload,
-            target_output=payload.get("target_output") if isinstance(payload.get("target_output"), dict) else target_output,
+            case_payload=(
+                payload.get("test_case")
+                if isinstance(payload.get("test_case"), dict)
+                else case_with_policy
+            ),
+            target_output=(
+                payload.get("target_output")
+                if isinstance(payload.get("target_output"), dict)
+                else target_output
+            ),
             operational_evidence=evidence,
         )
         if result.structured_result is None:
