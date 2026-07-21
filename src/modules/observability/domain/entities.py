@@ -21,6 +21,11 @@ class Trace:
     external_session_id: str | None = None
     tenant_id: str | None = None
     user_id: str | None = None
+    run_purpose: str = "operational"
+    evaluation_run_id: UUID | None = None
+    evaluation_trial_id: UUID | None = None
+    comparison_pair_id: str | None = None
+    target_side: str | None = None
     status: TraceStatus = TraceStatus.pending
     started_at: datetime | None = None
     ended_at: datetime | None = None
