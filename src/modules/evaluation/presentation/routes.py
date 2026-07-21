@@ -7,8 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.enriched_service import (
-    EnrichedEvaluationApplicationService,
+from modules.evaluation.application.operational_service import (
+    OperationalEvaluationApplicationService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -72,9 +72,23 @@ class CreateSuiteRequest(BaseModel):
     repetition_policy: dict[str, Any] = Field(
         default_factory=lambda: {"default_repetitions": 3, "maximum_repetitions": 25}
     )
-    estimate_defaults: dict[str, Any] = Field(
-        default_factory=lambda: {"volume": 10_000}
-    )
+    estimate_defaults: dict[str, Any] = Field(default_factory=lambda: {"volume": 10_000})
+
+
+class CreateComposedSuiteVersionRequest(BaseModel):
+    draft: dict[str, Any]
+    change_description: str = Field(min_length=3, max_length=2000)
+    judge_provider_model_id: UUID | None = None
+    judge_config: dict[str, Any] | None = None
+    rubric: dict[str, Any] | None = None
+    deterministic_checks: dict[str, Any] | None = None
+    acceptance_policy: dict[str, Any] | None = None
+    repetition_policy: dict[str, Any] | None = None
+    estimate_defaults: dict[str, Any] | None = None
+    authoring_source: Literal["manual", "json_import", "ai_generated"] = "manual"
+    source_snapshot_hash: str | None = Field(default=None, max_length=64)
+    source_context_hash: str | None = Field(default=None, max_length=64)
+    authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class EvaluationTargetRequest(BaseModel):
@@ -94,8 +108,13 @@ class EvaluationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=255)
 
 
-def _service(request: Request) -> EnrichedEvaluationApplicationService:
-    return EnrichedEvaluationApplicationService(request.app.state.session_factory)
+class CreateEstimateRequest(BaseModel):
+    volume: int = Field(ge=1, le=1_000_000_000)
+    volume_unit: str = Field(default="runs_per_month", min_length=3, max_length=64)
+
+
+def _service(request: Request) -> OperationalEvaluationApplicationService:
+    return OperationalEvaluationApplicationService(request.app.state.session_factory)
 
 
 def _message_with_context(message: str, context: dict[str, Any]) -> str:
@@ -160,18 +179,22 @@ async def create_dataset(project_id: UUID, payload: CreateDatasetRequest, reques
 
 
 @router.get("/datasets")
-async def list_datasets(project_id: UUID, request: Request):
+async def list_datasets(
+    project_id: UUID,
+    request: Request,
+    include_archived: bool = False,
+):
     require_evaluation_user(request, project_id)
-    return {"success": True, "data": await _service(request).list_datasets(project_id)}
+    values = await _service(request).list_datasets(project_id)
+    if not include_archived:
+        values = [item for item in values if item.get("status") != "archived"]
+    return {"success": True, "data": values}
 
 
 @router.get("/datasets/{dataset_id}")
 async def get_dataset(project_id: UUID, dataset_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).get_dataset(project_id, dataset_id),
-    }
+    return {"success": True, "data": await _service(request).get_dataset(project_id, dataset_id)}
 
 
 @router.post("/datasets/{dataset_id}/versions", status_code=status.HTTP_201_CREATED)
@@ -190,6 +213,18 @@ async def create_dataset_version(
         created_by=user_id,
     )
     return {"success": True, "data": data}
+
+
+@router.post("/datasets/{dataset_id}/archive")
+async def archive_dataset(project_id: UUID, dataset_id: UUID, request: Request):
+    user_id = require_evaluation_user(request, project_id)
+    return {"success": True, "data": await _service(request).archive_dataset(project_id, dataset_id, user_id)}
+
+
+@router.post("/datasets/{dataset_id}/restore")
+async def restore_dataset(project_id: UUID, dataset_id: UUID, request: Request):
+    require_evaluation_user(request, project_id)
+    return {"success": True, "data": await _service(request).restore_dataset(project_id, dataset_id)}
 
 
 @router.post("/suites", status_code=status.HTTP_201_CREATED)
@@ -214,9 +249,57 @@ async def create_suite(project_id: UUID, payload: CreateSuiteRequest, request: R
 
 
 @router.get("/suites")
-async def list_suites(project_id: UUID, request: Request):
+async def list_suites(
+    project_id: UUID,
+    request: Request,
+    include_archived: bool = False,
+):
     require_evaluation_user(request, project_id)
-    return {"success": True, "data": await _service(request).list_suites(project_id)}
+    return {
+        "success": True,
+        "data": await _service(request).list_suites(project_id, include_archived=include_archived),
+    }
+
+
+@router.post("/suites/{suite_id}/versions/composed", status_code=status.HTTP_201_CREATED)
+async def create_composed_suite_version(
+    project_id: UUID,
+    suite_id: UUID,
+    payload: CreateComposedSuiteVersionRequest,
+    request: Request,
+):
+    user_id = require_evaluation_user(request, project_id)
+    data = await _service(request).create_composed_suite_version(
+        project_id=project_id,
+        suite_id=suite_id,
+        draft=payload.draft,
+        change_description=payload.change_description,
+        judge_provider_model_id=payload.judge_provider_model_id,
+        judge_config=payload.judge_config,
+        rubric=payload.rubric,
+        deterministic_checks=payload.deterministic_checks,
+        acceptance_policy=payload.acceptance_policy,
+        repetition_policy=payload.repetition_policy,
+        estimate_defaults=payload.estimate_defaults,
+        authoring_source=payload.authoring_source,
+        source_snapshot_hash=payload.source_snapshot_hash,
+        source_context_hash=payload.source_context_hash,
+        authoring_metadata=payload.authoring_metadata,
+        created_by=user_id,
+    )
+    return {"success": True, "data": data}
+
+
+@router.post("/suites/{suite_id}/archive")
+async def archive_suite(project_id: UUID, suite_id: UUID, request: Request):
+    user_id = require_evaluation_user(request, project_id)
+    return {"success": True, "data": await _service(request).archive_suite(project_id, suite_id, user_id)}
+
+
+@router.post("/suites/{suite_id}/restore")
+async def restore_suite(project_id: UUID, suite_id: UUID, request: Request):
+    require_evaluation_user(request, project_id)
+    return {"success": True, "data": await _service(request).restore_suite(project_id, suite_id)}
 
 
 @router.post("/runs/preview")
@@ -258,10 +341,7 @@ async def list_runs(
     limit: int = Query(default=100, ge=1, le=200),
 ):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).list_runs(project_id, limit=limit),
-    }
+    return {"success": True, "data": await _service(request).list_runs(project_id, limit=limit)}
 
 
 @router.get("/runs/{run_id}")
@@ -274,6 +354,24 @@ async def get_run(project_id: UUID, run_id: UUID, request: Request):
 async def cancel_run(project_id: UUID, run_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
     return {"success": True, "data": await _service(request).cancel_run(project_id, run_id)}
+
+
+@router.post("/runs/{run_id}/estimates", status_code=status.HTTP_201_CREATED)
+async def create_estimate(
+    project_id: UUID,
+    run_id: UUID,
+    payload: CreateEstimateRequest,
+    request: Request,
+):
+    user_id = require_evaluation_user(request, project_id)
+    data = await _service(request).create_estimate(
+        project_id=project_id,
+        run_id=run_id,
+        volume=payload.volume,
+        volume_unit=payload.volume_unit,
+        created_by=user_id,
+    )
+    return {"success": True, "data": data}
 
 
 @router.get("/qualifications")
