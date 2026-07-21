@@ -35,6 +35,18 @@ class UsageEventModel(BaseModel):
             "network_id",
             "occurred_at",
         ),
+        Index(
+            "ix_metering_usage_events_project_purpose_occurred",
+            "project_id",
+            "run_purpose",
+            "occurred_at",
+        ),
+        Index(
+            "ix_metering_usage_events_evaluation_run",
+            "evaluation_run_id",
+            "evaluation_trial_id",
+            postgresql_where=text("evaluation_run_id IS NOT NULL"),
+        ),
         {"schema": "metering"},
     )
 
@@ -48,6 +60,11 @@ class UsageEventModel(BaseModel):
     trace_id: Mapped[UUID | None]
     call_id: Mapped[str | None] = mapped_column(String(128))
     environment: Mapped[str | None] = mapped_column(String(32))
+    run_purpose: Mapped[str] = mapped_column(String(32), default="operational")
+    evaluation_run_id: Mapped[UUID | None]
+    evaluation_trial_id: Mapped[UUID | None]
+    comparison_pair_id: Mapped[str | None] = mapped_column(String(255))
+    target_side: Mapped[str | None] = mapped_column(String(32))
     agent_release_id: Mapped[UUID | None]
     agent_release_version: Mapped[str | None] = mapped_column(String(64))
     provider: Mapped[str | None] = mapped_column(String(64))
