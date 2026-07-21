@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from modules.evaluation.application.metering import record_evaluation_model_usage
@@ -24,7 +24,13 @@ def _now() -> datetime:
 
 def _signature(case: dict[str, Any]) -> str:
     payload = case.get("input_payload") if isinstance(case.get("input_payload"), dict) else {}
-    message = case.get("message") or payload.get("message") or payload.get("input") or payload.get("prompt") or ""
+    message = (
+        case.get("message")
+        or payload.get("message")
+        or payload.get("input")
+        or payload.get("prompt")
+        or ""
+    )
     return " ".join(str(message).lower().split())
 
 
@@ -57,7 +63,7 @@ class EvaluationAuthoringWorker:
                 select(EvaluationAuthoringCallModel)
                 .where(
                     EvaluationAuthoringCallModel.status.in_(
-                        {"queued", "running", "partial", "cancel_requested"}
+                        {"queued", "running", "cancel_requested"}
                     ),
                     EvaluationAuthoringCallModel.lease_expires_at.is_(None)
                     | (EvaluationAuthoringCallModel.lease_expires_at < now),
@@ -94,70 +100,88 @@ class EvaluationAuthoringWorker:
             return call.id, batch.id
 
     async def _process(self, call_id: UUID, batch_id: UUID) -> None:
+        should_cancel = False
         async with self._session_factory() as session:
             call = await session.get(EvaluationAuthoringCallModel, call_id)
             batch = await session.get(EvaluationAuthoringBatchModel, batch_id)
             if call is None or batch is None:
                 return
-            if call.cancel_requested_at is not None:
-                async with session.begin():
-                    await self._cancel_locked(session, call)
-                return
-            completed = list(
-                (
-                    await session.scalars(
-                        select(EvaluationAuthoringBatchModel)
-                        .where(
-                            EvaluationAuthoringBatchModel.authoring_call_id == call.id,
-                            EvaluationAuthoringBatchModel.status == "completed",
+            should_cancel = call.cancel_requested_at is not None
+            if not should_cancel:
+                completed = list(
+                    (
+                        await session.scalars(
+                            select(EvaluationAuthoringBatchModel)
+                            .where(
+                                EvaluationAuthoringBatchModel.authoring_call_id == call.id,
+                                EvaluationAuthoringBatchModel.status == "completed",
+                            )
+                            .order_by(EvaluationAuthoringBatchModel.batch_index)
                         )
-                        .order_by(EvaluationAuthoringBatchModel.batch_index)
-                    )
-                ).all()
-            )
-            prior_cases = [
-                case
-                for item in completed
-                for case in ((item.generated_payload or {}).get("cases") or [])
-                if isinstance(case, dict)
-            ]
-            prior_signatures = {_signature(case) for case in prior_cases if _signature(case)}
-            context_payload = dict(call.context_payload or {})
-            context_payload["already_generated_case_signatures"] = [
-                {"name": case.get("name"), "message": _signature(case)[:500]}
-                for case in prior_cases[-50:]
-            ]
-            request = call.coverage_request or {}
-            maximum_cost = request.get("maximum_cost_usd")
-            spent = float(call.cost_usd or 0)
-            remaining_cost = (
-                max(0.000001, float(maximum_cost) - spent)
-                if maximum_cost is not None
-                else None
-            )
-            result = await self._generator.generate(
-                session,
-                project_id=call.project_id,
-                provider_model_id=call.generator_provider_model_id,
-                context_pack=context_payload,
-                objective=call.objective,
-                case_count=batch.requested_case_count,
-                coverage=batch.coverage_request or {},
-                error_case_ratio=float(request.get("error_case_ratio") or 0),
-                language=str(request.get("language") or "pt-BR"),
-                maximum_cost_usd=remaining_cost,
-            )
+                    ).all()
+                )
+                prior_cases = [
+                    case
+                    for item in completed
+                    for case in ((item.generated_payload or {}).get("cases") or [])
+                    if isinstance(case, dict)
+                ]
+                prior_signatures = {
+                    _signature(case) for case in prior_cases if _signature(case)
+                }
+                stored_context = dict(call.context_payload or {})
+                context_payload = {
+                    **stored_context,
+                    "already_generated_case_signatures": [
+                        {"name": case.get("name"), "message": _signature(case)[:500]}
+                        for case in prior_cases[-50:]
+                    ],
+                }
+                request = dict(call.coverage_request or {})
+                maximum_cost = request.get("maximum_cost_usd")
+                spent = float(call.cost_usd or 0)
+                remaining_cost = (
+                    max(0.000001, float(maximum_cost) - spent)
+                    if maximum_cost is not None
+                    else None
+                )
+                project_id = call.project_id
+                provider_model_id = call.generator_provider_model_id
+                objective = call.objective
+                requested_case_count = batch.requested_case_count
+                coverage_request = dict(batch.coverage_request or {})
+                result = await self._generator.generate(
+                    session,
+                    project_id=project_id,
+                    provider_model_id=provider_model_id,
+                    context_pack=context_payload,
+                    objective=objective,
+                    case_count=requested_case_count,
+                    coverage=coverage_request,
+                    error_case_ratio=float(request.get("error_case_ratio") or 0),
+                    language=str(request.get("language") or "pt-BR"),
+                    maximum_cost_usd=remaining_cost,
+                )
+
+        if should_cancel:
+            await self._cancel_by_id(call_id)
+            return
 
         payload = result.payload or {}
         validation = (
             _validate_tool_references(
                 validate_suite_draft(payload),
-                context_pack=call.context_payload or {},
+                context_pack=stored_context,
             )
             if result.payload
             else {
                 "valid": False,
-                "errors": [{"path": "generator", "message": result.error or "Generator returned no payload"}],
+                "errors": [
+                    {
+                        "path": "generator",
+                        "message": result.error or "Generator returned no payload",
+                    }
+                ],
                 "warnings": [],
                 "coverage": {},
                 "case_count": 0,
@@ -167,7 +191,9 @@ class EvaluationAuthoringWorker:
         returned_cases = validation.get("cases") or []
         duplicate_signatures = [
             value
-            for value in (_signature(case) for case in returned_cases if isinstance(case, dict))
+            for value in (
+                _signature(case) for case in returned_cases if isinstance(case, dict)
+            )
             if value and value in prior_signatures
         ]
         if duplicate_signatures:
@@ -179,11 +205,14 @@ class EvaluationAuthoringWorker:
                     {
                         "path": "cases",
                         "code": "duplicate_across_batches",
-                        "message": "The batch repeated one or more questions generated by previous batches.",
+                        "message": (
+                            "The batch repeated one or more questions generated by "
+                            "previous batches."
+                        ),
                     },
                 ],
             }
-        if validation.get("case_count") != batch.requested_case_count:
+        if validation.get("case_count") != requested_case_count:
             validation = {
                 **validation,
                 "valid": False,
@@ -194,64 +223,102 @@ class EvaluationAuthoringWorker:
                         "code": "batch_case_count_mismatch",
                         "message": (
                             f"Batch returned {validation.get('case_count', 0)} of "
-                            f"{batch.requested_case_count} requested cases."
+                            f"{requested_case_count} requested cases."
                         ),
                     },
                 ],
             }
 
         async with self._session_factory() as session, session.begin():
-            call = await session.get(EvaluationAuthoringCallModel, call_id, with_for_update=True)
-            batch = await session.get(EvaluationAuthoringBatchModel, batch_id, with_for_update=True)
+            call = await session.get(
+                EvaluationAuthoringCallModel,
+                call_id,
+                with_for_update=True,
+            )
+            batch = await session.get(
+                EvaluationAuthoringBatchModel,
+                batch_id,
+                with_for_update=True,
+            )
             if call is None or batch is None:
                 return
-            batch.input_tokens = result.input_tokens
-            batch.output_tokens = result.output_tokens
-            batch.cost_usd = result.cost_usd
+
+            batch.input_tokens = int(batch.input_tokens or 0) + int(result.input_tokens or 0)
+            batch.output_tokens = int(batch.output_tokens or 0) + int(result.output_tokens or 0)
+            accumulated_cost = float(batch.cost_usd or 0) + float(result.cost_usd or 0)
+            batch.cost_usd = accumulated_cost or None
             batch.pricing_snapshot = result.pricing_snapshot
             batch.validation_result = validation
             batch.completed_at = result.completed_at
             batch.generated_payload = (
                 {
-                    "suite": payload.get("suite") if isinstance(payload.get("suite"), dict) else {},
+                    "suite": (
+                        payload.get("suite")
+                        if isinstance(payload.get("suite"), dict)
+                        else {}
+                    ),
                     "coverage": batch.coverage_request,
                     "cases": validation.get("cases") or [],
                 }
                 if result.payload
                 else None
             )
+
+            if call.cancel_requested_at is not None:
+                await self._record_batch_usage(session, call, batch, result)
+                await self._cancel_locked(session, call)
+                return
+
+            terminal = False
             if result.payload and validation.get("valid"):
                 batch.status = "completed"
                 batch.error = None
-                await record_evaluation_model_usage(
-                    session,
-                    source_id=batch.id,
-                    project_id=call.project_id,
-                    usage_subtype="suite_authoring",
-                    provider=result.provider,
-                    model=result.model,
-                    provider_model_id=result.provider_model_id,
-                    input_tokens=result.input_tokens,
-                    output_tokens=result.output_tokens,
-                    cost_usd=result.cost_usd,
-                    pricing_snapshot=result.pricing_snapshot,
-                    data={
-                        "authoring_call_id": str(call.id),
-                        "authoring_batch_id": str(batch.id),
-                        "batch_index": batch.batch_index,
-                    },
-                )
+                terminal = True
             else:
                 batch.error = result.error or "; ".join(
                     str(item.get("message") or "invalid batch")
                     for item in validation.get("errors", [])[:5]
                 )
-                batch.status = "pending" if int(batch.attempt or 0) < 2 else "failed"
+                if int(batch.attempt or 0) < 2:
+                    batch.status = "pending"
+                else:
+                    batch.status = "failed"
+                    terminal = True
+
+            if terminal:
+                await self._record_batch_usage(session, call, batch, result)
+
             call.lease_owner = None
             call.lease_expires_at = None
             await self._refresh_call_locked(session, call)
 
-    async def _refresh_call_locked(self, session, call: EvaluationAuthoringCallModel) -> None:
+    async def _record_batch_usage(self, session, call, batch, result) -> None:
+        await record_evaluation_model_usage(
+            session,
+            source_id=batch.id,
+            project_id=call.project_id,
+            usage_subtype="suite_authoring",
+            provider=result.provider,
+            model=result.model,
+            provider_model_id=result.provider_model_id,
+            input_tokens=batch.input_tokens,
+            output_tokens=batch.output_tokens,
+            cost_usd=float(batch.cost_usd) if batch.cost_usd is not None else None,
+            pricing_snapshot=batch.pricing_snapshot,
+            data={
+                "authoring_call_id": str(call.id),
+                "authoring_batch_id": str(batch.id),
+                "batch_index": batch.batch_index,
+                "batch_status": batch.status,
+                "attempts": batch.attempt,
+            },
+        )
+
+    async def _refresh_call_locked(
+        self,
+        session,
+        call: EvaluationAuthoringCallModel,
+    ) -> None:
         batches = list(
             (
                 await session.scalars(
@@ -274,11 +341,12 @@ class EvaluationAuthoringWorker:
         if len(completed) == call.total_batch_count:
             await self._complete_locked(call, batches)
         elif failed:
-            call.status = "partial" if completed else "failed"
+            call.status = "failed"
             call.error = f"{len(failed)} authoring batch(es) failed"
-            call.completed_at = _now() if all(item.status in {"completed", "failed"} for item in batches) else None
+            call.completed_at = _now()
         else:
             call.status = "queued"
+            call.completed_at = None
 
     async def _complete_locked(
         self,
@@ -302,7 +370,9 @@ class EvaluationAuthoringWorker:
         draft = {
             "schema_version": 1,
             "suite": {
-                "suggested_name": first_suite.get("suggested_name") or "Generated Evaluator Suite",
+                "suggested_name": (
+                    first_suite.get("suggested_name") or "Generated Evaluator Suite"
+                ),
                 "description": first_suite.get("description") or "",
                 "objective": call.objective,
             },
@@ -313,9 +383,15 @@ class EvaluationAuthoringWorker:
             validate_suite_draft(draft),
             context_pack=call.context_payload or {},
         )
-        if validation.get("valid") and validation.get("case_count") == call.requested_case_count:
+        if (
+            validation.get("valid")
+            and validation.get("case_count") == call.requested_case_count
+        ):
             call.status = "completed"
-            call.generated_payload = {**draft, "cases": validation.get("cases") or []}
+            call.generated_payload = {
+                **draft,
+                "cases": validation.get("cases") or [],
+            }
             call.validation_result = validation
             call.error = None
             call.completed_at = _now()
@@ -329,6 +405,16 @@ class EvaluationAuthoringWorker:
         await self._refresh_call_locked(session, call)
         call.lease_owner = None
         call.lease_expires_at = None
+
+    async def _cancel_by_id(self, call_id: UUID) -> None:
+        async with self._session_factory() as session, session.begin():
+            call = await session.get(
+                EvaluationAuthoringCallModel,
+                call_id,
+                with_for_update=True,
+            )
+            if call is not None:
+                await self._cancel_locked(session, call)
 
     async def _cancel_locked(self, session, call: EvaluationAuthoringCallModel) -> None:
         batches = list(
@@ -353,8 +439,16 @@ class EvaluationAuthoringWorker:
 
     async def _fail_batch(self, call_id: UUID, batch_id: UUID, detail: str) -> None:
         async with self._session_factory() as session, session.begin():
-            call = await session.get(EvaluationAuthoringCallModel, call_id, with_for_update=True)
-            batch = await session.get(EvaluationAuthoringBatchModel, batch_id, with_for_update=True)
+            call = await session.get(
+                EvaluationAuthoringCallModel,
+                call_id,
+                with_for_update=True,
+            )
+            batch = await session.get(
+                EvaluationAuthoringBatchModel,
+                batch_id,
+                with_for_update=True,
+            )
             if batch is not None:
                 batch.status = "pending" if int(batch.attempt or 0) < 2 else "failed"
                 batch.error = detail[:2000]
