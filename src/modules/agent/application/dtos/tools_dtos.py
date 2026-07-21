@@ -19,6 +19,7 @@ class HttpHeaderConfig(BaseModel):
     key: str = Field(..., min_length=1)
     value: str = ""
     sensitive: bool | None = None
+    mode: Literal["set", "remove"] = "set"
 
 
 class HttpAuthConfig(BaseModel):
@@ -28,7 +29,7 @@ class HttpAuthConfig(BaseModel):
 
 class HttpRouteConfig(BaseModel):
     id: str = Field(..., min_length=1)
-    operation_id: str = Field(..., min_length=1)
+    operation_id: str | None = None
     name: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] = "GET"
