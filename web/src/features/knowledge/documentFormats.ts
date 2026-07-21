@@ -10,11 +10,19 @@ export const ACCEPTED_DOCUMENT_MIME_TYPES = [
   'application/zip',
 ] as const
 
+const FILE_PICKER_MIME_TYPES = [
+  'text/plain',
+  'text/markdown',
+  'text/x-markdown',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const
+
 export const MAX_DOCUMENT_FILE_MB = 25
 
 export const DOCUMENT_ACCEPT_ATTRIBUTE = [
   ...ACCEPTED_DOCUMENT_EXTENSIONS,
-  ...ACCEPTED_DOCUMENT_MIME_TYPES,
+  ...FILE_PICKER_MIME_TYPES,
 ].join(',')
 
 export function extensionOf(fileName: string): string {
