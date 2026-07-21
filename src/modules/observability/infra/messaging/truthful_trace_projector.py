@@ -27,6 +27,11 @@ _RUNTIME_DIMENSION_FIELDS = (
     "provider_credential_id",
     "fallback_provider_model_id",
     "fallback_credential_id",
+    "run_purpose",
+    "evaluation_run_id",
+    "evaluation_trial_id",
+    "comparison_pair_id",
+    "target_side",
 )
 
 _COMPLETION_EVENT_FIELDS = (
@@ -61,6 +66,11 @@ _COMPLETION_EVENT_FIELDS = (
     "provider_credential_id",
     "fallback_provider_model_id",
     "fallback_credential_id",
+    "run_purpose",
+    "evaluation_run_id",
+    "evaluation_trial_id",
+    "comparison_pair_id",
+    "target_side",
 )
 
 
@@ -90,11 +100,13 @@ def _apply_runtime_dimensions(trace: Trace, payload: dict[str, Any]) -> None:
     data = dict(trace.data or {})
     diagnostics = payload.get("diagnostics")
     diagnostic_values = diagnostics if isinstance(diagnostics, dict) else {}
+    values: dict[str, Any] = {}
     for field in _RUNTIME_DIMENSION_FIELDS:
         value = payload.get(field)
         if value is None:
             value = diagnostic_values.get(field)
         if value is not None:
+            values[field] = value
             data[field] = value
     for field in ("llm_call_count", "tool_call_count"):
         value = payload.get(field)
@@ -102,6 +114,20 @@ def _apply_runtime_dimensions(trace: Trace, payload: dict[str, Any]) -> None:
             value = diagnostic_values.get(field)
         if value is not None:
             data[field] = value
+
+    trace.run_purpose = str(values.get("run_purpose") or trace.run_purpose or "operational")
+    trace.evaluation_run_id = _uuid(values.get("evaluation_run_id")) or trace.evaluation_run_id
+    trace.evaluation_trial_id = _uuid(values.get("evaluation_trial_id")) or trace.evaluation_trial_id
+    trace.comparison_pair_id = (
+        str(values["comparison_pair_id"])
+        if values.get("comparison_pair_id") is not None
+        else trace.comparison_pair_id
+    )
+    trace.target_side = (
+        str(values["target_side"])
+        if values.get("target_side") is not None
+        else trace.target_side
+    )
     trace.data = data
 
 
@@ -216,7 +242,8 @@ async def project_agent_event(
         "fallback_provider_model_id", "fallback_credential_id",
         "model_binding", "fallback_model_binding", "execution_context",
         "agent_release_id", "agent_release_version", "llm_call_count",
-        "tool_call_count",
+        "tool_call_count", "run_purpose", "evaluation_run_id",
+        "evaluation_trial_id", "comparison_pair_id", "target_side",
     ):
         value = payload.get(field)
         if value is None and field in diagnostics:
@@ -245,6 +272,11 @@ async def project_agent_event(
             "event": "observability.execution.summary.v1",
             "trace_id": str(trace_id),
             **diagnostics,
+            "run_purpose": trace.run_purpose,
+            "evaluation_run_id": str(trace.evaluation_run_id) if trace.evaluation_run_id else None,
+            "evaluation_trial_id": str(trace.evaluation_trial_id) if trace.evaluation_trial_id else None,
+            "comparison_pair_id": trace.comparison_pair_id,
+            "target_side": trace.target_side,
         },
     )
     await _save_event(
