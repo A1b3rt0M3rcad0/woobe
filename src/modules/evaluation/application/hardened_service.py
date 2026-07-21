@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import random
+from dataclasses import asdict
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from modules.evaluation.application.preflight import EvaluationPreflightService
 from modules.evaluation.application.service import EvaluationApplicationService
+from modules.evaluation.domain.enums import EvaluationMode, EvaluationRunStatus
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
+    EvaluationSuiteModel,
     EvaluationSuiteVersionModel,
+    EvaluationTargetModel,
 )
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
@@ -88,10 +94,9 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 approved_high_risk_tool_ids=set(approved_high_risk_tool_ids or []),
             )
 
-        preflight_payload = preflight.to_dict()
         return {
             **base,
-            "preflight": preflight_payload,
+            "preflight": preflight.to_dict(),
             "requires_confirmation": (
                 preflight.requires_acknowledgement
                 and not acknowledge_tool_side_effects
@@ -135,59 +140,128 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
             )
 
         normalized_key = idempotency_key.strip() if idempotency_key else None
-        if normalized_key:
+        try:
+            async with self._session_factory() as session, session.begin():
+                if normalized_key:
+                    existing = await session.scalar(
+                        select(EvaluationRunModel).where(
+                            EvaluationRunModel.project_id == project_id,
+                            EvaluationRunModel.request_idempotency_key == normalized_key,
+                        )
+                    )
+                    if existing is not None:
+                        targets = await self._targets_for_run(session, existing.id)
+                        return self._run_payload(existing, targets)
+
+                suite = await session.get(EvaluationSuiteVersionModel, suite_version_id)
+                if suite is None or suite.project_id != project_id:
+                    raise NotFoundError("Evaluation Suite version not found")
+                suite_root = await session.get(EvaluationSuiteModel, suite.suite_id)
+                if suite_root is None or suite_root.project_id != project_id:
+                    raise NotFoundError("Evaluation Suite not found")
+                candidate_target = await self._resolve_target_dict(
+                    session,
+                    project_id=project_id,
+                    raw=candidate,
+                )
+                baseline_target = (
+                    await self._resolve_target_dict(
+                        session,
+                        project_id=project_id,
+                        raw=baseline,
+                    )
+                    if baseline
+                    else None
+                )
+                if candidate_target.target_type != suite_root.target_type:
+                    raise ValidationError(
+                        "Candidate target type does not match the Evaluation Suite"
+                    )
+                if (
+                    baseline_target is not None
+                    and baseline_target.target_type != candidate_target.target_type
+                ):
+                    raise ValidationError(
+                        "Candidate and Baseline must use the same target type"
+                    )
+                if (
+                    baseline_target is not None
+                    and baseline_target.snapshot_hash == candidate_target.snapshot_hash
+                ):
+                    raise ConflictError(
+                        "Candidate and Baseline resolve to the same immutable snapshot"
+                    )
+
+                run = EvaluationRunModel(
+                    project_id=project_id,
+                    suite_version_id=suite_version_id,
+                    mode=(
+                        EvaluationMode.COMPARISON.value
+                        if baseline_target is not None
+                        else EvaluationMode.ABSOLUTE.value
+                    ),
+                    status=EvaluationRunStatus.QUEUED.value,
+                    repetitions=repetitions,
+                    execution_order="paired_interleaved",
+                    randomization_seed=random.SystemRandom().randint(1, 2_147_483_647),
+                    request_idempotency_key=normalized_key,
+                    requested_by=requested_by,
+                    aggregate_result={
+                        "_request": {
+                            "idempotency_key": normalized_key,
+                            "acknowledge_tool_side_effects": acknowledge_tool_side_effects,
+                            "approved_high_risk_tool_ids": [
+                                str(value)
+                                for value in (approved_high_risk_tool_ids or [])
+                            ],
+                        },
+                        "preflight": preview["preflight"],
+                    },
+                )
+                session.add(run)
+                await session.flush()
+                candidate_model = EvaluationTargetModel(
+                    evaluation_run_id=run.id,
+                    project_id=project_id,
+                    side="candidate",
+                    **asdict(candidate_target),
+                )
+                session.add(candidate_model)
+                baseline_model = None
+                if baseline_target is not None:
+                    baseline_model = EvaluationTargetModel(
+                        evaluation_run_id=run.id,
+                        project_id=project_id,
+                        side="baseline",
+                        **asdict(baseline_target),
+                    )
+                    session.add(baseline_model)
+                await session.flush()
+                run.candidate_target_id = candidate_model.id
+                run.baseline_target_id = (
+                    baseline_model.id if baseline_model is not None else None
+                )
+                targets = [candidate_model]
+                if baseline_model is not None:
+                    targets.append(baseline_model)
+                return self._run_payload(run, targets)
+        except IntegrityError:
+            if not normalized_key:
+                raise
             async with self._session_factory() as session:
                 existing = await session.scalar(
-                    select(EvaluationRunModel)
-                    .where(
+                    select(EvaluationRunModel).where(
                         EvaluationRunModel.project_id == project_id,
-                        EvaluationRunModel.aggregate_result["_request"][
-                            "idempotency_key"
-                        ].astext
-                        == normalized_key,
+                        EvaluationRunModel.request_idempotency_key == normalized_key,
                     )
-                    .order_by(EvaluationRunModel.created_at.desc())
-                    .limit(1)
                 )
-                if existing is not None:
-                    targets = await self._targets_for_run(session, existing.id)
-                    return self._run_payload(existing, targets)
-
-        created = await super().create_run(
-            project_id=project_id,
-            suite_version_id=suite_version_id,
-            repetitions=repetitions,
-            candidate=candidate,
-            baseline=baseline,
-            requested_by=requested_by,
-        )
-        async with self._session_factory() as session, session.begin():
-            run = await session.get(
-                EvaluationRunModel,
-                UUID(created["id"]),
-                with_for_update=True,
-            )
-            if run is None:
-                raise NotFoundError("Evaluation Run was not persisted")
-            run.aggregate_result = {
-                "_request": {
-                    "idempotency_key": normalized_key,
-                    "acknowledge_tool_side_effects": acknowledge_tool_side_effects,
-                    "approved_high_risk_tool_ids": [
-                        str(value) for value in (approved_high_risk_tool_ids or [])
-                    ],
-                },
-                "preflight": preview["preflight"],
-            }
-            run.estimated_preflight_cost = None
-            await session.flush()
-            targets = await self._targets_for_run(session, run.id)
-            return self._run_payload(run, targets)
+                if existing is None:
+                    raise
+                targets = await self._targets_for_run(session, existing.id)
+                return self._run_payload(existing, targets)
 
     @staticmethod
     async def _targets_for_run(session, run_id: UUID):
-        from modules.evaluation.infra.database.models import EvaluationTargetModel
-
         return list(
             (
                 await session.scalars(
