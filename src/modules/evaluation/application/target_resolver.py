@@ -35,6 +35,7 @@ def _id_text(value: Any) -> str | None:
 
 def _agent_release_snapshot(release: AgentReleaseModel) -> dict[str, Any]:
     return {
+        "schema_version": 1,
         "name": release.name,
         "description": release.description,
         "system_prompt": release.system_prompt,
@@ -64,10 +65,7 @@ def _agent_release_snapshot(release: AgentReleaseModel) -> dict[str, Any]:
 
 
 class EvaluationTargetResolver:
-    def __init__(
-        self,
-        session_factory: async_sessionmaker,
-    ) -> None:
+    def __init__(self, session_factory: async_sessionmaker) -> None:
         self._session_factory = session_factory
         self._network_service = NetworkApplicationService(session_factory)
 
@@ -130,18 +128,28 @@ class EvaluationTargetResolver:
                 raise ConflictError("Save the Agent Draft before evaluating it")
             environment = "draft"
         elif source_type == "staging":
-            release = await session.scalar(
-                select(AgentReleaseModel)
-                .where(
-                    AgentReleaseModel.project_id == project_id,
-                    AgentReleaseModel.agent_id == agent_id,
-                    AgentReleaseModel.status == "staging",
+            if release_id is not None:
+                release = await session.get(AgentReleaseModel, release_id)
+                if (
+                    release is None
+                    or release.project_id != project_id
+                    or release.agent_id != agent_id
+                    or release.status != "staging"
+                ):
+                    raise NotFoundError("Agent Staging version not found")
+            else:
+                release = await session.scalar(
+                    select(AgentReleaseModel)
+                    .where(
+                        AgentReleaseModel.project_id == project_id,
+                        AgentReleaseModel.agent_id == agent_id,
+                        AgentReleaseModel.status == "staging",
+                    )
+                    .order_by(AgentReleaseModel.created_at.desc())
+                    .limit(1)
                 )
-                .order_by(AgentReleaseModel.created_at.desc())
-                .limit(1)
-            )
-            if release is None:
-                raise ConflictError("Agent Staging is not ready")
+                if release is None:
+                    raise ConflictError("Agent Staging is not ready")
             environment = "staging"
         elif source_type == "release":
             if release_id is not None:
@@ -183,11 +191,7 @@ class EvaluationTargetResolver:
             snapshot_hash=canonical_hash(snapshot),
             composition_hash=None,
             display_name=agent.name,
-            display_version=(
-                "Current Draft"
-                if source_type == "draft"
-                else release.version
-            ),
+            display_version="Current Draft" if source_type == "draft" else release.version,
         )
 
     async def _resolve_network(
@@ -214,10 +218,12 @@ class EvaluationTargetResolver:
 
             resolved_composition_hash = composition_hash(definition, bindings)
             snapshot = {
+                "schema_version": 1,
                 "draft_revision": network.draft_revision,
                 "definition": definition.to_dict(),
                 "resolved_bindings": bindings,
                 "composition_hash": resolved_composition_hash,
+                "timeout_seconds": definition.limits.timeout_seconds,
             }
             return ResolvedEvaluationTarget(
                 target_type="network",
@@ -240,7 +246,11 @@ class EvaluationTargetResolver:
         elif source_type == "release":
             selected_version_id = version_id or network.production_version_id
             expected_kind = "release"
-            environment = "production" if selected_version_id == network.production_version_id else "release"
+            environment = (
+                "production"
+                if selected_version_id == network.production_version_id
+                else "release"
+            )
         else:
             raise ValidationError("Network source_type must be draft, staging or release")
 
@@ -254,13 +264,16 @@ class EvaluationTargetResolver:
             or version.kind != expected_kind
         ):
             raise NotFoundError(f"Network {source_type.title()} version not found")
+        definition = self._network_service._definition(version.definition)
         snapshot = {
+            "schema_version": 1,
             "network_version_id": str(version.id),
             "version": version.version,
             "kind": version.kind,
             "definition": version.definition,
             "resolved_bindings": version.resolved_bindings,
             "composition_hash": version.composition_hash,
+            "timeout_seconds": definition.limits.timeout_seconds,
         }
         return ResolvedEvaluationTarget(
             target_type="network",
