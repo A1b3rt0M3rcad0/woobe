@@ -45,6 +45,7 @@ class EvaluationDatasetVersionModel(BaseModel):
     __table_args__ = (
         UniqueConstraint("dataset_id", "version", name="uq_evaluation_dataset_versions_version"),
         Index("ix_evaluation_dataset_versions_project_created", "project_id", "created_at"),
+        Index("ix_evaluation_dataset_versions_source_snapshot", "project_id", "source_snapshot_hash"),
         {"schema": "evaluation"},
     )
 
@@ -53,6 +54,12 @@ class EvaluationDatasetVersionModel(BaseModel):
     version: Mapped[str] = mapped_column(String(64))
     content_hash: Mapped[str] = mapped_column(String(64))
     change_description: Mapped[str | None] = mapped_column(Text)
+    authoring_source: Mapped[str] = mapped_column(String(32), default="manual")
+    source_snapshot_hash: Mapped[str | None] = mapped_column(String(64))
+    source_context_hash: Mapped[str | None] = mapped_column(String(64))
+    authoring_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[UUID | None]
     created_by: Mapped[UUID | None]
 
 
@@ -66,6 +73,10 @@ class EvaluationTestCaseModel(BaseModel):
             "production_frequency IS NULL OR (production_frequency >= 0 AND production_frequency <= 1)",
             name="ck_evaluation_test_cases_frequency",
         ),
+        CheckConstraint(
+            "case_type IN ('success', 'refusal', 'handled_error', 'expected_failure')",
+            name="ck_evaluation_test_cases_case_type",
+        ),
         {"schema": "evaluation"},
     )
 
@@ -73,6 +84,7 @@ class EvaluationTestCaseModel(BaseModel):
     project_id: Mapped[UUID]
     position: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String(255))
+    case_type: Mapped[str] = mapped_column(String(32), default="success")
     input_payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
     initial_context: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     expected_contract: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -214,6 +226,9 @@ class EvaluationTrialModel(BaseModel):
     root_trace_id: Mapped[UUID | None]
     output_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    observed_outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    failure_origin: Mapped[str | None] = mapped_column(String(32))
+    failure_stage: Mapped[str | None] = mapped_column(String(32))
     score: Mapped[float | None] = mapped_column(Float)
     passed: Mapped[bool | None]
     failure_code: Mapped[str | None] = mapped_column(String(128))
@@ -275,6 +290,44 @@ class EvaluatorModelCallModel(BaseModel):
     structured_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EvaluationAuthoringCallModel(BaseModel):
+    __tablename__ = "authoring_calls"
+    __table_args__ = (
+        Index("ix_evaluation_authoring_calls_project_created", "project_id", "created_at"),
+        Index("ix_evaluation_authoring_calls_snapshot", "project_id", "target_snapshot_hash"),
+        Index("ix_evaluation_authoring_calls_status", "status", "created_at"),
+        CheckConstraint("requested_case_count BETWEEN 1 AND 100", name="ck_evaluation_authoring_case_count"),
+        {"schema": "evaluation"},
+    )
+
+    project_id: Mapped[UUID]
+    target_type: Mapped[str] = mapped_column(String(32))
+    target_entity_id: Mapped[UUID]
+    target_source_type: Mapped[str] = mapped_column(String(32))
+    target_version_id: Mapped[UUID | None]
+    target_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    generator_provider_model_id: Mapped[UUID]
+    generator_provider_credential_id: Mapped[UUID]
+    provider: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(255))
+    objective: Mapped[str] = mapped_column(Text)
+    requested_case_count: Mapped[int] = mapped_column(Integer)
+    coverage_request: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(32))
+    prompt_version: Mapped[str] = mapped_column(String(64), default="suite-generator-v1")
+    context_hash: Mapped[str] = mapped_column(String(64))
+    context_stats: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Numeric(18, 10))
+    pricing_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    generated_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    validation_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[UUID | None]
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
