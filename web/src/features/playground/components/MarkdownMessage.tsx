@@ -42,6 +42,16 @@ function isEscaped(value: string, index: number): boolean {
   return backslashes % 2 === 1
 }
 
+function looksLikeDollarMath(value: string): boolean {
+  const expression = value.trim()
+  if (!expression || expression.length > 500) return false
+  if (/\\[A-Za-z]+/.test(expression)) return true
+  if (/[\^_={}<>±×÷∫∑√]/u.test(expression)) return true
+  if (/[+\-*/=]/.test(expression)) return true
+  if (/^[A-Za-zΑ-ω]$/u.test(expression)) return true
+  return /^(?:\d+(?:\.\d+)?)?[A-Za-zΑ-ω]+(?:\d+)?$/u.test(expression)
+}
+
 function renderInline(
   text: string,
   keyPrefix: string,
@@ -79,7 +89,7 @@ function renderInline(
       )
     } else if (match[3] && match[4]) {
       const closeIndex = start + match[0].length - 1
-      if (isEscaped(text, start) || isEscaped(text, closeIndex)) {
+      if (isEscaped(text, start) || isEscaped(text, closeIndex) || !looksLikeDollarMath(match[4])) {
         pushText(match[0])
       } else {
         nodes.push(
