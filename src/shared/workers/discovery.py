@@ -15,6 +15,7 @@ MODULE_WORKER_REGISTRIES: list[str] = [
     "agent",
     "billing",
     "core",
+    "evaluation",
     "identity",
     "metering",
     "network",
