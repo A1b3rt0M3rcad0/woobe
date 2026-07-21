@@ -39,6 +39,7 @@ class EvaluationTrialStatus(StrEnum):
     FAILED = "failed"
     BLOCKED = "blocked"
     INCONCLUSIVE = "inconclusive"
+    CANCELLED = "cancelled"
 
 
 class EvaluationTargetSide(StrEnum):
