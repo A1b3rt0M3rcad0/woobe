@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   cancelEvaluationRun,
+  createComposedEvaluatorSuite,
   createEvaluationDataset,
   createEvaluationDatasetVersion,
   createEvaluationRun,
   createEvaluationSuite,
   createEvaluationSuiteVersion,
+  generateEvaluatorSuiteDraft,
   getEvaluationDataset,
   getEvaluationDatasets,
   getEvaluationQualifications,
@@ -13,12 +15,17 @@ import {
   getEvaluationRuns,
   getEvaluationSuites,
   previewEvaluationRun,
+  previewSuiteAuthoringContext,
+  validateEvaluatorSuiteDraft,
 } from './api'
 import type {
+  CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
   CreateEvaluationSuiteInput,
   EvaluationTargetType,
+  EvaluatorSuiteDraft,
+  GenerateSuiteDraftInput,
 } from './types'
 
 const activeStatuses = new Set([
@@ -123,6 +130,37 @@ export function useCreateEvaluationSuiteVersion(projectId?: string, suiteId?: st
     mutationFn: (input: Omit<CreateEvaluationSuiteInput, 'name' | 'description' | 'target_type'>) =>
       createEvaluationSuiteVersion(projectId as string, suiteId as string, input),
     onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] }),
+  })
+}
+
+export function usePreviewSuiteAuthoringContext(projectId?: string) {
+  return useMutation({
+    mutationFn: (input: Pick<GenerateSuiteDraftInput, 'target' | 'generator_provider_model_id' | 'objective' | 'case_count' | 'maximum_input_tokens'>) =>
+      previewSuiteAuthoringContext(projectId as string, input),
+  })
+}
+
+export function useGenerateEvaluatorSuite(projectId?: string) {
+  return useMutation({
+    mutationFn: (input: GenerateSuiteDraftInput) => generateEvaluatorSuiteDraft(projectId as string, input),
+  })
+}
+
+export function useValidateEvaluatorSuite(projectId?: string) {
+  return useMutation({
+    mutationFn: (draft: EvaluatorSuiteDraft) => validateEvaluatorSuiteDraft(projectId as string, draft),
+  })
+}
+
+export function useCreateComposedEvaluatorSuite(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateComposedSuiteInput) => createComposedEvaluatorSuite(projectId as string, input),
+    onSuccess: (suite) => {
+      client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-datasets', projectId] })
+      if (suite.id) client.setQueryData(['evaluation-suite', projectId, suite.id], suite)
+    },
   })
 }
 
