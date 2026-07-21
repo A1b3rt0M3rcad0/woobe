@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+from typing import Any, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Request, status
+from pydantic import BaseModel, Field
+
+from modules.evaluation.application.suite_authoring import EvaluationSuiteAuthoringService
+from modules.evaluation.presentation.dependencies import require_evaluation_user
+
+router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation-authoring"])
+
+
+class AuthoringTargetRequest(BaseModel):
+    target_type: Literal["agent", "network"]
+    source_type: Literal["draft", "staging", "release"]
+    entity_id: UUID
+    version_id: UUID | None = None
+
+
+class ContextPreviewRequest(BaseModel):
+    target: AuthoringTargetRequest
+    generator_provider_model_id: UUID
+    objective: str = Field(min_length=10, max_length=5000)
+    case_count: int = Field(default=20, ge=5, le=50)
+    maximum_input_tokens: int = Field(default=16_000, ge=2_000, le=64_000)
+
+
+class GenerateSuiteDraftRequest(ContextPreviewRequest):
+    coverage: dict[str, int] = Field(default_factory=dict)
+    error_case_ratio: float = Field(default=0.3, ge=0, le=0.8)
+    language: str = Field(default="pt-BR", min_length=2, max_length=32)
+    maximum_cost_usd: float | None = Field(default=None, gt=0, le=100)
+
+
+class ValidateSuiteDraftRequest(BaseModel):
+    draft: dict[str, Any]
+
+
+class CreateComposedSuiteRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    description: str = Field(default="", max_length=2000)
+    target_type: Literal["agent", "network"]
+    judge_provider_model_id: UUID
+    draft: dict[str, Any]
+    judge_config: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "temperature": 0,
+            "max_tokens": 800,
+            "timeout_seconds": 90,
+            "maximum_input_tokens": 8000,
+        }
+    )
+    rubric: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "criteria": [
+                "Correctness",
+                "Relevance",
+                "Completeness",
+                "Expected behavior",
+            ],
+            "judge_weight": 4,
+        }
+    )
+    deterministic_checks: dict[str, Any] = Field(default_factory=lambda: {"enabled": True})
+    acceptance_policy: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "minimum_score": 70,
+            "minimum_pass_rate": 80,
+            "minimum_paired_n": 3,
+            "maximum_score_regression": 0,
+        }
+    )
+    repetition_policy: dict[str, Any] = Field(
+        default_factory=lambda: {"default_repetitions": 3, "maximum_repetitions": 25}
+    )
+    estimate_defaults: dict[str, Any] = Field(default_factory=lambda: {"volume": 10_000})
+    authoring_source: Literal["manual", "json_import", "ai_generated"] = "manual"
+    source_snapshot_hash: str | None = Field(default=None, max_length=64)
+    source_context_hash: str | None = Field(default=None, max_length=64)
+    authoring_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+def _service(request: Request) -> EvaluationSuiteAuthoringService:
+    return EvaluationSuiteAuthoringService(request.app.state.session_factory)
+
+
+@router.post("/suite-authoring/context-preview")
+async def preview_authoring_context(
+    project_id: UUID,
+    payload: ContextPreviewRequest,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    data = await _service(request).preview_context(
+        project_id=project_id,
+        target=payload.target.model_dump(mode="json", exclude_none=True),
+        generator_provider_model_id=payload.generator_provider_model_id,
+        objective=payload.objective,
+        case_count=payload.case_count,
+        maximum_input_tokens=payload.maximum_input_tokens,
+    )
+    return {"success": True, "data": data}
+
+
+@router.post("/suite-authoring/generate", status_code=status.HTTP_201_CREATED)
+async def generate_suite_draft(
+    project_id: UUID,
+    payload: GenerateSuiteDraftRequest,
+    request: Request,
+):
+    user_id = require_evaluation_user(request, project_id)
+    data = await _service(request).generate_draft(
+        project_id=project_id,
+        target=payload.target.model_dump(mode="json", exclude_none=True),
+        generator_provider_model_id=payload.generator_provider_model_id,
+        objective=payload.objective,
+        case_count=payload.case_count,
+        coverage=payload.coverage,
+        error_case_ratio=payload.error_case_ratio,
+        language=payload.language,
+        maximum_input_tokens=payload.maximum_input_tokens,
+        maximum_cost_usd=payload.maximum_cost_usd,
+        created_by=user_id,
+    )
+    return {"success": True, "data": data}
+
+
+@router.post("/suite-authoring/validate")
+async def validate_suite_draft(
+    project_id: UUID,
+    payload: ValidateSuiteDraftRequest,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    data = await _service(request).validate_draft(payload.draft)
+    return {"success": True, "data": data}
+
+
+@router.post("/suites/composed", status_code=status.HTTP_201_CREATED)
+async def create_composed_suite(
+    project_id: UUID,
+    payload: CreateComposedSuiteRequest,
+    request: Request,
+):
+    user_id = require_evaluation_user(request, project_id)
+    data = await _service(request).create_composed_suite(
+        project_id=project_id,
+        name=payload.name,
+        description=payload.description,
+        target_type=payload.target_type,
+        judge_provider_model_id=payload.judge_provider_model_id,
+        cases_payload=payload.draft,
+        judge_config=payload.judge_config,
+        rubric=payload.rubric,
+        deterministic_checks=payload.deterministic_checks,
+        acceptance_policy=payload.acceptance_policy,
+        repetition_policy=payload.repetition_policy,
+        estimate_defaults=payload.estimate_defaults,
+        authoring_source=payload.authoring_source,
+        source_snapshot_hash=payload.source_snapshot_hash,
+        source_context_hash=payload.source_context_hash,
+        authoring_metadata=payload.authoring_metadata,
+        created_by=user_id,
+    )
+    return {"success": True, "data": data}
+
+
+__all__ = ["router"]
