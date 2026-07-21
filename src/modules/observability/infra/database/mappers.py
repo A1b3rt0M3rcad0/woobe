@@ -34,6 +34,14 @@ def trace_entity_to_model(entity: Trace) -> TraceModel:
         external_session_id=entity.external_session_id,
         tenant_id=entity.tenant_id,
         user_id=entity.user_id,
+        run_purpose=entity.run_purpose or str(data.get("run_purpose") or "operational"),
+        evaluation_run_id=entity.evaluation_run_id
+        or _uuid(data.get("evaluation_run_id")),
+        evaluation_trial_id=entity.evaluation_trial_id
+        or _uuid(data.get("evaluation_trial_id")),
+        comparison_pair_id=entity.comparison_pair_id
+        or data.get("comparison_pair_id"),
+        target_side=entity.target_side or data.get("target_side"),
         status=entity.status.value if isinstance(entity.status, TraceStatus) else entity.status,
         started_at=entity.started_at,
         ended_at=entity.ended_at,
@@ -64,6 +72,11 @@ def trace_model_to_entity(model: TraceModel) -> Trace:
         external_session_id=model.external_session_id,
         tenant_id=model.tenant_id,
         user_id=model.user_id,
+        run_purpose=model.run_purpose,
+        evaluation_run_id=model.evaluation_run_id,
+        evaluation_trial_id=model.evaluation_trial_id,
+        comparison_pair_id=model.comparison_pair_id,
+        target_side=model.target_side,
         status=TraceStatus(model.status),
         started_at=model.started_at,
         ended_at=model.ended_at,
