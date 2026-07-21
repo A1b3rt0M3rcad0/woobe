@@ -4,6 +4,7 @@ import type {
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
   CreateEvaluationSuiteInput,
+  EvaluationCaseInput,
   EvaluationDataset,
   EvaluationPreview,
   EvaluationQualification,
@@ -20,6 +21,24 @@ import type {
 
 function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
+}
+
+function normalizeAuthoredCase(value: any): EvaluationCaseInput {
+  const type = value?.case_type || value?.expected_outcome?.type || value?.expected_contract?.expected_outcome?.type || 'success'
+  return {
+    ...value,
+    case_type: type,
+    message: String(value?.message || value?.input_payload?.message || ''),
+    expected_outcome: value?.expected_outcome || value?.expected_contract?.expected_outcome || { type },
+    expected_contract: value?.expected_contract || {},
+  }
+}
+
+function normalizeValidation(value: SuiteValidationResult): SuiteValidationResult {
+  return {
+    ...value,
+    cases: (value.cases || []).map(normalizeAuthoredCase),
+  }
 }
 
 export function getEvaluationDatasets(projectId: string) {
@@ -65,12 +84,22 @@ export function previewSuiteAuthoringContext(
   return post<SuiteContextPreview>(`${base(projectId)}/suite-authoring/context-preview`, input)
 }
 
-export function generateEvaluatorSuiteDraft(projectId: string, input: GenerateSuiteDraftInput) {
-  return post<GeneratedSuiteDraft>(`${base(projectId)}/suite-authoring/generate`, input)
+export async function generateEvaluatorSuiteDraft(projectId: string, input: GenerateSuiteDraftInput) {
+  const result = await post<GeneratedSuiteDraft>(`${base(projectId)}/suite-authoring/generate`, input)
+  const validation = normalizeValidation(result.validation)
+  return {
+    ...result,
+    validation,
+    draft: {
+      ...result.draft,
+      cases: validation.cases,
+    },
+  }
 }
 
-export function validateEvaluatorSuiteDraft(projectId: string, draft: EvaluatorSuiteDraft) {
-  return post<SuiteValidationResult>(`${base(projectId)}/suite-authoring/validate`, { draft })
+export async function validateEvaluatorSuiteDraft(projectId: string, draft: EvaluatorSuiteDraft) {
+  const result = await post<SuiteValidationResult>(`${base(projectId)}/suite-authoring/validate`, { draft })
+  return normalizeValidation(result)
 }
 
 export function createComposedEvaluatorSuite(projectId: string, input: CreateComposedSuiteInput) {
