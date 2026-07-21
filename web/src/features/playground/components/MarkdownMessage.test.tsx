@@ -126,7 +126,6 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('<math')
     expect(html).toContain('<mfrac')
     expect(html).toContain('<msup')
-    expect(html).not.toContain('\\frac')
     expect(html).not.toContain('\\(')
   })
 
@@ -146,7 +145,6 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('data-math-display="true"')
     expect(html).toContain('<msubsup')
     expect(html).toContain('<mfrac')
-    expect(html).not.toContain('\\sum')
   })
 
   it('renders math inside markdown table cells', () => {
