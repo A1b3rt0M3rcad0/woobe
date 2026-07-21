@@ -1,8 +1,22 @@
+from __future__ import annotations
+
+import importlib
+
+from modules.evaluation.application.enriched_service import (
+    EnrichedEvaluationApplicationService,
+)
 from modules.evaluation.application.hardened_service import (
     HardenedEvaluationApplicationService,
 )
 from modules.evaluation.application.runtime_gateway import (
     EvaluationNetworkRuntimeGateway,
+)
+from modules.evaluation.application.suite_authoring import (
+    EvaluationSuiteAuthoringService,
+)
+from modules.evaluation.infra.workers.outcome_worker import (
+    OutcomeAwareEvaluationRunProcessor,
+    OutcomeAwareEvaluationRunWorker,
 )
 from modules.evaluation.infra.workers.registry import (
     EvaluationWorkerRegistry,
@@ -25,11 +39,33 @@ def test_network_agent_invoker_compatibility_import_is_canonical() -> None:
 
 def test_evaluation_module_imports_are_resolvable() -> None:
     assert HardenedEvaluationApplicationService is not None
+    assert EnrichedEvaluationApplicationService is not None
+    assert EvaluationSuiteAuthoringService is not None
     assert EvaluationNetworkRuntimeGateway is not None
     assert ResumableEvaluationRunProcessor is not None
     assert ResumableEvaluationRunWorker is not None
+    assert OutcomeAwareEvaluationRunProcessor is not None
+    assert OutcomeAwareEvaluationRunWorker is not None
     assert EvaluationWorkerRegistry is not None
     assert register_evaluation_workers is not None
+
+
+def test_evaluation_authoring_modules_import_cleanly() -> None:
+    module_names = [
+        "modules.evaluation.application.context_pack",
+        "modules.evaluation.application.enriched_service",
+        "modules.evaluation.application.outcome_scoring",
+        "modules.evaluation.application.suite_authoring",
+        "modules.evaluation.application.token_budget",
+        "modules.evaluation.domain.contracts",
+        "modules.evaluation.infra.budgeted_judge",
+        "modules.evaluation.infra.generator",
+        "modules.evaluation.infra.workers.outcome_worker",
+        "modules.evaluation.presentation.authoring_routes",
+        "modules.evaluation.presentation.routes",
+    ]
+    for module_name in module_names:
+        assert importlib.import_module(module_name) is not None
 
 
 def test_evaluation_worker_registry_is_discoverable() -> None:
@@ -38,3 +74,8 @@ def test_evaluation_worker_registry_is_discoverable() -> None:
 
     assert evaluation.registry_class is EvaluationWorkerRegistry
     assert evaluation.register_func is register_evaluation_workers
+
+
+def test_outcome_worker_implements_worker_contract() -> None:
+    assert callable(OutcomeAwareEvaluationRunWorker.run)
+    assert callable(OutcomeAwareEvaluationRunWorker.stop)
