@@ -7,8 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.hardened_service import (
-    HardenedEvaluationApplicationService,
+from modules.evaluation.application.enriched_service import (
+    EnrichedEvaluationApplicationService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -20,6 +20,8 @@ class EvaluationCaseRequest(BaseModel):
     message: str | None = Field(default=None, min_length=1)
     input_payload: dict[str, Any] | None = None
     initial_context: dict[str, Any] | None = None
+    case_type: Literal["success", "refusal", "handled_error", "expected_failure"] = "success"
+    expected_outcome: dict[str, Any] | None = None
     expected_contract: dict[str, Any] = Field(default_factory=dict)
     severity: Literal["low", "normal", "high", "critical"] = "normal"
     weight: float = Field(default=1.0, gt=0, le=100)
@@ -49,8 +51,9 @@ class CreateSuiteRequest(BaseModel):
     judge_config: dict[str, Any] = Field(
         default_factory=lambda: {
             "temperature": 0,
-            "max_tokens": 1600,
+            "max_tokens": 800,
             "timeout_seconds": 90,
+            "maximum_input_tokens": 8000,
             "maximum_cost_usd": None,
         }
     )
@@ -91,8 +94,8 @@ class EvaluationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=255)
 
 
-def _service(request: Request) -> HardenedEvaluationApplicationService:
-    return HardenedEvaluationApplicationService(request.app.state.session_factory)
+def _service(request: Request) -> EnrichedEvaluationApplicationService:
+    return EnrichedEvaluationApplicationService(request.app.state.session_factory)
 
 
 def _message_with_context(message: str, context: dict[str, Any]) -> str:
@@ -131,8 +134,13 @@ def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
             )
             input_payload.pop("input", None)
             input_payload.pop("prompt", None)
+        expected_contract = dict(data.get("expected_contract") or {})
+        if isinstance(data.get("expected_outcome"), dict):
+            expected_contract["expected_outcome"] = data["expected_outcome"]
+        data["expected_contract"] = expected_contract
         data["input_payload"] = input_payload
         data.pop("message", None)
+        data.pop("expected_outcome", None)
         normalized.append(data)
     return normalized
 
