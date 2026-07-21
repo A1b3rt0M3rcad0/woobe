@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, Eye, FileText, History, Package, Rocket, Upload } from 'lucide-react'
+import { ArrowRight, Eye, FileText, History, Package, Rocket, ShieldCheck, Upload } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
@@ -13,6 +14,8 @@ import {
   useReleases,
 } from '@/features/agents/hooks'
 import type { AgentRelease, AgentReleaseActivation } from '@/features/agents/types'
+import { useEvaluationQualifications } from '@/features/evaluations/hooks'
+import type { EvaluationQualification } from '@/features/evaluations/types'
 import { useAgentEditor } from '../AgentEditorContext'
 import { ProductionChangesModal } from './ProductionChangesModal'
 import { ReleaseLibraryModal } from './ReleaseLibraryModal'
@@ -46,6 +49,25 @@ function SnapshotMeta({ release }: { release: AgentRelease }) {
   )
 }
 
+function QualificationBadge({ qualification, stale = false }: { qualification?: EvaluationQualification; stale?: boolean }) {
+  if (stale) {
+    return <Badge variant="outline" className="border-amber-500/25 bg-amber-500/10 text-[9px] text-amber-300">Evaluation stale</Badge>
+  }
+  if (!qualification) {
+    return <Badge variant="outline" className="text-[9px] text-muted">Not evaluated</Badge>
+  }
+  if (qualification.status === 'qualified') {
+    return <Badge variant="outline" className="border-emerald-500/25 bg-emerald-500/10 text-[9px] text-emerald-300">Qualified · {qualification.score?.toFixed(1) ?? '—'}</Badge>
+  }
+  if (qualification.status === 'qualified_with_warnings') {
+    return <Badge variant="outline" className="border-amber-500/25 bg-amber-500/10 text-[9px] text-amber-300">Qualified with warnings</Badge>
+  }
+  if (qualification.status === 'not_qualified') {
+    return <Badge variant="outline" className="border-red-500/25 bg-red-500/10 text-[9px] text-red-300">Not qualified</Badge>
+  }
+  return <Badge variant="outline" className="border-slate-500/25 bg-slate-500/10 text-[9px] text-slate-300">Inconclusive</Badge>
+}
+
 function activationVariant(action: AgentReleaseActivation['action']) {
   if (action === 'rollback') return 'warning' as const
   if (action === 'deploy') return 'success' as const
@@ -55,8 +77,11 @@ function activationVariant(action: AgentReleaseActivation['action']) {
 type PublishAction = 'release' | 'deploy' | null
 
 export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
+  const navigate = useNavigate()
+  const { organizationId } = useParams<{ organizationId: string }>()
   const { data: releases = [], isLoading } = useReleases(agentId)
   const { data: activations = [], isLoading: activationsLoading } = useReleaseActivations(agentId)
+  const { data: qualifications = [] } = useEvaluationQualifications(projectId, 'agent', agentId)
   const createRelease = useCreateRelease(agentId)
   const promoteRelease = usePromoteRelease(agentId)
   const { state, toSnapshot } = useAgentEditor()
@@ -92,6 +117,15 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     () => new Map(releases.map((release) => [release.id, release])),
     [releases],
   )
+  const qualificationsByReleaseId = useMemo(
+    () => new Map(
+      qualifications
+        .filter((qualification) => qualification.agent_release_id)
+        .map((qualification) => [qualification.agent_release_id as string, qualification]),
+    ),
+    [qualifications],
+  )
+  const hasQualifications = qualifications.length > 0
   const sessionModeChange = Boolean(
     staging
     && production
@@ -99,6 +133,26 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     && production.session_mode
     && staging.session_mode !== production.session_mode,
   )
+
+  const qualificationState = (release: AgentRelease) => ({
+    qualification: qualificationsByReleaseId.get(release.id),
+    stale: hasQualifications && !qualificationsByReleaseId.has(release.id),
+  })
+
+  const openEvaluations = (release?: AgentRelease) => {
+    if (!organizationId) return
+    const query = new URLSearchParams({
+      target_type: 'agent',
+      entity_id: agentId,
+    })
+    if (release) {
+      query.set('source_type', release.status === 'staging' ? 'staging' : 'release')
+      query.set('version_id', release.id)
+    } else {
+      query.set('source_type', 'draft')
+    }
+    navigate(`/organizations/${organizationId}/projects/${projectId}/evaluations?${query.toString()}`)
+  }
 
   const stageDraft = async () => {
     try {
@@ -189,9 +243,12 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   return (
     <div className="space-y-4 p-4">
-      <div>
-        <h2 className="text-sm font-medium text-white">Versions</h2>
-        <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → Release → Production.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium text-white">Versions</h2>
+          <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → Release → Production.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => openEvaluations()}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluations</Button>
       </div>
 
       <section className="rounded-xl border border-border bg-surface/45 p-3">
@@ -202,9 +259,13 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</span>
               <SessionModeBadge mode={state.sessionMode} />
+              <Badge variant="outline" className="text-[9px] text-muted">Evaluate current snapshot</Badge>
             </div>
           </div>
-          <Button size="sm" className="h-8 text-[10px]" onClick={() => setStageOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Stage</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => openEvaluations()}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluate</Button>
+            <Button size="sm" className="h-8 text-[10px]" onClick={() => setStageOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Stage</Button>
+          </div>
         </div>
       </section>
 
@@ -216,12 +277,16 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <div className="min-w-0 flex-1">
                 <p className="font-mono text-xs text-white">{staging.version}</p>
                 <SnapshotMeta release={staging} />
-                <p className="mt-2 text-[10px] leading-4 text-muted">Immutable validation snapshot. Create a Release or create and deploy it.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <QualificationBadge {...qualificationState(staging)} />
+                  <p className="text-[10px] leading-4 text-muted">Immutable validation snapshot.</p>
+                </div>
               </div>
               <Badge variant="secondary" className="border-indigo-500/30 text-indigo-300">Staging</Badge>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => void viewSnapshot(staging)} loading={loadingId === staging.id}><Eye className="mr-1 h-3.5 w-3.5" />View</Button>
+              <Button size="sm" variant="outline" onClick={() => openEvaluations(staging)}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluate</Button>
               <Button size="sm" variant="outline" onClick={() => setPublishAction('release')}><Package className="mr-1 h-3.5 w-3.5" />Create Release</Button>
               <Button size="sm" onClick={() => setPublishAction('deploy')}><Rocket className="mr-1 h-3.5 w-3.5" />Create & Deploy</Button>
             </div>
@@ -237,11 +302,17 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
               <div className="min-w-0 flex-1">
                 <p className="font-mono text-xs text-white">{production.version}</p>
                 <SnapshotMeta release={production} />
-                <p className="mt-1 text-[9px] text-emerald-300">Active in Agent Playground runtime</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <QualificationBadge {...qualificationState(production)} />
+                  <p className="text-[9px] text-emerald-300">Active in Agent Playground runtime</p>
+                </div>
               </div>
               <Badge variant="success">Production</Badge>
             </div>
-            <div className="mt-2"><Button size="sm" variant="outline" onClick={() => void viewSnapshot(production)} loading={loadingId === production.id}><Eye className="mr-1 h-3 w-3" />View details</Button></div>
+            <div className="mt-2 flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => void viewSnapshot(production)} loading={loadingId === production.id}><Eye className="mr-1 h-3 w-3" />View details</Button>
+              <Button size="sm" variant="outline" onClick={() => openEvaluations(production)}><ShieldCheck className="mr-1 h-3 w-3" />Evaluate</Button>
+            </div>
           </article>
         ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Playground Production is active.</div>}
       </section>
@@ -274,12 +345,14 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-mono text-xs text-white">{release.version}</p>
                       <SessionModeBadge mode={release.session_mode} />
+                      <QualificationBadge {...qualificationState(release)} />
                     </div>
                     <p className="mt-1 text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatReleaseDate(release.created_at)}</p>
                     {release.release_notes ? <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-slate-300">{release.release_notes}</p> : null}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Button size="sm" variant="outline" loading={loadingId === release.id} onClick={(event) => { event.stopPropagation(); void viewSnapshot(release) }}><Eye className="mr-1 h-3 w-3" />View</Button>
+                    <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openEvaluations(release) }}><ShieldCheck className="mr-1 h-3 w-3" />Evaluate</Button>
                     <Button size="sm" onClick={(event) => { event.stopPropagation(); setActivationTarget(release) }}><Rocket className="mr-1 h-3 w-3" />Deploy</Button>
                   </div>
                 </div>
