@@ -1,5 +1,7 @@
 export type EvaluationTargetType = 'agent' | 'network'
 export type EvaluationSourceType = 'draft' | 'staging' | 'release'
+export type EvaluationCaseType = 'success' | 'refusal' | 'handled_error' | 'expected_failure'
+export type SuiteAuthoringSource = 'manual' | 'json_import' | 'ai_generated'
 export type EvaluationRunStatus =
   | 'queued'
   | 'snapshotting'
@@ -14,11 +16,22 @@ export type EvaluationRunStatus =
 
 export type EvaluationToolRisk = 'low' | 'medium' | 'high'
 
+export interface ExpectedOutcome {
+  type: EvaluationCaseType
+  allowed_failure_origins?: string[]
+  allowed_failure_stages?: string[]
+  allowed_failure_codes?: string[]
+  required_behavior?: string[]
+  forbidden_behavior?: string[]
+}
+
 export interface EvaluationCaseInput {
   name: string
+  case_type?: EvaluationCaseType
   message: string
   initial_context?: Record<string, unknown>
-  expected_contract?: Record<string, unknown>
+  expected_outcome?: ExpectedOutcome
+  expected_contract?: Record<string, any>
   severity?: 'low' | 'normal' | 'high' | 'critical'
   weight?: number
   blocking?: boolean
@@ -26,11 +39,121 @@ export interface EvaluationCaseInput {
   production_frequency?: number | null
 }
 
+export interface EvaluatorSuiteDraft {
+  schema_version: number
+  suite?: {
+    suggested_name?: string
+    description?: string
+    objective?: string
+  }
+  coverage?: Record<string, number>
+  cases: EvaluationCaseInput[]
+}
+
+export interface SuiteValidationIssue {
+  path?: string
+  code?: string
+  message: string
+  positions?: number[]
+}
+
+export interface SuiteValidationResult {
+  valid: boolean
+  errors: SuiteValidationIssue[]
+  warnings: SuiteValidationIssue[]
+  coverage: Record<string, number>
+  case_count: number
+  cases: EvaluationCaseInput[]
+}
+
+export interface SuiteContextPreview {
+  target: {
+    target_type: EvaluationTargetType
+    source_type: EvaluationSourceType
+    entity_id: string
+    display_name: string
+    display_version: string
+    snapshot_hash: string
+  }
+  context_hash: string
+  context_budget: {
+    estimated_input_tokens: number
+    maximum_input_tokens: number
+    reserved_output_tokens: number
+    safety_margin_tokens: number
+    truncation_applied: boolean
+    truncated_sections: string[]
+    preserved_sections: string[]
+    estimation_strategy: string
+  }
+  context_sections: string[]
+  reserved_output_tokens: number
+  context_window: number
+  estimated_cost_usd: number | null
+  cost_status: string
+  cost_reason?: string | null
+}
+
+export interface GenerateSuiteDraftInput {
+  target: EvaluationTargetInput
+  generator_provider_model_id: string
+  objective: string
+  case_count: number
+  coverage?: Record<string, number>
+  error_case_ratio?: number
+  language?: string
+  maximum_input_tokens?: number
+  maximum_cost_usd?: number | null
+}
+
+export interface GeneratedSuiteDraft {
+  authoring_call_id: string
+  authoring_source: 'ai_generated'
+  source_snapshot_hash: string
+  source_context_hash: string
+  generator: {
+    provider_model_id: string
+    provider: string
+    model: string
+    input_tokens: number | null
+    output_tokens: number | null
+    cost_usd: number | null
+    latency_ms: number
+    error?: string | null
+  }
+  context_budget: SuiteContextPreview['context_budget']
+  validation: SuiteValidationResult
+  draft: EvaluatorSuiteDraft
+}
+
+export interface CreateComposedSuiteInput {
+  name: string
+  description?: string
+  target_type: EvaluationTargetType
+  judge_provider_model_id: string
+  draft: EvaluatorSuiteDraft
+  judge_config?: Record<string, unknown>
+  rubric?: Record<string, unknown>
+  deterministic_checks?: Record<string, unknown>
+  acceptance_policy?: Record<string, unknown>
+  repetition_policy?: Record<string, unknown>
+  estimate_defaults?: Record<string, unknown>
+  authoring_source: SuiteAuthoringSource
+  source_snapshot_hash?: string | null
+  source_context_hash?: string | null
+  authoring_metadata?: Record<string, unknown>
+}
+
 export interface EvaluationDatasetVersion {
   id: string
   version: string
   content_hash: string
   change_description: string | null
+  authoring_source?: SuiteAuthoringSource
+  source_snapshot_hash?: string | null
+  source_context_hash?: string | null
+  authoring_metadata?: Record<string, unknown> | null
+  reviewed_at?: string | null
   created_at: string
 }
 
@@ -51,9 +174,10 @@ export interface EvaluationDataset {
     id: string
     position: number
     name: string
+    case_type?: EvaluationCaseType
     input_payload: Record<string, unknown>
     initial_context?: Record<string, unknown> | null
-    expected_contract: Record<string, unknown>
+    expected_contract: Record<string, any>
     severity: string
     weight: number
     blocking: boolean
@@ -71,7 +195,9 @@ export interface EvaluationSuite {
   status: string
   current_version_id: string | null
   current_version: string | null
+  dataset_id?: string | null
   dataset_version_id: string | null
+  case_count?: number
   judge_provider_model_id: string | null
   judge_config?: Record<string, unknown>
   rubric?: Record<string, unknown>
@@ -80,6 +206,9 @@ export interface EvaluationSuite {
   repetition_policy?: Record<string, unknown>
   estimate_defaults?: Record<string, unknown>
   suite_hash?: string | null
+  authoring_source?: SuiteAuthoringSource
+  source_snapshot_hash?: string | null
+  source_context_hash?: string | null
   created_at: string
   updated_at: string
 }
@@ -147,16 +276,20 @@ export interface EvaluationTrial {
   trace_id: string | null
   agent_run_id: string | null
   network_execution_id: string | null
-  output?: Record<string, unknown> | null
-  metrics?: Record<string, unknown> | null
+  output?: Record<string, any> | null
+  metrics?: Record<string, any> | null
+  observed_outcome?: Record<string, any> | null
+  failure_origin?: string | null
+  failure_stage?: string | null
   failure_code?: string | null
   failure_detail?: string | null
   case?: {
     id: string
     name: string
+    case_type?: EvaluationCaseType
     input_payload: Record<string, unknown>
     initial_context?: Record<string, unknown> | null
-    expected_contract: Record<string, unknown>
+    expected_contract: Record<string, any>
   } | null
   checks?: EvaluationCheck[]
 }
