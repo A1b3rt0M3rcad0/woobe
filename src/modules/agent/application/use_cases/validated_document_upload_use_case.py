@@ -7,11 +7,13 @@ from pathlib import PurePosixPath
 
 from modules.agent.application.dtos.knowledge_dtos import (
     UploadDocumentFileInput,
+    UploadDocumentInput,
     UploadDocumentOutput,
 )
 from modules.agent.application.use_cases.knowledge_use_cases import (
     ReadableUploadFile,
     UploadDocumentFileUseCase as BaseUploadDocumentFileUseCase,
+    UploadDocumentUseCase as BaseUploadDocumentUseCase,
 )
 from modules.agent.domain.enums import ParserType
 from shared.infra.errors import NotFoundError, ValidationError
@@ -39,6 +41,14 @@ _CONTENT_TYPES_BY_EXTENSION = {
     },
 }
 _REQUIRED_DOCX_ENTRIES = {"[Content_Types].xml", "word/document.xml"}
+
+
+class UploadDocumentUseCase(BaseUploadDocumentUseCase):
+    async def execute(self, input_dto: UploadDocumentInput) -> UploadDocumentOutput:
+        collection = await self.collection_repo.get_by_id(input_dto.collection_id)
+        if collection.project_id != input_dto.project_id:
+            raise NotFoundError("Document collection not found")
+        return await super().execute(input_dto)
 
 
 class UploadDocumentFileUseCase(BaseUploadDocumentFileUseCase):
