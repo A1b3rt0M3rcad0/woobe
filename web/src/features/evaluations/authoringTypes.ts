@@ -1,4 +1,5 @@
 import type {
+  CreateComposedSuiteInput,
   EvaluationTargetInput,
   EvaluatorSuiteDraft,
   SuiteContextPreview,
@@ -61,4 +62,9 @@ export interface EvaluationAuthoringCall {
 export interface ValidateSuiteDraftInput {
   draft: EvaluatorSuiteDraft
   reference_target?: EvaluationTargetInput
+}
+
+export interface CreateComposedSuiteVersionInput
+  extends Omit<CreateComposedSuiteInput, 'name' | 'description' | 'target_type'> {
+  change_description: string
 }
