@@ -13,7 +13,6 @@ from modules.metering.domain.enums import UsageEventType, UsageUnit
 from modules.metering.infra.database.repositories import SQLAlchemyUsageEventRepository
 
 logger = logging.getLogger(__name__)
-
 EventHandler = Callable[..., Coroutine[Any, Any, None]]
 
 
@@ -62,6 +61,31 @@ def _cost_request_deltas(cost_status: str | None) -> tuple[int, int, int]:
     if normalized == "partial":
         return 0, 1, 0
     return 0, 0, 1
+
+
+def _runtime_dimensions(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "network_id": _uuid(payload.get("network_id")),
+        "network_execution_id": _uuid(payload.get("network_execution_id")),
+        "network_version_id": _uuid(payload.get("network_version_id")),
+        "run_purpose": str(payload.get("run_purpose") or "operational"),
+        "evaluation_run_id": _uuid(payload.get("evaluation_run_id")),
+        "evaluation_trial_id": _uuid(payload.get("evaluation_trial_id")),
+        "comparison_pair_id": (
+            str(payload["comparison_pair_id"])
+            if payload.get("comparison_pair_id") is not None
+            else None
+        ),
+        "target_side": (
+            str(payload["target_side"])
+            if payload.get("target_side") is not None
+            else None
+        ),
+    }
+
+
+def _is_operational(payload: dict[str, Any]) -> bool:
+    return str(payload.get("run_purpose") or "operational") == "operational"
 
 
 async def _increment_daily(
@@ -207,13 +231,11 @@ async def handle_llm_request(
     input_tokens = _int_or_none(payload.get("input_tokens"))
     output_tokens = _int_or_none(payload.get("output_tokens"))
     cost = _float_or_none(payload.get("cost_usd"))
-    source_event_id = _uuid(kwargs.get("source_event_id"))
-
     await SQLAlchemyUsageEventRepository(session).save(
         UsageEvent(
             project_id=project_id,
             agent_id=agent_id,
-            source_event_id=source_event_id,
+            source_event_id=_uuid(kwargs.get("source_event_id")),
             occurred_at=occurred_at,
             trace_id=trace_id,
             call_id=str(payload.get("call_id")) if payload.get("call_id") else None,
@@ -234,19 +256,21 @@ async def handle_llm_request(
             usage_complete=payload.get("usage_complete"),
             pricing_snapshot=payload.get("pricing_snapshot"),
             data=payload,
+            **_runtime_dimensions(payload),
         )
     )
-    await _increment_daily(
-        session,
-        project_id=project_id,
-        agent_id=agent_id,
-        day=occurred_at.date(),
-        occurred_at=occurred_at,
-        llm_calls=1,
-        input_tokens=input_tokens or 0,
-        output_tokens=output_tokens or 0,
-        cost_usd=cost or 0.0,
-    )
+    if _is_operational(payload):
+        await _increment_daily(
+            session,
+            project_id=project_id,
+            agent_id=agent_id,
+            day=occurred_at.date(),
+            occurred_at=occurred_at,
+            llm_calls=1,
+            input_tokens=input_tokens or 0,
+            output_tokens=output_tokens or 0,
+            cost_usd=cost or 0.0,
+        )
 
 
 async def handle_tool_execution(
@@ -276,16 +300,18 @@ async def handle_tool_execution(
             quantity=1.0,
             unit=UsageUnit.call,
             data=payload,
+            **_runtime_dimensions(payload),
         )
     )
-    await _increment_daily(
-        session,
-        project_id=project_id,
-        agent_id=agent_id,
-        day=occurred_at.date(),
-        occurred_at=occurred_at,
-        tool_calls=1,
-    )
+    if _is_operational(payload):
+        await _increment_daily(
+            session,
+            project_id=project_id,
+            agent_id=agent_id,
+            day=occurred_at.date(),
+            occurred_at=occurred_at,
+            tool_calls=1,
+        )
 
 
 async def _handle_terminal_request(
@@ -325,22 +351,24 @@ async def _handle_terminal_request(
             usage_complete=payload.get("usage_complete"),
             pricing_snapshot=payload.get("pricing_snapshot"),
             data={**payload, "terminal_status": status},
+            **_runtime_dimensions(payload),
         )
     )
-    await _increment_daily(
-        session,
-        project_id=project_id,
-        agent_id=agent_id,
-        day=occurred_at.date(),
-        occurred_at=occurred_at,
-        requests=1,
-        successful_requests=1 if status == "completed" else 0,
-        failed_requests=1 if status == "failed" else 0,
-        cancelled_requests=1 if status == "cancelled" else 0,
-        priced_requests=priced,
-        partial_cost_requests=partial,
-        unpriced_requests=unpriced,
-    )
+    if _is_operational(payload):
+        await _increment_daily(
+            session,
+            project_id=project_id,
+            agent_id=agent_id,
+            day=occurred_at.date(),
+            occurred_at=occurred_at,
+            requests=1,
+            successful_requests=1 if status == "completed" else 0,
+            failed_requests=1 if status == "failed" else 0,
+            cancelled_requests=1 if status == "cancelled" else 0,
+            priced_requests=priced,
+            partial_cost_requests=partial,
+            unpriced_requests=unpriced,
+        )
 
 
 async def handle_execution_completed(
@@ -385,13 +413,12 @@ async def handle_fallback(
     if session is None:
         raise RuntimeError("Metering session is required")
     project_id = _required_uuid(payload, "project_id")
-    occurred_at = _occurred_at(payload)
     await SQLAlchemyUsageEventRepository(session).save(
         UsageEvent(
             project_id=project_id,
             agent_id=_uuid(payload.get("agent_id")),
             source_event_id=_uuid(kwargs.get("source_event_id")),
-            occurred_at=occurred_at,
+            occurred_at=_occurred_at(payload),
             trace_id=_required_uuid(payload, "trace_id"),
             environment=payload.get("execution_context") or payload.get("environment"),
             event_type=UsageEventType.llm_request,
@@ -399,6 +426,7 @@ async def handle_fallback(
             unit=UsageUnit.request,
             cost_status="metadata",
             data={**payload, "source": "fallback_triggered"},
+            **_runtime_dimensions(payload),
         )
     )
 
