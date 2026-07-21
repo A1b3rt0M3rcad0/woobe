@@ -6,7 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.suite_authoring import EvaluationSuiteAuthoringService
+from modules.evaluation.application.durable_authoring import (
+    DurableEvaluationSuiteAuthoringService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation-authoring"])
@@ -36,6 +38,7 @@ class GenerateSuiteDraftRequest(ContextPreviewRequest):
 
 class ValidateSuiteDraftRequest(BaseModel):
     draft: dict[str, Any]
+    reference_target: AuthoringTargetRequest | None = None
 
 
 class CreateComposedSuiteRequest(BaseModel):
@@ -82,8 +85,8 @@ class CreateComposedSuiteRequest(BaseModel):
     authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _service(request: Request) -> EvaluationSuiteAuthoringService:
-    return EvaluationSuiteAuthoringService(request.app.state.session_factory)
+def _service(request: Request) -> DurableEvaluationSuiteAuthoringService:
+    return DurableEvaluationSuiteAuthoringService(request.app.state.session_factory)
 
 
 @router.post("/suite-authoring/context-preview")
@@ -104,7 +107,7 @@ async def preview_authoring_context(
     return {"success": True, "data": data}
 
 
-@router.post("/suite-authoring/generate", status_code=status.HTTP_201_CREATED)
+@router.post("/suite-authoring/generate", status_code=status.HTTP_202_ACCEPTED)
 async def generate_suite_draft(
     project_id: UUID,
     payload: GenerateSuiteDraftRequest,
@@ -127,6 +130,45 @@ async def generate_suite_draft(
     return {"success": True, "data": data}
 
 
+@router.get("/suite-authoring/calls/{call_id}")
+async def get_suite_authoring_call(
+    project_id: UUID,
+    call_id: UUID,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).get_authoring_call(project_id, call_id),
+    }
+
+
+@router.post("/suite-authoring/calls/{call_id}/cancel")
+async def cancel_suite_authoring_call(
+    project_id: UUID,
+    call_id: UUID,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).cancel_authoring_call(project_id, call_id),
+    }
+
+
+@router.post("/suite-authoring/calls/{call_id}/retry")
+async def retry_suite_authoring_call(
+    project_id: UUID,
+    call_id: UUID,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).retry_authoring_call(project_id, call_id),
+    }
+
+
 @router.post("/suite-authoring/validate")
 async def validate_suite_draft(
     project_id: UUID,
@@ -134,7 +176,15 @@ async def validate_suite_draft(
     request: Request,
 ):
     require_evaluation_user(request, project_id)
-    data = await _service(request).validate_draft(payload.draft)
+    data = await _service(request).validate_draft(
+        payload.draft,
+        project_id=project_id,
+        reference_target=(
+            payload.reference_target.model_dump(mode="json", exclude_none=True)
+            if payload.reference_target
+            else None
+        ),
+    )
     return {"success": True, "data": data}
 
 
