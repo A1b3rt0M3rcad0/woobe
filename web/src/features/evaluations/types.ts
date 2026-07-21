@@ -185,6 +185,24 @@ export interface EvaluationRun {
   estimates?: EvaluationEstimate[]
 }
 
+export interface EvaluationQualification {
+  id: string
+  target_type: EvaluationTargetType
+  entity_id: string
+  target_snapshot_hash: string
+  agent_release_id: string | null
+  network_version_id: string | null
+  suite_version_id: string
+  dataset_version_id: string
+  evaluation_run_id: string
+  status: 'qualified' | 'qualified_with_warnings' | 'not_qualified' | 'inconclusive'
+  score: number | null
+  pass_rate: number | null
+  critical_failures: number
+  summary: Record<string, unknown>
+  created_at: string
+}
+
 export interface EvaluationPreflightTool {
   id: string
   name: string
