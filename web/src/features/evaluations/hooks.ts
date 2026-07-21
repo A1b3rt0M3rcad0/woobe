@@ -46,7 +46,7 @@ const activeStatuses = new Set([
   'cancel_requested',
 ])
 
-const activeAuthoringStatuses = new Set(['queued', 'running', 'partial', 'cancel_requested'])
+const activeAuthoringStatuses = new Set(['queued', 'running', 'cancel_requested'])
 
 export function useEvaluationDatasets(projectId?: string) {
   return useQuery({
@@ -195,8 +195,15 @@ export function usePreviewSuiteAuthoringContext(projectId?: string) {
 }
 
 export function useGenerateEvaluatorSuite(projectId?: string) {
+  const client = useQueryClient()
   return useMutation({
     mutationFn: (input: GenerateSuiteDraftInput) => generateEvaluatorSuiteDraft(projectId as string, input),
+    onSuccess: (call) => {
+      client.setQueryData(
+        ['evaluation-authoring-call', projectId, call.authoring_call_id],
+        call,
+      )
+    },
   })
 }
 
