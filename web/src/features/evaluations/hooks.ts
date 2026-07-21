@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  archiveEvaluationDataset,
+  archiveEvaluationSuite,
   cancelEvaluationRun,
+  cancelEvaluatorSuiteAuthoringCall,
   createComposedEvaluatorSuite,
   createEvaluationDataset,
   createEvaluationDatasetVersion,
+  createEvaluationEstimate,
   createEvaluationRun,
   createEvaluationSuite,
   createEvaluationSuiteVersion,
@@ -14,10 +18,15 @@ import {
   getEvaluationRun,
   getEvaluationRuns,
   getEvaluationSuites,
+  getEvaluatorSuiteAuthoringCall,
   previewEvaluationRun,
   previewSuiteAuthoringContext,
+  restoreEvaluationDataset,
+  restoreEvaluationSuite,
+  retryEvaluatorSuiteAuthoringCall,
   validateEvaluatorSuiteDraft,
 } from './api'
+import type { ValidateSuiteDraftInput } from './authoringTypes'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
@@ -36,6 +45,8 @@ const activeStatuses = new Set([
   'aggregating',
   'cancel_requested',
 ])
+
+const activeAuthoringStatuses = new Set(['queued', 'running', 'partial', 'cancel_requested'])
 
 export function useEvaluationDatasets(projectId?: string) {
   return useQuery({
@@ -96,6 +107,17 @@ export function useEvaluationRun(projectId?: string, runId?: string | null) {
   })
 }
 
+export function useEvaluationAuthoringCall(projectId?: string, callId?: string | null) {
+  return useQuery({
+    queryKey: ['evaluation-authoring-call', projectId, callId],
+    queryFn: () => getEvaluatorSuiteAuthoringCall(projectId as string, callId as string),
+    enabled: Boolean(projectId && callId),
+    refetchInterval: (query) => (
+      query.state.data && activeAuthoringStatuses.has(query.state.data.status) ? 1200 : false
+    ),
+  })
+}
+
 export function useCreateEvaluationDataset(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
@@ -116,6 +138,22 @@ export function useCreateEvaluationDatasetVersion(projectId?: string, datasetId?
   })
 }
 
+export function useArchiveEvaluationDataset(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (datasetId: string) => archiveEvaluationDataset(projectId as string, datasetId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-datasets', projectId] }),
+  })
+}
+
+export function useRestoreEvaluationDataset(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (datasetId: string) => restoreEvaluationDataset(projectId as string, datasetId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-datasets', projectId] }),
+  })
+}
+
 export function useCreateEvaluationSuite(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
@@ -133,6 +171,22 @@ export function useCreateEvaluationSuiteVersion(projectId?: string, suiteId?: st
   })
 }
 
+export function useArchiveEvaluationSuite(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (suiteId: string) => archiveEvaluationSuite(projectId as string, suiteId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] }),
+  })
+}
+
+export function useRestoreEvaluationSuite(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (suiteId: string) => restoreEvaluationSuite(projectId as string, suiteId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] }),
+  })
+}
+
 export function usePreviewSuiteAuthoringContext(projectId?: string) {
   return useMutation({
     mutationFn: (input: Pick<GenerateSuiteDraftInput, 'target' | 'generator_provider_model_id' | 'objective' | 'case_count' | 'maximum_input_tokens'>) =>
@@ -146,9 +200,35 @@ export function useGenerateEvaluatorSuite(projectId?: string) {
   })
 }
 
+export function useCancelEvaluatorSuiteAuthoring(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (callId: string) => cancelEvaluatorSuiteAuthoringCall(projectId as string, callId),
+    onSuccess: (call) => client.setQueryData(
+      ['evaluation-authoring-call', projectId, call.authoring_call_id],
+      call,
+    ),
+  })
+}
+
+export function useRetryEvaluatorSuiteAuthoring(projectId?: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (callId: string) => retryEvaluatorSuiteAuthoringCall(projectId as string, callId),
+    onSuccess: (call) => client.setQueryData(
+      ['evaluation-authoring-call', projectId, call.authoring_call_id],
+      call,
+    ),
+  })
+}
+
 export function useValidateEvaluatorSuite(projectId?: string) {
   return useMutation({
-    mutationFn: (draft: EvaluatorSuiteDraft) => validateEvaluatorSuiteDraft(projectId as string, draft),
+    mutationFn: (input: EvaluatorSuiteDraft | ValidateSuiteDraftInput) =>
+      validateEvaluatorSuiteDraft(
+        projectId as string,
+        'draft' in input ? input : { draft: input },
+      ),
   })
 }
 
@@ -190,5 +270,14 @@ export function useCancelEvaluationRun(projectId?: string) {
       client.setQueryData(['evaluation-run', projectId, run.id], run)
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
     },
+  })
+}
+
+export function useCreateEvaluationEstimate(projectId?: string, runId?: string | null) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ volume, volumeUnit }: { volume: number; volumeUnit?: string }) =>
+      createEvaluationEstimate(projectId as string, runId as string, volume, volumeUnit),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-run', projectId, runId] }),
   })
 }
