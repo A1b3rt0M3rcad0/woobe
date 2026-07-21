@@ -1,5 +1,9 @@
 import { get, post } from '@/lib/api/client'
-import type { EvaluationAuthoringCall, ValidateSuiteDraftInput } from './authoringTypes'
+import type {
+  CreateComposedSuiteVersionInput,
+  EvaluationAuthoringCall,
+  ValidateSuiteDraftInput,
+} from './authoringTypes'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
@@ -96,6 +100,14 @@ export function createEvaluationSuiteVersion(
   input: Omit<CreateEvaluationSuiteInput, 'name' | 'description' | 'target_type'>,
 ) {
   return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, input)
+}
+
+export function createComposedEvaluationSuiteVersion(
+  projectId: string,
+  suiteId: string,
+  input: CreateComposedSuiteVersionInput,
+) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions/composed`, input)
 }
 
 export function archiveEvaluationSuite(projectId: string, suiteId: string) {
