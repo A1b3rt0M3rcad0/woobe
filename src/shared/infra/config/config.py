@@ -89,8 +89,11 @@ class Settings(BaseSettings):
     redis_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     storage_driver: str = "local"
     upload_max_mb: int = Field(default=25, gt=0, le=512)
-    upload_allowed_extensions: str = ".txt,.md,.pdf"
+    upload_allowed_extensions: str = ".txt,.md,.pdf,.docx"
     upload_local_dir: str = "./storage/uploads"
+    rag_docx_max_uncompressed_mb: int = Field(default=100, gt=0, le=1024)
+    rag_docx_max_entries: int = Field(default=1000, gt=0, le=10000)
+    rag_docx_max_compression_ratio: float = Field(default=100.0, gt=1, le=10000)
     s3_bucket: str | None = None
     s3_region: str | None = None
     s3_prefix: str = "uploads"
