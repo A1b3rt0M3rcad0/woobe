@@ -39,6 +39,20 @@ class SuiteGeneratorResult:
     completed_at: datetime
 
 
+def _content_text(result: Any) -> str:
+    content = getattr(result, "content", result)
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text") or item.get("content") or "")
+            if isinstance(item, dict)
+            else str(item)
+            for item in content
+        )
+    if isinstance(content, dict):
+        return json.dumps(content, ensure_ascii=False, default=str)
+    return str(content or "")
+
+
 def _json_object(result: Any) -> dict[str, Any]:
     content = getattr(result, "content", result)
     if isinstance(content, list):
@@ -67,6 +81,18 @@ def _safe_error(exc: Exception) -> str:
     name = type(exc).__name__
     message = " ".join(str(exc).split())[:500]
     return f"{name}: {message}" if message else name
+
+
+def _sum_optional(current: int | None, value: int | None) -> int | None:
+    if current is None and value is None:
+        return None
+    return int(current or 0) + int(value or 0)
+
+
+def _sum_cost(current: float | None, value: float | None) -> float | None:
+    if current is None and value is None:
+        return None
+    return float(current or 0) + float(value or 0)
 
 
 class SuiteGeneratorGateway:
@@ -156,6 +182,7 @@ class SuiteGeneratorGateway:
         total_cost: float | None = None
         last_error: Exception | None = None
         for attempt in range(2):
+            raw: Any = None
             try:
                 kwargs: dict[str, Any] = {
                     "provider": provider,
@@ -189,14 +216,16 @@ class SuiteGeneratorGateway:
                     timeout=max(10.0, min(float(timeout_seconds), 180.0)),
                 )
                 usage = normalize_llm_usage(raw)
-                total_input = usage["input_tokens"]
-                total_output = usage["output_tokens"]
+                attempt_input = usage["input_tokens"]
+                attempt_output = usage["output_tokens"]
+                total_input = _sum_optional(total_input, attempt_input)
+                total_output = _sum_optional(total_output, attempt_output)
                 cost = calculate_llm_cost(
-                    input_tokens=total_input,
-                    output_tokens=total_output,
+                    input_tokens=attempt_input,
+                    output_tokens=attempt_output,
                     pricing_snapshot=pricing_snapshot,
                 )
-                total_cost = cost["cost_usd"]
+                total_cost = _sum_cost(total_cost, cost["cost_usd"])
                 if (
                     maximum_cost_usd is not None
                     and total_cost is not None
@@ -226,7 +255,10 @@ class SuiteGeneratorGateway:
                 if response_format and "response_format" in message:
                     response_format = False
                     continue
-                previous_invalid = str(getattr(exc, "doc", None) or exc)
+                if raw is not None:
+                    previous_invalid = _content_text(raw)[:4000]
+                else:
+                    previous_invalid = str(getattr(exc, "doc", None) or exc)
                 if attempt == 0 and isinstance(exc, (json.JSONDecodeError, ValueError)):
                     continue
                 break
