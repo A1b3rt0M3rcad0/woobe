@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, Eye, FileText, History, Package, Rocket, ShieldCheck, Upload } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowRight, Eye, FileText, History, Package, Rocket, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
@@ -77,8 +76,6 @@ function activationVariant(action: AgentReleaseActivation['action']) {
 type PublishAction = 'release' | 'deploy' | null
 
 export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId: string }) {
-  const navigate = useNavigate()
-  const { organizationId } = useParams<{ organizationId: string }>()
   const { data: releases = [], isLoading } = useReleases(agentId)
   const { data: activations = [], isLoading: activationsLoading } = useReleaseActivations(agentId)
   const { data: qualifications = [] } = useEvaluationQualifications(projectId, 'agent', agentId)
@@ -138,21 +135,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
     qualification: qualificationsByReleaseId.get(release.id),
     stale: hasQualifications && !qualificationsByReleaseId.has(release.id),
   })
-
-  const openEvaluations = (release?: AgentRelease) => {
-    if (!organizationId) return
-    const query = new URLSearchParams({
-      target_type: 'agent',
-      entity_id: agentId,
-    })
-    if (release) {
-      query.set('source_type', release.status === 'staging' ? 'staging' : 'release')
-      query.set('version_id', release.id)
-    } else {
-      query.set('source_type', 'draft')
-    }
-    navigate(`/organizations/${organizationId}/projects/${projectId}/evaluations?${query.toString()}`)
-  }
 
   const stageDraft = async () => {
     try {
@@ -243,12 +225,9 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium text-white">Versions</h2>
-          <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → Release → Production.</p>
-        </div>
-        <Button size="sm" variant="outline" onClick={() => openEvaluations()}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluations</Button>
+      <div>
+        <h2 className="text-sm font-medium text-white">Versions</h2>
+        <p className="mt-1 text-[11px] leading-5 text-muted">Draft → Staging → Release → Production. Evaluation status remains attached to each immutable snapshot.</p>
       </div>
 
       <section className="rounded-xl border border-border bg-surface/45 p-3">
@@ -259,13 +238,9 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] text-muted">Mutable configuration · {state.provider || '—'}/{state.model || '—'}</span>
               <SessionModeBadge mode={state.sessionMode} />
-              <Badge variant="outline" className="text-[9px] text-muted">Evaluate current snapshot</Badge>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => openEvaluations()}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluate</Button>
-            <Button size="sm" className="h-8 text-[10px]" onClick={() => setStageOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Stage</Button>
-          </div>
+          <Button size="sm" className="h-8 text-[10px]" onClick={() => setStageOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Stage</Button>
         </div>
       </section>
 
@@ -286,7 +261,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => void viewSnapshot(staging)} loading={loadingId === staging.id}><Eye className="mr-1 h-3.5 w-3.5" />View</Button>
-              <Button size="sm" variant="outline" onClick={() => openEvaluations(staging)}><ShieldCheck className="mr-1 h-3.5 w-3.5" />Evaluate</Button>
               <Button size="sm" variant="outline" onClick={() => setPublishAction('release')}><Package className="mr-1 h-3.5 w-3.5" />Create Release</Button>
               <Button size="sm" onClick={() => setPublishAction('deploy')}><Rocket className="mr-1 h-3.5 w-3.5" />Create & Deploy</Button>
             </div>
@@ -311,7 +285,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
             </div>
             <div className="mt-2 flex gap-2">
               <Button size="sm" variant="outline" onClick={() => void viewSnapshot(production)} loading={loadingId === production.id}><Eye className="mr-1 h-3 w-3" />View details</Button>
-              <Button size="sm" variant="outline" onClick={() => openEvaluations(production)}><ShieldCheck className="mr-1 h-3 w-3" />Evaluate</Button>
             </div>
           </article>
         ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Playground Production is active.</div>}
@@ -352,7 +325,6 @@ export function ReleaseTab({ agentId, projectId }: { agentId: string; projectId:
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Button size="sm" variant="outline" loading={loadingId === release.id} onClick={(event) => { event.stopPropagation(); void viewSnapshot(release) }}><Eye className="mr-1 h-3 w-3" />View</Button>
-                    <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openEvaluations(release) }}><ShieldCheck className="mr-1 h-3 w-3" />Evaluate</Button>
                     <Button size="sm" onClick={(event) => { event.stopPropagation(); setActivationTarget(release) }}><Rocket className="mr-1 h-3 w-3" />Deploy</Button>
                   </div>
                 </div>
