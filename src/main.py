@@ -29,6 +29,7 @@ from modules.agent.presentation.tool_lifecycle_routes import router as tool_life
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.billing.presentation.routes import router as billing_router
 from modules.core.presentation.routes import router as core_router
+from modules.evaluation.presentation import router as evaluation_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
@@ -258,6 +259,7 @@ def create_app() -> FastAPI:
         app.include_router(billing_router)
         app.include_router(observability_router)
         app.include_router(network_router)
+        app.include_router(evaluation_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
