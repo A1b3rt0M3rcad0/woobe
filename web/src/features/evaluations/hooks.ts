@@ -8,6 +8,7 @@ import {
   createEvaluationSuiteVersion,
   getEvaluationDataset,
   getEvaluationDatasets,
+  getEvaluationQualifications,
   getEvaluationRun,
   getEvaluationRuns,
   getEvaluationSuites,
@@ -17,6 +18,7 @@ import type {
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
   CreateEvaluationSuiteInput,
+  EvaluationTargetType,
 } from './types'
 
 const activeStatuses = new Set([
@@ -49,6 +51,18 @@ export function useEvaluationSuites(projectId?: string) {
     queryKey: ['evaluation-suites', projectId],
     queryFn: () => getEvaluationSuites(projectId as string),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useEvaluationQualifications(
+  projectId?: string,
+  targetType?: EvaluationTargetType,
+  entityId?: string,
+) {
+  return useQuery({
+    queryKey: ['evaluation-qualifications', projectId, targetType, entityId],
+    queryFn: () => getEvaluationQualifications(projectId as string, targetType, entityId),
+    enabled: Boolean(projectId && targetType && entityId),
   })
 }
 
@@ -125,6 +139,7 @@ export function useCreateEvaluationRun(projectId?: string) {
     onSuccess: (run) => {
       client.setQueryData(['evaluation-run', projectId, run.id], run)
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-qualifications', projectId] })
     },
   })
 }
