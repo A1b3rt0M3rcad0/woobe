@@ -86,10 +86,16 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
 
     async def _next_trial(self, run_id: UUID):
         state = await super()._next_trial(run_id)
+        if state is None:
+            return None
+        trial = state[0]
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
             if run is not None and run.lease_owner:
                 run.lease_expires_at = _utc_now() + timedelta(minutes=30)
+            row = await session.get(EvaluationTrialModel, trial.id, with_for_update=True)
+            if row is not None:
+                row.attempt = int(row.attempt or 0) + 1
         return state
 
     async def _execute_trial(
@@ -110,9 +116,7 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 trace_id = trial.root_trace_id
             elif target.target_type == "agent":
                 output, metrics, agent_run_id, trace_id = await self._execute_agent(
-                    trial,
-                    target,
-                    case,
+                    trial, target, case
                 )
                 network_execution_id = None
                 await self._persist_runtime_evidence(
@@ -125,9 +129,7 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 )
             else:
                 output, metrics, network_execution_id, trace_id = await self._execute_network(
-                    trial,
-                    target,
-                    case,
+                    trial, target, case
                 )
                 agent_run_id = None
                 await self._persist_runtime_evidence(
@@ -145,6 +147,7 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 metrics=metrics,
                 suite_checks=suite.deterministic_checks or {},
             )
+            await self._mark_judge_started(trial.id)
             async with self._session_factory() as judge_session:
                 judge = await self._judge.judge(
                     judge_session,
@@ -244,8 +247,16 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             "sources": result.sources or [],
         }
         metrics = {
-            "latency_ms": trace.total_latency_ms if trace is not None and trace.total_latency_ms is not None else elapsed_ms,
-            "cost_usd": trace.total_cost_usd if trace is not None and trace.total_cost_usd is not None else usage.get("cost_usd"),
+            "latency_ms": (
+                trace.total_latency_ms
+                if trace is not None and trace.total_latency_ms is not None
+                else elapsed_ms
+            ),
+            "cost_usd": (
+                trace.total_cost_usd
+                if trace is not None and trace.total_cost_usd is not None
+                else usage.get("cost_usd")
+            ),
             "input_tokens": usage.get("input_tokens"),
             "output_tokens": usage.get("output_tokens"),
             "tool_call_count": len(result.tool_calls or []),
@@ -254,7 +265,13 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             "agent_run_count": 1,
             "provider": result.provider,
             "model": result.model,
-            "pricing_coverage": "complete" if trace is not None and trace.total_cost_usd is not None else "partial" if usage.get("cost_usd") is not None else "unknown",
+            "pricing_coverage": (
+                "complete"
+                if trace is not None and trace.total_cost_usd is not None
+                else "partial"
+                if usage.get("cost_usd") is not None
+                else "unknown"
+            ),
             "run_purpose": "evaluation",
             "evaluation_run_id": str(trial.evaluation_run_id),
             "evaluation_trial_id": str(trial.id),
@@ -294,7 +311,12 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             "case_severity": case.severity,
             "case_blocking": bool(case.blocking),
         }
-        return evidence.output, metrics, evidence.network_execution_id, evidence.root_trace_id
+        return (
+            evidence.output,
+            metrics,
+            evidence.network_execution_id,
+            evidence.root_trace_id,
+        )
 
     async def _persist_runtime_evidence(
         self,
@@ -315,7 +337,15 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             row.agent_run_id = agent_run_id
             row.network_execution_id = network_execution_id
             row.root_trace_id = trace_id
+            row.runtime_completed_at = _utc_now()
             row.status = EvaluationTrialStatus.JUDGING.value
+
+    async def _mark_judge_started(self, trial_id: UUID) -> None:
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(EvaluationTrialModel, trial_id, with_for_update=True)
+            if row is not None:
+                row.status = EvaluationTrialStatus.JUDGING.value
+                row.judge_started_at = _utc_now()
 
     async def _persist_final_result(
         self,
@@ -391,7 +421,9 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             if calculation is None:
                 row.status = EvaluationTrialStatus.INCONCLUSIVE.value
                 row.failure_code = "judge_failed"
-                row.failure_detail = judge.error or "Evaluator Model returned no valid judgment"
+                row.failure_detail = (
+                    judge.error or "Evaluator Model returned no valid judgment"
+                )
                 row.score = None
                 row.passed = None
                 blocking_failures: list[Any] = []
@@ -402,7 +434,9 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 row.status = EvaluationTrialStatus.COMPLETED.value
                 row.score = calculation["score"]
                 row.passed = calculation["passed"]
-                for dimension, raw_score in (judge.structured_result.get("dimensions") or {}).items():
+                for dimension, raw_score in (
+                    judge.structured_result.get("dimensions") or {}
+                ).items():
                     try:
                         dimension_score = float(raw_score)
                     except (TypeError, ValueError):
@@ -414,7 +448,16 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                             evaluator_key=f"llm:{dimension}",
                             evaluator_type="llm",
                             dimension=str(dimension),
-                            status=EvaluationCheckStatus.PASSED.value if dimension_score >= float((case.expected_contract or {}).get("minimum_score", 70)) else EvaluationCheckStatus.FAILED.value,
+                            status=(
+                                EvaluationCheckStatus.PASSED.value
+                                if dimension_score
+                                >= float(
+                                    (case.expected_contract or {}).get(
+                                        "minimum_score", 70
+                                    )
+                                )
+                                else EvaluationCheckStatus.FAILED.value
+                            ),
                             score=dimension_score,
                             weight=1.0,
                             blocking=False,
@@ -436,25 +479,46 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                     "warning_count": len(warnings),
                 },
             }
+            row.judge_completed_at = _utc_now()
             row.completed_at = _utc_now()
 
     async def _aggregate(self, run_id: UUID) -> None:
         preserved: dict[str, Any] = {}
-        async with self._session_factory() as session:
-            run = await session.get(EvaluationRunModel, run_id)
+        async with self._session_factory() as session, session.begin():
+            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
             if run is not None and isinstance(run.aggregate_result, dict):
-                preserved = {key: run.aggregate_result[key] for key in ("_request", "preflight") if key in run.aggregate_result}
+                preserved = {
+                    key: run.aggregate_result[key]
+                    for key in ("_request", "preflight")
+                    if key in run.aggregate_result
+                }
+            await session.execute(
+                delete(ReleaseQualificationModel).where(
+                    ReleaseQualificationModel.evaluation_run_id == run_id
+                )
+            )
         await super()._aggregate(run_id)
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
             if run is None:
                 return
             aggregate = {**preserved, **(run.aggregate_result or {})}
-            comparison = aggregate.get("comparison") if isinstance(aggregate.get("comparison"), dict) else None
+            comparison = (
+                aggregate.get("comparison")
+                if isinstance(aggregate.get("comparison"), dict)
+                else None
+            )
             if comparison is not None and comparison.get("policy_passed") is False:
                 run.qualification_status = QualificationStatus.NOT_QUALIFIED.value
-                qualification = aggregate.get("qualification") if isinstance(aggregate.get("qualification"), dict) else {}
-                aggregate["qualification"] = {**qualification, "qualification_status": QualificationStatus.NOT_QUALIFIED.value}
+                qualification = (
+                    aggregate.get("qualification")
+                    if isinstance(aggregate.get("qualification"), dict)
+                    else {}
+                )
+                aggregate["qualification"] = {
+                    **qualification,
+                    "qualification_status": QualificationStatus.NOT_QUALIFIED.value,
+                }
                 rows = list(
                     (
                         await session.scalars(
@@ -494,7 +558,10 @@ class ResumableEvaluationRunWorker(EvaluationRunWorker):
         worker_id: str | None = None,
     ) -> None:
         super().__init__(session_factory, settings=settings, worker_id=worker_id)
-        self._processor = ResumableEvaluationRunProcessor(session_factory, settings=settings)
+        self._processor = ResumableEvaluationRunProcessor(
+            session_factory,
+            settings=settings,
+        )
 
     async def _claim(self) -> UUID | None:
         async with self._session_factory() as session, session.begin():
