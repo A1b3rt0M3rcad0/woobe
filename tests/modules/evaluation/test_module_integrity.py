@@ -41,6 +41,7 @@ from modules.network.application.agent_invoker import ProjectRAIAgentInvoker
 from modules.network.infra.runtime import (
     ProjectRAIAgentInvoker as CanonicalProjectRAIAgentInvoker,
 )
+from shared.workers.contracts import WorkerProtocol
 from shared.workers.discovery import discover_module_entries
 
 
@@ -99,6 +100,13 @@ def test_evaluation_worker_registry_is_discoverable() -> None:
 
 
 def test_evaluation_workers_implement_worker_contract() -> None:
-    assert callable(ConcurrentOutcomeAwareEvaluationRunWorker.run)
-    assert callable(ConcurrentOutcomeAwareEvaluationRunWorker.stop)
-    assert callable(EvaluationAuthoringWorker.run)
+    assert isinstance(
+        ConcurrentOutcomeAwareEvaluationRunWorker.__new__(
+            ConcurrentOutcomeAwareEvaluationRunWorker
+        ),
+        WorkerProtocol,
+    )
+    assert isinstance(
+        EvaluationAuthoringWorker.__new__(EvaluationAuthoringWorker),
+        WorkerProtocol,
+    )
