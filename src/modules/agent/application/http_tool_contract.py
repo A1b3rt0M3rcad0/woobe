@@ -346,8 +346,28 @@ def compile_http_tool_group_contract(
             "HTTP API group requires at least one route.",
         )
 
+    explicit_operation_ids: set[str] = set()
+    for index, raw_route in enumerate(raw_routes, start=1):
+        if not isinstance(raw_route, dict):
+            continue
+        requested = str(raw_route.get("operation_id") or "").strip()
+        if not requested:
+            continue
+        if not _OPERATION_ID_PATTERN.fullmatch(requested):
+            route_name = str(raw_route.get("name") or index)
+            raise HttpToolContractError(
+                "HTTP_TOOL_OPERATION_ID_INVALID",
+                f"HTTP route '{route_name}' has an invalid operation_id.",
+            )
+        if requested in explicit_operation_ids:
+            raise HttpToolContractError(
+                "HTTP_TOOL_OPERATION_ID_DUPLICATE",
+                f"Duplicate HTTP route operation_id '{requested}'.",
+            )
+        explicit_operation_ids.add(requested)
+
     route_ids: set[str] = set()
-    operation_ids: set[str] = set()
+    operation_ids: set[str] = set(explicit_operation_ids)
     compiled_routes: list[dict[str, Any]] = []
     route_contracts: dict[str, CompiledHttpToolContract] = {}
 
@@ -379,20 +399,7 @@ def compile_http_tool_group_contract(
             )
 
         requested_operation_id = str(route.get("operation_id") or "").strip()
-        if requested_operation_id:
-            if not _OPERATION_ID_PATTERN.fullmatch(requested_operation_id):
-                raise HttpToolContractError(
-                    "HTTP_TOOL_OPERATION_ID_INVALID",
-                    f"HTTP route '{name}' has an invalid operation_id.",
-                )
-            if requested_operation_id in operation_ids:
-                raise HttpToolContractError(
-                    "HTTP_TOOL_OPERATION_ID_DUPLICATE",
-                    f"Duplicate HTTP route operation_id '{requested_operation_id}'.",
-                )
-            operation_id = requested_operation_id
-        else:
-            operation_id = _unique_operation_id(_normalize_operation_id(name), operation_ids)
+        operation_id = requested_operation_id or _unique_operation_id(_normalize_operation_id(name), operation_ids)
 
         if method not in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}:
             raise HttpToolContractError("HTTP_TOOL_METHOD_INVALID", f"Unsupported HTTP method '{method}'.")
