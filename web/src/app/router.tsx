@@ -28,7 +28,7 @@ import ModelsPage from '@/pages/ModelsPage'
 import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
-import TracesPage from '@/pages/TracesPage'
+import TracesRoute from '@/pages/TracesRoute'
 import TraceDetailPage from '@/pages/TraceDetailPage'
 import EvaluationsPage from '@/pages/EvaluationsPage'
 import BillingPage from '@/pages/BillingPage'
@@ -241,7 +241,7 @@ export function AppRouter() {
             <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
             <Route path="/organizations/:organizationId/projects/:projectId/traces/:traceId" element={<TraceDetailPage />} />
-            <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
+            <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesRoute />} />
             <Route path="/organizations/:organizationId/projects/:projectId/evaluations" element={<EvaluationsPage />} />
           </Route>
 
