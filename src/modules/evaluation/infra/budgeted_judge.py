@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 from uuid import UUID
 
@@ -47,10 +48,8 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
         evidence = payload.get("operational_evidence")
         if not isinstance(evidence, dict):
             evidence = {"compacted_evidence": evidence}
-        evidence = {
-            **evidence,
-            "judge_context_budget": budgeted.report.to_dict(),
-        }
+        report = budgeted.report.to_dict()
+        evidence = {**evidence, "judge_context_budget": report}
         normalized_config = {
             **judge_config,
             "max_tokens": configured_output,
@@ -59,7 +58,7 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
                 max(10_000, configured_input * 4),
             ),
         }
-        return await super().judge(
+        result = await super().judge(
             session,
             project_id=project_id,
             provider_model_id=provider_model_id,
@@ -68,6 +67,15 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
             case_payload=payload.get("test_case") if isinstance(payload.get("test_case"), dict) else case_payload,
             target_output=payload.get("target_output") if isinstance(payload.get("target_output"), dict) else target_output,
             operational_evidence=evidence,
+        )
+        if result.structured_result is None:
+            return result
+        return replace(
+            result,
+            structured_result={
+                **result.structured_result,
+                "context_budget": report,
+            },
         )
 
 
