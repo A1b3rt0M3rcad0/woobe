@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.infra.database.models import (
-    AgentReleaseModel,
     AgentToolModel,
     DocumentChunkModel,
     DocumentCollectionModel,
@@ -130,12 +129,18 @@ def _objective_terms(objective: str) -> set[str]:
     }
 
 
-def _rank_chunks(chunks: list[DocumentChunkModel], objective: str, limit: int = 8) -> list[DocumentChunkModel]:
+def _rank_chunks(
+    chunks: list[DocumentChunkModel],
+    objective: str,
+    limit: int = 8,
+) -> list[DocumentChunkModel]:
     terms = _objective_terms(objective)
+
     def score(item: DocumentChunkModel) -> tuple[int, int]:
         text = f"{item.section_title or ''} {item.content or ''}".lower()
         matches = sum(1 for term in terms if term in text)
         return matches, -int(item.chunk_index or 0)
+
     return sorted(chunks, key=score, reverse=True)[:limit]
 
 
@@ -144,6 +149,7 @@ class EvaluationContextPackBuilder:
         self,
         session: AsyncSession,
         *,
+        project_id: UUID,
         target: ResolvedEvaluationTarget,
         objective: str,
         maximum_input_tokens: int,
@@ -158,9 +164,8 @@ class EvaluationContextPackBuilder:
                     await session.scalars(
                         select(AgentToolModel).where(
                             AgentToolModel.id.in_(tool_ids),
-                            AgentToolModel.project_id == target.snapshot.get("project_id", target.entity_id)
-                            if False
-                            else AgentToolModel.id.in_(tool_ids),
+                            AgentToolModel.project_id == project_id,
+                            AgentToolModel.status == "active",
                         )
                     )
                 ).all()
@@ -188,6 +193,7 @@ class EvaluationContextPackBuilder:
                     await session.scalars(
                         select(DocumentCollectionModel).where(
                             DocumentCollectionModel.id.in_(collection_ids),
+                            DocumentCollectionModel.project_id == project_id,
                             DocumentCollectionModel.status == "active",
                         )
                     )
@@ -198,6 +204,7 @@ class EvaluationContextPackBuilder:
                     await session.scalars(
                         select(DocumentModel).where(
                             DocumentModel.collection_id.in_(collection_ids),
+                            DocumentModel.project_id == project_id,
                             DocumentModel.status.notin_(["DELETED", "deleted"]),
                         )
                     )
@@ -228,7 +235,10 @@ class EvaluationContextPackBuilder:
                 (
                     await session.scalars(
                         select(DocumentChunkModel)
-                        .where(DocumentChunkModel.collection_id.in_(collection_ids))
+                        .where(
+                            DocumentChunkModel.collection_id.in_(collection_ids),
+                            DocumentChunkModel.project_id == project_id,
+                        )
                         .order_by(DocumentChunkModel.document_id, DocumentChunkModel.chunk_index)
                         .limit(200)
                     )
