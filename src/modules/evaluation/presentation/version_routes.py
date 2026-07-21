@@ -14,8 +14,8 @@ from modules.evaluation.infra.database.models import (
     EvaluationSuiteVersionModel,
 )
 from modules.evaluation.infra.judge import canonical_hash
-from shared.infra.errors import AuthorizationError, NotFoundError
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from modules.evaluation.presentation.dependencies import require_evaluation_user
+from shared.infra.errors import NotFoundError
 
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
@@ -24,23 +24,32 @@ router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation
 class CreateSuiteVersionRequest(BaseModel):
     dataset_version_id: UUID
     judge_provider_model_id: UUID
-    judge_config: dict[str, Any] = Field(default_factory=lambda: {"temperature": 0, "max_tokens": 1600})
+    judge_config: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "temperature": 0,
+            "max_tokens": 1600,
+            "timeout_seconds": 90,
+            "maximum_cost_usd": None,
+        }
+    )
     rubric: dict[str, Any] = Field(default_factory=dict)
     deterministic_checks: dict[str, Any] = Field(default_factory=dict)
-    acceptance_policy: dict[str, Any] = Field(default_factory=lambda: {"minimum_score": 70, "minimum_pass_rate": 80})
-    repetition_policy: dict[str, Any] = Field(default_factory=lambda: {"default_repetitions": 3, "maximum_repetitions": 25})
-    estimate_defaults: dict[str, Any] = Field(default_factory=lambda: {"volume": 10_000})
-
-
-def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
-    principal = getattr(request.state, "principal", None)
-    if isinstance(principal, ProjectApiPrincipal):
-        if principal.project_id != project_id:
-            raise AuthorizationError("Runtime key does not belong to this Project")
-        return None
-    if isinstance(principal, AuthenticatedPrincipal):
-        return principal.user_id
-    raise AuthorizationError("Authentication required")
+    acceptance_policy: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "minimum_score": 70,
+            "minimum_pass_rate": 80,
+            "minimum_paired_n": 3,
+            "maximum_score_regression": 0,
+            "maximum_latency_regression_percent": None,
+            "maximum_cost_regression_percent": None,
+        }
+    )
+    repetition_policy: dict[str, Any] = Field(
+        default_factory=lambda: {"default_repetitions": 3, "maximum_repetitions": 25}
+    )
+    estimate_defaults: dict[str, Any] = Field(
+        default_factory=lambda: {"volume": 10_000}
+    )
 
 
 @router.post("/suites/{suite_id}/versions", status_code=status.HTTP_201_CREATED)
@@ -50,16 +59,26 @@ async def create_suite_version(
     payload: CreateSuiteVersionRequest,
     request: Request,
 ):
-    user_id = _authorize_project(request, project_id)
+    user_id = require_evaluation_user(request, project_id)
     async with request.app.state.session_factory() as session, session.begin():
         suite = await session.get(EvaluationSuiteModel, suite_id, with_for_update=True)
         if suite is None or suite.project_id != project_id:
             raise NotFoundError("Evaluation Suite not found")
-        dataset_version = await session.get(EvaluationDatasetVersionModel, payload.dataset_version_id)
+        dataset_version = await session.get(
+            EvaluationDatasetVersionModel,
+            payload.dataset_version_id,
+        )
         if dataset_version is None or dataset_version.project_id != project_id:
             raise NotFoundError("Evaluation Dataset version not found")
-        provider_model = await session.get(ProviderModelModel, payload.judge_provider_model_id)
-        if provider_model is None or provider_model.project_id != project_id or provider_model.status != "active":
+        provider_model = await session.get(
+            ProviderModelModel,
+            payload.judge_provider_model_id,
+        )
+        if (
+            provider_model is None
+            or provider_model.project_id != project_id
+            or provider_model.status != "active"
+        ):
             raise NotFoundError("Evaluator Provider Model not found")
         count = int(
             await session.scalar(
@@ -70,6 +89,7 @@ async def create_suite_version(
             or 0
         )
         snapshot = {
+            "schema_version": 1,
             "dataset_version_id": str(payload.dataset_version_id),
             "judge_provider_model_id": str(payload.judge_provider_model_id),
             "judge_config": payload.judge_config,
@@ -112,6 +132,7 @@ async def create_suite_version(
                 "judge_provider_model_id": str(version.judge_provider_model_id),
                 "judge_config": version.judge_config,
                 "rubric": version.rubric,
+                "deterministic_checks": version.deterministic_checks,
                 "acceptance_policy": version.acceptance_policy,
                 "repetition_policy": version.repetition_policy,
                 "estimate_defaults": version.estimate_defaults,
