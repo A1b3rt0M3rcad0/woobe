@@ -9,6 +9,11 @@ export interface HttpToolContractPreview {
   errors: string[]
 }
 
+export interface EffectiveHttpHeader extends HttpHeader {
+  source: 'shared' | 'route'
+  overridden?: boolean
+}
+
 export function isHttpToolGroup(config: HttpToolConfig | Record<string, unknown> | undefined): config is HttpToolConfig {
   if (!config || typeof config !== 'object') return false
   const raw = config as HttpToolConfig
@@ -24,7 +29,7 @@ function templateSources(config: { url?: string; body?: HttpToolConfig['body']; 
   return [
     config.url || '',
     bodyText(config.body),
-    ...(config.headers || []).map((header) => header.value || ''),
+    ...(config.headers || []).filter((header) => header.mode !== 'remove').map((header) => header.value || ''),
   ]
 }
 
@@ -33,21 +38,43 @@ function hasDefault(config: { variables?: Record<string, string> }, name: string
   return value !== undefined && value !== null && value !== ''
 }
 
-function mergeHeaders(shared: HttpHeader[] = [], route: HttpHeader[] = []): HttpHeader[] {
-  const result: HttpHeader[] = []
-  const indexes = new Map<string, number>()
-  for (const header of [...shared, ...route]) {
+export function effectiveHttpHeaders(shared: HttpHeader[] = [], route: HttpHeader[] = []): EffectiveHttpHeader[] {
+  const effective = new Map<string, EffectiveHttpHeader>()
+  const order: string[] = []
+
+  shared.forEach((header) => {
     const key = header.key.trim()
-    if (!key) continue
+    if (!key || header.mode === 'remove') return
     const normalized = key.toLowerCase()
-    const existing = indexes.get(normalized)
-    if (existing !== undefined) result[existing] = { ...header, key }
-    else {
-      indexes.set(normalized, result.length)
-      result.push({ ...header, key })
+    if (!effective.has(normalized)) order.push(normalized)
+    effective.set(normalized, { ...header, key, mode: 'set', source: 'shared' })
+  })
+
+  route.forEach((header) => {
+    const key = header.key.trim()
+    if (!key) return
+    const normalized = key.toLowerCase()
+    if (header.mode === 'remove') {
+      effective.delete(normalized)
+      const index = order.indexOf(normalized)
+      if (index >= 0) order.splice(index, 1)
+      return
     }
-  }
-  return result
+    const inherited = effective.has(normalized)
+    if (!inherited) order.push(normalized)
+    effective.set(normalized, {
+      ...header,
+      key,
+      mode: 'set',
+      source: 'route',
+      overridden: inherited,
+    })
+  })
+
+  return order.flatMap((key) => {
+    const header = effective.get(key)
+    return header ? [header] : []
+  })
 }
 
 function inspectContract(
@@ -65,7 +92,9 @@ function inspectContract(
     }
   }
 
-  const contentType = (config.headers || []).find((header) => header.key.toLowerCase() === 'content-type')?.value.toLowerCase()
+  const contentType = (config.headers || [])
+    .find((header) => header.mode !== 'remove' && header.key.toLowerCase() === 'content-type')
+    ?.value?.toLowerCase()
   if (config.body && contentType?.includes('application/json') && typeof config.body === 'string') {
     try { JSON.parse(config.body) } catch { errors.push('Body must be valid JSON when Content-Type is application/json.') }
   }
@@ -91,7 +120,7 @@ export function inspectHttpRouteContract(config: HttpToolConfig, route: HttpRout
     {
       url: `${baseUrl}/${path}`,
       body: route.body,
-      headers: mergeHeaders(config.headers || [], route.headers || []),
+      headers: effectiveHttpHeaders(config.headers || [], route.headers || []),
       variables: route.variables,
     },
     route.input_schema,
@@ -103,7 +132,7 @@ export function inspectHttpToolContract(config: HttpToolConfig, declaredSchema?:
     const errors: string[] = []
     for (const route of config.routes || []) {
       const preview = inspectHttpRouteContract(config, route)
-      errors.push(...preview.errors.map((error) => `${route.name || route.operation_id}: ${error}`))
+      errors.push(...preview.errors.map((error) => `${route.name || route.operation_id || 'route'}: ${error}`))
     }
     return {
       parameterNames: [],
