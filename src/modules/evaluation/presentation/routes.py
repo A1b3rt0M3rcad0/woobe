@@ -6,9 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.service import EvaluationApplicationService
+from modules.evaluation.application.hardened_service import (
+    HardenedEvaluationApplicationService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
-
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
 
@@ -89,10 +90,8 @@ class EvaluationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=255)
 
 
-
-def _service(request: Request) -> EvaluationApplicationService:
-    return EvaluationApplicationService(request.app.state.session_factory)
-
+def _service(request: Request) -> HardenedEvaluationApplicationService:
+    return HardenedEvaluationApplicationService(request.app.state.session_factory)
 
 
 def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
@@ -100,11 +99,7 @@ def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
 
 
 @router.post("/datasets", status_code=status.HTTP_201_CREATED)
-async def create_dataset(
-    project_id: UUID,
-    payload: CreateDatasetRequest,
-    request: Request,
-):
+async def create_dataset(project_id: UUID, payload: CreateDatasetRequest, request: Request):
     user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_dataset(
         project_id=project_id,
@@ -120,10 +115,7 @@ async def create_dataset(
 @router.get("/datasets")
 async def list_datasets(project_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).list_datasets(project_id),
-    }
+    return {"success": True, "data": await _service(request).list_datasets(project_id)}
 
 
 @router.get("/datasets/{dataset_id}")
@@ -135,10 +127,7 @@ async def get_dataset(project_id: UUID, dataset_id: UUID, request: Request):
     }
 
 
-@router.post(
-    "/datasets/{dataset_id}/versions",
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/datasets/{dataset_id}/versions", status_code=status.HTTP_201_CREATED)
 async def create_dataset_version(
     project_id: UUID,
     dataset_id: UUID,
@@ -157,11 +146,7 @@ async def create_dataset_version(
 
 
 @router.post("/suites", status_code=status.HTTP_201_CREATED)
-async def create_suite(
-    project_id: UUID,
-    payload: CreateSuiteRequest,
-    request: Request,
-):
+async def create_suite(project_id: UUID, payload: CreateSuiteRequest, request: Request):
     user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_suite(
         project_id=project_id,
@@ -184,18 +169,11 @@ async def create_suite(
 @router.get("/suites")
 async def list_suites(project_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).list_suites(project_id),
-    }
+    return {"success": True, "data": await _service(request).list_suites(project_id)}
 
 
 @router.post("/runs/preview")
-async def preview_run(
-    project_id: UUID,
-    payload: EvaluationRunRequest,
-    request: Request,
-):
+async def preview_run(project_id: UUID, payload: EvaluationRunRequest, request: Request):
     require_evaluation_user(request, project_id)
     data = await _service(request).preview_run(
         project_id=project_id,
@@ -210,11 +188,7 @@ async def preview_run(
 
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
-async def create_run(
-    project_id: UUID,
-    payload: EvaluationRunRequest,
-    request: Request,
-):
+async def create_run(project_id: UUID, payload: EvaluationRunRequest, request: Request):
     user_id = require_evaluation_user(request, project_id)
     data = await _service(request).create_run(
         project_id=project_id,
@@ -246,19 +220,13 @@ async def list_runs(
 @router.get("/runs/{run_id}")
 async def get_run(project_id: UUID, run_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).get_run(project_id, run_id),
-    }
+    return {"success": True, "data": await _service(request).get_run(project_id, run_id)}
 
 
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(project_id: UUID, run_id: UUID, request: Request):
     require_evaluation_user(request, project_id)
-    return {
-        "success": True,
-        "data": await _service(request).cancel_run(project_id, run_id),
-    }
+    return {"success": True, "data": await _service(request).cancel_run(project_id, run_id)}
 
 
 @router.get("/qualifications")
