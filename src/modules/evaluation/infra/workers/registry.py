@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from modules.evaluation.infra.workers.run_worker import ResumableEvaluationRunWorker
+from modules.evaluation.infra.workers.outcome_worker import OutcomeAwareEvaluationRunWorker
 from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
@@ -30,7 +30,7 @@ def register_evaluation_workers(
         return
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     registry.register(
-        ResumableEvaluationRunWorker(
+        OutcomeAwareEvaluationRunWorker(
             session_factory,
             settings=settings or Settings(),
         )
