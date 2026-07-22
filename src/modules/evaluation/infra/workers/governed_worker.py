@@ -34,6 +34,46 @@ def _policy_assessment(value: str | None) -> str:
     return "inconclusive"
 
 
+def _revision(aggregate: dict[str, Any]) -> int:
+    try:
+        return max(1, int(aggregate.get("evidence_revision") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _case_outcomes(values: list[EvaluationTrialModel]) -> dict[str, int]:
+    grouped: dict[UUID, list[EvaluationTrialModel]] = {}
+    for trial in values:
+        grouped.setdefault(trial.test_case_id, []).append(trial)
+    fully_passed = 0
+    mixed = 0
+    consistently_failed = 0
+    needs_attention = 0
+    for trials in grouped.values():
+        passed = sum(1 for item in trials if item.passed is True)
+        conclusive = sum(
+            1
+            for item in trials
+            if item.status == EvaluationTrialStatus.COMPLETED.value
+            and item.passed is not None
+        )
+        if passed == len(trials) and conclusive == len(trials):
+            fully_passed += 1
+        elif passed > 0:
+            mixed += 1
+            needs_attention += 1
+        else:
+            consistently_failed += 1
+            needs_attention += 1
+    return {
+        "case_count": len(grouped),
+        "cases_fully_passed": fully_passed,
+        "cases_mixed": mixed,
+        "cases_consistently_failed": consistently_failed,
+        "cases_needing_attention": needs_attention,
+    }
+
+
 class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcessor):
     """Calculate evidence and policy assessment without making a human decision."""
 
@@ -64,9 +104,7 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
     async def _aggregate(self, run_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
-            if run is None:
-                return
-            if run.status == EvaluationRunStatus.CANCELLED.value:
+            if run is None or run.status == EvaluationRunStatus.CANCELLED.value:
                 return
             run.status = EvaluationRunStatus.AGGREGATING.value
             suite = await session.get(EvaluationSuiteVersionModel, run.suite_version_id)
@@ -92,16 +130,24 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
                 ).all()
             )
             targets = {item.id: item for item in target_rows}
-            payloads = [
-                _trial_payload(item, targets[item.evaluation_target_id])
+            payload_by_trial = {
+                item.id: _trial_payload(item, targets[item.evaluation_target_id])
                 for item in trials
                 if item.evaluation_target_id in targets
-            ]
+            }
+            payloads = list(payload_by_trial.values())
             complete_aggregate = aggregate_evaluation(payloads, suite.acceptance_policy)
 
-            assessment_side = "candidate" if run.baseline_target_id else "single"
+            primary_target_id = run.candidate_target_id
+            if primary_target_id is None and target_rows:
+                primary_target_id = target_rows[0].id
+            assessment_trials = [
+                item for item in trials if item.evaluation_target_id == primary_target_id
+            ]
             assessment_payloads = [
-                item for item in payloads if item["side"] == assessment_side
+                payload_by_trial[item.id]
+                for item in assessment_trials
+                if item.id in payload_by_trial
             ]
             assessment_aggregate = aggregate_evaluation(
                 assessment_payloads,
@@ -113,25 +159,35 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
 
             target_summaries: list[dict[str, Any]] = []
             for target in target_rows:
-                values = [item for item in payloads if item["side"] == target.side]
-                side_aggregate = aggregate_evaluation(values, suite.acceptance_policy)
+                target_trials = [
+                    item for item in trials if item.evaluation_target_id == target.id
+                ]
+                values = [
+                    payload_by_trial[item.id]
+                    for item in target_trials
+                    if item.id in payload_by_trial
+                ]
+                target_aggregate = aggregate_evaluation(values, suite.acceptance_policy)
                 raw_total = len(values)
                 raw_passed = sum(1 for item in values if item.get("passed") is True)
                 target_summaries.append(
                     {
                         "target_id": str(target.id),
                         "side": target.side,
-                        "weighted_score": side_aggregate.get("overall_score"),
-                        "weighted_pass_rate": side_aggregate.get("pass_rate"),
+                        "weighted_score": target_aggregate.get("overall_score"),
+                        "weighted_pass_rate": target_aggregate.get("pass_rate"),
+                        "trial_outcomes_passed": raw_passed,
+                        "trial_outcomes_total": raw_total,
                         "raw_passed": raw_passed,
                         "raw_total": raw_total,
                         "raw_pass_rate": (
                             raw_passed / raw_total * 100 if raw_total else None
                         ),
-                        "critical_failures": side_aggregate.get("critical_failures", 0),
-                        "completed_trial_count": side_aggregate.get(
+                        "critical_failures": target_aggregate.get("critical_failures", 0),
+                        "completed_trial_count": target_aggregate.get(
                             "completed_trial_count", 0
                         ),
+                        **_case_outcomes(target_trials),
                     }
                 )
 
@@ -140,12 +196,22 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
                 if isinstance(run.aggregate_result, dict)
                 else {}
             )
+            evidence_revision = _revision(preserved)
+            retry_metadata = preserved.get("judgment_retry")
+            if isinstance(retry_metadata, dict) and retry_metadata.get("started_at"):
+                retry_metadata = {
+                    **retry_metadata,
+                    "status": "completed",
+                    "completed_at": _utc_now().isoformat(),
+                }
+
             run.qualification_status = None
             run.overall_score = assessment_aggregate.get("overall_score")
             run.pass_rate = assessment_aggregate.get("pass_rate")
             run.aggregate_result = {
                 **preserved,
                 **complete_aggregate,
+                "evidence_revision": evidence_revision,
                 "assessment": {
                     **assessment_aggregate,
                     "status": assessment_status,
@@ -153,9 +219,11 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
                         "qualification_status"
                     ),
                     "decision_required": True,
+                    "target_id": str(primary_target_id) if primary_target_id else None,
                 },
                 "target_summaries": target_summaries,
-                "decision": {"status": "pending"},
+                "decision": {"status": "pending", "evidence_revision": evidence_revision},
+                "judgment_retry": retry_metadata,
             }
 
             model_call_cost = await session.scalar(
@@ -194,46 +262,62 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
             )
 
             volume = int((suite.estimate_defaults or {}).get("volume", 10_000))
-            existing_estimate_count = await session.scalar(
-                select(func.count(EstimateRunModel.id)).where(
-                    EstimateRunModel.evaluation_run_id == run.id
-                )
-            )
-            if not existing_estimate_count:
-                for target in target_rows:
-                    completed_values = [
-                        item
-                        for item in payloads
-                        if item["side"] == target.side
-                        and item["status"] == EvaluationTrialStatus.COMPLETED.value
-                    ]
-                    if not completed_values:
-                        continue
-                    estimate = build_estimate(
-                        values=completed_values,
-                        volume=volume,
-                        target_type=target.target_type,
-                    )
-                    session.add(
-                        EstimateRunModel(
-                            project_id=run.project_id,
-                            evaluation_run_id=run.id,
-                            target_id=target.id,
-                            volume_unit="runs_per_month",
-                            volume=volume,
-                            assumptions={
-                                "projection_method": "observed_trial_distribution",
-                                "run_purpose": "evaluation",
-                            },
-                            observation_summary=estimate["observation_summary"],
-                            price_snapshot=None,
-                            price_snapshot_hash="none",
-                            scenarios=estimate["scenarios"],
-                            confidence=estimate["confidence"],
-                            limitations=estimate["limitations"],
-                            created_by=run.requested_by,
+            existing_estimates = list(
+                (
+                    await session.scalars(
+                        select(EstimateRunModel).where(
+                            EstimateRunModel.evaluation_run_id == run.id
                         )
                     )
+                ).all()
+            )
+            for target in target_rows:
+                has_default_for_revision = any(
+                    item.target_id == target.id
+                    and (item.assumptions or {}).get("origin") == "suite_default"
+                    and int((item.assumptions or {}).get("evidence_revision") or 1)
+                    == evidence_revision
+                    for item in existing_estimates
+                )
+                if has_default_for_revision:
+                    continue
+                completed_values = [
+                    payload_by_trial[item.id]
+                    for item in trials
+                    if item.evaluation_target_id == target.id
+                    and item.id in payload_by_trial
+                    and item.status == EvaluationTrialStatus.COMPLETED.value
+                ]
+                if not completed_values:
+                    continue
+                estimate = build_estimate(
+                    values=completed_values,
+                    volume=volume,
+                    target_type=target.target_type,
+                )
+                session.add(
+                    EstimateRunModel(
+                        project_id=run.project_id,
+                        evaluation_run_id=run.id,
+                        target_id=target.id,
+                        volume_unit="runs_per_month",
+                        volume=volume,
+                        assumptions={
+                            "projection_method": "observed_trial_distribution",
+                            "run_purpose": "evaluation",
+                            "origin": "suite_default",
+                            "evidence_revision": evidence_revision,
+                            "cost_scope": "target_runtime_only",
+                        },
+                        observation_summary=estimate["observation_summary"],
+                        price_snapshot=None,
+                        price_snapshot_hash=f"none-r{evidence_revision}",
+                        scenarios=estimate["scenarios"],
+                        confidence=estimate["confidence"],
+                        limitations=estimate["limitations"],
+                        created_by=run.requested_by,
+                    )
+                )
 
 
 class GovernedEvaluationRunWorker(ConcurrentOutcomeAwareEvaluationRunWorker):
