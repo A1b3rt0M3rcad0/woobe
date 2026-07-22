@@ -19,6 +19,45 @@ class EvidenceRichEvaluationApplicationService(
 ):
     """Enrich Run reads without changing the immutable operational evidence."""
 
+    @staticmethod
+    def _target_payload(target) -> dict[str, Any]:
+        payload = HumanDecisionEvaluationApplicationService._target_payload(target)
+        snapshot = target.snapshot if isinstance(target.snapshot, dict) else {}
+        manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
+        knowledge = (
+            dict(manifest.get("knowledge"))
+            if isinstance(manifest.get("knowledge"), dict)
+            else {}
+        )
+        runtime = snapshot.get("runtime_config")
+        runtime = runtime if isinstance(runtime, dict) else {}
+        rag = runtime.get("rag")
+        rag = rag if isinstance(rag, dict) else {}
+        knowledge.update(
+            {
+                "knowledge_version_id": snapshot.get("knowledge_version_id"),
+                "vector_snapshot_id": (
+                    snapshot.get("vector_snapshot_id")
+                    or rag.get("vector_snapshot_id")
+                    or runtime.get("vector_snapshot_id")
+                    or knowledge.get("vector_snapshot_id")
+                ),
+                "collection_ids": [
+                    str(value) for value in snapshot.get("collection_ids") or []
+                ],
+                "rag": {
+                    "search_strategy": rag.get("search_strategy"),
+                    "candidate_k": rag.get("candidate_k"),
+                    "top_k": rag.get("top_k"),
+                    "min_score": rag.get("min_score"),
+                    "grounding_policy": rag.get("grounding_policy"),
+                },
+            }
+        )
+        manifest["knowledge"] = knowledge
+        payload["manifest"] = manifest
+        return payload
+
     async def get_run(self, project_id: UUID, run_id: UUID) -> dict[str, Any]:
         payload = await super().get_run(project_id, run_id)
         trials = payload.get("trials") if isinstance(payload.get("trials"), list) else []
@@ -51,7 +90,7 @@ class EvidenceRichEvaluationApplicationService(
             if not isinstance(trial, dict):
                 continue
             metrics = trial.get("metrics") if isinstance(trial.get("metrics"), dict) else {}
-            runtime_done = bool(metrics.get("runtime_completed"))
+            runtime_done = bool(metrics.get("runtime_completed") or trial.get("output"))
             if runtime_done:
                 runtime_completed += 1
             if trial.get("score") is not None and trial.get("passed") is not None:
@@ -107,6 +146,7 @@ class EvidenceRichEvaluationApplicationService(
 
         configured_collections: set[str] = set()
         configured_vector_snapshots: set[str] = set()
+        configured_knowledge_versions: set[str] = set()
         structured_targets = 0
         for target in payload.get("targets", []):
             if not isinstance(target, dict):
@@ -116,17 +156,24 @@ class EvidenceRichEvaluationApplicationService(
             configured_collections.update(str(value) for value in knowledge.get("collection_ids") or [])
             if knowledge.get("vector_snapshot_id"):
                 configured_vector_snapshots.add(str(knowledge["vector_snapshot_id"]))
+            if knowledge.get("knowledge_version_id"):
+                configured_knowledge_versions.add(str(knowledge["knowledge_version_id"]))
             contract = manifest.get("output_contract") if isinstance(manifest.get("output_contract"), dict) else {}
             if contract.get("has_schema"):
                 structured_targets += 1
 
         provenance_warnings: list[dict[str, Any]] = []
-        if source_count and not configured_collections and not configured_vector_snapshots:
+        if (
+            source_count
+            and not configured_collections
+            and not configured_vector_snapshots
+            and not configured_knowledge_versions
+        ):
             provenance_warnings.append(
                 {
                     "code": "knowledge_provenance_mismatch",
                     "message": (
-                        "The runtime returned RAG sources, but the frozen target manifest does not declare Collections or a Vector Snapshot."
+                        "The runtime returned RAG sources, but the frozen target manifest does not declare a Knowledge Version, Collections or a Vector Snapshot."
                     ),
                     "severity": "high",
                 }
@@ -136,7 +183,7 @@ class EvidenceRichEvaluationApplicationService(
                 {
                     "code": "structured_output_not_covered",
                     "message": (
-                        "The target snapshot declares Structured Output, but this Suite does not require JSON/schema validation."
+                        "The target snapshot declares Structured Output, but this historical Suite does not require JSON/schema validation."
                     ),
                     "severity": "medium",
                 }
@@ -172,6 +219,7 @@ class EvidenceRichEvaluationApplicationService(
             ),
         }
         payload["knowledge_evidence"] = {
+            "configured_knowledge_version_ids": sorted(configured_knowledge_versions),
             "configured_collection_ids": sorted(configured_collections),
             "configured_vector_snapshot_ids": sorted(configured_vector_snapshots),
             "observed_document_ids": sorted(document_ids),
