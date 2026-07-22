@@ -11,10 +11,14 @@ from modules.evaluation.application.token_budget import (
     budget_sections,
     context_window_from_metadata,
 )
-from modules.evaluation.infra.judge import EvaluatorModelGateway, JudgeResult
+from modules.evaluation.infra.adaptive_judge import (
+    AdaptiveEvaluatorModelGateway,
+    recommended_judge_output_tokens,
+)
+from modules.evaluation.infra.judge import JudgeResult
 
 
-class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
+class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
     async def judge(
         self,
         session: AsyncSession,
@@ -29,9 +33,14 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
     ) -> JudgeResult:
         provider_model = await session.get(ProviderModelModel, provider_model_id)
         metadata = provider_model.meta if provider_model is not None else {}
+        model = provider_model.model if provider_model is not None else ""
         context_window = context_window_from_metadata(metadata or {})
         configured_input = int(judge_config.get("maximum_input_tokens", 8000))
-        configured_output = min(int(judge_config.get("max_tokens", 800)), 1200)
+        configured_output = recommended_judge_output_tokens(
+            model,
+            metadata or {},
+            judge_config,
+        )
         case_with_policy = {
             **case_payload,
             "outcome_judging_policy": {
@@ -62,7 +71,7 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
                 ("operational_evidence", operational_evidence, 5, False),
             ],
             maximum_input_tokens=max(2000, min(configured_input, 32_000)),
-            reserved_output_tokens=max(256, configured_output),
+            reserved_output_tokens=max(512, configured_output),
             safety_margin_tokens=500,
             context_window=context_window,
         )
@@ -74,7 +83,12 @@ class BudgetedEvaluatorModelGateway(EvaluatorModelGateway):
         evidence = {**evidence, "judge_context_budget": report}
         normalized_config = {
             **judge_config,
+            "output_budget_policy": judge_config.get("output_budget_policy", "auto"),
             "max_tokens": configured_output,
+            "maximum_retry_tokens": min(
+                int(judge_config.get("maximum_retry_tokens", 8192)),
+                8192,
+            ),
             "maximum_payload_chars": min(
                 int(judge_config.get("maximum_payload_chars", 120_000)),
                 max(10_000, configured_input * 4),
