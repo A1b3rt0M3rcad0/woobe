@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import text
+
+from modules.evaluation.application.failure_taxonomy import (
+    classify_evaluation_failure,
+    summarize_failures,
+)
+from modules.evaluation.application.human_decision_service import (
+    HumanDecisionEvaluationApplicationService,
+)
+
+
+class EvidenceRichEvaluationApplicationService(
+    HumanDecisionEvaluationApplicationService
+):
+    """Enrich Run reads without changing the immutable operational evidence."""
+
+    async def get_run(self, project_id: UUID, run_id: UUID) -> dict[str, Any]:
+        payload = await super().get_run(project_id, run_id)
+        trials = payload.get("trials") if isinstance(payload.get("trials"), list) else []
+        judge_calls = (
+            payload.get("judge_calls")
+            if isinstance(payload.get("judge_calls"), list)
+            else []
+        )
+        calls_by_trial = {
+            str(item.get("trial_id")): item
+            for item in judge_calls
+            if isinstance(item, dict)
+        }
+
+        runtime_completed = 0
+        judge_completed = 0
+        conclusive = 0
+        target_cost = 0.0
+        target_cost_count = 0
+        judge_cost = 0.0
+        judge_cost_count = 0
+        document_ids: set[str] = set()
+        chunk_ids: set[str] = set()
+        source_count = 0
+        observed_collections: set[str] = set()
+        output_contract_cases = 0
+        output_contract_enforced = 0
+
+        for trial in trials:
+            if not isinstance(trial, dict):
+                continue
+            metrics = trial.get("metrics") if isinstance(trial.get("metrics"), dict) else {}
+            runtime_done = bool(metrics.get("runtime_completed"))
+            if runtime_done:
+                runtime_completed += 1
+            if trial.get("score") is not None and trial.get("passed") is not None:
+                conclusive += 1
+            target_value = metrics.get("cost_usd")
+            if target_value is not None:
+                target_cost += float(target_value)
+                target_cost_count += 1
+            call = calls_by_trial.get(str(trial.get("id")))
+            if call and call.get("status") == "completed" and call.get("structured_result"):
+                judge_completed += 1
+            if call and call.get("cost_usd") is not None:
+                judge_cost += float(call["cost_usd"])
+                judge_cost_count += 1
+
+            trial["failure_classification"] = classify_evaluation_failure(
+                trial_status=trial.get("status"),
+                failure_code=trial.get("failure_code"),
+                failure_detail=trial.get("failure_detail"),
+                judge_status=call.get("status") if call else None,
+                judge_error=call.get("error") if call else None,
+                runtime_completed=runtime_done,
+            )
+
+            output = trial.get("output") if isinstance(trial.get("output"), dict) else {}
+            sources = output.get("sources") if isinstance(output.get("sources"), list) else []
+            source_count += len(sources)
+            for source in sources:
+                if not isinstance(source, dict):
+                    continue
+                if source.get("document_id"):
+                    document_ids.add(str(source["document_id"]))
+                if source.get("chunk_id"):
+                    chunk_ids.add(str(source["chunk_id"]))
+                if source.get("collection_id"):
+                    observed_collections.add(str(source["collection_id"]))
+
+            case = trial.get("case") if isinstance(trial.get("case"), dict) else {}
+            expected = (
+                case.get("expected_contract")
+                if isinstance(case.get("expected_contract"), dict)
+                else {}
+            )
+            contract = (
+                expected.get("output_contract")
+                if isinstance(expected.get("output_contract"), dict)
+                else {}
+            )
+            if contract.get("required"):
+                output_contract_cases += 1
+            if contract.get("json_required") or contract.get("schema"):
+                output_contract_enforced += 1
+
+        configured_collections: set[str] = set()
+        configured_vector_snapshots: set[str] = set()
+        structured_targets = 0
+        for target in payload.get("targets", []):
+            if not isinstance(target, dict):
+                continue
+            manifest = target.get("manifest") if isinstance(target.get("manifest"), dict) else {}
+            knowledge = manifest.get("knowledge") if isinstance(manifest.get("knowledge"), dict) else {}
+            configured_collections.update(str(value) for value in knowledge.get("collection_ids") or [])
+            if knowledge.get("vector_snapshot_id"):
+                configured_vector_snapshots.add(str(knowledge["vector_snapshot_id"]))
+            contract = manifest.get("output_contract") if isinstance(manifest.get("output_contract"), dict) else {}
+            if contract.get("has_schema"):
+                structured_targets += 1
+
+        provenance_warnings: list[dict[str, Any]] = []
+        if source_count and not configured_collections and not configured_vector_snapshots:
+            provenance_warnings.append(
+                {
+                    "code": "knowledge_provenance_mismatch",
+                    "message": (
+                        "The runtime returned RAG sources, but the frozen target manifest does not declare Collections or a Vector Snapshot."
+                    ),
+                    "severity": "high",
+                }
+            )
+        if structured_targets and output_contract_enforced == 0:
+            provenance_warnings.append(
+                {
+                    "code": "structured_output_not_covered",
+                    "message": (
+                        "The target snapshot declares Structured Output, but this Suite does not require JSON/schema validation."
+                    ),
+                    "severity": "medium",
+                }
+            )
+
+        failure_summary = summarize_failures(trials, judge_calls)
+        total = len(trials)
+        if conclusive:
+            evidence_status = "complete" if conclusive == total else "partial"
+        elif runtime_completed:
+            evidence_status = "unavailable"
+        else:
+            evidence_status = "partial" if trials else "unavailable"
+
+        payload["evidence_status"] = evidence_status
+        payload["evidence_completeness"] = {
+            "total_trials": total,
+            "runtime_completed": runtime_completed,
+            "judge_completed": judge_completed,
+            "conclusive_trials": conclusive,
+            "inconclusive_trials": max(0, total - conclusive),
+        }
+        payload["failure_summary"] = failure_summary
+        payload["cost_breakdown"] = {
+            "target_runtime_cost_usd": target_cost if target_cost_count else None,
+            "judge_cost_usd": judge_cost if judge_cost_count else None,
+            "total_evaluation_cost_usd": payload.get("measured_total_cost"),
+            "target_pricing_coverage_percent": (
+                target_cost_count / total * 100 if total else 0
+            ),
+            "judge_pricing_coverage_percent": (
+                judge_cost_count / total * 100 if total else 0
+            ),
+        }
+        payload["knowledge_evidence"] = {
+            "configured_collection_ids": sorted(configured_collections),
+            "configured_vector_snapshot_ids": sorted(configured_vector_snapshots),
+            "observed_document_ids": sorted(document_ids),
+            "observed_chunk_ids": sorted(chunk_ids),
+            "observed_collection_ids": sorted(observed_collections),
+            "observed_source_count": source_count,
+        }
+        payload["output_contract_coverage"] = {
+            "structured_target_count": structured_targets,
+            "cases_requiring_output": output_contract_cases,
+            "cases_enforcing_json_or_schema": output_contract_enforced,
+        }
+        payload["provenance_warnings"] = provenance_warnings
+        payload["legacy_comparison"] = payload.get("mode") == "comparison"
+
+        async with self._session_factory() as session:
+            row = (
+                await session.execute(
+                    text(
+                        "SELECT evaluation_id, evaluation_protocol_hash "
+                        "FROM evaluation.runs WHERE id = :run_id AND project_id = :project_id"
+                    ),
+                    {"run_id": run_id, "project_id": project_id},
+                )
+            ).one_or_none()
+        payload["evaluation_id"] = str(row.evaluation_id) if row and row.evaluation_id else None
+        payload["evaluation_protocol_hash"] = (
+            str(row.evaluation_protocol_hash)
+            if row and row.evaluation_protocol_hash
+            else None
+        )
+        return payload
+
+
+__all__ = ["EvidenceRichEvaluationApplicationService"]
