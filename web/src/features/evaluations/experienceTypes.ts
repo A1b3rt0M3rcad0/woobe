@@ -4,22 +4,13 @@ import type {
   EvaluationTargetInput,
 } from './types'
 
-export interface EvaluationModelVariantInput {
-  type: 'model_override'
-  provider_model_id: string
-  temperature?: number
-  max_output_tokens?: number
-}
-
-export interface EvaluationTargetWithVariant extends EvaluationTargetInput {
-  variant?: EvaluationModelVariantInput
-}
+export type EvaluationTargetWithVariant = EvaluationTargetInput
 
 export interface EvaluationExperienceRunInput {
   suite_version_id: string
   repetitions: number
-  candidate: EvaluationTargetWithVariant
-  baseline?: EvaluationTargetWithVariant
+  candidate: EvaluationTargetInput
+  baseline?: EvaluationTargetInput
   acknowledge_tool_side_effects?: boolean
   approved_high_risk_tool_ids?: string[]
   idempotency_key?: string
@@ -31,6 +22,7 @@ export interface EvaluationRunProgress {
   phase: string
   mode: EvaluationRun['mode']
   qualification_eligible?: boolean
+  decision_required?: boolean
   total_trials: number
   runtime_completed: number
   runtime_pending: number
