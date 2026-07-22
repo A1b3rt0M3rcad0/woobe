@@ -5,8 +5,8 @@ from typing import Any
 from modules.evaluation.application.completed_service import (
     CompletedEvaluationApplicationService,
 )
-from modules.evaluation.application.diagnostic_authoring import (
-    DiagnosticEvaluationSuiteAuthoringService,
+from modules.evaluation.application.contract_aware_authoring import (
+    ContractAwareEvaluationSuiteAuthoringService,
 )
 from shared.infra.errors import ValidationError
 
@@ -24,7 +24,9 @@ class FinalEvaluationApplicationService(CompletedEvaluationApplicationService):
             if isinstance(metadata.get("reference_target"), dict)
             else None
         )
-        validator = DiagnosticEvaluationSuiteAuthoringService(self._session_factory)
+        validator = ContractAwareEvaluationSuiteAuthoringService(
+            self._session_factory
+        )
         validation = await validator.validate_draft(
             draft,
             project_id=project_id,
