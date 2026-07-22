@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from sqlalchemy import delete, select
 
 from modules.evaluation.application.human_decision_service import (
     HumanDecisionEvaluationApplicationService,
+    _target_manifest,
 )
 from modules.evaluation.infra.database.models import (
     EvaluationCheckResultModel,
@@ -29,8 +31,39 @@ _ACTIVE_RUN_STATUSES = {
 _TERMINAL_TRIAL_STATUSES = {"completed", "failed", "inconclusive", "cancelled"}
 
 
+def _safe_preview_target(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    target = SimpleNamespace(**value)
+    return {
+        "target_type": value.get("target_type"),
+        "source_type": value.get("source_type"),
+        "entity_id": str(value.get("entity_id")) if value.get("entity_id") else None,
+        "environment": value.get("environment"),
+        "agent_release_id": str(value.get("agent_release_id"))
+        if value.get("agent_release_id")
+        else None,
+        "network_version_id": str(value.get("network_version_id"))
+        if value.get("network_version_id")
+        else None,
+        "snapshot_hash": value.get("snapshot_hash"),
+        "composition_hash": value.get("composition_hash"),
+        "display_name": value.get("display_name"),
+        "display_version": value.get("display_version"),
+        "manifest": _target_manifest(target),
+    }
+
+
 class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
     """MVP facade for exact snapshot Evaluations and lightweight progress."""
+
+    async def preview_run(self, **kwargs) -> dict[str, Any]:
+        payload = await super().preview_run(**kwargs)
+        return {
+            **payload,
+            "candidate": _safe_preview_target(payload.get("candidate")),
+            "baseline": _safe_preview_target(payload.get("baseline")),
+        }
 
     async def get_run_progress(
         self,
@@ -193,7 +226,6 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
                     EvaluatorModelCallModel.evaluation_trial_id.in_(eligible_ids)
                 )
             )
-            # Clean up only historical automatically-created qualifications.
             await session.execute(
                 delete(ReleaseQualificationModel).where(
                     ReleaseQualificationModel.evaluation_run_id == run.id
