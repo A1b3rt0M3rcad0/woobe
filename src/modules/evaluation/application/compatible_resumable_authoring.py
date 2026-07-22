@@ -10,6 +10,7 @@ from modules.evaluation.application.resumable_authoring import (
     ResumableEvaluationSuiteAuthoringService,
     _coverage_labels,
 )
+from modules.evaluation.application.tool_catalog import build_target_tool_catalog
 from modules.evaluation.infra.database.authoring_models import (
     EvaluationAuthoringCaseSlotModel,
 )
@@ -34,7 +35,7 @@ def _issues_by_case(validation: dict[str, Any]) -> dict[int, list[dict[str, Any]
 class CompatibleResumableEvaluationSuiteAuthoringService(
     ResumableEvaluationSuiteAuthoringService
 ):
-    """Lazily converts pre-0059 authoring calls into per-case slots."""
+    """Adds legacy backfill and explicit target-bound Tool validation."""
 
     async def _ensure_case_slots(
         self,
@@ -119,6 +120,92 @@ class CompatibleResumableEvaluationSuiteAuthoringService(
                 position += 1
         session.add_all(slots)
         await session.flush()
+
+    async def validate_draft(
+        self,
+        payload: dict[str, Any],
+        *,
+        project_id: UUID | None = None,
+        reference_target: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        validation = await super().validate_draft(
+            payload,
+            project_id=project_id,
+            reference_target=reference_target,
+        )
+        if reference_target is None or project_id is None:
+            return validation
+
+        async with self._session_factory() as session:
+            resolved = await self._target_resolver.resolve(
+                session,
+                project_id=project_id,
+                target_type=str(reference_target.get("target_type") or "agent"),
+                source_type=str(reference_target.get("source_type") or "draft"),
+                entity_id=UUID(str(reference_target["entity_id"])),
+                version_id=(
+                    UUID(str(reference_target["version_id"]))
+                    if reference_target.get("version_id")
+                    else None
+                ),
+            )
+            catalog = await build_target_tool_catalog(
+                session,
+                target=resolved,
+                project_id=project_id,
+            )
+
+        allowed = {
+            str(name).casefold(): str(name)
+            for name in catalog.get("allowed_names", [])
+        }
+        errors = list(validation.get("errors") or [])
+        existing = {
+            (str(issue.get("path") or ""), str(issue.get("message") or ""))
+            for issue in errors
+            if isinstance(issue, dict)
+        }
+        for index, case in enumerate(validation.get("cases") or []):
+            contract = case.get("expected_contract") if isinstance(case, dict) else None
+            tools = contract.get("tools") if isinstance(contract, dict) else None
+            if not isinstance(tools, dict):
+                continue
+            for field in ("required", "forbidden"):
+                values = tools.get(field)
+                if not isinstance(values, list):
+                    continue
+                for value in values:
+                    name = str(value).strip()
+                    if not name or name.casefold() in allowed:
+                        continue
+                    path = f"cases[{index}].expected_contract.tools.{field}"
+                    message = (
+                        f"Tool '{name}' is not available in the selected snapshot."
+                    )
+                    if (path, message) not in existing:
+                        errors.append(
+                            {
+                                "path": path,
+                                "code": "unknown_tool",
+                                "tool_name": name,
+                                "message": message,
+                            }
+                        )
+                        existing.add((path, message))
+
+        reference = dict(validation.get("reference") or {})
+        reference["tool_catalog"] = {
+            "status": catalog.get("status"),
+            "source": catalog.get("source"),
+            "allowed_names": catalog.get("allowed_names", []),
+            "immutable": catalog.get("immutable", False),
+        }
+        return {
+            **validation,
+            "valid": not errors,
+            "errors": errors,
+            "reference": reference,
+        }
 
     async def get_authoring_call(
         self,
