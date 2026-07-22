@@ -21,6 +21,13 @@ export function previewCatalogEvaluation(
   return post<CatalogEvaluationPreview>(`${base(projectId)}/evaluations/preview`, input)
 }
 
+export function previewPairedEvaluationComparison(
+  projectId: string,
+  input: CreatePairedComparisonInput,
+) {
+  return post<Record<string, any>>(`${base(projectId)}/comparisons/paired/preview`, input)
+}
+
 export function createCatalogEvaluationRun(
   projectId: string,
   input: CreateCatalogEvaluationInput,
