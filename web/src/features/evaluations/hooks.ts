@@ -25,10 +25,14 @@ import {
   previewSuiteAuthoringContext,
   restoreEvaluationDataset,
   restoreEvaluationSuite,
+  resumeEvaluatorSuiteAuthoringCall,
   retryEvaluatorSuiteAuthoringCall,
   validateEvaluatorSuiteDraft,
 } from './api'
-import type { ValidateSuiteDraftInput } from './authoringTypes'
+import type {
+  ResumeAuthoringInput,
+  ValidateSuiteDraftInput,
+} from './authoringTypes'
 import {
   getEvaluationDatasetsPage,
   getEvaluationRunsPage,
@@ -58,6 +62,7 @@ const activeAuthoringStatuses = new Set([
   'queued',
   'running',
   'partial',
+  'repairing',
   'cancel_requested',
 ])
 
@@ -253,6 +258,24 @@ export function useRetryEvaluatorSuiteAuthoring(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (callId: string) => retryEvaluatorSuiteAuthoringCall(projectId as string, callId),
+    onSuccess: (call) => client.setQueryData(
+      ['evaluation-authoring-call', projectId, call.authoring_call_id],
+      call,
+    ),
+  })
+}
+
+export function useResumeEvaluatorSuiteAuthoring(
+  projectId?: string,
+  callId?: string | null,
+) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ResumeAuthoringInput) => resumeEvaluatorSuiteAuthoringCall(
+      projectId as string,
+      callId as string,
+      input,
+    ),
     onSuccess: (call) => client.setQueryData(
       ['evaluation-authoring-call', projectId, call.authoring_call_id],
       call,
