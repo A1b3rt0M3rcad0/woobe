@@ -141,7 +141,7 @@ export function EvaluationRunProgressView({
             </p>
             {retryActive && progress.processing_elapsed_seconds != null ? (
               <p className="mt-1 text-[10px] text-muted">
-                Original processing {duration(progress.processing_elapsed_seconds)}
+                Run age {duration(progress.processing_elapsed_seconds)}
               </p>
             ) : null}
           </div>
