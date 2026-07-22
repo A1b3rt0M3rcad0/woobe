@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.diagnostic_authoring import (
-    DiagnosticEvaluationSuiteAuthoringService,
+from modules.evaluation.application.resumable_authoring import (
+    ResumableEvaluationSuiteAuthoringService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -36,6 +36,17 @@ class GenerateSuiteDraftRequest(ContextPreviewRequest):
     maximum_cost_usd: float | None = Field(default=None, gt=0, le=100)
 
 
+class ResumeSuiteDraftRequest(BaseModel):
+    provider_model_id: UUID | None = None
+    strategy: Literal[
+        "retry_failed_and_missing",
+        "repair_tool_references",
+        "retry_provider_call",
+        "continue_with_new_model",
+        "retry_with_larger_output_budget",
+    ] = "retry_failed_and_missing"
+
+
 class ValidateSuiteDraftRequest(BaseModel):
     draft: dict[str, Any]
     reference_target: AuthoringTargetRequest | None = None
@@ -50,7 +61,9 @@ class CreateComposedSuiteRequest(BaseModel):
     judge_config: dict[str, Any] = Field(
         default_factory=lambda: {
             "temperature": 0,
-            "max_tokens": 800,
+            "output_budget_policy": "auto",
+            "max_tokens": 1200,
+            "maximum_retry_tokens": 8192,
             "timeout_seconds": 90,
             "maximum_input_tokens": 8000,
         }
@@ -85,8 +98,8 @@ class CreateComposedSuiteRequest(BaseModel):
     authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _service(request: Request) -> DiagnosticEvaluationSuiteAuthoringService:
-    return DiagnosticEvaluationSuiteAuthoringService(request.app.state.session_factory)
+def _service(request: Request) -> ResumableEvaluationSuiteAuthoringService:
+    return ResumableEvaluationSuiteAuthoringService(request.app.state.session_factory)
 
 
 @router.post("/suite-authoring/context-preview")
@@ -166,6 +179,25 @@ async def retry_suite_authoring_call(
     return {
         "success": True,
         "data": await _service(request).retry_authoring_call(project_id, call_id),
+    }
+
+
+@router.post("/suite-authoring/calls/{call_id}/resume")
+async def resume_suite_authoring_call(
+    project_id: UUID,
+    call_id: UUID,
+    payload: ResumeSuiteDraftRequest,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).resume_authoring_call(
+            project_id=project_id,
+            call_id=call_id,
+            provider_model_id=payload.provider_model_id,
+            strategy=payload.strategy,
+        ),
     }
 
 
