@@ -1,190 +1,137 @@
+import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
+  Circle,
   Clock3,
   Loader2,
   RefreshCw,
   Settings2,
+  Wrench,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
 import type {
-  EvaluationAuthoringBatch,
   EvaluationAuthoringCall,
+  EvaluationAuthoringCaseSlot,
+  ResumeAuthoringInput,
 } from '@/features/evaluations/authoringTypes'
+import type { ProviderModel } from '@/features/provider-models/types'
 import { cn } from '@/lib/utils'
 
 function phaseLabel(call: EvaluationAuthoringCall) {
   if (call.status === 'completed') return 'Evaluator Suite ready for review'
-  if (call.status === 'failed') return 'Evaluator Suite generation failed'
+  if (call.status === 'paused_requires_action') return 'Generation paused'
+  if (call.status === 'partially_ready') return 'Some Use Cases need attention'
+  if (call.status === 'failed_internal') return 'Evaluator Suite processing failed'
+  if (call.status === 'failed') return 'Evaluator Suite generation needs attention'
   if (call.status === 'cancelled') return 'Evaluator Suite generation cancelled'
   if (call.status === 'cancel_requested') return 'Cancelling Evaluator Suite generation'
-  if (call.status === 'partial') return 'Generating remaining Evaluator Suite batches'
-  if (call.phase === 'queued') return 'Evaluator Suite generation queued'
+  if (call.status === 'partial') return 'Generating remaining Use Cases'
+  if (call.phase === 'queued') return 'Preparing Evaluator Suite generation'
   return 'Generating Evaluator Suite'
 }
 
-function statusClass(status: EvaluationAuthoringBatch['status']) {
-  if (status === 'completed') return 'border-emerald-500/25 text-emerald-300'
-  if (status === 'failed') return 'border-red-500/25 text-red-300'
-  if (status === 'running') return 'border-primary/30 text-primary-light'
-  if (status === 'cancelled') return 'border-amber-500/25 text-amber-300'
-  return 'border-border text-muted'
+function coverageLabel(value: string) {
+  return value
+    .split('_')
+    .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+    .join(' ')
 }
 
-function actionLabel(action?: string | null) {
+function slotLabel(slot: EvaluationAuthoringCaseSlot) {
+  return slot.name || `${coverageLabel(slot.coverage_category)} Use Case`
+}
+
+function slotStatusLabel(slot: EvaluationAuthoringCaseSlot) {
   return {
-    repair_invalid_cases: 'Repair invalid cases',
-    repair_duplicate_cases: 'Repair duplicate cases',
-    retry_provider_call: 'Retry provider call',
-    retry_with_backoff: 'Retry after rate limit',
-    retry_with_larger_output_budget: 'Retry with larger output budget',
-    edit_tool_references: 'Review Tool references',
-    change_model_or_credential: 'Change model or credential',
-    reduce_cases_or_raise_cost_limit: 'Change generation limits',
-    contact_support: 'Inspect platform error',
-  }[String(action || '')] || 'Review generation failure'
+    planned: 'Waiting',
+    generating: 'Generating',
+    validating: 'Validating',
+    ready: 'Ready',
+    paused: 'Paused',
+    needs_attention: 'Needs attention',
+    cancelled: 'Cancelled',
+  }[slot.status]
 }
 
-function failureExplanation(batch: EvaluationAuthoringBatch) {
-  if (batch.failure_category === 'output_length_limit') {
-    return 'The model exhausted its completion budget before closing the JSON. The retry uses a larger adaptive output budget and requests a more concise response.'
+function SlotIcon({ status }: { status: EvaluationAuthoringCaseSlot['status'] }) {
+  if (status === 'ready') return <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+  if (status === 'generating' || status === 'validating') {
+    return <Loader2 className="h-4 w-4 animate-spin text-primary-light" />
   }
-  if (batch.failure_category === 'cost_limit') {
-    return 'The configured cost ceiling prevented or stopped this generation.'
+  if (status === 'paused' || status === 'needs_attention') {
+    return <AlertTriangle className="h-4 w-4 text-amber-300" />
   }
-  return batch.retryable
-    ? 'This failure is eligible for a targeted retry.'
-    : 'Repeating the same request will not resolve this failure.'
+  return <Circle className="h-4 w-4 text-muted/60" />
 }
 
-function BatchCard({ batch, blocked }: { batch: EvaluationAuthoringBatch; blocked: boolean }) {
-  const failure = batch.failure_category
-  const returned = batch.returned_case_count ?? batch.case_count
-  const valid = batch.valid_case_count ?? batch.case_count
-  const invalid = batch.invalid_case_count ?? 0
-  const latestAttempt = batch.attempts?.[batch.attempts.length - 1]
-
-  return (
-    <article className="rounded-xl border border-border/80 bg-background/35 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold text-white">
-              Batch {batch.batch_index} · {batch.requested_case_count} cases
-            </p>
-            <Badge variant="outline" className={statusClass(batch.status)}>
-              {batch.status}
-            </Badge>
-          </div>
-          <p className="mt-1 text-[10px] text-muted">
-            Attempt {batch.attempt}
-            {batch.status === 'pending' && blocked
-              ? ' · Waiting while a previous batch requires attention'
-              : ''}
-          </p>
-        </div>
-        {batch.status === 'running' ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary-light" />
-        ) : batch.status === 'completed' ? (
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-        ) : batch.status === 'failed' ? (
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-300" />
-        ) : null}
-      </div>
-
-      {(returned > 0 || batch.status === 'failed') ? (
-        <div className="mt-3 grid grid-cols-3 gap-3 rounded-lg border border-border/70 bg-surface/30 p-3">
-          <div>
-            <p className="text-[9px] uppercase text-muted">Returned</p>
-            <p className="mt-1 text-xs font-medium text-white">{returned}</p>
-          </div>
-          <div>
-            <p className="text-[9px] uppercase text-muted">Valid</p>
-            <p className="mt-1 text-xs font-medium text-emerald-300">{valid}</p>
-          </div>
-          <div>
-            <p className="text-[9px] uppercase text-muted">Invalid</p>
-            <p className={cn('mt-1 text-xs font-medium', invalid ? 'text-red-300' : 'text-white')}>
-              {invalid}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {batch.status === 'failed' ? (
-        <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/[0.04] p-3">
-          <p className="text-xs font-medium text-red-200">
-            {actionLabel(batch.recommended_action)}
-          </p>
-          <p className="mt-1 break-words text-[10px] leading-4 text-red-300/80">
-            {batch.error || failure || 'The batch could not be validated.'}
-          </p>
-          <p className="mt-2 text-[10px] leading-4 text-muted">
-            {failureExplanation(batch)}
-          </p>
-        </div>
-      ) : null}
-
-      {(batch.validation_errors?.length || batch.normalization_warnings?.length || batch.attempts?.length) ? (
-        <details className="mt-3 rounded-lg border border-border/70 bg-surface/20 px-3 py-2">
-          <summary className="cursor-pointer text-[10px] font-medium text-muted">
-            Technical details
-          </summary>
-          <div className="mt-2 space-y-2 text-[10px] leading-4 text-muted">
-            {batch.validation_errors?.map((issue, index) => (
-              <p key={`error-${index}`} className="break-words text-red-300/85">
-                {issue.path ? `${issue.path}: ` : ''}{issue.message}
-              </p>
-            ))}
-            {batch.normalization_warnings?.map((issue, index) => (
-              <p key={`warning-${index}`} className="text-amber-300/80">
-                {issue.path ? `${issue.path}: ` : ''}{issue.message}
-              </p>
-            ))}
-            {latestAttempt ? (
-              <p>
-                Provider latency {latestAttempt.latency_ms == null ? 'unknown' : `${(latestAttempt.latency_ms / 1000).toFixed(1)}s`}
-                {' · '}{Number(latestAttempt.input_tokens || 0).toLocaleString()} input tokens
-                {' · '}{Number(latestAttempt.output_tokens || 0).toLocaleString()} output tokens
-                {latestAttempt.cost_usd == null ? '' : ` · $${latestAttempt.cost_usd.toFixed(6)}`}
-              </p>
-            ) : null}
-          </div>
-        </details>
-      ) : null}
-    </article>
-  )
+function usageValue(
+  call: EvaluationAuthoringCall,
+  value: number | null,
+  render: (value: number) => string,
+) {
+  if (value != null) {
+    const suffix = call.usage_status === 'partial' ? ' so far' : ''
+    return `${render(value)}${suffix}`
+  }
+  if (call.usage_status === 'pending' || call.usage_status === 'partial') {
+    return 'Calculating…'
+  }
+  return 'Not reported'
 }
 
 interface Props {
   call: EvaluationAuthoringCall
+  providerModels: ProviderModel[]
   cancelling: boolean
-  retrying: boolean
+  resuming: boolean
   onCancel: () => void
-  onRetry: () => void
+  onResume: (input: ResumeAuthoringInput) => void
   onChangeSettings: () => void
 }
 
 export function SuiteGenerationProgress({
   call,
+  providerModels,
   cancelling,
-  retrying,
+  resuming,
   onCancel,
-  onRetry,
+  onResume,
   onChangeSettings,
 }: Props) {
-  const active = ['queued', 'running', 'partial', 'cancel_requested'].includes(call.status)
-  const retryableFailures = call.batches.filter(
-    (batch) => batch.status === 'failed' && batch.retryable,
+  const active = ['queued', 'running', 'partial', 'repairing', 'cancel_requested'].includes(call.status)
+  const slots = call.case_slots || []
+  const ready = call.ready_case_count ?? slots.filter((slot) => slot.status === 'ready').length
+  const attention = call.attention_case_count ?? slots.filter(
+    (slot) => slot.status === 'paused' || slot.status === 'needs_attention',
+  ).length
+  const processing = slots.filter(
+    (slot) => slot.status === 'generating' || slot.status === 'validating',
+  ).length
+  const pending = Math.max(
+    0,
+    call.pending_case_count ?? slots.length - ready - attention,
   )
-  const nonRetryableFailures = call.batches.filter(
-    (batch) => batch.status === 'failed' && !batch.retryable,
-  )
-  const failedBeforePending = call.batches.some((batch) => batch.status === 'failed')
-  const processedPercent = call.processed_percent ?? call.progress_percent
-  const primaryRetryAction = retryableFailures[0]?.recommended_action
+  const progress = call.case_progress_percent ?? call.progress_percent
+  const [modelId, setModelId] = useState(call.generator.provider_model_id)
+  const activeModels = providerModels.filter((model) => model.status === 'active')
+  const groupedIssues = useMemo(() => {
+    const grouped = new Map<string, EvaluationAuthoringCaseSlot[]>()
+    slots
+      .filter((slot) => slot.status === 'needs_attention' || slot.status === 'paused')
+      .forEach((slot) => {
+        const key = slot.failure_category || 'generation_failure'
+        grouped.set(key, [...(grouped.get(key) || []), slot])
+      })
+    return [...grouped.entries()]
+  }, [slots])
+  const hasToolIssue = groupedIssues.some(([category]) => (
+    category === 'tool_reference_mismatch' || category === 'unknown_tool'
+  ))
+  const requiresProviderAction = call.status === 'paused_requires_action'
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -195,70 +142,211 @@ export function SuiteGenerationProgress({
           ) : call.status === 'completed' ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-300" />
           ) : (
-            <AlertTriangle className="h-4 w-4 text-red-300" />
+            <AlertTriangle className="h-4 w-4 text-amber-300" />
           )}
           <h3 className="text-base font-semibold text-white">{phaseLabel(call)}</h3>
         </div>
         <p className="mt-1 text-xs text-muted">
-          Cases are validated before a batch is accepted. Completed batches are preserved independently.
+          Every valid Use Case is preserved. Resume only processes missing or affected cases.
         </p>
       </div>
 
       <section className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-white">
-              {call.processed_batch_count ?? call.completed_batch_count} / {call.total_batch_count} batches processed
+            <p className="text-lg font-semibold text-white">
+              {ready} / {call.requested_case_count} Use Cases ready
             </p>
-            <p className="mt-1 text-[10px] text-muted">
+            <p className="mt-1 text-[11px] text-muted">
+              {processing} processing · {pending} waiting · {attention} need attention
+            </p>
+            <p className="mt-2 text-[10px] text-muted">
               {call.generator.model} · {call.target?.source_type || 'snapshot'} · {call.source_snapshot_hash.slice(0, 12)}
             </p>
           </div>
           <Badge variant="outline">{String(call.phase || call.status).replaceAll('_', ' ')}</Badge>
         </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-background">
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-background">
           <div
             className="h-full bg-primary transition-all"
-            style={{ width: `${processedPercent}%` }}
+            style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
           />
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
-          <div>
-            <p className="text-[9px] uppercase text-muted">Processed</p>
-            <p className="mt-1 text-sm text-white">{processedPercent.toFixed(1)}%</p>
-          </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div>
             <p className="text-[9px] uppercase text-muted">Elapsed</p>
             <p className="mt-1 flex items-center gap-1 text-sm text-white">
               <Clock3 className="h-3.5 w-3.5 text-muted" />
-              {call.elapsed_seconds == null ? '—' : `${call.elapsed_seconds}s`}
+              {call.elapsed_seconds == null ? 'Starting…' : `${call.elapsed_seconds}s`}
             </p>
           </div>
           <div>
             <p className="text-[9px] uppercase text-muted">Tokens</p>
             <p className="mt-1 text-sm text-white">
-              {Number(call.generator.input_tokens || 0).toLocaleString()} in ·{' '}
-              {Number(call.generator.output_tokens || 0).toLocaleString()} out
+              {usageValue(
+                call,
+                call.generator.input_tokens == null && call.generator.output_tokens == null
+                  ? null
+                  : Number(call.generator.input_tokens || 0) + Number(call.generator.output_tokens || 0),
+                () => `${Number(call.generator.input_tokens || 0).toLocaleString()} in · ${Number(call.generator.output_tokens || 0).toLocaleString()} out`,
+              )}
             </p>
           </div>
           <div>
             <p className="text-[9px] uppercase text-muted">Cost</p>
             <p className="mt-1 text-sm text-white">
-              {call.generator.cost_usd == null ? 'Unknown' : `$${call.generator.cost_usd.toFixed(4)}`}
+              {usageValue(call, call.generator.cost_usd, (value) => `$${value.toFixed(4)}`)}
             </p>
           </div>
         </div>
       </section>
 
-      <div className="space-y-3">
-        {call.batches.map((batch) => (
-          <BatchCard
-            key={batch.id}
-            batch={batch}
-            blocked={failedBeforePending && call.status === 'failed'}
-          />
-        ))}
-      </div>
+      {groupedIssues.length ? (
+        <section className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white">Needs attention</p>
+              <div className="mt-3 space-y-3">
+                {groupedIssues.map(([category, affected]) => (
+                  <div key={category} className="rounded-lg border border-border/70 bg-background/35 p-3">
+                    <p className="text-xs font-medium text-white">
+                      {category === 'tool_reference_mismatch'
+                        ? 'Invalid Tool reference'
+                        : category.replaceAll('_', ' ')}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5 text-muted">
+                      {category === 'tool_reference_mismatch'
+                        ? `${affected.length} Use Case(s) reference a Tool that is not present in the selected snapshot. Conversational actions will be repaired as behavior; real unknown Tools remain blocked.`
+                        : `${affected.length} Use Case(s) are affected. Ready cases will not be generated again.`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-xl border border-border/80 bg-background/25">
+        <div className="border-b border-border/80 px-4 py-3">
+          <p className="text-sm font-semibold text-white">Use Cases</p>
+          <p className="mt-1 text-[10px] text-muted">
+            Cases are generated in provider calls internally, then validated and persisted individually.
+          </p>
+        </div>
+        <div className="divide-y divide-border/70">
+          {slots.map((slot) => (
+            <div key={slot.id} className="flex items-center gap-3 px-4 py-3">
+              <SlotIcon status={slot.status} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-white">
+                  {slot.position}. {slotLabel(slot)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted">
+                  {coverageLabel(slot.coverage_category)}
+                  {slot.failure_category ? ` · ${slot.failure_category.replaceAll('_', ' ')}` : ''}
+                </p>
+              </div>
+              <span className={cn(
+                'text-[10px]',
+                slot.status === 'ready' && 'text-emerald-300',
+                (slot.status === 'generating' || slot.status === 'validating') && 'text-primary-light',
+                (slot.status === 'paused' || slot.status === 'needs_attention') && 'text-amber-300',
+                (slot.status === 'planned' || slot.status === 'cancelled') && 'text-muted',
+              )}>
+                {slotStatusLabel(slot)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {(requiresProviderAction || attention > 0) ? (
+        <section className="rounded-xl border border-border/80 bg-background/35 p-4">
+          <p className="text-sm font-semibold text-white">Continue generation</p>
+          <p className="mt-1 text-[11px] leading-5 text-muted">
+            Restore provider balance and retry, or select another active generator model. Completed Use Cases and their provenance remain unchanged.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <Select
+              value={modelId}
+              onChange={(event) => setModelId(event.target.value)}
+              options={activeModels.map((model) => ({
+                value: model.id,
+                label: `${model.name} · ${model.model}`,
+              }))}
+            />
+            <Button
+              loading={resuming}
+              onClick={() => onResume({
+                provider_model_id: modelId,
+                strategy: modelId !== call.generator.provider_model_id
+                  ? 'continue_with_new_model'
+                  : hasToolIssue
+                    ? 'repair_tool_references'
+                    : 'retry_failed_and_missing',
+              })}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {modelId !== call.generator.provider_model_id
+                ? 'Continue with this model'
+                : hasToolIssue
+                  ? 'Repair affected Use Cases'
+                  : 'Resume from where it stopped'}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      <details className="rounded-xl border border-border/70 bg-surface/20 px-4 py-3">
+        <summary className="cursor-pointer text-xs font-medium text-muted">
+          Technical details
+        </summary>
+        <div className="mt-4 space-y-4 text-[10px] leading-4 text-muted">
+          <div>
+            <p className="font-medium text-white">Provider attempts</p>
+            <div className="mt-2 space-y-2">
+              {(call.attempts || []).map((attempt, index) => (
+                <div key={attempt.id || index} className="rounded-lg border border-border/70 p-3">
+                  <p>{attempt.model || call.generator.model} · {attempt.status || 'unknown'}</p>
+                  <p className="mt-1">
+                    {attempt.latency_ms == null ? 'Latency not reported' : `${(attempt.latency_ms / 1000).toFixed(1)}s`}
+                    {' · '}{attempt.input_tokens == null ? 'input pending' : `${attempt.input_tokens.toLocaleString()} input`}
+                    {' · '}{attempt.output_tokens == null ? 'output pending' : `${attempt.output_tokens.toLocaleString()} output`}
+                    {attempt.cost_usd == null ? '' : ` · $${attempt.cost_usd.toFixed(6)}`}
+                  </p>
+                  {attempt.error_detail ? <p className="mt-2 break-words text-red-300/80">{attempt.error_detail}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-medium text-white">Internal batches</p>
+            <div className="mt-2 space-y-2">
+              {call.batches.map((batch) => (
+                <div key={batch.id} className="rounded-lg border border-border/70 p-3">
+                  Batch {batch.batch_index} · {batch.status} · attempt {batch.attempt}
+                  {batch.error ? <p className="mt-1 break-words text-red-300/80">{batch.error}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+          {call.tool_catalog ? (
+            <div className="rounded-lg border border-border/70 p-3">
+              <p className="flex items-center gap-2 font-medium text-white">
+                <Wrench className="h-3.5 w-3.5" />Target Tool catalog
+              </p>
+              <p className="mt-1">
+                {call.tool_catalog.status} · {call.tool_catalog.source} · {call.tool_catalog.allowed_names.length} Tool(s)
+              </p>
+              {call.tool_catalog.allowed_names.length ? (
+                <p className="mt-1">{call.tool_catalog.allowed_names.join(', ')}</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </details>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
         {active && call.status !== 'cancel_requested' ? (
@@ -266,16 +354,10 @@ export function SuiteGenerationProgress({
             Cancel generation
           </Button>
         ) : null}
-        {nonRetryableFailures.length ? (
+        {!active && call.status !== 'completed' && !requiresProviderAction && attention === 0 ? (
           <Button variant="outline" onClick={onChangeSettings}>
             <Settings2 className="mr-2 h-4 w-4" />
             Change settings
-          </Button>
-        ) : null}
-        {retryableFailures.length ? (
-          <Button loading={retrying} onClick={onRetry}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {actionLabel(primaryRetryAction)}
           </Button>
         ) : null}
       </div>
