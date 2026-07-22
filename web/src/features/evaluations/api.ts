@@ -1,3 +1,5 @@
+import { toast } from 'sonner'
+
 import { get, post } from '@/lib/api/client'
 import { ApiError } from '@/lib/api/errors'
 import type {
@@ -28,15 +30,15 @@ function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
 }
 
-function authoringResourceError(error: unknown): never {
+function normalizeAuthoringResourceError(error: unknown): Error {
   if (error instanceof ApiError && error.status === 404) {
-    throw new ApiError(
+    return new ApiError(
       'The selected Agent, snapshot, or generator model is no longer available in this Project. Refresh the modal, confirm that the Agent Draft is saved, and choose an active model.',
       error.status,
       error.data,
     )
   }
-  throw error
+  return error instanceof Error ? error : new Error('Unable to prepare Evaluator Suite generation')
 }
 
 function normalizeAuthoredCase(value: any): EvaluationCaseInput {
@@ -137,7 +139,9 @@ export async function previewSuiteAuthoringContext(
   try {
     return await post<SuiteContextPreview>(`${base(projectId)}/suite-authoring/context-preview`, input)
   } catch (error) {
-    return authoringResourceError(error)
+    const normalized = normalizeAuthoringResourceError(error)
+    toast.error(normalized.message, { id: 'evaluation-authoring-preview-error' })
+    throw normalized
   }
 }
 
@@ -146,7 +150,7 @@ export async function generateEvaluatorSuiteDraft(projectId: string, input: Gene
     const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/generate`, input)
     return normalizeAuthoringCall(result)
   } catch (error) {
-    return authoringResourceError(error)
+    throw normalizeAuthoringResourceError(error)
   }
 }
 
