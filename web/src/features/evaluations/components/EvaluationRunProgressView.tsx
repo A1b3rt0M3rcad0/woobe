@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
-  FlaskConical,
   Loader2,
   RotateCcw,
 } from 'lucide-react'
@@ -21,7 +20,7 @@ interface Props {
 const terminal = new Set(['completed', 'partially_completed', 'failed', 'cancelled'])
 
 function money(value?: number | null) {
-  if (value == null) return '—'
+  if (value == null) return 'Calculating…'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -41,6 +40,13 @@ function phaseLabel(value: string) {
     .split('_')
     .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
     .join(' ')
+}
+
+function roleLabel(side: string) {
+  if (side === 'single') return 'Tested snapshot'
+  if (side === 'candidate') return 'Candidate snapshot'
+  if (side === 'baseline') return 'Baseline snapshot'
+  return phaseLabel(side)
 }
 
 export function EvaluationRunProgressView({
@@ -64,7 +70,6 @@ export function EvaluationRunProgressView({
   )
   const active = !terminal.has(progress.status)
   const attention = progress.inconclusive_trials + progress.failed_trials
-  const isExperiment = progress.mode === 'model_experiment'
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -80,34 +85,20 @@ export function EvaluationRunProgressView({
                 <AlertTriangle className="h-4 w-4 text-amber-300" />
               )}
               <h3 className="text-base font-semibold text-white">
-                {isExperiment
-                  ? active ? 'Running model experiment' : 'Model experiment finished'
-                  : active ? 'Running Evaluation' : 'Evaluation processing finished'}
+                {active ? 'Running Evaluation' : 'Evaluation processing finished'}
               </h3>
             </div>
             <p className="mt-2 text-xs text-muted">{phaseLabel(progress.phase)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">
-              {isExperiment
-                ? 'Model experiment'
-                : progress.mode === 'comparison'
-                  ? 'Snapshot comparison'
-                  : 'Single target'}
+              {progress.mode === 'comparison' ? 'Snapshot comparison' : 'Single snapshot'}
             </Badge>
-            {isExperiment ? (
-              <Badge variant="outline">No qualification</Badge>
+            {!active && progress.decision_required ? (
+              <Badge variant="outline">Human decision pending</Badge>
             ) : null}
           </div>
         </div>
-
-        {isExperiment ? (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs text-amber-200">
-            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
-            Current Agent evidence is compared with an experimental model derivative.
-            This Run cannot qualify or promote any Agent version.
-          </div>
-        ) : null}
 
         <div className="mt-6 h-2 overflow-hidden rounded-full bg-surface">
           <div
@@ -122,7 +113,7 @@ export function EvaluationRunProgressView({
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-surface/25 p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted">Agent execution</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted">Target execution</p>
             <p className="mt-2 text-lg font-semibold text-white">{progress.runtime_completed} / {progress.total_trials}</p>
             <p className="mt-1 text-[10px] text-muted">{runtimePercent}% complete</p>
           </div>
@@ -144,23 +135,22 @@ export function EvaluationRunProgressView({
         </div>
 
         <div className="mt-5 space-y-2">
-          {progress.targets.map((target) => {
-            const role = isExperiment
-              ? target.side === 'candidate' ? 'Current Agent' : 'Experimental model'
-              : target.side
-            return (
-              <div
-                key={target.id}
-                className="flex items-center justify-between rounded-lg border border-border/70 bg-background/30 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-white">{target.display_version}</p>
-                  <p className="mt-1 text-[10px] text-muted">{role} · {target.environment}</p>
-                </div>
-                <Badge variant="outline">{role}</Badge>
+          {progress.targets.map((target) => (
+            <div
+              key={target.id}
+              className="flex items-center justify-between rounded-lg border border-border/70 bg-background/30 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-white">
+                  {target.display_name} · {target.display_version}
+                </p>
+                <p className="mt-1 text-[10px] text-muted">
+                  {roleLabel(target.side)} · {phaseLabel(target.environment)} · {target.snapshot_hash.slice(0, 12)}…
+                </p>
               </div>
-            )
-          })}
+              <Badge variant="outline">{roleLabel(target.side)}</Badge>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -172,25 +162,16 @@ export function EvaluationRunProgressView({
                 {attention} Trial{attention === 1 ? '' : 's'} need attention
               </p>
               <p className="mt-1 text-xs text-amber-200/80">
-                {progress.inconclusive_trials} inconclusive · {progress.failed_trials} failed. Agent evidence is preserved when only the Judge failed.
+                {progress.inconclusive_trials} inconclusive · {progress.failed_trials} execution failures. Target evidence is preserved when only the Judge failed.
               </p>
             </div>
             <div className="flex gap-2">
               {onRetryJudgments ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  loading={retrying}
-                  onClick={onRetryJudgments}
-                >
+                <Button size="sm" variant="outline" loading={retrying} onClick={onRetryJudgments}>
                   <RotateCcw className="mr-2 h-3.5 w-3.5" />Retry judgments
                 </Button>
               ) : null}
-              {onOpenDetails ? (
-                <Button size="sm" variant="ghost" onClick={onOpenDetails}>
-                  Details
-                </Button>
-              ) : null}
+              {onOpenDetails ? <Button size="sm" variant="ghost" onClick={onOpenDetails}>Details</Button> : null}
             </div>
           </div>
         </section>
