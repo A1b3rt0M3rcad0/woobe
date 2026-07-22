@@ -36,9 +36,11 @@ async def authorization_handler(
     request: Request,
     exc: AuthorizationError,
 ) -> JSONResponse:
+    message = str(exc)
+    data = {"code": "csrf_invalid"} if message == "CSRF validation failed" else None
     return JSONResponse(
         status_code=403,
-        content={"success": False, "message": str(exc), "data": None},
+        content={"success": False, "message": message, "data": data},
     )
 
 
