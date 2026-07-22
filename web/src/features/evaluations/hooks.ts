@@ -34,11 +34,11 @@ import {
   getEvaluationRunsPage,
   getEvaluationSuitesPage,
 } from './paginationApi'
+import type { CreateEvaluationSuiteInput } from './suiteTypes'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
-  CreateEvaluationSuiteInput,
   EvaluationRun,
   EvaluationTargetType,
   EvaluatorSuiteDraft,
