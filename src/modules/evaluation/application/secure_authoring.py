@@ -54,17 +54,28 @@ class SecureEvaluationSuiteAuthoringService(DurableEvaluationSuiteAuthoringServi
         reference = validation.get("reference") or {}
         if reference.get("mode") == "target_bound":
             resolved_snapshot_hash = reference.get("snapshot_hash")
-            resolved_context_hash = reference.get("context_hash")
+            resolved_validation_context_hash = reference.get("context_hash")
             if source_snapshot_hash and source_snapshot_hash != resolved_snapshot_hash:
                 raise ValidationError(
                     "Suite source_snapshot_hash does not match the validated target"
                 )
-            if source_context_hash and source_context_hash != resolved_context_hash:
-                raise ValidationError(
-                    "Suite source_context_hash does not match the validated context"
-                )
             source_snapshot_hash = str(resolved_snapshot_hash or "") or None
-            source_context_hash = str(resolved_context_hash or "") or None
+
+            if authoring_source == "ai_generated":
+                metadata["validation_context_hash"] = (
+                    str(resolved_validation_context_hash or "") or None
+                )
+            else:
+                if (
+                    source_context_hash
+                    and source_context_hash != resolved_validation_context_hash
+                ):
+                    raise ValidationError(
+                        "Suite source_context_hash does not match the validated context"
+                    )
+                source_context_hash = (
+                    str(resolved_validation_context_hash or "") or None
+                )
 
         return await super().create_composed_suite(
             project_id=project_id,
