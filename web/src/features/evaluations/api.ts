@@ -211,6 +211,14 @@ export function cancelEvaluationRun(projectId: string, runId: string) {
   return post<EvaluationRun>(`${base(projectId)}/runs/${runId}/cancel`)
 }
 
+export function decideEvaluationRun(
+  projectId: string,
+  runId: string,
+  input: { target_id?: string; decision: 'accepted' | 'rejected'; note?: string },
+) {
+  return post<Record<string, any>>(`${base(projectId)}/runs/${runId}/decision`, input)
+}
+
 export function createEvaluationEstimate(
   projectId: string,
   runId: string,
