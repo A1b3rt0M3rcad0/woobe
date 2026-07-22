@@ -53,6 +53,7 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(length=64), nullable=False),
         sa.Column("model", sa.String(length=255), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("context_hash", sa.String(length=64), nullable=False),
         sa.Column(
             "requested_slot_ids",
             JSONB(),
