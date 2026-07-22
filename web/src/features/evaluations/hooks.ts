@@ -75,10 +75,10 @@ function runValues(value: unknown): EvaluationRun[] {
     : []
 }
 
-export function useEvaluationDatasets(projectId?: string) {
+export function useEvaluationDatasets(projectId?: string, includeArchived = false) {
   return useInfiniteQuery({
-    queryKey: ['evaluation-datasets', projectId],
-    queryFn: ({ pageParam }) => getEvaluationDatasetsPage(projectId as string, pageParam),
+    queryKey: ['evaluation-datasets', projectId, includeArchived],
+    queryFn: ({ pageParam }) => getEvaluationDatasetsPage(projectId as string, pageParam, includeArchived),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     select: (data) => data.pages.flatMap((page) => page.items),
@@ -94,10 +94,10 @@ export function useEvaluationDataset(projectId?: string, datasetId?: string | nu
   })
 }
 
-export function useEvaluationSuites(projectId?: string) {
+export function useEvaluationSuites(projectId?: string, includeArchived = false) {
   return useInfiniteQuery({
-    queryKey: ['evaluation-suites', projectId],
-    queryFn: ({ pageParam }) => getEvaluationSuitesPage(projectId as string, pageParam),
+    queryKey: ['evaluation-suites', projectId, includeArchived],
+    queryFn: ({ pageParam }) => getEvaluationSuitesPage(projectId as string, pageParam, includeArchived),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     select: (data) => data.pages.flatMap((page) => page.items),
@@ -266,17 +266,11 @@ export function useRetryEvaluatorSuiteAuthoring(projectId?: string) {
   })
 }
 
-export function useResumeEvaluatorSuiteAuthoring(
-  projectId?: string,
-  callId?: string | null,
-) {
+export function useResumeEvaluatorSuiteAuthoring(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (input: ResumeAuthoringInput) => resumeEvaluatorSuiteAuthoringCall(
-      projectId as string,
-      callId as string,
-      input,
-    ),
+    mutationFn: ({ callId, input }: { callId: string; input: ResumeAuthoringInput }) =>
+      resumeEvaluatorSuiteAuthoringCall(projectId as string, callId, input),
     onSuccess: (call) => client.setQueryData(
       ['evaluation-authoring-call', projectId, call.authoring_call_id],
       call,
@@ -286,11 +280,7 @@ export function useResumeEvaluatorSuiteAuthoring(
 
 export function useValidateEvaluatorSuite(projectId?: string) {
   return useMutation({
-    mutationFn: (input: EvaluatorSuiteDraft | ValidateSuiteDraftInput) =>
-      validateEvaluatorSuiteDraft(
-        projectId as string,
-        'draft' in input ? input : { draft: input },
-      ),
+    mutationFn: (input: ValidateSuiteDraftInput) => validateEvaluatorSuiteDraft(projectId as string, input),
   })
 }
 
@@ -298,10 +288,9 @@ export function useCreateComposedEvaluatorSuite(projectId?: string) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateComposedSuiteInput) => createComposedEvaluatorSuite(projectId as string, input),
-    onSuccess: (suite) => {
-      client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] })
+    onSuccess: () => {
       client.invalidateQueries({ queryKey: ['evaluation-datasets', projectId] })
-      if (suite.id) client.setQueryData(['evaluation-suite', projectId, suite.id], suite)
+      client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] })
     },
   })
 }
@@ -334,6 +323,18 @@ export function useCancelEvaluationRun(projectId?: string) {
   })
 }
 
+export function useCreateEvaluationEstimate(projectId?: string, runId?: string | null) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { volume: number; volume_unit?: string }) =>
+      createEvaluationEstimate(projectId as string, runId as string, input),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['evaluation-run', projectId, runId] })
+      client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
+    },
+  })
+}
+
 export function useDecideEvaluationRun(projectId?: string, runId?: string | null) {
   const client = useQueryClient()
   return useMutation({
@@ -344,14 +345,5 @@ export function useDecideEvaluationRun(projectId?: string, runId?: string | null
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
       client.invalidateQueries({ queryKey: ['evaluation-qualifications', projectId] })
     },
-  })
-}
-
-export function useCreateEvaluationEstimate(projectId?: string, runId?: string | null) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: ({ volume, volumeUnit }: { volume: number; volumeUnit?: string }) =>
-      createEvaluationEstimate(projectId as string, runId as string, volume, volumeUnit),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['evaluation-run', projectId, runId] }),
   })
 }
