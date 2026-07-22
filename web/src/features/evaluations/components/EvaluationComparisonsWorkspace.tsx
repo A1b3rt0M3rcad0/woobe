@@ -17,11 +17,13 @@ import {
   useCreatePostHocEvaluationComparison,
   useEvaluationComparison,
   useEvaluationComparisons,
+  useEvidenceRichEvaluationRun,
   usePreviewEvaluationComparison,
 } from '@/features/evaluations/catalogHooks'
 import { useEvaluationRuns } from '@/features/evaluations/hooks'
 import { cn } from '@/lib/utils'
 import { EvaluationComparisonView } from './EvaluationComparisonView'
+import { LegacyEvaluationComparisonView } from './LegacyEvaluationComparisonView'
 
 interface Props {
   projectId: string
@@ -44,6 +46,15 @@ function runLabel(run: any) {
   return `${target?.display_version || 'Snapshot'} · ${run.repetitions} repetitions · ${run.overall_score == null ? 'No score' : `Score ${run.overall_score.toFixed(1)}`}`
 }
 
+function legacyLabel(run: any) {
+  const candidate = run.targets?.find((item: any) => item.side === 'candidate')
+  const reference = run.targets?.find((item: any) => item.side === 'baseline')
+  return {
+    candidate: candidate?.display_version || 'Candidate',
+    reference: reference?.display_version || 'Reference',
+  }
+}
+
 export function EvaluationComparisonsWorkspace({
   projectId,
   entityId,
@@ -54,9 +65,25 @@ export function EvaluationComparisonsWorkspace({
   const listQuery = useEvaluationComparisons(projectId, entityId)
   const runsQuery = useEvaluationRuns(projectId)
   const comparisons = listQuery.data ?? []
+  const legacyRuns = useMemo(() => (
+    (runsQuery.data ?? []).filter((run) => (
+      run.mode === 'comparison'
+      && run.targets.some((target) => target.entity_id === entityId)
+    ))
+  ), [runsQuery.data, entityId])
   const [internalId, setInternalId] = useState<string | null>(selectedComparisonId || null)
-  const comparisonId = selectedComparisonId || internalId || comparisons[0]?.id || null
+  const selectionId = (
+    selectedComparisonId
+    || internalId
+    || comparisons[0]?.id
+    || (legacyRuns[0] ? `legacy:${legacyRuns[0].id}` : null)
+  )
+  const legacyRunId = selectionId?.startsWith('legacy:')
+    ? selectionId.slice('legacy:'.length)
+    : null
+  const comparisonId = legacyRunId ? null : selectionId
   const comparisonQuery = useEvaluationComparison(projectId, comparisonId)
+  const legacyQuery = useEvidenceRichEvaluationRun(projectId, legacyRunId)
   const preview = usePreviewEvaluationComparison(projectId)
   const create = useCreatePostHocEvaluationComparison(projectId)
   const [builderOpen, setBuilderOpen] = useState(false)
@@ -90,9 +117,15 @@ export function EvaluationComparisonsWorkspace({
     return () => window.clearTimeout(timer)
   }, [candidateRunId, referenceRunId])
 
-  const select = (id: string) => {
+  const selectComparison = (id: string) => {
+    setBuilderOpen(false)
     setInternalId(id)
     onSelectComparison?.(id)
+  }
+
+  const selectLegacy = (runId: string) => {
+    setBuilderOpen(false)
+    setInternalId(`legacy:${runId}`)
   }
 
   const createHistorical = async () => {
@@ -103,8 +136,7 @@ export function EvaluationComparisonsWorkspace({
         reference_run_id: referenceRunId,
         idempotency_key: crypto.randomUUID(),
       })
-      select(comparison.id)
-      setBuilderOpen(false)
+      selectComparison(comparison.id)
       toast.success('Comparison created without rerunning either snapshot')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to create Comparison')
@@ -131,6 +163,11 @@ export function EvaluationComparisonsWorkspace({
           </div>
         </div>
         <div className="max-h-[690px] overflow-y-auto p-2">
+          {comparisons.length ? (
+            <p className="px-2 pb-2 pt-1 text-[9px] font-semibold uppercase tracking-wide text-muted">
+              Reusable Comparisons · {comparisons.length}
+            </p>
+          ) : null}
           {comparisons.map((comparison) => {
             const aggregate = comparison.aggregate_result
             const candidate = targetTitle(aggregate?.candidate, 'Candidate')
@@ -140,7 +177,7 @@ export function EvaluationComparisonsWorkspace({
               <button
                 key={comparison.id}
                 type="button"
-                onClick={() => select(comparison.id)}
+                onClick={() => selectComparison(comparison.id)}
                 className={cn(
                   'mb-2 w-full rounded-xl border px-3 py-3 text-left',
                   selected
@@ -169,7 +206,46 @@ export function EvaluationComparisonsWorkspace({
               </button>
             )
           })}
-          {!comparisons.length ? (
+
+          {legacyRuns.length ? (
+            <p className="px-2 pb-2 pt-4 text-[9px] font-semibold uppercase tracking-wide text-muted">
+              Legacy paired Runs · {legacyRuns.length}
+            </p>
+          ) : null}
+          {legacyRuns.map((run) => {
+            const value = legacyLabel(run)
+            const selected = legacyRunId === run.id
+            return (
+              <button
+                key={run.id}
+                type="button"
+                onClick={() => selectLegacy(run.id)}
+                className={cn(
+                  'mb-2 w-full rounded-xl border px-3 py-3 text-left',
+                  selected
+                    ? 'border-amber-500/35 bg-amber-500/[0.06]'
+                    : 'border-transparent hover:border-border hover:bg-surface/20',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-500/20">
+                    <GitCompareArrows className="h-3.5 w-3.5 text-amber-300" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-white">{value.candidate}</p>
+                    <p className="mt-1 truncate text-[10px] text-muted">vs {value.reference}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <Badge variant="outline">Legacy</Badge>
+                      <span className="text-[10px] text-muted">read only</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="mt-2 h-3.5 w-3.5 text-muted" />
+                </div>
+              </button>
+            )
+          })}
+
+          {!comparisons.length && !legacyRuns.length ? (
             <div className="p-8 text-center text-xs leading-5 text-muted">
               No Comparison exists. Start a paired Comparison from Run or compare two compatible historical Runs.
             </div>
@@ -238,6 +314,14 @@ export function EvaluationComparisonsWorkspace({
               </Button>
             </div>
           </div>
+        ) : legacyRunId ? (
+          legacyQuery.isLoading ? (
+            <LoadingState message="Loading legacy Comparison evidence" />
+          ) : legacyQuery.isError || !legacyQuery.data ? (
+            <ErrorState message="Unable to load this legacy Comparison" />
+          ) : (
+            <LegacyEvaluationComparisonView run={legacyQuery.data} />
+          )
         ) : !comparisonId ? (
           <div className="flex min-h-[540px] items-center justify-center text-xs text-muted">
             Select or create a Comparison.
