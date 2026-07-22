@@ -66,6 +66,17 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             raise ConflictError(
                 "The experimental model must derive from the exact same Agent snapshot as the reference target"
             )
+        reference_model_id = str(
+            (getattr(candidate_target, "snapshot", None) or {}).get("provider_model_id")
+            or ""
+        )
+        experimental_model_id = str(
+            baseline_variant.get("provider_model_id") or ""
+        )
+        if reference_model_id and reference_model_id == experimental_model_id:
+            raise ConflictError(
+                "The experimental Provider Model must differ from the model configured on the reference Agent snapshot"
+            )
         return EvaluationMode.MODEL_EXPERIMENT.value
 
     async def _resolve_target_dict(
