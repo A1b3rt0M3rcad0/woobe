@@ -240,7 +240,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 candidate_model = EvaluationTargetModel(
                     evaluation_run_id=run.id,
                     project_id=project_id,
-                    side="candidate",
+                    side="candidate" if baseline_target is not None else "single",
                     **asdict(candidate_target),
                 )
                 session.add(candidate_model)
