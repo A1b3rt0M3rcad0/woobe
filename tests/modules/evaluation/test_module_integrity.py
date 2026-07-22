@@ -5,6 +5,9 @@ import importlib
 from modules.evaluation.application.completed_service import (
     CompletedEvaluationApplicationService,
 )
+from modules.evaluation.application.diagnostic_authoring import (
+    DiagnosticEvaluationSuiteAuthoringService,
+)
 from modules.evaluation.application.durable_authoring import (
     DurableEvaluationSuiteAuthoringService,
 )
@@ -55,6 +58,7 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert CompletedEvaluationApplicationService is not None
     assert EvaluationSuiteAuthoringService is not None
     assert DurableEvaluationSuiteAuthoringService is not None
+    assert DiagnosticEvaluationSuiteAuthoringService is not None
     assert EvaluationNetworkRuntimeGateway is not None
     assert ResumableEvaluationRunProcessor is not None
     assert ResumableEvaluationRunWorker is not None
@@ -71,13 +75,16 @@ def test_evaluation_authoring_modules_import_cleanly() -> None:
     module_names = [
         "modules.evaluation.application.completed_service",
         "modules.evaluation.application.context_pack",
+        "modules.evaluation.application.diagnostic_authoring",
         "modules.evaluation.application.durable_authoring",
         "modules.evaluation.application.enriched_service",
         "modules.evaluation.application.metering",
         "modules.evaluation.application.operational_service",
         "modules.evaluation.application.outcome_scoring",
+        "modules.evaluation.application.secure_authoring",
         "modules.evaluation.application.suite_authoring",
         "modules.evaluation.application.token_budget",
+        "modules.evaluation.domain.authoring_contract",
         "modules.evaluation.domain.contracts",
         "modules.evaluation.infra.budgeted_judge",
         "modules.evaluation.infra.generator",
