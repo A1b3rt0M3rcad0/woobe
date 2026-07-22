@@ -16,6 +16,7 @@ import {
   createEvaluationRun,
   createEvaluationSuite,
   createEvaluationSuiteVersion,
+  decideEvaluationRun,
   generateEvaluatorSuiteDraft,
   getEvaluationDataset,
   getEvaluationQualifications,
@@ -318,7 +319,6 @@ export function useCreateEvaluationRun(projectId?: string) {
     onSuccess: (run) => {
       client.setQueryData(['evaluation-run', projectId, run.id], run)
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
-      client.invalidateQueries({ queryKey: ['evaluation-qualifications', projectId] })
     },
   })
 }
@@ -330,6 +330,19 @@ export function useCancelEvaluationRun(projectId?: string) {
     onSuccess: (run) => {
       client.setQueryData(['evaluation-run', projectId, run.id], run)
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
+    },
+  })
+}
+
+export function useDecideEvaluationRun(projectId?: string, runId?: string | null) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { target_id?: string; decision: 'accepted' | 'rejected'; note?: string }) =>
+      decideEvaluationRun(projectId as string, runId as string, input),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['evaluation-run', projectId, runId] })
+      client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-qualifications', projectId] })
     },
   })
 }
