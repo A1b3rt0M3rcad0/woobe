@@ -4,11 +4,11 @@ import type {
   EvaluationAuthoringCall,
   ValidateSuiteDraftInput,
 } from './authoringTypes'
+import type { CreateEvaluationSuiteInput } from './suiteTypes'
 import type {
   CreateComposedSuiteInput,
   CreateEvaluationDatasetInput,
   CreateEvaluationRunInput,
-  CreateEvaluationSuiteInput,
   EvaluationCaseInput,
   EvaluationDataset,
   EvaluationEstimate,
