@@ -13,6 +13,7 @@ from modules.evaluation.infra.database.decision_models import (
     EvaluationTargetDecisionModel,
 )
 from modules.evaluation.infra.database.models import (
+    EstimateRunModel,
     EvaluationRunModel,
     EvaluationSuiteVersionModel,
     EvaluationTargetModel,
@@ -239,7 +240,23 @@ class HumanDecisionEvaluationApplicationService(
                     )
                 ).all()
             )
+            estimates = list(
+                (
+                    await session.scalars(
+                        select(EstimateRunModel).where(
+                            EstimateRunModel.project_id == project_id,
+                            EstimateRunModel.evaluation_run_id == run_id,
+                        )
+                    )
+                ).all()
+            )
         payload["decisions"] = [self._decision_payload(item) for item in decisions]
+        estimate_by_id = {str(item.id): item for item in estimates}
+        for item in payload.get("estimates", []):
+            row = estimate_by_id.get(str(item.get("id")))
+            if row is not None:
+                item["assumptions"] = row.assumptions or {}
+                item["created_at"] = row.created_at
         return payload
 
     async def create_decision(
@@ -409,7 +426,10 @@ class HumanDecisionEvaluationApplicationService(
     async def create_estimate(self, **kwargs) -> list[dict[str, Any]]:
         project_id: UUID = kwargs["project_id"]
         run_id: UUID = kwargs["run_id"]
-        async with self._session_factory() as session:
+        async with self._session_factory() as session, session.begin():
+            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
+            if run is None or run.project_id != project_id:
+                raise NotFoundError("Evaluation Run not found")
             completed_count = await session.scalar(
                 select(EvaluationTrialModel.id)
                 .where(
@@ -423,7 +443,59 @@ class HumanDecisionEvaluationApplicationService(
                 raise ConflictError(
                     "Operational Estimate requires at least one completed Trial"
                 )
-        return await super().create_estimate(**kwargs)
+            revision = _evidence_revision(run)
+            legacy_current = list(
+                (
+                    await session.scalars(
+                        select(EstimateRunModel).where(
+                            EstimateRunModel.project_id == project_id,
+                            EstimateRunModel.evaluation_run_id == run_id,
+                            EstimateRunModel.price_snapshot_hash == "none",
+                        )
+                    )
+                ).all()
+            )
+            for item in legacy_current:
+                assumptions = dict(item.assumptions or {})
+                item_revision = int(assumptions.get("evidence_revision") or 1)
+                if item_revision < revision:
+                    item.price_snapshot_hash = f"none-r{item_revision}"
+                    assumptions["superseded_reason"] = "newer_evidence_revision"
+                    item.assumptions = assumptions
+
+        result = await super().create_estimate(**kwargs)
+        async with self._session_factory() as session, session.begin():
+            run = await session.get(EvaluationRunModel, run_id)
+            if run is None:
+                return result
+            revision = _evidence_revision(run)
+            ids = [UUID(str(item["id"])) for item in result if item.get("id")]
+            rows = list(
+                (
+                    await session.scalars(
+                        select(EstimateRunModel).where(EstimateRunModel.id.in_(ids))
+                    )
+                ).all()
+            ) if ids else []
+            by_id = {str(item.id): item for item in rows}
+            for payload in result:
+                row = by_id.get(str(payload.get("id")))
+                if row is None:
+                    continue
+                assumptions = dict(row.assumptions or {})
+                assumptions.update(
+                    {
+                        "origin": "manual",
+                        "evidence_revision": revision,
+                        "cost_scope": "target_runtime_only",
+                    }
+                )
+                assumptions.pop("superseded_at", None)
+                assumptions.pop("superseded_reason", None)
+                row.assumptions = assumptions
+                payload["assumptions"] = assumptions
+                payload["created_at"] = row.created_at
+        return result
 
     @staticmethod
     def _decision_payload(item: EvaluationTargetDecisionModel) -> dict[str, Any]:
