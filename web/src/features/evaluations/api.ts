@@ -5,6 +5,7 @@ import { ApiError } from '@/lib/api/errors'
 import type {
   CreateComposedSuiteVersionInput,
   EvaluationAuthoringCall,
+  ResumeAuthoringInput,
   ValidateSuiteDraftInput,
 } from './authoringTypes'
 import type { CreateEvaluationSuiteInput } from './suiteTypes'
@@ -166,6 +167,18 @@ export async function cancelEvaluatorSuiteAuthoringCall(projectId: string, callI
 
 export async function retryEvaluatorSuiteAuthoringCall(projectId: string, callId: string) {
   const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/calls/${callId}/retry`)
+  return normalizeAuthoringCall(result)
+}
+
+export async function resumeEvaluatorSuiteAuthoringCall(
+  projectId: string,
+  callId: string,
+  input: ResumeAuthoringInput,
+) {
+  const result = await post<EvaluationAuthoringCall>(
+    `${base(projectId)}/suite-authoring/calls/${callId}/resume`,
+    input,
+  )
   return normalizeAuthoringCall(result)
 }
 
