@@ -21,7 +21,7 @@ from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 
 class HardenedEvaluationApplicationService(EvaluationApplicationService):
-    """Control-plane safeguards around the Evaluation application service."""
+    """Control-plane safeguards around single-target Evaluation Runs."""
 
     _MAX_TARGET_RUNS = 5_000
 
@@ -29,12 +29,13 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         super().__init__(session_factory)
         self._preflight = EvaluationPreflightService()
 
-    def _run_mode(self, candidate_target, baseline_target) -> str:
-        return (
-            EvaluationMode.COMPARISON.value
-            if baseline_target is not None
-            else EvaluationMode.ABSOLUTE.value
-        )
+    @staticmethod
+    def _reject_legacy_baseline(baseline: dict[str, Any] | None) -> None:
+        if baseline is not None:
+            raise ValidationError(
+                "An Evaluation Run tests exactly one snapshot. Use the Comparison endpoints "
+                "to create two independent Runs or compare existing evidence."
+            )
 
     async def preview_run(
         self,
@@ -47,12 +48,13 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         acknowledge_tool_side_effects: bool = False,
         approved_high_risk_tool_ids: list[UUID] | None = None,
     ) -> dict[str, Any]:
+        self._reject_legacy_baseline(baseline)
         base = await super().preview_run(
             project_id=project_id,
             suite_version_id=suite_version_id,
             repetitions=repetitions,
             candidate=candidate,
-            baseline=baseline,
+            baseline=None,
         )
         if int(base["target_run_count"]) > self._MAX_TARGET_RUNS:
             raise ValidationError(
@@ -75,41 +77,23 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 raise ValidationError(
                     f"Evaluation Suite allows at most {min(maximum_repetitions, 25)} repetitions"
                 )
-            candidate_target = await self._resolve_target_dict(
+            target = await self._resolve_target_dict(
                 session,
                 project_id=project_id,
                 raw=candidate,
             )
-            baseline_target = (
-                await self._resolve_target_dict(
-                    session,
-                    project_id=project_id,
-                    raw=baseline,
-                )
-                if baseline
-                else None
-            )
-            if (
-                baseline_target is not None
-                and baseline_target.snapshot_hash == candidate_target.snapshot_hash
-            ):
-                raise ConflictError(
-                    "Candidate and Baseline resolve to the same immutable snapshot"
-                )
-            run_mode = self._run_mode(candidate_target, baseline_target)
-            targets = [candidate_target]
-            if baseline_target is not None:
-                targets.append(baseline_target)
             preflight = await self._preflight.inspect(
                 session,
                 project_id=project_id,
-                targets=targets,
+                targets=[target],
                 approved_high_risk_tool_ids=set(approved_high_risk_tool_ids or []),
             )
 
         return {
             **base,
-            "mode": run_mode,
+            "mode": EvaluationMode.ABSOLUTE.value,
+            "candidate": asdict(target),
+            "baseline": None,
             "preflight": preflight.to_dict(),
             "requires_confirmation": (
                 preflight.requires_acknowledgement
@@ -135,12 +119,13 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         approved_high_risk_tool_ids: list[UUID] | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
+        self._reject_legacy_baseline(baseline)
         preview = await self.preview_run(
             project_id=project_id,
             suite_version_id=suite_version_id,
             repetitions=repetitions,
             candidate=candidate,
-            baseline=baseline,
+            baseline=None,
             acknowledge_tool_side_effects=acknowledge_tool_side_effects,
             approved_high_risk_tool_ids=approved_high_risk_tool_ids,
         )
@@ -175,50 +160,27 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                     raise NotFoundError("Evaluation Suite not found")
                 if suite_root.status == "archived":
                     raise ConflictError("Archived Evaluation Suite cannot start new Runs")
-                candidate_target = await self._resolve_target_dict(
+                target = await self._resolve_target_dict(
                     session,
                     project_id=project_id,
                     raw=candidate,
                 )
-                baseline_target = (
-                    await self._resolve_target_dict(
-                        session,
-                        project_id=project_id,
-                        raw=baseline,
-                    )
-                    if baseline
-                    else None
-                )
-                if candidate_target.target_type != suite_root.target_type:
+                if target.target_type != suite_root.target_type:
                     raise ValidationError(
-                        "Candidate target type does not match the Evaluation Suite"
+                        "Evaluation target type does not match the Evaluation Suite"
                     )
-                if (
-                    baseline_target is not None
-                    and baseline_target.target_type != candidate_target.target_type
-                ):
-                    raise ValidationError(
-                        "Candidate and Baseline must use the same target type"
-                    )
-                if (
-                    baseline_target is not None
-                    and baseline_target.snapshot_hash == candidate_target.snapshot_hash
-                ):
-                    raise ConflictError(
-                        "Candidate and Baseline resolve to the same immutable snapshot"
-                    )
-                run_mode = self._run_mode(candidate_target, baseline_target)
 
                 run = EvaluationRunModel(
                     project_id=project_id,
                     suite_version_id=suite_version_id,
-                    mode=run_mode,
+                    mode=EvaluationMode.ABSOLUTE.value,
                     status=EvaluationRunStatus.QUEUED.value,
                     repetitions=repetitions,
-                    execution_order="paired_interleaved",
+                    execution_order="randomized",
                     execution_policy={
                         "requested_parallel_pairs": 3,
-                        "pair_members_serialized": True,
+                        "pair_members_serialized": False,
+                        "single_target_invariant": True,
                     },
                     randomization_seed=random.SystemRandom().randint(1, 2_147_483_647),
                     request_idempotency_key=normalized_key,
@@ -237,31 +199,17 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 )
                 session.add(run)
                 await session.flush()
-                candidate_model = EvaluationTargetModel(
+                target_model = EvaluationTargetModel(
                     evaluation_run_id=run.id,
                     project_id=project_id,
-                    side="candidate" if baseline_target is not None else "single",
-                    **asdict(candidate_target),
+                    side="single",
+                    **asdict(target),
                 )
-                session.add(candidate_model)
-                baseline_model = None
-                if baseline_target is not None:
-                    baseline_model = EvaluationTargetModel(
-                        evaluation_run_id=run.id,
-                        project_id=project_id,
-                        side="baseline",
-                        **asdict(baseline_target),
-                    )
-                    session.add(baseline_model)
+                session.add(target_model)
                 await session.flush()
-                run.candidate_target_id = candidate_model.id
-                run.baseline_target_id = (
-                    baseline_model.id if baseline_model is not None else None
-                )
-                targets = [candidate_model]
-                if baseline_model is not None:
-                    targets.append(baseline_model)
-                return self._run_payload(run, targets)
+                run.candidate_target_id = target_model.id
+                run.baseline_target_id = None
+                return self._run_payload(run, [target_model])
         except IntegrityError:
             if not normalized_key:
                 raise
