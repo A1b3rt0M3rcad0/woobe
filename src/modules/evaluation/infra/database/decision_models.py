@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import BaseModel
@@ -21,6 +30,10 @@ class EvaluationTargetDecisionModel(BaseModel):
         CheckConstraint(
             "decision IN ('accepted', 'rejected')",
             name="ck_evaluation_target_decisions_decision",
+        ),
+        CheckConstraint(
+            "decision_basis IN ('evidence', 'manual_override')",
+            name="ck_evaluation_target_decisions_basis",
         ),
         Index(
             "ix_evaluation_target_decisions_target",
@@ -52,6 +65,7 @@ class EvaluationTargetDecisionModel(BaseModel):
     evidence_revision: Mapped[int] = mapped_column(Integer, default=1)
     assessment_hash: Mapped[str | None] = mapped_column(String(64))
     decision: Mapped[str] = mapped_column(String(32))
+    decision_basis: Mapped[str] = mapped_column(String(32), default="evidence")
     note: Mapped[str | None] = mapped_column(Text)
     decided_by: Mapped[UUID]
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
