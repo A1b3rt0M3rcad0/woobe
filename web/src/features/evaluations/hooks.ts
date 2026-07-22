@@ -266,11 +266,25 @@ export function useRetryEvaluatorSuiteAuthoring(projectId?: string) {
   })
 }
 
-export function useResumeEvaluatorSuiteAuthoring(projectId?: string) {
+type ResumeEvaluatorSuiteAuthoringMutationInput =
+  | ResumeAuthoringInput
+  | { callId: string; input: ResumeAuthoringInput }
+
+export function useResumeEvaluatorSuiteAuthoring(
+  projectId?: string,
+  defaultCallId?: string | null,
+) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ callId, input }: { callId: string; input: ResumeAuthoringInput }) =>
-      resumeEvaluatorSuiteAuthoringCall(projectId as string, callId, input),
+    mutationFn: (value: ResumeEvaluatorSuiteAuthoringMutationInput) => {
+      const wrapped = 'callId' in value && 'input' in value
+      const callId = wrapped ? value.callId : defaultCallId
+      const input = wrapped ? value.input : value
+      if (!callId) {
+        throw new Error('Authoring call is required to resume generation')
+      }
+      return resumeEvaluatorSuiteAuthoringCall(projectId as string, callId, input)
+    },
     onSuccess: (call) => client.setQueryData(
       ['evaluation-authoring-call', projectId, call.authoring_call_id],
       call,
@@ -327,7 +341,12 @@ export function useCreateEvaluationEstimate(projectId?: string, runId?: string |
   const client = useQueryClient()
   return useMutation({
     mutationFn: (input: { volume: number; volume_unit?: string }) =>
-      createEvaluationEstimate(projectId as string, runId as string, input),
+      createEvaluationEstimate(
+        projectId as string,
+        runId as string,
+        input.volume,
+        input.volume_unit,
+      ),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['evaluation-run', projectId, runId] })
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
