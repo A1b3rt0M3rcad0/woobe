@@ -34,8 +34,14 @@ def _id_text(value: Any) -> str | None:
 
 
 def _agent_release_snapshot(release: AgentReleaseModel) -> dict[str, Any]:
+    runtime_config = release.runtime_config or {}
+    rag_config = (
+        runtime_config.get("rag")
+        if isinstance(runtime_config.get("rag"), dict)
+        else {}
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "name": release.name,
         "description": release.description,
         "system_prompt": release.system_prompt,
@@ -56,8 +62,15 @@ def _agent_release_snapshot(release: AgentReleaseModel) -> dict[str, Any]:
         "max_output_tokens": release.max_output_tokens,
         "session_mode": release.session_mode,
         "agent_status": release.agent_status,
+        "knowledge_version_id": _id_text(
+            getattr(release, "knowledge_version_id", None)
+        ),
+        "vector_snapshot_id": _id_text(
+            rag_config.get("vector_snapshot_id")
+            or runtime_config.get("vector_snapshot_id")
+        ),
         "collection_ids": [str(value) for value in (release.collection_ids or [])],
-        "runtime_config": release.runtime_config or {},
+        "runtime_config": runtime_config,
         "release_id": str(release.id),
         "release_version": release.version,
         "snapshot_kind": release.snapshot_kind,
