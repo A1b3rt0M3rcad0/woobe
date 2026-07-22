@@ -11,6 +11,7 @@ from modules.agent.infra.database.provider_model_repositories import ProviderMod
 from modules.evaluation.application.completed_service import (
     CompletedEvaluationApplicationService,
 )
+from modules.evaluation.domain.enums import EvaluationMode
 from modules.evaluation.infra.database.models import (
     EvaluationCheckResultModel,
     EvaluationRunModel,
@@ -35,7 +36,37 @@ _TERMINAL_TRIAL_STATUSES = {"completed", "failed", "inconclusive", "cancelled"}
 
 
 class EvaluationExperienceService(CompletedEvaluationApplicationService):
-    """MVP facade for simple setup, model variants and lightweight progress."""
+    """MVP facade for simple setup, explicit experiments and lightweight progress."""
+
+    @staticmethod
+    def _target_variant(target) -> dict[str, Any] | None:
+        snapshot = getattr(target, "snapshot", None) or {}
+        variant = snapshot.get("evaluation_variant")
+        return variant if isinstance(variant, dict) else None
+
+    def _run_mode(self, candidate_target, baseline_target) -> str:
+        candidate_variant = self._target_variant(candidate_target)
+        baseline_variant = self._target_variant(baseline_target) if baseline_target else None
+        if candidate_variant is None and baseline_variant is None:
+            return super()._run_mode(candidate_target, baseline_target)
+        if candidate_variant is not None:
+            raise ValidationError(
+                "The reference Agent target must use its exact configured model. "
+                "Model overrides are allowed only on the experimental target."
+            )
+        if baseline_target is None or baseline_variant is None:
+            raise ValidationError(
+                "A model experiment requires one exact Agent target and one experimental model target"
+            )
+        if baseline_variant.get("type") != "model_override":
+            raise ValidationError("Model experiment variant type is invalid")
+        if str(baseline_variant.get("base_snapshot_hash") or "") != str(
+            candidate_target.snapshot_hash
+        ):
+            raise ConflictError(
+                "The experimental model must derive from the exact same Agent snapshot as the reference target"
+            )
+        return EvaluationMode.MODEL_EXPERIMENT.value
 
     async def _resolve_target_dict(
         self,
@@ -55,21 +86,21 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
         if str(variant.get("type") or "") != "model_override":
             raise ValidationError("Evaluation target variant type is invalid")
         if resolved.target_type != "agent":
-            raise ValidationError("Model comparison variants are supported only for Agents")
+            raise ValidationError("Model experiments are supported only for Agents")
         provider_model_id = variant.get("provider_model_id")
         if not provider_model_id:
-            raise ValidationError("Model comparison requires provider_model_id")
+            raise ValidationError("Model experiment requires provider_model_id")
         try:
             provider_model_uuid = UUID(str(provider_model_id))
         except (TypeError, ValueError) as exc:
-            raise ValidationError("Model comparison provider_model_id is invalid") from exc
+            raise ValidationError("Model experiment provider_model_id is invalid") from exc
         provider_model = await session.get(ProviderModelModel, provider_model_uuid)
         if (
             provider_model is None
             or provider_model.project_id != project_id
             or provider_model.status != "active"
         ):
-            raise NotFoundError("Comparison Provider Model is unavailable for this Project")
+            raise NotFoundError("Experimental Provider Model is unavailable for this Project")
         credential = await session.get(
             ProviderCredentialModel,
             provider_model.provider_credential_id,
@@ -79,14 +110,14 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             or credential.project_id != project_id
             or credential.status != "active"
         ):
-            raise NotFoundError("Comparison Provider Credential is unavailable for this Project")
+            raise NotFoundError("Experimental Provider Credential is unavailable for this Project")
 
         snapshot = dict(resolved.snapshot or {})
         temperature = variant.get("temperature", snapshot.get("temperature"))
         if temperature is not None:
             temperature = float(temperature)
             if temperature < 0 or temperature > 2:
-                raise ValidationError("Model comparison temperature must be between 0 and 2")
+                raise ValidationError("Model experiment temperature must be between 0 and 2")
         max_output_tokens = variant.get(
             "max_output_tokens",
             snapshot.get("max_output_tokens"),
@@ -95,7 +126,7 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             max_output_tokens = int(max_output_tokens)
             if max_output_tokens < 128 or max_output_tokens > 32768:
                 raise ValidationError(
-                    "Model comparison max_output_tokens must be between 128 and 32768"
+                    "Model experiment max_output_tokens must be between 128 and 32768"
                 )
         base_hash = resolved.snapshot_hash
         snapshot.update(
@@ -114,6 +145,8 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
                 ),
                 "evaluation_variant": {
                     "type": "model_override",
+                    "experiment_type": "model_experiment",
+                    "qualification_eligible": False,
                     "base_snapshot_hash": base_hash,
                     "provider_model_id": str(provider_model.id),
                     "provider_model_name": provider_model.name,
@@ -127,7 +160,7 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             resolved,
             snapshot=snapshot,
             snapshot_hash=canonical_hash(snapshot),
-            display_version=f"{resolved.display_version} · {provider_model.name}",
+            display_version=f"Experimental · {provider_model.name}",
         )
 
     async def get_run_progress(
@@ -199,6 +232,7 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             "status": run.status,
             "phase": phase,
             "mode": run.mode,
+            "qualification_eligible": run.mode != EvaluationMode.MODEL_EXPERIMENT.value,
             "total_trials": len(trials),
             "runtime_completed": runtime_completed,
             "runtime_pending": max(0, len(trials) - runtime_completed),
