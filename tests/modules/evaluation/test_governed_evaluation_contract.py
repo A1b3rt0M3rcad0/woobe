@@ -5,9 +5,13 @@ from types import SimpleNamespace
 from modules.evaluation.application.experience_service import _safe_preview_target
 from modules.evaluation.application.human_decision_service import (
     _assessment_status,
+    _evidence_revision,
     _target_manifest,
 )
-from modules.evaluation.infra.workers.governed_worker import _policy_assessment
+from modules.evaluation.infra.workers.governed_worker import (
+    _case_outcomes,
+    _policy_assessment,
+)
 
 
 def test_policy_assessment_is_not_a_human_decision() -> None:
@@ -24,6 +28,32 @@ def test_legacy_qualification_is_read_as_assessment_only() -> None:
     assert _assessment_status(
         SimpleNamespace(aggregate_result={}, qualification_status="not_qualified")
     ) == "below_policy"
+
+
+def test_evidence_revision_defaults_to_one_and_reads_retry_revision() -> None:
+    assert _evidence_revision(SimpleNamespace(aggregate_result={})) == 1
+    assert _evidence_revision(
+        SimpleNamespace(aggregate_result={"evidence_revision": 3})
+    ) == 3
+
+
+def test_case_outcomes_distinguish_stable_mixed_and_failed_cases() -> None:
+    values = [
+        SimpleNamespace(test_case_id="stable", passed=True, status="completed"),
+        SimpleNamespace(test_case_id="stable", passed=True, status="completed"),
+        SimpleNamespace(test_case_id="mixed", passed=True, status="completed"),
+        SimpleNamespace(test_case_id="mixed", passed=False, status="completed"),
+        SimpleNamespace(test_case_id="failed", passed=False, status="completed"),
+        SimpleNamespace(test_case_id="failed", passed=False, status="completed"),
+    ]
+
+    result = _case_outcomes(values)
+
+    assert result["case_count"] == 3
+    assert result["cases_fully_passed"] == 1
+    assert result["cases_mixed"] == 1
+    assert result["cases_consistently_failed"] == 1
+    assert result["cases_needing_attention"] == 2
 
 
 def test_agent_manifest_excludes_provider_credentials() -> None:
