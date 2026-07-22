@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.immutable_catalog_service import (
-    ImmutableEvaluationCatalogService,
+from modules.evaluation.application.revision_comparison_service import (
+    RevisionComparisonCatalogService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -60,8 +60,8 @@ class ComparisonDecisionRequest(BaseModel):
     note: str | None = Field(default=None, max_length=4000)
 
 
-def _service(request: Request) -> ImmutableEvaluationCatalogService:
-    return ImmutableEvaluationCatalogService(request.app.state.session_factory)
+def _service(request: Request) -> RevisionComparisonCatalogService:
+    return RevisionComparisonCatalogService(request.app.state.session_factory)
 
 
 @router.post("/evaluations/preview")
