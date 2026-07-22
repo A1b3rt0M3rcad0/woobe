@@ -58,7 +58,9 @@ function slotStatusLabel(slot: EvaluationAuthoringCaseSlot) {
 }
 
 function SlotIcon({ status }: { status: EvaluationAuthoringCaseSlot['status'] }) {
-  if (status === 'ready') return <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+  if (status === 'ready') {
+    return <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+  }
   if (status === 'generating' || status === 'validating') {
     return <Loader2 className="h-4 w-4 animate-spin text-primary-light" />
   }
@@ -83,31 +85,50 @@ function usageValue(
   return 'Not reported'
 }
 
+function issueMessages(slots: EvaluationAuthoringCaseSlot[]) {
+  const messages = slots.flatMap((slot) => (
+    slot.validation?.errors?.map((issue) => issue.message) || []
+  ))
+  return [...new Set(messages)].slice(0, 3)
+}
+
 interface Props {
   call: EvaluationAuthoringCall
-  providerModels: ProviderModel[]
+  providerModels?: ProviderModel[]
   cancelling: boolean
-  resuming: boolean
+  resuming?: boolean
+  retrying?: boolean
   onCancel: () => void
-  onResume: (input: ResumeAuthoringInput) => void
+  onResume?: (input: ResumeAuthoringInput) => void
+  onRetry?: () => void
   onChangeSettings: () => void
 }
 
 export function SuiteGenerationProgress({
   call,
-  providerModels,
+  providerModels = [],
   cancelling,
-  resuming,
+  resuming = false,
+  retrying = false,
   onCancel,
   onResume,
+  onRetry,
   onChangeSettings,
 }: Props) {
-  const active = ['queued', 'running', 'partial', 'repairing', 'cancel_requested'].includes(call.status)
+  const active = [
+    'queued',
+    'running',
+    'partial',
+    'repairing',
+    'cancel_requested',
+  ].includes(call.status)
   const slots = call.case_slots || []
-  const ready = call.ready_case_count ?? slots.filter((slot) => slot.status === 'ready').length
-  const attention = call.attention_case_count ?? slots.filter(
-    (slot) => slot.status === 'paused' || slot.status === 'needs_attention',
-  ).length
+  const ready = call.ready_case_count
+    ?? slots.filter((slot) => slot.status === 'ready').length
+  const attention = call.attention_case_count
+    ?? slots.filter(
+      (slot) => slot.status === 'paused' || slot.status === 'needs_attention',
+    ).length
   const processing = slots.filter(
     (slot) => slot.status === 'generating' || slot.status === 'validating',
   ).length
@@ -132,6 +153,22 @@ export function SuiteGenerationProgress({
     category === 'tool_reference_mismatch' || category === 'unknown_tool'
   ))
   const requiresProviderAction = call.status === 'paused_requires_action'
+  const canContinue = requiresProviderAction || attention > 0
+
+  const continueGeneration = () => {
+    if (onResume) {
+      onResume({
+        provider_model_id: modelId,
+        strategy: modelId !== call.generator.provider_model_id
+          ? 'continue_with_new_model'
+          : hasToolIssue
+            ? 'repair_tool_references'
+            : 'retry_failed_and_missing',
+      })
+      return
+    }
+    onRetry?.()
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -144,7 +181,9 @@ export function SuiteGenerationProgress({
           ) : (
             <AlertTriangle className="h-4 w-4 text-amber-300" />
           )}
-          <h3 className="text-base font-semibold text-white">{phaseLabel(call)}</h3>
+          <h3 className="text-base font-semibold text-white">
+            {phaseLabel(call)}
+          </h3>
         </div>
         <p className="mt-1 text-xs text-muted">
           Every valid Use Case is preserved. Resume only processes missing or affected cases.
@@ -161,10 +200,13 @@ export function SuiteGenerationProgress({
               {processing} processing · {pending} waiting · {attention} need attention
             </p>
             <p className="mt-2 text-[10px] text-muted">
-              {call.generator.model} · {call.target?.source_type || 'snapshot'} · {call.source_snapshot_hash.slice(0, 12)}
+              {call.generator.model} · {call.target?.source_type || 'snapshot'} ·{' '}
+              {call.source_snapshot_hash.slice(0, 12)}
             </p>
           </div>
-          <Badge variant="outline">{String(call.phase || call.status).replaceAll('_', ' ')}</Badge>
+          <Badge variant="outline">
+            {String(call.phase || call.status).replaceAll('_', ' ')}
+          </Badge>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-background">
           <div
@@ -185,9 +227,11 @@ export function SuiteGenerationProgress({
             <p className="mt-1 text-sm text-white">
               {usageValue(
                 call,
-                call.generator.input_tokens == null && call.generator.output_tokens == null
+                call.generator.input_tokens == null
+                  && call.generator.output_tokens == null
                   ? null
-                  : Number(call.generator.input_tokens || 0) + Number(call.generator.output_tokens || 0),
+                  : Number(call.generator.input_tokens || 0)
+                    + Number(call.generator.output_tokens || 0),
                 () => `${Number(call.generator.input_tokens || 0).toLocaleString()} in · ${Number(call.generator.output_tokens || 0).toLocaleString()} out`,
               )}
             </p>
@@ -195,7 +239,11 @@ export function SuiteGenerationProgress({
           <div>
             <p className="text-[9px] uppercase text-muted">Cost</p>
             <p className="mt-1 text-sm text-white">
-              {usageValue(call, call.generator.cost_usd, (value) => `$${value.toFixed(4)}`)}
+              {usageValue(
+                call,
+                call.generator.cost_usd,
+                (value) => `$${value.toFixed(4)}`,
+              )}
             </p>
           </div>
         </div>
@@ -208,20 +256,33 @@ export function SuiteGenerationProgress({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-white">Needs attention</p>
               <div className="mt-3 space-y-3">
-                {groupedIssues.map(([category, affected]) => (
-                  <div key={category} className="rounded-lg border border-border/70 bg-background/35 p-3">
-                    <p className="text-xs font-medium text-white">
-                      {category === 'tool_reference_mismatch'
-                        ? 'Invalid Tool reference'
-                        : category.replaceAll('_', ' ')}
-                    </p>
-                    <p className="mt-1 text-[11px] leading-5 text-muted">
-                      {category === 'tool_reference_mismatch'
-                        ? `${affected.length} Use Case(s) reference a Tool that is not present in the selected snapshot. Conversational actions will be repaired as behavior; real unknown Tools remain blocked.`
-                        : `${affected.length} Use Case(s) are affected. Ready cases will not be generated again.`}
-                    </p>
-                  </div>
-                ))}
+                {groupedIssues.map(([category, affected]) => {
+                  const messages = issueMessages(affected)
+                  return (
+                    <div
+                      key={category}
+                      className="rounded-lg border border-border/70 bg-background/35 p-3"
+                    >
+                      <p className="text-xs font-medium text-white">
+                        {category === 'tool_reference_mismatch'
+                          ? 'Invalid Tool reference'
+                          : category.replaceAll('_', ' ')}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-5 text-muted">
+                        {category === 'tool_reference_mismatch'
+                          ? `${affected.length} Use Case(s) reference a Tool that is not present in the selected snapshot. Conversational actions are repaired as behavior; real unknown Tools remain blocked.`
+                          : `${affected.length} Use Case(s) are affected. Ready cases will not be generated again.`}
+                      </p>
+                      {messages.length ? (
+                        <div className="mt-2 space-y-1 text-[10px] text-amber-200/80">
+                          {messages.map((message) => (
+                            <p key={message}>{message}</p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -245,15 +306,20 @@ export function SuiteGenerationProgress({
                 </p>
                 <p className="mt-0.5 text-[10px] text-muted">
                   {coverageLabel(slot.coverage_category)}
-                  {slot.failure_category ? ` · ${slot.failure_category.replaceAll('_', ' ')}` : ''}
+                  {slot.failure_category
+                    ? ` · ${slot.failure_category.replaceAll('_', ' ')}`
+                    : ''}
                 </p>
               </div>
               <span className={cn(
                 'text-[10px]',
                 slot.status === 'ready' && 'text-emerald-300',
-                (slot.status === 'generating' || slot.status === 'validating') && 'text-primary-light',
-                (slot.status === 'paused' || slot.status === 'needs_attention') && 'text-amber-300',
-                (slot.status === 'planned' || slot.status === 'cancelled') && 'text-muted',
+                (slot.status === 'generating' || slot.status === 'validating')
+                  && 'text-primary-light',
+                (slot.status === 'paused' || slot.status === 'needs_attention')
+                  && 'text-amber-300',
+                (slot.status === 'planned' || slot.status === 'cancelled')
+                  && 'text-muted',
               )}>
                 {slotStatusLabel(slot)}
               </span>
@@ -262,34 +328,35 @@ export function SuiteGenerationProgress({
         </div>
       </section>
 
-      {(requiresProviderAction || attention > 0) ? (
+      {canContinue ? (
         <section className="rounded-xl border border-border/80 bg-background/35 p-4">
           <p className="text-sm font-semibold text-white">Continue generation</p>
           <p className="mt-1 text-[11px] leading-5 text-muted">
             Restore provider balance and retry, or select another active generator model. Completed Use Cases and their provenance remain unchanged.
           </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Select
-              value={modelId}
-              onChange={(event) => setModelId(event.target.value)}
-              options={activeModels.map((model) => ({
-                value: model.id,
-                label: `${model.name} · ${model.model}`,
-              }))}
-            />
+          <div className={cn(
+            'mt-4 grid gap-3',
+            onResume && activeModels.length
+              ? 'sm:grid-cols-[minmax(0,1fr)_auto]'
+              : 'justify-end',
+          )}>
+            {onResume && activeModels.length ? (
+              <Select
+                value={modelId}
+                onChange={(event) => setModelId(event.target.value)}
+                options={activeModels.map((model) => ({
+                  value: model.id,
+                  label: `${model.name} · ${model.model}`,
+                }))}
+              />
+            ) : null}
             <Button
-              loading={resuming}
-              onClick={() => onResume({
-                provider_model_id: modelId,
-                strategy: modelId !== call.generator.provider_model_id
-                  ? 'continue_with_new_model'
-                  : hasToolIssue
-                    ? 'repair_tool_references'
-                    : 'retry_failed_and_missing',
-              })}
+              loading={resuming || retrying}
+              disabled={!onResume && !onRetry}
+              onClick={continueGeneration}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
-              {modelId !== call.generator.provider_model_id
+              {onResume && modelId !== call.generator.provider_model_id
                 ? 'Continue with this model'
                 : hasToolIssue
                   ? 'Repair affected Use Cases'
@@ -308,15 +375,35 @@ export function SuiteGenerationProgress({
             <p className="font-medium text-white">Provider attempts</p>
             <div className="mt-2 space-y-2">
               {(call.attempts || []).map((attempt, index) => (
-                <div key={attempt.id || index} className="rounded-lg border border-border/70 p-3">
-                  <p>{attempt.model || call.generator.model} · {attempt.status || 'unknown'}</p>
-                  <p className="mt-1">
-                    {attempt.latency_ms == null ? 'Latency not reported' : `${(attempt.latency_ms / 1000).toFixed(1)}s`}
-                    {' · '}{attempt.input_tokens == null ? 'input pending' : `${attempt.input_tokens.toLocaleString()} input`}
-                    {' · '}{attempt.output_tokens == null ? 'output pending' : `${attempt.output_tokens.toLocaleString()} output`}
-                    {attempt.cost_usd == null ? '' : ` · $${attempt.cost_usd.toFixed(6)}`}
+                <div
+                  key={attempt.id || index}
+                  className="rounded-lg border border-border/70 p-3"
+                >
+                  <p>
+                    {attempt.model || call.generator.model} ·{' '}
+                    {attempt.status || 'unknown'}
                   </p>
-                  {attempt.error_detail ? <p className="mt-2 break-words text-red-300/80">{attempt.error_detail}</p> : null}
+                  <p className="mt-1">
+                    {attempt.latency_ms == null
+                      ? 'Latency not reported'
+                      : `${(attempt.latency_ms / 1000).toFixed(1)}s`}
+                    {' · '}
+                    {attempt.input_tokens == null
+                      ? 'input pending'
+                      : `${attempt.input_tokens.toLocaleString()} input`}
+                    {' · '}
+                    {attempt.output_tokens == null
+                      ? 'output pending'
+                      : `${attempt.output_tokens.toLocaleString()} output`}
+                    {attempt.cost_usd == null
+                      ? ''
+                      : ` · $${attempt.cost_usd.toFixed(6)}`}
+                  </p>
+                  {attempt.error_detail ? (
+                    <p className="mt-2 break-words text-red-300/80">
+                      {attempt.error_detail}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -325,9 +412,16 @@ export function SuiteGenerationProgress({
             <p className="font-medium text-white">Internal batches</p>
             <div className="mt-2 space-y-2">
               {call.batches.map((batch) => (
-                <div key={batch.id} className="rounded-lg border border-border/70 p-3">
+                <div
+                  key={batch.id}
+                  className="rounded-lg border border-border/70 p-3"
+                >
                   Batch {batch.batch_index} · {batch.status} · attempt {batch.attempt}
-                  {batch.error ? <p className="mt-1 break-words text-red-300/80">{batch.error}</p> : null}
+                  {batch.error ? (
+                    <p className="mt-1 break-words text-red-300/80">
+                      {batch.error}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -338,10 +432,13 @@ export function SuiteGenerationProgress({
                 <Wrench className="h-3.5 w-3.5" />Target Tool catalog
               </p>
               <p className="mt-1">
-                {call.tool_catalog.status} · {call.tool_catalog.source} · {call.tool_catalog.allowed_names.length} Tool(s)
+                {call.tool_catalog.status} · {call.tool_catalog.source} ·{' '}
+                {call.tool_catalog.allowed_names.length} Tool(s)
               </p>
               {call.tool_catalog.allowed_names.length ? (
-                <p className="mt-1">{call.tool_catalog.allowed_names.join(', ')}</p>
+                <p className="mt-1">
+                  {call.tool_catalog.allowed_names.join(', ')}
+                </p>
               ) : null}
             </div>
           ) : null}
@@ -354,12 +451,15 @@ export function SuiteGenerationProgress({
             Cancel generation
           </Button>
         ) : null}
-        {!active && call.status !== 'completed' && !requiresProviderAction && attention === 0 ? (
-          <Button variant="outline" onClick={onChangeSettings}>
-            <Settings2 className="mr-2 h-4 w-4" />
-            Change settings
-          </Button>
-        ) : null}
+        {!active
+          && call.status !== 'completed'
+          && !requiresProviderAction
+          && attention === 0 ? (
+            <Button variant="outline" onClick={onChangeSettings}>
+              <Settings2 className="mr-2 h-4 w-4" />
+              Change settings
+            </Button>
+          ) : null}
       </div>
     </div>
   )
