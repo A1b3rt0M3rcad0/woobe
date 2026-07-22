@@ -29,9 +29,30 @@ _TERMINAL_RUN_STATUSES = {
 }
 
 
+def _aggregate(run: EvaluationRunModel) -> dict[str, Any]:
+    return run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
+
+
+def _evidence_revision(run: EvaluationRunModel) -> int:
+    try:
+        return max(1, int(_aggregate(run).get("evidence_revision") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _assessment_hash(run: EvaluationRunModel) -> str:
+    aggregate = _aggregate(run)
+    return canonical_hash(
+        {
+            "evidence_revision": _evidence_revision(run),
+            "assessment": aggregate.get("assessment"),
+            "target_summaries": aggregate.get("target_summaries"),
+        }
+    )
+
+
 def _assessment_status(run: EvaluationRunModel) -> str | None:
-    aggregate = run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
-    assessment = aggregate.get("assessment")
+    assessment = _aggregate(run).get("assessment")
     if isinstance(assessment, dict) and isinstance(assessment.get("status"), str):
         return str(assessment["status"])
     legacy = run.qualification_status
@@ -190,13 +211,13 @@ class HumanDecisionEvaluationApplicationService(
 
     def _run_payload(self, run, targets) -> dict[str, Any]:
         payload = super()._run_payload(run, targets)
+        aggregate = _aggregate(run)
         payload["assessment_status"] = _assessment_status(run)
+        payload["evidence_revision"] = _evidence_revision(run)
+        payload["judgment_retry"] = aggregate.get("judgment_retry")
         payload["legacy_automatic_qualification"] = bool(
             run.qualification_status
-            and not (
-                isinstance(run.aggregate_result, dict)
-                and isinstance(run.aggregate_result.get("assessment"), dict)
-            )
+            and not isinstance(aggregate.get("assessment"), dict)
         )
         return payload
 
@@ -211,7 +232,10 @@ class HumanDecisionEvaluationApplicationService(
                             EvaluationTargetDecisionModel.project_id == project_id,
                             EvaluationTargetDecisionModel.evaluation_run_id == run_id,
                         )
-                        .order_by(EvaluationTargetDecisionModel.decided_at.desc())
+                        .order_by(
+                            EvaluationTargetDecisionModel.evidence_revision.desc(),
+                            EvaluationTargetDecisionModel.decided_at.desc(),
+                        )
                     )
                 ).all()
             )
@@ -264,10 +288,12 @@ class HumanDecisionEvaluationApplicationService(
             if selected is None:
                 raise NotFoundError("Evaluation target not found in this Run")
 
+            evidence_revision = _evidence_revision(run)
             existing = await session.scalar(
                 select(EvaluationTargetDecisionModel).where(
                     EvaluationTargetDecisionModel.evaluation_run_id == run.id,
                     EvaluationTargetDecisionModel.target_id == selected.id,
+                    EvaluationTargetDecisionModel.evidence_revision == evidence_revision,
                 )
             )
             now = datetime.now(timezone.utc)
@@ -277,18 +303,25 @@ class HumanDecisionEvaluationApplicationService(
                     evaluation_run_id=run.id,
                     target_id=selected.id,
                     target_snapshot_hash=selected.snapshot_hash,
+                    evidence_revision=evidence_revision,
+                    assessment_hash=_assessment_hash(run),
                     decision=decision,
                     note=normalized_note,
                     decided_by=decided_by,
                     decided_at=now,
+                    superseded_at=None,
+                    superseded_reason=None,
                 )
                 session.add(existing)
             else:
                 existing.target_snapshot_hash = selected.snapshot_hash
+                existing.assessment_hash = _assessment_hash(run)
                 existing.decision = decision
                 existing.note = normalized_note
                 existing.decided_by = decided_by
                 existing.decided_at = now
+                existing.superseded_at = None
+                existing.superseded_reason = None
             await session.flush()
             return self._decision_payload(existing)
 
@@ -310,7 +343,10 @@ class HumanDecisionEvaluationApplicationService(
                     EvaluationRunModel,
                     EvaluationRunModel.id == EvaluationTargetDecisionModel.evaluation_run_id,
                 )
-                .where(EvaluationTargetDecisionModel.project_id == project_id)
+                .where(
+                    EvaluationTargetDecisionModel.project_id == project_id,
+                    EvaluationTargetDecisionModel.superseded_at.is_(None),
+                )
             )
             if target_type:
                 statement = statement.where(EvaluationTargetModel.target_type == target_type)
@@ -353,12 +389,13 @@ class HumanDecisionEvaluationApplicationService(
                         else "not_qualified",
                         "decision": decision_row.decision,
                         "decision_source": "human",
+                        "evidence_revision": decision_row.evidence_revision,
                         "score": run.overall_score,
                         "pass_rate": run.pass_rate,
                         "critical_failures": int(
-                            ((run.aggregate_result or {}).get("assessment") or {}).get(
+                            ((_aggregate(run).get("assessment") or {}).get(
                                 "critical_failures", 0
-                            )
+                            ))
                         ),
                         "summary": {
                             "assessment_status": _assessment_status(run),
@@ -395,10 +432,14 @@ class HumanDecisionEvaluationApplicationService(
             "evaluation_run_id": str(item.evaluation_run_id),
             "target_id": str(item.target_id),
             "target_snapshot_hash": item.target_snapshot_hash,
+            "evidence_revision": item.evidence_revision,
+            "assessment_hash": item.assessment_hash,
             "decision": item.decision,
             "note": item.note,
             "decided_by": str(item.decided_by),
             "decided_at": item.decided_at,
+            "superseded_at": item.superseded_at,
+            "superseded_reason": item.superseded_reason,
         }
 
 
