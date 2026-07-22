@@ -9,6 +9,10 @@ from sqlalchemy import select
 from modules.evaluation.application.diagnostic_authoring import (
     DiagnosticEvaluationSuiteAuthoringService,
 )
+from modules.evaluation.application.token_budget import (
+    context_window_from_metadata,
+    recommended_generation_output_tokens,
+)
 from modules.evaluation.application.tool_catalog import build_target_tool_catalog
 from modules.evaluation.infra.database.authoring_models import (
     EvaluationAuthoringAttemptModel,
@@ -21,7 +25,6 @@ from modules.evaluation.infra.database.models import (
 from shared.infra.errors import ConflictError, NotFoundError
 
 
-_TERMINAL_CALLS = {"completed", "failed", "cancelled", "failed_internal"}
 _READY_SLOT = "ready"
 
 
@@ -34,10 +37,61 @@ def _coverage_labels(coverage: dict[str, Any], expected: int) -> list[str]:
     return labels[:expected]
 
 
+def _context_with_tool_contract(
+    payload: dict[str, Any],
+    tool_catalog: dict[str, Any],
+) -> dict[str, Any]:
+    allowed_names = list(tool_catalog.get("allowed_names") or [])
+    return {
+        **payload,
+        "tool_catalog": tool_catalog,
+        "tool_contract": {
+            "allowed_names": allowed_names,
+            "rules": [
+                "Only exact names from allowed_names may appear in expected_contract.tools.",
+                "Never invent a Tool name.",
+                "Asking a question, requesting information, refusing, responding, and explaining an error are behaviors unless an exact Tool with that name is listed.",
+                "When allowed_names is empty, required and forbidden Tool arrays must be empty.",
+            ],
+        },
+    }
+
+
 class ResumableEvaluationSuiteAuthoringService(
     DiagnosticEvaluationSuiteAuthoringService
 ):
     """Authoring facade with canonical Tool catalog and per-Use-Case resume."""
+
+    async def preview_context(self, **kwargs) -> dict[str, Any]:
+        project_id = kwargs["project_id"]
+        target = kwargs["target"]
+        async with self._session_factory() as session:
+            resolved = await self._target_resolver.resolve(
+                session,
+                project_id=project_id,
+                target_type=str(target.get("target_type") or "agent"),
+                source_type=str(target.get("source_type") or "draft"),
+                entity_id=UUID(str(target["entity_id"])),
+                version_id=(
+                    UUID(str(target["version_id"]))
+                    if target.get("version_id")
+                    else None
+                ),
+            )
+            tool_catalog = await build_target_tool_catalog(
+                session,
+                target=resolved,
+                project_id=project_id,
+            )
+        data = await super().preview_context(**kwargs)
+        data["tool_catalog"] = {
+            "status": tool_catalog["status"],
+            "source": tool_catalog["source"],
+            "tool_count": len(tool_catalog["allowed_names"]),
+            "allowed_names": tool_catalog["allowed_names"],
+            "immutable": tool_catalog["immutable"],
+        }
+        return data
 
     async def generate_draft(self, **kwargs) -> dict[str, Any]:
         project_id = kwargs["project_id"]
@@ -71,9 +125,10 @@ class ResumableEvaluationSuiteAuthoringService(
             )
             if call is None:
                 raise NotFoundError("Evaluation authoring call not found")
-            context = dict(call.context_payload or {})
-            context["tool_catalog"] = tool_catalog
-            call.context_payload = context
+            call.context_payload = _context_with_tool_contract(
+                dict(call.context_payload or {}),
+                tool_catalog,
+            )
             stats = dict(call.context_stats or {})
             stats["tool_catalog"] = {
                 "status": tool_catalog["status"],
@@ -150,22 +205,6 @@ class ResumableEvaluationSuiteAuthoringService(
             if call.status == "completed":
                 raise ConflictError("Completed authoring calls do not require resume")
 
-            if provider_model_id is not None:
-                provider_model = await self._provider_model(
-                    session,
-                    project_id=project_id,
-                    provider_model_id=provider_model_id,
-                )
-                credential = await self._provider_credential(
-                    session,
-                    project_id=project_id,
-                    credential_id=provider_model.provider_credential_id,
-                )
-                call.generator_provider_model_id = provider_model.id
-                call.generator_provider_credential_id = credential.id
-                call.provider = credential.provider
-                call.model = provider_model.model
-
             slots = list(
                 (
                     await session.scalars(
@@ -184,6 +223,78 @@ class ResumableEvaluationSuiteAuthoringService(
             ]
             if not eligible:
                 raise ConflictError("No incomplete Use Case is eligible for resume")
+
+            request = dict(call.coverage_request or {})
+            if (
+                provider_model_id is not None
+                and provider_model_id != call.generator_provider_model_id
+            ):
+                provider_model = await self._provider_model(
+                    session,
+                    project_id=project_id,
+                    provider_model_id=provider_model_id,
+                )
+                credential = await self._provider_credential(
+                    session,
+                    project_id=project_id,
+                    credential_id=provider_model.provider_credential_id,
+                )
+                resolved = await self._target_resolver.resolve(
+                    session,
+                    project_id=project_id,
+                    target_type=call.target_type,
+                    source_type=call.target_source_type,
+                    entity_id=call.target_entity_id,
+                    version_id=call.target_version_id,
+                )
+                tool_catalog = await build_target_tool_catalog(
+                    session,
+                    target=resolved,
+                    project_id=project_id,
+                )
+                context_window = context_window_from_metadata(provider_model.meta or {})
+                maximum_input_tokens = int(
+                    (call.context_stats or {}).get("maximum_input_tokens") or 16_000
+                )
+                pack = await self._context_builder.build(
+                    session,
+                    project_id=project_id,
+                    target=resolved,
+                    objective=call.objective,
+                    maximum_input_tokens=maximum_input_tokens,
+                    reserved_output_tokens=recommended_generation_output_tokens(
+                        min(10, len(eligible))
+                    ),
+                    context_window=context_window,
+                )
+                history = list(request.get("context_history") or [])
+                history.append(
+                    {
+                        "context_hash": call.context_hash,
+                        "provider_model_id": str(call.generator_provider_model_id),
+                        "model": call.model,
+                    }
+                )
+                request["context_history"] = history[-20:]
+                call.generator_provider_model_id = provider_model.id
+                call.generator_provider_credential_id = credential.id
+                call.provider = credential.provider
+                call.model = provider_model.model
+                call.context_hash = pack.context_hash
+                call.context_payload = _context_with_tool_contract(
+                    pack.payload,
+                    tool_catalog,
+                )
+                call.context_stats = {
+                    **pack.budget,
+                    "context_window": context_window,
+                    "tool_catalog": {
+                        "status": tool_catalog["status"],
+                        "source": tool_catalog["source"],
+                        "tool_count": len(tool_catalog["allowed_names"]),
+                        "immutable": tool_catalog["immutable"],
+                    },
+                }
 
             batch_ids = {slot.authoring_batch_id for slot in eligible}
             batches = list(
@@ -212,7 +323,6 @@ class ResumableEvaluationSuiteAuthoringService(
             call.cancel_requested_at = None
             call.lease_owner = None
             call.lease_expires_at = None
-            request = dict(call.coverage_request or {})
             request["last_resume_strategy"] = strategy
             request["resume_count"] = int(request.get("resume_count") or 0) + 1
             call.coverage_request = request
@@ -263,7 +373,6 @@ class ResumableEvaluationSuiteAuthoringService(
             "queued",
             "running",
             "partial",
-            "partially_ready",
             "repairing",
             "cancel_requested",
         }
@@ -277,8 +386,23 @@ class ResumableEvaluationSuiteAuthoringService(
         else:
             usage_status = "not_reported"
 
+        phase = {
+            "queued": "preparing_use_cases",
+            "running": "generating_use_cases",
+            "partial": "generating_remaining_use_cases",
+            "repairing": "repairing_use_cases",
+            "partially_ready": "use_cases_need_attention",
+            "paused_requires_action": "paused_requires_action",
+            "completed": "ready_for_review",
+            "failed": "generation_failed",
+            "failed_internal": "platform_failure",
+            "cancel_requested": "cancelling",
+            "cancelled": "cancelled",
+        }.get(call.status, call.status)
+
         data.update(
             {
+                "phase": phase,
                 "ready_case_count": ready,
                 "attention_case_count": attention,
                 "pending_case_count": max(0, len(slots) - ready - attention),
