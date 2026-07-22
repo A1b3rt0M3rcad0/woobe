@@ -46,7 +46,14 @@ def _failure_for_batch(batch: EvaluationAuthoringBatchModel) -> dict[str, Any]:
         if isinstance(validation.get("failure"), dict)
         else None
     )
-    return stored or generation_failure_metadata(batch.error, validation)
+    inferred = generation_failure_metadata(batch.error, validation)
+
+    # Calls created before suite-generator-v3 could persist LengthFinishReasonError
+    # as cost_limit because the provider exception included a cost_details field.
+    # The raw error is more authoritative for this known misclassification.
+    if inferred.get("category") == "output_length_limit":
+        return inferred
+    return stored or inferred
 
 
 class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringService):
@@ -228,10 +235,22 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
                 or len((batch.generated_payload or {}).get("cases") or [])
             )
             valid = int(validation.get("valid_case_count") or validation.get("case_count") or 0)
+            errors = list(validation.get("errors", []))
+            if failure.get("category") == "output_length_limit" and returned == 0:
+                errors = [
+                    issue
+                    for issue in errors
+                    if not (
+                        isinstance(issue, dict)
+                        and issue.get("code") == "batch_case_count_mismatch"
+                    )
+                ]
             invalid = int(
                 validation.get("invalid_case_count")
-                or len(validation.get("errors", []))
+                or len(errors)
             )
+            if failure.get("category") == "output_length_limit" and returned == 0:
+                invalid = 0
             item.update(
                 {
                     "returned_case_count": returned,
@@ -240,7 +259,7 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
                     "failure_category": failure.get("category"),
                     "retryable": bool(failure.get("retryable")),
                     "recommended_action": failure.get("recommended_action"),
-                    "validation_errors": validation.get("errors", [])[:20],
+                    "validation_errors": errors[:20],
                     "normalization_warnings": validation.get(
                         "normalization_warnings", []
                     ),
