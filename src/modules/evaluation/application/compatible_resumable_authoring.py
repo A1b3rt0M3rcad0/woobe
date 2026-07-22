@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from modules.evaluation.application.resumable_authoring import (
     ResumableEvaluationSuiteAuthoringService,
+    _context_with_tool_contract,
     _coverage_labels,
 )
 from modules.evaluation.application.tool_catalog import build_target_tool_catalog
@@ -37,12 +38,45 @@ class CompatibleResumableEvaluationSuiteAuthoringService(
 ):
     """Adds legacy backfill and explicit target-bound Tool validation."""
 
+    async def _ensure_tool_catalog(
+        self,
+        session,
+        call: EvaluationAuthoringCallModel,
+    ) -> None:
+        context = dict(call.context_payload or {})
+        if isinstance(context.get("tool_catalog"), dict):
+            return
+        resolved = await self._target_resolver.resolve(
+            session,
+            project_id=call.project_id,
+            target_type=call.target_type,
+            source_type=call.target_source_type,
+            entity_id=call.target_entity_id,
+            version_id=call.target_version_id,
+        )
+        catalog = await build_target_tool_catalog(
+            session,
+            target=resolved,
+            project_id=call.project_id,
+        )
+        call.context_payload = _context_with_tool_contract(context, catalog)
+        stats = dict(call.context_stats or {})
+        stats["tool_catalog"] = {
+            "status": catalog["status"],
+            "source": catalog["source"],
+            "tool_count": len(catalog["allowed_names"]),
+            "immutable": catalog["immutable"],
+            "legacy_backfill": True,
+        }
+        call.context_stats = stats
+
     async def _ensure_case_slots(
         self,
         session,
         call: EvaluationAuthoringCallModel,
         batches: list[EvaluationAuthoringBatchModel],
     ) -> None:
+        await self._ensure_tool_catalog(session, call)
         exists = await session.scalar(
             select(EvaluationAuthoringCaseSlotModel.id)
             .where(EvaluationAuthoringCaseSlotModel.authoring_call_id == call.id)
