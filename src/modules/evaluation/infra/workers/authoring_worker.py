@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from modules.evaluation.application.metering import record_evaluation_model_usage
 from modules.evaluation.application.suite_authoring import _validate_tool_references
+from modules.evaluation.domain.authoring_contract import generation_failure_metadata
 from modules.evaluation.domain.contracts import validate_suite_draft
 from modules.evaluation.infra.database.models import (
     EvaluationAuthoringBatchModel,
@@ -32,6 +33,18 @@ def _signature(case: dict[str, Any]) -> str:
         or ""
     )
     return " ".join(str(message).lower().split())
+
+
+def _failure_summary(validation: dict[str, Any], fallback: str | None) -> str:
+    failure = validation.get("failure") if isinstance(validation.get("failure"), dict) else {}
+    category = str(failure.get("category") or "generation_failed")
+    errors = [
+        str(item.get("message") or "invalid batch")
+        for item in validation.get("errors", [])[:3]
+        if isinstance(item, dict)
+    ]
+    detail = "; ".join(errors) or str(fallback or "Generator returned no valid cases")
+    return f"{category}: {detail}"[:2000]
 
 
 class EvaluationAuthoringWorker:
@@ -63,7 +76,7 @@ class EvaluationAuthoringWorker:
                 select(EvaluationAuthoringCallModel)
                 .where(
                     EvaluationAuthoringCallModel.status.in_(
-                        {"queued", "running", "cancel_requested"}
+                        {"queued", "running", "partial", "cancel_requested"}
                     ),
                     EvaluationAuthoringCallModel.lease_expires_at.is_(None)
                     | (EvaluationAuthoringCallModel.lease_expires_at < now),
@@ -101,6 +114,7 @@ class EvaluationAuthoringWorker:
 
     async def _process(self, call_id: UUID, batch_id: UUID) -> None:
         should_cancel = False
+        previous_validation: dict[str, Any] | None = None
         async with self._session_factory() as session:
             call = await session.get(EvaluationAuthoringCallModel, call_id)
             batch = await session.get(EvaluationAuthoringBatchModel, batch_id)
@@ -150,6 +164,19 @@ class EvaluationAuthoringWorker:
                 objective = call.objective
                 requested_case_count = batch.requested_case_count
                 coverage_request = dict(batch.coverage_request or {})
+                previous_validation = (
+                    dict(batch.validation_result)
+                    if isinstance(batch.validation_result, dict)
+                    else None
+                )
+                repair_context = None
+                if previous_validation:
+                    repair_context = {
+                        "attempt": batch.attempt,
+                        "previous_errors": previous_validation.get("errors", [])[:20],
+                        "previous_failure": previous_validation.get("failure"),
+                        "previous_valid_cases": (batch.generated_payload or {}).get("cases", []),
+                    }
                 result = await self._generator.generate(
                     session,
                     project_id=project_id,
@@ -161,6 +188,7 @@ class EvaluationAuthoringWorker:
                     error_case_ratio=float(request.get("error_case_ratio") or 0),
                     language=str(request.get("language") or "pt-BR"),
                     maximum_cost_usd=remaining_cost,
+                    repair_context=repair_context,
                 )
 
         if should_cancel:
@@ -170,7 +198,7 @@ class EvaluationAuthoringWorker:
         payload = result.payload or {}
         validation = (
             _validate_tool_references(
-                validate_suite_draft(payload),
+                result.validation or validate_suite_draft(payload),
                 context_pack=stored_context,
             )
             if result.payload
@@ -179,12 +207,16 @@ class EvaluationAuthoringWorker:
                 "errors": [
                     {
                         "path": "generator",
+                        "code": result.failure_category or "generation_failed",
                         "message": result.error or "Generator returned no payload",
                     }
                 ],
                 "warnings": [],
                 "coverage": {},
                 "case_count": 0,
+                "returned_case_count": 0,
+                "valid_case_count": 0,
+                "invalid_case_count": 1,
                 "cases": [],
             }
         )
@@ -229,6 +261,47 @@ class EvaluationAuthoringWorker:
                 ],
             }
 
+        failure = generation_failure_metadata(result.error, validation)
+        if result.failure_category and not validation.get("errors"):
+            failure = {
+                "category": result.failure_category,
+                "retryable": result.retryable,
+                "recommended_action": result.recommended_action,
+            }
+        validation = {
+            **validation,
+            "returned_case_count": int(
+                validation.get("returned_case_count")
+                or (len(payload.get("cases") or []) if isinstance(payload.get("cases"), list) else 0)
+            ),
+            "valid_case_count": int(validation.get("case_count") or 0),
+            "invalid_case_count": len(validation.get("errors", [])),
+            "failure": failure if not validation.get("valid") else None,
+            "normalization_warnings": list(result.normalization_warnings),
+            "attempts": [
+                *(
+                    previous_validation.get("attempts", [])
+                    if isinstance(previous_validation, dict)
+                    and isinstance(previous_validation.get("attempts"), list)
+                    else []
+                ),
+                {
+                    "attempt": int(getattr(result, "attempt", 0) or 0),
+                    "worker_attempt": None,
+                    "returned_case_count": int(
+                        validation.get("returned_case_count") or 0
+                    ),
+                    "valid_case_count": int(validation.get("case_count") or 0),
+                    "invalid_case_count": len(validation.get("errors", [])),
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "cost_usd": result.cost_usd,
+                    "latency_ms": result.latency_ms,
+                    "completed_at": result.completed_at.isoformat(),
+                },
+            ],
+        }
+
         async with self._session_factory() as session, session.begin():
             call = await session.get(
                 EvaluationAuthoringCallModel,
@@ -243,6 +316,10 @@ class EvaluationAuthoringWorker:
             if call is None or batch is None:
                 return
 
+            attempts = list(validation.get("attempts") or [])
+            if attempts:
+                attempts[-1]["worker_attempt"] = int(batch.attempt or 0)
+                validation["attempts"] = attempts
             batch.input_tokens = int(batch.input_tokens or 0) + int(result.input_tokens or 0)
             batch.output_tokens = int(batch.output_tokens or 0) + int(result.output_tokens or 0)
             accumulated_cost = float(batch.cost_usd or 0) + float(result.cost_usd or 0)
@@ -275,12 +352,11 @@ class EvaluationAuthoringWorker:
                 batch.error = None
                 terminal = True
             else:
-                batch.error = result.error or "; ".join(
-                    str(item.get("message") or "invalid batch")
-                    for item in validation.get("errors", [])[:5]
-                )
-                if int(batch.attempt or 0) < 2:
+                batch.error = _failure_summary(validation, result.error)
+                can_retry = bool(failure.get("retryable")) and int(batch.attempt or 0) < 2
+                if can_retry:
                     batch.status = "pending"
+                    batch.completed_at = None
                 else:
                     batch.status = "failed"
                     terminal = True
@@ -311,6 +387,11 @@ class EvaluationAuthoringWorker:
                 "batch_index": batch.batch_index,
                 "batch_status": batch.status,
                 "attempts": batch.attempt,
+                "failure": (
+                    batch.validation_result.get("failure")
+                    if isinstance(batch.validation_result, dict)
+                    else None
+                ),
             },
         )
 
@@ -330,6 +411,7 @@ class EvaluationAuthoringWorker:
         )
         completed = [item for item in batches if item.status == "completed"]
         failed = [item for item in batches if item.status == "failed"]
+        pending = [item for item in batches if item.status in {"pending", "running"}]
         call.completed_batch_count = len(completed)
         call.input_tokens = sum(int(item.input_tokens or 0) for item in batches) or None
         call.output_tokens = sum(int(item.output_tokens or 0) for item in batches) or None
@@ -340,6 +422,14 @@ class EvaluationAuthoringWorker:
         )
         if len(completed) == call.total_batch_count:
             await self._complete_locked(call, batches)
+        elif pending:
+            call.status = "partial" if completed or failed else "queued"
+            call.error = (
+                f"{len(failed)} batch(es) require attention while remaining batches continue"
+                if failed
+                else None
+            )
+            call.completed_at = None
         elif failed:
             call.status = "failed"
             call.error = f"{len(failed)} authoring batch(es) failed"
@@ -450,9 +540,29 @@ class EvaluationAuthoringWorker:
                 with_for_update=True,
             )
             if batch is not None:
-                batch.status = "pending" if int(batch.attempt or 0) < 2 else "failed"
+                retryable = int(batch.attempt or 0) < 2
+                batch.status = "pending" if retryable else "failed"
                 batch.error = detail[:2000]
-                batch.completed_at = _now()
+                batch.validation_result = {
+                    "valid": False,
+                    "errors": [
+                        {
+                            "path": "worker",
+                            "code": "worker_processing_error",
+                            "message": detail[:500],
+                        }
+                    ],
+                    "warnings": [],
+                    "coverage": {},
+                    "case_count": 0,
+                    "cases": [],
+                    "failure": {
+                        "category": "worker_processing_error",
+                        "retryable": retryable,
+                        "recommended_action": "retry_provider_call" if retryable else "contact_support",
+                    },
+                }
+                batch.completed_at = None if retryable else _now()
             if call is not None:
                 call.lease_owner = None
                 call.lease_expires_at = None
