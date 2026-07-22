@@ -17,6 +17,7 @@ from modules.evaluation.infra.database.models import (
 from modules.evaluation.infra.workers.authoring_worker import _signature
 from modules.evaluation.infra.workers.resumable_authoring_worker import (
     ResumableEvaluationAuthoringWorker,
+    _provider_action_failure,
 )
 
 
@@ -137,6 +138,60 @@ class SlotReadyEvaluationAuthoringWorker(ResumableEvaluationAuthoringWorker):
             call.completed_at = datetime.now(timezone.utc)
             return
         await super()._complete_locked(session, call, slots)
+
+    async def _fail_batch(self, call_id: UUID, batch_id: UUID, detail: str) -> None:
+        action = _provider_action_failure(detail)
+        if action is None:
+            await super()._fail_batch(call_id, batch_id, detail)
+            return
+
+        async with self._session_factory() as session, session.begin():
+            call = await session.get(
+                EvaluationAuthoringCallModel,
+                call_id,
+                with_for_update=True,
+            )
+            batch = await session.get(
+                EvaluationAuthoringBatchModel,
+                batch_id,
+                with_for_update=True,
+            )
+            if call is None or batch is None:
+                return
+            batch.status = "paused"
+            batch.error = detail[:2000]
+            batch.completed_at = datetime.now(timezone.utc)
+            slots = list(
+                (
+                    await session.scalars(
+                        select(EvaluationAuthoringCaseSlotModel).where(
+                            EvaluationAuthoringCaseSlotModel.authoring_batch_id
+                            == batch.id,
+                            EvaluationAuthoringCaseSlotModel.status != "ready",
+                        )
+                    )
+                ).all()
+            )
+            for slot in slots:
+                slot.status = "paused"
+                slot.failure_category = str(action["category"])
+                slot.recommended_action = str(action["recommended_action"])
+                validation = dict(slot.validation_result or {})
+                slot.validation_result = {
+                    **validation,
+                    "valid": False,
+                    "errors": [
+                        *list(validation.get("errors") or []),
+                        {
+                            "path": "provider",
+                            "code": action["category"],
+                            "message": detail[:500],
+                        },
+                    ],
+                }
+            call.lease_owner = None
+            call.lease_expires_at = None
+            await self._refresh_call_locked(session, call)
 
 
 __all__ = ["SlotReadyEvaluationAuthoringWorker"]
