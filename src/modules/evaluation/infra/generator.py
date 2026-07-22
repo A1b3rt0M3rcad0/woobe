@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.database.models import ProviderCredentialModel
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
-from modules.evaluation.application.token_budget import recommended_generation_output_tokens
+from modules.evaluation.application.token_budget import (
+    context_window_from_metadata,
+    recommended_generation_output_tokens,
+)
 from modules.evaluation.domain.authoring_contract import (
     SUITE_GENERATION_EXAMPLES,
     generation_failure_metadata,
@@ -95,6 +99,44 @@ def _safe_error(exc: Exception) -> str:
     return f"{name}: {message}" if message else name
 
 
+def _is_output_length_error(exc: Exception) -> bool:
+    value = f"{type(exc).__name__}: {exc}".lower()
+    return any(
+        token in value
+        for token in (
+            "lengthfinishreasonerror",
+            "length limit was reached",
+            "finish_reason=length",
+            "finish reason 'length'",
+            "finish reason: length",
+            "maximum output length",
+        )
+    )
+
+
+def _usage_from_exception(exc: Exception) -> dict[str, int | float | None]:
+    """Recover usage from provider exceptions that embed CompletionUsage in text."""
+
+    text = str(exc)
+
+    def integer(pattern: str) -> int | None:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        return int(match.group(1)) if match else None
+
+    prompt_tokens = integer(r"\bprompt_tokens=(\d+)")
+    completion_tokens = integer(r"\bcompletion_tokens=(\d+)")
+    cost_match = re.search(
+        r"(?:^|[\s,(])cost=([0-9]+(?:\.[0-9]+)?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return {
+        "input_tokens": prompt_tokens,
+        "output_tokens": completion_tokens,
+        "cost_usd": float(cost_match.group(1)) if cost_match else None,
+    }
+
+
 def _sum_optional(current: int | None, value: int | None) -> int | None:
     if current is None and value is None:
         return None
@@ -140,7 +182,7 @@ def _format_error_payload(
 
 
 class SuiteGeneratorGateway:
-    PROMPT_VERSION = "suite-generator-v2"
+    PROMPT_VERSION = "suite-generator-v3"
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or Settings()
@@ -190,7 +232,17 @@ class SuiteGeneratorGateway:
             if not base_url:
                 raise ValidationError("Custom generator model requires a base_url")
         api_key = decrypt_secret(credential.encrypted_secret, self._settings.encryption_key)
-        output_tokens = recommended_generation_output_tokens(case_count)
+
+        estimated_input_tokens = _estimated_input_tokens(context_pack) or 0
+        context_window = context_window_from_metadata(model_metadata)
+        maximum_output_tokens = max(
+            1_200,
+            min(12_000, context_window - estimated_input_tokens - 1_000),
+        )
+        output_tokens = min(
+            recommended_generation_output_tokens(case_count),
+            maximum_output_tokens,
+        )
         pricing_snapshot = provider_model_pricing_snapshot(
             provider_model_id=provider_model.id,
             provider_credential_id=credential.id,
@@ -201,7 +253,7 @@ class SuiteGeneratorGateway:
         started_at = datetime.now(timezone.utc)
         started = time.monotonic()
         estimated_cost = calculate_llm_cost(
-            input_tokens=_estimated_input_tokens(context_pack),
+            input_tokens=estimated_input_tokens or None,
             output_tokens=output_tokens,
             pricing_snapshot=pricing_snapshot,
         )
@@ -244,6 +296,7 @@ class SuiteGeneratorGateway:
             "Expected behavior must be concrete, observable and judgeable from the target Run evidence. "
             "Platform, persistence, worker and internal failures can never be expected outcomes. "
             "For expected_failure specify at least one allowed failure origin, stage or code. "
+            "Keep names, criteria and behaviors concise so the complete JSON fits within the output budget. "
             "Return only one JSON object matching the supplied schema and the exact requested case count."
         )
         request_payload: dict[str, Any] = {
@@ -256,12 +309,17 @@ class SuiteGeneratorGateway:
             "canonical_json_schema": schema,
             "valid_case_examples": SUITE_GENERATION_EXAMPLES,
             "target_context": context_pack,
+            "output_budget": {
+                "max_tokens": output_tokens,
+                "instruction": "Use concise observable strings and complete the JSON object.",
+            },
         }
         if repair_context:
             request_payload["repair_context"] = repair_context
 
         response_mode = "json_schema"
         semantic_repairs = 0
+        length_retries = 0
         total_input: int | None = None
         total_output: int | None = None
         total_cost: float | None = None
@@ -271,7 +329,7 @@ class SuiteGeneratorGateway:
         last_warnings: list[dict[str, Any]] = []
         repair_message: str | None = None
 
-        for _ in range(4):
+        for _ in range(5):
             raw: Any = None
             try:
                 kwargs: dict[str, Any] = {
@@ -354,6 +412,7 @@ class SuiteGeneratorGateway:
                     else 0,
                     "valid_case_count": validation.get("case_count", 0),
                     "invalid_case_count": len(validation.get("errors", [])),
+                    "output_token_limit": output_tokens,
                 }
                 last_payload = normalized
                 last_validation = validation
@@ -390,6 +449,61 @@ class SuiteGeneratorGateway:
             except Exception as exc:
                 last_error = exc
                 message = str(exc).lower()
+
+                if _is_output_length_error(exc):
+                    exception_usage = _usage_from_exception(exc)
+                    attempt_input = exception_usage["input_tokens"]
+                    attempt_output = exception_usage["output_tokens"]
+                    total_input = _sum_optional(
+                        total_input,
+                        int(attempt_input) if attempt_input is not None else None,
+                    )
+                    total_output = _sum_optional(
+                        total_output,
+                        int(attempt_output) if attempt_output is not None else None,
+                    )
+                    exception_cost = exception_usage["cost_usd"]
+                    if exception_cost is None:
+                        calculated = calculate_llm_cost(
+                            input_tokens=int(attempt_input) if attempt_input is not None else None,
+                            output_tokens=int(attempt_output) if attempt_output is not None else None,
+                            pricing_snapshot=pricing_snapshot,
+                        )
+                        exception_cost = calculated["cost_usd"]
+                    total_cost = _sum_cost(
+                        total_cost,
+                        float(exception_cost) if exception_cost is not None else None,
+                    )
+                    if (
+                        maximum_cost_usd is not None
+                        and total_cost is not None
+                        and float(total_cost) >= float(maximum_cost_usd)
+                    ):
+                        last_error = ValidationError(
+                            "Suite generation exceeded the configured cost limit after an output-length retry"
+                        )
+                        break
+                    if length_retries < 1 and output_tokens < maximum_output_tokens:
+                        length_retries += 1
+                        output_tokens = min(
+                            maximum_output_tokens,
+                            max(output_tokens + 2_000, int(output_tokens * 1.5)),
+                        )
+                        request_payload["output_budget"] = {
+                            "max_tokens": output_tokens,
+                            "instruction": (
+                                "The previous completion reached the output limit. "
+                                "Use shorter names and one concise observable sentence per criterion. "
+                                "Return the complete JSON object."
+                            ),
+                        }
+                        repair_message = (
+                            "The previous completion reached its output token limit before closing the JSON. "
+                            "Regenerate the complete batch more concisely. Do not add commentary."
+                        )
+                        continue
+                    break
+
                 response_format_error = any(
                     token in message
                     for token in (
