@@ -30,6 +30,7 @@ export interface EvaluationRunProgress {
   status: EvaluationRun['status']
   phase: string
   mode: EvaluationRun['mode']
+  qualification_eligible?: boolean
   total_trials: number
   runtime_completed: number
   runtime_pending: number
