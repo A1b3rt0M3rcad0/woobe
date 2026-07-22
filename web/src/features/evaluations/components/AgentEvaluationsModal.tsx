@@ -12,6 +12,7 @@ import {
   useEvaluationRuns,
   useEvaluationSuites,
 } from '@/features/evaluations/hooks'
+import { useProviderModels } from '@/features/provider-models/hooks'
 import { cn } from '@/lib/utils'
 import { AgentEvaluationExperience } from './AgentEvaluationExperience'
 import { EvaluationResultsWorkspace } from './EvaluationResultsWorkspace'
@@ -58,6 +59,7 @@ export function AgentEvaluationsModal({
   const suitesQuery = useEvaluationSuites(projectId)
   const runsQuery = useEvaluationRuns(projectId)
   const releasesQuery = useReleases(agentId)
+  const modelsQuery = useProviderModels(projectId)
   const [screen, setScreen] = useState<Screen>(restored.screen || 'run')
   const [selectedResultRunId, setSelectedResultRunId] = useState<string | null>(
     restored.selectedResultRunId || null,
@@ -100,8 +102,18 @@ export function AgentEvaluationsModal({
     }
   }
 
-  const loading = suitesQuery.isLoading || runsQuery.isLoading || releasesQuery.isLoading
-  const failed = suitesQuery.isError || runsQuery.isError || releasesQuery.isError
+  const loading = (
+    suitesQuery.isLoading
+    || runsQuery.isLoading
+    || releasesQuery.isLoading
+    || modelsQuery.isLoading
+  )
+  const failed = (
+    suitesQuery.isError
+    || runsQuery.isError
+    || releasesQuery.isError
+    || modelsQuery.isError
+  )
 
   return (
     <Dialog
@@ -166,7 +178,7 @@ export function AgentEvaluationsModal({
               projectId={projectId}
               agentId={agentId}
               releases={releasesQuery.data ?? []}
-              providerModels={[]}
+              providerModels={modelsQuery.data ?? []}
               onCancel={() => persist('suites')}
               onCreated={(suite) => {
                 persist('run', selectedResultRunId, suite.current_version_id || null)
