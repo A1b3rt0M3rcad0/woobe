@@ -9,17 +9,22 @@ import { LoadingState } from '@/components/common/LoadingState'
 import { Dialog } from '@/components/ui/Dialog'
 import { useReleases } from '@/features/agents/hooks'
 import {
+  useEvaluationCatalog,
+  useEvaluationComparisons,
+} from '@/features/evaluations/catalogHooks'
+import {
   useEvaluationRuns,
   useEvaluationSuites,
 } from '@/features/evaluations/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import { cn } from '@/lib/utils'
 import { AgentEvaluationExperience } from './AgentEvaluationExperience'
-import { EvaluationResultsWorkspace } from './EvaluationResultsWorkspace'
+import { EvaluationCatalogWorkspace } from './EvaluationCatalogWorkspace'
+import { EvaluationComparisonsWorkspace } from './EvaluationComparisonsWorkspace'
 import { EvaluatorSuitesWorkspace } from './EvaluatorSuitesWorkspace'
 import { SuiteAuthoringWizard } from './SuiteAuthoringWizard'
 
-type Screen = 'run' | 'suites' | 'results' | 'create-suite'
+type Screen = 'run' | 'evaluations' | 'comparisons' | 'suites' | 'create-suite'
 
 interface AgentEvaluationsModalProps {
   open: boolean
@@ -31,12 +36,13 @@ interface AgentEvaluationsModalProps {
 
 interface PersistedWorkspace {
   screen?: Screen
-  selectedResultRunId?: string | null
+  selectedEvaluationId?: string | null
+  selectedComparisonId?: string | null
   selectedSuiteVersionId?: string | null
 }
 
 function workspaceKey(projectId: string, agentId: string) {
-  return `evaluation-workspace:${projectId}:${agentId}`
+  return `evaluation-workspace:v2:${projectId}:${agentId}`
 }
 
 function loadWorkspace(projectId: string, agentId: string): PersistedWorkspace {
@@ -58,11 +64,16 @@ export function AgentEvaluationsModal({
   const restored = loadWorkspace(projectId, agentId)
   const suitesQuery = useEvaluationSuites(projectId)
   const runsQuery = useEvaluationRuns(projectId)
+  const evaluationsQuery = useEvaluationCatalog(projectId, agentId)
+  const comparisonsQuery = useEvaluationComparisons(projectId, agentId)
   const releasesQuery = useReleases(agentId)
   const modelsQuery = useProviderModels(projectId)
   const [screen, setScreen] = useState<Screen>(restored.screen || 'run')
-  const [selectedResultRunId, setSelectedResultRunId] = useState<string | null>(
-    restored.selectedResultRunId || null,
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(
+    restored.selectedEvaluationId || null,
+  )
+  const [selectedComparisonId, setSelectedComparisonId] = useState<string | null>(
+    restored.selectedComparisonId || null,
   )
   const [selectedSuiteVersionId, setSelectedSuiteVersionId] = useState<string | null>(
     restored.selectedSuiteVersionId || null,
@@ -85,20 +96,23 @@ export function AgentEvaluationsModal({
 
   const persist = (
     nextScreen: Screen,
-    nextResultRunId = selectedResultRunId,
+    nextEvaluationId = selectedEvaluationId,
+    nextComparisonId = selectedComparisonId,
     nextSuiteVersionId = selectedSuiteVersionId,
   ) => {
     setScreen(nextScreen)
-    setSelectedResultRunId(nextResultRunId)
+    setSelectedEvaluationId(nextEvaluationId)
+    setSelectedComparisonId(nextComparisonId)
     setSelectedSuiteVersionId(nextSuiteVersionId)
     try {
       sessionStorage.setItem(workspaceKey(projectId, agentId), JSON.stringify({
         screen: nextScreen,
-        selectedResultRunId: nextResultRunId,
+        selectedEvaluationId: nextEvaluationId,
+        selectedComparisonId: nextComparisonId,
         selectedSuiteVersionId: nextSuiteVersionId,
       }))
     } catch {
-      // Storage is an enhancement; the workspace remains functional without it.
+      // Persistence is progressive enhancement only.
     }
   }
 
@@ -120,9 +134,9 @@ export function AgentEvaluationsModal({
       open={open}
       onClose={onClose}
       title="Evaluate Agent"
-      className="max-w-[1280px] overflow-hidden bg-surface/95"
+      className="max-w-[1360px] overflow-hidden bg-surface/95"
     >
-      <div className="-m-6 flex max-h-[88vh] min-h-[720px] flex-col overflow-hidden">
+      <div className="-m-6 flex max-h-[90vh] min-h-[740px] flex-col overflow-hidden">
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/80 px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
             {screen === 'create-suite' ? (
@@ -140,13 +154,18 @@ export function AgentEvaluationsModal({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">{agentName}</p>
               <p className="text-[11px] text-muted">
-                Run Evaluations, manage immutable Suites and inspect evidence.
+                Run exact snapshot Evaluations, compare reusable evidence and manage immutable Suites.
               </p>
             </div>
           </div>
           {screen !== 'create-suite' ? (
             <div className="flex rounded-lg border border-border bg-background/45 p-1">
-              {([['run', 'Run'], ['suites', 'Suites'], ['results', 'Results']] as const).map(([value, text]) => (
+              {([
+                ['run', 'Run'],
+                ['evaluations', 'Evaluations'],
+                ['comparisons', 'Comparisons'],
+                ['suites', 'Suites'],
+              ] as const).map(([value, text]) => (
                 <button
                   key={value}
                   type="button"
@@ -159,8 +178,11 @@ export function AgentEvaluationsModal({
                   )}
                 >
                   {text}
-                  {value === 'results' && runs.length ? (
-                    <span className="ml-1.5 opacity-70">{runs.length}</span>
+                  {value === 'evaluations' && evaluationsQuery.data?.length ? (
+                    <span className="ml-1.5 opacity-70">{evaluationsQuery.data.length}</span>
+                  ) : null}
+                  {value === 'comparisons' && comparisonsQuery.data?.length ? (
+                    <span className="ml-1.5 opacity-70">{comparisonsQuery.data.length}</span>
                   ) : null}
                 </button>
               ))}
@@ -181,7 +203,7 @@ export function AgentEvaluationsModal({
               providerModels={modelsQuery.data ?? []}
               onCancel={() => persist('suites')}
               onCreated={(suite) => {
-                persist('run', selectedResultRunId, suite.current_version_id || null)
+                persist('run', selectedEvaluationId, selectedComparisonId, suite.current_version_id || null)
               }}
             />
           ) : screen === 'run' ? (
@@ -192,28 +214,44 @@ export function AgentEvaluationsModal({
               releases={releasesQuery.data ?? []}
               runs={runs}
               initialSuiteVersionId={selectedSuiteVersionId}
-              onRunCreated={(runId) => {
-                persist('run', runId, selectedSuiteVersionId)
+              onRunCreated={() => persist('run')}
+              onComparisonCreated={(comparisonId) => {
+                persist('comparisons', selectedEvaluationId, comparisonId)
               }}
-              onOpenResult={(runId) => persist('results', runId)}
+              onOpenResult={() => persist('evaluations')}
               onCreateSuite={() => persist('create-suite')}
             />
-          ) : screen === 'suites' ? (
+          ) : screen === 'evaluations' ? (
+            <EvaluationCatalogWorkspace
+              projectId={projectId}
+              entityId={agentId}
+              selectedEvaluationId={selectedEvaluationId}
+              onSelectEvaluation={(evaluationId) => {
+                persist('evaluations', evaluationId)
+              }}
+              onRunAgain={(evaluation) => {
+                persist('run', evaluation.id, selectedComparisonId, evaluation.suite_version_id)
+              }}
+              onCompareRun={() => persist('comparisons')}
+            />
+          ) : screen === 'comparisons' ? (
+            <EvaluationComparisonsWorkspace
+              projectId={projectId}
+              entityId={agentId}
+              selectedComparisonId={selectedComparisonId}
+              onSelectComparison={(comparisonId) => {
+                persist('comparisons', selectedEvaluationId, comparisonId)
+              }}
+              onCreateComparison={() => persist('run')}
+            />
+          ) : (
             <EvaluatorSuitesWorkspace
               projectId={projectId}
               targetType="agent"
               onCreateSuite={() => persist('create-suite')}
               onUseSuite={(suite) => {
-                persist('run', selectedResultRunId, suite.current_version_id || null)
+                persist('run', selectedEvaluationId, selectedComparisonId, suite.current_version_id || null)
               }}
-            />
-          ) : (
-            <EvaluationResultsWorkspace
-              projectId={projectId}
-              runs={runs}
-              selectedRunId={selectedResultRunId}
-              onSelectRun={(runId) => persist('results', runId)}
-              onRunAnother={() => persist('run')}
             />
           )}
         </main>
