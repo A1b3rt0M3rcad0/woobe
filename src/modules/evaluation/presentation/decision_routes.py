@@ -33,6 +33,10 @@ async def decide_evaluation_target(
         raise ConflictError(
             "Legacy Model Experiments cannot receive an operational target decision"
         )
+    if run.get("status") not in {"completed", "partially_completed"}:
+        raise ConflictError(
+            "Only a completed Evaluation with persisted evidence can receive a decision"
+        )
     data = await service.create_decision(
         project_id=project_id,
         run_id=run_id,
