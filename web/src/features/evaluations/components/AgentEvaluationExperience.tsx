@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   AlertTriangle,
   Beaker,
   Check,
   ChevronDown,
+  FlaskConical,
   GitCompareArrows,
   Play,
   Settings2,
@@ -41,7 +42,7 @@ import { EvaluationResultsView } from './EvaluationResultsView'
 import { EvaluationRunProgressView } from './EvaluationRunProgressView'
 
 type SetupMode = 'quick' | 'compare' | 'advanced'
-type ComparisonType = 'models' | 'snapshots'
+type ComparisonType = 'model_experiment' | 'snapshots'
 
 interface Props {
   projectId: string
@@ -83,6 +84,16 @@ function sourceLabel(source: EvaluationSourceType) {
 
 function modelLabel(model: ProviderModel) {
   return `${model.name} · ${model.model}`
+}
+
+function releaseModelLabel(release: AgentRelease | undefined, models: ProviderModel[]) {
+  if (!release) return 'Model unavailable'
+  const configured = models.find((model) => model.id === release.provider_model_id)
+  if (configured) return modelLabel(configured)
+  if (release.provider || release.model) {
+    return [release.provider, release.model].filter(Boolean).join(' · ')
+  }
+  return 'Configured model'
 }
 
 function ModeButton({
@@ -145,15 +156,14 @@ export function AgentEvaluationExperience({
   const retryJudgments = useRetryEvaluationJudgments(projectId, runId)
 
   const [mode, setMode] = useState<SetupMode>('quick')
-  const [comparisonType, setComparisonType] = useState<ComparisonType>('models')
+  const [comparisonType, setComparisonType] = useState<ComparisonType>('model_experiment')
   const [suiteVersionId, setSuiteVersionId] = useState(initialSuiteVersionId || '')
   const [repetitions, setRepetitions] = useState(3)
   const [candidateSource, setCandidateSource] = useState<EvaluationSourceType>('draft')
   const [candidateVersionId, setCandidateVersionId] = useState('')
   const [baselineSource, setBaselineSource] = useState<EvaluationSourceType>('release')
   const [baselineVersionId, setBaselineVersionId] = useState('')
-  const [modelAId, setModelAId] = useState('')
-  const [modelBId, setModelBId] = useState('')
+  const [experimentalModelId, setExperimentalModelId] = useState('')
   const [acknowledge, setAcknowledge] = useState(false)
   const [approvedHighRiskIds, setApprovedHighRiskIds] = useState<string[]>([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -166,6 +176,15 @@ export function AgentEvaluationExperience({
     (item) => item.status === 'draft' || item.snapshot_kind === 'draft',
   )
   const production = releases.find((item) => item.status === 'production')
+  const candidateVersions = versionsFor(releases, candidateSource)
+  const baselineVersions = versionsFor(releases, baselineSource)
+  const referenceRelease = candidateSource === 'draft'
+    ? draft
+    : releases.find((item) => item.id === candidateVersionId)
+  const referenceProviderModelId = referenceRelease?.provider_model_id || ''
+  const experimentalModels = activeModels.filter(
+    (item) => item.id !== referenceProviderModelId,
+  )
   const selectedSuite = suites.find(
     (item) => item.current_version_id === suiteVersionId,
   )
@@ -197,20 +216,20 @@ export function AgentEvaluationExperience({
   }, [suites, suiteVersionId])
 
   useEffect(() => {
-    if (!modelAId) {
-      setModelAId(draft?.provider_model_id || activeModels[0]?.id || '')
-    }
-    if (!modelBId) {
-      const first = draft?.provider_model_id || activeModels[0]?.id
-      setModelBId(activeModels.find((item) => item.id !== first)?.id || '')
-    }
     if (!baselineVersionId && production?.id) {
       setBaselineVersionId(production.id)
     }
-  }, [activeModels, draft?.provider_model_id, production?.id])
+  }, [baselineVersionId, production?.id])
 
-  const candidateVersions = versionsFor(releases, candidateSource)
-  const baselineVersions = versionsFor(releases, baselineSource)
+  useEffect(() => {
+    if (
+      !experimentalModelId
+      || experimentalModelId === referenceProviderModelId
+      || !experimentalModels.some((model) => model.id === experimentalModelId)
+    ) {
+      setExperimentalModelId(experimentalModels[0]?.id || '')
+    }
+  }, [experimentalModelId, referenceProviderModelId, experimentalModels])
 
   const buildInput = (): EvaluationExperienceRunInput | null => {
     if (!suiteVersionId) return null
@@ -226,11 +245,9 @@ export function AgentEvaluationExperience({
     }
     let baseline: EvaluationTargetWithVariant | undefined
 
-    if (mode === 'compare' && comparisonType === 'models') {
-      if (!modelAId || !modelBId || modelAId === modelBId) return null
-      candidate.variant = {
-        type: 'model_override',
-        provider_model_id: modelAId,
+    if (mode === 'compare' && comparisonType === 'model_experiment') {
+      if (!experimentalModelId || experimentalModelId === referenceProviderModelId) {
+        return null
       }
       baseline = {
         target_type: 'agent',
@@ -241,7 +258,7 @@ export function AgentEvaluationExperience({
           : {}),
         variant: {
           type: 'model_override',
-          provider_model_id: modelBId,
+          provider_model_id: experimentalModelId,
         },
       }
     } else if (mode === 'compare' && comparisonType === 'snapshots') {
@@ -286,8 +303,7 @@ export function AgentEvaluationExperience({
     candidateVersionId,
     baselineSource,
     baselineVersionId,
-    modelAId,
-    modelBId,
+    experimentalModelId,
   ])
 
   useEffect(() => {
@@ -315,11 +331,15 @@ export function AgentEvaluationExperience({
     && highRiskApproved
     && (!needsAcknowledgement || acknowledge),
   )
-  const judgeMatchesComparedModel = Boolean(
-    mode === 'compare'
-    && comparisonType === 'models'
+  const isModelExperiment = (
+    mode === 'compare' && comparisonType === 'model_experiment'
+  )
+  const judgeMatchesExperiment = Boolean(
+    isModelExperiment
     && selectedSuite?.judge_provider_model_id
-    && [modelAId, modelBId].includes(selectedSuite.judge_provider_model_id),
+    && [referenceProviderModelId, experimentalModelId].includes(
+      selectedSuite.judge_provider_model_id,
+    )
   )
 
   const start = async () => {
@@ -334,7 +354,11 @@ export function AgentEvaluationExperience({
       onRunCreated?.(run.id)
       setIdempotencyKey(crypto.randomUUID())
       toast.success(
-        run.mode === 'comparison' ? 'Comparison queued' : 'Evaluation queued',
+        run.mode === 'model_experiment'
+          ? 'Model experiment queued'
+          : run.mode === 'comparison'
+            ? 'Comparison queued'
+            : 'Evaluation queued',
       )
     } catch (error) {
       toast.error(
@@ -401,8 +425,8 @@ export function AgentEvaluationExperience({
           Create an Evaluator Suite first
         </h3>
         <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-muted">
-          A Suite is the reusable, versioned set of Test Cases used by Quick
-          tests and comparisons.
+          A Suite is the reusable, versioned set of Test Cases used by Evaluations
+          and model experiments.
         </p>
         {onCreateSuite ? (
           <Button className="mt-5" onClick={onCreateSuite}>
@@ -424,21 +448,21 @@ export function AgentEvaluationExperience({
             active={mode === 'quick'}
             icon={<Sparkles className="h-4 w-4" />}
             title="Quick test"
-            description="Test the current Agent with recommended settings."
+            description="Evaluate the exact current Agent configuration."
             onClick={() => setMode('quick')}
           />
           <ModeButton
             active={mode === 'compare'}
             icon={<GitCompareArrows className="h-4 w-4" />}
-            title="Compare two"
-            description="Compare two models or two immutable snapshots."
+            title="Compare"
+            description="Compare real snapshots or run a clearly marked model experiment."
             onClick={() => setMode('compare')}
           />
           <ModeButton
             active={mode === 'advanced'}
             icon={<Settings2 className="h-4 w-4" />}
             title="Advanced"
-            description="Control exact snapshots, repetitions and Tool approvals."
+            description="Evaluate an exact Draft, Staging or Release snapshot."
             onClick={() => setMode('advanced')}
           />
         </div>
@@ -483,15 +507,15 @@ export function AgentEvaluationExperience({
           <div className="flex gap-1 rounded-lg border border-border bg-background/45 p-1">
             <button
               type="button"
-              onClick={() => setComparisonType('models')}
+              onClick={() => setComparisonType('model_experiment')}
               className={cn(
                 'flex-1 rounded-md px-3 py-2 text-xs font-medium',
-                comparisonType === 'models'
+                comparisonType === 'model_experiment'
                   ? 'bg-primary/15 text-primary-light'
                   : 'text-muted',
               )}
             >
-              Compare models
+              Model experiment
             </button>
             <button
               type="button"
@@ -503,50 +527,59 @@ export function AgentEvaluationExperience({
                   : 'text-muted',
               )}
             >
-              Compare snapshots
+              Snapshot comparison
             </button>
           </div>
 
-          {comparisonType === 'models' ? (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-xs text-muted">
-                <span>Model A</span>
-                <Select
-                  value={modelAId}
-                  onChange={(event) => setModelAId(event.target.value)}
-                  options={[
-                    { value: '', label: 'Select Model A' },
-                    ...activeModels.map((item) => ({
-                      value: item.id,
-                      label: modelLabel(item),
-                    })),
-                  ]}
-                />
-              </label>
-              <label className="space-y-2 text-xs text-muted">
-                <span>Model B</span>
-                <Select
-                  value={modelBId}
-                  onChange={(event) => setModelBId(event.target.value)}
-                  options={[
-                    { value: '', label: 'Select Model B' },
-                    ...activeModels.map((item) => ({
-                      value: item.id,
-                      label: modelLabel(item),
-                    })),
-                  ]}
-                />
-              </label>
-              <p className="md:col-span-2 text-[11px] leading-5 text-muted">
-                Both models receive the same frozen prompt, Tools, Knowledge,
-                output contract and runtime configuration. The Agent Draft is
-                not changed.
-              </p>
-              {judgeMatchesComparedModel ? (
-                <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3 text-xs text-amber-200">
+          {comparisonType === 'model_experiment' ? (
+            <div className="mt-4 space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-emerald-300" />
+                    <p className="text-xs font-semibold text-white">Current Agent</p>
+                  </div>
+                  <p className="mt-2 text-sm text-white">
+                    {releaseModelLabel(referenceRelease, activeModels)}
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted">
+                    Exact {sourceLabel(candidateSource)} snapshot · no override
+                  </p>
+                </div>
+                <label className="rounded-xl border border-primary/20 bg-primary/[0.04] p-4 text-xs text-muted">
+                  <span className="flex items-center gap-2 font-semibold text-white">
+                    <FlaskConical className="h-4 w-4 text-primary-light" />
+                    Experimental model
+                  </span>
+                  <Select
+                    className="mt-3"
+                    value={experimentalModelId}
+                    onChange={(event) => setExperimentalModelId(event.target.value)}
+                    options={[
+                      { value: '', label: 'Select an alternative model' },
+                      ...experimentalModels.map((item) => ({
+                        value: item.id,
+                        label: modelLabel(item),
+                      })),
+                    ]}
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-3 text-xs text-amber-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  This changes only the model on the experimental side. It does not
+                  represent the deployed Agent and cannot qualify Draft, Staging or
+                  any Release. The real Agent side always uses its configured model.
+                </span>
+              </div>
+
+              {judgeMatchesExperiment ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 text-xs text-amber-200">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  The selected Suite uses one of the compared models as Judge.
-                  This is allowed, but can introduce evaluation bias.
+                  The Suite Judge uses the reference or experimental model. This is
+                  allowed, but can introduce evaluation bias.
                 </div>
               ) : null}
             </div>
@@ -621,8 +654,7 @@ export function AgentEvaluationExperience({
         </section>
       ) : null}
 
-      {mode === 'advanced'
-      || (mode === 'compare' && comparisonType === 'models') ? (
+      {mode === 'advanced' || isModelExperiment ? (
         <section className="rounded-2xl border border-border/80 bg-background/35 p-5">
           <button
             type="button"
@@ -632,7 +664,7 @@ export function AgentEvaluationExperience({
             <div>
               <p className="text-sm font-semibold text-white">Advanced settings</p>
               <p className="mt-1 text-[11px] text-muted">
-                Exact base snapshot and execution details.
+                Select the exact real Agent snapshot used as the reference.
               </p>
             </div>
             <ChevronDown className={cn(
@@ -643,7 +675,7 @@ export function AgentEvaluationExperience({
           {advancedOpen || mode === 'advanced' ? (
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-xs text-muted">
-                <span>Base environment</span>
+                <span>Reference environment</span>
                 <Select
                   value={candidateSource}
                   onChange={(event) => {
@@ -658,7 +690,7 @@ export function AgentEvaluationExperience({
                 />
               </label>
               <label className="space-y-2 text-xs text-muted">
-                <span>Exact base snapshot</span>
+                <span>Exact reference snapshot</span>
                 <Select
                   disabled={candidateSource === 'draft'}
                   value={candidateVersionId}
@@ -690,9 +722,8 @@ export function AgentEvaluationExperience({
                 />
               </label>
               <div className="rounded-lg border border-border/70 bg-surface/20 p-3 text-[11px] text-muted">
-                Judge output budget is automatic and adapts to reasoning models.
-                Agent output limits remain unchanged because they are part of the
-                tested snapshot.
+                Agent output limits remain unchanged because they belong to the
+                reference snapshot. Only the experimental target changes model.
               </div>
             </div>
           ) : null}
@@ -714,7 +745,11 @@ export function AgentEvaluationExperience({
           {preview.isPending ? (
             <Badge variant="outline">Calculating…</Badge>
           ) : previewData ? (
-            <Badge variant="outline">Ready</Badge>
+            <Badge variant="outline">
+              {previewData.mode === 'model_experiment'
+                ? 'Experiment · no qualification'
+                : 'Ready'}
+            </Badge>
           ) : preview.isError ? (
             <Badge variant="outline">Preflight failed</Badge>
           ) : (
@@ -793,7 +828,7 @@ export function AgentEvaluationExperience({
                   className="mt-0.5"
                 />
                 <span>
-                  I understand that this Evaluation executes the real Tools shown
+                  I understand that this operation executes the real Tools shown
                   above and may produce external side effects.
                 </span>
               </label>
@@ -804,9 +839,11 @@ export function AgentEvaluationExperience({
 
       <div className="flex items-center justify-between border-t border-border pt-4">
         <p className="text-[11px] text-muted">
-          {mode === 'compare'
-            ? 'Paired execution keeps both configurations under comparable conditions.'
-            : `${sourceLabel(candidateSource)} will be frozen before execution.`}
+          {isModelExperiment
+            ? 'Current Agent remains exact; only the experimental side changes model.'
+            : mode === 'compare'
+              ? 'Both immutable snapshots remain qualification-eligible evidence.'
+              : `${sourceLabel(candidateSource)} will be frozen before execution.`}
         </p>
         <Button
           loading={createRun.isPending}
@@ -814,7 +851,11 @@ export function AgentEvaluationExperience({
           onClick={() => void start()}
         >
           <Play className="mr-2 h-4 w-4" />
-          {mode === 'compare' ? 'Run Comparison' : 'Run Evaluation'}
+          {isModelExperiment
+            ? 'Run Model Experiment'
+            : mode === 'compare'
+              ? 'Run Comparison'
+              : 'Run Evaluation'}
         </Button>
       </div>
     </div>
