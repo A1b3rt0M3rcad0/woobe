@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from modules.evaluation.infra.workers.authoring_worker import EvaluationAuthoringWorker
+from modules.evaluation.infra.workers.resumable_authoring_worker import (
+    ResumableEvaluationAuthoringWorker,
+)
 from modules.evaluation.infra.workers.variant_worker import (
     VariantAwareConcurrentEvaluationRunWorker,
 )
@@ -40,7 +42,7 @@ def register_evaluation_workers(
         )
     )
     registry.register(
-        EvaluationAuthoringWorker(
+        ResumableEvaluationAuthoringWorker(
             session_factory,
             settings=resolved_settings,
         )
