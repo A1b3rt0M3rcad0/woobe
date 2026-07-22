@@ -48,42 +48,55 @@ class VariantAwareConcurrentEvaluationRunProcessor(
     async def _persist_final_result(self, **kwargs) -> None:
         await super()._persist_final_result(**kwargs)
         judge = kwargs["judge"]
-        if judge.structured_result is not None:
-            return
         trial = kwargs["trial"]
-        technical_error = str(judge.error or "")
-        lowered = technical_error.lower()
-        if "judge_output_length_limit" in lowered:
-            code = "judge_output_length_limit"
-            detail = (
-                "The Judge exhausted its output budget before completing the "
-                "structured score. Agent evidence was preserved and the judgment "
-                "can be retried without re-running the Agent or Tools."
-            )
-        elif "json" in lowered or "parse" in lowered:
-            code = "judge_invalid_json"
-            detail = (
-                "The Judge returned an invalid structured score. Agent evidence was "
-                "preserved and the judgment can be retried."
-            )
-        else:
-            code = "judge_failed"
-            detail = (
-                "The Judge could not complete this score. Agent evidence was "
-                "preserved for a judgment-only retry."
-            )
         async with self._session_factory() as session, session.begin():
             row = await session.get(
                 EvaluationTrialModel,
                 trial.id,
                 with_for_update=True,
             )
-            if row is not None:
-                row.failure_code = code
-                row.failure_detail = detail
-                metrics = dict(row.metrics or {})
-                metrics["judge_failure_code"] = code
+            if row is None:
+                return
+            metrics = dict(row.metrics or {})
+            previous_judge_cost = float(
+                metrics.get("judge_retry_previous_cost_usd") or 0
+            )
+            current_judge_cost = float(metrics.get("judge_cost_usd") or 0)
+            if previous_judge_cost:
+                metrics["judge_cost_usd"] = (
+                    previous_judge_cost + current_judge_cost
+                )
+                metrics["judge_latest_attempt_cost_usd"] = current_judge_cost
                 row.metrics = metrics
+
+            if judge.structured_result is not None:
+                return
+            technical_error = str(judge.error or "")
+            lowered = technical_error.lower()
+            if "judge_output_length_limit" in lowered:
+                code = "judge_output_length_limit"
+                detail = (
+                    "The Judge exhausted its output budget before completing the "
+                    "structured score. Agent evidence was preserved and the judgment "
+                    "can be retried without re-running the Agent or Tools."
+                )
+            elif "json" in lowered or "parse" in lowered:
+                code = "judge_invalid_json"
+                detail = (
+                    "The Judge returned an invalid structured score. Agent evidence was "
+                    "preserved and the judgment can be retried."
+                )
+            else:
+                code = "judge_failed"
+                detail = (
+                    "The Judge could not complete this score. Agent evidence was "
+                    "preserved for a judgment-only retry."
+                )
+            row.failure_code = code
+            row.failure_detail = detail
+            metrics = dict(row.metrics or {})
+            metrics["judge_failure_code"] = code
+            row.metrics = metrics
 
 
 class VariantAwareConcurrentEvaluationRunWorker(
