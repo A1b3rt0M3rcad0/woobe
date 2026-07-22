@@ -3,6 +3,7 @@ import type {
   EvaluationTargetInput,
   EvaluatorSuiteDraft,
   SuiteContextPreview,
+  SuiteValidationIssue,
   SuiteValidationResult,
 } from './types'
 
@@ -14,6 +15,19 @@ export type EvaluationAuthoringStatus =
   | 'completed'
   | 'failed'
   | 'cancelled'
+
+export interface EvaluationAuthoringAttempt {
+  attempt?: number | null
+  worker_attempt?: number | null
+  returned_case_count?: number
+  valid_case_count?: number
+  invalid_case_count?: number
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cost_usd?: number | null
+  latency_ms?: number | null
+  completed_at?: string | null
+}
 
 export interface EvaluationAuthoringBatch {
   id: string
@@ -27,18 +41,41 @@ export interface EvaluationAuthoringBatch {
   cost_usd: number | null
   error?: string | null
   case_count: number
+  returned_case_count?: number
+  valid_case_count?: number
+  invalid_case_count?: number
+  failure_category?: string | null
+  retryable?: boolean
+  recommended_action?: string | null
+  validation_errors?: SuiteValidationIssue[]
+  normalization_warnings?: SuiteValidationIssue[]
+  attempts?: EvaluationAuthoringAttempt[]
+  started_at?: string | null
+  completed_at?: string | null
 }
 
 export interface EvaluationAuthoringCall {
   authoring_call_id: string
   authoring_source: 'ai_generated'
   status: EvaluationAuthoringStatus
+  phase?: string
   source_snapshot_hash: string
   source_context_hash: string
   requested_case_count: number
   completed_batch_count: number
+  processed_batch_count?: number
   total_batch_count: number
   progress_percent: number
+  processed_percent?: number
+  created_at?: string | null
+  elapsed_seconds?: number | null
+  target?: {
+    target_type: string
+    source_type: string
+    entity_id: string
+    version_id?: string | null
+    snapshot_hash: string
+  }
   generator: {
     provider_model_id: string
     provider: string
