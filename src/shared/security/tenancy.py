@@ -12,9 +12,13 @@ from shared.infra.errors import AuthorizationError, NotFoundError
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
     "agent_id": "agent.agents",
+    "network_id": "network.networks",
     "credential_id": "agent.provider_credentials",
     "provider_credential_id": "agent.provider_credentials",
     "fallback_credential_id": "agent.provider_credentials",
+    "provider_model_id": "agent.provider_models",
+    "generator_provider_model_id": "agent.provider_models",
+    "judge_provider_model_id": "agent.provider_models",
     "collection_id": "agent.document_collections",
     "document_id": "agent.documents",
     "tool_id": "agent.tools",
@@ -24,11 +28,14 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "job_id": "agent.ask_jobs",
     "ask_job_id": "agent.ask_jobs",
     "release_id": "agent.agent_releases",
+    "agent_release_id": "agent.agent_releases",
     "release_test_id": "agent.agent_release_tests",
     "contract_id": "agent.agent_contracts",
     "config_id": "agent.agent_model_configs",
     "prompt_id": "agent.agent_prompts",
     # The current prompt-version route names this identifier `version_id`.
+    # Evaluation targets are handled contextually below and are remapped to
+    # `target_version_id`, so they do not collide with Prompt versions.
     "version_id": "agent.agent_prompts",
     "knowledge_version_id": "agent.knowledge_versions",
     "trace_id": "observability.traces",
@@ -43,22 +50,58 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
         JOIN agent.agents AS agents ON agents.id = links.agent_id
         WHERE links.id = :resource_id
     """,
+    # Evaluation target versions can be either Agent Releases or Network Versions.
+    # The contextual parser below rewrites nested Evaluation `version_id` fields to
+    # this key before authorization.
+    "target_version_id": """
+        SELECT project_id
+        FROM agent.agent_releases
+        WHERE id = :resource_id
+        UNION ALL
+        SELECT project_id
+        FROM network.network_versions
+        WHERE id = :resource_id
+        LIMIT 1
+    """,
 }
 
 ORGANIZATION_KEYS = {"organization_id", "org_id"}
 
 
+def _evaluation_target_kind(value: Mapping[str, Any]) -> str | None:
+    if not {
+        "target_type",
+        "source_type",
+        "entity_id",
+    }.issubset(value.keys()):
+        return None
+    target_type = str(value.get("target_type") or "").strip().lower()
+    return target_type if target_type in {"agent", "network"} else None
+
+
 def _identifier_values(value: Any) -> list[tuple[str, Any]]:
     found: list[tuple[str, Any]] = []
     if isinstance(value, Mapping):
+        evaluation_target_kind = _evaluation_target_kind(value)
         for key, item in value.items():
+            resolved_key = key
+            if evaluation_target_kind is not None:
+                if key == "entity_id":
+                    resolved_key = (
+                        "agent_id"
+                        if evaluation_target_kind == "agent"
+                        else "network_id"
+                    )
+                elif key in {"version_id", "target_version_id"}:
+                    resolved_key = "target_version_id"
+
             if (
-                key in ORGANIZATION_KEYS
-                or key == "project_id"
-                or key in DIRECT_PROJECT_RESOURCES
-                or key in INDIRECT_PROJECT_RESOURCE_QUERIES
+                resolved_key in ORGANIZATION_KEYS
+                or resolved_key == "project_id"
+                or resolved_key in DIRECT_PROJECT_RESOURCES
+                or resolved_key in INDIRECT_PROJECT_RESOURCE_QUERIES
             ):
-                found.append((key, item))
+                found.append((resolved_key, item))
             elif isinstance(item, (Mapping, list, tuple)):
                 found.extend(_identifier_values(item))
     elif isinstance(value, (list, tuple)):
