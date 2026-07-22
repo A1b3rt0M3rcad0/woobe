@@ -20,6 +20,9 @@ from modules.evaluation.application.experience_service import (
 from modules.evaluation.application.hardened_service import (
     HardenedEvaluationApplicationService,
 )
+from modules.evaluation.application.resumable_authoring import (
+    ResumableEvaluationSuiteAuthoringService,
+)
 from modules.evaluation.application.runtime_gateway import (
     EvaluationNetworkRuntimeGateway,
 )
@@ -39,6 +42,9 @@ from modules.evaluation.infra.workers.outcome_worker import (
 from modules.evaluation.infra.workers.registry import (
     EvaluationWorkerRegistry,
     register_evaluation_workers,
+)
+from modules.evaluation.infra.workers.resumable_authoring_worker import (
+    ResumableEvaluationAuthoringWorker,
 )
 from modules.evaluation.infra.workers.run_worker import (
     ResumableEvaluationRunProcessor,
@@ -68,6 +74,7 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert EvaluationSuiteAuthoringService is not None
     assert DurableEvaluationSuiteAuthoringService is not None
     assert DiagnosticEvaluationSuiteAuthoringService is not None
+    assert ResumableEvaluationSuiteAuthoringService is not None
     assert EvaluationNetworkRuntimeGateway is not None
     assert AdaptiveEvaluatorModelGateway is not None
     assert ResumableEvaluationRunProcessor is not None
@@ -79,6 +86,7 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert VariantAwareConcurrentEvaluationRunProcessor is not None
     assert VariantAwareConcurrentEvaluationRunWorker is not None
     assert EvaluationAuthoringWorker is not None
+    assert ResumableEvaluationAuthoringWorker is not None
     assert EvaluationWorkerRegistry is not None
     assert register_evaluation_workers is not None
 
@@ -94,17 +102,22 @@ def test_evaluation_authoring_modules_import_cleanly() -> None:
         "modules.evaluation.application.metering",
         "modules.evaluation.application.operational_service",
         "modules.evaluation.application.outcome_scoring",
+        "modules.evaluation.application.resumable_authoring",
         "modules.evaluation.application.secure_authoring",
         "modules.evaluation.application.suite_authoring",
         "modules.evaluation.application.token_budget",
+        "modules.evaluation.application.tool_catalog",
+        "modules.evaluation.application.tool_reference_repair",
         "modules.evaluation.domain.authoring_contract",
         "modules.evaluation.domain.contracts",
         "modules.evaluation.infra.adaptive_judge",
         "modules.evaluation.infra.budgeted_judge",
+        "modules.evaluation.infra.database.authoring_models",
         "modules.evaluation.infra.generator",
         "modules.evaluation.infra.workers.authoring_worker",
         "modules.evaluation.infra.workers.concurrent_worker",
         "modules.evaluation.infra.workers.outcome_worker",
+        "modules.evaluation.infra.workers.resumable_authoring_worker",
         "modules.evaluation.infra.workers.variant_worker",
         "modules.evaluation.presentation.authoring_routes",
         "modules.evaluation.presentation.routes",
@@ -129,6 +142,8 @@ def test_evaluation_workers_implement_worker_contract() -> None:
         WorkerProtocol,
     )
     assert isinstance(
-        EvaluationAuthoringWorker.__new__(EvaluationAuthoringWorker),
+        ResumableEvaluationAuthoringWorker.__new__(
+            ResumableEvaluationAuthoringWorker
+        ),
         WorkerProtocol,
     )
