@@ -254,5 +254,28 @@ class GovernedEvaluationRunWorker(ConcurrentOutcomeAwareEvaluationRunWorker):
             settings=settings,
         )
 
+    async def _claim(self) -> UUID | None:
+        while True:
+            run_id = await super()._claim()
+            if run_id is None:
+                return None
+            async with self._session_factory() as session, session.begin():
+                run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
+                if run is None:
+                    continue
+                if run.mode != "model_experiment":
+                    return run_id
+                run.status = EvaluationRunStatus.FAILED.value
+                run.failure_code = "legacy_model_experiment_unsupported"
+                run.failure_detail = (
+                    "Model Experiment was removed. This historical Run cannot be "
+                    "resumed because executing it as a real snapshot Evaluation would "
+                    "produce incorrect evidence."
+                )
+                run.completed_at = _utc_now()
+                run.qualification_status = None
+                run.lease_owner = None
+                run.lease_expires_at = None
+
 
 __all__ = ["GovernedEvaluationRunProcessor", "GovernedEvaluationRunWorker"]
