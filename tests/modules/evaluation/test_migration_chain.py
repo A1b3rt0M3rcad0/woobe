@@ -10,6 +10,8 @@ def test_evaluation_migrations_are_linear() -> None:
     resume = import_module("migrations.versions.0059_evaluation_authoring_case_resume")
     decisions = import_module("migrations.versions.0060_evaluation_human_decisions")
     revisions = import_module("migrations.versions.0061_evaluation_evidence_revisions")
+    catalog = import_module("migrations.versions.0062_evaluation_catalog_and_comparisons")
+    decision_basis = import_module("migrations.versions.0063_evaluation_decision_basis")
 
     assert base.revision == "0054"
     assert base.down_revision == "0053"
@@ -27,3 +29,7 @@ def test_evaluation_migrations_are_linear() -> None:
     assert decisions.down_revision == "0059"
     assert revisions.revision == "0061"
     assert revisions.down_revision == "0060"
+    assert catalog.revision == "0062"
+    assert catalog.down_revision == "0061"
+    assert decision_basis.revision == "0063"
+    assert decision_basis.down_revision == "0062"
