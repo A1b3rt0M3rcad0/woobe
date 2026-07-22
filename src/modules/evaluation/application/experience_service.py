@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, select
 
-from modules.agent.infra.database.models import ProviderCredentialModel
-from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
-from modules.evaluation.application.completed_service import (
-    CompletedEvaluationApplicationService,
+from modules.evaluation.application.human_decision_service import (
+    HumanDecisionEvaluationApplicationService,
 )
-from modules.evaluation.domain.enums import EvaluationMode
 from modules.evaluation.infra.database.models import (
     EvaluationCheckResultModel,
     EvaluationRunModel,
@@ -20,9 +16,7 @@ from modules.evaluation.infra.database.models import (
     EvaluatorModelCallModel,
     ReleaseQualificationModel,
 )
-from modules.evaluation.infra.judge import canonical_hash
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
-
+from shared.infra.errors import ConflictError, NotFoundError
 
 _ACTIVE_RUN_STATUSES = {
     "queued",
@@ -35,144 +29,8 @@ _ACTIVE_RUN_STATUSES = {
 _TERMINAL_TRIAL_STATUSES = {"completed", "failed", "inconclusive", "cancelled"}
 
 
-class EvaluationExperienceService(CompletedEvaluationApplicationService):
-    """MVP facade for simple setup, explicit experiments and lightweight progress."""
-
-    @staticmethod
-    def _target_variant(target) -> dict[str, Any] | None:
-        snapshot = getattr(target, "snapshot", None) or {}
-        variant = snapshot.get("evaluation_variant")
-        return variant if isinstance(variant, dict) else None
-
-    def _run_mode(self, candidate_target, baseline_target) -> str:
-        candidate_variant = self._target_variant(candidate_target)
-        baseline_variant = self._target_variant(baseline_target) if baseline_target else None
-        if candidate_variant is None and baseline_variant is None:
-            return super()._run_mode(candidate_target, baseline_target)
-        if candidate_variant is not None:
-            raise ValidationError(
-                "The reference Agent target must use its exact configured model. "
-                "Model overrides are allowed only on the experimental target."
-            )
-        if baseline_target is None or baseline_variant is None:
-            raise ValidationError(
-                "A model experiment requires one exact Agent target and one experimental model target"
-            )
-        if baseline_variant.get("type") != "model_override":
-            raise ValidationError("Model experiment variant type is invalid")
-        if str(baseline_variant.get("base_snapshot_hash") or "") != str(
-            candidate_target.snapshot_hash
-        ):
-            raise ConflictError(
-                "The experimental model must derive from the exact same Agent snapshot as the reference target"
-            )
-        reference_model_id = str(
-            (getattr(candidate_target, "snapshot", None) or {}).get("provider_model_id")
-            or ""
-        )
-        experimental_model_id = str(
-            baseline_variant.get("provider_model_id") or ""
-        )
-        if reference_model_id and reference_model_id == experimental_model_id:
-            raise ConflictError(
-                "The experimental Provider Model must differ from the model configured on the reference Agent snapshot"
-            )
-        return EvaluationMode.MODEL_EXPERIMENT.value
-
-    async def _resolve_target_dict(
-        self,
-        session,
-        *,
-        project_id: UUID,
-        raw: dict[str, Any] | None,
-    ):
-        resolved = await super()._resolve_target_dict(
-            session,
-            project_id=project_id,
-            raw=raw,
-        )
-        variant = raw.get("variant") if isinstance(raw, dict) else None
-        if not isinstance(variant, dict):
-            return resolved
-        if str(variant.get("type") or "") != "model_override":
-            raise ValidationError("Evaluation target variant type is invalid")
-        if resolved.target_type != "agent":
-            raise ValidationError("Model experiments are supported only for Agents")
-        provider_model_id = variant.get("provider_model_id")
-        if not provider_model_id:
-            raise ValidationError("Model experiment requires provider_model_id")
-        try:
-            provider_model_uuid = UUID(str(provider_model_id))
-        except (TypeError, ValueError) as exc:
-            raise ValidationError("Model experiment provider_model_id is invalid") from exc
-        provider_model = await session.get(ProviderModelModel, provider_model_uuid)
-        if (
-            provider_model is None
-            or provider_model.project_id != project_id
-            or provider_model.status != "active"
-        ):
-            raise NotFoundError("Experimental Provider Model is unavailable for this Project")
-        credential = await session.get(
-            ProviderCredentialModel,
-            provider_model.provider_credential_id,
-        )
-        if (
-            credential is None
-            or credential.project_id != project_id
-            or credential.status != "active"
-        ):
-            raise NotFoundError("Experimental Provider Credential is unavailable for this Project")
-
-        snapshot = dict(resolved.snapshot or {})
-        temperature = variant.get("temperature", snapshot.get("temperature"))
-        if temperature is not None:
-            temperature = float(temperature)
-            if temperature < 0 or temperature > 2:
-                raise ValidationError("Model experiment temperature must be between 0 and 2")
-        max_output_tokens = variant.get(
-            "max_output_tokens",
-            snapshot.get("max_output_tokens"),
-        )
-        if max_output_tokens is not None:
-            max_output_tokens = int(max_output_tokens)
-            if max_output_tokens < 128 or max_output_tokens > 32768:
-                raise ValidationError(
-                    "Model experiment max_output_tokens must be between 128 and 32768"
-                )
-        base_hash = resolved.snapshot_hash
-        snapshot.update(
-            {
-                "provider": credential.provider,
-                "model": provider_model.model,
-                "provider_model_id": str(provider_model.id),
-                "provider_credential_id": str(provider_model.provider_credential_id),
-                "temperature": temperature,
-                "max_output_tokens": max_output_tokens,
-                "base_url": (
-                    (provider_model.meta or {}).get("base_url")
-                    or (credential.meta or {}).get("base_url")
-                    if credential.provider == "custom"
-                    else None
-                ),
-                "evaluation_variant": {
-                    "type": "model_override",
-                    "experiment_type": "model_experiment",
-                    "qualification_eligible": False,
-                    "base_snapshot_hash": base_hash,
-                    "provider_model_id": str(provider_model.id),
-                    "provider_model_name": provider_model.name,
-                    "model": provider_model.model,
-                    "temperature": temperature,
-                    "max_output_tokens": max_output_tokens,
-                },
-            }
-        )
-        return replace(
-            resolved,
-            snapshot=snapshot,
-            snapshot_hash=canonical_hash(snapshot),
-            display_version=f"Experimental · {provider_model.name}",
-        )
+class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
+    """MVP facade for exact snapshot Evaluations and lightweight progress."""
 
     async def get_run_progress(
         self,
@@ -222,10 +80,7 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
                 from datetime import datetime, timezone
 
                 end = datetime.now(timezone.utc)
-            elapsed_seconds = max(
-                0,
-                round((end - run.started_at).total_seconds()),
-            )
+            elapsed_seconds = max(0, round((end - run.started_at).total_seconds()))
         phase = {
             "queued": "preparing",
             "snapshotting": "preparing",
@@ -243,7 +98,11 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             "status": run.status,
             "phase": phase,
             "mode": run.mode,
-            "qualification_eligible": run.mode != EvaluationMode.MODEL_EXPERIMENT.value,
+            "qualification_eligible": False,
+            "decision_required": run.status in {
+                "completed",
+                "partially_completed",
+            },
             "total_trials": len(trials),
             "runtime_completed": runtime_completed,
             "runtime_pending": max(0, len(trials) - runtime_completed),
@@ -334,6 +193,7 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
                     EvaluatorModelCallModel.evaluation_trial_id.in_(eligible_ids)
                 )
             )
+            # Clean up only historical automatically-created qualifications.
             await session.execute(
                 delete(ReleaseQualificationModel).where(
                     ReleaseQualificationModel.evaluation_run_id == run.id
