@@ -1,23 +1,27 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
 
+from modules.evaluation.application.metering import record_evaluation_model_usage
 from modules.evaluation.infra.database.authoring_models import (
+    EvaluationAuthoringAttemptModel,
     EvaluationAuthoringCaseSlotModel,
 )
 from modules.evaluation.infra.database.models import (
     EvaluationAuthoringBatchModel,
     EvaluationAuthoringCallModel,
 )
+from modules.evaluation.infra.workers.authoring_worker import _signature
 from modules.evaluation.infra.workers.resumable_authoring_worker import (
     ResumableEvaluationAuthoringWorker,
 )
 
 
 class SlotReadyEvaluationAuthoringWorker(ResumableEvaluationAuthoringWorker):
-    """Do not call a provider until the case plan is committed."""
+    """Require a committed case plan and meter each provider attempt."""
 
     async def _claim(self) -> tuple[UUID, UUID] | None:
         claimed = await super()._claim()
@@ -55,6 +59,84 @@ class SlotReadyEvaluationAuthoringWorker(ResumableEvaluationAuthoringWorker):
                 call.lease_owner = None
                 call.lease_expires_at = None
         return None
+
+    async def _record_batch_usage(self, session, call, batch, result) -> None:
+        attempt = await session.scalar(
+            select(EvaluationAuthoringAttemptModel)
+            .where(EvaluationAuthoringAttemptModel.authoring_batch_id == batch.id)
+            .order_by(EvaluationAuthoringAttemptModel.created_at.desc())
+            .limit(1)
+        )
+        if attempt is None:
+            await super()._record_batch_usage(session, call, batch, result)
+            return
+        await record_evaluation_model_usage(
+            session,
+            source_id=attempt.id,
+            project_id=call.project_id,
+            usage_subtype="suite_authoring",
+            provider=attempt.provider,
+            model=attempt.model,
+            provider_model_id=attempt.provider_model_id,
+            input_tokens=attempt.input_tokens,
+            output_tokens=attempt.output_tokens,
+            cost_usd=(
+                float(attempt.cost_usd)
+                if attempt.cost_usd is not None
+                else None
+            ),
+            pricing_snapshot=attempt.pricing_snapshot,
+            data={
+                "authoring_call_id": str(call.id),
+                "authoring_batch_id": str(batch.id),
+                "authoring_attempt_id": str(attempt.id),
+                "batch_index": batch.batch_index,
+                "batch_status": batch.status,
+                "requested_slot_ids": attempt.requested_slot_ids,
+                "error_category": attempt.error_category,
+            },
+        )
+
+    async def _complete_locked(self, session, call, slots) -> None:
+        seen: dict[str, EvaluationAuthoringCaseSlotModel] = {}
+        duplicates: list[EvaluationAuthoringCaseSlotModel] = []
+        for slot in sorted(slots, key=lambda item: item.position):
+            case = slot.generated_case
+            if not isinstance(case, dict):
+                continue
+            signature = _signature(case)
+            if not signature:
+                continue
+            if signature in seen:
+                duplicates.append(slot)
+            else:
+                seen[signature] = slot
+        if duplicates:
+            for slot in duplicates:
+                slot.status = "needs_attention"
+                slot.failure_category = "duplicate_cases"
+                slot.recommended_action = "repair_duplicate_cases"
+                validation = dict(slot.validation_result or {})
+                slot.validation_result = {
+                    **validation,
+                    "valid": False,
+                    "errors": [
+                        *list(validation.get("errors") or []),
+                        {
+                            "path": f"cases[{slot.position - 1}]",
+                            "code": "duplicate_across_attempts",
+                            "message": (
+                                "This Use Case duplicates a question already preserved "
+                                "by the authoring call."
+                            ),
+                        },
+                    ],
+                }
+            call.status = "partially_ready"
+            call.error = f"{len(duplicates)} duplicated Use Case(s) require repair"
+            call.completed_at = datetime.now(timezone.utc)
+            return
+        await super()._complete_locked(session, call, slots)
 
 
 __all__ = ["SlotReadyEvaluationAuthoringWorker"]
