@@ -1,19 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Archive,
-  BarChart3,
   Beaker,
   Bot,
   ChevronRight,
   Database,
-  ExternalLink,
+  GitCompareArrows,
   Play,
   Plus,
   RefreshCw,
+  ScanSearch,
   Sparkles,
   Workflow,
 } from 'lucide-react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
@@ -30,15 +30,14 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { Select } from '@/components/ui/Select'
 import { useAgents, useReleases } from '@/features/agents/hooks'
+import { EvaluationResultsView } from '@/features/evaluations/components/EvaluationResultsView'
 import { EvaluatorSuiteAuthoringWizard } from '@/features/evaluations/components/EvaluatorSuiteAuthoringWizard'
 import {
   useArchiveEvaluationDataset,
   useArchiveEvaluationSuite,
   useCancelEvaluationRun,
-  useCreateEvaluationEstimate,
   useCreateEvaluationRun,
   useEvaluationDatasets,
   useEvaluationRun,
@@ -56,8 +55,10 @@ import type {
 } from '@/features/evaluations/types'
 import { useNetworks, useNetworkVersions } from '@/features/network/hooks'
 import { useProviderModels } from '@/features/provider-models/hooks'
+import { cn } from '@/lib/utils'
 
 type Tab = 'runs' | 'suites' | 'datasets'
+type RunMode = 'single' | 'comparison'
 
 interface TargetPrefill {
   targetType: EvaluationTargetType
@@ -88,7 +89,7 @@ function formatDate(value?: string | null) {
 }
 
 function formatCost(value?: number | null) {
-  if (value == null) return 'Unknown'
+  if (value == null) return '—'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -97,28 +98,29 @@ function formatCost(value?: number | null) {
 }
 
 function statusClass(value?: string | null) {
-  if (['qualified', 'completed', 'passed', 'current'].includes(value || '')) return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-  if (['not_qualified', 'failed'].includes(value || '')) return 'border-red-500/30 bg-red-500/10 text-red-300'
-  if (['qualified_with_warnings', 'partially_completed', 'stale'].includes(value || '')) return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+  if (['meets_policy', 'completed', 'passed', 'current'].includes(value || '')) return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+  if (['failed'].includes(value || '')) return 'border-red-500/30 bg-red-500/10 text-red-300'
+  if (['below_policy', 'partially_completed', 'stale'].includes(value || '')) return 'border-amber-500/30 bg-amber-500/10 text-amber-300'
   return 'border-border bg-background/40 text-muted'
 }
 
 function RunCard({ run, onOpen }: { run: EvaluationRun; onOpen: () => void }) {
-  const candidate = run.targets.find((target) => target.side === 'candidate' || target.side === 'single')
+  const target = run.targets.find((item) => item.side === 'candidate' || item.side === 'single') || run.targets[0]
   const active = !terminalStatuses.has(run.status)
+  const assessment = run.assessment_status || run.status
   return (
     <button type="button" onClick={onOpen} className="flex w-full items-center gap-4 rounded-xl border border-border/80 bg-surface/45 p-4 text-left hover:border-primary/30">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-light"><Beaker className="h-4 w-4" /></div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-white">{candidate?.display_name ?? 'Evaluation target'}</p>
-          <Badge variant="outline" className={statusClass(run.qualification_status ?? run.status)}>{titleCase(run.qualification_status ?? run.status)}</Badge>
+          <p className="truncate text-sm font-semibold text-white">{target?.display_name ?? 'Evaluation target'} · {target?.display_version}</p>
+          <Badge variant="outline" className={statusClass(assessment)}>{titleCase(assessment)}</Badge>
           {active ? <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary-light" /> : null}
         </div>
-        <p className="mt-1 text-xs text-muted">{candidate?.display_version} · {run.repetitions} Runs per case · {formatDate(run.created_at)}</p>
+        <p className="mt-1 text-xs text-muted">{titleCase(target?.environment)} · {run.mode === 'comparison' ? 'Snapshot comparison' : 'Single snapshot'} · {run.repetitions} Runs per case · {formatDate(run.created_at)}</p>
       </div>
       <div className="hidden grid-cols-2 gap-6 text-right sm:grid">
-        <div><p className="text-[9px] uppercase text-muted">Score</p><p className="mt-1 text-sm font-semibold text-white">{run.overall_score == null ? '—' : run.overall_score.toFixed(1)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Weighted score</p><p className="mt-1 text-sm font-semibold text-white">{run.overall_score == null ? '—' : run.overall_score.toFixed(1)}</p></div>
         <div><p className="text-[9px] uppercase text-muted">Cost</p><p className="mt-1 text-sm font-semibold text-white">{formatCost(run.measured_total_cost)}</p></div>
       </div>
       <ChevronRight className="h-4 w-4 text-muted" />
@@ -160,13 +162,7 @@ function AuthoringDialog({
   const versions = targetType === 'agent'
     ? (agentReleases.data ?? []).map((item) => ({ id: item.id, version: item.version, status: item.status, snapshot_kind: item.snapshot_kind }))
     : (networkVersions.data ?? []).map((item) => ({ id: item.id, version: item.version, status: item.kind, kind: item.kind }))
-
-  const targetPrefill: TargetPrefill = {
-    targetType,
-    entityId,
-    sourceType: prefill.sourceType,
-    versionId: prefill.versionId,
-  }
+  const targetPrefill: TargetPrefill = { targetType, entityId, sourceType: prefill.sourceType, versionId: prefill.versionId }
 
   return (
     <Dialog open={open} onClose={onClose} title={existingSuite ? `Version ${existingSuite.name}` : 'Create Evaluator Suite'} className="max-w-6xl overflow-hidden" scrollMode="content">
@@ -180,19 +176,7 @@ function AuthoringDialog({
           <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Cancel</Button></div>
         </div>
       ) : (
-        <EvaluatorSuiteAuthoringWizard
-          projectId={projectId}
-          targetType={targetType}
-          entityId={entityId}
-          targetName={selected?.name ?? targetType}
-          versions={versions}
-          providerModels={models.data ?? []}
-          existingSuite={existingSuite}
-          initialSourceType={prefill.sourceType}
-          initialVersionId={prefill.versionId}
-          onCancel={onClose}
-          onCreated={(suite) => onCreated(suite, targetPrefill)}
-        />
+        <EvaluatorSuiteAuthoringWizard projectId={projectId} targetType={targetType} entityId={entityId} targetName={selected?.name ?? targetType} versions={versions} providerModels={models.data ?? []} existingSuite={existingSuite} initialSourceType={prefill.sourceType} initialVersionId={prefill.versionId} onCancel={onClose} onCreated={(suite) => onCreated(suite, targetPrefill)} />
       )}
     </Dialog>
   )
@@ -216,19 +200,20 @@ function RunDialog({
   const networks = useNetworks(projectId)
   const preview = usePreviewEvaluationRun(projectId)
   const create = useCreateEvaluationRun(projectId)
+  const [mode, setMode] = useState<RunMode>('single')
   const [suiteVersionId, setSuiteVersionId] = useState('')
   const suite = (suites.data ?? []).find((item) => item.current_version_id === suiteVersionId)
   const targetType = suite?.target_type ?? prefill?.targetType ?? 'agent'
   const [entityId, setEntityId] = useState('')
   const [sourceType, setSourceType] = useState<EvaluationSourceType>('draft')
   const [versionId, setVersionId] = useState('')
-  const [baselineEnabled, setBaselineEnabled] = useState(false)
-  const [baselineSource, setBaselineSource] = useState<EvaluationSourceType>('release')
+  const [baselineSource, setBaselineSource] = useState<EvaluationSourceType>('draft')
   const [baselineVersionId, setBaselineVersionId] = useState('')
-  const [repetitions, setRepetitions] = useState(3)
+  const [repetitions, setRepetitions] = useState(1)
   const [acknowledge, setAcknowledge] = useState(false)
   const [approved, setApproved] = useState<string[]>([])
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  const lastPreviewKey = useRef('')
   const agentVersions = useReleases(targetType === 'agent' ? entityId : undefined)
   const networkVersions = useNetworkVersions(targetType === 'network' ? entityId : undefined, projectId)
   const entities = targetType === 'agent' ? agents.data ?? [] : networks.data ?? []
@@ -240,100 +225,91 @@ function RunDialog({
 
   useEffect(() => {
     if (!open) return
+    setMode('single')
     setSuiteVersionId(prefill?.suiteVersionId ?? '')
     setEntityId(prefill?.entityId ?? '')
     setSourceType(prefill?.sourceType ?? 'draft')
     setVersionId(prefill?.versionId ?? '')
-    setBaselineEnabled(false)
-    setBaselineSource('release')
+    setBaselineSource('draft')
     setBaselineVersionId('')
     setAcknowledge(false)
     setApproved([])
     setIdempotencyKey(crypto.randomUUID())
+    lastPreviewKey.current = ''
     preview.reset()
   }, [open, prefill?.suiteVersionId, prefill?.entityId, prefill?.sourceType, prefill?.versionId])
 
   useEffect(() => {
     if (!suite) return
-    setRepetitions(Number(suite.repetition_policy?.default_repetitions ?? 3))
+    setRepetitions(Number(suite.repetition_policy?.default_repetitions ?? 1))
   }, [suite?.id])
 
-  const build = (): CreateEvaluationRunInput => {
-    const candidate: EvaluationTargetInput = {
-      target_type: targetType,
-      source_type: sourceType,
-      entity_id: entityId,
-      ...(sourceType !== 'draft' && versionId ? { version_id: versionId } : {}),
-    }
-    const baseline: EvaluationTargetInput | undefined = baselineEnabled
-      ? {
-          target_type: targetType,
-          source_type: baselineSource,
-          entity_id: entityId,
-          ...(baselineSource !== 'draft' && baselineVersionId ? { version_id: baselineVersionId } : {}),
-        }
-      : undefined
-    return {
-      suite_version_id: suiteVersionId,
-      repetitions,
-      candidate,
-      baseline,
-      acknowledge_tool_side_effects: acknowledge,
-      approved_high_risk_tool_ids: approved,
-      idempotency_key: idempotencyKey,
-    }
+  const build = (): CreateEvaluationRunInput | null => {
+    if (!suiteVersionId || !entityId || (sourceType !== 'draft' && !versionId)) return null
+    if (mode === 'comparison' && baselineSource !== 'draft' && !baselineVersionId) return null
+    const candidate: EvaluationTargetInput = { target_type: targetType, source_type: sourceType, entity_id: entityId, ...(sourceType !== 'draft' ? { version_id: versionId } : {}) }
+    const baseline: EvaluationTargetInput | undefined = mode === 'comparison' ? { target_type: targetType, source_type: baselineSource, entity_id: entityId, ...(baselineSource !== 'draft' ? { version_id: baselineVersionId } : {}) } : undefined
+    return { suite_version_id: suiteVersionId, repetitions, candidate, baseline, acknowledge_tool_side_effects: acknowledge, approved_high_risk_tool_ids: approved, idempotency_key: idempotencyKey }
   }
 
+  const input = build()
+  const previewKey = input ? JSON.stringify({ ...input, idempotency_key: undefined }) : ''
+  useEffect(() => {
+    lastPreviewKey.current = ''
+    preview.reset()
+  }, [mode, suiteVersionId, entityId, sourceType, versionId, baselineSource, baselineVersionId, repetitions])
+  useEffect(() => {
+    if (!input || previewKey === lastPreviewKey.current) return
+    const timer = window.setTimeout(() => {
+      lastPreviewKey.current = previewKey
+      preview.mutate(input, { onError: () => undefined })
+    }, 450)
+    return () => window.clearTimeout(timer)
+  }, [previewKey])
+
   const highRiskTools = preview.data?.preflight.tools.filter((tool) => tool.risk_level === 'high') ?? []
-  const ready = Boolean(preview.data)
+  const ready = Boolean(input && preview.data)
     && highRiskTools.every((tool) => approved.includes(tool.id))
     && (!preview.data?.preflight.requires_acknowledgement || acknowledge)
 
   return (
-    <Dialog open={open} onClose={onClose} title="Configure Evaluation Run" className="max-w-4xl" scrollMode="content">
+    <Dialog open={open} onClose={onClose} title="Configure Evaluation Run" className="max-w-5xl" scrollMode="content">
       <div className="space-y-5">
+        <div className="grid gap-3 md:grid-cols-2">
+          <button type="button" onClick={() => setMode('single')} className={cn('rounded-xl border p-4 text-left', mode === 'single' ? 'border-primary/35 bg-primary/[0.07]' : 'border-border/80')}><div className="flex gap-3"><ScanSearch className="h-5 w-5 text-primary-light" /><div><p className="text-sm font-semibold text-white">Test one snapshot</p><p className="mt-1 text-xs text-muted">Run one exact Draft, Staging or Release target.</p></div></div></button>
+          <button type="button" onClick={() => setMode('comparison')} className={cn('rounded-xl border p-4 text-left', mode === 'comparison' ? 'border-primary/35 bg-primary/[0.07]' : 'border-border/80')}><div className="flex gap-3"><GitCompareArrows className="h-5 w-5 text-primary-light" /><div><p className="text-sm font-semibold text-white">Compare snapshots</p><p className="mt-1 text-xs text-muted">Pair two real persisted configurations.</p></div></div></button>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-xs text-muted"><span>Evaluator Suite</span><Select value={suiteVersionId} onChange={(event) => { setSuiteVersionId(event.target.value); preview.reset() }} options={[{ value: '', label: 'Select Suite' }, ...(suites.data ?? []).filter((item) => item.current_version_id).map((item) => ({ value: item.current_version_id as string, label: `${item.name} · ${item.current_version}` }))]} /></label>
-          <label className="space-y-2 text-xs text-muted"><span>Runs per case</span><Input type="number" min={1} max={25} value={repetitions} onChange={(event) => { setRepetitions(Math.max(1, Math.min(25, Number(event.target.value)))); preview.reset() }} /></label>
+          <label className="space-y-2 text-xs text-muted"><span>Evaluator Suite</span><Select value={suiteVersionId} onChange={(event) => setSuiteVersionId(event.target.value)} options={[{ value: '', label: 'Select Suite' }, ...(suites.data ?? []).filter((item) => item.current_version_id).map((item) => ({ value: item.current_version_id as string, label: `${item.name} · ${item.current_version}` }))]} /></label>
+          <label className="space-y-2 text-xs text-muted"><span>Runs per case</span><Input type="number" min={1} max={25} value={repetitions} onChange={(event) => setRepetitions(Math.max(1, Math.min(25, Number(event.target.value))))} /></label>
         </div>
         <section className="rounded-xl border border-border/80 bg-background/35 p-4">
+          <p className="mb-4 text-sm font-semibold text-white">{mode === 'comparison' ? 'Candidate snapshot' : 'Target snapshot'}</p>
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="space-y-2 text-xs text-muted"><span>{targetType === 'agent' ? 'Agent' : 'Network'}</span><Select value={entityId} onChange={(event) => { setEntityId(event.target.value); setVersionId(''); setBaselineVersionId(''); preview.reset() }} options={[{ value: '', label: `Select ${targetType}` }, ...entities.map((item) => ({ value: item.id, label: item.name }))]} /></label>
-            <label className="space-y-2 text-xs text-muted"><span>Candidate environment</span><Select value={sourceType} onChange={(event) => { setSourceType(event.target.value as EvaluationSourceType); setVersionId(''); preview.reset() }} options={[{ value: 'draft', label: 'Current Draft' }, { value: 'staging', label: 'Staging' }, { value: 'release', label: 'Release / Production' }]} /></label>
-            <label className="space-y-2 text-xs text-muted"><span>Candidate snapshot</span><Select disabled={sourceType === 'draft'} value={versionId} onChange={(event) => { setVersionId(event.target.value); preview.reset() }} options={[{ value: '', label: sourceType === 'draft' ? 'Current Draft' : 'Select version' }, ...candidates.map((item) => ({ value: item.id, label: item.version }))]} /></label>
+            <label className="space-y-2 text-xs text-muted"><span>{targetType === 'agent' ? 'Agent' : 'Network'}</span><Select value={entityId} onChange={(event) => { setEntityId(event.target.value); setVersionId(''); setBaselineVersionId('') }} options={[{ value: '', label: `Select ${targetType}` }, ...entities.map((item) => ({ value: item.id, label: item.name }))]} /></label>
+            <label className="space-y-2 text-xs text-muted"><span>Environment</span><Select value={sourceType} onChange={(event) => { setSourceType(event.target.value as EvaluationSourceType); setVersionId('') }} options={[{ value: 'draft', label: 'Current Draft' }, { value: 'staging', label: 'Staging' }, { value: 'release', label: 'Release / Production' }]} /></label>
+            <label className="space-y-2 text-xs text-muted"><span>Exact snapshot</span><Select disabled={sourceType === 'draft'} value={versionId} onChange={(event) => setVersionId(event.target.value)} options={[{ value: '', label: sourceType === 'draft' ? 'Current Draft will be frozen' : 'Select version' }, ...candidates.map((item) => ({ value: item.id, label: `${item.version} · ${item.status}` }))]} /></label>
           </div>
         </section>
-        <section className="rounded-xl border border-border/80 bg-background/35 p-4">
-          <div className="flex items-center justify-between gap-4"><div><p className="text-sm font-semibold text-white">Candidate vs Baseline</p><p className="mt-1 text-xs text-muted">Candidate and Baseline remain serial inside each pair.</p></div><Button size="sm" variant="outline" onClick={() => { setBaselineEnabled((value) => !value); preview.reset() }}>{baselineEnabled ? 'Enabled' : 'Disabled'}</Button></div>
-          {baselineEnabled ? <div className="mt-4 grid gap-4 md:grid-cols-2"><label className="space-y-2 text-xs text-muted"><span>Baseline environment</span><Select value={baselineSource} onChange={(event) => { setBaselineSource(event.target.value as EvaluationSourceType); setBaselineVersionId(''); preview.reset() }} options={[{ value: 'release', label: 'Release / Production' }, { value: 'staging', label: 'Staging' }, { value: 'draft', label: 'Current Draft' }]} /></label><label className="space-y-2 text-xs text-muted"><span>Baseline snapshot</span><Select disabled={baselineSource === 'draft'} value={baselineVersionId} onChange={(event) => { setBaselineVersionId(event.target.value); preview.reset() }} options={[{ value: '', label: baselineSource === 'draft' ? 'Current Draft' : 'Select version' }, ...baselines.map((item) => ({ value: item.id, label: item.version }))]} /></label></div> : null}
-        </section>
-        {preview.data ? <section className="rounded-xl border border-primary/25 bg-primary/[0.05] p-4"><div className="grid gap-3 sm:grid-cols-3"><div><p className="text-[9px] uppercase text-muted">Cases</p><p className="mt-1 text-lg text-white">{preview.data.case_count}</p></div><div><p className="text-[9px] uppercase text-muted">Target Runs</p><p className="mt-1 text-lg text-white">{preview.data.target_run_count}</p></div><div><p className="text-[9px] uppercase text-muted">Judge calls</p><p className="mt-1 text-lg text-white">{preview.data.judge_call_count}</p></div></div>{highRiskTools.map((tool) => <label key={tool.id} className="mt-3 flex items-center justify-between rounded-lg border border-red-500/20 p-3 text-xs text-red-300"><span>{tool.name} · high risk</span><input type="checkbox" checked={approved.includes(tool.id)} onChange={(event) => setApproved((current) => event.target.checked ? [...new Set([...current, tool.id])] : current.filter((id) => id !== tool.id))} /></label>)}{preview.data.preflight.requires_acknowledgement ? <label className="mt-3 flex items-start gap-2 text-xs text-amber-300"><input type="checkbox" checked={acknowledge} onChange={(event) => setAcknowledge(event.target.checked)} /><span>I understand that real Tools may cause external side effects. Calls already accepted by external systems cannot be reversed.</span></label> : null}</section> : null}
-        <div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="outline" loading={preview.isPending} disabled={!suiteVersionId || !entityId || (sourceType !== 'draft' && !versionId) || (baselineEnabled && baselineSource !== 'draft' && !baselineVersionId)} onClick={() => void preview.mutateAsync(build())}>Preview</Button><Button loading={create.isPending} disabled={!ready} onClick={async () => { try { const run = await create.mutateAsync(build()); setIdempotencyKey(crypto.randomUUID()); onCreated(run.id); onClose() } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to start Evaluation') } }}><Play className="mr-2 h-4 w-4" />Start Evaluation</Button></div>
+        {mode === 'comparison' ? <section className="rounded-xl border border-border/80 bg-background/35 p-4"><p className="mb-4 text-sm font-semibold text-white">Baseline snapshot</p><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2 text-xs text-muted"><span>Environment</span><Select value={baselineSource} onChange={(event) => { setBaselineSource(event.target.value as EvaluationSourceType); setBaselineVersionId('') }} options={[{ value: 'draft', label: 'Current Draft' }, { value: 'staging', label: 'Staging' }, { value: 'release', label: 'Release / Production' }]} /></label><label className="space-y-2 text-xs text-muted"><span>Exact snapshot</span><Select disabled={baselineSource === 'draft'} value={baselineVersionId} onChange={(event) => setBaselineVersionId(event.target.value)} options={[{ value: '', label: baselineSource === 'draft' ? 'Current Draft will be frozen' : 'Select version' }, ...baselines.map((item) => ({ value: item.id, label: `${item.version} · ${item.status}` }))]} /></label></div></section> : null}
+        {preview.isError ? <div className="rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300">{preview.error instanceof Error ? preview.error.message : 'Unable to validate this Evaluation setup.'}</div> : null}
+        {preview.data ? <section className="rounded-xl border border-primary/25 bg-primary/[0.05] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">Authoritative preview</p><p className="mt-1 text-xs text-muted">{preview.data.mode === 'comparison' ? 'Two real snapshots will be tested.' : 'Only the selected snapshot will be tested.'}</p></div><Badge variant="outline">Ready</Badge></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><div><p className="text-[9px] uppercase text-muted">Cases</p><p className="mt-1 text-lg text-white">{preview.data.case_count}</p></div><div><p className="text-[9px] uppercase text-muted">Target Runs</p><p className="mt-1 text-lg text-white">{preview.data.target_run_count}</p></div><div><p className="text-[9px] uppercase text-muted">Judge calls</p><p className="mt-1 text-lg text-white">{preview.data.judge_call_count}</p></div></div>{highRiskTools.map((tool) => <label key={tool.id} className="mt-3 flex items-center justify-between rounded-lg border border-red-500/20 p-3 text-xs text-red-300"><span>{tool.name} · high risk</span><input type="checkbox" checked={approved.includes(tool.id)} onChange={(event) => setApproved((current) => event.target.checked ? [...new Set([...current, tool.id])] : current.filter((id) => id !== tool.id))} /></label>)}{preview.data.preflight.requires_acknowledgement ? <label className="mt-3 flex items-start gap-2 text-xs text-amber-300"><input type="checkbox" checked={acknowledge} onChange={(event) => setAcknowledge(event.target.checked)} /><span>I understand that real Tools may cause external side effects.</span></label> : null}</section> : preview.isPending ? <div className="rounded-xl border border-border/80 p-4 text-xs text-muted">Calculating workload and resolving exact snapshots…</div> : null}
+        <div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={create.isPending} disabled={!ready} onClick={async () => { const payload = build(); if (!payload) return; try { const run = await create.mutateAsync(payload); setIdempotencyKey(crypto.randomUUID()); onCreated(run.id); onClose() } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to start Evaluation') } }}><Play className="mr-2 h-4 w-4" />{mode === 'comparison' ? 'Run Snapshot Comparison' : 'Run Evaluation'}</Button></div>
       </div>
     </Dialog>
   )
 }
 
-function RunDetailsDialog({ projectId, organizationId, runId, onClose }: { projectId: string; organizationId: string; runId: string | null; onClose: () => void }) {
-  const navigate = useNavigate()
+function RunDetailsDialog({ projectId, runId, onClose }: { projectId: string; runId: string | null; onClose: () => void }) {
   const query = useEvaluationRun(projectId, runId)
   const cancel = useCancelEvaluationRun(projectId)
-  const estimate = useCreateEvaluationEstimate(projectId, runId)
-  const [volume, setVolume] = useState(100000)
   const run = query.data
   return (
-    <Dialog open={Boolean(runId)} onClose={onClose} title="Evaluation Run" className="max-w-6xl" scrollMode="content">
+    <Dialog open={Boolean(runId)} onClose={onClose} title="Evaluation Run" className="max-w-7xl" scrollMode="content">
       {query.isLoading ? <LoadingState message="Loading Evaluation" /> : query.isError || !run ? <ErrorState message="Unable to load Evaluation" /> : (
-        <div className="space-y-5">
-          <section className="rounded-xl border border-border/80 bg-background/35 p-5">
-            <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><Badge variant="outline" className={statusClass(run.qualification_status ?? run.status)}>{titleCase(run.qualification_status ?? run.status)}</Badge><span className="font-mono text-[10px] text-muted">{run.id}</span></div><p className="mt-3 text-sm font-semibold text-white">{run.targets.map((item) => item.display_version).join(' vs ')}</p><p className="mt-1 text-xs text-muted">{run.repetitions} Runs per case · {run.mode}</p></div>{!terminalStatuses.has(run.status) ? <Button variant="outline" loading={cancel.isPending} onClick={() => cancel.mutate(run.id)}>Cancel Run</Button> : null}</div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-4"><div><p className="text-[9px] uppercase text-muted">Score</p><p className="mt-1 text-xl text-white">{run.overall_score == null ? '—' : run.overall_score.toFixed(1)}</p></div><div><p className="text-[9px] uppercase text-muted">Pass rate</p><p className="mt-1 text-xl text-white">{run.pass_rate == null ? '—' : `${run.pass_rate.toFixed(1)}%`}</p></div><div><p className="text-[9px] uppercase text-muted">Cost</p><p className="mt-1 text-xl text-white">{formatCost(run.measured_total_cost)}</p></div><div><p className="text-[9px] uppercase text-muted">Parallel pairs</p><p className="mt-1 text-xl text-white">{run.execution_policy?.effective_parallel_pairs ?? '—'}</p></div></div>
-          </section>
-          <section>
-            <ResourceSectionHeader title="Trial evidence" count={run.trials?.length ?? 0} />
-            <div className="space-y-2">{run.trials?.map((trial) => <details key={trial.id} className="rounded-xl border border-border/80 bg-background/35 p-4"><summary className="cursor-pointer text-sm text-white"><span className="font-medium">{trial.case?.name ?? trial.pair_key}</span><Badge variant="outline" className="ml-2">{titleCase(trial.status)}</Badge></summary><div className="mt-4 grid gap-4 lg:grid-cols-2"><JsonCodeBlock title="Target output" value={trial.output} maxHeight={300} /><JsonCodeBlock title="Metrics and execution reference" value={{ metrics: trial.metrics, execution_reference: trial.execution_reference }} maxHeight={300} /></div>{trial.execution_reference?.trace_id ? <div className="mt-3 flex justify-end"><Button size="sm" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}/traces?trace_id=${trial.execution_reference?.trace_id}`)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Open Trace</Button></div> : null}</details>)}</div>
-          </section>
-          <section className="rounded-xl border border-border/80 bg-background/35 p-4"><div className="flex items-end gap-3"><label className="flex-1 space-y-2 text-xs text-muted"><span>Create another operational estimate without rerunning Trials</span><Input type="number" min={1} value={volume} onChange={(event) => setVolume(Math.max(1, Number(event.target.value)))} /></label><Button loading={estimate.isPending} onClick={() => estimate.mutate({ volume })}><BarChart3 className="mr-2 h-4 w-4" />Estimate</Button></div></section>
+        <div className="space-y-4">
+          {!terminalStatuses.has(run.status) ? <div className="flex justify-end"><Button variant="outline" loading={cancel.isPending} onClick={() => cancel.mutate(run.id)}>Cancel Run</Button></div> : null}
+          <EvaluationResultsView run={run} />
         </div>
       )}
     </Dialog>
@@ -400,12 +376,7 @@ export default function EvaluationsPage() {
       return
     }
     setEditingSuite(suite)
-    setAuthoringPrefill({
-      targetType: suite.target_type,
-      entityId,
-      sourceType: suite.staleness?.source_type || reference?.source_type || 'draft',
-      versionId: '',
-    })
+    setAuthoringPrefill({ targetType: suite.target_type, entityId, sourceType: suite.staleness?.source_type || reference?.source_type || 'draft', versionId: '' })
     setAuthoringOpen(true)
   }
 
@@ -419,29 +390,13 @@ export default function EvaluationsPage() {
     <ResourcePage title="Evaluations" description="Author, run, compare and audit quality contracts for exact Agent and Network snapshots." action={action} className="max-w-[1600px]">
       <ResourceToolbar><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><ResourceTabs value={tab} onChange={setTab} label="Evaluation workspace" tabs={[{ value: 'runs', label: 'Runs', count: runs.data?.length }, { value: 'suites', label: 'Suites', count: suites.data?.length }, { value: 'datasets', label: 'Datasets', count: datasets.data?.length }]} /><ResourceSearch value={search} onChange={setSearch} placeholder={`Search ${tab}`} label={`Search ${tab}`} /></div></ResourceToolbar>
 
-      {tab === 'runs' ? <section><ResourceSectionHeader title="Evaluation Runs" description="Absolute qualifications and paired comparisons with resumable Trial evidence." count={filteredRuns.length} />{filteredRuns.length ? <div className="space-y-3">{filteredRuns.map((run) => <RunCard key={run.id} run={run} onOpen={() => setRunId(run.id)} />)}{runs.hasNextPage ? <div className="flex justify-center pt-2"><Button variant="outline" loading={runs.isFetchingNextPage} onClick={() => void runs.fetchNextPage()}>Load more Runs</Button></div> : null}</div> : <ResourceEmptyState icon={<Beaker className="h-5 w-5" />} title="No Evaluation Runs" description="Create a Suite, preview the workload and run it against an exact snapshot." />}</section> : null}
-
+      {tab === 'runs' ? <section><ResourceSectionHeader title="Evaluation Runs" description="Single-snapshot assessments and paired snapshot comparisons with explicit human decisions." count={filteredRuns.length} />{filteredRuns.length ? <div className="space-y-3">{filteredRuns.map((run) => <RunCard key={run.id} run={run} onOpen={() => setRunId(run.id)} />)}{runs.hasNextPage ? <div className="flex justify-center pt-2"><Button variant="outline" loading={runs.isFetchingNextPage} onClick={() => void runs.fetchNextPage()}>Load more Runs</Button></div> : null}</div> : <ResourceEmptyState icon={<Beaker className="h-5 w-5" />} title="No Evaluation Runs" description="Create a Suite and run it against one exact snapshot or an explicit snapshot comparison." />}</section> : null}
       {tab === 'suites' ? <section><ResourceSectionHeader title="Evaluator Suites" description="Immutable Test Cases, Judge policy, provenance and snapshot staleness." count={filteredSuites.length} />{filteredSuites.length ? <div className="grid gap-3 lg:grid-cols-2">{filteredSuites.map((suite) => <article key={suite.id} className="rounded-xl border border-border/80 bg-surface/45 p-4"><div className="flex items-start justify-between gap-4"><div className="flex min-w-0 gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-light">{suite.target_type === 'agent' ? <Bot className="h-4 w-4" /> : <Workflow className="h-4 w-4" />}</div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">{suite.name}</h3><Badge variant="outline">{suite.current_version}</Badge>{suite.staleness?.status ? <Badge variant="outline" className={statusClass(suite.staleness.status)}>{titleCase(suite.staleness.status)}</Badge> : null}</div><p className="mt-2 text-xs leading-5 text-muted">{suite.description || 'No description'}</p></div></div><Button size="sm" variant="ghost" loading={archiveSuite.isPending} onClick={() => archiveSuite.mutate(suite.id)}><Archive className="h-4 w-4" /></Button></div><div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3 text-xs"><div><p className="text-[9px] uppercase text-muted">Cases</p><p className="mt-1 text-white">{suite.case_count ?? '—'}</p></div><div><p className="text-[9px] uppercase text-muted">Source</p><p className="mt-1 text-white">{titleCase(suite.authoring_source)}</p></div><div><p className="text-[9px] uppercase text-muted">Target</p><p className="mt-1 text-white">{titleCase(suite.target_type)}</p></div></div>{suite.staleness?.status === 'stale' ? <div className="mt-4 flex justify-end"><Button size="sm" variant="outline" onClick={() => regenerateSuite(suite)}><RefreshCw className="mr-2 h-3.5 w-3.5" />Regenerate as new version</Button></div> : null}</article>)}{suites.hasNextPage ? <div className="flex items-center justify-center lg:col-span-2"><Button variant="outline" loading={suites.isFetchingNextPage} onClick={() => void suites.fetchNextPage()}>Load more Suites</Button></div> : null}</div> : <ResourceEmptyState icon={<Sparkles className="h-5 w-5" />} title="No Evaluator Suites" description="Generate with AI, import JSON or create a target-bound Suite manually." action={<Button onClick={openNewSuite}>Create Evaluator Suite</Button>} />}</section> : null}
-
       {tab === 'datasets' ? <section><ResourceSectionHeader title="Evaluation Datasets" description="Advanced view of immutable question-set versions managed by Evaluator Suites." count={filteredDatasets.length} />{filteredDatasets.length ? <div className="grid gap-3 lg:grid-cols-2">{filteredDatasets.map((dataset) => <article key={dataset.id} className="rounded-xl border border-border/80 bg-surface/45 p-4"><div className="flex items-start justify-between"><div className="flex gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background"><Database className="h-4 w-4 text-primary-light" /></div><div><h3 className="text-sm font-semibold text-white">{dataset.name}</h3><p className="mt-1 text-xs text-muted">{dataset.case_count} Test Cases · {dataset.current_version}</p></div></div><Button size="sm" variant="ghost" loading={archiveDataset.isPending} onClick={() => archiveDataset.mutate(dataset.id)}><Archive className="h-4 w-4" /></Button></div></article>)}{datasets.hasNextPage ? <div className="flex items-center justify-center lg:col-span-2"><Button variant="outline" loading={datasets.isFetchingNextPage} onClick={() => void datasets.fetchNextPage()}>Load more Datasets</Button></div> : null}</div> : <ResourceEmptyState icon={<Database className="h-5 w-5" />} title="No Datasets" description="Datasets are created transactionally with Evaluator Suites." />}</section> : null}
 
-      <AuthoringDialog
-        projectId={projectId}
-        open={authoringOpen}
-        onClose={() => { setAuthoringOpen(false); setEditingSuite(null) }}
-        prefill={authoringPrefill}
-        existingSuite={editingSuite}
-        onCreated={(suite, target) => {
-          setAuthoringOpen(false)
-          setEditingSuite(null)
-          if (suite.current_version_id) {
-            setRunPrefill({ ...target, suiteVersionId: suite.current_version_id })
-            setRunOpen(true)
-          }
-        }}
-      />
+      <AuthoringDialog projectId={projectId} open={authoringOpen} onClose={() => { setAuthoringOpen(false); setEditingSuite(null) }} prefill={authoringPrefill} existingSuite={editingSuite} onCreated={(suite, target) => { setAuthoringOpen(false); setEditingSuite(null); if (suite.current_version_id) { setRunPrefill({ ...target, suiteVersionId: suite.current_version_id }); setRunOpen(true) } }} />
       <RunDialog projectId={projectId} open={runOpen} onClose={() => setRunOpen(false)} prefill={runPrefill} onCreated={(id) => setRunId(id)} />
-      <RunDetailsDialog projectId={projectId} organizationId={organizationId} runId={runId} onClose={() => setRunId(null)} />
+      <RunDetailsDialog projectId={projectId} runId={runId} onClose={() => setRunId(null)} />
     </ResourcePage>
   )
 }
