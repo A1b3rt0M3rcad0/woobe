@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from modules.evaluation.infra.workers.governed_worker import (
+    GovernedEvaluationRunWorker,
+)
 from modules.evaluation.infra.workers.slot_ready_authoring_worker import (
     SlotReadyEvaluationAuthoringWorker,
-)
-from modules.evaluation.infra.workers.variant_worker import (
-    VariantAwareConcurrentEvaluationRunWorker,
 )
 from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
@@ -36,7 +36,7 @@ def register_evaluation_workers(
     resolved_settings = settings or Settings()
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     registry.register(
-        VariantAwareConcurrentEvaluationRunWorker(
+        GovernedEvaluationRunWorker(
             session_factory,
             settings=resolved_settings,
         )
