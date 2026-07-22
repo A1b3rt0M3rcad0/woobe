@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.durable_authoring import (
-    DurableEvaluationSuiteAuthoringService,
+from modules.evaluation.application.diagnostic_authoring import (
+    DiagnosticEvaluationSuiteAuthoringService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -85,8 +85,8 @@ class CreateComposedSuiteRequest(BaseModel):
     authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _service(request: Request) -> DurableEvaluationSuiteAuthoringService:
-    return DurableEvaluationSuiteAuthoringService(request.app.state.session_factory)
+def _service(request: Request) -> DiagnosticEvaluationSuiteAuthoringService:
+    return DiagnosticEvaluationSuiteAuthoringService(request.app.state.session_factory)
 
 
 @router.post("/suite-authoring/context-preview")
