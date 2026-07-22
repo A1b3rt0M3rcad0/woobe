@@ -25,6 +25,7 @@ from modules.billing.infra.database.models import *  # noqa: F401, F403
 from modules.observability.infra.database.models import *  # noqa: F401, F403
 from modules.evaluation.infra.database.models import *  # noqa: F401, F403
 from modules.evaluation.infra.database.decision_models import *  # noqa: F401, F403
+from modules.evaluation.infra.database.catalog_models import *  # noqa: F401, F403
 
 config = context.config
 if config.config_file_name is not None:
