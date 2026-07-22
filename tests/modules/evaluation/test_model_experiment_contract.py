@@ -9,8 +9,15 @@ from modules.evaluation.domain.enums import EvaluationMode
 from shared.infra.errors import ConflictError, ValidationError
 
 
-def target(*, snapshot_hash: str, variant: dict | None = None):
+def target(
+    *,
+    snapshot_hash: str,
+    variant: dict | None = None,
+    provider_model_id: str | None = None,
+):
     snapshot = {}
+    if provider_model_id is not None:
+        snapshot["provider_model_id"] = provider_model_id
     if variant is not None:
         snapshot["evaluation_variant"] = variant
     return SimpleNamespace(snapshot_hash=snapshot_hash, snapshot=snapshot)
@@ -21,12 +28,16 @@ def service() -> EvaluationExperienceService:
 
 
 def test_model_experiment_keeps_reference_target_exact() -> None:
-    reference = target(snapshot_hash="base-hash")
+    reference = target(
+        snapshot_hash="base-hash",
+        provider_model_id="reference-model",
+    )
     experimental = target(
         snapshot_hash="variant-hash",
         variant={
             "type": "model_override",
             "base_snapshot_hash": "base-hash",
+            "provider_model_id": "experimental-model",
             "qualification_eligible": False,
         },
     )
@@ -65,6 +76,24 @@ def test_experimental_target_must_derive_from_reference_hash() -> None:
     )
 
     with pytest.raises(ConflictError, match="exact same Agent snapshot"):
+        service()._run_mode(reference, experimental)
+
+
+def test_experimental_model_must_differ_from_reference_model() -> None:
+    reference = target(
+        snapshot_hash="base-hash",
+        provider_model_id="same-model",
+    )
+    experimental = target(
+        snapshot_hash="variant-hash",
+        variant={
+            "type": "model_override",
+            "base_snapshot_hash": "base-hash",
+            "provider_model_id": "same-model",
+        },
+    )
+
+    with pytest.raises(ConflictError, match="must differ"):
         service()._run_mode(reference, experimental)
 
 
