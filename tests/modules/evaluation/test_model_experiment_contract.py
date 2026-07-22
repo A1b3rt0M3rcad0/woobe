@@ -1,104 +1,55 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
 from modules.evaluation.application.experience_service import EvaluationExperienceService
 from modules.evaluation.domain.enums import EvaluationMode
-from shared.infra.errors import ConflictError, ValidationError
-
-
-def target(
-    *,
-    snapshot_hash: str,
-    variant: dict | None = None,
-    provider_model_id: str | None = None,
-):
-    snapshot = {}
-    if provider_model_id is not None:
-        snapshot["provider_model_id"] = provider_model_id
-    if variant is not None:
-        snapshot["evaluation_variant"] = variant
-    return SimpleNamespace(snapshot_hash=snapshot_hash, snapshot=snapshot)
+from shared.infra.errors import ValidationError
 
 
 def service() -> EvaluationExperienceService:
     return EvaluationExperienceService.__new__(EvaluationExperienceService)
 
 
-def test_model_experiment_keeps_reference_target_exact() -> None:
-    reference = target(
-        snapshot_hash="base-hash",
-        provider_model_id="reference-model",
-    )
-    experimental = target(
-        snapshot_hash="variant-hash",
-        variant={
-            "type": "model_override",
-            "base_snapshot_hash": "base-hash",
-            "provider_model_id": "experimental-model",
-            "qualification_eligible": False,
-        },
-    )
-
-    assert service()._run_mode(reference, experimental) == EvaluationMode.MODEL_EXPERIMENT.value
+def target(snapshot_hash: str):
+    return SimpleNamespace(snapshot_hash=snapshot_hash, snapshot={})
 
 
-def test_reference_target_cannot_override_its_model() -> None:
-    reference = target(
-        snapshot_hash="variant-a",
-        variant={
-            "type": "model_override",
-            "base_snapshot_hash": "base-hash",
-        },
-    )
-    experimental = target(
-        snapshot_hash="variant-b",
-        variant={
-            "type": "model_override",
-            "base_snapshot_hash": "base-hash",
-        },
-    )
-
-    with pytest.raises(ValidationError, match="reference Agent target"):
-        service()._run_mode(reference, experimental)
+def test_single_real_snapshot_uses_absolute_mode() -> None:
+    assert service()._run_mode(target("production-hash"), None) == EvaluationMode.ABSOLUTE.value
 
 
-def test_experimental_target_must_derive_from_reference_hash() -> None:
-    reference = target(snapshot_hash="base-hash")
-    experimental = target(
-        snapshot_hash="variant-hash",
-        variant={
-            "type": "model_override",
-            "base_snapshot_hash": "another-hash",
-        },
-    )
-
-    with pytest.raises(ConflictError, match="exact same Agent snapshot"):
-        service()._run_mode(reference, experimental)
+def test_two_real_snapshots_use_comparison_mode() -> None:
+    assert service()._run_mode(
+        target("candidate-hash"),
+        target("baseline-hash"),
+    ) == EvaluationMode.COMPARISON.value
 
 
-def test_experimental_model_must_differ_from_reference_model() -> None:
-    reference = target(
-        snapshot_hash="base-hash",
-        provider_model_id="same-model",
-    )
-    experimental = target(
-        snapshot_hash="variant-hash",
-        variant={
-            "type": "model_override",
-            "base_snapshot_hash": "base-hash",
-            "provider_model_id": "same-model",
-        },
-    )
+@pytest.mark.asyncio
+async def test_model_override_is_rejected_before_target_resolution() -> None:
+    with pytest.raises(ValidationError, match="Model overrides are not supported"):
+        await service()._resolve_target_dict(
+            None,
+            project_id=UUID("00000000-0000-0000-0000-000000000001"),
+            raw={
+                "target_type": "agent",
+                "source_type": "release",
+                "entity_id": "00000000-0000-0000-0000-000000000002",
+                "version_id": "00000000-0000-0000-0000-000000000003",
+                "variant": {
+                    "type": "model_override",
+                    "provider_model_id": "00000000-0000-0000-0000-000000000004",
+                },
+            },
+        )
 
-    with pytest.raises(ConflictError, match="must differ"):
-        service()._run_mode(reference, experimental)
 
-
-def test_normal_snapshot_comparison_remains_qualification_eligible_mode() -> None:
-    candidate = target(snapshot_hash="candidate")
-    baseline = target(snapshot_hash="baseline")
-
-    assert service()._run_mode(candidate, baseline) == EvaluationMode.COMPARISON.value
+def test_model_experiment_mode_is_not_selected_for_new_runs() -> None:
+    assert service()._run_mode(
+        target("candidate-hash"),
+        target("baseline-hash"),
+    ) != EvaluationMode.MODEL_EXPERIMENT.value
