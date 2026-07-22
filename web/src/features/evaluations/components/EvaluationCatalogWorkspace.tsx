@@ -22,7 +22,7 @@ import {
 } from '@/features/evaluations/catalogHooks'
 import type { EvaluationCatalogItem } from '@/features/evaluations/catalogTypes'
 import { cn } from '@/lib/utils'
-import { EvaluationResultsView } from './EvaluationResultsView'
+import { EvidenceRunView } from './EvidenceRunView'
 import { EvaluationRunProgressView } from './EvaluationRunProgressView'
 
 interface Props {
@@ -279,15 +279,9 @@ export function EvaluationCatalogWorkspace({
                 ) : runQuery.isError || !runQuery.data ? (
                   <ErrorState message="Unable to load Run evidence" />
                 ) : activeStatuses.has(runQuery.data.status) ? (
-                  <EvaluationRunProgressView
-                    projectId={projectId}
-                    runId={runQuery.data.id}
-                  />
+                  <EvaluationRunProgressView projectId={projectId} runId={runQuery.data.id} />
                 ) : (
-                  <EvaluationResultsView
-                    projectId={projectId}
-                    run={runQuery.data}
-                  />
+                  <EvidenceRunView projectId={projectId} run={runQuery.data} />
                 )}
               </div>
             </div>
