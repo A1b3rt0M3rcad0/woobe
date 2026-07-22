@@ -50,6 +50,9 @@ from modules.evaluation.infra.workers.run_worker import (
     ResumableEvaluationRunProcessor,
     ResumableEvaluationRunWorker,
 )
+from modules.evaluation.infra.workers.slot_ready_authoring_worker import (
+    SlotReadyEvaluationAuthoringWorker,
+)
 from modules.evaluation.infra.workers.variant_worker import (
     VariantAwareConcurrentEvaluationRunProcessor,
     VariantAwareConcurrentEvaluationRunWorker,
@@ -87,12 +90,14 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert VariantAwareConcurrentEvaluationRunWorker is not None
     assert EvaluationAuthoringWorker is not None
     assert ResumableEvaluationAuthoringWorker is not None
+    assert SlotReadyEvaluationAuthoringWorker is not None
     assert EvaluationWorkerRegistry is not None
     assert register_evaluation_workers is not None
 
 
 def test_evaluation_authoring_modules_import_cleanly() -> None:
     module_names = [
+        "modules.evaluation.application.compatible_resumable_authoring",
         "modules.evaluation.application.completed_service",
         "modules.evaluation.application.context_pack",
         "modules.evaluation.application.diagnostic_authoring",
@@ -118,6 +123,7 @@ def test_evaluation_authoring_modules_import_cleanly() -> None:
         "modules.evaluation.infra.workers.concurrent_worker",
         "modules.evaluation.infra.workers.outcome_worker",
         "modules.evaluation.infra.workers.resumable_authoring_worker",
+        "modules.evaluation.infra.workers.slot_ready_authoring_worker",
         "modules.evaluation.infra.workers.variant_worker",
         "modules.evaluation.presentation.authoring_routes",
         "modules.evaluation.presentation.routes",
@@ -142,8 +148,8 @@ def test_evaluation_workers_implement_worker_contract() -> None:
         WorkerProtocol,
     )
     assert isinstance(
-        ResumableEvaluationAuthoringWorker.__new__(
-            ResumableEvaluationAuthoringWorker
+        SlotReadyEvaluationAuthoringWorker.__new__(
+            SlotReadyEvaluationAuthoringWorker
         ),
         WorkerProtocol,
     )
