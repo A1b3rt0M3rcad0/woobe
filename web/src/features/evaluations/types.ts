@@ -2,6 +2,7 @@ export type EvaluationTargetType = 'agent' | 'network'
 export type EvaluationSourceType = 'draft' | 'staging' | 'release'
 export type EvaluationCaseType = 'success' | 'refusal' | 'handled_error' | 'expected_failure'
 export type SuiteAuthoringSource = 'manual' | 'json_import' | 'ai_generated'
+export type EvaluationRunMode = 'absolute' | 'comparison' | 'model_experiment'
 export type EvaluationRunStatus =
   | 'queued'
   | 'snapshotting'
@@ -344,7 +345,7 @@ export interface EvaluationRun {
   id: string
   project_id: string
   suite_version_id: string
-  mode: 'absolute' | 'comparison'
+  mode: EvaluationRunMode
   status: EvaluationRunStatus
   repetitions: number
   execution_policy?: EvaluationExecutionPolicy
@@ -398,7 +399,7 @@ export interface EvaluationPreflight {
 }
 
 export interface EvaluationPreview {
-  mode: 'absolute' | 'comparison'
+  mode: EvaluationRunMode
   candidate: Record<string, any>
   baseline: Record<string, any> | null
   case_count: number
@@ -427,18 +428,4 @@ export interface CreateEvaluationDatasetInput {
   description?: string
   change_description?: string
   cases: EvaluationCaseInput[]
-}
-
-export interface CreateEvaluationSuiteInput {
-  name: string
-  description?: string
-  target_type: EvaluationTargetType
-  dataset_version_id: string
-  judge_provider_model_id: string
-  judge_config?: Record<string, unknown>
-  rubric?: Record<string, unknown>
-  deterministic_checks?: Record<string, unknown>
-  acceptance_policy?: Record<string, unknown>
-  repetition_policy?: Record<string, unknown>
-  estimate_defaults?: Record<string, unknown>
 }
