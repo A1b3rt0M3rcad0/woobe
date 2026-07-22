@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/Badge'
 import {
   useEvaluationRunProgress,
   useRetryEvaluationJudgments,
@@ -50,16 +49,27 @@ function targetLabel(run: EvaluationRun) {
     || run.targets[0]
   return {
     title: target ? `${target.display_name} · ${target.display_version}` : 'Unknown snapshot',
-    subtitle: target ? `${label(target.environment)} · ${run.repetitions} runs/case` : `${run.repetitions} runs/case`,
+    subtitle: target
+      ? `${label(target.environment)} · ${run.repetitions} runs/case`
+      : `${run.repetitions} runs/case`,
   }
 }
 
 function statusTone(run: EvaluationRun) {
   if (activeStatuses.has(run.status)) return 'text-primary-light'
-  if (run.status === 'failed' || run.assessment_status === 'inconclusive') return 'text-amber-300'
+  if (run.status === 'failed' || run.assessment_status === 'inconclusive') {
+    return 'text-amber-300'
+  }
   if (run.assessment_status === 'meets_policy') return 'text-emerald-300'
   if (run.assessment_status === 'below_policy') return 'text-amber-200'
   return 'text-muted'
+}
+
+function currentDecisionPending(run: EvaluationRun) {
+  const revision = Number(run.evidence_revision ?? run.aggregate_result?.evidence_revision ?? 1)
+  return !(run.decisions || []).some((item) => (
+    item.evidence_revision === revision && !item.superseded_at
+  ))
 }
 
 export function EvaluationResultsWorkspace({
@@ -97,7 +107,9 @@ export function EvaluationResultsWorkspace({
           'judge_invalid_json',
         ],
       })
-      toast.success('Judgments queued. Previous decision and Estimates were preserved as historical evidence.')
+      toast.success(
+        'Judgments queued. Previous decision and Estimates were preserved as historical evidence.',
+      )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to retry judgments')
     }
@@ -106,7 +118,13 @@ export function EvaluationResultsWorkspace({
   const running = ordered.filter((item) => activeStatuses.has(item.status))
   const needsAttention = ordered.filter((item) => (
     !activeStatuses.has(item.status)
-    && (item.status === 'failed' || item.status === 'partially_completed' || item.assessment_status === 'inconclusive')
+    && (
+      item.status === 'failed'
+      || item.status === 'partially_completed'
+      || item.assessment_status === 'inconclusive'
+      || item.assessment_status === 'below_policy'
+      || currentDecisionPending(item)
+    )
   ))
   const completed = ordered.filter((item) => (
     !activeStatuses.has(item.status) && !needsAttention.includes(item)
@@ -151,7 +169,11 @@ export function EvaluationResultsWorkspace({
                     <p className="mt-1 truncate text-[10px] text-muted">{target.subtitle}</p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className={cn('text-[10px] font-medium', statusTone(item))}>
-                        {isActive ? label(item.status) : label(item.assessment_status || item.status)}
+                        {isActive
+                          ? label(item.status)
+                          : currentDecisionPending(item)
+                            ? 'Decision pending'
+                            : label(item.assessment_status || item.status)}
                       </span>
                       <span className="text-[10px] text-muted">
                         {item.overall_score == null ? '—' : item.overall_score.toFixed(1)}
