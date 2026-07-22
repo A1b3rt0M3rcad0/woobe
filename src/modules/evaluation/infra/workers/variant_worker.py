@@ -21,7 +21,7 @@ from shared.infra.config import Settings
 class VariantAwareConcurrentEvaluationRunProcessor(
     ConcurrentOutcomeAwareEvaluationRunProcessor
 ):
-    """Execute model comparison variants from the immutable derived snapshot."""
+    """Execute model variants and expose user-facing Judge failure taxonomy."""
 
     async def _execute_agent(
         self,
@@ -34,7 +34,7 @@ class VariantAwareConcurrentEvaluationRunProcessor(
             return await super()._execute_agent(trial, target, case)
 
         # The canonical Agent runtime applies snapshot_override for draft-style
-        # invocations. A lightweight proxy keeps the persisted target provenance
+        # invocations. A lightweight proxy keeps persisted target provenance
         # unchanged while executing the frozen derived configuration.
         runtime_target = SimpleNamespace(
             entity_id=target.entity_id,
@@ -44,6 +44,46 @@ class VariantAwareConcurrentEvaluationRunProcessor(
             side=target.side,
         )
         return await super()._execute_agent(trial, runtime_target, case)
+
+    async def _persist_final_result(self, **kwargs) -> None:
+        await super()._persist_final_result(**kwargs)
+        judge = kwargs["judge"]
+        if judge.structured_result is not None:
+            return
+        trial = kwargs["trial"]
+        technical_error = str(judge.error or "")
+        lowered = technical_error.lower()
+        if "judge_output_length_limit" in lowered:
+            code = "judge_output_length_limit"
+            detail = (
+                "The Judge exhausted its output budget before completing the "
+                "structured score. Agent evidence was preserved and the judgment "
+                "can be retried without re-running the Agent or Tools."
+            )
+        elif "json" in lowered or "parse" in lowered:
+            code = "judge_invalid_json"
+            detail = (
+                "The Judge returned an invalid structured score. Agent evidence was "
+                "preserved and the judgment can be retried."
+            )
+        else:
+            code = "judge_failed"
+            detail = (
+                "The Judge could not complete this score. Agent evidence was "
+                "preserved for a judgment-only retry."
+            )
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(
+                EvaluationTrialModel,
+                trial.id,
+                with_for_update=True,
+            )
+            if row is not None:
+                row.failure_code = code
+                row.failure_detail = detail
+                metrics = dict(row.metrics or {})
+                metrics["judge_failure_code"] = code
+                row.metrics = metrics
 
 
 class VariantAwareConcurrentEvaluationRunWorker(
