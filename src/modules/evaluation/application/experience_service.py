@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
@@ -10,7 +11,11 @@ from modules.evaluation.application.human_decision_service import (
     HumanDecisionEvaluationApplicationService,
     _target_manifest,
 )
+from modules.evaluation.infra.database.decision_models import (
+    EvaluationTargetDecisionModel,
+)
 from modules.evaluation.infra.database.models import (
+    EstimateRunModel,
     EvaluationCheckResultModel,
     EvaluationRunModel,
     EvaluationTargetModel,
@@ -52,6 +57,23 @@ def _safe_preview_target(value: Any) -> dict[str, Any] | None:
         "display_version": value.get("display_version"),
         "manifest": _target_manifest(target),
     }
+
+
+def _revision(aggregate: dict[str, Any]) -> int:
+    try:
+        return max(1, int(aggregate.get("evidence_revision") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
@@ -106,14 +128,32 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
             + float((trial.metrics or {}).get("judge_cost_usd") or 0)
             for trial in trials
         )
-        elapsed_seconds = None
-        if run.started_at is not None:
-            end = run.completed_at
-            if end is None:
-                from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        aggregate = dict(run.aggregate_result or {})
+        retry = aggregate.get("judgment_retry")
+        retry = retry if isinstance(retry, dict) else None
 
-                end = datetime.now(timezone.utc)
-            elapsed_seconds = max(0, round((end - run.started_at).total_seconds()))
+        processing_elapsed_seconds = None
+        if run.started_at is not None:
+            end = run.completed_at or now
+            processing_elapsed_seconds = max(
+                0,
+                round((end - run.started_at).total_seconds()),
+            )
+        phase_started_at = (
+            _parse_datetime(retry.get("started_at"))
+            if retry and retry.get("status") in {"queued", "running"}
+            else run.started_at
+        )
+        phase_elapsed_seconds = None
+        if phase_started_at is not None:
+            phase_end = run.completed_at if run.status not in _ACTIVE_RUN_STATUSES else now
+            phase_end = phase_end or now
+            phase_elapsed_seconds = max(
+                0,
+                round((phase_end - phase_started_at).total_seconds()),
+            )
+
         phase = {
             "queued": "preparing",
             "snapshotting": "preparing",
@@ -136,6 +176,9 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
                 "completed",
                 "partially_completed",
             },
+            "evidence_revision": _revision(aggregate),
+            "retry_attempt": int((retry or {}).get("attempt") or 0),
+            "retry_trial_count": int((retry or {}).get("trial_count") or 0),
             "total_trials": len(trials),
             "runtime_completed": runtime_completed,
             "runtime_pending": max(0, len(trials) - runtime_completed),
@@ -145,7 +188,10 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
             "completed_trials": terminal,
             "inconclusive_trials": inconclusive,
             "failed_trials": failed,
-            "elapsed_seconds": elapsed_seconds,
+            "elapsed_seconds": phase_elapsed_seconds,
+            "phase_elapsed_seconds": phase_elapsed_seconds,
+            "processing_elapsed_seconds": processing_elapsed_seconds,
+            "started_at": run.started_at,
             "measured_cost_usd": cost or run.measured_total_cost,
             "targets": [self._target_payload(target) for target in targets],
             "failure_code": run.failure_code,
@@ -215,6 +261,49 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
                     "No completed Agent evidence has a retryable Judge failure"
                 )
 
+            now = datetime.now(timezone.utc)
+            aggregate = dict(run.aggregate_result or {})
+            previous_revision = _revision(aggregate)
+            evidence_revision = previous_revision + 1
+            previous_retry = aggregate.get("judgment_retry")
+            previous_attempt = (
+                int(previous_retry.get("attempt") or 0)
+                if isinstance(previous_retry, dict)
+                else 0
+            )
+
+            current_decisions = list(
+                (
+                    await session.scalars(
+                        select(EvaluationTargetDecisionModel).where(
+                            EvaluationTargetDecisionModel.evaluation_run_id == run.id,
+                            EvaluationTargetDecisionModel.superseded_at.is_(None),
+                        )
+                    )
+                ).all()
+            )
+            for decision in current_decisions:
+                decision.superseded_at = now
+                decision.superseded_reason = "judgment_retry"
+
+            estimates = list(
+                (
+                    await session.scalars(
+                        select(EstimateRunModel).where(
+                            EstimateRunModel.evaluation_run_id == run.id
+                        )
+                    )
+                ).all()
+            )
+            for estimate in estimates:
+                assumptions = dict(estimate.assumptions or {})
+                if "evidence_revision" not in assumptions:
+                    assumptions["evidence_revision"] = previous_revision
+                if int(assumptions.get("evidence_revision") or 1) < evidence_revision:
+                    assumptions["superseded_at"] = now.isoformat()
+                    assumptions["superseded_reason"] = "judgment_retry"
+                estimate.assumptions = assumptions
+
             eligible_ids = [trial.id for trial in eligible]
             await session.execute(
                 delete(EvaluationCheckResultModel).where(
@@ -261,10 +350,23 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
             run.completed_at = None
             run.lease_owner = None
             run.lease_expires_at = None
-            aggregate = dict(run.aggregate_result or {})
+            aggregate["evidence_revision"] = evidence_revision
+            aggregate["assessment"] = {
+                "status": "pending",
+                "decision_required": False,
+            }
+            aggregate["decision"] = {
+                "status": "pending",
+                "evidence_revision": evidence_revision,
+            }
             aggregate["judgment_retry"] = {
+                "attempt": previous_attempt + 1,
+                "status": "queued",
+                "started_at": now.isoformat(),
                 "trial_count": len(eligible),
                 "preserved_runtime_evidence": True,
+                "previous_evidence_revision": previous_revision,
+                "evidence_revision": evidence_revision,
             }
             run.aggregate_result = aggregate
             targets = await self._targets_for_run(session, run.id)
