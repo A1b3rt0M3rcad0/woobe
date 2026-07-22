@@ -9,7 +9,10 @@ from sqlalchemy import select
 from modules.evaluation.application.secure_authoring import (
     SecureEvaluationSuiteAuthoringService,
 )
-from modules.evaluation.domain.authoring_contract import normalize_authoring_payload
+from modules.evaluation.domain.authoring_contract import (
+    generation_failure_metadata,
+    normalize_authoring_payload,
+)
 from modules.evaluation.infra.database.models import (
     EvaluationAuthoringBatchModel,
     EvaluationAuthoringCallModel,
@@ -30,6 +33,20 @@ def _phase(status: str) -> str:
         "failed": "failed",
         "cancelled": "cancelled",
     }.get(status, status)
+
+
+def _failure_for_batch(batch: EvaluationAuthoringBatchModel) -> dict[str, Any]:
+    validation = (
+        batch.validation_result
+        if isinstance(batch.validation_result, dict)
+        else {}
+    )
+    stored = (
+        validation.get("failure")
+        if isinstance(validation.get("failure"), dict)
+        else None
+    )
+    return stored or generation_failure_metadata(batch.error, validation)
 
 
 class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringService):
@@ -108,16 +125,7 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
             )
             retryable: list[EvaluationAuthoringBatchModel] = []
             for item in batches:
-                validation = (
-                    item.validation_result
-                    if isinstance(item.validation_result, dict)
-                    else {}
-                )
-                failure = (
-                    validation.get("failure")
-                    if isinstance(validation.get("failure"), dict)
-                    else {}
-                )
+                failure = _failure_for_batch(item)
                 if (
                     item.status == "failed"
                     and bool(failure.get("retryable"))
@@ -129,6 +137,15 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
                     "No failed authoring batch is retryable. Review the failure action or change the generation settings."
                 )
             for item in retryable:
+                validation = (
+                    item.validation_result
+                    if isinstance(item.validation_result, dict)
+                    else {}
+                )
+                item.validation_result = {
+                    **validation,
+                    "failure": _failure_for_batch(item),
+                }
                 item.status = "pending"
                 item.error = None
                 item.started_at = None
@@ -200,11 +217,7 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
                 if isinstance(batch.validation_result, dict)
                 else {}
             )
-            failure = (
-                validation.get("failure")
-                if isinstance(validation.get("failure"), dict)
-                else {}
-            )
+            failure = _failure_for_batch(batch)
             attempts = (
                 validation.get("attempts")
                 if isinstance(validation.get("attempts"), list)
