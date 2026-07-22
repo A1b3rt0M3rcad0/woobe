@@ -4,12 +4,16 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from modules.evaluation.domain.enums import EvaluationMode
 from modules.evaluation.infra.database.models import (
+    EvaluationRunModel,
     EvaluationTargetModel,
     EvaluationTestCaseModel,
     EvaluationTrialModel,
+    ReleaseQualificationModel,
 )
 from modules.evaluation.infra.workers.concurrent_worker import (
     ConcurrentOutcomeAwareEvaluationRunProcessor,
@@ -21,7 +25,7 @@ from shared.infra.config import Settings
 class VariantAwareConcurrentEvaluationRunProcessor(
     ConcurrentOutcomeAwareEvaluationRunProcessor
 ):
-    """Execute model variants and expose user-facing Judge failure taxonomy."""
+    """Execute explicit model experiments without treating them as qualifications."""
 
     async def _execute_agent(
         self,
@@ -34,8 +38,8 @@ class VariantAwareConcurrentEvaluationRunProcessor(
             return await super()._execute_agent(trial, target, case)
 
         # The canonical Agent runtime applies snapshot_override for draft-style
-        # invocations. A lightweight proxy keeps persisted target provenance
-        # unchanged while executing the frozen derived configuration.
+        # invocations. The persisted target remains an immutable experimental
+        # derivative and never changes the Agent Draft or any Release.
         runtime_target = SimpleNamespace(
             entity_id=target.entity_id,
             agent_release_id=None,
@@ -97,6 +101,42 @@ class VariantAwareConcurrentEvaluationRunProcessor(
             metrics = dict(row.metrics or {})
             metrics["judge_failure_code"] = code
             row.metrics = metrics
+
+    async def _aggregate(self, run_id: UUID) -> None:
+        await super()._aggregate(run_id)
+        async with self._session_factory() as session, session.begin():
+            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
+            if run is None or run.mode != EvaluationMode.MODEL_EXPERIMENT.value:
+                return
+
+            # The base aggregator computes the comparative evidence. Model
+            # experiments retain those metrics, but can never create or expose a
+            # qualification for Draft, Staging, Release or the Agent itself.
+            await session.execute(
+                delete(ReleaseQualificationModel).where(
+                    ReleaseQualificationModel.evaluation_run_id == run.id
+                )
+            )
+            aggregate = dict(run.aggregate_result or {})
+            reference_result = aggregate.get("qualification")
+            aggregate["experiment"] = {
+                "type": EvaluationMode.MODEL_EXPERIMENT.value,
+                "qualification_eligible": False,
+                "reason": (
+                    "The baseline target changes the Provider Model and is an "
+                    "experimental derivative of the reference Agent snapshot."
+                ),
+                "reference_result": reference_result,
+            }
+            aggregate["qualification"] = {
+                "eligible": False,
+                "status": None,
+                "reason": "model_experiment",
+            }
+            run.aggregate_result = aggregate
+            run.qualification_status = None
+            run.overall_score = None
+            run.pass_rate = None
 
 
 class VariantAwareConcurrentEvaluationRunWorker(
