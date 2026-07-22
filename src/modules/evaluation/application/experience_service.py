@@ -233,7 +233,9 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             if run is None or run.project_id != project_id:
                 raise NotFoundError("Evaluation Run not found")
             if run.status in _ACTIVE_RUN_STATUSES:
-                raise ConflictError("Wait for the current Evaluation Run to finish before retrying judgments")
+                raise ConflictError(
+                    "Wait for the current Evaluation Run to finish before retrying judgments"
+                )
             trials = list(
                 (
                     await session.scalars(
@@ -272,7 +274,9 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
                 if judge_failure:
                     eligible.append(trial)
             if not eligible:
-                raise ConflictError("No completed Agent evidence has a retryable Judge failure")
+                raise ConflictError(
+                    "No completed Agent evidence has a retryable Judge failure"
+                )
 
             eligible_ids = [trial.id for trial in eligible]
             await session.execute(
@@ -292,6 +296,13 @@ class EvaluationExperienceService(CompletedEvaluationApplicationService):
             )
             for trial in eligible:
                 metrics = dict(trial.metrics or {})
+                prior_cost = float(metrics.get("judge_cost_usd") or 0)
+                accumulated_prior = float(
+                    metrics.get("judge_retry_previous_cost_usd") or 0
+                )
+                metrics["judge_retry_previous_cost_usd"] = (
+                    accumulated_prior + prior_cost
+                )
                 metrics.pop("judge_cost_usd", None)
                 metrics.pop("judge_latency_ms", None)
                 metrics.pop("checks", None)
