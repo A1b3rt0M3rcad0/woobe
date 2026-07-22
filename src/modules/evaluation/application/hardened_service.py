@@ -29,6 +29,13 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         super().__init__(session_factory)
         self._preflight = EvaluationPreflightService()
 
+    def _run_mode(self, candidate_target, baseline_target) -> str:
+        return (
+            EvaluationMode.COMPARISON.value
+            if baseline_target is not None
+            else EvaluationMode.ABSOLUTE.value
+        )
+
     async def preview_run(
         self,
         *,
@@ -89,6 +96,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 raise ConflictError(
                     "Candidate and Baseline resolve to the same immutable snapshot"
                 )
+            run_mode = self._run_mode(candidate_target, baseline_target)
             targets = [candidate_target]
             if baseline_target is not None:
                 targets.append(baseline_target)
@@ -101,6 +109,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
 
         return {
             **base,
+            "mode": run_mode,
             "preflight": preflight.to_dict(),
             "requires_confirmation": (
                 preflight.requires_acknowledgement
@@ -198,15 +207,12 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                     raise ConflictError(
                         "Candidate and Baseline resolve to the same immutable snapshot"
                     )
+                run_mode = self._run_mode(candidate_target, baseline_target)
 
                 run = EvaluationRunModel(
                     project_id=project_id,
                     suite_version_id=suite_version_id,
-                    mode=(
-                        EvaluationMode.COMPARISON.value
-                        if baseline_target is not None
-                        else EvaluationMode.ABSOLUTE.value
-                    ),
+                    mode=run_mode,
                     status=EvaluationRunStatus.QUEUED.value,
                     repetitions=repetitions,
                     execution_order="paired_interleaved",
