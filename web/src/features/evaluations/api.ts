@@ -1,4 +1,5 @@
 import { get, post } from '@/lib/api/client'
+import { ApiError } from '@/lib/api/errors'
 import type {
   CreateComposedSuiteVersionInput,
   EvaluationAuthoringCall,
@@ -25,6 +26,17 @@ import type {
 
 function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
+}
+
+function authoringResourceError(error: unknown): never {
+  if (error instanceof ApiError && error.status === 404) {
+    throw new ApiError(
+      'The selected Agent, snapshot, or generator model is no longer available in this Project. Refresh the modal, confirm that the Agent Draft is saved, and choose an active model.',
+      error.status,
+      error.data,
+    )
+  }
+  throw error
 }
 
 function normalizeAuthoredCase(value: any): EvaluationCaseInput {
@@ -118,16 +130,24 @@ export function restoreEvaluationSuite(projectId: string, suiteId: string) {
   return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/restore`)
 }
 
-export function previewSuiteAuthoringContext(
+export async function previewSuiteAuthoringContext(
   projectId: string,
   input: Pick<GenerateSuiteDraftInput, 'target' | 'generator_provider_model_id' | 'objective' | 'case_count' | 'maximum_input_tokens'>,
 ) {
-  return post<SuiteContextPreview>(`${base(projectId)}/suite-authoring/context-preview`, input)
+  try {
+    return await post<SuiteContextPreview>(`${base(projectId)}/suite-authoring/context-preview`, input)
+  } catch (error) {
+    return authoringResourceError(error)
+  }
 }
 
 export async function generateEvaluatorSuiteDraft(projectId: string, input: GenerateSuiteDraftInput) {
-  const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/generate`, input)
-  return normalizeAuthoringCall(result)
+  try {
+    const result = await post<EvaluationAuthoringCall>(`${base(projectId)}/suite-authoring/generate`, input)
+    return normalizeAuthoringCall(result)
+  } catch (error) {
+    return authoringResourceError(error)
+  }
 }
 
 export async function getEvaluatorSuiteAuthoringCall(projectId: string, callId: string) {
