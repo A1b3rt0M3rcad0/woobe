@@ -14,6 +14,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -107,6 +109,20 @@ class EvaluationAuthoringCaseSlotModel(BaseModel):
     source_attempt_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("evaluation.authoring_attempts.id")
     )
+
+
+@event.listens_for(EvaluationAuthoringAttemptModel, "before_insert")
+def _populate_attempt_context_hash(mapper, connection, target) -> None:
+    del mapper
+    if target.context_hash:
+        return
+    from modules.evaluation.infra.database.models import EvaluationAuthoringCallModel
+
+    target.context_hash = connection.execute(
+        select(EvaluationAuthoringCallModel.context_hash).where(
+            EvaluationAuthoringCallModel.id == target.authoring_call_id
+        )
+    ).scalar_one()
 
 
 __all__ = [
