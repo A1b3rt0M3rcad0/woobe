@@ -54,7 +54,12 @@ const activeStatuses = new Set([
   'cancel_requested',
 ])
 
-const activeAuthoringStatuses = new Set(['queued', 'running', 'cancel_requested'])
+const activeAuthoringStatuses = new Set([
+  'queued',
+  'running',
+  'partial',
+  'cancel_requested',
+])
 
 function runValues(value: unknown): EvaluationRun[] {
   if (Array.isArray(value)) return value as EvaluationRun[]
