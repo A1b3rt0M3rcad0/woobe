@@ -65,13 +65,6 @@ function statusTone(run: EvaluationRun) {
   return 'text-muted'
 }
 
-function currentDecisionPending(run: EvaluationRun) {
-  const revision = Number(run.evidence_revision ?? run.aggregate_result?.evidence_revision ?? 1)
-  return !(run.decisions || []).some((item) => (
-    item.evidence_revision === revision && !item.superseded_at
-  ))
-}
-
 export function EvaluationResultsWorkspace({
   projectId,
   runs,
@@ -122,8 +115,6 @@ export function EvaluationResultsWorkspace({
       item.status === 'failed'
       || item.status === 'partially_completed'
       || item.assessment_status === 'inconclusive'
-      || item.assessment_status === 'below_policy'
-      || currentDecisionPending(item)
     )
   ))
   const completed = ordered.filter((item) => (
@@ -171,9 +162,7 @@ export function EvaluationResultsWorkspace({
                       <span className={cn('text-[10px] font-medium', statusTone(item))}>
                         {isActive
                           ? label(item.status)
-                          : currentDecisionPending(item)
-                            ? 'Decision pending'
-                            : label(item.assessment_status || item.status)}
+                          : label(item.assessment_status || item.status)}
                       </span>
                       <span className="text-[10px] text-muted">
                         {item.overall_score == null ? '—' : item.overall_score.toFixed(1)}
