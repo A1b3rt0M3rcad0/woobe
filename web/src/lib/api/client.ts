@@ -51,6 +51,10 @@ interface CsrfPayload {
   csrf?: string
 }
 
+interface ErrorPayload {
+  code?: string
+}
+
 let refreshPromise: Promise<void> | null = null
 let authGeneration = 0
 let csrfPromise: Promise<void> | null = null
@@ -79,6 +83,11 @@ function rememberCsrf(payload: unknown): void {
   if (typeof value === 'string' && value.length > 0) {
     csrfValue = value
   }
+}
+
+function csrfErrorCode(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined
+  return (payload as ErrorPayload).code
 }
 
 export function clearCsrfToken(): void {
@@ -177,6 +186,7 @@ async function request<T>(
   body?: unknown,
   options?: RequestOptions,
   hasRetriedAuth = false,
+  hasRetriedCsrf = false,
 ): Promise<T> {
   if (requiresCsrf(method, path) && !csrfValue) {
     await ensureCsrfToken()
@@ -226,7 +236,7 @@ async function request<T>(
         clearCsrfToken()
         await refreshAuthSession()
       }
-      return request<T>(method, path, body, options, true)
+      return request<T>(method, path, body, options, true, hasRetriedCsrf)
     } catch {
       if (import.meta.env.DEV) console.warn('[API] Refresh failed — redirecting to login')
       redirectToLogin()
@@ -258,6 +268,17 @@ async function request<T>(
         null,
       )
     }
+  }
+
+  if (
+    res.status === 403
+    && requiresCsrf(method, path)
+    && !hasRetriedCsrf
+    && csrfErrorCode(data?.data) === 'csrf_invalid'
+  ) {
+    clearCsrfToken()
+    await ensureCsrfToken()
+    return request<T>(method, path, body, options, hasRetriedAuth, true)
   }
 
   if (!res.ok) {
