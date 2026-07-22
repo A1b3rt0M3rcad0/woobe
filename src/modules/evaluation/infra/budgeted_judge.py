@@ -89,6 +89,9 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
                 int(judge_config.get("maximum_retry_tokens", 8192)),
                 8192,
             ),
+            # One attempt may be consumed by a provider that rejects json_schema.
+            # Keep enough room for json_object fallback and a length-budget retry.
+            "attempts": max(3, int(judge_config.get("attempts", 2))),
             "maximum_payload_chars": min(
                 int(judge_config.get("maximum_payload_chars", 120_000)),
                 max(10_000, configured_input * 4),
