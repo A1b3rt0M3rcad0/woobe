@@ -42,7 +42,15 @@ def estimate_tokens(value: Any, *, characters_per_token: float = 3.2) -> int:
 
 
 def recommended_generation_output_tokens(case_count: int) -> int:
-    return max(1200, min(12_000, 600 + max(case_count, 1) * 220))
+    """Reserve JSON output plus reasoning overhead for structured Suite generation.
+
+    Some OpenAI-compatible reasoning models count hidden reasoning tokens against the
+    completion limit. The previous 220 tokens per case routinely truncated a ten-case
+    batch before the JSON object was closed. A higher cap does not force consumption;
+    providers bill the tokens actually generated.
+    """
+
+    return max(3_200, min(12_000, 1_500 + max(case_count, 1) * 700))
 
 
 def context_window_from_metadata(metadata: dict[str, Any] | None) -> int:
