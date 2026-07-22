@@ -13,6 +13,7 @@ import {
   getEvidenceRichEvaluationRun,
   previewCatalogEvaluation,
   previewEvaluationComparison,
+  previewPairedEvaluationComparison,
   restoreCatalogEvaluation,
 } from './catalogApi'
 import type {
@@ -61,6 +62,13 @@ export function usePreviewCatalogEvaluation(projectId?: string) {
   return useMutation({
     mutationFn: (input: Omit<CreateCatalogEvaluationInput, 'idempotency_key'>) =>
       previewCatalogEvaluation(projectId as string, input),
+  })
+}
+
+export function usePreviewPairedEvaluationComparison(projectId?: string) {
+  return useMutation({
+    mutationFn: (input: CreatePairedComparisonInput) =>
+      previewPairedEvaluationComparison(projectId as string, input),
   })
 }
 
