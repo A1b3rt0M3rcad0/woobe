@@ -15,6 +15,7 @@ class EvaluationSourceType(StrEnum):
 class EvaluationMode(StrEnum):
     ABSOLUTE = "absolute"
     COMPARISON = "comparison"
+    MODEL_EXPERIMENT = "model_experiment"
 
 
 class EvaluationRunStatus(StrEnum):
