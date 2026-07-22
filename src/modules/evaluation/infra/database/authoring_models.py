@@ -50,6 +50,7 @@ class EvaluationAuthoringAttemptModel(BaseModel):
     provider: Mapped[str] = mapped_column(String(64))
     model: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32))
+    context_hash: Mapped[str] = mapped_column(String(64))
     requested_slot_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
