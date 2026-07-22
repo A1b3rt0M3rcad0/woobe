@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from modules.evaluation.application.evidence_revision_snapshot import (
+    capture_evidence_revision,
+)
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTrialModel,
@@ -18,7 +20,7 @@ from shared.infra.config import Settings
 
 
 class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
-    """Keep unavailable metrics distinct from an actual zero result."""
+    """Keep unavailable metrics distinct from zero and freeze each revision."""
 
     async def _aggregate(self, run_id: UUID) -> None:
         await super()._aggregate(run_id)
@@ -79,7 +81,20 @@ class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
                 "inconclusive_trials": max(0, len(trials) - len(conclusive)),
             }
             aggregate["assessment"] = assessment
+            retry = aggregate.get("judgment_retry")
+            if isinstance(retry, dict):
+                retry["status"] = "completed"
+                retry["completed_at"] = (
+                    run.completed_at.isoformat() if run.completed_at else None
+                )
+                aggregate["judgment_retry"] = retry
             run.aggregate_result = aggregate
+            await session.flush()
+            await capture_evidence_revision(
+                session,
+                run,
+                reason="aggregation_completed",
+            )
 
 
 class IntegrityEvaluationRunWorker(GovernedEvaluationRunWorker):
