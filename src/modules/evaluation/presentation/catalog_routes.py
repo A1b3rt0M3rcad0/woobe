@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.catalog_service import EvaluationCatalogService
+from modules.evaluation.application.immutable_catalog_service import (
+    ImmutableEvaluationCatalogService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation-catalog"])
@@ -58,8 +60,8 @@ class ComparisonDecisionRequest(BaseModel):
     note: str | None = Field(default=None, max_length=4000)
 
 
-def _service(request: Request) -> EvaluationCatalogService:
-    return EvaluationCatalogService(request.app.state.session_factory)
+def _service(request: Request) -> ImmutableEvaluationCatalogService:
+    return ImmutableEvaluationCatalogService(request.app.state.session_factory)
 
 
 @router.post("/evaluations/preview")
