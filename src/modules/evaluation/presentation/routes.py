@@ -6,9 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.completed_service import (
-    CompletedEvaluationApplicationService,
-)
+from modules.evaluation.application.experience_service import EvaluationExperienceService
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
@@ -50,7 +48,9 @@ class CreateSuiteRequest(BaseModel):
     judge_config: dict[str, Any] = Field(
         default_factory=lambda: {
             "temperature": 0,
-            "max_tokens": 800,
+            "output_budget_policy": "auto",
+            "max_tokens": 1200,
+            "maximum_retry_tokens": 8192,
             "timeout_seconds": 90,
             "maximum_input_tokens": 8000,
             "maximum_cost_usd": None,
@@ -90,11 +90,19 @@ class CreateComposedSuiteVersionRequest(BaseModel):
     authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class EvaluationTargetVariantRequest(BaseModel):
+    type: Literal["model_override"]
+    provider_model_id: UUID
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_output_tokens: int | None = Field(default=None, ge=128, le=32768)
+
+
 class EvaluationTargetRequest(BaseModel):
     target_type: Literal["agent", "network"]
     source_type: Literal["draft", "staging", "release"]
     entity_id: UUID
     version_id: UUID | None = None
+    variant: EvaluationTargetVariantRequest | None = None
 
 
 class EvaluationRunRequest(BaseModel):
@@ -107,13 +115,18 @@ class EvaluationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=255)
 
 
+class RetryJudgmentsRequest(BaseModel):
+    trial_ids: list[UUID] = Field(default_factory=list, max_length=5000)
+    failure_codes: list[str] = Field(default_factory=list, max_length=20)
+
+
 class CreateEstimateRequest(BaseModel):
     volume: int = Field(ge=1, le=1_000_000_000)
     volume_unit: str = Field(default="runs_per_month", min_length=3, max_length=64)
 
 
-def _service(request: Request) -> CompletedEvaluationApplicationService:
-    return CompletedEvaluationApplicationService(request.app.state.session_factory)
+def _service(request: Request) -> EvaluationExperienceService:
+    return EvaluationExperienceService(request.app.state.session_factory)
 
 
 def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
@@ -293,8 +306,8 @@ async def preview_run(project_id: UUID, payload: EvaluationRunRequest, request: 
         project_id=project_id,
         suite_version_id=payload.suite_version_id,
         repetitions=payload.repetitions,
-        candidate=payload.candidate.model_dump(mode="json"),
-        baseline=payload.baseline.model_dump(mode="json") if payload.baseline else None,
+        candidate=payload.candidate.model_dump(mode="json", exclude_none=True),
+        baseline=payload.baseline.model_dump(mode="json", exclude_none=True) if payload.baseline else None,
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
     )
@@ -308,8 +321,8 @@ async def create_run(project_id: UUID, payload: EvaluationRunRequest, request: R
         project_id=project_id,
         suite_version_id=payload.suite_version_id,
         repetitions=payload.repetitions,
-        candidate=payload.candidate.model_dump(mode="json"),
-        baseline=payload.baseline.model_dump(mode="json") if payload.baseline else None,
+        candidate=payload.candidate.model_dump(mode="json", exclude_none=True),
+        baseline=payload.baseline.model_dump(mode="json", exclude_none=True) if payload.baseline else None,
         requested_by=user_id,
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
@@ -344,6 +357,34 @@ async def list_runs(
 ):
     require_evaluation_user(request, project_id)
     return {"success": True, "data": await _service(request).list_runs(project_id, limit=limit)}
+
+
+@router.get("/runs/{run_id}/progress")
+async def get_run_progress(project_id: UUID, run_id: UUID, request: Request):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).get_run_progress(project_id, run_id),
+    }
+
+
+@router.post("/runs/{run_id}/retry-judgments", status_code=status.HTTP_202_ACCEPTED)
+async def retry_judgments(
+    project_id: UUID,
+    run_id: UUID,
+    payload: RetryJudgmentsRequest,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    return {
+        "success": True,
+        "data": await _service(request).retry_judgments(
+            project_id=project_id,
+            run_id=run_id,
+            trial_ids=payload.trial_ids or None,
+            failure_codes=payload.failure_codes or None,
+        ),
+    }
 
 
 @router.get("/runs/{run_id}")
