@@ -28,11 +28,15 @@ function money(value?: number | null) {
   }).format(value)
 }
 
-function elapsed(seconds?: number | null) {
+function duration(seconds?: number | null) {
   if (seconds == null) return '—'
-  const minutes = Math.floor(seconds / 60)
-  const rest = seconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+  const safe = Math.max(0, Math.round(seconds))
+  const hours = Math.floor(safe / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+  const rest = safe % 60
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  if (minutes > 0) return `${minutes}m ${String(rest).padStart(2, '0')}s`
+  return `${rest}s`
 }
 
 function phaseLabel(value: string) {
@@ -70,10 +74,11 @@ export function EvaluationRunProgressView({
   )
   const active = !terminal.has(progress.status)
   const attention = progress.inconclusive_trials + progress.failed_trials
+  const retryActive = active && (progress.retry_attempt || 0) > 0
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <section className="rounded-2xl border border-border/80 bg-background/40 p-6">
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-border/80 bg-background/40 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -85,33 +90,37 @@ export function EvaluationRunProgressView({
                 <AlertTriangle className="h-4 w-4 text-amber-300" />
               )}
               <h3 className="text-base font-semibold text-white">
-                {active ? 'Running Evaluation' : 'Evaluation processing finished'}
+                {retryActive
+                  ? `Retrying ${progress.retry_trial_count || 0} judgments`
+                  : active
+                    ? 'Running Evaluation'
+                    : 'Evaluation processing finished'}
               </h3>
             </div>
-            <p className="mt-2 text-xs text-muted">{phaseLabel(progress.phase)}</p>
+            <p className="mt-2 text-xs text-muted">
+              {phaseLabel(progress.phase)}
+              {progress.evidence_revision && progress.evidence_revision > 1
+                ? ` · Evidence revision ${progress.evidence_revision}`
+                : ''}
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">
-              {progress.mode === 'comparison' ? 'Snapshot comparison' : 'Single snapshot'}
-            </Badge>
-            {!active && progress.decision_required ? (
-              <Badge variant="outline">Human decision pending</Badge>
-            ) : null}
-          </div>
+          <Badge variant="outline">
+            {progress.mode === 'comparison' ? 'Snapshot comparison' : 'Single snapshot'}
+          </Badge>
         </div>
 
-        <div className="mt-6 h-2 overflow-hidden rounded-full bg-surface">
+        <div className="mt-5 h-2 overflow-hidden rounded-full bg-surface">
           <div
             className="h-full rounded-full bg-primary transition-all duration-500"
             style={{ width: `${completedPercent}%` }}
           />
         </div>
         <div className="mt-2 flex justify-between text-[10px] text-muted">
-          <span>{progress.completed_trials} / {progress.total_trials} Trials completed</span>
+          <span>{progress.completed_trials} / {progress.total_trials} Trial outcomes processed</span>
           <span>{completedPercent}%</span>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-surface/25 p-4">
             <p className="text-[10px] uppercase tracking-wide text-muted">Target execution</p>
             <p className="mt-2 text-lg font-semibold text-white">{progress.runtime_completed} / {progress.total_trials}</p>
@@ -123,14 +132,23 @@ export function EvaluationRunProgressView({
             <p className="mt-1 text-[10px] text-muted">{judgePercent}% complete</p>
           </div>
           <div className="rounded-xl border border-border/70 bg-surface/25 p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted">Elapsed</p>
-            <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
-              <Clock3 className="h-4 w-4 text-muted" />{elapsed(progress.elapsed_seconds)}
+            <p className="text-[10px] uppercase tracking-wide text-muted">
+              {retryActive ? 'Current retry' : 'Current processing'}
             </p>
+            <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
+              <Clock3 className="h-4 w-4 text-muted" />
+              {duration(progress.phase_elapsed_seconds ?? progress.elapsed_seconds)}
+            </p>
+            {retryActive && progress.processing_elapsed_seconds != null ? (
+              <p className="mt-1 text-[10px] text-muted">
+                Original processing {duration(progress.processing_elapsed_seconds)}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-xl border border-border/70 bg-surface/25 p-4">
-            <p className="text-[10px] uppercase tracking-wide text-muted">Cost so far</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted">Measured cost</p>
             <p className="mt-2 text-lg font-semibold text-white">{money(progress.measured_cost_usd)}</p>
+            <p className="mt-1 text-[10px] text-muted">Target + Judge calls so far</p>
           </div>
         </div>
 
