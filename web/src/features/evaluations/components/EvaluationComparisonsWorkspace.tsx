@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ChevronRight,
@@ -6,15 +6,20 @@ import {
   Loader2,
   Plus,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
 import {
+  useCreatePostHocEvaluationComparison,
   useEvaluationComparison,
   useEvaluationComparisons,
+  usePreviewEvaluationComparison,
 } from '@/features/evaluations/catalogHooks'
+import { useEvaluationRuns } from '@/features/evaluations/hooks'
 import { cn } from '@/lib/utils'
 import { EvaluationComparisonView } from './EvaluationComparisonView'
 
@@ -27,10 +32,16 @@ interface Props {
 }
 
 const active = new Set(['waiting', 'running'])
+const terminal = new Set(['completed', 'partially_completed'])
 
 function targetTitle(value: any, fallback: string) {
   const target = value?.target
   return target ? `${target.display_version}` : fallback
+}
+
+function runLabel(run: any) {
+  const target = run.targets?.find((item: any) => item.side === 'single') || run.targets?.[0]
+  return `${target?.display_version || 'Snapshot'} · ${run.repetitions} repetitions · ${run.overall_score == null ? 'No score' : `Score ${run.overall_score.toFixed(1)}`}`
 }
 
 export function EvaluationComparisonsWorkspace({
@@ -41,22 +52,67 @@ export function EvaluationComparisonsWorkspace({
   onCreateComparison,
 }: Props) {
   const listQuery = useEvaluationComparisons(projectId, entityId)
+  const runsQuery = useEvaluationRuns(projectId)
   const comparisons = listQuery.data ?? []
   const [internalId, setInternalId] = useState<string | null>(selectedComparisonId || null)
   const comparisonId = selectedComparisonId || internalId || comparisons[0]?.id || null
   const comparisonQuery = useEvaluationComparison(projectId, comparisonId)
+  const preview = usePreviewEvaluationComparison(projectId)
+  const create = useCreatePostHocEvaluationComparison(projectId)
+  const [builderOpen, setBuilderOpen] = useState(false)
+  const [candidateRunId, setCandidateRunId] = useState('')
+  const [referenceRunId, setReferenceRunId] = useState('')
+
+  const eligibleRuns = useMemo(() => (
+    (runsQuery.data ?? []).filter((run) => (
+      run.mode !== 'comparison'
+      && terminal.has(run.status)
+      && run.targets.length === 1
+      && run.targets[0]?.entity_id === entityId
+    ))
+  ), [runsQuery.data, entityId])
 
   useEffect(() => {
     if (selectedComparisonId) setInternalId(selectedComparisonId)
   }, [selectedComparisonId])
+
+  useEffect(() => {
+    if (!candidateRunId || !referenceRunId || candidateRunId === referenceRunId) {
+      preview.reset()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      preview.mutate({
+        candidate_run_id: candidateRunId,
+        reference_run_id: referenceRunId,
+      }, { onError: () => undefined })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [candidateRunId, referenceRunId])
 
   const select = (id: string) => {
     setInternalId(id)
     onSelectComparison?.(id)
   }
 
-  if (listQuery.isLoading) return <LoadingState message="Loading Comparisons" />
-  if (listQuery.isError) return <ErrorState message="Unable to load Comparisons" />
+  const createHistorical = async () => {
+    if (!candidateRunId || !referenceRunId || candidateRunId === referenceRunId) return
+    try {
+      const comparison = await create.mutateAsync({
+        candidate_run_id: candidateRunId,
+        reference_run_id: referenceRunId,
+        idempotency_key: crypto.randomUUID(),
+      })
+      select(comparison.id)
+      setBuilderOpen(false)
+      toast.success('Comparison created without rerunning either snapshot')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to create Comparison')
+    }
+  }
+
+  if (listQuery.isLoading || runsQuery.isLoading) return <LoadingState message="Loading Comparisons" />
+  if (listQuery.isError || runsQuery.isError) return <ErrorState message="Unable to load Comparisons" />
 
   return (
     <div className="grid min-h-[620px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -69,11 +125,9 @@ export function EvaluationComparisonsWorkspace({
                 Immutable comparisons between two Evaluation Runs.
               </p>
             </div>
-            {onCreateComparison ? (
-              <Button size="sm" onClick={onCreateComparison}>
-                <Plus className="mr-1 h-3.5 w-3.5" />New
-              </Button>
-            ) : null}
+            <Button size="sm" onClick={() => setBuilderOpen((value) => !value)}>
+              <Plus className="mr-1 h-3.5 w-3.5" />New
+            </Button>
           </div>
         </div>
         <div className="max-h-[690px] overflow-y-auto p-2">
@@ -124,7 +178,67 @@ export function EvaluationComparisonsWorkspace({
       </aside>
 
       <section className="min-w-0 rounded-2xl border border-border/80 bg-background/20 p-4">
-        {!comparisonId ? (
+        {builderOpen ? (
+          <div className="space-y-4">
+            <header>
+              <Badge variant="outline">Post-hoc · no execution</Badge>
+              <h3 className="mt-3 text-base font-semibold text-white">Compare existing Evaluations</h3>
+              <p className="mt-1 text-xs text-muted">
+                Select two compatible single-target Runs. Agent and Judge will not be executed again.
+              </p>
+            </header>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="space-y-2 text-xs text-muted">
+                <span>Candidate Run</span>
+                <Select
+                  value={candidateRunId}
+                  onChange={(event) => setCandidateRunId(event.target.value)}
+                  options={[
+                    { value: '', label: 'Select Candidate evidence' },
+                    ...eligibleRuns.map((run) => ({ value: run.id, label: runLabel(run) })),
+                  ]}
+                />
+              </label>
+              <label className="space-y-2 text-xs text-muted">
+                <span>Reference Run</span>
+                <Select
+                  value={referenceRunId}
+                  onChange={(event) => setReferenceRunId(event.target.value)}
+                  options={[
+                    { value: '', label: 'Select Reference evidence' },
+                    ...eligibleRuns.map((run) => ({ value: run.id, label: runLabel(run) })),
+                  ]}
+                />
+              </label>
+            </div>
+            {preview.isError ? (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300">
+                {preview.error instanceof Error ? preview.error.message : 'These Runs are not compatible.'}
+              </div>
+            ) : preview.data ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3 text-xs">
+                <p className="font-medium text-white">
+                  {preview.data.compatible ? 'Compatible Evaluation protocol' : 'Descriptive comparison only'}
+                </p>
+                <p className="mt-1 text-muted">
+                  {preview.data.executes_targets ? 'Target execution required' : 'No Target or Judge execution will occur.'}
+                </p>
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              {onCreateComparison ? (
+                <Button variant="outline" onClick={onCreateComparison}>Run new paired Comparison</Button>
+              ) : null}
+              <Button
+                loading={create.isPending}
+                disabled={!preview.data?.compatible}
+                onClick={() => void createHistorical()}
+              >
+                <GitCompareArrows className="mr-2 h-4 w-4" />Create Comparison
+              </Button>
+            </div>
+          </div>
+        ) : !comparisonId ? (
           <div className="flex min-h-[540px] items-center justify-center text-xs text-muted">
             Select or create a Comparison.
           </div>
