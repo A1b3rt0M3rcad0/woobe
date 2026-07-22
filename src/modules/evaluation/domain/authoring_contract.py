@@ -187,7 +187,7 @@ SUITE_GENERATION_EXAMPLES: list[dict[str, Any]] = [
     {
         "name": "Accept a Tool timeout as the specified failure",
         "case_type": "expected_failure",
-        "message": "Retrieve the live shipment status while the carrier service is unavailable.",
+        "message": "Retrieve live data while the relevant external service is unavailable.",
         "initial_context": None,
         "expected_outcome": {
             "type": "expected_failure",
@@ -199,7 +199,7 @@ SUITE_GENERATION_EXAMPLES: list[dict[str, Any]] = [
         },
         "expected_contract": {
             "semantic_criteria": [],
-            "tools": {"required": ["shipment_lookup"], "forbidden": []},
+            "tools": {"required": [], "forbidden": []},
             "output_contract": {"required": False},
         },
         "severity": "high",
@@ -341,8 +341,38 @@ def generation_failure_metadata(error: str | None, validation: dict[str, Any] | 
     errors = list((validation or {}).get("errors") or [])
     codes = {str(item.get("code") or "") for item in errors if isinstance(item, dict)}
     lowered = str(error or "").lower()
-    if "cost" in lowered:
-        return {"category": "cost_limit", "retryable": False, "recommended_action": "reduce_cases_or_raise_cost_limit"}
+
+    if any(
+        token in lowered
+        for token in (
+            "lengthfinishreasonerror",
+            "length limit was reached",
+            "finish_reason=length",
+            "finish reason 'length'",
+            "finish reason: length",
+            "maximum output length",
+        )
+    ):
+        return {
+            "category": "output_length_limit",
+            "retryable": True,
+            "recommended_action": "retry_with_larger_output_budget",
+        }
+    if any(
+        token in lowered
+        for token in (
+            "estimated_generation_cost_limit_exceeded",
+            "configured cost limit",
+            "cost limit exceeded",
+            "maximum total cost",
+            "maximum_cost_usd",
+        )
+    ):
+        return {
+            "category": "cost_limit",
+            "retryable": False,
+            "recommended_action": "reduce_cases_or_raise_cost_limit",
+        }
     if any(token in lowered for token in ("401", "403", "credential", "unauthorized")):
         return {"category": "credential_error", "retryable": False, "recommended_action": "change_model_or_credential"}
     if any(token in lowered for token in ("429", "rate limit", "ratelimit")):
