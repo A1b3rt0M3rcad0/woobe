@@ -39,11 +39,24 @@ function actionLabel(action?: string | null) {
     repair_duplicate_cases: 'Repair duplicate cases',
     retry_provider_call: 'Retry provider call',
     retry_with_backoff: 'Retry after rate limit',
+    retry_with_larger_output_budget: 'Retry with larger output budget',
     edit_tool_references: 'Review Tool references',
     change_model_or_credential: 'Change model or credential',
     reduce_cases_or_raise_cost_limit: 'Change generation limits',
     contact_support: 'Inspect platform error',
   }[String(action || '')] || 'Review generation failure'
+}
+
+function failureExplanation(batch: EvaluationAuthoringBatch) {
+  if (batch.failure_category === 'output_length_limit') {
+    return 'The model exhausted its completion budget before closing the JSON. The retry uses a larger adaptive output budget and requests a more concise response.'
+  }
+  if (batch.failure_category === 'cost_limit') {
+    return 'The configured cost ceiling prevented or stopped this generation.'
+  }
+  return batch.retryable
+    ? 'This failure is eligible for a targeted retry.'
+    : 'Repeating the same request will not resolve this failure.'
 }
 
 function BatchCard({ batch, blocked }: { batch: EvaluationAuthoringBatch; blocked: boolean }) {
@@ -105,13 +118,11 @@ function BatchCard({ batch, blocked }: { batch: EvaluationAuthoringBatch; blocke
           <p className="text-xs font-medium text-red-200">
             {actionLabel(batch.recommended_action)}
           </p>
-          <p className="mt-1 text-[10px] leading-4 text-red-300/80">
+          <p className="mt-1 break-words text-[10px] leading-4 text-red-300/80">
             {batch.error || failure || 'The batch could not be validated.'}
           </p>
-          <p className="mt-2 text-[10px] text-muted">
-            {batch.retryable
-              ? 'This failure is eligible for a targeted retry.'
-              : 'Repeating the same request will not resolve this failure.'}
+          <p className="mt-2 text-[10px] leading-4 text-muted">
+            {failureExplanation(batch)}
           </p>
         </div>
       ) : null}
@@ -123,7 +134,7 @@ function BatchCard({ batch, blocked }: { batch: EvaluationAuthoringBatch; blocke
           </summary>
           <div className="mt-2 space-y-2 text-[10px] leading-4 text-muted">
             {batch.validation_errors?.map((issue, index) => (
-              <p key={`error-${index}`} className="text-red-300/85">
+              <p key={`error-${index}`} className="break-words text-red-300/85">
                 {issue.path ? `${issue.path}: ` : ''}{issue.message}
               </p>
             ))}
@@ -137,6 +148,7 @@ function BatchCard({ batch, blocked }: { batch: EvaluationAuthoringBatch; blocke
                 Provider latency {latestAttempt.latency_ms == null ? 'unknown' : `${(latestAttempt.latency_ms / 1000).toFixed(1)}s`}
                 {' · '}{Number(latestAttempt.input_tokens || 0).toLocaleString()} input tokens
                 {' · '}{Number(latestAttempt.output_tokens || 0).toLocaleString()} output tokens
+                {latestAttempt.cost_usd == null ? '' : ` · $${latestAttempt.cost_usd.toFixed(6)}`}
               </p>
             ) : null}
           </div>
@@ -172,6 +184,7 @@ export function SuiteGenerationProgress({
   )
   const failedBeforePending = call.batches.some((batch) => batch.status === 'failed')
   const processedPercent = call.processed_percent ?? call.progress_percent
+  const primaryRetryAction = retryableFailures[0]?.recommended_action
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -262,9 +275,7 @@ export function SuiteGenerationProgress({
         {retryableFailures.length ? (
           <Button loading={retrying} onClick={onRetry}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            {retryableFailures.some((batch) => batch.recommended_action === 'repair_invalid_cases')
-              ? 'Repair invalid cases'
-              : 'Retry eligible batches'}
+            {actionLabel(primaryRetryAction)}
           </Button>
         ) : null}
       </div>
