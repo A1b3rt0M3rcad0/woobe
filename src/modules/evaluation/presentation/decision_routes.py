@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from modules.evaluation.application.experience_service import EvaluationExperienceService
 from modules.evaluation.presentation.dependencies import require_evaluation_user
+from shared.infra.errors import ConflictError
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
 
@@ -26,9 +27,13 @@ async def decide_evaluation_target(
     request: Request,
 ):
     user_id = require_evaluation_user(request, project_id)
-    data = await EvaluationExperienceService(
-        request.app.state.session_factory
-    ).create_decision(
+    service = EvaluationExperienceService(request.app.state.session_factory)
+    run = await service.get_run(project_id, run_id)
+    if run.get("mode") == "model_experiment":
+        raise ConflictError(
+            "Legacy Model Experiments cannot receive an operational target decision"
+        )
+    data = await service.create_decision(
         project_id=project_id,
         run_id=run_id,
         target_id=payload.target_id,
