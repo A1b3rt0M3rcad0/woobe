@@ -1,7 +1,7 @@
 import type { AgentRelease } from '@/features/agents/types'
 import type { EvaluationSuite } from '@/features/evaluations/types'
 import type { ProviderModel } from '@/features/provider-models/types'
-import { EvaluatorSuiteAuthoringWizard } from './EvaluatorSuiteAuthoringWizard'
+import { AgentSuiteQuickAuthoringWizard } from './AgentSuiteQuickAuthoringWizard'
 
 interface SuiteAuthoringWizardProps {
   projectId: string
@@ -12,10 +12,7 @@ interface SuiteAuthoringWizardProps {
   onCreated: (suite: EvaluationSuite) => void
 }
 
-/**
- * Compatibility adapter for the Agent Playground.
- * The actual authoring experience is shared with Networks and the global workspace.
- */
+/** Agent Playground adapter for the simplified contextual authoring flow. */
 export function SuiteAuthoringWizard({
   projectId,
   agentId,
@@ -25,17 +22,10 @@ export function SuiteAuthoringWizard({
   onCreated,
 }: SuiteAuthoringWizardProps) {
   return (
-    <EvaluatorSuiteAuthoringWizard
+    <AgentSuiteQuickAuthoringWizard
       projectId={projectId}
-      targetType="agent"
-      entityId={agentId}
-      targetName="Agent"
-      versions={releases.map((release) => ({
-        id: release.id,
-        version: release.version,
-        status: release.status,
-        snapshot_kind: release.snapshot_kind,
-      }))}
+      agentId={agentId}
+      releases={releases}
       providerModels={providerModels}
       onCancel={onCancel}
       onCreated={onCreated}
