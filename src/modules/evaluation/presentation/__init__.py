@@ -7,6 +7,7 @@ from modules.evaluation.presentation.comparison_preview_routes import (
 )
 from modules.evaluation.presentation.decision_routes import router as decision_router
 from modules.evaluation.presentation.evidence_routes import router as evidence_router
+from modules.evaluation.presentation.experience_routes import router as experience_router
 from modules.evaluation.presentation.pagination_routes import router as pagination_router
 from modules.evaluation.presentation.routes import router as resource_router
 from modules.evaluation.presentation.secure_version_routes import router as secure_version_router
@@ -19,6 +20,7 @@ router.include_router(version_router)
 router.include_router(secure_version_router)
 router.include_router(authoring_router)
 router.include_router(decision_router)
+router.include_router(experience_router)
 router.include_router(catalog_router)
 router.include_router(comparison_preview_router)
 router.include_router(evidence_router)
