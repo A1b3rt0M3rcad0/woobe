@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  ChevronDown,
   GitCompareArrows,
   Minus,
   ShieldCheck,
@@ -15,9 +16,11 @@ import { Button } from '@/components/ui/Button'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useDecideEvaluationComparison } from '@/features/evaluations/catalogHooks'
 import type {
+  ComparisonSideSummary,
   EvaluationComparison,
   EvaluationComparisonCase,
 } from '@/features/evaluations/catalogTypes'
+import type { EvaluationTrial } from '@/features/evaluations/types'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'cases' | 'attention' | 'decision' | 'technical'
@@ -46,13 +49,7 @@ function Winner({ value }: { value: EvaluationComparisonCase['winner'] }) {
   return <span className="text-muted">Unavailable</span>
 }
 
-function SideCard({
-  title,
-  side,
-}: {
-  title: string
-  side: NonNullable<NonNullable<EvaluationComparison['aggregate_result']>['candidate']>
-}) {
+function SideCard({ title, side }: { title: string; side: ComparisonSideSummary }) {
   return (
     <section className="rounded-xl border border-border/80 bg-background/35 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -87,6 +84,54 @@ function SideCard({
   )
 }
 
+function latestTrial(trials: EvaluationTrial[], caseId: string) {
+  const values = trials.filter((trial) => trial.case?.id === caseId)
+  return values.length ? values[values.length - 1] : null
+}
+
+function TrialEvidence({ title, trial }: { title: string; trial: EvaluationTrial | null }) {
+  if (!trial) {
+    return (
+      <section className="rounded-xl border border-dashed border-border p-4 text-xs text-muted">
+        {title} evidence is unavailable for this Test Case.
+      </section>
+    )
+  }
+  return (
+    <section className="space-y-3 rounded-xl border border-border/80 bg-background/30 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[9px] uppercase tracking-wide text-muted">{title}</p>
+          <p className="mt-1 text-xs font-semibold text-white">
+            {trial.passed == null ? 'Inconclusive' : trial.passed ? 'Passed' : 'Criteria not met'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">Score {score(trial.score)}</Badge>
+          <Badge variant="outline">Repetition {trial.repetition}</Badge>
+        </div>
+      </div>
+      <JsonCodeBlock title={`${title} output`} value={trial.output} maxHeight={240} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <JsonCodeBlock title="Deterministic and Judge checks" value={trial.checks || []} maxHeight={220} />
+        <JsonCodeBlock
+          title="Failure and execution references"
+          value={{
+            status: trial.status,
+            failure_code: trial.failure_code,
+            failure_detail: trial.failure_detail,
+            metrics: trial.metrics,
+            trace_id: trial.trace_id,
+            agent_run_id: trial.agent_run_id,
+            network_execution_id: trial.network_execution_id,
+          }}
+          maxHeight={220}
+        />
+      </div>
+    </section>
+  )
+}
+
 export function EvaluationComparisonView({
   projectId,
   comparison,
@@ -96,16 +141,19 @@ export function EvaluationComparisonView({
 }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [note, setNote] = useState('')
+  const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null)
   const decide = useDecideEvaluationComparison(projectId, comparison.id)
   const aggregate = comparison.aggregate_result
   const candidate = aggregate?.candidate
   const reference = aggregate?.reference
   const cases = aggregate?.cases || []
+  const candidateTrials = comparison.candidate_run?.trials || []
+  const referenceTrials = comparison.reference_run?.trials || []
   const unavailableCases = useMemo(
     () => cases.filter((item) => item.winner == null),
     [cases],
   )
-  const ready = comparison.status === 'ready' && aggregate?.comparison_available
+  const ready = comparison.status === 'ready' && Boolean(aggregate?.comparison_available)
 
   const submit = async (
     decision: 'select_candidate' | 'keep_reference' | 'no_preference',
@@ -133,6 +181,11 @@ export function EvaluationComparisonView({
     { value: 'attention', label: `Attention (${unavailableCases.length})` },
     { value: 'decision', label: 'Decision' },
     { value: 'technical', label: 'Technical' },
+  ]
+
+  const failureSides: Array<{ title: string; side?: ComparisonSideSummary }> = [
+    { title: 'Candidate', side: candidate },
+    { title: 'Reference', side: reference },
   ]
 
   return (
@@ -210,14 +263,14 @@ export function EvaluationComparisonView({
               ['Weighted pass', candidate?.summary?.weighted_pass_rate, reference?.summary?.weighted_pass_rate, aggregate?.delta?.pass_rate_percentage_points, ' pp'],
               ['Runtime cost', candidate?.runtime.runtime_cost_usd, reference?.runtime.runtime_cost_usd, aggregate?.delta?.runtime_cost_usd, '$'],
               ['Median latency', candidate?.runtime.latency_median_ms, reference?.runtime.latency_median_ms, aggregate?.delta?.latency_median_ms, 'ms'],
-            ].map(([name, c, r, d, suffix]) => (
+            ].map(([name, candidateValue, referenceValue, deltaValue, suffix]) => (
               <div key={String(name)} className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] border-b border-border/70 px-4 py-3 text-xs last:border-b-0">
                 <span className="text-white">{name}</span>
-                <span className="text-slate-200">{c == null ? '—' : Number(c).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
-                <span className="text-slate-200">{r == null ? '—' : Number(r).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
+                <span className="text-slate-200">{candidateValue == null ? '—' : Number(candidateValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
+                <span className="text-slate-200">{referenceValue == null ? '—' : Number(referenceValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
                 <span className="flex items-center gap-1 text-slate-200">
-                  {d == null ? <Minus className="h-3 w-3 text-muted" /> : Number(d) > 0 ? <ArrowUp className="h-3 w-3 text-emerald-300" /> : <ArrowDown className="h-3 w-3 text-amber-300" />}
-                  {d == null ? '—' : `${name === 'Runtime cost' ? '$' : ''}${delta(Number(d), suffix === '$' ? '' : suffix)}`}
+                  {deltaValue == null ? <Minus className="h-3 w-3 text-muted" /> : Number(deltaValue) > 0 ? <ArrowUp className="h-3 w-3 text-emerald-300" /> : <ArrowDown className="h-3 w-3 text-amber-300" />}
+                  {deltaValue == null ? '—' : `${name === 'Runtime cost' ? '$' : ''}${delta(Number(deltaValue), suffix === '$' ? '' : String(suffix))}`}
                 </span>
               </div>
             ))}
@@ -227,29 +280,54 @@ export function EvaluationComparisonView({
 
       {tab === 'cases' ? (
         <section className="overflow-hidden rounded-xl border border-border/80 bg-background/30">
-          <div className="grid grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
-            <span>Test Case</span><span>Candidate</span><span>Reference</span><span>Delta</span><span>Result</span>
+          <div className="grid grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px_32px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
+            <span>Test Case</span><span>Candidate</span><span>Reference</span><span>Delta</span><span>Result</span><span />
           </div>
-          {cases.map((item) => (
-            <div key={item.test_case_id} className="grid grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px] items-center border-b border-border/70 px-4 py-3 text-xs last:border-b-0">
-              <div><p className="font-medium text-white">{item.name}</p><p className="mt-1 text-[10px] text-muted">{item.case_type}</p></div>
-              <div><p className="text-white">{score(item.candidate.score)}</p><p className="mt-1 text-[10px] text-muted">{item.candidate.passed}/{item.candidate.total} passed</p></div>
-              <div><p className="text-white">{score(item.reference.score)}</p><p className="mt-1 text-[10px] text-muted">{item.reference.passed}/{item.reference.total} passed</p></div>
-              <span className="text-white">{delta(item.score_delta)}</span>
-              <Winner value={item.winner} />
-            </div>
-          ))}
+          {cases.map((item) => {
+            const expanded = expandedCaseId === item.test_case_id
+            const candidateTrial = latestTrial(candidateTrials, item.test_case_id)
+            const referenceTrial = latestTrial(referenceTrials, item.test_case_id)
+            return (
+              <article key={item.test_case_id} className="border-b border-border/70 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => setExpandedCaseId(expanded ? null : item.test_case_id)}
+                  className="grid w-full grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px_32px] items-center px-4 py-3 text-left text-xs hover:bg-surface/20"
+                >
+                  <div><p className="font-medium text-white">{item.name}</p><p className="mt-1 text-[10px] text-muted">{item.case_type}</p></div>
+                  <div><p className="text-white">{score(item.candidate.score)}</p><p className="mt-1 text-[10px] text-muted">{item.candidate.passed}/{item.candidate.total} passed</p></div>
+                  <div><p className="text-white">{score(item.reference.score)}</p><p className="mt-1 text-[10px] text-muted">{item.reference.passed}/{item.reference.total} passed</p></div>
+                  <span className="text-white">{delta(item.score_delta)}</span>
+                  <Winner value={item.winner} />
+                  <ChevronDown className={cn('h-4 w-4 text-muted transition-transform', expanded && 'rotate-180')} />
+                </button>
+                {expanded ? (
+                  <div className="space-y-4 border-t border-border/70 bg-surface/10 p-4">
+                    <JsonCodeBlock
+                      title="Expected Run Contract"
+                      value={candidateTrial?.case?.expected_contract || referenceTrial?.case?.expected_contract}
+                      maxHeight={240}
+                    />
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <TrialEvidence title="Candidate" trial={candidateTrial} />
+                      <TrialEvidence title="Reference" trial={referenceTrial} />
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
         </section>
       ) : null}
 
       {tab === 'attention' ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          {[['Candidate', candidate], ['Reference', reference]].map(([title, side]) => (
-            <section key={String(title)} className="rounded-xl border border-border/80 bg-background/30 p-4">
+          {failureSides.map(({ title, side }) => (
+            <section key={title} className="rounded-xl border border-border/80 bg-background/30 p-4">
               <h4 className="text-sm font-semibold text-white">{title} failures</h4>
               <div className="mt-3 space-y-2">
-                {(side as typeof candidate)?.failures.groups.length
-                  ? (side as typeof candidate)?.failures.groups.map((group) => (
+                {side?.failures.groups.length
+                  ? side.failures.groups.map((group) => (
                     <div key={group.code} className="rounded-lg border border-border/70 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium text-white">{group.code}</p>
