@@ -107,6 +107,34 @@ def test_failure_metadata_distinguishes_contract_and_credentials() -> None:
     assert credential["retryable"] is False
 
 
+def test_length_finish_reason_is_not_misclassified_as_cost_limit() -> None:
+    failure = generation_failure_metadata(
+        "LengthFinishReasonError: Could not parse response content as the length limit was reached "
+        "CompletionUsage(completion_tokens=2800, prompt_tokens=2718, cost=0.00116, "
+        "cost_details={'upstream_inference_cost': 0.001})",
+        None,
+    )
+
+    assert failure == {
+        "category": "output_length_limit",
+        "retryable": True,
+        "recommended_action": "retry_with_larger_output_budget",
+    }
+
+
+def test_explicit_cost_limit_remains_non_retryable() -> None:
+    failure = generation_failure_metadata(
+        "estimated_generation_cost_limit_exceeded",
+        None,
+    )
+
+    assert failure == {
+        "category": "cost_limit",
+        "retryable": False,
+        "recommended_action": "reduce_cases_or_raise_cost_limit",
+    }
+
+
 def test_generation_schema_requires_observable_contract_fields() -> None:
     schema = suite_generation_json_schema()
     case_schema = schema["properties"]["cases"]["items"]
