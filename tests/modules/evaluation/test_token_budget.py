@@ -46,6 +46,10 @@ def test_generation_output_reserve_scales_with_case_count() -> None:
     assert recommended_generation_output_tokens(100) <= 12_000
 
 
+def test_ten_case_generation_reserves_reasoning_and_json_headroom() -> None:
+    assert recommended_generation_output_tokens(10) >= 8_000
+
+
 def test_token_estimate_is_conservative_and_nonzero() -> None:
     assert estimate_tokens("") >= 1
     assert estimate_tokens("a" * 3_200) >= 1_000
