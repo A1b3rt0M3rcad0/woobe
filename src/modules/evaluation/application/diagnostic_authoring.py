@@ -36,10 +36,12 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
     """Secure authoring facade with canonical normalization and user-facing diagnostics."""
 
     async def preview_context(self, **kwargs) -> dict[str, Any]:
-        data = await super().preview_context(**kwargs)
         case_count = int(kwargs.get("case_count") or 0)
         batch_count = max(1, (case_count + 9) // 10)
+        preview_kwargs = {**kwargs, "case_count": min(max(case_count, 1), 10)}
+        data = await super().preview_context(**preview_kwargs)
         per_call_cost = data.get("estimated_cost_usd")
+        data["requested_case_count"] = case_count
         data["estimated_batch_count"] = batch_count
         data["estimated_total_cost_usd"] = (
             float(per_call_cost) * batch_count if per_call_cost is not None else None
@@ -159,6 +161,8 @@ class DiagnosticEvaluationSuiteAuthoringService(SecureEvaluationSuiteAuthoringSe
         data = await super()._payload(session, call, batches=batches)
         now = datetime.now(timezone.utc)
         started_at = call.created_at
+        if started_at is not None and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
         elapsed_seconds = (
             max(0, round((now - started_at).total_seconds()))
             if started_at is not None
