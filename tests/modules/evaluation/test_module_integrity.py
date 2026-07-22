@@ -20,6 +20,9 @@ from modules.evaluation.application.experience_service import (
 from modules.evaluation.application.hardened_service import (
     HardenedEvaluationApplicationService,
 )
+from modules.evaluation.application.human_decision_service import (
+    HumanDecisionEvaluationApplicationService,
+)
 from modules.evaluation.application.resumable_authoring import (
     ResumableEvaluationSuiteAuthoringService,
 )
@@ -30,10 +33,17 @@ from modules.evaluation.application.suite_authoring import (
     EvaluationSuiteAuthoringService,
 )
 from modules.evaluation.infra.adaptive_judge import AdaptiveEvaluatorModelGateway
+from modules.evaluation.infra.database.decision_models import (
+    EvaluationTargetDecisionModel,
+)
 from modules.evaluation.infra.workers.authoring_worker import EvaluationAuthoringWorker
 from modules.evaluation.infra.workers.concurrent_worker import (
     ConcurrentOutcomeAwareEvaluationRunProcessor,
     ConcurrentOutcomeAwareEvaluationRunWorker,
+)
+from modules.evaluation.infra.workers.governed_worker import (
+    GovernedEvaluationRunProcessor,
+    GovernedEvaluationRunWorker,
 )
 from modules.evaluation.infra.workers.outcome_worker import (
     OutcomeAwareEvaluationRunProcessor,
@@ -53,10 +63,6 @@ from modules.evaluation.infra.workers.run_worker import (
 from modules.evaluation.infra.workers.slot_ready_authoring_worker import (
     SlotReadyEvaluationAuthoringWorker,
 )
-from modules.evaluation.infra.workers.variant_worker import (
-    VariantAwareConcurrentEvaluationRunProcessor,
-    VariantAwareConcurrentEvaluationRunWorker,
-)
 from modules.network.application.agent_invoker import ProjectRAIAgentInvoker
 from modules.network.infra.runtime import (
     ProjectRAIAgentInvoker as CanonicalProjectRAIAgentInvoker,
@@ -73,7 +79,9 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert HardenedEvaluationApplicationService is not None
     assert EnrichedEvaluationApplicationService is not None
     assert CompletedEvaluationApplicationService is not None
+    assert HumanDecisionEvaluationApplicationService is not None
     assert EvaluationExperienceService is not None
+    assert EvaluationTargetDecisionModel is not None
     assert EvaluationSuiteAuthoringService is not None
     assert DurableEvaluationSuiteAuthoringService is not None
     assert DiagnosticEvaluationSuiteAuthoringService is not None
@@ -86,8 +94,8 @@ def test_evaluation_module_imports_are_resolvable() -> None:
     assert OutcomeAwareEvaluationRunWorker is not None
     assert ConcurrentOutcomeAwareEvaluationRunProcessor is not None
     assert ConcurrentOutcomeAwareEvaluationRunWorker is not None
-    assert VariantAwareConcurrentEvaluationRunProcessor is not None
-    assert VariantAwareConcurrentEvaluationRunWorker is not None
+    assert GovernedEvaluationRunProcessor is not None
+    assert GovernedEvaluationRunWorker is not None
     assert EvaluationAuthoringWorker is not None
     assert ResumableEvaluationAuthoringWorker is not None
     assert SlotReadyEvaluationAuthoringWorker is not None
@@ -104,6 +112,7 @@ def test_evaluation_authoring_modules_import_cleanly() -> None:
         "modules.evaluation.application.durable_authoring",
         "modules.evaluation.application.enriched_service",
         "modules.evaluation.application.experience_service",
+        "modules.evaluation.application.human_decision_service",
         "modules.evaluation.application.metering",
         "modules.evaluation.application.operational_service",
         "modules.evaluation.application.outcome_scoring",
@@ -118,14 +127,16 @@ def test_evaluation_authoring_modules_import_cleanly() -> None:
         "modules.evaluation.infra.adaptive_judge",
         "modules.evaluation.infra.budgeted_judge",
         "modules.evaluation.infra.database.authoring_models",
+        "modules.evaluation.infra.database.decision_models",
         "modules.evaluation.infra.generator",
         "modules.evaluation.infra.workers.authoring_worker",
         "modules.evaluation.infra.workers.concurrent_worker",
+        "modules.evaluation.infra.workers.governed_worker",
         "modules.evaluation.infra.workers.outcome_worker",
         "modules.evaluation.infra.workers.resumable_authoring_worker",
         "modules.evaluation.infra.workers.slot_ready_authoring_worker",
-        "modules.evaluation.infra.workers.variant_worker",
         "modules.evaluation.presentation.authoring_routes",
+        "modules.evaluation.presentation.decision_routes",
         "modules.evaluation.presentation.routes",
     ]
     for module_name in module_names:
@@ -142,9 +153,7 @@ def test_evaluation_worker_registry_is_discoverable() -> None:
 
 def test_evaluation_workers_implement_worker_contract() -> None:
     assert isinstance(
-        VariantAwareConcurrentEvaluationRunWorker.__new__(
-            VariantAwareConcurrentEvaluationRunWorker
-        ),
+        GovernedEvaluationRunWorker.__new__(GovernedEvaluationRunWorker),
         WorkerProtocol,
     )
     assert isinstance(
