@@ -23,6 +23,9 @@ export interface EvaluationRunProgress {
   mode: EvaluationRun['mode']
   qualification_eligible?: boolean
   decision_required?: boolean
+  evidence_revision?: number
+  retry_attempt?: number
+  retry_trial_count?: number
   total_trials: number
   runtime_completed: number
   runtime_pending: number
@@ -33,6 +36,9 @@ export interface EvaluationRunProgress {
   inconclusive_trials: number
   failed_trials: number
   elapsed_seconds: number | null
+  phase_elapsed_seconds?: number | null
+  processing_elapsed_seconds?: number | null
+  started_at?: string | null
   measured_cost_usd: number | null
   targets: EvaluationTarget[]
   failure_code?: string | null
