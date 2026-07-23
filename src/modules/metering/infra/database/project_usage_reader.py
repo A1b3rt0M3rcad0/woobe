@@ -74,6 +74,21 @@ class SQLAlchemyProjectUsageReader:
                 trace.agent_id,
                 agent.name AS agent_name,
                 trace.status,
+                trace.run_purpose,
+                trace.evaluation_run_id,
+                trace.evaluation_trial_id,
+                COALESCE(
+                    NULLIF(trace.data ->> 'evaluation_target_id', ''),
+                    NULLIF(trace.data -> 'diagnostics' ->> 'evaluation_target_id', '')
+                ) AS evaluation_target_id_text,
+                COALESCE(
+                    NULLIF(trace.data ->> 'target_snapshot_hash', ''),
+                    NULLIF(trace.data -> 'diagnostics' ->> 'target_snapshot_hash', '')
+                ) AS target_snapshot_hash,
+                COALESCE(
+                    NULLIF(trace.data ->> 'target_snapshot_label', ''),
+                    NULLIF(trace.data -> 'diagnostics' ->> 'target_snapshot_label', '')
+                ) AS target_snapshot_label,
                 trace.error,
                 trace.started_at,
                 trace.ended_at,
@@ -192,6 +207,7 @@ class SQLAlchemyProjectUsageReader:
     def _agent_scope_sql(alias: str = "run") -> str:
         return f"""
         {alias}.status IN ('completed', 'failed', 'cancelled')
+        AND (:purpose = 'all' OR {alias}.run_purpose = :purpose)
         AND (:environment = 'all' OR {alias}.run_environment = :environment)
         AND (
             :operation = 'all'
@@ -224,6 +240,7 @@ class SQLAlchemyProjectUsageReader:
             "previous_start": query.from_ - duration,
             "environment": query.environment,
             "operation": query.operation,
+            "purpose": query.purpose,
             "network_id": query.network_id,
             "agent_id": query.agent_id,
             "provider_model_id": query.provider_model_id,
@@ -310,6 +327,7 @@ class SQLAlchemyProjectUsageReader:
             "bucket": query.bucket,
             "environment": query.environment,
             "operation": query.operation,
+            "purpose": query.purpose,
             "group_by": query.group_by,
             "summary": summary,
             "timeseries": timeseries,
@@ -473,6 +491,7 @@ class SQLAlchemyProjectUsageReader:
                 LEFT JOIN execution_costs AS costs
                   ON costs.network_execution_id = execution.id
                 WHERE execution.project_id = :project_id
+                  AND (:purpose = 'all' OR execution.run_purpose = :purpose)
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
@@ -490,6 +509,7 @@ class SQLAlchemyProjectUsageReader:
                 JOIN network.network_sessions AS network_session
                   ON network_session.id = execution.network_session_id
                 WHERE execution.project_id = :project_id
+                  AND (:purpose = 'all' OR execution.run_purpose = :purpose)
                   AND execution.created_at >= :previous_start
                   AND execution.created_at < :start
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
@@ -620,6 +640,7 @@ class SQLAlchemyProjectUsageReader:
                 LEFT JOIN network_costs
                   ON network_costs.network_execution_id = execution.id
                 WHERE execution.project_id = :project_id
+                  AND (:purpose = 'all' OR execution.run_purpose = :purpose)
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
@@ -907,6 +928,7 @@ class SQLAlchemyProjectUsageReader:
               ON network_session.id = execution.network_session_id
             LEFT JOIN costs ON costs.network_execution_id = execution.id
             WHERE execution.project_id = :project_id
+                  AND (:purpose = 'all' OR execution.run_purpose = :purpose)
               AND execution.created_at >= :start
               AND execution.created_at < :end
               AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
