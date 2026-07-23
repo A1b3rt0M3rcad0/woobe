@@ -6,7 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.experience_service import EvaluationExperienceService
+from modules.evaluation.application.governed_experience_service import (
+    GovernedEvaluationExperienceService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
@@ -48,12 +50,15 @@ class CreateSuiteRequest(BaseModel):
     judge_config: dict[str, Any] = Field(
         default_factory=lambda: {
             "temperature": 0,
-            "output_budget_policy": "auto",
+            "output_budget_policy": "fixed",
             "max_tokens": 1200,
-            "maximum_retry_tokens": 8192,
+            "maximum_retry_tokens": 2048,
+            "platform_output_cap": 4096,
+            "attempts": 3,
             "timeout_seconds": 90,
             "maximum_input_tokens": 8000,
             "maximum_cost_usd": None,
+            "reasoning_policy": "provider_default",
         }
     )
     rubric: dict[str, Any] = Field(default_factory=dict)
@@ -125,8 +130,8 @@ class CreateEstimateRequest(BaseModel):
     volume_unit: str = Field(default="runs_per_month", min_length=3, max_length=64)
 
 
-def _service(request: Request) -> EvaluationExperienceService:
-    return EvaluationExperienceService(request.app.state.session_factory)
+def _service(request: Request) -> GovernedEvaluationExperienceService:
+    return GovernedEvaluationExperienceService(request.app.state.session_factory)
 
 
 def _cases(values: list[EvaluationCaseRequest]) -> list[dict[str, Any]]:
