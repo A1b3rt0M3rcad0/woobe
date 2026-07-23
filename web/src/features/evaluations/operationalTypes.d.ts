@@ -37,6 +37,15 @@ interface EvaluationJudgmentRetry {
   evidence_revision?: number
 }
 
+interface EvaluationRunJudgeProtocol {
+  source?: 'suite_default' | 'run_override' | string
+  suite_default_provider_model_id?: string
+  judge_provider_model_id?: string
+  judge_model_snapshot_hash?: string | null
+  judge_model_snapshot?: Record<string, any> | null
+  normalized_judge_config?: Record<string, any> | null
+}
+
 declare module './types' {
   interface EvaluationTarget {
     manifest?: EvaluationTargetManifest
@@ -45,6 +54,13 @@ declare module './types' {
   interface EvaluationEstimate {
     assumptions?: Record<string, unknown>
     created_at?: string
+  }
+
+  interface EvaluationExecutionPolicy {
+    judge_preflight_hash?: string | null
+    judge_protocol?: EvaluationRunJudgeProtocol
+    judge_canary_required?: boolean
+    judge_circuit_breaker_enabled?: boolean
   }
 
   interface EvaluationRun {
