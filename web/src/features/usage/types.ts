@@ -1,5 +1,5 @@
 export type UsageBucket = 'hour' | 'day'
-export type UsageEnvironment = 'all' | 'draft' | 'staging' | 'production'
+export type UsageEnvironment = 'all' | 'draft' | 'staging' | 'production' | 'release'
 export type UsageOperation = 'all' | 'agent' | 'network'
 export type UsagePurpose = 'operational' | 'evaluation' | 'all'
 export type UsageGroupBy = 'agent' | 'network' | 'model' | 'provider' | 'environment' | 'release'
