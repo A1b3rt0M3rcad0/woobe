@@ -53,6 +53,17 @@ function date(value?: string | null) {
   }).format(new Date(value))
 }
 
+function suiteLabel(item: EvaluationCatalogItem) {
+  if (item.suite_name) {
+    return `${item.suite_name}${item.suite_version ? ` · ${item.suite_version}` : ''}`
+  }
+  return `Suite ${item.suite_version_id.slice(0, 8)}`
+}
+
+function targetFilterKey(item: EvaluationCatalogItem) {
+  return item.target_identity_hash || item.target_version_id || item.target_snapshot_hash
+}
+
 export function EvaluationCatalogWorkspace({
   projectId,
   entityId,
@@ -62,12 +73,42 @@ export function EvaluationCatalogWorkspace({
   onCompareRun,
 }: Props) {
   const [showArchived, setShowArchived] = useState(false)
+  const [suiteFilter, setSuiteFilter] = useState('all')
+  const [targetFilter, setTargetFilter] = useState('all')
   const catalogQuery = useEvaluationCatalog(projectId, entityId, showArchived)
   const evaluations = catalogQuery.data ?? []
   const [internalEvaluationId, setInternalEvaluationId] = useState<string | null>(
     selectedEvaluationId || null,
   )
-  const evaluationId = selectedEvaluationId || internalEvaluationId || evaluations[0]?.id || null
+
+  const suiteOptions = useMemo(() => {
+    const values = new Map<string, string>()
+    evaluations.forEach((item) => values.set(item.suite_version_id, suiteLabel(item)))
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [evaluations])
+
+  const targetOptions = useMemo(() => {
+    const values = new Map<string, string>()
+    evaluations.forEach((item) => {
+      values.set(
+        targetFilterKey(item),
+        `${item.display_version} · ${item.source_type}`,
+      )
+    })
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [evaluations])
+
+  const visibleEvaluations = useMemo(() => evaluations.filter((item) => (
+    (suiteFilter === 'all' || item.suite_version_id === suiteFilter)
+    && (targetFilter === 'all' || targetFilterKey(item) === targetFilter)
+  )), [evaluations, suiteFilter, targetFilter])
+
+  const preferredEvaluationId = selectedEvaluationId || internalEvaluationId
+  const evaluationId = (
+    visibleEvaluations.some((item) => item.id === preferredEvaluationId)
+      ? preferredEvaluationId
+      : visibleEvaluations[0]?.id
+  ) || null
   const evaluationQuery = useCatalogEvaluation(projectId, evaluationId)
   const evaluation = evaluationQuery.data
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -81,6 +122,12 @@ export function EvaluationCatalogWorkspace({
   }, [selectedEvaluationId])
 
   useEffect(() => {
+    if (evaluationId && evaluationId !== internalEvaluationId) {
+      setInternalEvaluationId(evaluationId)
+    }
+  }, [evaluationId, internalEvaluationId])
+
+  useEffect(() => {
     setSelectedRunId(null)
   }, [evaluationId])
 
@@ -90,22 +137,22 @@ export function EvaluationCatalogWorkspace({
   }
 
   const grouped = useMemo(() => ({
-    active: evaluations.filter((item) => item.status !== 'archived'),
-    archived: evaluations.filter((item) => item.status === 'archived'),
-  }), [evaluations])
+    active: visibleEvaluations.filter((item) => item.status !== 'archived'),
+    archived: visibleEvaluations.filter((item) => item.status === 'archived'),
+  }), [visibleEvaluations])
 
   if (catalogQuery.isLoading) return <LoadingState message="Loading snapshot Evaluations" />
   if (catalogQuery.isError) return <ErrorState message="Unable to load snapshot Evaluations" />
 
   return (
-    <div className="grid min-h-[620px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid min-h-[620px] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="overflow-hidden rounded-2xl border border-border/80 bg-background/25">
         <div className="border-b border-border/80 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-white">Snapshot Evaluations</h3>
               <p className="mt-1 text-[11px] leading-4 text-muted">
-                One Evaluation per exact snapshot and immutable Suite Version.
+                Runs grouped by exact target snapshot and immutable Suite Version.
               </p>
             </div>
             <button
@@ -116,8 +163,36 @@ export function EvaluationCatalogWorkspace({
               {showArchived ? 'Active only' : 'Include archived'}
             </button>
           </div>
+          <div className="mt-4 grid gap-2">
+            <label className="space-y-1 text-[10px] text-muted">
+              <span>Suite Version</span>
+              <select
+                value={suiteFilter}
+                onChange={(event) => setSuiteFilter(event.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-background/60 px-2 text-xs text-white"
+              >
+                <option value="all">All Suites</option>
+                {suiteOptions.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-[10px] text-muted">
+              <span>Exact Agent Version / Snapshot</span>
+              <select
+                value={targetFilter}
+                onChange={(event) => setTargetFilter(event.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-background/60 px-2 text-xs text-white"
+              >
+                <option value="all">All target versions</option>
+                {targetOptions.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
-        <div className="max-h-[690px] overflow-y-auto p-2">
+        <div className="max-h-[650px] overflow-y-auto p-2">
           {[...grouped.active, ...grouped.archived].map((item) => {
             const latest = item.latest_run
             const selected = item.id === evaluationId
@@ -141,8 +216,11 @@ export function EvaluationCatalogWorkspace({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-white">{item.display_version}</p>
+                    <p className="mt-1 truncate text-[10px] text-primary-light">
+                      {suiteLabel(item)}
+                    </p>
                     <p className="mt-1 truncate text-[10px] text-muted">
-                      Suite {item.suite_version_id.slice(0, 8)} · {item.run_count ?? 0} Runs
+                      {item.source_type} · {item.run_count ?? 0} Runs
                     </p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="text-[10px] text-muted">
@@ -158,9 +236,11 @@ export function EvaluationCatalogWorkspace({
               </button>
             )
           })}
-          {!evaluations.length ? (
+          {!visibleEvaluations.length ? (
             <div className="p-8 text-center text-xs text-muted">
-              No snapshot Evaluation exists yet. Start one from Run.
+              {evaluations.length
+                ? 'No Evaluation matches the selected Suite and target version.'
+                : 'No snapshot Evaluation exists yet. Start one from Run.'}
             </div>
           ) : null}
         </div>
@@ -182,7 +262,7 @@ export function EvaluationCatalogWorkspace({
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{evaluation.source_type}</Badge>
                   <Badge variant="outline">{evaluation.run_count ?? 0} Runs</Badge>
-                  <Badge variant="outline">Suite-bound</Badge>
+                  <Badge variant="outline">{suiteLabel(evaluation)}</Badge>
                 </div>
                 <h3 className="mt-3 text-base font-semibold text-white">
                   {evaluation.display_name} · {evaluation.display_version}
@@ -227,7 +307,7 @@ export function EvaluationCatalogWorkspace({
               <aside className="overflow-hidden rounded-xl border border-border/80 bg-background/25">
                 <div className="border-b border-border/80 px-3 py-3">
                   <p className="text-xs font-semibold text-white">Run history</p>
-                  <p className="mt-1 text-[10px] text-muted">Each execution remains independent.</p>
+                  <p className="mt-1 text-[10px] text-muted">Exact Suite and snapshot only.</p>
                 </div>
                 <div className="max-h-[570px] overflow-y-auto p-2">
                   {(evaluation.runs || []).map((run) => (
