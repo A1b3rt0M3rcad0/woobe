@@ -12,6 +12,7 @@ from modules.evaluation.application.run_judge import (
     selected_judge_config,
     selected_judge_provider_model_id,
 )
+from modules.evaluation.application.runtime_gateway import EvaluationRuntimeCancelled
 from modules.evaluation.application.scoring import (
     calculate_trial_score,
     evaluate_deterministic_checks,
@@ -182,10 +183,12 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                 network_execution_id=network_execution_id,
                 trace_id=trace_id,
             )
+        except EvaluationRuntimeCancelled as exc:
+            await self._mark_trial_cancelled(trial.id, str(exc))
+            return
         except Exception as exc:
-            # Preserve every completed turn and expose a runtime failure at the
-            # Session Trial boundary. Judge failures are handled by the inherited
-            # governed pipeline before reaching this branch.
+            # A target/runtime failure belongs to this Session Trial only. Completed
+            # turn rows remain immutable evidence and the worker continues the Run.
             async with self._session_factory() as session, session.begin():
                 row = await session.get(
                     EvaluationTrialModel,
@@ -197,7 +200,7 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                     row.failure_code = type(exc).__name__
                     row.failure_detail = str(exc)[:4000]
                     row.completed_at = datetime.now(timezone.utc)
-            raise
+            return
 
     async def _execute_agent_session(self, trial, target, case):
         turns = _session_turns(case)
