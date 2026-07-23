@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from modules.evaluation.application.metering import record_evaluation_model_usage
 from modules.evaluation.application.processor import (
     EvaluationRunProcessor,
     EvaluationRunWorker,
@@ -228,6 +229,10 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
                 "run_purpose": "evaluation",
                 "evaluation_run_id": str(trial.evaluation_run_id),
                 "evaluation_trial_id": str(trial.id),
+                "evaluation_target_id": str(target.id),
+                "target_snapshot_hash": target.snapshot_hash,
+                "target_snapshot_label": target.environment,
+                "evaluation_role": "target",
                 "comparison_pair_id": trial.pair_key,
                 "target_side": target.side,
                 "initial_context": case.initial_context,
@@ -275,6 +280,10 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             "run_purpose": "evaluation",
             "evaluation_run_id": str(trial.evaluation_run_id),
             "evaluation_trial_id": str(trial.id),
+            "evaluation_target_id": str(target.id),
+            "target_snapshot_hash": target.snapshot_hash,
+            "target_snapshot_label": target.environment,
+            "evaluation_role": "target",
             "comparison_pair_id": trial.pair_key,
             "target_side": target.side,
             "case_weight": float(case.weight or 1.0),
@@ -304,6 +313,10 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             **evidence.metrics,
             "evaluation_run_id": str(trial.evaluation_run_id),
             "evaluation_trial_id": str(trial.id),
+            "evaluation_target_id": str(target.id),
+            "target_snapshot_hash": target.snapshot_hash,
+            "target_snapshot_label": target.environment,
+            "evaluation_role": "target",
             "comparison_pair_id": trial.pair_key,
             "target_side": target.side,
             "case_weight": float(case.weight or 1.0),
@@ -365,6 +378,31 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
             row = await session.get(EvaluationTrialModel, trial.id, with_for_update=True)
             if row is None:
                 return
+            judge_usage_id = uuid5(
+                NAMESPACE_URL,
+                (
+                    f"evaluation-judge:{trial.id}:"
+                    f"{getattr(judge, 'started_at', None)}:"
+                    f"{getattr(judge, 'completed_at', None)}:"
+                    f"{getattr(judge, 'judge_config_hash', '')}"
+                ),
+            )
+            await record_evaluation_model_usage(
+                session,
+                source_id=judge_usage_id,
+                project_id=trial.project_id,
+                usage_subtype="judge",
+                provider=judge.provider,
+                model=judge.model,
+                provider_model_id=judge.provider_model_id,
+                input_tokens=judge.input_tokens,
+                output_tokens=judge.output_tokens,
+                cost_usd=judge.cost_usd,
+                pricing_snapshot=judge.pricing_snapshot,
+                evaluation_run_id=trial.evaluation_run_id,
+                evaluation_trial_id=trial.id,
+                data={"evaluation_target_id": str(trial.evaluation_target_id)},
+            )
             await session.execute(
                 delete(EvaluationCheckResultModel).where(
                     EvaluationCheckResultModel.evaluation_trial_id == trial.id
