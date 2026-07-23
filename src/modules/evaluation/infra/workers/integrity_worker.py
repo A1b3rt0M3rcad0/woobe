@@ -46,6 +46,15 @@ class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
         self._judge_canary_locks: dict[UUID, asyncio.Lock] = {}
         self._judge_canary_holders: dict[UUID, UUID] = {}
 
+    async def _execute_trial(self, trial, target, case, suite) -> None:
+        try:
+            await super()._execute_trial(trial, target, case, suite)
+        finally:
+            # The base processor records unexpected exceptions instead of re-raising
+            # them. Release here as a final guard so one provider/worker exception can
+            # never leave the remaining Run blocked behind the canary lock.
+            self._release_canary(trial.id)
+
     async def _run_judge_state(self, trial_id: UUID) -> tuple[UUID | None, dict[str, Any]]:
         async with self._session_factory() as session:
             trial = await session.get(EvaluationTrialModel, trial_id)
