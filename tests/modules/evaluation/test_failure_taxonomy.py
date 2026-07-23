@@ -31,6 +31,22 @@ def test_model_call_error_is_classified_with_same_canonical_code() -> None:
     ) == "judge_output_length_limit"
 
 
+def test_null_score_type_error_is_classified_as_repairable_structured_response() -> None:
+    code = canonical_judge_failure_code(
+        failure_code="judge_failed",
+        failure_detail=None,
+        judge_status="failed",
+        judge_error=(
+            "judge_failed: TypeError: float() argument must be a string or a real "
+            "number, not 'NoneType'"
+        ),
+    )
+
+    assert code == "judge_invalid_json"
+    assert judge_failure_policy(code)["retryable"] is True
+    assert judge_failure_policy(code)["repairable"] is True
+
+
 def test_openrouter_402_is_terminal_insufficient_credits() -> None:
     code = canonical_judge_failure_code(
         failure_code="judge_failed",
