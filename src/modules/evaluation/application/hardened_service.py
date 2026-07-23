@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import asdict
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from modules.evaluation.application.judge_affordability import (
 )
 from modules.evaluation.application.judge_policy import JudgePreflightService
 from modules.evaluation.application.preflight import EvaluationPreflightService
+from modules.evaluation.application.run_judge import clean_suite_judge_config
 from modules.evaluation.application.service import EvaluationApplicationService
 from modules.evaluation.domain.enums import EvaluationMode, EvaluationRunStatus
 from modules.evaluation.infra.database.models import (
@@ -85,6 +87,22 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
             ]
         return merged
 
+    @staticmethod
+    def _suite_for_selected_judge(
+        suite: EvaluationSuiteVersionModel,
+        judge_provider_model_id: UUID,
+    ) -> EvaluationSuiteVersionModel | SimpleNamespace:
+        if judge_provider_model_id == suite.judge_provider_model_id:
+            return suite
+        return SimpleNamespace(
+            id=suite.id,
+            project_id=suite.project_id,
+            suite_id=suite.suite_id,
+            dataset_version_id=suite.dataset_version_id,
+            judge_provider_model_id=judge_provider_model_id,
+            judge_config=clean_suite_judge_config(suite.judge_config or {}),
+        )
+
     async def preview_run(
         self,
         *,
@@ -95,6 +113,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         baseline: dict[str, Any] | None,
         acknowledge_tool_side_effects: bool = False,
         approved_high_risk_tool_ids: list[UUID] | None = None,
+        judge_provider_model_id: UUID | None = None,
     ) -> dict[str, Any]:
         self._reject_legacy_baseline(baseline)
         base = await super().preview_run(
@@ -136,17 +155,19 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 targets=[target],
                 approved_high_risk_tool_ids=set(approved_high_risk_tool_ids or []),
             )
+            selected_judge_id = judge_provider_model_id or suite.judge_provider_model_id
+            selected_suite = self._suite_for_selected_judge(suite, selected_judge_id)
             judge_preflight = await self._judge_preflight.inspect_suite(
                 session,
                 project_id=project_id,
-                suite_version=suite,
+                suite_version=selected_suite,
                 repetitions=repetitions,
                 target_count=1,
             )
             affordability = await self._judge_affordability.inspect(
                 session,
                 project_id=project_id,
-                provider_model_id=suite.judge_provider_model_id,
+                provider_model_id=selected_judge_id,
                 estimated_maximum_cost_usd=judge_preflight.get(
                     "estimated_maximum_cost_usd"
                 ),
@@ -164,6 +185,8 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
             "mode": EvaluationMode.ABSOLUTE.value,
             "candidate": asdict(target),
             "baseline": None,
+            "judge_provider_model_id": str(selected_judge_id),
+            "judge_override": selected_judge_id != suite.judge_provider_model_id,
             "preflight": preflight.to_dict(),
             "judge_preflight": judge_preflight,
             "requires_confirmation": (
@@ -185,6 +208,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         acknowledge_tool_side_effects: bool = False,
         approved_high_risk_tool_ids: list[UUID] | None = None,
         idempotency_key: str | None = None,
+        judge_provider_model_id: UUID | None = None,
     ) -> dict[str, Any]:
         self._reject_legacy_baseline(baseline)
         preview = await self.preview_run(
@@ -195,6 +219,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
             baseline=None,
             acknowledge_tool_side_effects=acknowledge_tool_side_effects,
             approved_high_risk_tool_ids=approved_high_risk_tool_ids,
+            judge_provider_model_id=judge_provider_model_id,
         )
         if preview["preflight"]["blocked_high_risk_tool_ids"]:
             raise ConflictError(
@@ -249,6 +274,9 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                         "Evaluation target type does not match the Evaluation Suite"
                     )
 
+                selected_judge_id = UUID(str(preview["judge_provider_model_id"]))
+                judge_model = judge_preflight.get("judge_model")
+                judge_model = judge_model if isinstance(judge_model, dict) else {}
                 run = EvaluationRunModel(
                     project_id=project_id,
                     suite_version_id=suite_version_id,
@@ -264,11 +292,17 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                         "judge_circuit_breaker_enabled": True,
                         "judge_preflight_hash": judge_preflight.get("preflight_hash"),
                         "judge_protocol": {
-                            "judge_model_snapshot_hash": (
-                                (judge_preflight.get("judge_model") or {}).get(
-                                    "snapshot_hash"
-                                )
+                            "source": (
+                                "run_override"
+                                if selected_judge_id != suite.judge_provider_model_id
+                                else "suite_default"
                             ),
+                            "suite_default_provider_model_id": str(
+                                suite.judge_provider_model_id
+                            ),
+                            "judge_provider_model_id": str(selected_judge_id),
+                            "judge_model_snapshot_hash": judge_model.get("snapshot_hash"),
+                            "judge_model_snapshot": judge_model or None,
                             "normalized_judge_config": judge_preflight.get(
                                 "normalized_judge_config"
                             ),
@@ -288,6 +322,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                                 str(value)
                                 for value in (approved_high_risk_tool_ids or [])
                             ],
+                            "judge_provider_model_id": str(selected_judge_id),
                         },
                         "preflight": preview["preflight"],
                         "judge_preflight": judge_preflight,
