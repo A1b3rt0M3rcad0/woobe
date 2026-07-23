@@ -270,6 +270,11 @@ class OperationalEvaluationApplicationService(EnrichedEvaluationApplicationServi
     ) -> list[dict[str, Any]]:
         if volume < 1 or volume > 1_000_000_000:
             raise ValidationError("Estimate volume must be between 1 and 1,000,000,000")
+        volume_unit = str(volume_unit).strip().lower()
+        if volume_unit not in {"runs_per_month", "sessions_per_month"}:
+            raise ValidationError(
+                "Estimate volume_unit must be runs_per_month or sessions_per_month"
+            )
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id)
             if run is None or run.project_id != project_id:
@@ -315,10 +320,22 @@ class OperationalEvaluationApplicationService(EnrichedEvaluationApplicationServi
                             "warning_count": int(checks.get("warning_count") or 0),
                         }
                     )
+                if volume_unit == "sessions_per_month":
+                    values = [
+                        item
+                        for item in values
+                        if (item.get("metrics") or {}).get("interaction_mode")
+                        == "session"
+                    ]
+                    if not values:
+                        raise ValidationError(
+                            "sessions_per_month requires completed Session Trial evidence"
+                        )
                 estimate = build_estimate(
                     values=values,
                     volume=volume,
                     target_type=target.target_type,
+                    volume_unit=volume_unit,
                 )
                 existing = await session.scalar(
                     select(EstimateRunModel).where(
@@ -341,6 +358,7 @@ class OperationalEvaluationApplicationService(EnrichedEvaluationApplicationServi
                     assumptions={
                         "projection_method": "observed_trial_distribution",
                         "run_purpose": "evaluation",
+                        "volume_unit": volume_unit,
                     },
                     observation_summary=estimate["observation_summary"],
                     price_snapshot=None,
