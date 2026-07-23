@@ -11,6 +11,7 @@ def test_project_usage_defaults_to_daily_thirty_day_window():
     query = ProjectUsageQuery(project_id=uuid4())
     assert query.bucket == "day"
     assert query.operation == "all"
+    assert query.purpose == "operational"
     assert query.group_by == "agent"
     assert query.from_ is not None
     assert query.to is not None
@@ -61,3 +62,11 @@ def test_project_usage_rejects_ranges_above_ninety_days():
                 "to": end.isoformat(),
             }
         )
+
+
+def test_project_usage_accepts_evaluation_and_total_purposes():
+    evaluation = ProjectUsageQuery(project_id=uuid4(), purpose="evaluation")
+    combined = ProjectUsageQuery(project_id=uuid4(), purpose="all")
+
+    assert evaluation.purpose == "evaluation"
+    assert combined.purpose == "all"
