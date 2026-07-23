@@ -44,9 +44,19 @@ def selected_judge_config(
 ) -> dict[str, Any]:
     protocol = run_judge_protocol(run)
     value = protocol.get("normalized_judge_config")
-    if isinstance(value, dict):
-        return dict(value)
-    return clean_suite_judge_config(fallback)
+    selected = (
+        dict(value)
+        if isinstance(value, dict)
+        else clean_suite_judge_config(fallback)
+    )
+    snapshot = protocol.get("judge_model_snapshot")
+    if isinstance(snapshot, dict):
+        selected["judge_model_snapshot"] = dict(snapshot)
+        selected["judge_model_snapshot_hash"] = protocol.get(
+            "judge_model_snapshot_hash"
+        )
+        selected["judge_protocol_version"] = "frozen-judge-runtime-v1"
+    return selected
 
 
 def judge_summary_from_run(run: Any) -> dict[str, Any] | None:

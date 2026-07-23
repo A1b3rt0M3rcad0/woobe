@@ -23,6 +23,7 @@ from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTrialModel,
 )
+from modules.evaluation.infra.judge import canonical_hash
 from modules.evaluation.infra.runtime_safe_judge import RuntimeSafeEvaluatorModelGateway
 from modules.evaluation.infra.workers.integrity_worker import (
     IntegrityEvaluationRunProcessor,
@@ -328,6 +329,14 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
         turns = _session_turns(case)
         if len(turns) < 2:
             raise ValueError("Session Test requires at least two turns")
+        if target.snapshot.get("binding_mode") != "frozen_snapshot":
+            raise RuntimeError(
+                "[evaluation_role=target] Legacy unsealed snapshot cannot be re-executed"
+            )
+        if canonical_hash(target.snapshot) != target.snapshot_hash:
+            raise RuntimeError(
+                "[evaluation_role=target] Persisted Agent snapshot failed its integrity check"
+            )
         agent_session_id: UUID | None = None
         transcript: list[dict[str, Any]] = []
         metrics_by_turn: list[dict[str, Any]] = []
@@ -342,8 +351,8 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                 result = await self._agent_invoker.invoke(
                     project_id=trial.project_id,
                     agent_id=target.entity_id,
-                    release_id=target.agent_release_id,
-                    snapshot_override=target.snapshot if target.source_type == "draft" else None,
+                    release_id=None,
+                    snapshot_override=target.snapshot,
                     message=message,
                     agent_session_id=agent_session_id,
                     execution_context="playground",

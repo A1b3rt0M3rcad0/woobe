@@ -271,6 +271,12 @@ class RuntimeSafeEvaluatorModelGateway(GovernedBudgetedEvaluatorModelGateway):
         operational_evidence: dict[str, Any],
     ) -> JudgeResult:
         safe_config = sanitize_judge_config(judge_config)
+        await self._validate_frozen_binding(
+            session,
+            project_id=project_id,
+            provider_model_id=provider_model_id,
+            judge_config=safe_config,
+        )
         result = await super().judge(
             session,
             project_id=project_id,
@@ -311,6 +317,63 @@ class RuntimeSafeEvaluatorModelGateway(GovernedBudgetedEvaluatorModelGateway):
             target_output=target_output,
             operational_evidence=operational_evidence,
         )
+
+    @staticmethod
+    async def _validate_frozen_binding(
+        session: AsyncSession,
+        *,
+        project_id: UUID,
+        provider_model_id: UUID,
+        judge_config: dict[str, Any],
+    ) -> None:
+        snapshot = judge_config.get("judge_model_snapshot")
+        if not isinstance(snapshot, dict):
+            return
+        required = {
+            "provider_model_id",
+            "credential_id",
+            "provider",
+            "model",
+        }
+        if any(not snapshot.get(field) for field in required):
+            raise ValueError(
+                "[evaluation_role=judge] Frozen Judge binding is incomplete"
+            )
+        if str(snapshot["provider_model_id"]) != str(provider_model_id):
+            raise ValueError(
+                "[evaluation_role=judge] Judge Provider Model differs from the frozen protocol"
+            )
+
+        provider_model = await session.get(ProviderModelModel, provider_model_id)
+        if (
+            provider_model is None
+            or provider_model.project_id != project_id
+            or provider_model.status != "active"
+        ):
+            raise ValueError(
+                "[evaluation_role=judge] Frozen Judge Provider Model is unavailable"
+            )
+        credential = await session.get(
+            ProviderCredentialModel,
+            provider_model.provider_credential_id,
+        )
+        if (
+            credential is None
+            or credential.project_id != project_id
+            or credential.status != "active"
+        ):
+            raise ValueError(
+                "[evaluation_role=judge] Frozen Judge Credential is unavailable"
+            )
+        if (
+            str(provider_model.provider_credential_id)
+            != str(snapshot["credential_id"])
+            or provider_model.model != str(snapshot["model"])
+            or credential.provider != str(snapshot["provider"])
+        ):
+            raise ValueError(
+                "[evaluation_role=judge] Live Judge binding drifted from the frozen protocol"
+            )
 
     async def _repair(
         self,

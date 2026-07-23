@@ -485,6 +485,8 @@ class NetworkApplicationService:
         message: str,
         idempotency_key: str | None,
         expected_draft_revision: int | None = None,
+        frozen_snapshot: dict[str, Any] | None = None,
+        execution_metadata: dict[str, Any] | None = None,
     ) -> NetworkExecutionModel:
         if not message.strip():
             raise ValidationError("Network message cannot be blank")
@@ -530,7 +532,57 @@ class NetworkApplicationService:
             bindings_snapshot: dict[str, Any] | None = None
             accepted_version_id: UUID | None = network_session.network_version_id
             accepted_version: str | None = None
-            if network_session.environment == NetworkEnvironment.DRAFT.value:
+            metadata = dict(execution_metadata or {})
+            serialized_metadata = {
+                key: str(value) if isinstance(value, UUID) else value
+                for key, value in metadata.items()
+            }
+            if frozen_snapshot is not None:
+                if frozen_snapshot.get("binding_mode") != "frozen_snapshot":
+                    raise ValidationError(
+                        "Frozen Network execution requires binding_mode=frozen_snapshot"
+                    )
+                raw_definition = frozen_snapshot.get("definition")
+                raw_bindings = frozen_snapshot.get("resolved_bindings")
+                if not isinstance(raw_definition, dict) or not isinstance(
+                    raw_bindings,
+                    dict,
+                ):
+                    raise ValidationError(
+                        "Frozen Network execution snapshot is incomplete"
+                    )
+                definition = self._definition(deepcopy(raw_definition))
+                definition_snapshot = definition.to_dict()
+                bindings_snapshot = deepcopy(raw_bindings)
+                accepted_composition_hash = composition_hash(
+                    definition,
+                    bindings_snapshot,
+                )
+                expected_hash = frozen_snapshot.get("composition_hash")
+                if (
+                    expected_hash
+                    and str(expected_hash) != accepted_composition_hash
+                ):
+                    raise ConflictError(
+                        "Frozen Network composition hash does not match its bindings"
+                    )
+                source_label = str(
+                    metadata.get("target_snapshot_label")
+                    or network_session.environment
+                )
+                if source_label == NetworkEnvironment.DRAFT.value:
+                    raw_revision = frozen_snapshot.get("draft_revision")
+                    if raw_revision is None:
+                        raise ValidationError(
+                            "Frozen Network Draft has no accepted revision"
+                        )
+                    draft_revision = int(raw_revision)
+                accepted_version = (
+                    str(frozen_snapshot.get("version"))
+                    if frozen_snapshot.get("version")
+                    else None
+                )
+            elif network_session.environment == NetworkEnvironment.DRAFT.value:
                 network = await session.get(NetworkModel, network_id, with_for_update=True)
                 if network is None or network.project_id != project_id:
                     raise NotFoundError("Network not found")
@@ -569,6 +621,12 @@ class NetworkApplicationService:
                 network_version_id=network_session.network_version_id,
                 network_session_id=network_session_id,
                 project_id=project_id,
+                run_purpose=str(metadata.get("run_purpose") or "operational"),
+                evaluation_run_id=metadata.get("evaluation_run_id"),
+                evaluation_trial_id=metadata.get("evaluation_trial_id"),
+                evaluation_target_id=metadata.get("evaluation_target_id"),
+                target_snapshot_hash=metadata.get("target_snapshot_hash"),
+                target_snapshot_label=metadata.get("target_snapshot_label"),
                 input_message=message.strip(),
                 draft_revision=draft_revision,
                 definition_snapshot=definition_snapshot,
@@ -587,7 +645,7 @@ class NetworkApplicationService:
                         project_id=project_id,
                         role="user",
                         content=message.strip(),
-                        data=None,
+                        data=serialized_metadata or None,
                     ),
                     NetworkExecutionEventModel(
                         network_execution_id=execution.id,
@@ -609,6 +667,7 @@ class NetworkApplicationService:
                                 "max_invocations": definition.limits.max_invocations,
                                 "timeout_seconds": definition.limits.timeout_seconds,
                             },
+                            **serialized_metadata,
                         },
                     ),
                     NetworkOutboxEventModel(
@@ -617,7 +676,10 @@ class NetworkApplicationService:
                         event_type="network.execution.requested.v1",
                         event_version=1,
                         routing_key=f"network.execution.{network_session.environment}.requested.v1",
-                        payload={"execution_id": str(execution.id)},
+                        payload={
+                            "execution_id": str(execution.id),
+                            **serialized_metadata,
+                        },
                         metadata_=None,
                         idempotency_key=f"network-execution:{execution.id}:requested",
                         correlation_id=execution.id,

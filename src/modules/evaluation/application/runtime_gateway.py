@@ -10,14 +10,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from modules.evaluation.application.target_resolver import ResolvedEvaluationTarget
 from modules.evaluation.infra.database.models import EvaluationRunModel
+from modules.evaluation.infra.judge import canonical_hash
 from modules.network.application import NetworkApplicationService
 from modules.network.domain.enums import NetworkEnvironment
 from modules.network.infra.database.models import (
-    NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
-    NetworkMessageModel,
-    NetworkOutboxEventModel,
     NetworkSessionModel,
 )
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
@@ -60,6 +58,14 @@ class EvaluationNetworkRuntimeGateway:
         network_session_id: UUID | None = None,
         turn_position: int = 1,
     ) -> NetworkRuntimeEvidence:
+        if target.snapshot.get("binding_mode") != "frozen_snapshot":
+            raise RuntimeError(
+                "[evaluation_role=target] Legacy unsealed snapshot cannot be re-executed"
+            )
+        if canonical_hash(target.snapshot) != target.snapshot_hash:
+            raise RuntimeError(
+                "[evaluation_role=target] Persisted Network snapshot failed its integrity check"
+            )
         session = (
             await self._get_session(network_session_id, project_id=project_id)
             if network_session_id is not None
@@ -71,6 +77,20 @@ class EvaluationNetworkRuntimeGateway:
                 project_id=project_id,
                 evaluation_trial_id=evaluation_trial_id,
             )
+        target_id = getattr(target, "id", None)
+        execution_metadata = {
+            "run_purpose": "evaluation",
+            "evaluation_role": "target",
+            "evaluation_run_id": evaluation_run_id,
+            "evaluation_trial_id": evaluation_trial_id,
+            "evaluation_target_id": target_id,
+            "target_snapshot_hash": getattr(target, "snapshot_hash", None),
+            "target_snapshot_label": getattr(target, "environment", None),
+            "comparison_pair_id": pair_key,
+            "target_side": target_side,
+            "initial_context": initial_context,
+            "evaluation_turn_position": turn_position,
+        }
         execution = await self._service.submit_execution(
             network_id=target.entity_id,
             project_id=project_id,
@@ -82,16 +102,8 @@ class EvaluationNetworkRuntimeGateway:
                 if target.source_type == "draft"
                 else None
             ),
-        )
-        await self._attach_evaluation_metadata(
-            execution_id=execution.id,
-            evaluation_run_id=evaluation_run_id,
-            evaluation_trial_id=evaluation_trial_id,
-            pair_key=pair_key,
-            target_side=target_side,
-            target=target,
-            initial_context=initial_context,
-            turn_position=turn_position,
+            frozen_snapshot=target.snapshot,
+            execution_metadata=execution_metadata,
         )
 
         timeout_seconds = max(
@@ -171,68 +183,6 @@ class EvaluationNetworkRuntimeGateway:
             db.add(row)
             await db.flush()
             return row
-
-    async def _attach_evaluation_metadata(
-        self,
-        *,
-        execution_id: UUID,
-        evaluation_run_id: UUID,
-        evaluation_trial_id: UUID,
-        pair_key: str,
-        target_side: str,
-        target: Any,
-        initial_context: dict[str, Any] | None,
-        turn_position: int,
-    ) -> None:
-        target_id = getattr(target, "id", None)
-        target_snapshot_hash = getattr(target, "snapshot_hash", None)
-        target_snapshot_label = getattr(target, "environment", None)
-        metadata = {
-            "run_purpose": "evaluation",
-            "evaluation_role": "target",
-            "evaluation_run_id": str(evaluation_run_id),
-            "evaluation_trial_id": str(evaluation_trial_id),
-            "evaluation_target_id": str(target_id) if target_id else None,
-            "target_snapshot_hash": target_snapshot_hash,
-            "target_snapshot_label": target_snapshot_label,
-            "comparison_pair_id": pair_key,
-            "target_side": target_side,
-            "initial_context": initial_context,
-            "evaluation_turn_position": turn_position,
-        }
-        async with self._session_factory() as db, db.begin():
-            execution = await db.get(NetworkExecutionModel, execution_id)
-            if execution is not None:
-                execution.run_purpose = "evaluation"
-                execution.evaluation_run_id = evaluation_run_id
-                execution.evaluation_trial_id = evaluation_trial_id
-                execution.evaluation_target_id = target_id
-                execution.target_snapshot_hash = target_snapshot_hash
-                execution.target_snapshot_label = target_snapshot_label
-            message = await db.scalar(
-                select(NetworkMessageModel)
-                .where(NetworkMessageModel.network_execution_id == execution_id)
-                .order_by(NetworkMessageModel.created_at)
-                .limit(1)
-            )
-            if message is not None:
-                message.data = {**(message.data or {}), **metadata}
-            event = await db.scalar(
-                select(NetworkExecutionEventModel)
-                .where(NetworkExecutionEventModel.network_execution_id == execution_id)
-                .order_by(NetworkExecutionEventModel.sequence)
-                .limit(1)
-            )
-            if event is not None:
-                event.payload = {**(event.payload or {}), **metadata}
-            outbox = await db.scalar(
-                select(NetworkOutboxEventModel)
-                .where(NetworkOutboxEventModel.aggregate_id == execution_id)
-                .order_by(NetworkOutboxEventModel.created_at)
-                .limit(1)
-            )
-            if outbox is not None:
-                outbox.payload = {**(outbox.payload or {}), **metadata}
 
     async def _wait_for_completion(
         self,

@@ -186,6 +186,9 @@ class ProjectRAIAgentInvoker:
             "network_invocation_id",
             "parent_invocation_id",
             "network_node_id",
+            "evaluation_run_id",
+            "evaluation_trial_id",
+            "evaluation_target_id",
         }
         for key, value in network_context.items():
             if hasattr(context, key):

@@ -106,11 +106,42 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     async def _apply_runtime_tool_selection(self, prepared: tuple[Any, ...]) -> tuple[Any, ...]:
         agent = prepared[0]
         settings = dict(getattr(agent, "settings", None) or {})
+        frozen_binding = settings.get("runtime_binding_mode") == "frozen_snapshot"
         runtime_config = settings.get("runtime_config")
         if not isinstance(runtime_config, dict):
+            if frozen_binding:
+                mutable = list(prepared)
+                mutable[7] = []
+                mutable[8] = {}
+                mutable[9] = False
+                context = current_execution.get()
+                if context is not None:
+                    context.tool_snapshots = None
+                    context.tool_metadata = {
+                        "source": "release_snapshot",
+                        "tool_ids": [],
+                        "snapshot_hashes": [],
+                        "permission_overrides": None,
+                    }
+                return tuple(mutable)
             return prepared
         tools_config = runtime_config.get("tools")
         if not isinstance(tools_config, dict):
+            if frozen_binding:
+                mutable = list(prepared)
+                mutable[7] = []
+                mutable[8] = {}
+                mutable[9] = False
+                context = current_execution.get()
+                if context is not None:
+                    context.tool_snapshots = None
+                    context.tool_metadata = {
+                        "source": "release_snapshot",
+                        "tool_ids": [],
+                        "snapshot_hashes": [],
+                        "permission_overrides": None,
+                    }
+                return tuple(mutable)
             return prepared
 
         raw_snapshots = tools_config.get("snapshots")
@@ -166,7 +197,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             tools.append(effective_tool)
             snapshot_map[str(tool_id)] = tool_to_release_snapshot(effective_tool)
 
-        if snapshot_count and live_count:
+        if frozen_binding:
+            source = "release_snapshot"
+        elif snapshot_count and live_count:
             source = "hybrid_snapshot"
         elif snapshot_count:
             source = "release_snapshot"
@@ -263,6 +296,31 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if runtime_context is not None:
             runtime_context.execution_context = execution_context
 
+        if (
+            isinstance(input_dto.snapshot_override, dict)
+            and input_dto.snapshot_override.get("binding_mode")
+            == "frozen_snapshot"
+        ):
+            snapshot_override = deepcopy(input_dto.snapshot_override)
+            runtime_config = snapshot_override.get("runtime_config")
+            agent.settings = {}
+            agent.system_prompt = ""
+            agent.temperature = None
+            agent.max_output_tokens = None
+            agent.fallback_provider_model_id = None
+            agent.fallback_credential_id = None
+            agent.fallback_provider = None
+            agent.fallback_model = None
+            agent = self._apply_snapshot_override(agent, snapshot_override)
+            agent = self._apply_runtime_config_snapshot(agent, runtime_config)
+            self._apply_snapshot_provider_model_ids(agent, snapshot_override)
+            self._bind_snapshot_context(snapshot_override)
+            return await self._resolve_frozen_model_refs(
+                uow,
+                agent,
+                snapshot_override,
+            )
+
         # An explicitly loaded release is an immutable runtime binding. Network
         # versions rely on this precedence so a session never drifts to a newer
         # active Staging or Production release after it was created.
@@ -337,6 +395,18 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         context.agent_release_id = release.id
         context.agent_release_version = release.version
 
+    def _bind_snapshot_context(self, snapshot: dict[str, Any]) -> None:
+        context = current_execution.get()
+        if context is None:
+            return
+        raw_release_id = snapshot.get("release_id")
+        if raw_release_id:
+            try:
+                context.agent_release_id = UUID(str(raw_release_id))
+            except (TypeError, ValueError):
+                context.agent_release_id = None
+        context.agent_release_version = snapshot.get("release_version")
+
     async def _load_base_agent(self, uow: Any, input_dto: AskInput) -> Agent:
         from modules.agent.domain.errors import AgentNotFoundError
 
@@ -384,6 +454,136 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             metadata=provider_model.metadata,
         )
         agent.settings = settings
+
+    @staticmethod
+    def _frozen_binding(
+        snapshot: dict[str, Any],
+        *,
+        fallback: bool,
+    ) -> dict[str, Any] | None:
+        key = "fallback_model_binding" if fallback else "model_binding"
+        value = snapshot.get(key)
+        if fallback and value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValidationError("Frozen model binding is missing from the snapshot")
+        required = {
+            "provider_model_id",
+            "provider_credential_id",
+            "provider",
+            "model",
+        }
+        if any(not value.get(field) for field in required):
+            raise ValidationError("Frozen model binding is incomplete")
+        return value
+
+    async def _resolve_frozen_model_refs(
+        self,
+        uow: Any,
+        agent: Agent,
+        snapshot: dict[str, Any],
+    ) -> Agent:
+        primary = self._frozen_binding(snapshot, fallback=False)
+        assert primary is not None
+        try:
+            primary_model_id = UUID(str(primary["provider_model_id"]))
+            primary_credential_id = UUID(str(primary["provider_credential_id"]))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Frozen model binding contains invalid identifiers") from exc
+
+        if (
+            str(snapshot.get("provider_model_id")) != str(primary_model_id)
+            or str(snapshot.get("provider_credential_id"))
+            != str(primary_credential_id)
+            or str(snapshot.get("provider")) != str(primary["provider"])
+            or str(snapshot.get("model")) != str(primary["model"])
+        ):
+            raise ValidationError("Frozen model binding does not match the Agent snapshot")
+
+        credential = await uow.provider_credentials.get_by_id(primary_credential_id)
+        if credential is None or credential.project_id != agent.project_id:
+            from modules.agent.domain.errors import CredentialNotFoundError
+
+            raise CredentialNotFoundError(primary_credential_id)
+        self._validate_credential_runtime_status(credential)
+        provider = getattr(credential.provider, "value", credential.provider)
+        if str(provider) != str(primary["provider"]):
+            raise ValidationError(
+                "Provider Credential no longer matches the frozen model binding"
+            )
+
+        agent.provider_model_id = primary_model_id
+        agent.provider_credential_id = primary_credential_id
+        settings = dict(agent.settings or {})
+        settings["runtime_binding_mode"] = "frozen_snapshot"
+        pricing = primary.get("pricing_snapshot")
+        if isinstance(pricing, dict):
+            settings["model_pricing"] = deepcopy(pricing)
+        if snapshot.get("base_url") is not None:
+            settings["base_url"] = snapshot["base_url"]
+        rag_embedding_binding = snapshot.get("rag_embedding_binding")
+        if isinstance(rag_embedding_binding, dict):
+            settings["rag_embedding_binding"] = deepcopy(rag_embedding_binding)
+        agent.settings = settings
+
+        fallback = self._frozen_binding(snapshot, fallback=True)
+        if fallback is not None:
+            try:
+                fallback_model_id = UUID(str(fallback["provider_model_id"]))
+                fallback_credential_id = UUID(
+                    str(fallback["provider_credential_id"])
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(
+                    "Frozen fallback binding contains invalid identifiers"
+                ) from exc
+            if (
+                str(snapshot.get("fallback_provider_model_id"))
+                != str(fallback_model_id)
+                or str(snapshot.get("fallback_credential_id"))
+                != str(fallback_credential_id)
+                or str(snapshot.get("fallback_provider"))
+                != str(fallback["provider"])
+                or str(snapshot.get("fallback_model")) != str(fallback["model"])
+            ):
+                raise ValidationError(
+                    "Frozen fallback binding does not match the Agent snapshot"
+                )
+            fallback_credential = await uow.provider_credentials.get_by_id(
+                fallback_credential_id
+            )
+            if (
+                fallback_credential is None
+                or fallback_credential.project_id != agent.project_id
+            ):
+                from modules.agent.domain.errors import CredentialNotFoundError
+
+                raise CredentialNotFoundError(fallback_credential_id)
+            self._validate_credential_runtime_status(fallback_credential)
+            fallback_provider = getattr(
+                fallback_credential.provider,
+                "value",
+                fallback_credential.provider,
+            )
+            if str(fallback_provider) != str(fallback["provider"]):
+                raise ValidationError(
+                    "Fallback Credential no longer matches the frozen binding"
+                )
+            agent.fallback_provider_model_id = fallback_model_id
+            agent.fallback_credential_id = fallback_credential_id
+            settings = dict(agent.settings or {})
+            fallback_pricing = fallback.get("pricing_snapshot")
+            if isinstance(fallback_pricing, dict):
+                settings["fallback_model_pricing"] = deepcopy(fallback_pricing)
+            agent.settings = settings
+        else:
+            agent.fallback_provider_model_id = None
+            agent.fallback_credential_id = None
+            agent.fallback_provider = None
+            agent.fallback_model = None
+
+        self._validate_runtime_model(agent)
+        return agent
 
     def _validate_credential_runtime_status(self, credential) -> None:
         if getattr(credential.status, "value", credential.status) != CredentialStatus.active.value:

@@ -218,12 +218,15 @@ class NetworkExecutor:
         execution: NetworkExecutionModel,
         version: NetworkVersionModel | None,
     ) -> AgentInvocationResult:
-        if version is None:
-            if not execution.definition_snapshot or not execution.resolved_bindings_snapshot:
-                raise RuntimeError("Draft execution snapshot is missing")
+        if execution.definition_snapshot and execution.resolved_bindings_snapshot:
             definition_payload = execution.definition_snapshot
             resolved_bindings = execution.resolved_bindings_snapshot
-            runtime_environment = "draft"
+            runtime_environment = (
+                execution.target_snapshot_label
+                or ("draft" if execution.draft_revision is not None else "release")
+            )
+        elif version is None:
+            raise RuntimeError("Network execution snapshot is missing")
         else:
             definition_payload = version.definition
             resolved_bindings = version.resolved_bindings
@@ -263,8 +266,15 @@ class NetworkExecutor:
             release_id = binding.get("release_id")
             release_uuid = UUID(str(release_id)) if release_id else None
             snapshot_override = binding.get("snapshot_override")
-            if runtime_environment == "draft" and not isinstance(
-                snapshot_override, dict
+            frozen_binding = (
+                isinstance(snapshot_override, dict)
+                and snapshot_override.get("binding_mode") == "frozen_snapshot"
+            )
+            if frozen_binding:
+                release_uuid = None
+            elif runtime_environment == "draft" and not isinstance(
+                snapshot_override,
+                dict,
             ):
                 raise _preparation_failure(
                     RuntimeError(f"Node {node_id} has no Agent Draft snapshot"),
@@ -273,7 +283,11 @@ class NetworkExecutor:
                     message="The Agent Draft snapshot could not be resolved for this Network Run.",
                     node=node,
                 )
-            if runtime_environment != "draft" and release_uuid is None:
+            if (
+                not frozen_binding
+                and runtime_environment != "draft"
+                and release_uuid is None
+            ):
                 raise _preparation_failure(
                     RuntimeError(
                         f"Node {node_id} has no immutable Agent release binding"
@@ -350,11 +364,15 @@ class NetworkExecutor:
                         "context_state": "created"
                         if persist_agent_context
                         else "stateless",
-                        "source": "draft"
-                        if runtime_environment == "draft"
-                        else "release"
-                        if runtime_environment == "production"
-                        else "staging",
+                        "source": (
+                            "frozen_snapshot"
+                            if frozen_binding
+                            else "draft"
+                            if runtime_environment == "draft"
+                            else "release"
+                            if runtime_environment in {"production", "release"}
+                            else "staging"
+                        ),
                         "version": (
                             f"r{execution.draft_revision}"
                             if runtime_environment == "draft"
@@ -487,7 +505,7 @@ class NetworkExecutor:
                     agent_session_id=invocation.agent_session_id,
                     execution_context=(
                         "playground"
-                        if runtime_environment == "draft"
+                        if frozen_binding or runtime_environment == "draft"
                         else runtime_environment
                     ),
                     internal_tools=tools,
@@ -505,6 +523,29 @@ class NetworkExecutor:
                         "network_node_id": str(node_id),
                         "depth": depth,
                         "draft_revision": getattr(execution, "draft_revision", None),
+                        "run_purpose": execution.run_purpose,
+                        "evaluation_run_id": (
+                            str(execution.evaluation_run_id)
+                            if execution.evaluation_run_id
+                            else None
+                        ),
+                        "evaluation_trial_id": (
+                            str(execution.evaluation_trial_id)
+                            if execution.evaluation_trial_id
+                            else None
+                        ),
+                        "evaluation_target_id": (
+                            str(execution.evaluation_target_id)
+                            if execution.evaluation_target_id
+                            else None
+                        ),
+                        "target_snapshot_hash": execution.target_snapshot_hash,
+                        "target_snapshot_label": execution.target_snapshot_label,
+                        "evaluation_role": (
+                            "target"
+                            if execution.run_purpose == "evaluation"
+                            else None
+                        ),
                     },
                     stream_handler=stream_agent_event,
                 )

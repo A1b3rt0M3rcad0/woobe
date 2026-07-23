@@ -193,10 +193,12 @@ class NetworkExecutionModel(BaseModel):
             name="uq_network_execution_idempotency",
         ),
         CheckConstraint(
-            "(network_version_id IS NULL AND draft_revision IS NOT NULL "
-            "AND definition_snapshot IS NOT NULL "
-            "AND resolved_bindings_snapshot IS NOT NULL) OR "
-            "(network_version_id IS NOT NULL AND draft_revision IS NULL)",
+            "((definition_snapshot IS NULL AND resolved_bindings_snapshot IS NULL) "
+            "OR (definition_snapshot IS NOT NULL "
+            "AND resolved_bindings_snapshot IS NOT NULL)) "
+            "AND ((network_version_id IS NULL AND draft_revision IS NOT NULL "
+            "AND definition_snapshot IS NOT NULL) "
+            "OR (network_version_id IS NOT NULL AND draft_revision IS NULL))",
             name="ck_network_executions_snapshot_source",
         ),
         Index(

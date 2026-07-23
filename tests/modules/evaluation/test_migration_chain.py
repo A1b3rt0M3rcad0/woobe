@@ -17,6 +17,9 @@ def test_evaluation_migrations_are_linear() -> None:
         "migrations.versions.0065_evaluation_session_tests_kpis_and_protocol_identity"
     )
     usage = import_module("migrations.versions.0066_run_purpose_and_evaluation_usage")
+    frozen_snapshots = import_module(
+        "migrations.versions.0067_frozen_evaluation_runtime_snapshots"
+    )
 
     assert base.revision == "0054"
     assert base.down_revision == "0053"
@@ -44,3 +47,5 @@ def test_evaluation_migrations_are_linear() -> None:
     assert sessions.down_revision == "0064"
     assert usage.revision == "0066"
     assert usage.down_revision == "0065"
+    assert frozen_snapshots.revision == "0067"
+    assert frozen_snapshots.down_revision == "0066"

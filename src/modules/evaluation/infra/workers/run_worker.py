@@ -38,6 +38,7 @@ from modules.evaluation.infra.database.models import (
     EvaluatorModelCallModel,
     ReleaseQualificationModel,
 )
+from modules.evaluation.infra.judge import canonical_hash
 from modules.observability.infra.database.models import TraceModel
 from shared.infra.config import Settings
 
@@ -215,12 +216,20 @@ class ResumableEvaluationRunProcessor(EvaluationRunProcessor):
         case: EvaluationTestCaseModel,
     ) -> tuple[dict[str, Any], dict[str, Any], None, UUID | None]:
         await self._ensure_not_cancelled(trial.evaluation_run_id)
+        if target.snapshot.get("binding_mode") != "frozen_snapshot":
+            raise RuntimeError(
+                "[evaluation_role=target] Legacy unsealed snapshot cannot be re-executed"
+            )
+        if canonical_hash(target.snapshot) != target.snapshot_hash:
+            raise RuntimeError(
+                "[evaluation_role=target] Persisted Agent snapshot failed its integrity check"
+            )
         started = _utc_now()
         result = await self._agent_invoker.invoke(
             project_id=trial.project_id,
             agent_id=target.entity_id,
-            release_id=target.agent_release_id,
-            snapshot_override=target.snapshot if target.source_type == "draft" else None,
+            release_id=None,
+            snapshot_override=target.snapshot,
             message=_message_from_case(case),
             agent_session_id=None,
             execution_context="playground",

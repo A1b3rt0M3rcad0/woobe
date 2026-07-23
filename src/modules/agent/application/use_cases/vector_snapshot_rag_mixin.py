@@ -183,35 +183,105 @@ class VectorSnapshotRAGMixin:
         if not snapshot.snapshot_hash:
             raise ValidationError("Configured vector snapshot has no immutable hash")
 
-        provider_model = await uow.provider_models.get_by_id(snapshot.embedding_provider_model_id)
-        if provider_model is None or provider_model.project_id != agent.project_id:
-            raise ValidationError("Embedding provider model was not found")
-        if _status_value(provider_model.status) != ProviderModelStatus.active.value:
-            raise ValidationError("Embedding provider model must be active")
+        frozen_binding = settings.get("runtime_binding_mode") == "frozen_snapshot"
+        raw_embedding_binding = settings.get("rag_embedding_binding")
+        embedding_binding = (
+            raw_embedding_binding
+            if isinstance(raw_embedding_binding, dict)
+            else None
+        )
+        if frozen_binding:
+            if embedding_binding is None:
+                raise ValidationError(
+                    "Frozen Knowledge runtime has no embedding binding"
+                )
+            expected = {
+                "vector_snapshot_id": str(snapshot.id),
+                "vector_snapshot_hash": snapshot.snapshot_hash,
+                "provider_model_id": str(snapshot.embedding_provider_model_id),
+                "provider": snapshot.embedding_provider,
+                "model": snapshot.embedding_model,
+                "dimensions": snapshot.embedding_dimensions,
+            }
+            if any(
+                str(embedding_binding.get(key)) != str(value)
+                for key, value in expected.items()
+            ):
+                raise ValidationError(
+                    "Vector Snapshot drifted from the frozen Evaluation binding"
+                )
+            try:
+                credential_id = _uuid_value(
+                    embedding_binding.get("provider_credential_id"),
+                    field_name="embedding provider_credential_id",
+                )
+            except ValidationError:
+                raise
+            provider = str(embedding_binding["provider"])
+            model = str(embedding_binding["model"])
+            dimensions = int(embedding_binding["dimensions"])
+            base_url = embedding_binding.get("base_url")
+        else:
+            provider_model = await uow.provider_models.get_by_id(
+                snapshot.embedding_provider_model_id
+            )
+            if provider_model is None or provider_model.project_id != agent.project_id:
+                raise ValidationError("Embedding provider model was not found")
+            if (
+                _status_value(provider_model.status)
+                != ProviderModelStatus.active.value
+            ):
+                raise ValidationError("Embedding provider model must be active")
 
-        capability = str((provider_model.metadata or {}).get("capability") or "").lower()
-        if capability not in {"embedding", "embeddings"} and "embed" not in provider_model.model.lower():
-            raise ValidationError("Configured provider model is not an embedding model")
+            capability = str(
+                (provider_model.metadata or {}).get("capability") or ""
+            ).lower()
+            if (
+                capability not in {"embedding", "embeddings"}
+                and "embed" not in provider_model.model.lower()
+            ):
+                raise ValidationError(
+                    "Configured provider model is not an embedding model"
+                )
+            credential_id = provider_model.provider_credential_id
+            provider = snapshot.embedding_provider
+            model = snapshot.embedding_model
+            dimensions = snapshot.embedding_dimensions
+            base_url = None
 
-        credential = await uow.provider_credentials.get_by_id(provider_model.provider_credential_id)
+        credential = await uow.provider_credentials.get_by_id(credential_id)
         if credential is None or credential.project_id != agent.project_id:
             raise ValidationError("Embedding provider credential was not found")
         if _status_value(credential.status) != CredentialStatus.active.value:
             raise ValidationError("Embedding provider credential must be active")
+        credential_provider = _status_value(credential.provider)
+        if str(credential_provider) != provider:
+            raise ValidationError(
+                "Embedding Credential no longer matches the frozen binding"
+            )
 
         try:
             api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as exc:
             raise ValidationError("Embedding provider credential could not be decrypted") from exc
 
-        provider = snapshot.embedding_provider
-        base_url = None
-        if provider == "custom":
-            base_url = (provider_model.metadata or {}).get("base_url") or (credential.metadata or {}).get("base_url")
+        if provider == "custom" and not base_url:
+            if frozen_binding:
+                raise ValidationError(
+                    "Frozen custom embedding binding has no base_url"
+                )
+            base_url = (provider_model.metadata or {}).get("base_url") or (
+                credential.metadata or {}
+            ).get("base_url")
             if not base_url:
                 raise ValidationError("Custom embedding provider requires base_url")
-        elif provider == "openrouter":
-            base_url = (credential.metadata or {}).get("base_url") or (provider_model.metadata or {}).get("base_url")
+        elif provider == "openrouter" and not base_url:
+            if frozen_binding:
+                base_url = None
+            else:
+                base_url = (credential.metadata or {}).get("base_url") or (
+                    provider_model.metadata or {}
+                ).get("base_url")
 
         effective = _runtime_config(agent)
         retrieval_query = _build_retrieval_query(
@@ -225,16 +295,16 @@ class VectorSnapshotRAGMixin:
             raise ValidationError("RAG embedding runtime is not configured")
         embedding_client = self._embedding_factory.create_embedding_client(
             provider=provider,
-            model=snapshot.embedding_model,
+            model=model,
             api_key=api_key,
             base_url=str(base_url) if base_url else None,
-            dimensions=snapshot.embedding_dimensions,
+            dimensions=dimensions,
         )
         query_embedding = await embedding_client.aembed_query(retrieval_query)
-        if len(query_embedding) != snapshot.embedding_dimensions:
+        if len(query_embedding) != dimensions:
             raise ValidationError(
                 "Query embedding dimensions do not match snapshot: "
-                f"expected {snapshot.embedding_dimensions}, got {len(query_embedding)}"
+                f"expected {dimensions}, got {len(query_embedding)}"
             )
 
         candidates = await uow.vector_snapshots.search_similar(
