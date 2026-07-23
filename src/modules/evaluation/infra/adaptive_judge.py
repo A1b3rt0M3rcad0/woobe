@@ -28,6 +28,7 @@ from shared.infra.llm_cost import calculate_llm_cost, provider_model_pricing_sna
 from shared.infra.llm_usage import normalize_llm_usage
 
 
+_GATEWAY_VERSION = "adaptive-judge-v4"
 _JUDGE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -90,6 +91,9 @@ def is_reasoning_model(model: str, metadata: dict[str, Any] | None = None) -> bo
     for key in ("reasoning", "supports_reasoning", "reasoning_enabled", "thinking"):
         if data.get(key) is True:
             return True
+    reasoning = data.get("reasoning")
+    if isinstance(reasoning, dict):
+        return True
     text = " ".join(
         str(value or "").lower()
         for value in (
@@ -119,7 +123,7 @@ def judge_output_token_limit(
     model: str,
     metadata: dict[str, Any] | None = None,
 ) -> int:
-    """Return a conservative model-aware completion ceiling for Judge retries."""
+    """Return a conservative completion ceiling for Judge retries."""
 
     data = metadata or {}
     candidates: list[int] = []
@@ -170,10 +174,56 @@ def recommended_judge_output_tokens(
     if policy == "fixed":
         return min(ceiling, max(256, configured or 1200))
     if is_reasoning_model(model, metadata):
-        # Reasoning tokens may share the completion budget. Legacy Suite values such as
-        # 800 or 1200 are treated as obsolete automatic defaults, not intentional caps.
-        return min(ceiling, max(6000, configured if configured > 1200 else 0))
+        return min(ceiling, max(3000, configured if configured > 1200 else 0))
     return min(ceiling, max(1600, configured if configured > 800 else 0))
+
+
+def judge_inference_profiles(
+    provider: str,
+    model: str,
+    metadata: dict[str, Any] | None,
+    base_url: str | None,
+    judge_config: dict[str, Any],
+) -> list[tuple[str, dict[str, Any] | None]]:
+    """Return ordered, auditable inference controls for a Judge call."""
+
+    if not is_reasoning_model(model, metadata):
+        return [("provider_default", None)]
+    policy = str(judge_config.get("reasoning_policy") or "disabled").lower()
+    if policy == "provider_default":
+        return [("provider_default", None)]
+
+    reasoning_meta = (metadata or {}).get("reasoning")
+    mandatory = bool(
+        isinstance(reasoning_meta, dict) and reasoning_meta.get("mandatory") is True
+    )
+    requested_effort = str(judge_config.get("reasoning_effort") or "none").lower()
+    effort = "low" if mandatory and requested_effort == "none" else requested_effort
+    unified = {"reasoning": {"effort": effort, "exclude": True}}
+    thinking = (
+        {"thinking": {"type": "disabled"}}
+        if effort == "none"
+        else {"thinking": {"type": "enabled"}}
+    )
+    endpoint = str(base_url or "").lower()
+    if provider == "openrouter" or "openrouter.ai" in endpoint:
+        return [
+            (f"openrouter_reasoning_{effort}", unified),
+            ("provider_default", None),
+        ]
+    if "deepseek" in endpoint:
+        return [
+            ("deepseek_thinking_disabled", thinking),
+            (f"unified_reasoning_{effort}", unified),
+            ("provider_default", None),
+        ]
+    if "deepseek" in model.lower():
+        return [
+            (f"unified_reasoning_{effort}", unified),
+            ("deepseek_thinking_disabled", thinking),
+            ("provider_default", None),
+        ]
+    return [(f"unified_reasoning_{effort}", unified), ("provider_default", None)]
 
 
 def is_output_length_error(exc: Exception) -> bool:
@@ -189,6 +239,42 @@ def is_output_length_error(exc: Exception) -> bool:
             "maximum output length",
             "max_completion_tokens",
             "completion length",
+        )
+    )
+
+
+def _is_reasoning_control_error(exc: Exception) -> bool:
+    value = f"{type(exc).__name__}: {exc}".lower()
+    mentions_control = any(
+        token in value for token in ("reasoning", "thinking", "extra_body")
+    )
+    rejected = any(
+        token in value
+        for token in (
+            "unsupported parameter",
+            "unknown parameter",
+            "unknown field",
+            "unrecognized",
+            "invalid parameter",
+            "extra inputs are not permitted",
+        )
+    )
+    return mentions_control and rejected
+
+
+def _is_response_format_error(exc: Exception) -> bool:
+    value = f"{type(exc).__name__}: {exc}".lower()
+    return any(
+        token in value
+        for token in ("response_format", "json_schema", "structured output")
+    ) and any(
+        token in value
+        for token in (
+            "unsupported",
+            "unknown",
+            "unrecognized",
+            "invalid",
+            "not permitted",
         )
     )
 
@@ -211,6 +297,34 @@ def _usage_from_exception(exc: Exception) -> dict[str, int | float | None]:
         "reasoning_tokens": integer(r"\breasoning_tokens=(\d+)"),
         "cost_usd": float(cost_match.group(1)) if cost_match else None,
     }
+
+
+def _reasoning_tokens_from_result(result: Any) -> int | None:
+    usage_metadata = getattr(result, "usage_metadata", None) or {}
+    response_metadata = getattr(result, "response_metadata", None) or {}
+    token_usage = response_metadata.get("token_usage") or response_metadata.get("usage") or {}
+    candidates = [
+        usage_metadata.get("reasoning_tokens"),
+        (usage_metadata.get("output_token_details") or {}).get("reasoning"),
+        (usage_metadata.get("output_tokens_details") or {}).get("reasoning_tokens"),
+        (token_usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+        (token_usage.get("output_tokens_details") or {}).get("reasoning_tokens"),
+    ]
+    for value in candidates:
+        try:
+            if value is not None:
+                return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _finish_reason(result: Any) -> str | None:
+    metadata = getattr(result, "response_metadata", None) or {}
+    value = metadata.get("finish_reason")
+    if value is None:
+        value = (metadata.get("choices") or [{}])[0].get("finish_reason")
+    return str(value) if value is not None else None
 
 
 def _sum_int(current: int | None, value: int | None) -> int | None:
@@ -246,8 +360,28 @@ def _retryable(exc: Exception) -> bool:
     )
 
 
+def _pricing_with_diagnostics(
+    pricing_snapshot: dict[str, Any],
+    diagnostics: dict[str, Any],
+) -> dict[str, Any]:
+    return {**pricing_snapshot, "_evaluation_judge": diagnostics}
+
+
+def _initial_response_mode(provider: str, metadata: dict[str, Any]) -> str:
+    supported = metadata.get("supported_parameters")
+    if not isinstance(supported, list):
+        raw = metadata.get("raw")
+        supported = raw.get("supported_parameters") if isinstance(raw, dict) else []
+    values = {str(value).lower() for value in supported or []}
+    if "structured_outputs" in values or "json_schema" in values:
+        return "json_schema"
+    if provider == "openai":
+        return "json_schema"
+    return "json_object"
+
+
 class AdaptiveEvaluatorModelGateway:
-    """Judge gateway with structured output and reasoning-aware output retries."""
+    """Judge gateway with structured output, reasoning control and auditable retries."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or Settings()
@@ -308,8 +442,6 @@ class AdaptiveEvaluatorModelGateway:
         if policy == "fixed":
             requested_ceiling = configured_retry or output_tokens
         elif configured_retry <= 8192:
-            # 8192 was the legacy automatic ceiling and is insufficient for some
-            # reasoning models that account hidden reasoning inside completion tokens.
             requested_ceiling = model_ceiling
         else:
             requested_ceiling = configured_retry
@@ -321,7 +453,7 @@ class AdaptiveEvaluatorModelGateway:
             5.0,
             min(float(judge_config.get("timeout_seconds", 90)), 180.0),
         )
-        attempts = max(3, min(int(judge_config.get("attempts", 3)), 4))
+        attempts = max(5, min(int(judge_config.get("attempts", 5)), 6))
         maximum_chars = max(
             10_000,
             min(int(judge_config.get("maximum_payload_chars", 120_000)), 500_000),
@@ -335,13 +467,23 @@ class AdaptiveEvaluatorModelGateway:
             model=model,
             metadata=metadata,
         )
+        profiles = judge_inference_profiles(
+            provider,
+            model,
+            metadata,
+            base_url,
+            judge_config,
+        )
+        profile_index = 0
         rubric_hash = canonical_hash(rubric)
         judge_config_hash = canonical_hash(
             {
                 **judge_config,
+                "gateway_version": _GATEWAY_VERSION,
                 "effective_initial_max_tokens": output_tokens,
                 "effective_retry_ceiling": retry_ceiling,
                 "effective_attempts": attempts,
+                "inference_profiles": [name for name, _ in profiles],
             }
         )
         user_payload, truncated = _bounded_payload(
@@ -372,15 +514,18 @@ class AdaptiveEvaluatorModelGateway:
         )
         started_at = datetime_now()
         started = time.monotonic()
-        response_mode = "json_schema"
+        response_mode = _initial_response_mode(provider, metadata)
         last_error: Exception | None = None
         total_input: int | None = None
         total_output: int | None = None
         total_cost: float | None = None
         total_reasoning: int | None = None
         current_output_tokens = output_tokens
+        attempt_records: list[dict[str, Any]] = []
 
         for attempt in range(1, attempts + 1):
+            attempt_started = time.monotonic()
+            profile_name, extra_body = profiles[profile_index]
             try:
                 kwargs: dict[str, Any] = {
                     "provider": provider,
@@ -389,6 +534,7 @@ class AdaptiveEvaluatorModelGateway:
                     "base_url": base_url,
                     "temperature": temperature,
                     "max_tokens": current_output_tokens,
+                    "extra_body": extra_body,
                 }
                 if response_mode == "json_schema":
                     kwargs["response_format"] = {
@@ -407,9 +553,8 @@ class AdaptiveEvaluatorModelGateway:
                     messages.append(
                         SystemMessage(
                             content=(
-                                "Previous judgment did not fit the completion budget or response mode. "
-                                "Return a minimal verdict: at most four dimensions, six criteria, four "
-                                "failures, concise reasons, and no prose outside the required JSON object."
+                                "Previous judgment did not fit the completion budget or provider mode. "
+                                "Return a minimal verdict with no prose outside the required JSON object."
                             )
                         )
                     )
@@ -425,14 +570,46 @@ class AdaptiveEvaluatorModelGateway:
                 usage = normalize_llm_usage(raw_result)
                 attempt_input = usage["input_tokens"]
                 attempt_output = usage["output_tokens"]
+                attempt_reasoning = _reasoning_tokens_from_result(raw_result)
                 total_input = _sum_int(total_input, attempt_input)
                 total_output = _sum_int(total_output, attempt_output)
+                total_reasoning = _sum_int(total_reasoning, attempt_reasoning)
                 cost = calculate_llm_cost(
                     input_tokens=attempt_input,
                     output_tokens=attempt_output,
                     pricing_snapshot=pricing_snapshot,
                 )
                 total_cost = _sum_float(total_cost, cost["cost_usd"])
+                attempt_records.append(
+                    {
+                        "attempt": attempt,
+                        "status": "completed",
+                        "max_tokens": current_output_tokens,
+                        "response_mode": response_mode,
+                        "inference_profile": profile_name,
+                        "input_tokens": attempt_input,
+                        "output_tokens": attempt_output,
+                        "reasoning_tokens": attempt_reasoning,
+                        "finish_reason": _finish_reason(raw_result),
+                        "latency_ms": round((time.monotonic() - attempt_started) * 1000),
+                    }
+                )
+                diagnostics = {
+                    "gateway_version": _GATEWAY_VERSION,
+                    "provider": provider,
+                    "model": model,
+                    "reasoning_model": is_reasoning_model(model, metadata),
+                    "reasoning_policy": str(
+                        judge_config.get("reasoning_policy") or "disabled"
+                    ),
+                    "initial_max_tokens": output_tokens,
+                    "retry_ceiling": retry_ceiling,
+                    "payload_truncated": truncated,
+                    "attempts": attempt_records,
+                    "total_reasoning_tokens": total_reasoning,
+                    "final_response_mode": response_mode,
+                    "final_inference_profile": profile_name,
+                }
                 if (
                     maximum_cost is not None
                     and total_cost is not None
@@ -446,6 +623,7 @@ class AdaptiveEvaluatorModelGateway:
                         judge_config_hash=judge_config_hash,
                         rubric_hash=rubric_hash,
                         pricing_snapshot=pricing_snapshot,
+                        diagnostics=diagnostics,
                         started_at=started_at,
                         started=started,
                         input_tokens=total_input,
@@ -455,11 +633,7 @@ class AdaptiveEvaluatorModelGateway:
                         cost_reason="Evaluator Model calls exceeded the configured cost limit",
                     )
                 structured = _normalize_judgment(_json_content(raw_result))
-                if total_reasoning is not None:
-                    structured["reasoning_tokens"] = total_reasoning
-                structured["attempts"] = attempt
-                structured["effective_max_tokens"] = current_output_tokens
-                structured["effective_retry_ceiling"] = retry_ceiling
+                structured["judge_diagnostics"] = diagnostics
                 return JudgeResult(
                     provider_model_id=provider_model.id,
                     provider_credential_id=credential.id,
@@ -473,7 +647,10 @@ class AdaptiveEvaluatorModelGateway:
                     cost_usd=total_cost,
                     cost_status=cost["cost_status"],
                     cost_reason=cost["cost_reason"],
-                    pricing_snapshot=pricing_snapshot,
+                    pricing_snapshot=_pricing_with_diagnostics(
+                        pricing_snapshot,
+                        diagnostics,
+                    ),
                     latency_ms=round((time.monotonic() - started) * 1000),
                     structured_result=structured,
                     error=None,
@@ -487,28 +664,40 @@ class AdaptiveEvaluatorModelGateway:
                 total_output = _sum_int(total_output, usage["output_tokens"])
                 total_reasoning = _sum_int(total_reasoning, usage["reasoning_tokens"])
                 total_cost = _sum_float(total_cost, usage["cost_usd"])
-                message = str(exc).lower()
-                response_format_error = any(
-                    token in message
-                    for token in (
-                        "response_format",
-                        "json_schema",
-                        "structured output",
-                        "unsupported parameter",
-                    )
+                attempt_records.append(
+                    {
+                        "attempt": attempt,
+                        "status": "failed",
+                        "max_tokens": current_output_tokens,
+                        "response_mode": response_mode,
+                        "inference_profile": profile_name,
+                        "input_tokens": usage["input_tokens"],
+                        "output_tokens": usage["output_tokens"],
+                        "reasoning_tokens": usage["reasoning_tokens"],
+                        "error": _safe_error(exc),
+                        "latency_ms": round((time.monotonic() - attempt_started) * 1000),
+                    }
                 )
-                if response_format_error and response_mode == "json_schema":
-                    response_mode = "json_object"
+                if _is_reasoning_control_error(exc) and profile_index + 1 < len(profiles):
+                    profile_index += 1
                     continue
-                if response_format_error and response_mode == "json_object":
-                    response_mode = "text"
-                    continue
-                if is_output_length_error(exc) and current_output_tokens < retry_ceiling:
-                    current_output_tokens = min(
-                        retry_ceiling,
-                        max(current_output_tokens * 2, 6000),
-                    )
-                    continue
+                if _is_response_format_error(exc):
+                    if response_mode == "json_schema":
+                        response_mode = "json_object"
+                        continue
+                    if response_mode == "json_object":
+                        response_mode = "text"
+                        continue
+                if is_output_length_error(exc):
+                    if profile_index + 1 < len(profiles) - 1:
+                        profile_index += 1
+                        continue
+                    if current_output_tokens < retry_ceiling:
+                        current_output_tokens = min(
+                            retry_ceiling,
+                            max(current_output_tokens * 2, 6000),
+                        )
+                        continue
                 if attempt >= attempts or not _retryable(exc):
                     break
                 await asyncio.sleep(min(2 ** (attempt - 1), 4))
@@ -519,10 +708,26 @@ class AdaptiveEvaluatorModelGateway:
             else "judge_failed"
         )
         reason = (
-            "The Judge exhausted the model-aware output ceiling before completing the structured score"
+            "The Judge exhausted the controlled output budget before completing the structured score"
             if error_code == "judge_output_length_limit"
             else "Evaluator Model call failed"
         )
+        final_profile = profiles[profile_index][0]
+        diagnostics = {
+            "gateway_version": _GATEWAY_VERSION,
+            "provider": provider,
+            "model": model,
+            "reasoning_model": is_reasoning_model(model, metadata),
+            "reasoning_policy": str(judge_config.get("reasoning_policy") or "disabled"),
+            "initial_max_tokens": output_tokens,
+            "retry_ceiling": retry_ceiling,
+            "payload_truncated": truncated,
+            "attempts": attempt_records,
+            "total_reasoning_tokens": total_reasoning,
+            "final_response_mode": response_mode,
+            "final_inference_profile": final_profile,
+            "final_error_code": error_code,
+        }
         return self._failure(
             provider_model=provider_model,
             credential=credential,
@@ -531,6 +736,7 @@ class AdaptiveEvaluatorModelGateway:
             judge_config_hash=judge_config_hash,
             rubric_hash=rubric_hash,
             pricing_snapshot=pricing_snapshot,
+            diagnostics=diagnostics,
             started_at=started_at,
             started=started,
             input_tokens=total_input,
@@ -550,6 +756,7 @@ class AdaptiveEvaluatorModelGateway:
         judge_config_hash: str,
         rubric_hash: str,
         pricing_snapshot: dict[str, Any],
+        diagnostics: dict[str, Any],
         started_at,
         started: float,
         input_tokens: int | None,
@@ -571,7 +778,7 @@ class AdaptiveEvaluatorModelGateway:
             cost_usd=cost_usd,
             cost_status="calculated" if cost_usd is not None else "unknown",
             cost_reason=cost_reason,
-            pricing_snapshot=pricing_snapshot,
+            pricing_snapshot=_pricing_with_diagnostics(pricing_snapshot, diagnostics),
             latency_ms=round((time.monotonic() - started) * 1000),
             structured_result=None,
             error=error,
@@ -590,6 +797,7 @@ __all__ = [
     "AdaptiveEvaluatorModelGateway",
     "is_output_length_error",
     "is_reasoning_model",
+    "judge_inference_profiles",
     "judge_output_token_limit",
     "recommended_judge_output_tokens",
 ]
