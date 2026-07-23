@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.evaluation.infra.adaptive_judge import (
     is_output_length_error,
     is_reasoning_model,
+    judge_output_token_limit,
     recommended_judge_output_tokens,
 )
 
@@ -17,7 +18,7 @@ def test_reasoning_model_replaces_legacy_800_token_budget() -> None:
         "deepseek/deepseek-v4-flash",
         {},
         {"max_tokens": 800},
-    ) >= 3000
+    ) >= 6000
 
 
 def test_non_reasoning_model_receives_safe_minimum_budget() -> None:
@@ -26,7 +27,7 @@ def test_non_reasoning_model_receives_safe_minimum_budget() -> None:
         "openai/gpt-4.1-mini",
         {},
         {"max_tokens": 800},
-    ) == 1200
+    ) == 1600
 
 
 def test_fixed_policy_preserves_explicit_budget() -> None:
@@ -39,6 +40,27 @@ def test_fixed_policy_preserves_explicit_budget() -> None:
 
 def test_reasoning_metadata_enables_reasoning_budget() -> None:
     assert is_reasoning_model("custom/model", {"supports_reasoning": True}) is True
+
+
+def test_reasoning_model_uses_declared_output_ceiling() -> None:
+    assert judge_output_token_limit(
+        "custom/reasoning-model",
+        {
+            "supports_reasoning": True,
+            "max_output_tokens": 24_000,
+        },
+    ) == 24_000
+
+
+def test_reasoning_model_without_metadata_uses_safe_ceiling() -> None:
+    assert judge_output_token_limit("deepseek/deepseek-v4-flash", {}) == 16_384
+
+
+def test_declared_output_ceiling_is_bounded_for_evaluation_cost_safety() -> None:
+    assert judge_output_token_limit(
+        "custom/model",
+        {"max_completion_tokens": 100_000},
+    ) == 32_768
 
 
 def test_length_finish_reason_error_is_retryable_signal() -> None:
