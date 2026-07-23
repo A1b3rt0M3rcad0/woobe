@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 UsageBucket = Literal["hour", "day"]
-UsageEnvironment = Literal["all", "draft", "staging", "production"]
+UsageEnvironment = Literal["all", "draft", "staging", "production", "release"]
 UsageOperation = Literal["all", "agent", "network"]
 UsagePurpose = Literal["operational", "evaluation", "all"]
 UsageGroupBy = Literal[
