@@ -7,7 +7,9 @@ from sqlalchemy import select
 from modules.evaluation.application.evidence_revision_snapshot import (
     capture_evidence_revision,
 )
-from modules.evaluation.application.experience_service import EvaluationExperienceService
+from modules.evaluation.application.governed_experience_service import (
+    GovernedEvaluationExperienceService,
+)
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTrialModel,
@@ -52,7 +54,7 @@ def _call_snapshot(call: EvaluatorModelCallModel) -> dict:
     }
 
 
-class RevisionAwareEvaluationExperienceService(EvaluationExperienceService):
+class RevisionAwareEvaluationExperienceService(GovernedEvaluationExperienceService):
     """Preserve the current evidence revision and Judge logs before destructive retry."""
 
     async def retry_judgments(
