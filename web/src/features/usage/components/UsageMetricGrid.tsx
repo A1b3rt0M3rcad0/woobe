@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-import type { ProjectUsageSummary } from '../types'
+import type { ProjectUsageSummary, UsagePurpose } from '../types'
 import { formatKnownMoney, formatMoney } from '@/lib/formatters/money'
 
 function formatNumber(value: number | null, maximumFractionDigits = 0) {
@@ -79,7 +79,24 @@ function SupportingMetric({ label, value, detail, icon: Icon }: {
   )
 }
 
-export function UsageMetricGrid({ summary }: { summary: ProjectUsageSummary }) {
+export function UsageMetricGrid({
+  summary,
+  purpose,
+}: {
+  summary: ProjectUsageSummary
+  purpose: UsagePurpose
+}) {
+  const spendLabel = purpose === 'operational'
+    ? 'Operational runtime cost'
+    : purpose === 'evaluation'
+      ? 'Total Evaluation cost'
+      : 'Total known spend'
+  const spendValue = purpose === 'operational' ? summary.known_cost_usd : summary.total_spend_usd
+  const spendDescription = purpose === 'operational'
+    ? null
+    : purpose === 'evaluation'
+      ? 'Target runtime + Judge + AI Suite generation'
+      : 'Operational runtime + Evaluation activity'
   const agentPricingIncomplete = summary.partial_cost_agent_runs > 0 || summary.unpriced_agent_runs > 0
   const networkPricingIncomplete = summary.partial_cost_network_runs > 0 || summary.unpriced_network_runs > 0
   const agentFailures = summary.failed_agent_runs + summary.cancelled_agent_runs
@@ -90,12 +107,12 @@ export function UsageMetricGrid({ summary }: { summary: ProjectUsageSummary }) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard
           icon={BadgeDollarSign}
-          label="Operational cost"
-          value={formatKnownMoney(summary.known_cost_usd)}
+          label={spendLabel}
+          value={formatKnownMoney(spendValue)}
           warning={agentPricingIncomplete}
           description={agentPricingIncomplete
             ? `${summary.partial_cost_agent_runs} partial · ${summary.unpriced_agent_runs} unpriced Agent Runs`
-            : <Change value={summary.cost_change_percent} inverse />}
+            : spendDescription ?? <Change value={summary.cost_change_percent} inverse />}
         />
         <MetricCard
           icon={Activity}
