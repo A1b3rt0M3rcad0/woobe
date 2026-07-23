@@ -8,6 +8,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from modules.evaluation.application.judge_affordability import (
+    JudgeAffordabilityService,
+)
 from modules.evaluation.application.judge_policy import JudgePreflightService
 from modules.evaluation.application.preflight import EvaluationPreflightService
 from modules.evaluation.application.service import EvaluationApplicationService
@@ -30,6 +33,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         super().__init__(session_factory)
         self._preflight = EvaluationPreflightService()
         self._judge_preflight = JudgePreflightService()
+        self._judge_affordability = JudgeAffordabilityService()
 
     @staticmethod
     def _reject_legacy_baseline(baseline: dict[str, Any] | None) -> None:
@@ -38,6 +42,48 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 "An Evaluation Run tests exactly one snapshot. Use the Comparison endpoints "
                 "to create two independent Runs or compare existing evidence."
             )
+
+    @staticmethod
+    def _merge_affordability(
+        judge_preflight: dict[str, Any],
+        affordability: dict[str, Any],
+    ) -> dict[str, Any]:
+        blockers = [
+            item
+            for item in judge_preflight.get("blockers") or []
+            if isinstance(item, dict)
+        ]
+        warnings = [
+            item
+            for item in judge_preflight.get("warnings") or []
+            if isinstance(item, dict)
+        ]
+        live_status = str(affordability.get("status") or "unknown")
+        if live_status == "ready":
+            warnings = [
+                item
+                for item in warnings
+                if item.get("code") != "judge_affordability_unknown"
+            ]
+        for item in affordability.get("blockers") or []:
+            if isinstance(item, dict) and item not in blockers:
+                blockers.append(item)
+        for item in affordability.get("warnings") or []:
+            if isinstance(item, dict) and item not in warnings:
+                warnings.append(item)
+        merged = {
+            **judge_preflight,
+            "status": "blocked" if blockers else "ready",
+            "can_execute": not blockers,
+            "blockers": blockers,
+            "warnings": warnings,
+            "affordability": affordability,
+        }
+        if affordability.get("limit_remaining_usd") is not None:
+            merged["credential_remaining_usd"] = affordability[
+                "limit_remaining_usd"
+            ]
+        return merged
 
     async def preview_run(
         self,
@@ -96,6 +142,18 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 suite_version=suite,
                 repetitions=repetitions,
                 target_count=1,
+            )
+            affordability = await self._judge_affordability.inspect(
+                session,
+                project_id=project_id,
+                provider_model_id=suite.judge_provider_model_id,
+                estimated_maximum_cost_usd=judge_preflight.get(
+                    "estimated_maximum_cost_usd"
+                ),
+            )
+            judge_preflight = self._merge_affordability(
+                judge_preflight,
+                affordability,
             )
 
         tool_can_execute = not preflight.blocked_high_risk_tool_ids and (
