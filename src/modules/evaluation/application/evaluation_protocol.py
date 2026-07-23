@@ -7,7 +7,7 @@ from modules.evaluation.infra.judge import canonical_hash
 
 SCORING_ALGORITHM_VERSION = "evaluation-scoring-v2"
 OUTCOME_CLASSIFICATION_VERSION = "evaluation-outcomes-v2"
-JUDGE_SCHEMA_VERSION = "evaluation-judge-v2"
+JUDGE_SCHEMA_VERSION = "evaluation-judge-v3-governed"
 
 
 def evaluation_protocol_payload(suite: Any, *, repetitions: int | None = None) -> dict[str, Any]:
