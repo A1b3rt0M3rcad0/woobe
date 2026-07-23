@@ -187,11 +187,21 @@ export function PreservedEvidenceDialog({
                             <Badge variant="outline">{turn.status}</Badge>
                             {turn.metrics?.latency_ms != null ? <Badge variant="outline">{Math.round(Number(turn.metrics.latency_ms))}ms</Badge> : null}
                             {turn.metrics?.cost_usd != null ? <Badge variant="outline">${Number(turn.metrics.cost_usd).toFixed(4)}</Badge> : null}
+                            {(turn.metrics?.input_tokens != null || turn.metrics?.output_tokens != null) ? (
+                              <Badge variant="outline">
+                                {Number(turn.metrics?.input_tokens || 0) + Number(turn.metrics?.output_tokens || 0)} tokens
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
                         <div className="mt-3 grid gap-3 xl:grid-cols-2">
                           <JsonCodeBlock title="User input" value={turn.input_payload} maxHeight={180} actions={['copy', 'expand']} />
                           <JsonCodeBlock title="Target response" value={turn.output} maxHeight={220} actions={['copy', 'expand']} />
+                        </div>
+                        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                          <JsonCodeBlock title="Tools" value={turn.output?.tool_calls || []} maxHeight={180} actions={['copy', 'expand']} />
+                          <JsonCodeBlock title="Sources" value={turn.output?.sources || []} maxHeight={180} actions={['copy', 'expand']} />
+                          <JsonCodeBlock title="Turn checks" value={turn.metrics?.deterministic_checks || []} maxHeight={180} actions={['copy', 'expand']} />
                         </div>
                         {(turn.failure_code || turn.failure_detail) ? (
                           <p className="mt-3 text-[10px] text-red-300">
@@ -199,7 +209,7 @@ export function PreservedEvidenceDialog({
                           </p>
                         ) : null}
                         <p className="mt-3 font-mono text-[9px] text-muted">
-                          Trace {turn.trace_id || '—'} · Agent session {turn.agent_session_id || '—'} · Network session {turn.network_session_id || '—'}
+                          Trace {turn.trace_id || '—'} · Agent Run {turn.agent_run_id || '—'} · Network execution {turn.network_execution_id || '—'} · Agent session {turn.agent_session_id || '—'} · Network session {turn.network_session_id || '—'}
                         </p>
                       </div>
                     )) : (
