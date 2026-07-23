@@ -20,7 +20,9 @@ from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTrialModel,
 )
-from modules.evaluation.infra.governed_judge import GovernedEvaluatorModelGateway
+from modules.evaluation.infra.governed_budgeted_judge import (
+    GovernedBudgetedEvaluatorModelGateway,
+)
 from modules.evaluation.infra.workers.governed_worker import (
     GovernedEvaluationRunProcessor,
     GovernedEvaluationRunWorker,
@@ -40,7 +42,7 @@ class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
         settings: Settings | None = None,
     ) -> None:
         super().__init__(session_factory, settings=settings)
-        self._judge = GovernedEvaluatorModelGateway(settings)
+        self._judge = GovernedBudgetedEvaluatorModelGateway(settings)
         self._judge_canary_locks: dict[UUID, asyncio.Lock] = {}
         self._judge_canary_holders: dict[UUID, UUID] = {}
 
@@ -128,10 +130,11 @@ class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
                 metrics["judge_latency_ms"] = judge.latency_ms
                 metrics["evaluation_worker"] = {
                     "processor": "IntegrityEvaluationRunProcessor",
-                    "processor_version": "integrity-evaluation-worker-v2",
-                    "judge_gateway": "GovernedEvaluatorModelGateway",
+                    "processor_version": "integrity-evaluation-worker-v3",
+                    "judge_gateway": "GovernedBudgetedEvaluatorModelGateway",
                     "expected_adaptive_gateway": "adaptive-judge-v4",
                     "expected_governed_gateway": "governed-judge-v1",
+                    "context_budgeting": "budgeted-evaluator-gateway",
                 }
                 row.metrics = metrics
                 canonical = None
