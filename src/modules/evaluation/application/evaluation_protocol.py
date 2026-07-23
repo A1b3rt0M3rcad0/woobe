@@ -10,14 +10,32 @@ OUTCOME_CLASSIFICATION_VERSION = "evaluation-outcomes-v2"
 JUDGE_SCHEMA_VERSION = "evaluation-judge-v3-governed"
 
 
-def evaluation_protocol_payload(suite: Any, *, repetitions: int | None = None) -> dict[str, Any]:
-    """Return the material protocol used to judge compatibility between Runs."""
+def evaluation_protocol_payload(
+    suite: Any,
+    *,
+    repetitions: int | None = None,
+    judge_provider_model_id: UUID | str | None = None,
+    judge_config: dict[str, Any] | None = None,
+    judge_model_snapshot_hash: str | None = None,
+) -> dict[str, Any]:
+    """Return the material protocol used to judge compatibility between Runs.
 
+    Suite Versions remain immutable, while a Run may explicitly select another
+    eligible Judge Model. In that case the selected Judge and its normalized
+    configuration become part of the Run protocol hash without mutating the Suite.
+    """
+
+    selected_judge_id = judge_provider_model_id or suite.judge_provider_model_id
+    selected_judge_config = (
+        dict(judge_config)
+        if isinstance(judge_config, dict)
+        else (suite.judge_config or {})
+    )
     payload: dict[str, Any] = {
         "suite_version_id": str(suite.id),
         "dataset_version_id": str(suite.dataset_version_id),
-        "judge_provider_model_id": str(suite.judge_provider_model_id),
-        "judge_config": suite.judge_config or {},
+        "judge_provider_model_id": str(selected_judge_id),
+        "judge_config": selected_judge_config,
         "rubric": suite.rubric or {},
         "deterministic_checks": suite.deterministic_checks or {},
         "acceptance_policy": suite.acceptance_policy or {},
@@ -26,13 +44,30 @@ def evaluation_protocol_payload(suite: Any, *, repetitions: int | None = None) -
         "scoring_algorithm_version": SCORING_ALGORITHM_VERSION,
         "outcome_classification_version": OUTCOME_CLASSIFICATION_VERSION,
     }
+    if judge_model_snapshot_hash:
+        payload["judge_model_snapshot_hash"] = str(judge_model_snapshot_hash)
     if repetitions is not None:
         payload["repetitions"] = int(repetitions)
     return payload
 
 
-def evaluation_protocol_hash(suite: Any, *, repetitions: int | None = None) -> str:
-    return canonical_hash(evaluation_protocol_payload(suite, repetitions=repetitions))
+def evaluation_protocol_hash(
+    suite: Any,
+    *,
+    repetitions: int | None = None,
+    judge_provider_model_id: UUID | str | None = None,
+    judge_config: dict[str, Any] | None = None,
+    judge_model_snapshot_hash: str | None = None,
+) -> str:
+    return canonical_hash(
+        evaluation_protocol_payload(
+            suite,
+            repetitions=repetitions,
+            judge_provider_model_id=judge_provider_model_id,
+            judge_config=judge_config,
+            judge_model_snapshot_hash=judge_model_snapshot_hash,
+        )
+    )
 
 
 def target_identity_hash(
