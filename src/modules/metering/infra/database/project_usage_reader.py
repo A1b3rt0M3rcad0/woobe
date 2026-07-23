@@ -290,6 +290,20 @@ class SQLAlchemyProjectUsageReader:
         timeseries = await self._timeseries(params)
         breakdown = await self._breakdown(params, query.group_by)
         top_executions = await self._top_executions(params)
+        evaluation_activity = await self._evaluation_activity(params)
+        auxiliary_cost = float(
+            evaluation_activity["judge_cost_usd"]
+            + evaluation_activity["suite_generation_cost_usd"]
+        )
+        summary["auxiliary_evaluation_cost_usd"] = (
+            round(auxiliary_cost, 8)
+            if query.purpose in {"evaluation", "all"}
+            else 0.0
+        )
+        summary["total_spend_usd"] = round(
+            float(known_cost or 0) + summary["auxiliary_evaluation_cost_usd"],
+            8,
+        )
 
         total_cost = float(known_cost or 0)
         for row in breakdown:
@@ -340,6 +354,7 @@ class SQLAlchemyProjectUsageReader:
             },
             "breakdown": breakdown,
             "top_executions": top_executions,
+            "evaluation_activity": evaluation_activity,
             "data_quality": {
                 "fully_priced_agent_runs": priced_agent_runs,
                 "partial_agent_runs": int(summary["partial_cost_agent_runs"]),
@@ -355,6 +370,195 @@ class SQLAlchemyProjectUsageReader:
                 "unpriced_requests": int(summary["unpriced_agent_runs"]),
             },
         }
+
+    async def _evaluation_activity(self, params: dict[str, Any]) -> dict[str, Any]:
+        scope = self._agent_scope_sql("target_run")
+        activity_params = {**params, "purpose": "evaluation"}
+        statement = text(
+            f"""
+            WITH {self._agent_run_context_cte()},
+            scoped_targets AS (
+                SELECT
+                    target.id,
+                    target.evaluation_run_id,
+                    target.target_type
+                FROM evaluation.targets AS target
+                JOIN evaluation.runs AS evaluation_run
+                  ON evaluation_run.id = target.evaluation_run_id
+                WHERE target.project_id = :project_id
+                  AND evaluation_run.created_at >= :start
+                  AND evaluation_run.created_at < :end
+                  AND (:environment = 'all' OR target.environment = :environment)
+                  AND (:operation = 'all' OR target.target_type = :operation)
+                  AND (
+                    CAST(:network_id AS uuid) IS NULL
+                    OR (
+                        target.target_type = 'network'
+                        AND target.entity_id = CAST(:network_id AS uuid)
+                    )
+                  )
+                  AND (
+                    CAST(:agent_id AS uuid) IS NULL
+                    OR (
+                        target.target_type = 'agent'
+                        AND target.entity_id = CAST(:agent_id AS uuid)
+                    )
+                  )
+            ),
+            scoped_trials AS (
+                SELECT trial.id, trial.evaluation_run_id
+                FROM evaluation.trials AS trial
+                JOIN scoped_targets AS target
+                  ON target.id = trial.evaluation_target_id
+            ),
+            filtered_target_runs AS (
+                SELECT *
+                FROM agent_run_context AS target_run
+                WHERE target_run.started_at >= :start
+                  AND target_run.started_at < :end
+                  AND {scope}
+            ),
+            target_runtime AS (
+                SELECT
+                    COUNT(*) AS target_agent_runs,
+                    COALESCE(
+                        SUM(total_cost_usd)
+                            FILTER (WHERE total_cost_usd IS NOT NULL),
+                        0
+                    ) AS target_runtime_cost_usd
+                FROM filtered_target_runs
+            ),
+            target_network AS (
+                SELECT COUNT(*) AS target_network_runs
+                FROM network.network_executions AS execution
+                JOIN network.network_sessions AS network_session
+                  ON network_session.id = execution.network_session_id
+                WHERE execution.project_id = :project_id
+                  AND execution.run_purpose = 'evaluation'
+                  AND execution.created_at >= :start
+                  AND execution.created_at < :end
+                  AND :operation <> 'agent'
+                  AND (
+                    :environment = 'all'
+                    OR network_session.environment = :environment
+                  )
+                  AND (
+                    CAST(:network_id AS uuid) IS NULL
+                    OR execution.network_id = CAST(:network_id AS uuid)
+                  )
+            ),
+            auxiliary AS (
+                SELECT
+                    COUNT(*) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'judge'
+                    ) AS judge_invocations,
+                    COALESCE(SUM(usage.input_tokens) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'judge'
+                    ), 0) AS judge_input_tokens,
+                    COALESCE(SUM(usage.output_tokens) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'judge'
+                    ), 0) AS judge_output_tokens,
+                    COALESCE(SUM(usage.cost_usd) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'judge'
+                    ), 0) AS judge_cost_usd,
+                    COUNT(*) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'judge'
+                          AND usage.cost_usd IS NULL
+                    ) AS judge_unpriced_invocations,
+                    COUNT(*) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'suite_authoring'
+                    ) AS suite_generation_invocations,
+                    COALESCE(SUM(usage.input_tokens) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'suite_authoring'
+                    ), 0) AS suite_generation_input_tokens,
+                    COALESCE(SUM(usage.output_tokens) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'suite_authoring'
+                    ), 0) AS suite_generation_output_tokens,
+                    COALESCE(SUM(usage.cost_usd) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'suite_authoring'
+                    ), 0) AS suite_generation_cost_usd,
+                    COUNT(*) FILTER (
+                        WHERE usage.data ->> 'usage_subtype' = 'suite_authoring'
+                          AND usage.cost_usd IS NULL
+                    ) AS suite_generation_unpriced_invocations
+                FROM metering.usage_events AS usage
+                WHERE usage.project_id = :project_id
+                  AND usage.run_purpose = 'evaluation'
+                  AND usage.occurred_at >= :start
+                  AND usage.occurred_at < :end
+                  AND usage.event_type = 'evaluation_model_call'
+                  AND (
+                    (
+                        usage.data ->> 'usage_subtype' = 'judge'
+                        AND usage.evaluation_run_id IN (
+                            SELECT evaluation_run_id FROM scoped_targets
+                        )
+                    )
+                    OR (
+                        usage.data ->> 'usage_subtype' = 'suite_authoring'
+                        AND :environment = 'all'
+                        AND :operation = 'all'
+                        AND CAST(:network_id AS uuid) IS NULL
+                        AND CAST(:agent_id AS uuid) IS NULL
+                        AND CAST(:provider_model_id AS uuid) IS NULL
+                        AND CAST(:release_id AS uuid) IS NULL
+                    )
+                  )
+            )
+            SELECT
+                (
+                    SELECT COUNT(DISTINCT evaluation_run_id)
+                    FROM scoped_targets
+                ) AS evaluations,
+                (SELECT COUNT(*) FROM scoped_trials) AS trials,
+                (
+                    SELECT COUNT(DISTINCT trial.id)
+                    FROM scoped_trials AS trial
+                    JOIN evaluation.trial_turns AS turn
+                      ON turn.evaluation_trial_id = trial.id
+                ) AS session_trials,
+                (
+                    SELECT COUNT(*)
+                    FROM evaluation.trial_turns AS turn
+                    JOIN scoped_trials AS trial
+                      ON trial.id = turn.evaluation_trial_id
+                ) AS session_turns,
+                target_runtime.target_agent_runs,
+                target_network.target_network_runs,
+                target_runtime.target_runtime_cost_usd,
+                auxiliary.judge_invocations,
+                auxiliary.judge_input_tokens,
+                auxiliary.judge_output_tokens,
+                auxiliary.judge_cost_usd,
+                auxiliary.judge_unpriced_invocations,
+                auxiliary.suite_generation_invocations,
+                auxiliary.suite_generation_input_tokens,
+                auxiliary.suite_generation_output_tokens,
+                auxiliary.suite_generation_cost_usd,
+                auxiliary.suite_generation_unpriced_invocations
+            FROM target_runtime
+            CROSS JOIN target_network
+            CROSS JOIN auxiliary
+            """
+        )
+        row = (
+            await self._uow.session.execute(statement, activity_params)
+        ).mappings().one()
+        result = {
+            key: (
+                round(float(value), 8)
+                if key.endswith("_cost_usd")
+                else int(value or 0)
+            )
+            for key, value in row.items()
+        }
+        result["total_known_cost_usd"] = round(
+            result["target_runtime_cost_usd"]
+            + result["judge_cost_usd"]
+            + result["suite_generation_cost_usd"],
+            8,
+        )
+        return result
 
     async def _agent_summary(self, params: dict[str, Any]) -> dict[str, Any]:
         scope = self._agent_scope_sql()
