@@ -16,6 +16,7 @@ from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationTrialModel,
 )
+from modules.evaluation.infra.resilient_judge import ResilientEvaluatorModelGateway
 from modules.evaluation.infra.workers.governed_worker import (
     GovernedEvaluationRunProcessor,
     GovernedEvaluationRunWorker,
@@ -25,6 +26,15 @@ from shared.infra.config import Settings
 
 class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
     """Keep unavailable metrics distinct from zero and freeze each revision."""
+
+    def __init__(
+        self,
+        session_factory: async_sessionmaker,
+        *,
+        settings: Settings | None = None,
+    ) -> None:
+        super().__init__(session_factory, settings=settings)
+        self._judge = ResilientEvaluatorModelGateway(settings)
 
     async def _persist_final_result(self, **kwargs: Any) -> None:
         await super()._persist_final_result(**kwargs)
