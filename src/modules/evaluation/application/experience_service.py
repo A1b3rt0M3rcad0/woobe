@@ -44,6 +44,7 @@ _RETRYABLE_JUDGE_CODES = {
     "judge_invalid_json",
     "judge_timeout",
     "judge_rate_limited",
+    "judge_provider_5xx",
 }
 
 
