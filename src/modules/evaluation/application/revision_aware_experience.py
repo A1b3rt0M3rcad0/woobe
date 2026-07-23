@@ -65,6 +65,11 @@ class RevisionAwareEvaluationExperienceService(GovernedEvaluationExperienceServi
         trial_ids: list[UUID] | None = None,
         failure_codes: list[str] | None = None,
     ):
+        await self._assert_retry_allowed(
+            project_id=project_id,
+            run_id=run_id,
+            trial_ids=trial_ids,
+        )
         selected_ids = set(trial_ids or [])
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
