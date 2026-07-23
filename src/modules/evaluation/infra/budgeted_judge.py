@@ -19,6 +19,24 @@ from modules.evaluation.infra.adaptive_judge import (
 from modules.evaluation.infra.judge import JudgeResult
 
 
+def _declares_reasoning(metadata: dict[str, Any]) -> bool:
+    for key in ("supports_reasoning", "reasoning_enabled", "thinking"):
+        if metadata.get(key) is True:
+            return True
+    reasoning = metadata.get("reasoning")
+    return reasoning is True or isinstance(reasoning, dict)
+
+
+def _reasoning_policy(metadata: dict[str, Any], judge_config: dict[str, Any]) -> str:
+    configured = judge_config.get("reasoning_policy")
+    if configured is not None:
+        return str(configured)
+    # Model names are not a reliable capability contract. When the Provider Model
+    # did not explicitly declare reasoning support, use provider defaults and avoid
+    # sending speculative `reasoning` or `thinking` controls.
+    return "disabled" if _declares_reasoning(metadata) else "provider_default"
+
+
 class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
     async def judge(
         self,
@@ -99,7 +117,7 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
         normalized_config = {
             **judge_config,
             "output_budget_policy": judge_config.get("output_budget_policy", "auto"),
-            "reasoning_policy": judge_config.get("reasoning_policy", "disabled"),
+            "reasoning_policy": _reasoning_policy(metadata or {}, judge_config),
             "reasoning_effort": judge_config.get("reasoning_effort", "none"),
             "max_tokens": configured_output,
             "maximum_retry_tokens": retry_ceiling,
@@ -140,4 +158,8 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
         )
 
 
-__all__ = ["BudgetedEvaluatorModelGateway"]
+__all__ = [
+    "BudgetedEvaluatorModelGateway",
+    "_declares_reasoning",
+    "_reasoning_policy",
+]
