@@ -331,7 +331,17 @@ class EvaluationRunProcessor:
             agent_session_id=None,
             execution_context="playground",
             internal_tools=[],
-            network_context={},
+            network_context={
+                "run_purpose": "evaluation",
+                "evaluation_run_id": str(trial.evaluation_run_id),
+                "evaluation_trial_id": str(trial.id),
+                "evaluation_target_id": str(target.id),
+                "target_snapshot_hash": target.snapshot_hash,
+                "target_snapshot_label": target.environment,
+                "evaluation_role": "target",
+                "comparison_pair_id": trial.pair_key,
+                "target_side": target.side,
+            },
         )
         elapsed_ms = round((_utc_now() - started).total_seconds() * 1000)
         usage = result.usage or {}
@@ -395,6 +405,12 @@ class EvaluationRunProcessor:
                 network_version_id=network_version_id,
                 network_session_id=session_id,
                 project_id=trial.project_id,
+                run_purpose="evaluation",
+                evaluation_run_id=trial.evaluation_run_id,
+                evaluation_trial_id=trial.id,
+                evaluation_target_id=target.id,
+                target_snapshot_hash=target.snapshot_hash,
+                target_snapshot_label=target.environment,
                 input_message=message,
                 draft_revision=draft_revision,
                 definition_snapshot=definition if target.source_type == "draft" else None,
