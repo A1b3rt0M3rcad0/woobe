@@ -1,6 +1,7 @@
 export type UsageBucket = 'hour' | 'day'
 export type UsageEnvironment = 'all' | 'draft' | 'staging' | 'production'
 export type UsageOperation = 'all' | 'agent' | 'network'
+export type UsagePurpose = 'operational' | 'evaluation' | 'all'
 export type UsageGroupBy = 'agent' | 'network' | 'model' | 'provider' | 'environment' | 'release'
 export type UsageRange = '24h' | '7d' | '30d' | '90d'
 export type UsageRunType = 'agent' | 'network'
@@ -12,6 +13,7 @@ export interface ProjectUsageParams {
   bucket: UsageBucket
   environment: UsageEnvironment
   operation: UsageOperation
+  purpose: UsagePurpose
   group_by: UsageGroupBy
   network_id?: string
   agent_id?: string
@@ -22,6 +24,8 @@ export interface ProjectUsageParams {
 
 export interface ProjectUsageSummary {
   known_cost_usd: number | null
+  auxiliary_evaluation_cost_usd: number
+  total_spend_usd: number | null
   failed_spend_usd: number
   cost_change_percent: number | null
   cost_coverage_percent: number | null
@@ -137,6 +141,12 @@ export interface ProjectUsageExecution {
   agent_id: string | null
   agent_name: string | null
   environment: string | null
+  run_purpose: UsagePurpose
+  evaluation_run_id?: string | null
+  evaluation_trial_id?: string | null
+  evaluation_target_id?: string | null
+  target_snapshot_hash?: string | null
+  target_snapshot_label?: string | null
   release_id: string | null
   release_version: string | null
   provider: string | null
@@ -151,6 +161,27 @@ export interface ProjectUsageExecution {
   known_cost_usd: number | null
   cost_status: string
   started_at: string | null
+}
+
+export interface ProjectEvaluationUsage {
+  evaluations: number
+  trials: number
+  session_trials: number
+  session_turns: number
+  target_agent_runs: number
+  target_network_runs: number
+  target_runtime_cost_usd: number
+  judge_invocations: number
+  judge_input_tokens: number
+  judge_output_tokens: number
+  judge_cost_usd: number
+  judge_unpriced_invocations: number
+  suite_generation_invocations: number
+  suite_generation_input_tokens: number
+  suite_generation_output_tokens: number
+  suite_generation_cost_usd: number
+  suite_generation_unpriced_invocations: number
+  total_known_cost_usd: number
 }
 
 export interface ProjectUsageDataQuality {
@@ -177,12 +208,14 @@ export interface ProjectUsage {
   bucket: UsageBucket
   environment: UsageEnvironment
   operation: UsageOperation
+  purpose: UsagePurpose
   group_by: UsageGroupBy
   summary: ProjectUsageSummary
   timeseries: ProjectUsageTimeseriesPoint[]
   composition: ProjectUsageComposition
   breakdown: ProjectUsageBreakdownRow[]
   top_executions: ProjectUsageExecution[]
+  evaluation_activity: ProjectEvaluationUsage
   data_quality: ProjectUsageDataQuality
 }
 
