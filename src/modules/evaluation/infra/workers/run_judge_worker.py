@@ -9,7 +9,10 @@ from modules.evaluation.application.run_judge import (
     selected_judge_config,
     selected_judge_provider_model_id,
 )
-from modules.evaluation.infra.database.models import EvaluationRunModel
+from modules.evaluation.infra.database.models import (
+    EvaluationRunModel,
+    EvaluationTrialModel,
+)
 from modules.evaluation.infra.runtime_safe_judge import RuntimeSafeEvaluatorModelGateway
 from modules.evaluation.infra.workers.integrity_worker import (
     IntegrityEvaluationRunProcessor,
@@ -49,6 +52,26 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
             run = await session.get(EvaluationRunModel, trial.evaluation_run_id)
         effective_suite = effective_suite_for_run(run, suite) if run is not None else suite
         await super()._execute_trial(trial, target, case, effective_suite)
+
+    async def _persist_final_result(self, **kwargs: Any) -> None:
+        await super()._persist_final_result(**kwargs)
+        trial = kwargs["trial"]
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(EvaluationTrialModel, trial.id, with_for_update=True)
+            if row is None:
+                return
+            metrics = dict(row.metrics or {})
+            metrics["evaluation_worker"] = {
+                "processor": "RunJudgeEvaluationRunProcessor",
+                "processor_version": "run-judge-evaluation-worker-v2",
+                "judge_gateway": "RuntimeSafeEvaluatorModelGateway",
+                "expected_runtime_safe_gateway": "runtime-safe-judge-v2",
+                "expected_governed_gateway": "governed-judge-v1",
+                "expected_adaptive_gateway": "adaptive-judge-v4",
+                "context_budgeting": "budgeted-evaluator-gateway",
+                "run_level_judge_selection": True,
+            }
+            row.metrics = metrics
 
 
 class RunJudgeEvaluationRunWorker(IntegrityEvaluationRunWorker):
