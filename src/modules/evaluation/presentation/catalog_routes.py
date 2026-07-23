@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
-from modules.evaluation.application.revision_comparison_service import (
-    RevisionComparisonCatalogService,
+from modules.evaluation.application.complete_catalog_service import (
+    CompleteEvaluationCatalogService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -60,8 +60,8 @@ class ComparisonDecisionRequest(BaseModel):
     note: str | None = Field(default=None, max_length=4000)
 
 
-def _service(request: Request) -> RevisionComparisonCatalogService:
-    return RevisionComparisonCatalogService(request.app.state.session_factory)
+def _service(request: Request) -> CompleteEvaluationCatalogService:
+    return CompleteEvaluationCatalogService(request.app.state.session_factory)
 
 
 @router.post("/evaluations/preview")
@@ -109,6 +109,8 @@ async def list_evaluations(
     target_type: Literal["agent", "network"] | None = None,
     entity_id: UUID | None = None,
     suite_version_id: UUID | None = None,
+    target_version_id: UUID | None = None,
+    source_type: Literal["draft", "staging", "release"] | None = None,
     include_archived: bool = False,
 ):
     require_evaluation_user(request, project_id)
@@ -117,6 +119,8 @@ async def list_evaluations(
         target_type=target_type,
         entity_id=entity_id,
         suite_version_id=suite_version_id,
+        target_version_id=target_version_id,
+        source_type=source_type,
         include_archived=include_archived,
     )
     return {"success": True, "data": data}
