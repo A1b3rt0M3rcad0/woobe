@@ -23,6 +23,14 @@ import type {
 } from './catalogTypes'
 
 const activeComparisonStatuses = new Set(['waiting', 'running'])
+const activeRunStatuses = new Set([
+  'queued',
+  'snapshotting',
+  'executing',
+  'judging',
+  'aggregating',
+  'cancel_requested',
+])
 
 export function useEvaluationCatalog(
   projectId?: string,
@@ -33,6 +41,13 @@ export function useEvaluationCatalog(
     queryKey: ['evaluation-catalog', projectId, entityId, includeArchived],
     queryFn: () => getEvaluationCatalog(projectId as string, entityId, includeArchived),
     enabled: Boolean(projectId),
+    refetchInterval: (query) => (
+      query.state.data?.some((item) => (
+        item.latest_run ? activeRunStatuses.has(item.latest_run.status) : false
+      ))
+        ? 2200
+        : false
+    ),
   })
 }
 
@@ -41,6 +56,11 @@ export function useCatalogEvaluation(projectId?: string, evaluationId?: string |
     queryKey: ['catalog-evaluation', projectId, evaluationId],
     queryFn: () => getCatalogEvaluation(projectId as string, evaluationId as string),
     enabled: Boolean(projectId && evaluationId),
+    refetchInterval: (query) => (
+      query.state.data?.runs?.some((run) => activeRunStatuses.has(run.status))
+        ? 2200
+        : false
+    ),
   })
 }
 
@@ -51,9 +71,7 @@ export function useEvidenceRichEvaluationRun(projectId?: string, runId?: string 
     enabled: Boolean(projectId && runId),
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      return status && ['queued', 'snapshotting', 'executing', 'judging', 'aggregating'].includes(status)
-        ? 1800
-        : false
+      return status && activeRunStatuses.has(status) ? 1800 : false
     },
   })
 }
