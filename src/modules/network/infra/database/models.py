@@ -166,6 +166,18 @@ class NetworkExecutionModel(BaseModel):
         Index(
             "ix_network_executions_project_status", "project_id", "status", "created_at"
         ),
+        Index(
+            "ix_network_executions_project_purpose_created",
+            "project_id",
+            "run_purpose",
+            "created_at",
+        ),
+        Index(
+            "ix_network_executions_evaluation_run",
+            "evaluation_run_id",
+            "evaluation_trial_id",
+            postgresql_where=text("evaluation_run_id IS NOT NULL"),
+        ),
         Index("ix_network_executions_lease", "status", "lease_expires_at"),
         Index(
             "uq_network_execution_active_session",
@@ -204,6 +216,12 @@ class NetworkExecutionModel(BaseModel):
         ForeignKey("network.network_sessions.id")
     )
     project_id: Mapped[UUID]
+    run_purpose: Mapped[str] = mapped_column(String(32), default="operational")
+    evaluation_run_id: Mapped[UUID | None]
+    evaluation_trial_id: Mapped[UUID | None]
+    evaluation_target_id: Mapped[UUID | None]
+    target_snapshot_hash: Mapped[str | None] = mapped_column(String(64))
+    target_snapshot_label: Mapped[str | None] = mapped_column(String(32))
     input_message: Mapped[str] = mapped_column(Text)
     draft_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
     definition_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
