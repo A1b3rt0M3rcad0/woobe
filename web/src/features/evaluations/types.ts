@@ -34,6 +34,7 @@ export interface EvaluationSessionTurnInput {
   input_payload?: { message: string }
   expected_behavior?: string[]
   forbidden_behavior?: string[]
+  expected_contract?: Record<string, any>
 }
 
 export interface EvaluationCaseInput {
@@ -291,10 +292,12 @@ export interface EvaluationTarget {
 
 export interface EvaluationEstimateScenario {
   provider_cost_usd?: number | null
+  cost_usd_per_session?: number | null
   latency_ms_per_run?: number | null
   latency_ms_per_session?: number | null
   agent_runs?: number | null
   turns?: number | null
+  tokens?: number | null
 }
 
 export interface EvaluationEstimate {
@@ -388,8 +391,12 @@ export interface EvaluationSessionKpis {
   cost_usd_per_session: number | null
   cost_usd_per_turn: number | null
   latency_ms_per_session: number | null
+  latency_p90_ms_per_session?: number | null
+  latency_p95_ms_per_session?: number | null
   latency_ms_per_turn: number | null
   tokens_per_session: number | null
+  tokens_per_turn?: number | null
+  dimensions?: Record<string, number>
 }
 
 export interface EvaluationKpis {
@@ -402,11 +409,20 @@ export interface EvaluationKpis {
   runtime_cost_usd_total: number | null
   runtime_cost_usd_per_trial: number | null
   runtime_pricing_coverage_percent: number
+  failure_rate?: number | null
+  latency_p50_ms?: number | null
   latency_median_ms: number | null
   latency_p90_ms: number | null
+  latency_p95_ms?: number | null
   input_tokens_mean: number | null
+  input_tokens_p90?: number | null
+  input_tokens_p95?: number | null
   output_tokens_mean: number | null
+  output_tokens_p90?: number | null
+  output_tokens_p95?: number | null
   tool_calls_mean: number | null
+  tool_calls_p90?: number | null
+  tool_calls_p95?: number | null
   case_count: number
   stable_case_count: number
   mixed_case_count: number
