@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.infra.database.models import ProviderCredentialModel
@@ -92,7 +92,11 @@ def explicit_reasoning_support(metadata: dict[str, Any] | None) -> bool:
 def supported_parameters(metadata: dict[str, Any] | None) -> set[str]:
     source = metadata or {}
     values: list[Any] = []
-    for container in (source, _metadata_mapping(source, "raw"), _metadata_mapping(source, "capabilities")):
+    for container in (
+        source,
+        _metadata_mapping(source, "raw"),
+        _metadata_mapping(source, "capabilities"),
+    ):
         current = container.get("supported_parameters")
         if isinstance(current, list):
             values.extend(current)
@@ -310,9 +314,16 @@ class JudgePreflightService:
             snapshot = judge_model_snapshot(model, credential)
             blockers: list[dict[str, str]] = []
             if model.status != "active":
-                blockers.append({"code": "judge_model_inactive", "message": "Judge Model is not active"})
+                blockers.append(
+                    {"code": "judge_model_inactive", "message": "Judge Model is not active"}
+                )
             if credential.status != "active":
-                blockers.append({"code": "judge_credential_inactive", "message": "Judge Model credential is not active"})
+                blockers.append(
+                    {
+                        "code": "judge_credential_inactive",
+                        "message": "Judge Model credential is not active",
+                    }
+                )
             result.append(
                 {
                     **snapshot,
@@ -367,14 +378,23 @@ class JudgePreflightService:
             }
         if provider_model.status != "active":
             blockers.append(
-                {"code": "judge_model_inactive", "message": "The selected Judge Model is not active"}
+                {
+                    "code": "judge_model_inactive",
+                    "message": "The selected Judge Model is not active",
+                }
             )
         if credential.status != "active":
             blockers.append(
-                {"code": "judge_credential_invalid", "message": "The selected Judge Model credential is not active"}
+                {
+                    "code": "judge_credential_invalid",
+                    "message": "The selected Judge Model credential is not active",
+                }
             )
 
-        normalized = normalized_judge_config(provider_model.meta or {}, suite_version.judge_config or {})
+        normalized = normalized_judge_config(
+            provider_model.meta or {},
+            suite_version.judge_config or {},
+        )
         snapshot = judge_model_snapshot(
             provider_model,
             credential,
@@ -383,29 +403,13 @@ class JudgePreflightService:
         budget = resolve_judge_budget(provider_model.meta or {}, normalized)
         case_count = int(
             await session.scalar(
-                select(EvaluationTestCaseModel.id)
-                .where(
+                select(func.count(EvaluationTestCaseModel.id)).where(
                     EvaluationTestCaseModel.dataset_version_id
                     == suite_version.dataset_version_id
                 )
-                .count()
             )
             or 0
         )
-        # SQLAlchemy Select has no portable count() method. Recalculate using the
-        # already-known Dataset Version rows when a dialect does not expose it.
-        if case_count <= 0:
-            rows = list(
-                (
-                    await session.scalars(
-                        select(EvaluationTestCaseModel.id).where(
-                            EvaluationTestCaseModel.dataset_version_id
-                            == suite_version.dataset_version_id
-                        )
-                    )
-                ).all()
-            )
-            case_count = len(rows)
         call_count = max(case_count, 0) * max(repetitions, 1) * max(target_count, 1)
         pricing = snapshot["pricing"]
         per_call_cost = _cost(
@@ -441,7 +445,11 @@ class JudgePreflightService:
                     ),
                 }
             )
-        if configured_maximum is not None and worst_case_cost is not None and worst_case_cost > configured_maximum:
+        if (
+            configured_maximum is not None
+            and worst_case_cost is not None
+            and worst_case_cost > configured_maximum
+        ):
             blockers.append(
                 {
                     "code": "judge_cost_limit_exceeded",
