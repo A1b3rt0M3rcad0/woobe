@@ -5,12 +5,12 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from modules.evaluation.application.governed_run_diagnostics import (
+    GovernedEvaluationRunDiagnosticsService,
+)
 from modules.evaluation.application.judge_policy import JudgePreflightService
 from modules.evaluation.application.revision_aware_experience import (
     RevisionAwareEvaluationExperienceService,
-)
-from modules.evaluation.application.run_diagnostics_service import (
-    EvaluationRunDiagnosticsService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -59,7 +59,9 @@ async def get_evaluation_run_diagnostics(
     request: Request,
 ):
     require_evaluation_user(request, project_id)
-    service = EvaluationRunDiagnosticsService(request.app.state.session_factory)
+    service = GovernedEvaluationRunDiagnosticsService(
+        request.app.state.session_factory
+    )
     return {
         "success": True,
         "data": await service.get_run_diagnostics(
