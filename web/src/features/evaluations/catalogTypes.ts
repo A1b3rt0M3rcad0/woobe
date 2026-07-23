@@ -27,6 +27,11 @@ export interface EvaluationCatalogItem {
   id: string
   project_id: string
   suite_version_id: string
+  suite_id?: string | null
+  suite_name?: string | null
+  suite_version?: string | null
+  dataset_version_id?: string | null
+  judge_provider_model_id?: string | null
   target_type: EvaluationTargetType
   entity_id: string
   source_type: 'draft' | 'staging' | 'release'
