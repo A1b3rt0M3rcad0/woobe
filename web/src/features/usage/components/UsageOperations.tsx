@@ -92,7 +92,7 @@ export function UsageOperations({
   executions,
   groupBy,
   purpose,
-  contextLabel:
+  contextLabel,
   organizationId,
   projectId,
   onSelectDriver,
