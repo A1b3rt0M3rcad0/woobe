@@ -57,6 +57,18 @@ def test_protocol_hash_is_target_independent_and_materially_stable() -> None:
     ) != first
 
 
+def test_protocol_hash_excludes_repetition_count() -> None:
+    suite = _suite()
+
+    assert evaluation_protocol_hash(
+        suite,
+        repetitions=1,
+    ) == evaluation_protocol_hash(
+        suite,
+        repetitions=25,
+    )
+
+
 def test_target_identity_distinguishes_operational_references() -> None:
     entity_id = uuid4()
     snapshot_hash = "a" * 64
