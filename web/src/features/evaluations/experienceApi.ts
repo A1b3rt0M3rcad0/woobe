@@ -1,6 +1,7 @@
 import { get, post } from '@/lib/api/client'
 import type { EvaluationRun } from './types'
 import type {
+  EvaluationJudgeModel,
   EvaluationRunDiagnostics,
   EvaluationRunProgress,
   RetryEvaluationJudgmentsInput,
@@ -8,6 +9,10 @@ import type {
 
 function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
+}
+
+export function getEvaluationJudgeModels(projectId: string) {
+  return get<EvaluationJudgeModel[]>(`${base(projectId)}/judge-models`)
 }
 
 export function getEvaluationRunProgress(projectId: string, runId: string) {
