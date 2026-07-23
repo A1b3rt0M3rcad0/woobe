@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 UsageBucket = Literal["hour", "day"]
 UsageEnvironment = Literal["all", "draft", "staging", "production"]
 UsageOperation = Literal["all", "agent", "network"]
+UsagePurpose = Literal["operational", "evaluation", "all"]
 UsageGroupBy = Literal[
     "agent",
     "network",
@@ -29,6 +30,7 @@ class ProjectUsageQuery(BaseModel):
     bucket: UsageBucket | None = None
     environment: UsageEnvironment = "all"
     operation: UsageOperation = "all"
+    purpose: UsagePurpose = "operational"
     network_id: UUID | None = None
     agent_id: UUID | None = None
     provider_model_id: UUID | None = None
@@ -64,6 +66,8 @@ class ProjectUsageQuery(BaseModel):
 
 class ProjectUsageSummary(BaseModel):
     known_cost_usd: float | None = 0.0
+    auxiliary_evaluation_cost_usd: float = 0.0
+    total_spend_usd: float | None = 0.0
     failed_spend_usd: float = 0.0
     cost_change_percent: float | None = None
     cost_coverage_percent: float | None = None
@@ -184,6 +188,12 @@ class ProjectUsageExecution(BaseModel):
     agent_id: UUID | None = None
     agent_name: str | None = None
     environment: str | None = None
+    run_purpose: UsagePurpose = "operational"
+    evaluation_run_id: UUID | None = None
+    evaluation_trial_id: UUID | None = None
+    evaluation_target_id: UUID | None = None
+    target_snapshot_hash: str | None = None
+    target_snapshot_label: str | None = None
     release_id: UUID | None = None
     release_version: str | None = None
     provider: str | None = None
@@ -198,6 +208,27 @@ class ProjectUsageExecution(BaseModel):
     known_cost_usd: float | None = None
     cost_status: str
     started_at: datetime | None = None
+
+
+class ProjectEvaluationUsage(BaseModel):
+    evaluations: int = 0
+    trials: int = 0
+    session_trials: int = 0
+    session_turns: int = 0
+    target_agent_runs: int = 0
+    target_network_runs: int = 0
+    target_runtime_cost_usd: float = 0.0
+    judge_invocations: int = 0
+    judge_input_tokens: int = 0
+    judge_output_tokens: int = 0
+    judge_cost_usd: float = 0.0
+    judge_unpriced_invocations: int = 0
+    suite_generation_invocations: int = 0
+    suite_generation_input_tokens: int = 0
+    suite_generation_output_tokens: int = 0
+    suite_generation_cost_usd: float = 0.0
+    suite_generation_unpriced_invocations: int = 0
+    total_known_cost_usd: float = 0.0
 
 
 class ProjectUsageDataQuality(BaseModel):
@@ -228,10 +259,14 @@ class ProjectUsageOutput(BaseModel):
     bucket: UsageBucket
     environment: UsageEnvironment
     operation: UsageOperation
+    purpose: UsagePurpose
     group_by: UsageGroupBy
     summary: ProjectUsageSummary
     timeseries: list[ProjectUsageTimeseriesPoint]
     composition: ProjectUsageComposition
     breakdown: list[ProjectUsageBreakdownRow]
     top_executions: list[ProjectUsageExecution]
+    evaluation_activity: ProjectEvaluationUsage = Field(
+        default_factory=ProjectEvaluationUsage
+    )
     data_quality: ProjectUsageDataQuality
