@@ -37,10 +37,13 @@ import { evaluatorSuiteJsonExample } from '@/features/evaluations/jsonExample'
 import type {
   EvaluationCaseInput,
   EvaluationCaseType,
+  EvaluationInteractionMode,
+  EvaluationSessionTurnInput,
   EvaluationSourceType,
   EvaluationSuite,
   EvaluationTargetInput,
   EvaluationTargetType,
+  EvaluationTestStructure,
   EvaluatorSuiteDraft,
   SuiteAuthoringSource,
   SuiteContextPreview,
@@ -102,6 +105,27 @@ function listValue(value: unknown): string[] {
   return []
 }
 
+function normalizedTurns(source: Record<string, any>): EvaluationSessionTurnInput[] {
+  const raw = Array.isArray(source.turns)
+    ? source.turns
+    : Array.isArray(source.session_turns)
+      ? source.session_turns
+      : []
+  return raw
+    .filter((item): item is Record<string, any> => Boolean(item && typeof item === 'object'))
+    .map((turn, index) => ({
+      position: index + 1,
+      message: String(
+        turn.message
+        || turn.input_payload?.message
+        || turn.input
+        || '',
+      ),
+      expected_behavior: listValue(turn.expected_behavior ?? turn.required_behavior),
+      forbidden_behavior: listValue(turn.forbidden_behavior),
+    }))
+}
+
 function normalizeDraft(value: unknown): EvaluatorSuiteDraft {
   if (!value || typeof value !== 'object') throw new Error('JSON root must be an object')
   const raw = value as Record<string, any>
@@ -119,6 +143,11 @@ function normalizeDraft(value: unknown): EvaluatorSuiteDraft {
         || source.expected_contract?.expected_outcome?.type
         || 'success'
       ) as EvaluationCaseType
+      const turns = normalizedTurns(source)
+      const interactionMode = (
+        source.interaction_mode
+        || (turns.length ? 'session' : 'single_turn')
+      ) as EvaluationInteractionMode
       const expectedSource = source.expected_outcome || source.expected_contract?.expected_outcome || {}
       const contractSource = source.expected_contract || {}
       const semanticSource = contractSource.semantic_criteria
@@ -130,7 +159,14 @@ function normalizeDraft(value: unknown): EvaluatorSuiteDraft {
         ...emptyCase(index + 1, type),
         ...source,
         case_type: type,
-        message: String(source.message || source.input_payload?.message || ''),
+        interaction_mode: interactionMode,
+        message: String(
+          source.message
+          || source.input_payload?.message
+          || turns[0]?.message
+          || '',
+        ),
+        turns: interactionMode === 'session' ? turns : [],
         expected_outcome: {
           ...emptyOutcome(type),
           ...expectedSource,
@@ -240,6 +276,9 @@ export function EvaluatorSuiteAuthoringWizard({
   const [caseCount, setCaseCount] = useState(existingSuite?.case_count || 20)
   const [errorRatio, setErrorRatio] = useState(30)
   const [maximumCost, setMaximumCost] = useState('')
+  const [testStructure, setTestStructure] = useState<EvaluationTestStructure>('single_turn')
+  const [minimumSessionTurns, setMinimumSessionTurns] = useState(2)
+  const [maximumSessionTurns, setMaximumSessionTurns] = useState(5)
   const [selectedCoverage, setSelectedCoverage] = useState<string[]>(
     coverageOptions.map(([value]) => value),
   )
@@ -376,6 +415,9 @@ export function EvaluatorSuiteAuthoringWizard({
         language: 'pt-BR',
         maximum_input_tokens: 16000,
         maximum_cost_usd: maximumCost ? Number(maximumCost) : null,
+        test_structure: testStructure,
+        minimum_session_turns: minimumSessionTurns,
+        maximum_session_turns: maximumSessionTurns,
       })
       setAuthoringCallId(queued.authoring_call_id)
       setStep('progress')
@@ -504,19 +546,19 @@ export function EvaluatorSuiteAuthoringWizard({
           <MethodCard
             icon={<WandSparkles className="h-5 w-5" />}
             title="Generate with AI"
-            description={`Analyze an exact ${targetType} snapshot and generate validated batches of up to 10 cases.`}
+            description={`Analyze an exact ${targetType} snapshot and generate single-turn, Session or mixed validated Test Cases.`}
             onClick={() => setStep('ai')}
           />
           <MethodCard
             icon={<FileJson className="h-5 w-5" />}
             title="Import JSON"
-            description="Insert an example, upload a file or validate a Git-versioned Suite against the snapshot."
+            description="Insert an example, upload a file or validate a Git-versioned Suite against the snapshot. Session turns are part of the same schema."
             onClick={() => setStep('json')}
           />
           <MethodCard
             icon={<Plus className="h-5 w-5" />}
             title="Create manually"
-            description="Use a compact case navigator instead of expanding every Test Case at once."
+            description="Create single-turn or multi-turn Session Tests in the same compact case navigator."
             onClick={() => {
               setSource('manual')
               setDraft(emptyDraft())
@@ -542,7 +584,7 @@ export function EvaluatorSuiteAuthoringWizard({
           <div>
             <h3 className="text-base font-semibold text-white">Import Evaluator Suite JSON</h3>
             <p className="mt-1 text-xs text-muted">
-              Lists, expected outcomes and concrete Tool references are normalized and validated against the reference snapshot.
+              Lists, Session turns, expected outcomes and concrete Tool references are normalized and validated against the reference snapshot.
             </p>
           </div>
         </div>
@@ -598,7 +640,7 @@ export function EvaluatorSuiteAuthoringWizard({
           <div>
             <h3 className="text-base font-semibold text-white">Generate with AI</h3>
             <p className="mt-1 text-xs text-muted">
-              The model receives the exact sanitized snapshot and must satisfy the canonical Test Case schema.
+              The model receives the exact sanitized snapshot and must satisfy the canonical single-turn / Session Test schema.
             </p>
           </div>
         </div>
@@ -669,12 +711,60 @@ export function EvaluatorSuiteAuthoringWizard({
             </label>
           </div>
 
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <label className="space-y-2 text-xs text-muted">
+              <span>Test structure</span>
+              <Select
+                value={testStructure}
+                onChange={(event) => setTestStructure(event.target.value as EvaluationTestStructure)}
+                options={[
+                  { value: 'single_turn', label: 'Single-turn only' },
+                  { value: 'session', label: 'Session only' },
+                  { value: 'mixed', label: 'Mixed · single-turn + Session' },
+                ]}
+              />
+            </label>
+            <label className="space-y-2 text-xs text-muted">
+              <span>Minimum turns / Session</span>
+              <Input
+                type="number"
+                min={2}
+                max={10}
+                disabled={testStructure === 'single_turn'}
+                value={minimumSessionTurns}
+                onChange={(event) => {
+                  const value = Math.max(2, Math.min(10, Number(event.target.value)))
+                  setMinimumSessionTurns(value)
+                  setMaximumSessionTurns((current) => Math.max(current, value))
+                }}
+              />
+            </label>
+            <label className="space-y-2 text-xs text-muted">
+              <span>Maximum turns / Session</span>
+              <Input
+                type="number"
+                min={2}
+                max={20}
+                disabled={testStructure === 'single_turn'}
+                value={maximumSessionTurns}
+                onChange={(event) => setMaximumSessionTurns(
+                  Math.max(minimumSessionTurns, Math.min(20, Number(event.target.value))),
+                )}
+              />
+            </label>
+          </div>
+          {testStructure !== 'single_turn' ? (
+            <p className="mt-3 text-[10px] leading-4 text-muted">
+              One Session Test is one Trial containing an ordered conversation. Every repetition starts a new isolated Agent or Network session and one Judge evaluates the complete transcript.
+            </p>
+          ) : null}
+
           <label className="mt-4 block space-y-2 text-xs text-muted">
             <span>Test objective</span>
             <textarea
               value={objective}
               onChange={(event) => setObjective(event.target.value)}
-              placeholder="Example: Validate billing support accuracy, safe refusal, correct Tool usage and behavior when required data is missing."
+              placeholder="Example: Validate billing support accuracy, safe refusal, context retention, correct Tool usage and behavior when required data is missing."
               className="min-h-28 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-white outline-none focus:border-primary/40"
             />
           </label>
@@ -745,6 +835,7 @@ export function EvaluatorSuiteAuthoringWizard({
                   {coverageOptions.find(([value]) => value === key)?.[1] || key}: {count}
                 </Badge>
               ))}
+              <Badge variant="outline">Structure: {testStructure.replaceAll('_', ' ')}</Badge>
             </div>
           </div>
         </section>
@@ -854,7 +945,7 @@ export function EvaluatorSuiteAuthoringWizard({
             ? 'border-emerald-500/25 bg-emerald-500/[0.04]'
             : 'border-red-500/25 bg-red-500/[0.04]',
         )}>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {validation.valid ? (
               <CheckCircle2 className="h-4 w-4 text-emerald-300" />
             ) : (
@@ -865,6 +956,12 @@ export function EvaluatorSuiteAuthoringWizard({
                 ? `${validation.case_count} valid cases`
                 : `${validation.errors.length} validation errors`}
             </p>
+            {validation.interaction_coverage ? (
+              <>
+                <Badge variant="outline">{validation.interaction_coverage.single_turn || 0} single-turn</Badge>
+                <Badge variant="outline">{validation.interaction_coverage.session || 0} Session</Badge>
+              </>
+            ) : null}
           </div>
           {!validation.valid ? (
             <p className="mt-2 text-xs text-muted">
@@ -964,7 +1061,7 @@ export function EvaluatorSuiteAuthoringWizard({
             />
           </label>
           <label className="space-y-2 text-xs text-muted">
-            <span>Runs per case</span>
+            <span>Repetitions per Test Case</span>
             <Input
               type="number"
               min={1}
@@ -976,6 +1073,9 @@ export function EvaluatorSuiteAuthoringWizard({
             />
           </label>
         </div>
+        <p className="mt-3 text-[10px] text-muted">
+          For Session Tests, one repetition means one complete isolated conversation, not one individual turn.
+        </p>
       </details>
 
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface/95 py-4 backdrop-blur">
