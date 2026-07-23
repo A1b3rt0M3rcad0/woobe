@@ -4,7 +4,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from modules.evaluation.application.compatible_resumable_authoring import (
     CompatibleResumableEvaluationSuiteAuthoringService,
@@ -37,6 +37,17 @@ class GenerateSuiteDraftRequest(ContextPreviewRequest):
     error_case_ratio: float = Field(default=0.3, ge=0, le=0.8)
     language: str = Field(default="pt-BR", min_length=2, max_length=32)
     maximum_cost_usd: float | None = Field(default=None, gt=0, le=100)
+    test_structure: Literal["single_turn", "session", "mixed"] = "single_turn"
+    minimum_session_turns: int = Field(default=2, ge=2, le=10)
+    maximum_session_turns: int = Field(default=5, ge=2, le=20)
+
+    @model_validator(mode="after")
+    def validate_session_turn_range(self):
+        if self.maximum_session_turns < self.minimum_session_turns:
+            raise ValueError(
+                "maximum_session_turns must be greater than or equal to minimum_session_turns"
+            )
+        return self
 
 
 class ResumeSuiteDraftRequest(BaseModel):
@@ -150,6 +161,9 @@ async def generate_suite_draft(
         language=payload.language,
         maximum_input_tokens=payload.maximum_input_tokens,
         maximum_cost_usd=payload.maximum_cost_usd,
+        test_structure=payload.test_structure,
+        minimum_session_turns=payload.minimum_session_turns,
+        maximum_session_turns=payload.maximum_session_turns,
         created_by=user_id,
     )
     return {"success": True, "data": data}
