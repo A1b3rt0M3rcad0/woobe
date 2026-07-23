@@ -28,13 +28,14 @@ def _declares_reasoning(metadata: dict[str, Any]) -> bool:
 
 
 def _reasoning_policy(metadata: dict[str, Any], judge_config: dict[str, Any]) -> str:
+    del metadata
     configured = judge_config.get("reasoning_policy")
     if configured is not None:
         return str(configured)
-    # Model names are not a reliable capability contract. When the Provider Model
-    # did not explicitly declare reasoning support, use provider defaults and avoid
-    # sending speculative `reasoning` or `thinking` controls.
-    return "disabled" if _declares_reasoning(metadata) else "provider_default"
+    # Provider-specific reasoning controls are opt-in. Model names and catalog
+    # metadata are not sufficient evidence that a gateway accepts `reasoning` or
+    # `thinking` request fields, so the safe automatic policy is provider_default.
+    return "provider_default"
 
 
 class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
