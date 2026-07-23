@@ -76,7 +76,16 @@ def canonical_judge_failure_code(
         )
     ):
         return "judge_unsupported_parameter"
-    if any(value in combined for value in ("invalid json", "json decode", "structured response")):
+    if any(
+        value in combined
+        for value in (
+            "invalid json",
+            "json decode",
+            "structured response",
+            "judge score must be numeric",
+            "float() argument must be a string or a real number, not 'nonetype'",
+        )
+    ):
         return "judge_invalid_json"
     if any(
         value in combined
