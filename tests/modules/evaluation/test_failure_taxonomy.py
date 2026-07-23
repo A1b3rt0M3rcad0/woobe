@@ -47,6 +47,22 @@ def test_null_score_type_error_is_classified_as_repairable_structured_response()
     assert judge_failure_policy(code)["repairable"] is True
 
 
+def test_invalid_confidence_after_repair_is_still_structured_contract_failure() -> None:
+    code = canonical_judge_failure_code(
+        failure_code="judge_failed",
+        failure_detail=None,
+        judge_status="failed",
+        judge_error=(
+            "judge_invalid_json: judge_failed: TypeError: float() argument must be a "
+            "string or a real number, not 'NoneType'; governed_repair_failed: "
+            "ValueError: Judge confidence is invalid"
+        ),
+    )
+
+    assert code == "judge_invalid_json"
+    assert judge_failure_policy(code)["repairable"] is True
+
+
 def test_openrouter_402_is_terminal_insufficient_credits() -> None:
     code = canonical_judge_failure_code(
         failure_code="judge_failed",
