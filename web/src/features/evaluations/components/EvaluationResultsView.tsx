@@ -681,7 +681,9 @@ export function EvaluationResultsView({
                 <span>Volume unit</span>
                 <Select
                   value={volumeUnit}
-                  onChange={(value) => setVolumeUnit(value as 'runs_per_month' | 'sessions_per_month')}
+                  onChange={(event) =>
+                    setVolumeUnit(event.target.value as 'runs_per_month' | 'sessions_per_month')
+                  }
                   options={[
                     { value: 'runs_per_month', label: 'Runs per month' },
                     ...(hasSessionTrials
