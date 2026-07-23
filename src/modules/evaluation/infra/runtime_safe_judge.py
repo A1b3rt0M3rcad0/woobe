@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
-from modules.evaluation.application.judge_policy import normalized_judge_config
 from modules.evaluation.infra.governed_budgeted_judge import (
     GovernedBudgetedEvaluatorModelGateway,
 )
@@ -36,13 +33,11 @@ def is_null_score_contract_error(value: Any) -> bool:
 
 
 class RuntimeSafeEvaluatorModelGateway(GovernedBudgetedEvaluatorModelGateway):
-    """Final runtime guard for provider JSON that violates the Judge score contract.
+    """Normalize nullable Run configuration before governed Judge execution.
 
-    Some OpenAI-compatible providers return a syntactically valid object with
-    ``score: null`` even when JSON mode is requested. The legacy normalizer then
-    raises ``TypeError: float(None)``. That is a structured-response failure, not
-    a target failure or an unknown provider outage, so route it through the
-    governed compact repair path.
+    Structured-response failures such as ``score: null`` are classified by the
+    canonical failure taxonomy as ``judge_invalid_json``. The governed gateway
+    then performs its existing bounded compact repair exactly once.
     """
 
     async def judge(
@@ -57,39 +52,12 @@ class RuntimeSafeEvaluatorModelGateway(GovernedBudgetedEvaluatorModelGateway):
         target_output: dict[str, Any],
         operational_evidence: dict[str, Any],
     ) -> JudgeResult:
-        safe_config = sanitize_judge_config(judge_config)
-        result = await super().judge(
+        return await super().judge(
             session,
             project_id=project_id,
             provider_model_id=provider_model_id,
             rubric=rubric,
-            judge_config=safe_config,
-            case_payload=case_payload,
-            target_output=target_output,
-            operational_evidence=operational_evidence,
-        )
-        if result.structured_result is not None or not is_null_score_contract_error(result.error):
-            return result
-
-        provider_model = await session.get(ProviderModelModel, provider_model_id)
-        if provider_model is None or provider_model.project_id != project_id:
-            return result
-
-        normalized = normalized_judge_config(provider_model.meta or {}, safe_config)
-        primary = replace(
-            result,
-            error=(
-                "judge_invalid_json: Judge structured response returned a null or "
-                f"non-numeric score; {result.error or 'score contract violated'}"
-            ),
-        )
-        return await self._repair(
-            session,
-            project_id=project_id,
-            provider_model=provider_model,
-            primary=primary,
-            normalized_config=normalized,
-            rubric=rubric,
+            judge_config=sanitize_judge_config(judge_config),
             case_payload=case_payload,
             target_output=target_output,
             operational_evidence=operational_evidence,
