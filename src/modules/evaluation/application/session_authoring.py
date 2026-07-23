@@ -48,7 +48,9 @@ class SessionAwareEvaluationSuiteAuthoringService(
             f"test_structure={structure}; session_turn_range={minimum_turns}-{maximum_turns}. "
             "single_turn cases must set interaction_mode=single_turn and turns=[]. "
             "session cases must set interaction_mode=session and contain a coherent ordered turns array; "
-            "each turn must contain message, expected_behavior and forbidden_behavior. "
+            "each turn must contain message, expected_behavior, forbidden_behavior and expected_contract. "
+            "Use each turn expected_contract for deterministic runtime, Tool or output checks; "
+            "use expected_behavior and forbidden_behavior for the final Session Judge. "
             "For mixed generation include both interaction modes."
         )
         created = await super().generate_draft(
