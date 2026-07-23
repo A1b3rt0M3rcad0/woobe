@@ -1,6 +1,8 @@
 export type EvaluationTargetType = 'agent' | 'network'
 export type EvaluationSourceType = 'draft' | 'staging' | 'release'
 export type EvaluationCaseType = 'success' | 'refusal' | 'handled_error' | 'expected_failure'
+export type EvaluationInteractionMode = 'single_turn' | 'session'
+export type EvaluationTestStructure = 'single_turn' | 'session' | 'mixed'
 export type SuiteAuthoringSource = 'manual' | 'json_import' | 'ai_generated'
 export type EvaluationRunMode = 'absolute' | 'comparison' | 'model_experiment'
 export type EvaluationRunStatus =
@@ -26,10 +28,20 @@ export interface ExpectedOutcome {
   forbidden_behavior?: string[]
 }
 
+export interface EvaluationSessionTurnInput {
+  position?: number
+  message: string
+  input_payload?: { message: string }
+  expected_behavior?: string[]
+  forbidden_behavior?: string[]
+}
+
 export interface EvaluationCaseInput {
   name: string
   case_type?: EvaluationCaseType
+  interaction_mode?: EvaluationInteractionMode
   message: string
+  turns?: EvaluationSessionTurnInput[]
   initial_context?: Record<string, unknown>
   expected_outcome?: ExpectedOutcome
   expected_contract?: Record<string, any>
@@ -74,6 +86,7 @@ export interface SuiteValidationResult {
   errors: SuiteValidationIssue[]
   warnings: SuiteValidationIssue[]
   coverage: Record<string, number>
+  interaction_coverage?: Record<EvaluationInteractionMode, number>
   case_count: number
   cases: EvaluationCaseInput[]
   reference?: SuiteValidationReference
@@ -117,6 +130,9 @@ export interface GenerateSuiteDraftInput {
   language?: string
   maximum_input_tokens?: number
   maximum_cost_usd?: number | null
+  test_structure?: EvaluationTestStructure
+  minimum_session_turns?: number
+  maximum_session_turns?: number
 }
 
 export interface GeneratedSuiteDraft {
@@ -194,7 +210,9 @@ export interface EvaluationDataset {
     position: number
     name: string
     case_type?: EvaluationCaseType
-    input_payload: Record<string, unknown>
+    interaction_mode?: EvaluationInteractionMode
+    input_payload: Record<string, any>
+    turns?: EvaluationSessionTurnInput[]
     initial_context?: Record<string, unknown> | null
     expected_contract: Record<string, any>
     severity: string
@@ -303,6 +321,24 @@ export type EvaluationExecutionReference =
   | { kind: 'agent_trace'; trace_id: string }
   | { kind: 'network_execution'; network_execution_id: string; trace_id?: string | null }
 
+export interface EvaluationTrialTurn {
+  id: string
+  position: number
+  input_payload: Record<string, any>
+  output?: Record<string, any> | null
+  metrics?: Record<string, any> | null
+  status: string
+  agent_session_id?: string | null
+  network_session_id?: string | null
+  agent_run_id?: string | null
+  network_execution_id?: string | null
+  trace_id?: string | null
+  failure_code?: string | null
+  failure_detail?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
 export interface EvaluationTrial {
   id: string
   target_id: string
@@ -316,6 +352,8 @@ export interface EvaluationTrial {
   agent_run_id: string | null
   network_execution_id: string | null
   execution_reference?: EvaluationExecutionReference | null
+  interaction_mode?: EvaluationInteractionMode
+  turns?: EvaluationTrialTurn[]
   output?: Record<string, any> | null
   metrics?: Record<string, any> | null
   observed_outcome?: Record<string, any> | null
@@ -327,11 +365,50 @@ export interface EvaluationTrial {
     id: string
     name: string
     case_type?: EvaluationCaseType
-    input_payload: Record<string, unknown>
+    interaction_mode?: EvaluationInteractionMode
+    input_payload: Record<string, any>
+    turns?: EvaluationSessionTurnInput[]
     initial_context?: Record<string, unknown> | null
     expected_contract: Record<string, any>
   } | null
   checks?: EvaluationCheck[]
+}
+
+export interface EvaluationSessionKpis {
+  session_count: number
+  session_completion_rate: number | null
+  turn_count: number
+  turn_completion_rate: number | null
+  average_turns_per_session: number | null
+  cost_usd_per_session: number | null
+  cost_usd_per_turn: number | null
+  latency_ms_per_session: number | null
+  latency_ms_per_turn: number | null
+  tokens_per_session: number | null
+}
+
+export interface EvaluationKpis {
+  schema_version: string
+  quality_score: number | null
+  pass_rate: number | null
+  sample_size: number
+  conclusive_trial_count: number
+  inconclusive_trial_count: number
+  runtime_cost_usd_total: number | null
+  runtime_cost_usd_per_trial: number | null
+  runtime_pricing_coverage_percent: number
+  latency_median_ms: number | null
+  latency_p90_ms: number | null
+  input_tokens_mean: number | null
+  output_tokens_mean: number | null
+  tool_calls_mean: number | null
+  case_count: number
+  stable_case_count: number
+  mixed_case_count: number
+  failed_case_count: number
+  inconclusive_case_count: number
+  stable_case_rate: number | null
+  session: EvaluationSessionKpis
 }
 
 export interface EvaluationExecutionPolicy {
@@ -353,6 +430,7 @@ export interface EvaluationRun {
   overall_score: number | null
   pass_rate: number | null
   aggregate_result: Record<string, any> | null
+  kpis?: EvaluationKpis | null
   estimated_preflight_cost: number | null
   measured_total_cost: number | null
   failure_code: string | null
@@ -382,50 +460,4 @@ export interface EvaluationQualification {
   critical_failures: number
   summary: Record<string, unknown>
   created_at: string
-}
-
-export interface EvaluationPreflightTool {
-  id: string
-  name: string
-  risk_level: EvaluationToolRisk
-  source: string
-}
-
-export interface EvaluationPreflight {
-  tools: EvaluationPreflightTool[]
-  requires_acknowledgement: boolean
-  blocked_high_risk_tool_ids: string[]
-  risk_counts: Record<EvaluationToolRisk, number>
-}
-
-export interface EvaluationPreview {
-  mode: EvaluationRunMode
-  candidate: Record<string, any>
-  baseline: Record<string, any> | null
-  case_count: number
-  repetitions: number
-  target_run_count: number
-  judge_call_count: number
-  judge_provider_model_id: string
-  tool_execution_warning: string
-  preflight: EvaluationPreflight
-  requires_confirmation: boolean
-  can_execute: boolean
-}
-
-export interface CreateEvaluationRunInput {
-  suite_version_id: string
-  repetitions: number
-  candidate: EvaluationTargetInput
-  baseline?: EvaluationTargetInput
-  acknowledge_tool_side_effects?: boolean
-  approved_high_risk_tool_ids?: string[]
-  idempotency_key?: string
-}
-
-export interface CreateEvaluationDatasetInput {
-  name: string
-  description?: string
-  change_description?: string
-  cases: EvaluationCaseInput[]
 }
