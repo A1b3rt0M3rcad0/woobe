@@ -13,6 +13,7 @@ from modules.evaluation.application.token_budget import (
 )
 from modules.evaluation.infra.adaptive_judge import (
     AdaptiveEvaluatorModelGateway,
+    judge_output_token_limit,
     recommended_judge_output_tokens,
 )
 from modules.evaluation.infra.judge import JudgeResult
@@ -41,6 +42,20 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
             metadata or {},
             judge_config,
         )
+        model_output_ceiling = judge_output_token_limit(model, metadata or {})
+        try:
+            configured_retry = int(judge_config.get("maximum_retry_tokens") or 0)
+        except (TypeError, ValueError):
+            configured_retry = 0
+        policy = str(judge_config.get("output_budget_policy") or "auto").lower()
+        if policy == "fixed":
+            retry_ceiling = max(configured_output, configured_retry or configured_output)
+        elif configured_retry <= 8192:
+            retry_ceiling = model_output_ceiling
+        else:
+            retry_ceiling = configured_retry
+        retry_ceiling = min(max(retry_ceiling, configured_output), model_output_ceiling)
+
         case_with_policy = {
             **case_payload,
             "outcome_judging_policy": {
@@ -71,7 +86,7 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
                 ("operational_evidence", operational_evidence, 5, False),
             ],
             maximum_input_tokens=max(2000, min(configured_input, 32_000)),
-            reserved_output_tokens=max(512, configured_output),
+            reserved_output_tokens=max(512, retry_ceiling),
             safety_margin_tokens=500,
             context_window=context_window,
         )
@@ -85,13 +100,10 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
             **judge_config,
             "output_budget_policy": judge_config.get("output_budget_policy", "auto"),
             "max_tokens": configured_output,
-            "maximum_retry_tokens": min(
-                int(judge_config.get("maximum_retry_tokens", 8192)),
-                8192,
-            ),
-            # One attempt may be consumed by a provider that rejects json_schema.
-            # Keep enough room for json_object fallback and a length-budget retry.
-            "attempts": max(3, int(judge_config.get("attempts", 2))),
+            "maximum_retry_tokens": retry_ceiling,
+            # One attempt may be consumed by response-format fallback. Four attempts
+            # leave room for two completion-budget expansions up to the model ceiling.
+            "attempts": max(4, int(judge_config.get("attempts", 2))),
             "maximum_payload_chars": min(
                 int(judge_config.get("maximum_payload_chars", 120_000)),
                 max(10_000, configured_input * 4),
