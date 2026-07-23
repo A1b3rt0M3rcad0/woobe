@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 from modules.evaluation.application.revision_aware_experience import (
     RevisionAwareEvaluationExperienceService,
 )
+from modules.evaluation.application.run_diagnostics_service import (
+    EvaluationRunDiagnosticsService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation"])
@@ -31,6 +34,23 @@ async def get_evaluation_run_progress(
     return {
         "success": True,
         "data": await service.get_run_progress(project_id, run_id),
+    }
+
+
+@router.get("/runs/{run_id}/diagnostics")
+async def get_evaluation_run_diagnostics(
+    project_id: UUID,
+    run_id: UUID,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    service = EvaluationRunDiagnosticsService(request.app.state.session_factory)
+    return {
+        "success": True,
+        "data": await service.get_run_diagnostics(
+            project_id=project_id,
+            run_id=run_id,
+        ),
     }
 
 
