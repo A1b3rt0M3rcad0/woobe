@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from modules.evaluation.application.judge_policy import JudgePreflightService
 from modules.evaluation.application.revision_aware_experience import (
     RevisionAwareEvaluationExperienceService,
 )
@@ -19,6 +20,20 @@ router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation
 class RetryJudgmentsRequest(BaseModel):
     trial_ids: list[UUID] = Field(default_factory=list, max_length=5000)
     failure_codes: list[str] = Field(default_factory=list, max_length=50)
+
+
+@router.get("/judge-models")
+async def list_evaluation_judge_models(
+    project_id: UUID,
+    request: Request,
+):
+    require_evaluation_user(request, project_id)
+    async with request.app.state.session_factory() as session:
+        data = await JudgePreflightService().list_models(
+            session,
+            project_id=project_id,
+        )
+    return {"success": True, "data": data}
 
 
 @router.get("/runs/{run_id}/progress")
