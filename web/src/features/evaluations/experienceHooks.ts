@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  getEvaluationJudgeModels,
   getEvaluationRunDiagnostics,
   getEvaluationRunProgress,
   retryEvaluationJudgments,
@@ -15,6 +16,14 @@ const activeStatuses = new Set([
   'aggregating',
   'cancel_requested',
 ])
+
+export function useEvaluationJudgeModels(projectId?: string) {
+  return useQuery({
+    queryKey: ['evaluation-judge-models', projectId],
+    queryFn: () => getEvaluationJudgeModels(projectId as string),
+    enabled: Boolean(projectId),
+  })
+}
 
 export function useEvaluationRunProgress(projectId?: string, runId?: string | null) {
   return useQuery({
