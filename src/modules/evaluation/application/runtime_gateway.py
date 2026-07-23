@@ -36,6 +36,7 @@ class NetworkRuntimeEvidence:
     metrics: dict[str, Any]
     network_execution_id: UUID
     root_trace_id: UUID | None
+    network_session_id: UUID
 
 
 class EvaluationNetworkRuntimeGateway:
@@ -56,18 +57,26 @@ class EvaluationNetworkRuntimeGateway:
         target: ResolvedEvaluationTarget | Any,
         message: str,
         initial_context: dict[str, Any] | None,
+        network_session_id: UUID | None = None,
+        turn_position: int = 1,
     ) -> NetworkRuntimeEvidence:
-        session = await self._create_session(
-            target=target,
-            project_id=project_id,
-            evaluation_trial_id=evaluation_trial_id,
+        session = (
+            await self._get_session(network_session_id, project_id=project_id)
+            if network_session_id is not None
+            else None
         )
+        if session is None:
+            session = await self._create_session(
+                target=target,
+                project_id=project_id,
+                evaluation_trial_id=evaluation_trial_id,
+            )
         execution = await self._service.submit_execution(
             network_id=target.entity_id,
             project_id=project_id,
             network_session_id=session.id,
             message=message,
-            idempotency_key=f"evaluation:{evaluation_trial_id}",
+            idempotency_key=f"evaluation:{evaluation_trial_id}:turn:{turn_position}",
             expected_draft_revision=(
                 int((target.snapshot or {}).get("draft_revision"))
                 if target.source_type == "draft"
@@ -81,6 +90,7 @@ class EvaluationNetworkRuntimeGateway:
             pair_key=pair_key,
             target_side=target_side,
             initial_context=initial_context,
+            turn_position=turn_position,
         )
 
         timeout_seconds = max(
@@ -99,7 +109,19 @@ class EvaluationNetworkRuntimeGateway:
                 or completed.failure_code
                 or f"Network execution ended as {completed.status}"
             )
-        return await self._evidence(completed)
+        return await self._evidence(completed, network_session_id=session.id)
+
+    async def _get_session(
+        self,
+        session_id: UUID,
+        *,
+        project_id: UUID,
+    ) -> NetworkSessionModel | None:
+        async with self._session_factory() as db:
+            row = await db.get(NetworkSessionModel, session_id)
+            if row is None or row.project_id != project_id:
+                return None
+            return row
 
     async def _create_session(
         self,
@@ -158,6 +180,7 @@ class EvaluationNetworkRuntimeGateway:
         pair_key: str,
         target_side: str,
         initial_context: dict[str, Any] | None,
+        turn_position: int,
     ) -> None:
         metadata = {
             "run_purpose": "evaluation",
@@ -166,6 +189,7 @@ class EvaluationNetworkRuntimeGateway:
             "comparison_pair_id": pair_key,
             "target_side": target_side,
             "initial_context": initial_context,
+            "evaluation_turn_position": turn_position,
         }
         async with self._session_factory() as db, db.begin():
             message = await db.scalar(
@@ -218,6 +242,8 @@ class EvaluationNetworkRuntimeGateway:
     async def _evidence(
         self,
         execution: NetworkExecutionModel,
+        *,
+        network_session_id: UUID,
     ) -> NetworkRuntimeEvidence:
         async with self._session_factory() as db:
             invocations = list(
@@ -318,6 +344,7 @@ class EvaluationNetworkRuntimeGateway:
             metrics=metrics,
             network_execution_id=execution.id,
             root_trace_id=execution.root_trace_id,
+            network_session_id=network_session_id,
         )
 
 
