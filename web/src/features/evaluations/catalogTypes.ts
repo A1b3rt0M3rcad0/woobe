@@ -5,6 +5,17 @@ import type {
   EvaluationTargetType,
 } from './types'
 
+export interface EvaluationRunJudgeSummary {
+  provider_model_id: string
+  display_name: string
+  provider?: string | null
+  model?: string | null
+  credential_name?: string | null
+  response_strategy?: string | null
+  snapshot_hash?: string | null
+  source?: 'suite_default' | 'run_override' | string
+}
+
 export interface EvaluationCatalogRunSummary {
   id: string
   suite_version_id: string
@@ -21,6 +32,7 @@ export interface EvaluationCatalogRunSummary {
   started_at: string | null
   completed_at: string | null
   created_at: string
+  judge?: EvaluationRunJudgeSummary | null
 }
 
 export interface EvaluationCatalogItem {
@@ -55,6 +67,7 @@ export interface CreateCatalogEvaluationInput {
   suite_version_id: string
   repetitions: number
   target: EvaluationTargetInput
+  judge_provider_model_id?: string
   acknowledge_tool_side_effects?: boolean
   approved_high_risk_tool_ids?: string[]
   idempotency_key: string
@@ -68,6 +81,8 @@ export interface CatalogEvaluationPreview {
   target_run_count: number
   judge_call_count: number
   judge_provider_model_id: string
+  judge_override?: boolean
+  judge_preflight?: Record<string, any>
   evaluation_protocol_hash: string
   preflight: EvaluationPreflight
   requires_confirmation: boolean
@@ -204,6 +219,7 @@ export interface CreatePairedComparisonInput {
   repetitions: number
   candidate: EvaluationTargetInput
   reference: EvaluationTargetInput
+  judge_provider_model_id?: string
   acknowledge_tool_side_effects?: boolean
   approved_high_risk_tool_ids?: string[]
   idempotency_key: string
