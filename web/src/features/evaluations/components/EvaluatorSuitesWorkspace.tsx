@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  AlertTriangle,
   Archive,
   Beaker,
+  CheckCircle2,
   History,
   Play,
   Plus,
@@ -11,6 +13,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { useEvaluationJudgeModels } from '@/features/evaluations/experienceHooks'
 import {
   useArchiveEvaluationSuite,
   useEvaluationSuites,
@@ -55,6 +58,11 @@ function stalenessClass(suite: EvaluationSuite) {
   return 'border-border bg-background/40 text-muted'
 }
 
+function money(value?: number | null) {
+  if (value == null) return 'Unknown'
+  return `$${value.toFixed(value < 1 ? 4 : 2)}/1M`
+}
+
 export function EvaluatorSuitesWorkspace({
   projectId,
   targetType,
@@ -62,6 +70,7 @@ export function EvaluatorSuitesWorkspace({
   onCreateSuite,
 }: Props) {
   const query = useEvaluationSuites(projectId, true)
+  const judgeModelsQuery = useEvaluationJudgeModels(projectId)
   const archive = useArchiveEvaluationSuite(projectId)
   const restore = useRestoreEvaluationSuite(projectId)
   const [filter, setFilter] = useState<Filter>('active')
@@ -71,10 +80,19 @@ export function EvaluatorSuitesWorkspace({
     () => (query.data ?? []).filter((item) => item.target_type === targetType),
     [query.data, targetType],
   )
+  const judgeModels = useMemo(
+    () => new Map(
+      (judgeModelsQuery.data ?? []).map((item) => [item.provider_model_id, item]),
+    ),
+    [judgeModelsQuery.data],
+  )
   const visible = suites.filter((item) => (
     filter === 'archived' ? item.status === 'archived' : item.status !== 'archived'
   ))
   const selected = visible.find((item) => item.id === selectedId) || visible[0] || null
+  const selectedJudge = selected?.judge_provider_model_id
+    ? judgeModels.get(selected.judge_provider_model_id)
+    : null
 
   useEffect(() => {
     if (selected && selected.id !== selectedId) setSelectedId(selected.id)
@@ -142,34 +160,42 @@ export function EvaluatorSuitesWorkspace({
         </div>
 
         <div className="scrollbar-thin max-h-[500px] overflow-y-auto p-2">
-          {visible.length ? visible.map((suite) => (
-            <button
-              key={suite.id}
-              type="button"
-              onClick={() => setSelectedId(suite.id)}
-              className={cn(
-                'mb-1 w-full rounded-xl border px-3 py-3 text-left transition-colors',
-                selected?.id === suite.id
-                  ? 'border-primary/30 bg-primary/[0.07]'
-                  : 'border-transparent hover:border-border hover:bg-surface/25',
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface/40">
-                  <Beaker className="h-3.5 w-3.5 text-primary-light" />
+          {visible.length ? visible.map((suite) => {
+            const judge = suite.judge_provider_model_id
+              ? judgeModels.get(suite.judge_provider_model_id)
+              : null
+            return (
+              <button
+                key={suite.id}
+                type="button"
+                onClick={() => setSelectedId(suite.id)}
+                className={cn(
+                  'mb-1 w-full rounded-xl border px-3 py-3 text-left transition-colors',
+                  selected?.id === suite.id
+                    ? 'border-primary/30 bg-primary/[0.07]'
+                    : 'border-transparent hover:border-border hover:bg-surface/25',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface/40">
+                    <Beaker className="h-3.5 w-3.5 text-primary-light" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-white">{suite.name}</p>
+                    <p className="mt-1 text-[10px] font-medium text-primary-light">
+                      {suite.status === 'archived' ? 'Archived' : 'Current'} · {suite.current_version || 'No version'}
+                    </p>
+                    <p className="mt-1 truncate text-[10px] text-muted">
+                      Judge: {judge?.display_name || 'Unavailable model'}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted">
+                      {suite.case_count ?? 0} cases · Score ≥ {policyScore(suite)} · {repetitions(suite)} runs
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-white">{suite.name}</p>
-                  <p className="mt-1 text-[10px] font-medium text-primary-light">
-                    {suite.status === 'archived' ? 'Archived' : 'Current'} · {suite.current_version || 'No version'}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted">
-                    {suite.case_count ?? 0} cases · Score ≥ {policyScore(suite)} · {repetitions(suite)} runs
-                  </p>
-                </div>
-              </div>
-            </button>
-          )) : (
+              </button>
+            )
+          }) : (
             <div className="p-8 text-center text-xs text-muted">
               {filter === 'archived' ? 'No archived Suites.' : 'No active Suites.'}
             </div>
@@ -190,6 +216,16 @@ export function EvaluatorSuitesWorkspace({
                   <Badge variant="outline" className={stalenessClass(selected)}>
                     {stalenessLabel(selected)}
                   </Badge>
+                  {selectedJudge ? (
+                    <Badge
+                      variant="outline"
+                      className={selectedJudge.eligible
+                        ? 'border-emerald-500/25 text-emerald-300'
+                        : 'border-red-500/25 text-red-300'}
+                    >
+                      {selectedJudge.eligible ? 'Judge ready' : 'Judge blocked'}
+                    </Badge>
+                  ) : null}
                 </div>
                 <p className="mt-2 max-w-2xl text-xs leading-5 text-muted">
                   {selected.description || 'Versioned Test Cases, Judge configuration and acceptance policy.'}
@@ -207,7 +243,11 @@ export function EvaluatorSuitesWorkspace({
                   </Button>
                 ) : (
                   <>
-                    <Button size="sm" onClick={() => onUseSuite(selected)}>
+                    <Button
+                      size="sm"
+                      disabled={selectedJudge ? !selectedJudge.eligible : false}
+                      onClick={() => onUseSuite(selected)}
+                    >
                       <Play className="mr-2 h-3.5 w-3.5" />Use Suite
                     </Button>
                     <Button
@@ -242,6 +282,67 @@ export function EvaluatorSuitesWorkspace({
               </div>
             </div>
 
+            {selectedJudge ? (
+              <section className={cn(
+                'rounded-xl border p-4',
+                selectedJudge.eligible
+                  ? 'border-emerald-500/20 bg-emerald-500/[0.035]'
+                  : 'border-red-500/25 bg-red-500/[0.04]',
+              )}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {selectedJudge.eligible
+                        ? <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                        : <AlertTriangle className="h-4 w-4 text-red-300" />}
+                      <h4 className="text-sm font-semibold text-white">Judge Model</h4>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-white">{selectedJudge.display_name}</p>
+                    <p className="mt-1 font-mono text-[10px] text-muted">
+                      {selectedJudge.provider} · {selectedJudge.model}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted">
+                      Credential: {selectedJudge.credential_name}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">{selectedJudge.capabilities.response_strategy}</Badge>
+                    <Badge variant="outline">
+                      {selectedJudge.budget.effective_initial_tokens.toLocaleString()} → {selectedJudge.budget.effective_retry_tokens.toLocaleString()} tokens
+                    </Badge>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div><p className="text-[9px] uppercase text-muted">Context</p><p className="mt-1 text-xs text-white">{selectedJudge.budget.context_window.toLocaleString()} tokens</p></div>
+                  <div><p className="text-[9px] uppercase text-muted">Model output limit</p><p className="mt-1 text-xs text-white">{selectedJudge.budget.model_output_limit.toLocaleString()}</p></div>
+                  <div><p className="text-[9px] uppercase text-muted">Input price</p><p className="mt-1 text-xs text-white">{money(selectedJudge.pricing.input_cost_per_1m_tokens)}</p></div>
+                  <div><p className="text-[9px] uppercase text-muted">Output price</p><p className="mt-1 text-xs text-white">{money(selectedJudge.pricing.output_cost_per_1m_tokens)}</p></div>
+                </div>
+                {selectedJudge.blockers.length ? (
+                  <div className="mt-4 space-y-2">
+                    {selectedJudge.blockers.map((blocker) => (
+                      <div key={blocker.code} className="rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-200">
+                        <span className="font-mono text-[10px]">{blocker.code}</span>
+                        <p className="mt-1">{blocker.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : (
+              <section className="rounded-xl border border-red-500/25 bg-red-500/[0.04] p-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 text-red-300" />
+                  <div>
+                    <p className="text-sm font-semibold text-white">Judge Model unavailable</p>
+                    <p className="mt-1 text-xs text-muted">
+                      This Suite Version references a model that is not available in the current Project catalog. Create a new Suite Version with an active Judge Model.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="rounded-xl border border-border/70 bg-surface/20 p-4">
                 <div className="flex items-center gap-2">
@@ -261,7 +362,7 @@ export function EvaluatorSuitesWorkspace({
                   <dt className="text-muted">Minimum score</dt><dd className="text-white">{policyScore(selected)}</dd>
                   <dt className="text-muted">Minimum pass rate</dt><dd className="text-white">{String(selected.acceptance_policy?.minimum_pass_rate ?? 80)}%</dd>
                   <dt className="text-muted">Default volume</dt><dd className="text-white">{Number(selected.estimate_defaults?.volume ?? 10000).toLocaleString()} runs/month</dd>
-                  <dt className="text-muted">Judge model ID</dt><dd className="truncate font-mono text-[10px] text-white">{selected.judge_provider_model_id || '—'}</dd>
+                  <dt className="text-muted">Judge Model</dt><dd className="truncate text-xs text-white">{selectedJudge?.display_name || 'Unavailable'}</dd>
                 </dl>
               </section>
             </div>
