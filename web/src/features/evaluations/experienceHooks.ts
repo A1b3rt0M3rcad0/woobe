@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  getEvaluationRunDiagnostics,
   getEvaluationRunProgress,
   retryEvaluationJudgments,
 } from './experienceApi'
@@ -26,6 +27,19 @@ export function useEvaluationRunProgress(projectId?: string, runId?: string | nu
   })
 }
 
+export function useEvaluationRunDiagnostics(
+  projectId?: string,
+  runId?: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['evaluation-run-diagnostics', projectId, runId],
+    queryFn: () => getEvaluationRunDiagnostics(projectId as string, runId as string),
+    enabled: Boolean(enabled && projectId && runId),
+    staleTime: 0,
+  })
+}
+
 export function useRetryEvaluationJudgments(projectId?: string, runId?: string | null) {
   const client = useQueryClient()
   return useMutation({
@@ -34,6 +48,7 @@ export function useRetryEvaluationJudgments(projectId?: string, runId?: string |
     onSuccess: (run) => {
       client.setQueryData(['evaluation-run', projectId, run.id], run)
       client.invalidateQueries({ queryKey: ['evaluation-run-progress', projectId, run.id] })
+      client.invalidateQueries({ queryKey: ['evaluation-run-diagnostics', projectId, run.id] })
       client.invalidateQueries({ queryKey: ['evaluation-runs', projectId] })
     },
   })
