@@ -91,12 +91,39 @@ def normalize_session_turns(raw: Any, *, case_position: int) -> list[dict[str, A
             or []
         )
         forbidden_behavior = _strings(value.get("forbidden_behavior") or [])
+        expected_contract = value.get("expected_contract")
+        expected_contract = (
+            dict(expected_contract)
+            if isinstance(expected_contract, dict)
+            else dict(value.get("deterministic_checks") or {})
+            if isinstance(value.get("deterministic_checks"), dict)
+            else {}
+        )
+        tools = expected_contract.get("tools")
+        tools = dict(tools) if isinstance(tools, dict) else {}
+        required_tools = _strings(
+            tools.get("required")
+            or value.get("required_tool")
+            or value.get("required_tools")
+        )
+        forbidden_tools = _strings(
+            tools.get("forbidden")
+            or value.get("forbidden_tool")
+            or value.get("forbidden_tools")
+        )
+        if required_tools or forbidden_tools or "tools" in expected_contract:
+            expected_contract["tools"] = {
+                **tools,
+                "required": required_tools,
+                "forbidden": forbidden_tools,
+            }
         result.append(
             {
                 "position": index,
                 "input_payload": input_payload,
                 "expected_behavior": expected_behavior,
                 "forbidden_behavior": forbidden_behavior,
+                "expected_contract": expected_contract,
             }
         )
     return result
