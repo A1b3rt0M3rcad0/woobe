@@ -13,7 +13,11 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { useEvaluationJudgeModels } from '@/features/evaluations/experienceHooks'
+import { Input } from '@/components/ui/Input'
+import {
+  useChangeEvaluationSuiteJudgeModel,
+  useEvaluationJudgeModels,
+} from '@/features/evaluations/experienceHooks'
 import {
   useArchiveEvaluationSuite,
   useEvaluationSuites,
@@ -75,6 +79,9 @@ export function EvaluatorSuitesWorkspace({
   const restore = useRestoreEvaluationSuite(projectId)
   const [filter, setFilter] = useState<Filter>('active')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [changeJudgeOpen, setChangeJudgeOpen] = useState(false)
+  const [nextJudgeModelId, setNextJudgeModelId] = useState('')
+  const [changeDescription, setChangeDescription] = useState('')
 
   const suites = useMemo(
     () => (query.data ?? []).filter((item) => item.target_type === targetType),
@@ -93,11 +100,32 @@ export function EvaluatorSuitesWorkspace({
   const selectedJudge = selected?.judge_provider_model_id
     ? judgeModels.get(selected.judge_provider_model_id)
     : null
+  const eligibleAlternatives = useMemo(
+    () => (judgeModelsQuery.data ?? []).filter((model) => (
+      model.eligible
+      && model.provider_model_id !== selected?.judge_provider_model_id
+    )),
+    [judgeModelsQuery.data, selected?.judge_provider_model_id],
+  )
+  const nextJudge = nextJudgeModelId ? judgeModels.get(nextJudgeModelId) : null
+  const changeJudge = useChangeEvaluationSuiteJudgeModel(projectId, selected?.id)
 
   useEffect(() => {
     if (selected && selected.id !== selectedId) setSelectedId(selected.id)
     if (!selected) setSelectedId(null)
   }, [filter, selected?.id])
+
+  useEffect(() => {
+    setChangeJudgeOpen(false)
+    setNextJudgeModelId(eligibleAlternatives[0]?.provider_model_id || '')
+    setChangeDescription('')
+  }, [selected?.id, selected?.current_version_id])
+
+  useEffect(() => {
+    if (!nextJudgeModelId && eligibleAlternatives[0]) {
+      setNextJudgeModelId(eligibleAlternatives[0].provider_model_id)
+    }
+  }, [eligibleAlternatives, nextJudgeModelId])
 
   const archiveSuite = async (suite: EvaluationSuite) => {
     const confirmed = window.confirm(
@@ -121,6 +149,26 @@ export function EvaluatorSuitesWorkspace({
       setSelectedId(suite.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to restore Suite')
+    }
+  }
+
+  const changeJudgeModel = async () => {
+    if (!selected || !nextJudgeModelId) {
+      toast.error('Select an eligible Judge Model')
+      return
+    }
+    const description = changeDescription.trim()
+      || `Change Judge Model to ${nextJudge?.display_name || nextJudgeModelId}`
+    try {
+      await changeJudge.mutateAsync({
+        judge_model_id: nextJudgeModelId,
+        change_description: description,
+      })
+      toast.success('New immutable Suite Version created with the selected Judge Model')
+      setChangeJudgeOpen(false)
+      setChangeDescription('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to change Judge Model')
     }
   }
 
@@ -310,6 +358,16 @@ export function EvaluatorSuitesWorkspace({
                     <Badge variant="outline">
                       {selectedJudge.budget.effective_initial_tokens.toLocaleString()} → {selectedJudge.budget.effective_retry_tokens.toLocaleString()} tokens
                     </Badge>
+                    {selected.status !== 'archived' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!eligibleAlternatives.length}
+                        onClick={() => setChangeJudgeOpen((value) => !value)}
+                      >
+                        Change Judge Model
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -318,6 +376,66 @@ export function EvaluatorSuitesWorkspace({
                   <div><p className="text-[9px] uppercase text-muted">Input price</p><p className="mt-1 text-xs text-white">{money(selectedJudge.pricing.input_cost_per_1m_tokens)}</p></div>
                   <div><p className="text-[9px] uppercase text-muted">Output price</p><p className="mt-1 text-xs text-white">{money(selectedJudge.pricing.output_cost_per_1m_tokens)}</p></div>
                 </div>
+
+                {changeJudgeOpen ? (
+                  <div className="mt-4 rounded-xl border border-primary/25 bg-background/45 p-4">
+                    <div className="flex items-start gap-2">
+                      <History className="mt-0.5 h-4 w-4 text-primary-light" />
+                      <div>
+                        <p className="text-xs font-semibold text-white">Create a new immutable Suite Version</p>
+                        <p className="mt-1 text-[10px] leading-4 text-muted">
+                          Existing Runs remain bound to {selected.current_version} and {selectedJudge.display_name}. The new model applies only to the next Suite Version.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <label className="space-y-2 text-xs text-muted">
+                        <span>New Judge Model</span>
+                        <select
+                          value={nextJudgeModelId}
+                          onChange={(event) => setNextJudgeModelId(event.target.value)}
+                          className="h-10 w-full rounded-lg border border-border bg-background/70 px-3 text-xs text-white outline-none"
+                        >
+                          {eligibleAlternatives.map((model) => (
+                            <option key={model.provider_model_id} value={model.provider_model_id}>
+                              {model.display_name} · {model.provider} · {model.model}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-2 text-xs text-muted">
+                        <span>Version change description</span>
+                        <Input
+                          value={changeDescription}
+                          onChange={(event) => setChangeDescription(event.target.value)}
+                          placeholder={`Change Judge Model to ${nextJudge?.display_name || 'selected model'}`}
+                        />
+                      </label>
+                    </div>
+                    {nextJudge ? (
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                        <Badge variant="outline">{nextJudge.capabilities.response_strategy}</Badge>
+                        <Badge variant="outline">
+                          {nextJudge.budget.effective_initial_tokens.toLocaleString()} → {nextJudge.budget.effective_retry_tokens.toLocaleString()} tokens
+                        </Badge>
+                        <Badge variant="outline">Credential: {nextJudge.credential_name}</Badge>
+                      </div>
+                    ) : null}
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setChangeJudgeOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        loading={changeJudge.isPending}
+                        disabled={!nextJudgeModelId}
+                        onClick={() => void changeJudgeModel()}
+                      >
+                        Create Suite Version
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {selectedJudge.blockers.length ? (
                   <div className="mt-4 space-y-2">
                     {selectedJudge.blockers.map((blocker) => (
