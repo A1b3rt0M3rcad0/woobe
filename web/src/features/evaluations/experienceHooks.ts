@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  changeEvaluationSuiteJudgeModel,
   getEvaluationJudgeModels,
   getEvaluationRunDiagnostics,
   getEvaluationRunProgress,
@@ -22,6 +23,26 @@ export function useEvaluationJudgeModels(projectId?: string) {
     queryKey: ['evaluation-judge-models', projectId],
     queryFn: () => getEvaluationJudgeModels(projectId as string),
     enabled: Boolean(projectId),
+  })
+}
+
+export function useChangeEvaluationSuiteJudgeModel(
+  projectId?: string,
+  suiteId?: string | null,
+) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { judge_model_id: string; change_description: string }) =>
+      changeEvaluationSuiteJudgeModel(
+        projectId as string,
+        suiteId as string,
+        input,
+      ),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['evaluation-suites', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-judge-models', projectId] })
+      client.invalidateQueries({ queryKey: ['evaluation-catalog', projectId] })
+    },
   })
 }
 
