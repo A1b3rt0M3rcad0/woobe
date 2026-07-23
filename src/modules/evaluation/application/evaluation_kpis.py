@@ -11,6 +11,14 @@ DEFAULT_COMPARISON_KPIS: dict[str, dict[str, Any]] = {
     "latency_median_ms": {"weight": 0.10, "direction": "minimize"},
 }
 
+DEFAULT_SESSION_COMPARISON_KPIS: dict[str, dict[str, Any]] = {
+    "quality_score": {"weight": 0.40, "direction": "maximize"},
+    "pass_rate": {"weight": 0.20, "direction": "maximize"},
+    "session.session_completion_rate": {"weight": 0.15, "direction": "maximize"},
+    "session.cost_usd_per_session": {"weight": 0.15, "direction": "minimize"},
+    "session.latency_ms_per_session": {"weight": 0.10, "direction": "minimize"},
+}
+
 
 def _number(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
@@ -19,6 +27,15 @@ def _number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _nested(value: dict[str, Any], path: str) -> Any:
+    current: Any = value
+    for segment in path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(segment)
+    return current
 
 
 def _percentile(values: list[float], percentile: float) -> float | None:
@@ -96,6 +113,11 @@ def canonical_evaluation_kpis(trials: list[dict[str, Any]]) -> dict[str, Any]:
         for trial in trials
         if (value := _number((trial.get("metrics") or {}).get("tool_call_count"))) is not None
     ]
+    failure_count = sum(
+        1
+        for trial in trials
+        if trial.get("status") in {"failed", "cancelled", "timed_out"}
+    )
 
     groups: dict[str, list[dict[str, Any]]] = {}
     for trial in trials:
@@ -149,6 +171,15 @@ def canonical_evaluation_kpis(trials: list[dict[str, Any]]) -> dict[str, Any]:
             )
         ) > 0
     ]
+    session_dimensions: dict[str, list[float]] = {}
+    for item in session_trials:
+        raw_dimensions = (item.get("metrics") or {}).get("session_dimensions")
+        if not isinstance(raw_dimensions, dict):
+            continue
+        for key, raw_value in raw_dimensions.items():
+            value = _number(raw_value)
+            if value is not None:
+                session_dimensions.setdefault(str(key), []).append(value)
 
     case_count = len(groups)
     return {
@@ -161,11 +192,20 @@ def canonical_evaluation_kpis(trials: list[dict[str, Any]]) -> dict[str, Any]:
         "runtime_cost_usd_total": sum(runtime_costs) if runtime_costs else None,
         "runtime_cost_usd_per_trial": mean(runtime_costs) if runtime_costs else None,
         "runtime_pricing_coverage_percent": len(runtime_costs) / len(trials) * 100 if trials else 0.0,
+        "failure_rate": failure_count / len(trials) * 100 if trials else None,
+        "latency_p50_ms": median(latencies) if latencies else None,
         "latency_median_ms": median(latencies) if latencies else None,
         "latency_p90_ms": _percentile(latencies, 0.90),
+        "latency_p95_ms": _percentile(latencies, 0.95),
         "input_tokens_mean": mean(input_tokens) if input_tokens else None,
+        "input_tokens_p90": _percentile(input_tokens, 0.90),
+        "input_tokens_p95": _percentile(input_tokens, 0.95),
         "output_tokens_mean": mean(output_tokens) if output_tokens else None,
+        "output_tokens_p90": _percentile(output_tokens, 0.90),
+        "output_tokens_p95": _percentile(output_tokens, 0.95),
         "tool_calls_mean": mean(tool_calls) if tool_calls else None,
+        "tool_calls_p90": _percentile(tool_calls, 0.90),
+        "tool_calls_p95": _percentile(tool_calls, 0.95),
         "case_count": case_count,
         "stable_case_count": stable,
         "mixed_case_count": mixed,
@@ -186,25 +226,54 @@ def canonical_evaluation_kpis(trials: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "cost_usd_per_session": mean(session_costs) if session_costs else None,
             "cost_usd_per_turn": (
-                sum(session_costs) / turn_total if session_costs and turn_total else None
+                sum(session_costs) / turn_completed
+                if session_costs and turn_completed
+                else None
             ),
             "latency_ms_per_session": median(session_latencies) if session_latencies else None,
+            "latency_p90_ms_per_session": _percentile(session_latencies, 0.90),
+            "latency_p95_ms_per_session": _percentile(session_latencies, 0.95),
             "latency_ms_per_turn": (
-                sum(session_latencies) / turn_total
-                if session_latencies and turn_total
+                sum(session_latencies) / turn_completed
+                if session_latencies and turn_completed
                 else None
             ),
             "tokens_per_session": mean(session_tokens) if session_tokens else None,
+            "tokens_per_turn": (
+                sum(session_tokens) / turn_completed
+                if session_tokens and turn_completed
+                else None
+            ),
+            "dimensions": {
+                key: mean(values)
+                for key, values in sorted(session_dimensions.items())
+                if values
+            },
         },
     }
 
 
-def comparison_kpi_policy(acceptance_policy: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+def comparison_kpi_policy(
+    acceptance_policy: dict[str, Any] | None,
+    *,
+    session_mode: bool = False,
+) -> dict[str, dict[str, Any]]:
     raw = (acceptance_policy or {}).get("comparison_kpis")
+    defaults = (
+        DEFAULT_SESSION_COMPARISON_KPIS
+        if session_mode
+        else DEFAULT_COMPARISON_KPIS
+    )
     if not isinstance(raw, dict):
-        return {key: dict(value) for key, value in DEFAULT_COMPARISON_KPIS.items()}
+        return {key: dict(value) for key, value in defaults.items()}
     result: dict[str, dict[str, Any]] = {}
-    for key, default in DEFAULT_COMPARISON_KPIS.items():
+    keys = list(defaults)
+    keys.extend(str(key) for key in raw if str(key) not in defaults)
+    for key in keys:
+        default = defaults.get(
+            key,
+            {"weight": 0.0, "direction": "maximize"},
+        )
         configured = raw.get(key)
         configured = configured if isinstance(configured, dict) else {}
         try:
@@ -225,15 +294,22 @@ def calculate_comparison_winner(
     acceptance_policy: dict[str, Any] | None,
     authoritative: bool,
 ) -> dict[str, Any]:
-    policy = comparison_kpi_policy(acceptance_policy)
+    session_mode = any(
+        (_number(_nested(value, "session.session_count")) or 0) > 0
+        for value in (candidate, reference)
+    )
+    policy = comparison_kpi_policy(
+        acceptance_policy,
+        session_mode=session_mode,
+    )
     candidate_points = 0.0
     reference_points = 0.0
     available_weight = 0.0
     results: list[dict[str, Any]] = []
 
     for key, config in policy.items():
-        candidate_value = _number(candidate.get(key))
-        reference_value = _number(reference.get(key))
+        candidate_value = _number(_nested(candidate, key))
+        reference_value = _number(_nested(reference, key))
         weight = float(config["weight"])
         direction = str(config["direction"])
         winner: str | None = None
@@ -291,6 +367,7 @@ def calculate_comparison_winner(
 
 __all__ = [
     "DEFAULT_COMPARISON_KPIS",
+    "DEFAULT_SESSION_COMPARISON_KPIS",
     "calculate_comparison_winner",
     "canonical_evaluation_kpis",
     "comparison_kpi_policy",
