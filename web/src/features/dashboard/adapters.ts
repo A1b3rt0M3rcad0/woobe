@@ -293,13 +293,13 @@ function buildNarrative(overview: ProjectOverview): string {
   const summary = overview.summary
   const prefix = periodNarrativeLabel(overview)
   if (summary.agent_runs === 0 && summary.network_runs === 0) {
-    return `${prefix}, this Project had no Agent Runs or Network Runs.`
+    return `${prefix}, this Project had no operational Agent Runs or Network Runs.`
   }
 
-  const volume = `${formatInteger(summary.agent_runs)} Agent Runs — ${formatInteger(summary.direct_agent_runs)} direct and ${formatInteger(summary.network_agent_runs)} inside Networks — plus ${formatInteger(summary.network_runs)} Network Runs.`
+  const volume = `${formatInteger(summary.agent_runs)} operational Agent Runs — ${formatInteger(summary.direct_agent_runs)} direct and ${formatInteger(summary.network_agent_runs)} inside Networks — plus ${formatInteger(summary.network_runs)} Network Runs.`
   const cost = summary.agent_run_cost_usd === null
     ? 'Runtime cost is not fully known.'
-    : `Recorded runtime cost was ${formatCost(summary.agent_run_cost_usd)}.`
+    : `Recorded operational runtime cost was ${formatCost(summary.agent_run_cost_usd)}.`
   const reliability: string[] = []
   if (summary.agent_run_success_rate !== null) reliability.push(`Agent success ${formatPercent(summary.agent_run_success_rate)}`)
   if (summary.network_run_success_rate !== null) reliability.push(`Network success ${formatPercent(summary.network_run_success_rate)}`)
@@ -386,7 +386,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
 
   const metrics: DashboardMetric[] = [
     {
-      label: 'Agent Runs',
+      label: 'Operational Agent Runs',
       value: formatInteger(summary.agent_runs),
       detail: `${formatInteger(summary.direct_agent_runs)} direct · ${formatInteger(summary.network_agent_runs)} from Networks${runChange.detail ? ` · ${runChange.detail}` : ''}`,
       direction: runChange.direction,
@@ -394,7 +394,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       tone: 'bg-blue-500/10 text-blue-400',
     },
     {
-      label: 'Network Runs',
+      label: 'Operational Network Runs',
       value: formatInteger(summary.network_runs),
       detail: `${formatInteger(summary.successful_network_runs)} completed · ${formatInteger(summary.running_network_runs)} running · ${formatInteger(totalNetworkErrors)} errors`,
       direction: totalNetworkErrors > 0 ? 'down' : 'neutral',
@@ -402,7 +402,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
       tone: 'bg-violet-500/10 text-violet-300',
     },
     {
-      label: 'Runtime Cost',
+      label: 'Operational Runtime Cost',
       value: formatCost(summary.agent_run_cost_usd, summary.agent_run_cost_usd !== null),
       detail: pricedPercent === null
         ? 'No terminal Agent Runs'
@@ -546,7 +546,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
     series,
     reliability: {
       agent: {
-        label: 'Agent Runs',
+        label: 'Operational Agent Runs',
         successRate: summary.agent_run_success_rate,
         errorRate: summary.agent_run_error_rate,
         totalRuns: summary.agent_runs,
@@ -562,7 +562,7 @@ export function adaptProjectOverview(overview: ProjectOverview): DashboardViewMo
         p95DurationLabel: formatLatency(summary.p95_agent_run_duration_ms),
       },
       network: {
-        label: 'Network Runs',
+        label: 'Operational Network Runs',
         successRate: summary.network_run_success_rate,
         errorRate: summary.network_run_error_rate,
         totalRuns: summary.network_runs,
