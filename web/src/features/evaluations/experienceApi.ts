@@ -1,5 +1,5 @@
 import { get, post } from '@/lib/api/client'
-import type { EvaluationRun } from './types'
+import type { EvaluationRun, EvaluationSuite } from './types'
 import type {
   EvaluationJudgeModel,
   EvaluationRunDiagnostics,
@@ -13,6 +13,14 @@ function base(projectId: string) {
 
 export function getEvaluationJudgeModels(projectId: string) {
   return get<EvaluationJudgeModel[]>(`${base(projectId)}/judge-models`)
+}
+
+export function changeEvaluationSuiteJudgeModel(
+  projectId: string,
+  suiteId: string,
+  input: { judge_model_id: string; change_description: string },
+) {
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/judge-model`, input)
 }
 
 export function getEvaluationRunProgress(projectId: string, runId: string) {
