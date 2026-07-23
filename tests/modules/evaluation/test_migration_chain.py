@@ -13,6 +13,10 @@ def test_evaluation_migrations_are_linear() -> None:
     catalog = import_module("migrations.versions.0062_evaluation_catalog_and_comparisons")
     decision_basis = import_module("migrations.versions.0063_evaluation_decision_basis")
     evidence_snapshots = import_module("migrations.versions.0064_evaluation_evidence_snapshots")
+    sessions = import_module(
+        "migrations.versions.0065_evaluation_session_tests_kpis_and_protocol_identity"
+    )
+    usage = import_module("migrations.versions.0066_run_purpose_and_evaluation_usage")
 
     assert base.revision == "0054"
     assert base.down_revision == "0053"
@@ -36,3 +40,7 @@ def test_evaluation_migrations_are_linear() -> None:
     assert decision_basis.down_revision == "0062"
     assert evidence_snapshots.revision == "0064"
     assert evidence_snapshots.down_revision == "0063"
+    assert sessions.revision == "0065"
+    assert sessions.down_revision == "0064"
+    assert usage.revision == "0066"
+    assert usage.down_revision == "0065"
