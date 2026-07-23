@@ -5,6 +5,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -137,7 +138,24 @@ class JudgeAffordabilityService:
                     ),
                 }
             )
-        elif required is not None and remaining < required:
+        elif remaining <= 0:
+            blockers.append(
+                {
+                    "code": "judge_insufficient_credits",
+                    "message": "OpenRouter reports no remaining spending capacity for this Judge key",
+                }
+            )
+        elif required is None:
+            warnings.append(
+                {
+                    "code": "judge_affordability_unknown",
+                    "message": (
+                        "OpenRouter exposed the key limit, but Judge Model pricing is incomplete; "
+                        "maximum affordability cannot be proven and the first Judgment will run as a canary"
+                    ),
+                }
+            )
+        elif remaining < required:
             blockers.append(
                 {
                     "code": "judge_insufficient_credits",
@@ -148,8 +166,11 @@ class JudgeAffordabilityService:
                 }
             )
 
+        result_status = "blocked" if blockers else (
+            "ready" if remaining is not None and required is not None else "unknown"
+        )
         return {
-            "status": "blocked" if blockers else ("ready" if remaining is not None else "unknown"),
+            "status": result_status,
             "source": "openrouter_api_v1_key",
             "blockers": blockers,
             "warnings": warnings,
@@ -163,7 +184,7 @@ class JudgeAffordabilityService:
             "limit_reset": status.get("limit_reset"),
             "is_free_tier": status.get("is_free_tier"),
             "expires_at": status.get("expires_at"),
-            "checked_at_monotonic": time.monotonic(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _openrouter_status(
@@ -211,7 +232,7 @@ class JudgeAffordabilityService:
                         "code": "judge_affordability_unknown",
                         "error": f"OpenRouter credit preflight returned HTTP {exc.code}; canary protection remains enabled",
                     }
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError) as exc:
                 result = {
                     "code": "judge_affordability_unknown",
                     "error": (
