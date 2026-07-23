@@ -79,10 +79,16 @@ def canonical_judge_failure_code(
     if any(
         value in combined
         for value in (
+            "judge_invalid_json",
             "invalid json",
             "json decode",
+            "jsondecodeerror",
             "structured response",
             "judge score must be numeric",
+            "judge score must be between 0 and 100",
+            "judge confidence is invalid",
+            "judge status is invalid",
+            "judge output must be a json object",
             "float() argument must be a string or a real number, not 'nonetype'",
         )
     ):
