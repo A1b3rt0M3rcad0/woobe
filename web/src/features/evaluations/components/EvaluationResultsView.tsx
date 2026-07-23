@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
+import { Select } from '@/components/ui/Select'
 import {
   useCreateEvaluationEstimate,
   useDecideEvaluationRun,
@@ -267,14 +268,22 @@ export function EvaluationResultsView({
   retrying,
   onRetryJudgments,
 }: Props) {
+  const trials = run.trials || []
+  const hasSessionTrials = trials.some((trial) => (
+    trial.interaction_mode === 'session'
+    || trial.case?.interaction_mode === 'session'
+    || trial.metrics?.interaction_mode === 'session'
+  ))
   const [tab, setTab] = useState<Tab>('summary')
   const [expandedCase, setExpandedCase] = useState<string | null>(null)
   const [traceId, setTraceId] = useState<string | null>(null)
   const [volume, setVolume] = useState(100000)
+  const [volumeUnit, setVolumeUnit] = useState<'runs_per_month' | 'sessions_per_month'>(
+    hasSessionTrials ? 'sessions_per_month' : 'runs_per_month',
+  )
   const [decisionNote, setDecisionNote] = useState('')
   const decide = useDecideEvaluationRun(run.project_id, run.id)
   const estimate = useCreateEvaluationEstimate(run.project_id, run.id)
-  const trials = run.trials || []
   const assessment = run.assessment_status
   const currentRevision = Number(
     run.evidence_revision
@@ -380,7 +389,7 @@ export function EvaluationResultsView({
 
   const createEstimate = async () => {
     try {
-      await estimate.mutateAsync({ volume })
+      await estimate.mutateAsync({ volume, volume_unit: volumeUnit })
       toast.success(`Operational Estimate created from evidence revision ${currentRevision}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to create Estimate')
@@ -668,6 +677,19 @@ export function EvaluationResultsView({
                   onChange={(event) => setVolume(Math.max(1, Number(event.target.value)))}
                 />
               </label>
+              <label className="min-w-52 space-y-2 text-xs text-muted">
+                <span>Volume unit</span>
+                <Select
+                  value={volumeUnit}
+                  onChange={(value) => setVolumeUnit(value as 'runs_per_month' | 'sessions_per_month')}
+                  options={[
+                    { value: 'runs_per_month', label: 'Runs per month' },
+                    ...(hasSessionTrials
+                      ? [{ value: 'sessions_per_month', label: 'Sessions per month' }]
+                      : []),
+                  ]}
+                />
+              </label>
               <Button loading={estimate.isPending} onClick={() => void createEstimate()}>
                 <BarChart3 className="mr-2 h-4 w-4" />Calculate projection
               </Button>
@@ -705,13 +727,32 @@ export function EvaluationResultsView({
                             {money(item.scenarios?.[scenario]?.provider_cost_usd)}
                           </p>
                           <p className="mt-1 text-[10px] text-muted">
-                            {item.scenarios?.[scenario]?.latency_ms_per_run == null
+                            {(item.volume_unit === 'sessions_per_month'
+                              ? item.scenarios?.[scenario]?.latency_ms_per_session
+                              : item.scenarios?.[scenario]?.latency_ms_per_run) == null
                               ? 'Latency unavailable'
-                              : `${Math.round(item.scenarios[scenario].latency_ms_per_run as number)}ms / Run`}
+                              : `${Math.round(
+                                  (item.volume_unit === 'sessions_per_month'
+                                    ? item.scenarios[scenario].latency_ms_per_session
+                                    : item.scenarios[scenario].latency_ms_per_run) as number,
+                                )}ms / ${item.volume_unit === 'sessions_per_month' ? 'Session' : 'Run'}`}
                           </p>
+                          {item.volume_unit === 'sessions_per_month' ? (
+                            <p className="mt-1 text-[10px] text-muted">
+                              {Number(item.scenarios?.[scenario]?.turns || 0).toLocaleString()} projected turns
+                              {item.scenarios?.[scenario]?.cost_usd_per_session != null
+                                ? ` · ${money(item.scenarios[scenario].cost_usd_per_session)} / Session`
+                                : ''}
+                            </p>
+                          ) : null}
                         </div>
                       ))}
                     </div>
+                    {item.volume_unit === 'sessions_per_month' ? (
+                      <p className="mt-3 text-[10px] text-muted">
+                        Average {Number(item.observation_summary?.turns_per_session?.mean || 0).toFixed(1)} turns / Session · {Number(item.observation_summary?.projected_turns || 0).toLocaleString()} expected turns
+                      </p>
+                    ) : null}
                     {item.limitations?.length ? (
                       <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 text-xs text-amber-200">
                         {item.limitations.join(' ')}
