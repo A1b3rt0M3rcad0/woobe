@@ -46,8 +46,10 @@ def evaluation_protocol_payload(
     }
     if judge_model_snapshot_hash:
         payload["judge_model_snapshot_hash"] = str(judge_model_snapshot_hash)
-    if repetitions is not None:
-        payload["repetitions"] = int(repetitions)
+    # Repetition count changes statistical confidence, not the material
+    # execution/Judge protocol. Keeping it out of this hash allows a historical
+    # aggregate comparison to remain compatible while being marked indicative.
+    _ = repetitions
     return payload
 
 
