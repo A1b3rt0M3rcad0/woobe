@@ -1,13 +1,15 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Beaker,
   CheckCircle2,
   Clock3,
   Loader2,
+  TerminalSquare,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/Button'
 import {
   useEvaluationRunProgress,
   useRetryEvaluationJudgments,
@@ -15,6 +17,7 @@ import {
 import { useEvaluationRun } from '@/features/evaluations/hooks'
 import type { EvaluationRun } from '@/features/evaluations/types'
 import { cn } from '@/lib/utils'
+import { EvaluationDiagnosticsDialog } from './EvaluationDiagnosticsDialog'
 import { EvaluationResultsView } from './EvaluationResultsView'
 import { EvaluationRunProgressView } from './EvaluationRunProgressView'
 
@@ -72,6 +75,7 @@ export function EvaluationResultsWorkspace({
   onSelectRun,
   onRunAnother,
 }: Props) {
+  const [logsOpen, setLogsOpen] = useState(false)
   const ordered = useMemo(
     () => [...runs].sort((a, b) => {
       const activeDelta = Number(activeStatuses.has(b.status)) - Number(activeStatuses.has(a.status))
@@ -90,6 +94,10 @@ export function EvaluationResultsWorkspace({
   useEffect(() => {
     if (selectedId && selectedId !== selectedRunId) onSelectRun(selectedId)
   }, [selectedId, selectedRunId, onSelectRun])
+
+  useEffect(() => {
+    setLogsOpen(false)
+  }, [selectedId])
 
   const retryJudgments = async () => {
     try {
@@ -211,6 +219,14 @@ export function EvaluationResultsWorkspace({
       </aside>
 
       <main className="min-w-0 rounded-2xl border border-border/80 bg-background/20 p-4">
+        {selectedSummary ? (
+          <div className="mb-3 flex justify-end">
+            <Button variant="outline" onClick={() => setLogsOpen(true)}>
+              <TerminalSquare className="mr-2 h-4 w-4" />View execution logs
+            </Button>
+          </div>
+        ) : null}
+
         {!selectedSummary ? (
           <div className="flex min-h-[520px] items-center justify-center text-sm text-muted">
             Select an Evaluation Run.
@@ -232,6 +248,15 @@ export function EvaluationResultsWorkspace({
             Unable to load this Evaluation Run.
           </div>
         )}
+
+        {selectedId ? (
+          <EvaluationDiagnosticsDialog
+            open={logsOpen}
+            projectId={projectId}
+            runId={selectedId}
+            onClose={() => setLogsOpen(false)}
+          />
+        ) : null}
       </main>
     </div>
   )
