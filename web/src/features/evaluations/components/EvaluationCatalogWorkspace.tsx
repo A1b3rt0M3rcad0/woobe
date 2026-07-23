@@ -44,6 +44,22 @@ function assessmentLabel(value?: string | null) {
   return 'Inconclusive'
 }
 
+function freshnessLabel(item: EvaluationCatalogItem) {
+  const status = item.freshness?.status
+  if (status === 'current') return 'Current snapshot'
+  if (status === 'superseded') return 'Superseded snapshot'
+  if (status === 'immutable') return 'Immutable release'
+  if (status === 'target_unavailable') return 'Target unavailable'
+  return 'Freshness unknown'
+}
+
+function freshnessClass(item: EvaluationCatalogItem) {
+  const status = item.freshness?.status
+  if (status === 'current' || status === 'immutable') return 'border-emerald-500/25 text-emerald-300'
+  if (status === 'superseded') return 'border-amber-500/25 text-amber-300'
+  return ''
+}
+
 function date(value?: string | null) {
   if (!value) return '—'
   return new Intl.DateTimeFormat(undefined, {
@@ -153,7 +169,7 @@ export function EvaluationCatalogWorkspace({
             <div>
               <h3 className="text-sm font-semibold text-white">Snapshot Evaluations</h3>
               <p className="mt-1 text-[11px] leading-4 text-muted">
-                Runs grouped by exact target snapshot and immutable Suite Version.
+                History is grouped by exact target snapshot, immutable Suite Version and effective Judge protocol.
               </p>
             </div>
             <button
@@ -179,7 +195,7 @@ export function EvaluationCatalogWorkspace({
               </select>
             </label>
             <label className="space-y-1 text-[10px] text-muted">
-              <span>Exact Agent Version / Snapshot</span>
+              <span>Exact Version / Snapshot</span>
               <select
                 value={targetFilter}
                 onChange={(event) => setTargetFilter(event.target.value)}
@@ -223,6 +239,9 @@ export function EvaluationCatalogWorkspace({
                     <p className="mt-1 truncate text-[10px] text-muted">
                       {item.source_type} · {item.run_count ?? 0} Runs
                     </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className={freshnessClass(item)}>{freshnessLabel(item)}</Badge>
+                    </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="text-[10px] text-muted">
                         {assessmentLabel(latest?.assessment_status)}
@@ -264,6 +283,7 @@ export function EvaluationCatalogWorkspace({
                   <Badge variant="outline">{evaluation.source_type}</Badge>
                   <Badge variant="outline">{evaluation.run_count ?? 0} Runs</Badge>
                   <Badge variant="outline">{suiteLabel(evaluation)}</Badge>
+                  <Badge variant="outline" className={freshnessClass(evaluation)}>{freshnessLabel(evaluation)}</Badge>
                 </div>
                 <h3 className="mt-3 text-base font-semibold text-white">
                   {evaluation.display_name} · {evaluation.display_version}
@@ -271,6 +291,11 @@ export function EvaluationCatalogWorkspace({
                 <p className="mt-1 font-mono text-[10px] text-muted">
                   Snapshot {evaluation.target_snapshot_hash.slice(0, 16)}…
                 </p>
+                {evaluation.freshness?.status === 'superseded' ? (
+                  <p className="mt-2 text-[10px] leading-4 text-amber-300/80">
+                    This evidence remains valid for the evaluated snapshot, but Draft/Staging has changed since this Evaluation.
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 {evaluation.status === 'archived' ? (
@@ -309,7 +334,7 @@ export function EvaluationCatalogWorkspace({
                 <div className="border-b border-border/80 px-3 py-3">
                   <p className="text-xs font-semibold text-white">Run history</p>
                   <p className="mt-1 text-[10px] leading-4 text-muted">
-                    Exact Suite and snapshot. Every Run preserves its selected Judge.
+                    Exact Suite, snapshot and Judge protocol. N changes the sample size without changing the Evaluation identity.
                   </p>
                 </div>
                 <div className="max-h-[570px] overflow-y-auto p-2">
@@ -351,7 +376,9 @@ export function EvaluationCatalogWorkspace({
                       <div className="mt-2 flex items-center justify-between text-[10px]">
                         <span className="text-muted">Score</span>
                         <span className="font-medium text-white">
-                          {run.overall_score == null ? '—' : run.overall_score.toFixed(1)}
+                          {run.kpis?.quality_score == null
+                            ? run.overall_score == null ? '—' : run.overall_score.toFixed(1)
+                            : run.kpis.quality_score.toFixed(1)}
                         </span>
                       </div>
                       {onCompareRun && !activeStatuses.has(run.status) ? (
