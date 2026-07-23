@@ -6,6 +6,7 @@ from typing import Any
 from shared.infra.errors import ValidationError
 
 CASE_TYPES = {"success", "refusal", "handled_error", "expected_failure"}
+INTERACTION_MODES = {"single_turn", "session"}
 FAILURE_ORIGINS = {"target", "provider", "tool", "contract", "policy", "platform", "cancelled"}
 FAILURE_STAGES = {
     "snapshot",
@@ -47,6 +48,60 @@ def _normalized_strings(value: Any) -> list[str]:
     return [item.lower() for item in _strings(value)]
 
 
+def _message_payload(raw: Any, *, label: str) -> dict[str, Any]:
+    if isinstance(raw, str):
+        value = raw
+        payload: dict[str, Any] = {"message": raw}
+    elif isinstance(raw, dict):
+        payload = dict(raw)
+        value = payload.get("message") or payload.get("input") or payload.get("prompt")
+    else:
+        payload = {}
+        value = None
+    if not isinstance(value, str) or not value.strip():
+        raise ValidationError(f"{label} requires a message input")
+    payload["message"] = value.strip()
+    payload.pop("input", None)
+    payload.pop("prompt", None)
+    return payload
+
+
+def normalize_session_turns(raw: Any, *, case_position: int) -> list[dict[str, Any]]:
+    if not isinstance(raw, list) or len(raw) < 2:
+        raise ValidationError(
+            f"Session Test Case {case_position} requires at least two turns"
+        )
+    if len(raw) > 20:
+        raise ValidationError(
+            f"Session Test Case {case_position} supports at most 20 turns"
+        )
+    result: list[dict[str, Any]] = []
+    for index, value in enumerate(raw, start=1):
+        if not isinstance(value, dict):
+            raise ValidationError(
+                f"Session Test Case {case_position} turn {index} must be an object"
+            )
+        input_payload = _message_payload(
+            value.get("input_payload") or value.get("message") or value.get("input"),
+            label=f"Session Test Case {case_position} turn {index}",
+        )
+        expected_behavior = _strings(
+            value.get("expected_behavior")
+            or value.get("required_behavior")
+            or []
+        )
+        forbidden_behavior = _strings(value.get("forbidden_behavior") or [])
+        result.append(
+            {
+                "position": index,
+                "input_payload": input_payload,
+                "expected_behavior": expected_behavior,
+                "forbidden_behavior": forbidden_behavior,
+            }
+        )
+    return result
+
+
 def normalize_expected_outcome(case_type: str, raw: Any) -> dict[str, Any]:
     normalized_type = str(case_type or "success").strip().lower()
     if normalized_type not in CASE_TYPES:
@@ -86,21 +141,27 @@ def normalize_expected_outcome(case_type: str, raw: Any) -> dict[str, Any]:
 
 def normalize_test_case(raw: dict[str, Any], *, position: int) -> dict[str, Any]:
     name = str(raw.get("name") or f"Case {position}").strip()
-    message = raw.get("message")
-    input_payload = raw.get("input_payload")
-    if not isinstance(input_payload, dict):
-        input_payload = {"message": message} if isinstance(message, str) else {}
-    resolved_message = (
-        input_payload.get("message")
-        or input_payload.get("input")
-        or input_payload.get("prompt")
-    )
-    if not isinstance(resolved_message, str) or not resolved_message.strip():
-        raise ValidationError(f"Test Case {position} requires a message input")
-    input_payload = dict(input_payload)
-    input_payload["message"] = resolved_message.strip()
-    input_payload.pop("input", None)
-    input_payload.pop("prompt", None)
+    interaction_mode = str(raw.get("interaction_mode") or "single_turn").strip().lower()
+    if interaction_mode not in INTERACTION_MODES:
+        raise ValidationError(
+            f"Test Case {position} interaction_mode must be single_turn or session"
+        )
+
+    if interaction_mode == "session":
+        turns = normalize_session_turns(raw.get("turns"), case_position=position)
+        input_payload = {
+            "message": turns[0]["input_payload"]["message"],
+            "interaction_mode": "session",
+            "turns": turns,
+        }
+    else:
+        input_payload = _message_payload(
+            raw.get("input_payload") or raw.get("message"),
+            label=f"Test Case {position}",
+        )
+        input_payload["interaction_mode"] = "single_turn"
+        input_payload["turns"] = []
+        turns = []
 
     case_type = str(raw.get("case_type") or "success").strip().lower()
     expected_contract = raw.get("expected_contract")
@@ -110,6 +171,7 @@ def normalize_test_case(raw: dict[str, Any], *, position: int) -> dict[str, Any]
         raw.get("expected_outcome") or expected_contract.get("expected_outcome"),
     )
     expected_contract["expected_outcome"] = expected_outcome
+    expected_contract["interaction_mode"] = interaction_mode
 
     semantic = expected_contract.get("semantic_criteria")
     if not isinstance(semantic, list):
@@ -118,11 +180,16 @@ def normalize_test_case(raw: dict[str, Any], *, position: int) -> dict[str, Any]
     expected_contract["semantic_criteria"] = [
         str(item).strip() for item in semantic if str(item).strip()
     ]
+    session_observable = any(
+        turn.get("expected_behavior") or turn.get("forbidden_behavior")
+        for turn in turns
+    )
     if (
         case_type != "expected_failure"
         and not expected_contract["semantic_criteria"]
         and not expected_outcome["required_behavior"]
         and not expected_outcome["forbidden_behavior"]
+        and not session_observable
     ):
         raise ValidationError(
             f"Test Case {position} requires observable grading criteria or behavior"
@@ -153,6 +220,9 @@ def normalize_test_case(raw: dict[str, Any], *, position: int) -> dict[str, Any]
     return {
         "name": name,
         "case_type": case_type,
+        "interaction_mode": interaction_mode,
+        "message": input_payload["message"],
+        "turns": turns,
         "input_payload": input_payload,
         "initial_context": context if isinstance(context, dict) else None,
         "expected_contract": expected_contract,
@@ -171,13 +241,10 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
     if len(raw_cases) > 500:
         raise ValidationError("Evaluator Suite supports at most 500 Test Cases")
 
-    # Keep one slot per original position. Authoring workers persist and retry cases
-    # independently, so compacting valid cases would associate them with the wrong slot
-    # whenever an earlier case is invalid.
     normalized_by_position: list[dict[str, Any] | None] = []
     valid_normalized: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    signatures: set[tuple[str, str]] = set()
+    signatures: set[tuple[str, str, str]] = set()
     duplicate_positions: list[int] = []
     for index, raw in enumerate(raw_cases, start=1):
         if not isinstance(raw, dict):
@@ -186,9 +253,16 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
             continue
         try:
             item = normalize_test_case(raw, position=index)
+            if item["interaction_mode"] == "session":
+                input_signature = "\n".join(
+                    turn["input_payload"]["message"] for turn in item["turns"]
+                )
+            else:
+                input_signature = str(item["input_payload"].get("message") or "")
             signature = (
                 item["case_type"],
-                str(item["input_payload"].get("message") or "").strip().lower(),
+                item["interaction_mode"],
+                input_signature.strip().lower(),
             )
             if signature in signatures:
                 duplicate_positions.append(index)
@@ -200,16 +274,18 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
             errors.append({"path": f"cases[{index - 1}]", "message": str(exc)})
 
     coverage: dict[str, int] = {}
+    interaction_coverage = {"single_turn": 0, "session": 0}
     for item in valid_normalized:
         labels = item.get("tags") or [item["case_type"]]
         for label in labels:
             coverage[str(label)] = coverage.get(str(label), 0) + 1
+        interaction_coverage[item["interaction_mode"]] += 1
     warnings: list[dict[str, Any]] = []
     if duplicate_positions:
         warnings.append(
             {
                 "code": "duplicate_cases",
-                "message": "Potential duplicate questions were detected",
+                "message": "Potential duplicate Test Cases were detected",
                 "positions": duplicate_positions,
             }
         )
@@ -227,6 +303,7 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
         "errors": errors,
         "warnings": warnings,
         "coverage": coverage,
+        "interaction_coverage": interaction_coverage,
         "case_count": len(valid_normalized),
         "cases": normalized_by_position,
         "valid_cases": valid_normalized,
@@ -387,12 +464,14 @@ def assess_expected_outcome(
 
 __all__ = [
     "CASE_TYPES",
+    "INTERACTION_MODES",
     "FAILURE_ORIGINS",
     "FAILURE_STAGES",
     "OutcomeAssessment",
     "assess_expected_outcome",
     "classify_runtime_failure",
     "normalize_expected_outcome",
+    "normalize_session_turns",
     "normalize_test_case",
     "validate_suite_draft",
 ]
