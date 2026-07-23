@@ -14,6 +14,7 @@ import {
 import { Select } from '@/components/ui/Select'
 import { useNetworks } from '@/features/network/hooks'
 import { resolveUsageWindow, useProjectUsage } from '@/features/usage/hooks'
+import { EvaluationActivityPanel } from '@/features/usage/components/EvaluationActivityPanel'
 import { UsageMetricGrid } from '@/features/usage/components/UsageMetricGrid'
 import { UsageOperations } from '@/features/usage/components/UsageOperations'
 import { UsageTrendChart, type UsageTrendMode } from '@/features/usage/components/UsageTrendChart'
@@ -22,6 +23,7 @@ import type {
   UsageEnvironment,
   UsageGroupBy,
   UsageOperation,
+  UsagePurpose,
   UsageRange,
 } from '@/features/usage/types'
 
@@ -44,6 +46,12 @@ const environmentLabels: Record<UsageEnvironment, string> = {
   draft: 'Draft',
   staging: 'Staging',
   production: 'Production',
+}
+
+const purposeLabels: Record<UsagePurpose, string> = {
+  operational: 'Operational',
+  evaluation: 'Evaluations',
+  all: 'Total',
 }
 
 const operationLabels: Record<UsageOperation, string> = {
@@ -109,6 +117,7 @@ export default function UsagePage() {
   const networksQuery = useNetworks(projectId)
   const [range, setRange] = useState<UsageRange>('30d')
   const [environment, setEnvironment] = useState<UsageEnvironment>('all')
+  const [purpose, setPurpose] = useState<UsagePurpose>('operational')
   const [operation, setOperation] = useState<UsageOperation>('all')
   const [lens, setLens] = useState<UsageLens>('agent')
   const [trendMode, setTrendMode] = useState<UsageTrendMode>('cost')
@@ -118,6 +127,7 @@ export default function UsagePage() {
   const [anchor, setAnchor] = useState(() => new Date())
 
   const scopeSummary = [
+    purposeLabels[purpose],
     rangeLabels[range],
     environmentLabels[environment],
     operationLabels[operation],
@@ -135,6 +145,7 @@ export default function UsagePage() {
       ...window,
       environment,
       operation,
+      purpose,
       group_by: lens,
       network_id: networkScope?.id,
       agent_id: agentScope?.id,
@@ -150,12 +161,22 @@ export default function UsagePage() {
     networkScope?.id,
     operation,
     projectId,
+    purpose,
     range,
   ])
 
   const usageQuery = useProjectUsage(params)
   const usage = usageQuery.data
-  const hasUsage = Boolean(usage && (usage.summary.agent_runs > 0 || usage.summary.network_runs > 0))
+  const hasEvaluationActivity = Boolean(usage && (
+    usage.evaluation_activity.evaluations > 0
+    || usage.evaluation_activity.judge_invocations > 0
+    || usage.evaluation_activity.suite_generation_invocations > 0
+  ))
+  const hasUsage = Boolean(usage && (
+    usage.summary.agent_runs > 0
+    || usage.summary.network_runs > 0
+    || (purpose !== 'operational' && hasEvaluationActivity)
+  ))
 
   const refresh = () => {
     setAnchor(new Date())
@@ -234,7 +255,7 @@ export default function UsagePage() {
   return (
     <ResourcePage
       title="Usage"
-      description="Costs and operational efficiency for this Project."
+      description="Operational use and Evaluation spend, reconciled without double counting."
       className="max-w-[1600px]"
       action={(
         <button
@@ -259,6 +280,22 @@ export default function UsagePage() {
 
       <ResourceToolbar>
         <div className="space-y-4">
+          <div className="flex flex-col gap-3 border-b border-border/70 pb-4 lg:flex-row lg:items-center lg:justify-between">
+            <ResourceTabs
+              value={purpose}
+              onChange={(value) => { setPurpose(value); setAnchor(new Date()) }}
+              label="Usage purpose"
+              tabs={[
+                { value: 'operational', label: 'Operational' },
+                { value: 'evaluation', label: 'Evaluations' },
+                { value: 'all', label: 'Total' },
+              ]}
+            />
+            <p className="max-w-xl text-[10px] leading-4 text-muted">
+              Snapshot labels explain what ran. Purpose separates real product use from Evaluation activity.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <ResourceTabs
               value={range}
@@ -349,19 +386,29 @@ export default function UsagePage() {
       ) : !usage || !hasUsage ? (
         <ResourceEmptyState
           icon={<BarChart3 className="h-4 w-4" />}
-          title="No Run usage in this scope"
-          description="Usage appears after an Agent Run or Network Run reaches a terminal state. Widen the period or remove a scope filter if executions already exist."
+          title={purpose === 'evaluation' ? 'No Evaluation activity in this scope' : 'No Run usage in this scope'}
+          description={purpose === 'evaluation'
+            ? 'Evaluation usage appears after a target Run, Judge call or AI Suite generation is recorded.'
+            : 'Usage appears after an Agent Run or Network Run reaches a terminal state. Widen the period or remove a scope filter if executions already exist.'}
         />
       ) : (
         <div className="space-y-4">
           <section>
             <ResourceSectionHeader
-              title="Operational scorecard"
-              description="Run volume, unit economics, reliability and pricing coverage."
+              title={purpose === 'operational' ? 'Operational scorecard' : purpose === 'evaluation' ? 'Evaluation scorecard' : 'Total usage scorecard'}
+              description={purpose === 'operational'
+                ? 'Real product use only: Run volume, unit economics, reliability and pricing coverage.'
+                : purpose === 'evaluation'
+                  ? 'Target runtime is separated from Judge and AI Suite generation spend.'
+                  : 'Operational and Evaluation runtime together, with auxiliary Evaluation spend reconciled separately.'}
               count={`${formatNumber(usage.summary.agent_runs)} Agent Runs · ${formatNumber(usage.summary.network_runs)} Network Runs`}
             />
-            <UsageMetricGrid summary={usage.summary} />
+            <UsageMetricGrid summary={usage.summary} purpose={purpose} />
           </section>
+
+          {purpose !== 'operational' && hasEvaluationActivity && (
+            <EvaluationActivityPanel activity={usage.evaluation_activity} />
+          )}
 
           <UsageTrendChart
             points={usage.timeseries}
@@ -377,6 +424,7 @@ export default function UsagePage() {
             quality={usage.data_quality}
             executions={usage.top_executions}
             groupBy={usage.group_by}
+            purpose={purpose}
             contextLabel={scopeSummary}
             organizationId={organizationId ?? ''}
             projectId={projectId ?? ''}
