@@ -18,10 +18,21 @@ from modules.evaluation.application.judge_policy import (
 )
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
+    EvaluationSuiteModel,
+    EvaluationSuiteVersionModel,
     EvaluationTrialModel,
     EvaluatorModelCallModel,
 )
+from modules.evaluation.infra.judge import canonical_hash
 from shared.infra.errors import ConflictError, NotFoundError
+
+
+def _next_version(value: str | None) -> str:
+    try:
+        number = int(str(value or "v0").removeprefix("v"))
+    except ValueError:
+        number = 0
+    return f"v{number + 1}"
 
 
 class GovernedEvaluationExperienceService(EvaluationExperienceService):
@@ -75,11 +86,6 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
         judge_config = kwargs.get("judge_config")
         if judge_model_id is None:
             async with self._session_factory() as session:
-                from modules.evaluation.infra.database.models import (
-                    EvaluationSuiteModel,
-                    EvaluationSuiteVersionModel,
-                )
-
                 suite = await session.get(EvaluationSuiteModel, kwargs["suite_id"])
                 if suite is None or suite.project_id != project_id:
                     raise NotFoundError("Evaluation Suite not found")
@@ -101,6 +107,97 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
             judge_config=judge_config,
         )
         return await super().create_composed_suite_version(**kwargs)
+
+    async def create_judge_model_suite_version(
+        self,
+        *,
+        project_id: UUID,
+        suite_id: UUID,
+        judge_provider_model_id: UUID,
+        change_description: str,
+        created_by: UUID | None,
+    ) -> dict[str, Any]:
+        description = change_description.strip()
+        if len(description) < 3:
+            raise ConflictError("Suite Version change description is required")
+
+        async with self._session_factory() as session:
+            suite = await session.get(EvaluationSuiteModel, suite_id)
+            if suite is None or suite.project_id != project_id:
+                raise NotFoundError("Evaluation Suite not found")
+            if suite.status == "archived":
+                raise ConflictError("Archived Evaluation Suite cannot receive a new version")
+            if suite.current_version_id is None:
+                raise NotFoundError("Current Evaluation Suite version not found")
+            current = await session.get(
+                EvaluationSuiteVersionModel,
+                suite.current_version_id,
+            )
+            if current is None:
+                raise NotFoundError("Current Evaluation Suite version not found")
+            if current.judge_provider_model_id == judge_provider_model_id:
+                raise ConflictError("The selected Judge Model is already used by the current Suite Version")
+            governed_config = await self._govern_judge_config(
+                project_id=project_id,
+                judge_provider_model_id=judge_provider_model_id,
+                judge_config=dict(current.judge_config or {}),
+            )
+
+        async with self._session_factory() as session, session.begin():
+            suite = await session.get(
+                EvaluationSuiteModel,
+                suite_id,
+                with_for_update=True,
+            )
+            if suite is None or suite.project_id != project_id:
+                raise NotFoundError("Evaluation Suite not found")
+            if suite.status == "archived":
+                raise ConflictError("Archived Evaluation Suite cannot receive a new version")
+            if suite.current_version_id is None:
+                raise NotFoundError("Current Evaluation Suite version not found")
+            current = await session.get(
+                EvaluationSuiteVersionModel,
+                suite.current_version_id,
+                with_for_update=True,
+            )
+            if current is None:
+                raise NotFoundError("Current Evaluation Suite version not found")
+            if current.judge_provider_model_id == judge_provider_model_id:
+                raise ConflictError("The selected Judge Model is already used by the current Suite Version")
+
+            material = {
+                "dataset_version_id": str(current.dataset_version_id),
+                "judge_provider_model_id": str(judge_provider_model_id),
+                "judge_config": governed_config,
+                "rubric": current.rubric or {},
+                "deterministic_checks": current.deterministic_checks or {},
+                "acceptance_policy": current.acceptance_policy or {},
+                "repetition_policy": current.repetition_policy or {},
+                "estimate_defaults": current.estimate_defaults or {},
+            }
+            version = EvaluationSuiteVersionModel(
+                suite_id=suite.id,
+                project_id=project_id,
+                version=_next_version(current.version),
+                parent_version_id=current.id,
+                change_description=description,
+                dataset_version_id=current.dataset_version_id,
+                judge_provider_model_id=judge_provider_model_id,
+                judge_config=governed_config,
+                rubric=current.rubric or {},
+                deterministic_checks=current.deterministic_checks or {},
+                acceptance_policy=current.acceptance_policy or {},
+                repetition_policy=current.repetition_policy or {},
+                estimate_defaults=current.estimate_defaults or {},
+                suite_hash=canonical_hash(material),
+                created_by=created_by,
+            )
+            session.add(version)
+            await session.flush()
+            suite.current_version_id = version.id
+
+        values = await self.list_suites(project_id, include_archived=True)
+        return next(item for item in values if item["id"] == str(suite_id))
 
     async def _assert_retry_allowed(
         self,
