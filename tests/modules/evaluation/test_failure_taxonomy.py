@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from modules.evaluation.application.failure_taxonomy import (
     canonical_judge_failure_code,
+    judge_failure_policy,
     summarize_failures,
 )
 
@@ -28,6 +29,31 @@ def test_model_call_error_is_classified_with_same_canonical_code() -> None:
             "completion_tokens=801 reasoning_tokens=800"
         ),
     ) == "judge_output_length_limit"
+
+
+def test_openrouter_402_is_terminal_insufficient_credits() -> None:
+    code = canonical_judge_failure_code(
+        failure_code="judge_failed",
+        failure_detail=None,
+        judge_status="failed",
+        judge_error=(
+            "APIStatusError: Error code: 402 - This request requires more credits, "
+            "or fewer max_tokens. You requested up to 16384 tokens, but can only afford 1437."
+        ),
+    )
+
+    assert code == "judge_insufficient_credits"
+    assert judge_failure_policy(code) == {
+        "retryable": False,
+        "repairable": False,
+        "scope": "run",
+        "circuit_breaker": True,
+        "recoverability": "user_action_required",
+        "recommended_action": (
+            "Add provider credits, reduce the Judge output budget or create a Suite "
+            "Version with another Judge Model."
+        ),
+    }
 
 
 def test_failure_summary_accepts_preserved_output_as_runtime_evidence() -> None:
