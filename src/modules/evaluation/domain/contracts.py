@@ -171,12 +171,17 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
     if len(raw_cases) > 500:
         raise ValidationError("Evaluator Suite supports at most 500 Test Cases")
 
-    normalized: list[dict[str, Any]] = []
+    # Keep one slot per original position. Authoring workers persist and retry cases
+    # independently, so compacting valid cases would associate them with the wrong slot
+    # whenever an earlier case is invalid.
+    normalized_by_position: list[dict[str, Any] | None] = []
+    valid_normalized: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     signatures: set[tuple[str, str]] = set()
     duplicate_positions: list[int] = []
     for index, raw in enumerate(raw_cases, start=1):
         if not isinstance(raw, dict):
+            normalized_by_position.append(None)
             errors.append({"path": f"cases[{index - 1}]", "message": "Case must be an object"})
             continue
         try:
@@ -188,12 +193,14 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
             if signature in signatures:
                 duplicate_positions.append(index)
             signatures.add(signature)
-            normalized.append(item)
+            normalized_by_position.append(item)
+            valid_normalized.append(item)
         except (ValidationError, TypeError, ValueError) as exc:
+            normalized_by_position.append(None)
             errors.append({"path": f"cases[{index - 1}]", "message": str(exc)})
 
     coverage: dict[str, int] = {}
-    for item in normalized:
+    for item in valid_normalized:
         labels = item.get("tags") or [item["case_type"]]
         for label in labels:
             coverage[str(label)] = coverage.get(str(label), 0) + 1
@@ -206,7 +213,9 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
                 "positions": duplicate_positions,
             }
         )
-    if normalized and not any(item["case_type"] != "success" for item in normalized):
+    if valid_normalized and not any(
+        item["case_type"] != "success" for item in valid_normalized
+    ):
         warnings.append(
             {
                 "code": "no_negative_cases",
@@ -218,8 +227,9 @@ def validate_suite_draft(payload: dict[str, Any]) -> dict[str, Any]:
         "errors": errors,
         "warnings": warnings,
         "coverage": coverage,
-        "case_count": len(normalized),
-        "cases": normalized,
+        "case_count": len(valid_normalized),
+        "cases": normalized_by_position,
+        "valid_cases": valid_normalized,
     }
 
 
