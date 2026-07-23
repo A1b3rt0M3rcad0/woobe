@@ -16,6 +16,58 @@ export interface EvaluationExperienceRunInput {
   idempotency_key?: string
 }
 
+export interface EvaluationJudgeModel {
+  provider_model_id: string
+  display_name: string
+  model: string
+  provider: string
+  credential_id: string
+  credential_name: string
+  credential_status: string
+  model_status: string
+  snapshot_hash: string
+  eligible: boolean
+  blockers: Array<{ code: string; message: string }>
+  capabilities: {
+    supports_reasoning: boolean
+    supported_parameters: string[]
+    response_strategy: 'json_schema' | 'json_object' | 'text' | string
+  }
+  budget: {
+    configured_initial_tokens: number
+    configured_retry_tokens: number
+    effective_initial_tokens: number
+    effective_retry_tokens: number
+    model_output_limit: number
+    platform_output_cap: number
+    context_window: number
+    maximum_input_tokens: number
+  }
+  pricing: {
+    configured?: boolean
+    currency?: string
+    input_cost_per_1m_tokens?: number | null
+    output_cost_per_1m_tokens?: number | null
+    [key: string]: any
+  }
+}
+
+export interface EvaluationJudgePreflight {
+  status: 'ready' | 'blocked' | string
+  can_execute: boolean
+  blockers: Array<{ code: string; message: string }>
+  warnings: Array<{ code: string; message: string }>
+  judge_model?: EvaluationJudgeModel
+  normalized_judge_config?: Record<string, any>
+  case_count?: number
+  repetitions?: number
+  target_count?: number
+  judge_call_count?: number
+  estimated_maximum_cost_usd?: number | null
+  credential_remaining_usd?: number | null
+  preflight_hash?: string
+}
+
 export interface EvaluationRunProgress {
   run_id: string
   status: EvaluationRun['status']
@@ -126,6 +178,9 @@ export interface EvaluationRunDiagnostics {
     judge_diagnostics_present: number
     adaptive_gateway_markers: number
     resilient_repair_markers: number
+    governed_gateway_markers?: number
+    terminal_judge_calls?: number
+    judge_circuit_breaker_status?: string | null
     conclusive_trials: number
     inconclusive_trials: number
     measured_total_cost: number | null
