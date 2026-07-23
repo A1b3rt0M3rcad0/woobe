@@ -83,6 +83,8 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
                 suite = await session.get(EvaluationSuiteModel, kwargs["suite_id"])
                 if suite is None or suite.project_id != project_id:
                     raise NotFoundError("Evaluation Suite not found")
+                if suite.current_version_id is None:
+                    raise NotFoundError("Current Evaluation Suite version not found")
                 current = await session.get(
                     EvaluationSuiteVersionModel,
                     suite.current_version_id,
