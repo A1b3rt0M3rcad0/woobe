@@ -24,11 +24,22 @@ from shared.infra.database.base import BaseModel
 class EvaluationModel(BaseModel):
     __tablename__ = "evaluations"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_evaluation_catalog_protocol_identity",
             "project_id",
             "suite_version_id",
             "target_identity_hash",
-            name="uq_evaluation_catalog_identity",
+            "evaluation_protocol_hash",
+            unique=True,
+            postgresql_where=text("evaluation_protocol_hash IS NOT NULL"),
+        ),
+        Index(
+            "uq_evaluation_catalog_legacy_identity",
+            "project_id",
+            "suite_version_id",
+            "target_identity_hash",
+            unique=True,
+            postgresql_where=text("evaluation_protocol_hash IS NULL"),
         ),
         Index(
             "ix_evaluation_catalog_entity",
@@ -50,6 +61,7 @@ class EvaluationModel(BaseModel):
     suite_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("evaluation.suite_versions.id")
     )
+    evaluation_protocol_hash: Mapped[str | None] = mapped_column(String(64))
     target_type: Mapped[str] = mapped_column(String(32))
     entity_id: Mapped[UUID]
     source_type: Mapped[str] = mapped_column(String(32))
