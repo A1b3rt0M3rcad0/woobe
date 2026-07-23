@@ -6,7 +6,11 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from modules.evaluation.application.evaluation_protocol import evaluation_protocol_hash
+from modules.evaluation.application.evaluation_kpis import calculate_comparison_winner
+from modules.evaluation.application.evaluation_protocol import (
+    evaluation_protocol_hash,
+    target_identity_hash,
+)
 from modules.evaluation.application.operational_catalog_service import (
     OperationalEvaluationCatalogService,
 )
@@ -14,22 +18,30 @@ from modules.evaluation.application.run_judge import (
     judge_summary_from_run,
     run_judge_protocol,
 )
+from modules.evaluation.application.target_resolver import EvaluationTargetResolver
+from modules.evaluation.infra.database.catalog_models import (
+    EvaluationComparisonModel,
+    EvaluationModel,
+)
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
     EvaluationSuiteModel,
     EvaluationSuiteVersionModel,
+    EvaluationTargetModel,
 )
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 
 class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
-    """Final facade including safe lazy backfill and operational catalog labels."""
+    """Final catalog facade with protocol identity, freshness and KPI winners."""
 
     @staticmethod
     def _run_summary(run) -> dict[str, Any] | None:
         payload = OperationalEvaluationCatalogService._run_summary(run)
         if payload is not None:
             payload["judge"] = judge_summary_from_run(run)
+            aggregate = run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
+            payload["kpis"] = aggregate.get("kpis") if isinstance(aggregate.get("kpis"), dict) else None
         return payload
 
     @staticmethod
@@ -104,10 +116,7 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
             "candidate": None,
             "baseline": None,
             "evaluation_protocol_hash": protocol_hash,
-            "operations": {
-                "evaluation_runs": 1,
-                "comparisons": 0,
-            },
+            "operations": {"evaluation_runs": 1, "comparisons": 0},
         }
 
     async def create_evaluation_run(
@@ -153,33 +162,86 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
         run_id: UUID,
         created_by: UUID | None,
     ) -> dict[str, Any]:
-        payload = await super().attach_run_to_evaluation(
-            project_id=project_id,
-            run_id=run_id,
-            created_by=created_by,
-        )
+        """Attach by target + immutable Suite + effective Judge protocol."""
+
         async with self._session_factory() as session, session.begin():
-            run = await session.get(EvaluationRunModel, run_id)
+            run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
             if run is None or run.project_id != project_id:
                 raise NotFoundError("Evaluation Run not found")
+            targets = list(
+                (
+                    await session.scalars(
+                        select(EvaluationTargetModel).where(
+                            EvaluationTargetModel.evaluation_run_id == run.id
+                        )
+                    )
+                ).all()
+            )
+            if len(targets) != 1:
+                raise ConflictError(
+                    "Only single-target Runs can be attached to the Evaluation catalog"
+                )
+            target = targets[0]
             suite = await session.get(EvaluationSuiteVersionModel, run.suite_version_id)
             if suite is None or suite.project_id != project_id:
                 raise NotFoundError("Evaluation Suite version not found")
             protocol_hash = self._material_protocol_hash(suite, run)
+            identity_hash = target_identity_hash(
+                target_type=target.target_type,
+                entity_id=target.entity_id,
+                source_type=target.source_type,
+                target_version_id=target.agent_release_id or target.network_version_id,
+                snapshot_hash=target.snapshot_hash,
+            )
+            evaluation = await session.scalar(
+                select(EvaluationModel).where(
+                    EvaluationModel.project_id == project_id,
+                    EvaluationModel.suite_version_id == run.suite_version_id,
+                    EvaluationModel.target_identity_hash == identity_hash,
+                    EvaluationModel.evaluation_protocol_hash == protocol_hash,
+                )
+            )
+            if evaluation is None:
+                evaluation = EvaluationModel(
+                    project_id=project_id,
+                    suite_version_id=run.suite_version_id,
+                    evaluation_protocol_hash=protocol_hash,
+                    target_type=target.target_type,
+                    entity_id=target.entity_id,
+                    source_type=target.source_type,
+                    target_version_id=target.agent_release_id or target.network_version_id,
+                    target_snapshot_hash=target.snapshot_hash,
+                    target_identity_hash=identity_hash,
+                    display_name=target.display_name,
+                    display_version=target.display_version,
+                    status="active",
+                    latest_run_id=run.id,
+                    created_by=created_by,
+                )
+                session.add(evaluation)
+                await session.flush()
+            else:
+                evaluation.latest_run_id = run.id
+                evaluation.display_name = target.display_name
+                evaluation.display_version = target.display_version
             await session.execute(
                 text(
                     "UPDATE evaluation.runs "
-                    "SET evaluation_protocol_hash = :protocol_hash "
+                    "SET evaluation_id = :evaluation_id, evaluation_protocol_hash = :protocol_hash "
                     "WHERE id = :run_id AND project_id = :project_id"
                 ),
                 {
+                    "evaluation_id": evaluation.id,
                     "protocol_hash": protocol_hash,
                     "run_id": run.id,
                     "project_id": project_id,
                 },
             )
-        payload["evaluation_protocol_hash"] = protocol_hash
-        return payload
+            return self._evaluation_payload(
+                evaluation,
+                run_count=None,
+                protocol_hash=protocol_hash,
+            )
 
     async def create_paired_comparison(
         self,
@@ -233,6 +295,68 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
             "reference": reference_run,
         }
         return comparison
+
+    async def _refresh_comparison(
+        self,
+        session,
+        comparison: EvaluationComparisonModel,
+    ) -> None:
+        await super()._refresh_comparison(session, comparison)
+        aggregate = (
+            dict(comparison.aggregate_result)
+            if isinstance(comparison.aggregate_result, dict)
+            else {}
+        )
+        candidate_side = aggregate.get("candidate")
+        reference_side = aggregate.get("reference")
+        if not isinstance(candidate_side, dict) or not isinstance(reference_side, dict):
+            return
+        candidate_run = await session.get(EvaluationRunModel, comparison.candidate_run_id)
+        reference_run = await session.get(EvaluationRunModel, comparison.reference_run_id)
+        suite = await session.get(EvaluationSuiteVersionModel, comparison.suite_version_id)
+        if candidate_run is None or reference_run is None or suite is None:
+            return
+
+        candidate_aggregate = (
+            candidate_run.aggregate_result
+            if isinstance(candidate_run.aggregate_result, dict)
+            else {}
+        )
+        reference_aggregate = (
+            reference_run.aggregate_result
+            if isinstance(reference_run.aggregate_result, dict)
+            else {}
+        )
+        candidate_kpis = candidate_aggregate.get("kpis")
+        reference_kpis = reference_aggregate.get("kpis")
+        candidate_kpis = dict(candidate_kpis) if isinstance(candidate_kpis, dict) else self._legacy_kpis(candidate_side, candidate_run)
+        reference_kpis = dict(reference_kpis) if isinstance(reference_kpis, dict) else self._legacy_kpis(reference_side, reference_run)
+        candidate_side["kpis"] = candidate_kpis
+        reference_side["kpis"] = reference_kpis
+        aggregate["candidate"] = candidate_side
+        aggregate["reference"] = reference_side
+        aggregate["winner"] = calculate_comparison_winner(
+            candidate_kpis,
+            reference_kpis,
+            acceptance_policy=suite.acceptance_policy,
+            authoritative=(
+                comparison.status == "ready"
+                and candidate_run.repetitions == reference_run.repetitions
+            ),
+        )
+        comparison.aggregate_result = aggregate
+
+    @staticmethod
+    def _legacy_kpis(side: dict[str, Any], run: EvaluationRunModel) -> dict[str, Any]:
+        summary = side.get("summary") if isinstance(side.get("summary"), dict) else {}
+        runtime = side.get("runtime") if isinstance(side.get("runtime"), dict) else {}
+        return {
+            "schema_version": "evaluation-kpis-legacy-fallback",
+            "quality_score": summary.get("weighted_score", run.overall_score),
+            "pass_rate": summary.get("weighted_pass_rate", run.pass_rate),
+            "runtime_cost_usd_per_trial": runtime.get("runtime_cost_usd"),
+            "latency_median_ms": runtime.get("latency_median_ms"),
+        }
 
     async def _backfill_single_runs(
         self,
@@ -316,7 +440,7 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
                 ).all()
             )
         versions_by_id = {str(version.id): version for version in versions}
-        suites_by_id = {version.id: version for version in suites}
+        suites_by_id = {suite.id: suite for suite in suites}
         enriched: list[dict[str, Any]] = []
         for item in items:
             version = versions_by_id.get(str(item.get("suite_version_id")))
@@ -337,6 +461,58 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
             )
         return enriched
 
+    async def _with_freshness(
+        self,
+        *,
+        project_id: UUID,
+        items: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        resolver = EvaluationTargetResolver(self._session_factory)
+        result: list[dict[str, Any]] = []
+        async with self._session_factory() as session:
+            for item in items:
+                source_type = str(item.get("source_type") or "")
+                if source_type == "release":
+                    freshness = {
+                        "status": "immutable",
+                        "evaluated_snapshot_hash": item.get("target_snapshot_hash"),
+                        "current_snapshot_hash": item.get("target_snapshot_hash"),
+                    }
+                elif source_type not in {"draft", "staging"}:
+                    freshness = {
+                        "status": "unknown",
+                        "evaluated_snapshot_hash": item.get("target_snapshot_hash"),
+                        "current_snapshot_hash": None,
+                    }
+                else:
+                    try:
+                        current = await resolver.resolve(
+                            session,
+                            project_id=project_id,
+                            target_type=str(item.get("target_type")),
+                            source_type=source_type,
+                            entity_id=UUID(str(item.get("entity_id"))),
+                            version_id=None,
+                        )
+                        freshness = {
+                            "status": (
+                                "current"
+                                if current.snapshot_hash == item.get("target_snapshot_hash")
+                                else "superseded"
+                            ),
+                            "evaluated_snapshot_hash": item.get("target_snapshot_hash"),
+                            "current_snapshot_hash": current.snapshot_hash,
+                            "current_display_version": current.display_version,
+                        }
+                    except Exception:
+                        freshness = {
+                            "status": "target_unavailable",
+                            "evaluated_snapshot_hash": item.get("target_snapshot_hash"),
+                            "current_snapshot_hash": None,
+                        }
+                result.append({**item, "freshness": freshness})
+        return result
+
     async def list_evaluations(
         self,
         *,
@@ -346,10 +522,7 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
         source_type: str | None = None,
         **kwargs,
     ) -> list[dict[str, Any]]:
-        await self._backfill_single_runs(
-            project_id=project_id,
-            entity_id=entity_id,
-        )
+        await self._backfill_single_runs(project_id=project_id, entity_id=entity_id)
         items = await super().list_evaluations(
             project_id=project_id,
             entity_id=entity_id,
@@ -365,7 +538,8 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
             items = [
                 item for item in items if str(item.get("source_type") or "") == source_type
             ]
-        return await self._enrich_suite_metadata(project_id=project_id, items=items)
+        items = await self._enrich_suite_metadata(project_id=project_id, items=items)
+        return await self._with_freshness(project_id=project_id, items=items)
 
     async def get_evaluation(self, *, project_id: UUID, evaluation_id: UUID):
         item = await super().get_evaluation(
@@ -376,7 +550,8 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
             project_id=project_id,
             items=[item],
         )
-        return enriched[0]
+        fresh = await self._with_freshness(project_id=project_id, items=enriched)
+        return fresh[0]
 
 
 __all__ = ["CompleteEvaluationCatalogService"]
