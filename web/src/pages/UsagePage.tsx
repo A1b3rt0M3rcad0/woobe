@@ -46,6 +46,7 @@ const environmentLabels: Record<UsageEnvironment, string> = {
   draft: 'Draft',
   staging: 'Staging',
   production: 'Production',
+  release: 'Release',
 }
 
 const purposeLabels: Record<UsagePurpose, string> = {
@@ -317,6 +318,7 @@ export default function UsagePage() {
                 { value: 'draft', label: 'Draft' },
                 { value: 'staging', label: 'Staging' },
                 { value: 'production', label: 'Production' },
+                { value: 'release', label: 'Release' },
               ]}
             />
           </div>
