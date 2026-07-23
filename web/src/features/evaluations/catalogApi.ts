@@ -14,18 +14,44 @@ function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
 }
 
-export function previewCatalogEvaluation(
+function preflightError(preview: Record<string, any>) {
+  const judge = preview.judge_preflight
+  const blockers = Array.isArray(judge?.blockers) ? judge.blockers : []
+  if (preview.can_execute !== false) return null
+  const detail = blockers
+    .map((item: Record<string, any>) => item.message || item.code)
+    .filter(Boolean)
+    .join('; ')
+  return detail || 'Evaluation preflight blocked this operation.'
+}
+
+export async function previewCatalogEvaluation(
   projectId: string,
   input: Omit<CreateCatalogEvaluationInput, 'idempotency_key'>,
 ) {
-  return post<CatalogEvaluationPreview>(`${base(projectId)}/evaluations/preview`, input)
+  const preview = await post<CatalogEvaluationPreview>(
+    `${base(projectId)}/evaluations/preview`,
+    input,
+  )
+  const error = preflightError(preview as Record<string, any>)
+  if (error) throw new Error(error)
+  return preview
 }
 
-export function previewPairedEvaluationComparison(
+export async function previewPairedEvaluationComparison(
   projectId: string,
   input: CreatePairedComparisonInput,
 ) {
-  return post<Record<string, any>>(`${base(projectId)}/comparisons/paired/preview`, input)
+  const preview = await post<Record<string, any>>(
+    `${base(projectId)}/comparisons/paired/preview`,
+    input,
+  )
+  const candidateError = preflightError(preview.candidate || {})
+  const referenceError = preflightError(preview.reference || {})
+  const directError = preflightError(preview)
+  const error = candidateError || referenceError || directError
+  if (error) throw new Error(error)
+  return preview
 }
 
 export function createCatalogEvaluationRun(
