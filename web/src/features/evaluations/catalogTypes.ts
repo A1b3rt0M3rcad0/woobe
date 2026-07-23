@@ -212,10 +212,22 @@ export interface CreatePostHocComparisonInput {
   idempotency_key?: string
 }
 
+type EnrichedEvaluationTrial = NonNullable<EvaluationRun['trials']>[number] & {
+  failure_classification?: {
+    stage?: string
+    kind?: string
+    code?: string
+    recoverability?: string
+    recommended_action?: string
+    summary?: string
+  } | null
+}
+
 export interface EvidenceRichRun extends EvaluationRun {
   evaluation_id?: string | null
   evaluation_protocol_hash?: string | null
   evidence_revision?: number
+  trials?: EnrichedEvaluationTrial[]
   evidence_status?: 'complete' | 'partial' | 'unavailable'
   evidence_completeness?: {
     total_trials: number
