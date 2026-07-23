@@ -1,3 +1,4 @@
+import inspect
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -5,6 +6,9 @@ import pytest
 from pydantic import ValidationError
 
 from modules.metering.application.dtos.project_usage import ProjectUsageQuery
+from modules.metering.infra.database.project_usage_reader import (
+    SQLAlchemyProjectUsageReader,
+)
 
 
 def test_project_usage_defaults_to_daily_thirty_day_window():
@@ -70,3 +74,19 @@ def test_project_usage_accepts_evaluation_and_total_purposes():
 
     assert evaluation.purpose == "evaluation"
     assert combined.purpose == "all"
+
+
+def test_project_usage_supports_release_snapshot_scope():
+    query = ProjectUsageQuery(project_id=uuid4(), environment="release")
+
+    assert query.environment == "release"
+
+
+def test_usage_reader_separates_runtime_purpose_and_auxiliary_evaluation_cost():
+    source = inspect.getsource(SQLAlchemyProjectUsageReader)
+
+    assert ":purpose = 'all'" in source
+    assert "target_snapshot_label" in source
+    assert "usage_subtype' = 'judge'" in source
+    assert "usage_subtype' = 'suite_authoring'" in source
+    assert 'result["total_known_cost_usd"]' in source
