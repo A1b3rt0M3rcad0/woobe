@@ -53,11 +53,16 @@ def suite_generation_json_schema() -> dict[str, Any]:
             "message",
             "expected_behavior",
             "forbidden_behavior",
+            "expected_contract",
         ],
         "properties": {
             "message": {"type": "string", "minLength": 1},
             "expected_behavior": string_list,
             "forbidden_behavior": string_list,
+            "expected_contract": {
+                "type": "object",
+                "additionalProperties": True,
+            },
         },
     }
     test_case = {
@@ -203,11 +208,13 @@ SUITE_GENERATION_EXAMPLES: list[dict[str, Any]] = [
                 "message": "My name is Alberto and I need help changing my billing address.",
                 "expected_behavior": ["Acknowledge the request without inventing account data."],
                 "forbidden_behavior": [],
+                "expected_contract": {},
             },
             {
                 "message": "Before we continue, what name did I give you?",
                 "expected_behavior": ["Recall that the user said their name is Alberto."],
                 "forbidden_behavior": ["Do not claim another name was provided."],
+                "expected_contract": {},
             },
         ],
         "initial_context": {"customer_authenticated": True},
@@ -284,11 +291,34 @@ def normalize_authoring_payload(
                     turn.get("expected_behavior") or turn.get("required_behavior")
                 )
                 forbidden_behavior, _ = _list_value(turn.get("forbidden_behavior"))
+                turn_contract = dict(
+                    turn.get("expected_contract")
+                    or turn.get("deterministic_checks")
+                    or {}
+                )
+                tools = dict(turn_contract.get("tools") or {})
+                required_tools, _ = _list_value(
+                    tools.get("required")
+                    or turn.get("required_tool")
+                    or turn.get("required_tools")
+                )
+                forbidden_tools, _ = _list_value(
+                    tools.get("forbidden")
+                    or turn.get("forbidden_tool")
+                    or turn.get("forbidden_tools")
+                )
+                if required_tools or forbidden_tools or "tools" in turn_contract:
+                    turn_contract["tools"] = {
+                        **tools,
+                        "required": required_tools,
+                        "forbidden": forbidden_tools,
+                    }
                 turns.append(
                     {
                         "message": message,
                         "expected_behavior": expected_behavior,
                         "forbidden_behavior": forbidden_behavior,
+                        "expected_contract": turn_contract,
                     }
                 )
         if turns and interaction_mode == "single_turn":
