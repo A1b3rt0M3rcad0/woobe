@@ -58,9 +58,87 @@ class EvidenceRichEvaluationApplicationService(
         payload["manifest"] = manifest
         return payload
 
+    async def _attach_session_turns(self, trials: list[dict[str, Any]]) -> None:
+        trial_ids: list[UUID] = []
+        for trial in trials:
+            try:
+                trial_ids.append(UUID(str(trial.get("id"))))
+            except (TypeError, ValueError):
+                continue
+        if not trial_ids:
+            return
+        async with self._session_factory() as session:
+            rows = (
+                await session.execute(
+                    text(
+                        "SELECT id, evaluation_trial_id, position, input_payload, "
+                        "output_payload, metrics, status, agent_session_id, network_session_id, "
+                        "agent_run_id, network_execution_id, trace_id, failure_code, failure_detail, "
+                        "started_at, completed_at "
+                        "FROM evaluation.trial_turns "
+                        "WHERE evaluation_trial_id = ANY(CAST(:trial_ids AS uuid[])) "
+                        "ORDER BY evaluation_trial_id, position"
+                    ),
+                    {"trial_ids": trial_ids},
+                )
+            ).mappings().all()
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(str(row["evaluation_trial_id"]), []).append(
+                {
+                    "id": str(row["id"]),
+                    "position": int(row["position"]),
+                    "input_payload": row["input_payload"],
+                    "output": row["output_payload"],
+                    "metrics": row["metrics"],
+                    "status": row["status"],
+                    "agent_session_id": str(row["agent_session_id"])
+                    if row["agent_session_id"]
+                    else None,
+                    "network_session_id": str(row["network_session_id"])
+                    if row["network_session_id"]
+                    else None,
+                    "agent_run_id": str(row["agent_run_id"])
+                    if row["agent_run_id"]
+                    else None,
+                    "network_execution_id": str(row["network_execution_id"])
+                    if row["network_execution_id"]
+                    else None,
+                    "trace_id": str(row["trace_id"]) if row["trace_id"] else None,
+                    "failure_code": row["failure_code"],
+                    "failure_detail": row["failure_detail"],
+                    "started_at": row["started_at"].isoformat()
+                    if row["started_at"]
+                    else None,
+                    "completed_at": row["completed_at"].isoformat()
+                    if row["completed_at"]
+                    else None,
+                }
+            )
+        for trial in trials:
+            case = trial.get("case") if isinstance(trial.get("case"), dict) else {}
+            input_payload = (
+                case.get("input_payload")
+                if isinstance(case.get("input_payload"), dict)
+                else {}
+            )
+            interaction_mode = str(
+                input_payload.get("interaction_mode") or "single_turn"
+            )
+            trial["interaction_mode"] = interaction_mode
+            trial["turns"] = grouped.get(str(trial.get("id")), [])
+            if case:
+                case["interaction_mode"] = interaction_mode
+                case["turns"] = (
+                    input_payload.get("turns", [])
+                    if isinstance(input_payload.get("turns"), list)
+                    else []
+                )
+
     async def get_run(self, project_id: UUID, run_id: UUID) -> dict[str, Any]:
         payload = await super().get_run(project_id, run_id)
         trials = payload.get("trials") if isinstance(payload.get("trials"), list) else []
+        await self._attach_session_turns(trials)
         judge_calls = (
             payload.get("judge_calls")
             if isinstance(payload.get("judge_calls"), list)
@@ -213,6 +291,11 @@ class EvidenceRichEvaluationApplicationService(
 
         payload["evidence_revision"] = evidence_revision
         payload["evidence_status"] = evidence_status
+        payload["kpis"] = (
+            dict(aggregate.get("kpis"))
+            if isinstance(aggregate.get("kpis"), dict)
+            else None
+        )
         payload["evidence_completeness"] = {
             "total_trials": total,
             "runtime_completed": runtime_completed,
