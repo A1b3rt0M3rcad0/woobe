@@ -439,13 +439,30 @@ def aggregate_evaluation(
     }
 
 
-def build_estimate(*, values: list[dict[str, Any]], volume: int, target_type: str) -> dict[str, Any]:
+def build_estimate(
+    *,
+    values: list[dict[str, Any]],
+    volume: int,
+    target_type: str,
+    volume_unit: str = "runs_per_month",
+) -> dict[str, Any]:
+    if volume_unit not in {"runs_per_month", "sessions_per_month"}:
+        raise ValueError("Unsupported Estimate volume unit")
+    session_projection = volume_unit == "sessions_per_month"
     costs = [_number((item.get("metrics") or {}).get("cost_usd")) for item in values]
     costs = [value for value in costs if value is not None]
     latencies = [_number((item.get("metrics") or {}).get("latency_ms")) for item in values]
     latencies = [value for value in latencies if value is not None]
     fanout = [_number((item.get("metrics") or {}).get("agent_run_count")) for item in values]
     fanout = [value for value in fanout if value is not None]
+    turns = [_number((item.get("metrics") or {}).get("turn_count")) for item in values]
+    turns = [value for value in turns if value is not None]
+    tokens = [
+        (_number((item.get("metrics") or {}).get("input_tokens")) or 0)
+        + (_number((item.get("metrics") or {}).get("output_tokens")) or 0)
+        for item in values
+    ]
+    tokens = [value for value in tokens if value > 0]
     limitations: list[str] = []
     if not costs:
         limitations.append("Target Run cost is unknown because pricing coverage is incomplete.")
@@ -453,27 +470,70 @@ def build_estimate(*, values: list[dict[str, Any]], volume: int, target_type: st
         limitations.append("Fewer than five completed Trials; projection stability is low.")
     if target_type == "network" and not fanout:
         limitations.append("Network Agent Run fan-out was unavailable.")
-    confidence = EstimateConfidence.INSUFFICIENT_DATA.value if not values else EstimateConfidence.LOW.value if len(values) < 5 or not costs else EstimateConfidence.MEDIUM.value if len(values) < 20 else EstimateConfidence.HIGH.value
+    if session_projection and not turns:
+        limitations.append("Session turn counts were unavailable.")
+    if not values:
+        confidence = EstimateConfidence.INSUFFICIENT_DATA.value
+    elif len(values) < 5 or not costs:
+        confidence = EstimateConfidence.LOW.value
+    elif len(values) < 20:
+        confidence = EstimateConfidence.MEDIUM.value
+    else:
+        confidence = EstimateConfidence.HIGH.value
     cost_summary = summarize_values(costs)
     latency_summary = summarize_values(latencies)
     fanout_summary = summarize_values(fanout)
-    projected = lambda value: float(value) * volume if value is not None else None
+    turn_summary = summarize_values(turns)
+    token_summary = summarize_values(tokens)
+    def projected(value: float | None) -> float | None:
+        return float(value) * volume if value is not None else None
+
+    def scenario(percentile: str) -> dict[str, Any]:
+        latency_value = latency_summary.get(percentile)
+        cost_value = cost_summary.get(percentile)
+        turn_value = turn_summary.get(percentile)
+        token_value = token_summary.get(percentile)
+        return {
+            "provider_cost_usd": projected(cost_value),
+            "cost_usd_per_session": cost_value if session_projection else None,
+            "latency_ms_per_run": (
+                None if session_projection else latency_value
+            ),
+            "latency_ms_per_session": (
+                latency_value if session_projection else None
+            ),
+            "agent_runs": (
+                projected(fanout_summary.get(percentile))
+                if target_type == "network"
+                else volume
+            ),
+            "turns": projected(turn_value) if session_projection else None,
+            "tokens": projected(token_value),
+        }
     return {
         "confidence": confidence,
         "limitations": limitations,
         "observation_summary": {
             "sample_size": len(values),
+            "volume_unit": volume_unit,
             "cost_usd": cost_summary,
             "latency_ms": latency_summary,
             "agent_run_count": fanout_summary,
+            "turns_per_session": turn_summary if session_projection else None,
+            "tokens_per_session": token_summary if session_projection else None,
+            "projected_turns": (
+                projected(turn_summary.get("mean"))
+                if session_projection
+                else None
+            ),
             "pricing_coverage": {
                 "known": len(costs),
                 "total": len(values),
             },
         },
         "scenarios": {
-            "optimistic": {"provider_cost_usd": projected(cost_summary.get("p25")), "latency_ms_per_run": latency_summary.get("p25"), "agent_runs": projected(fanout_summary.get("p25")) if target_type == "network" else volume},
-            "expected": {"provider_cost_usd": projected(cost_summary.get("median")), "latency_ms_per_run": latency_summary.get("median"), "agent_runs": projected(fanout_summary.get("median")) if target_type == "network" else volume},
-            "conservative": {"provider_cost_usd": projected(cost_summary.get("p90")), "latency_ms_per_run": latency_summary.get("p90"), "agent_runs": projected(fanout_summary.get("p90")) if target_type == "network" else volume},
+            "optimistic": scenario("p25"),
+            "expected": scenario("median"),
+            "conservative": scenario("p90"),
         },
     }
