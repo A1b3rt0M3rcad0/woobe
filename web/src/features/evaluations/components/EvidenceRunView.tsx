@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import type { EvidenceRichRun } from '@/features/evaluations/catalogTypes'
+import type { EvaluationKpis } from '@/features/evaluations/types'
 import { post } from '@/lib/api/client'
 import { EvaluationDiagnosticsDialog } from './EvaluationDiagnosticsDialog'
 import { EvaluationResultsView } from './EvaluationResultsView'
@@ -21,6 +22,18 @@ import { PreservedEvidenceDialog } from './PreservedEvidenceDialog'
 
 function money(value?: number | null) {
   return value == null ? '—' : `$${value.toFixed(value < 0.01 ? 4 : 2)}`
+}
+
+function percentage(value?: number | null) {
+  return value == null ? '—' : `${value.toFixed(1)}%`
+}
+
+function score(value?: number | null) {
+  return value == null ? '—' : value.toFixed(1)
+}
+
+function latency(value?: number | null) {
+  return value == null ? '—' : `${Math.round(value)}ms`
 }
 
 interface RunJudgeSummary {
@@ -92,6 +105,48 @@ function JudgeUsedCard({ run }: { run: EvidenceRichRun }) {
   )
 }
 
+function CanonicalKpis({ run }: { run: EvidenceRichRun }) {
+  const kpis = (run.kpis || run.aggregate_result?.kpis) as EvaluationKpis | null | undefined
+  if (!kpis) return null
+  const session = kpis.session
+  return (
+    <section className="rounded-xl border border-border/80 bg-background/35 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Evaluation KPIs</p>
+          <p className="mt-1 text-[10px] text-muted">
+            Canonical metrics frozen with this Evidence Revision and consumed directly by Comparisons.
+          </p>
+        </div>
+        <Badge variant="outline">{kpis.schema_version}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div><p className="text-[9px] uppercase text-muted">Quality</p><p className="mt-1 text-lg font-semibold text-white">{score(kpis.quality_score)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Pass rate</p><p className="mt-1 text-lg font-semibold text-white">{percentage(kpis.pass_rate)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Runtime / Trial</p><p className="mt-1 text-lg font-semibold text-white">{money(kpis.runtime_cost_usd_per_trial)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Median latency</p><p className="mt-1 text-lg font-semibold text-white">{latency(kpis.latency_median_ms)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">P90 latency</p><p className="mt-1 text-lg font-semibold text-white">{latency(kpis.latency_p90_ms)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Stable cases</p><p className="mt-1 text-lg font-semibold text-white">{percentage(kpis.stable_case_rate)}</p></div>
+      </div>
+      {session?.session_count ? (
+        <div className="mt-4 border-t border-border/70 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Session Evaluation</Badge>
+            <span className="text-[10px] text-muted">{session.session_count} Session Trials · {session.turn_count} turns</span>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div><p className="text-[9px] uppercase text-muted">Session completion</p><p className="mt-1 text-sm font-semibold text-white">{percentage(session.session_completion_rate)}</p></div>
+            <div><p className="text-[9px] uppercase text-muted">Turn completion</p><p className="mt-1 text-sm font-semibold text-white">{percentage(session.turn_completion_rate)}</p></div>
+            <div><p className="text-[9px] uppercase text-muted">Avg turns / Session</p><p className="mt-1 text-sm font-semibold text-white">{score(session.average_turns_per_session)}</p></div>
+            <div><p className="text-[9px] uppercase text-muted">Cost / Session</p><p className="mt-1 text-sm font-semibold text-white">{money(session.cost_usd_per_session)}</p></div>
+            <div><p className="text-[9px] uppercase text-muted">Latency / Session</p><p className="mt-1 text-sm font-semibold text-white">{latency(session.latency_ms_per_session)}</p></div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 export function EvidenceRunView({
   projectId,
   run,
@@ -150,6 +205,7 @@ export function EvidenceRunView({
   if (!unavailable) {
     return (
       <div className="space-y-4">
+        <CanonicalKpis run={run} />
         <JudgeUsedCard run={run} />
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => setLogsOpen(true)}>
@@ -218,6 +274,7 @@ export function EvidenceRunView({
         </div>
       </section>
 
+      <CanonicalKpis run={run} />
       <JudgeUsedCard run={run} />
 
       <section className="flex flex-wrap gap-3">
@@ -277,7 +334,7 @@ export function EvidenceRunView({
         <div>
           <p className="text-sm font-semibold text-white">Preserved Test Case evidence</p>
           <p className="mt-1 text-[10px] leading-4 text-muted">
-            {preservedCaseCount} Cases preserve the target output, expected contract, deterministic checks and Judge diagnostics. Open them only when you need the detailed evidence.
+            {preservedCaseCount} Cases preserve target outputs, Session turns, expected contracts, deterministic checks and Judge diagnostics. Open them only when detailed evidence is needed.
           </p>
         </div>
         <Button variant="outline" disabled={!preservedCaseCount} onClick={() => setEvidenceOpen(true)}>
