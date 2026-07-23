@@ -176,6 +176,9 @@ class EvidenceRichEvaluationApplicationService(
                         "The runtime returned RAG sources, but the frozen target manifest does not declare a Knowledge Version, Collections or a Vector Snapshot."
                     ),
                     "severity": "high",
+                    "recommended_action": (
+                        "Publish a snapshot that freezes the Knowledge or Vector Snapshot provenance before using this evidence for release governance."
+                    ),
                 }
             )
         if structured_targets and output_contract_enforced == 0:
@@ -183,9 +186,12 @@ class EvidenceRichEvaluationApplicationService(
                 {
                     "code": "structured_output_not_covered",
                     "message": (
-                        "The target snapshot declares Structured Output, but this historical Suite does not require JSON/schema validation."
+                        "This historical Suite evaluated semantic behavior only. The target declares Structured Output, but these Test Cases did not validate JSON parsing or the frozen schema."
                     ),
                     "severity": "medium",
+                    "recommended_action": (
+                        "Create a new Suite version bound to this snapshot. New target-bound versions inherit the exact output schema automatically; this historical Run remains semantic-only evidence."
+                    ),
                 }
             )
 
@@ -198,6 +204,14 @@ class EvidenceRichEvaluationApplicationService(
         else:
             evidence_status = "partial" if trials else "unavailable"
 
+        aggregate = payload.get("aggregate_result")
+        aggregate = aggregate if isinstance(aggregate, dict) else {}
+        try:
+            evidence_revision = max(1, int(aggregate.get("evidence_revision") or 1))
+        except (TypeError, ValueError):
+            evidence_revision = 1
+
+        payload["evidence_revision"] = evidence_revision
         payload["evidence_status"] = evidence_status
         payload["evidence_completeness"] = {
             "total_trials": total,
