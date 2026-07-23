@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
+  Bot,
   ChevronRight,
   History,
   Loader2,
@@ -303,11 +304,13 @@ export function EvaluationCatalogWorkspace({
               </div>
             </header>
 
-            <div className="grid gap-4 xl:grid-cols-[230px_minmax(0,1fr)]">
+            <div className="grid gap-4 xl:grid-cols-[270px_minmax(0,1fr)]">
               <aside className="overflow-hidden rounded-xl border border-border/80 bg-background/25">
                 <div className="border-b border-border/80 px-3 py-3">
                   <p className="text-xs font-semibold text-white">Run history</p>
-                  <p className="mt-1 text-[10px] text-muted">Exact Suite and snapshot only.</p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted">
+                    Exact Suite and snapshot. Every Run preserves its selected Judge.
+                  </p>
                 </div>
                 <div className="max-h-[570px] overflow-y-auto p-2">
                   {(evaluation.runs || []).map((run) => (
@@ -329,6 +332,22 @@ export function EvaluationCatalogWorkspace({
                       <p className="mt-1 text-[10px] text-muted">
                         {assessmentLabel(run.assessment_status)} · {run.repetitions} repetitions
                       </p>
+                      <div className="mt-2 rounded-md border border-primary/15 bg-primary/[0.025] px-2.5 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <Bot className="h-3 w-3 shrink-0 text-primary-light" />
+                          <span className="truncate text-[10px] font-medium text-white">
+                            {run.judge?.display_name || run.judge?.model || 'Historical Judge'}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate font-mono text-[9px] text-muted">
+                          {[run.judge?.provider, run.judge?.model].filter(Boolean).join(' · ') || 'metadata unavailable'}
+                        </p>
+                        {run.judge?.source ? (
+                          <p className="mt-1 text-[9px] text-primary-light">
+                            {run.judge.source === 'run_override' ? 'Run override' : 'Suite default'}
+                          </p>
+                        ) : null}
+                      </div>
                       <div className="mt-2 flex items-center justify-between text-[10px]">
                         <span className="text-muted">Score</span>
                         <span className="font-medium text-white">
