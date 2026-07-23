@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 from modules.evaluation.application.compatible_resumable_authoring import (
     CompatibleResumableEvaluationSuiteAuthoringService,
 )
+from modules.evaluation.application.governed_experience_service import (
+    GovernedEvaluationExperienceService,
+)
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
 router = APIRouter(prefix="/evaluation/projects/{project_id}", tags=["evaluation-authoring"])
@@ -61,11 +64,14 @@ class CreateComposedSuiteRequest(BaseModel):
     judge_config: dict[str, Any] = Field(
         default_factory=lambda: {
             "temperature": 0,
-            "output_budget_policy": "auto",
+            "output_budget_policy": "fixed",
             "max_tokens": 1200,
-            "maximum_retry_tokens": 8192,
+            "maximum_retry_tokens": 2048,
+            "platform_output_cap": 4096,
+            "attempts": 3,
             "timeout_seconds": 90,
             "maximum_input_tokens": 8000,
+            "reasoning_policy": "provider_default",
         }
     )
     rubric: dict[str, Any] = Field(
@@ -102,6 +108,10 @@ def _service(request: Request) -> CompatibleResumableEvaluationSuiteAuthoringSer
     return CompatibleResumableEvaluationSuiteAuthoringService(
         request.app.state.session_factory
     )
+
+
+def _governed_service(request: Request) -> GovernedEvaluationExperienceService:
+    return GovernedEvaluationExperienceService(request.app.state.session_factory)
 
 
 @router.post("/suite-authoring/context-preview")
@@ -229,6 +239,11 @@ async def create_composed_suite(
     request: Request,
 ):
     user_id = require_evaluation_user(request, project_id)
+    governed_config = await _governed_service(request)._govern_judge_config(
+        project_id=project_id,
+        judge_provider_model_id=payload.judge_provider_model_id,
+        judge_config=payload.judge_config,
+    )
     data = await _service(request).create_composed_suite(
         project_id=project_id,
         name=payload.name,
@@ -236,7 +251,7 @@ async def create_composed_suite(
         target_type=payload.target_type,
         judge_provider_model_id=payload.judge_provider_model_id,
         cases_payload=payload.draft,
-        judge_config=payload.judge_config,
+        judge_config=governed_config,
         rubric=payload.rubric,
         deterministic_checks=payload.deterministic_checks,
         acceptance_policy=payload.acceptance_policy,
