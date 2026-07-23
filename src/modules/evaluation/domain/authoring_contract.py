@@ -21,7 +21,10 @@ def _list_value(value: Any) -> tuple[list[str], bool]:
 
 
 def suite_generation_json_schema() -> dict[str, Any]:
-    string_list = {"type": "array", "items": {"type": "string"}}
+    string_list = {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1},
+    }
     expected_outcome = {
         "type": "object",
         "additionalProperties": False,
@@ -69,7 +72,14 @@ def suite_generation_json_schema() -> dict[str, Any]:
                 "additionalProperties": False,
                 "required": ["semantic_criteria", "tools", "output_contract"],
                 "properties": {
-                    "semantic_criteria": string_list,
+                    # Requiring one observable criterion makes the provider schema at least
+                    # as strict as the domain contract. Behavior lists may still add detail,
+                    # but an empty semantic contract can no longer pass structured output.
+                    "semantic_criteria": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1},
+                    },
                     "tools": {
                         "type": "object",
                         "additionalProperties": False,
@@ -198,7 +208,9 @@ SUITE_GENERATION_EXAMPLES: list[dict[str, Any]] = [
             "forbidden_behavior": [],
         },
         "expected_contract": {
-            "semantic_criteria": [],
+            "semantic_criteria": [
+                "The observed failure must match the allowed Tool timeout contract."
+            ],
             "tools": {"required": [], "forbidden": []},
             "output_contract": {"required": False},
         },
