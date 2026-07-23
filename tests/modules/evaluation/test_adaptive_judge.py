@@ -118,4 +118,4 @@ def test_length_finish_reason_error_is_retryable_signal() -> None:
 
 
 def test_unrelated_validation_error_is_not_length_signal() -> None:
-    assert is_output_length_error(ValueError("Judge score must be numeric") is False)
+    assert is_output_length_error(ValueError("Judge score must be numeric")) is False
