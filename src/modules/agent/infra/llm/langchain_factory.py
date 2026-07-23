@@ -16,6 +16,7 @@ def create_chat_model(
     max_tokens: int = 1000,
     streaming: bool = False,
     response_format: dict | None = None,
+    extra_body: dict | None = None,
 ) -> BaseChatModel:
     if provider in _OPENAI_COMPATIBLE_PROVIDERS:
         kwargs: dict = {
@@ -34,6 +35,8 @@ def create_chat_model(
             kwargs["base_url"] = resolved_base_url
         if response_format:
             kwargs["response_format"] = response_format
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         return ChatOpenAI(**kwargs)
 
     if provider == "anthropic":
