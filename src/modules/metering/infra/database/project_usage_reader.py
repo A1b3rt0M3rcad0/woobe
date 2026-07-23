@@ -392,17 +392,13 @@ class SQLAlchemyProjectUsageReader:
         statement = text(
             f"""
             WITH {self._agent_run_context_cte()},
-            scoped_targets AS (
+            matching_targets AS (
                 SELECT
                     target.id,
                     target.evaluation_run_id,
                     target.target_type
                 FROM evaluation.targets AS target
-                JOIN evaluation.runs AS evaluation_run
-                  ON evaluation_run.id = target.evaluation_run_id
                 WHERE target.project_id = :project_id
-                  AND evaluation_run.created_at >= :start
-                  AND evaluation_run.created_at < :end
                   AND (:environment = 'all' OR target.environment = :environment)
                   AND (:operation = 'all' OR target.target_type = :operation)
                   AND (
@@ -419,6 +415,14 @@ class SQLAlchemyProjectUsageReader:
                         AND target.entity_id = CAST(:agent_id AS uuid)
                     )
                   )
+            ),
+            scoped_targets AS (
+                SELECT target.*
+                FROM matching_targets AS target
+                JOIN evaluation.runs AS evaluation_run
+                  ON evaluation_run.id = target.evaluation_run_id
+                WHERE evaluation_run.created_at >= :start
+                  AND evaluation_run.created_at < :end
             ),
             scoped_trials AS (
                 SELECT trial.id, trial.evaluation_run_id
@@ -506,7 +510,7 @@ class SQLAlchemyProjectUsageReader:
                     (
                         usage.data ->> 'usage_subtype' = 'judge'
                         AND usage.evaluation_run_id IN (
-                            SELECT evaluation_run_id FROM scoped_targets
+                            SELECT evaluation_run_id FROM matching_targets
                         )
                     )
                     OR (
