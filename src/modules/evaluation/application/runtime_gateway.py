@@ -89,6 +89,7 @@ class EvaluationNetworkRuntimeGateway:
             evaluation_trial_id=evaluation_trial_id,
             pair_key=pair_key,
             target_side=target_side,
+            target=target,
             initial_context=initial_context,
             turn_position=turn_position,
         )
@@ -179,19 +180,35 @@ class EvaluationNetworkRuntimeGateway:
         evaluation_trial_id: UUID,
         pair_key: str,
         target_side: str,
+        target: Any,
         initial_context: dict[str, Any] | None,
         turn_position: int,
     ) -> None:
+        target_id = getattr(target, "id", None)
+        target_snapshot_hash = getattr(target, "snapshot_hash", None)
+        target_snapshot_label = getattr(target, "environment", None)
         metadata = {
             "run_purpose": "evaluation",
+            "evaluation_role": "target",
             "evaluation_run_id": str(evaluation_run_id),
             "evaluation_trial_id": str(evaluation_trial_id),
+            "evaluation_target_id": str(target_id) if target_id else None,
+            "target_snapshot_hash": target_snapshot_hash,
+            "target_snapshot_label": target_snapshot_label,
             "comparison_pair_id": pair_key,
             "target_side": target_side,
             "initial_context": initial_context,
             "evaluation_turn_position": turn_position,
         }
         async with self._session_factory() as db, db.begin():
+            execution = await db.get(NetworkExecutionModel, execution_id)
+            if execution is not None:
+                execution.run_purpose = "evaluation"
+                execution.evaluation_run_id = evaluation_run_id
+                execution.evaluation_trial_id = evaluation_trial_id
+                execution.evaluation_target_id = target_id
+                execution.target_snapshot_hash = target_snapshot_hash
+                execution.target_snapshot_label = target_snapshot_label
             message = await db.scalar(
                 select(NetworkMessageModel)
                 .where(NetworkMessageModel.network_execution_id == execution_id)
