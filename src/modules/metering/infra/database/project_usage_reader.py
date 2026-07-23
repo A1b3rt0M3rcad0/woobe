@@ -99,6 +99,21 @@ class SQLAlchemyProjectUsageReader:
                 trace.provider_model_id,
                 trace.data,
                 CASE
+                    WHEN trace.run_purpose = 'evaluation'
+                         AND COALESCE(
+                             NULLIF(trace.data ->> 'target_snapshot_label', ''),
+                             NULLIF(
+                                 trace.data -> 'diagnostics' ->> 'target_snapshot_label',
+                                 ''
+                             )
+                         ) IN ('draft', 'staging', 'production', 'release')
+                    THEN COALESCE(
+                        NULLIF(trace.data ->> 'target_snapshot_label', ''),
+                        NULLIF(
+                            trace.data -> 'diagnostics' ->> 'target_snapshot_label',
+                            ''
+                        )
+                    )
                     WHEN network_session.environment IN ('draft', 'staging', 'production')
                     THEN network_session.environment
                     WHEN COALESCE(
@@ -440,7 +455,7 @@ class SQLAlchemyProjectUsageReader:
                   AND :operation <> 'agent'
                   AND (
                     :environment = 'all'
-                    OR network_session.environment = :environment
+                    OR COALESCE(execution.target_snapshot_label, network_session.environment) = :environment
                   )
                   AND (
                     CAST(:network_id AS uuid) IS NULL
@@ -700,7 +715,7 @@ class SQLAlchemyProjectUsageReader:
                   AND execution.created_at < :end
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
                   AND :operation <> 'agent'
-                  AND (:environment = 'all' OR network_session.environment = :environment)
+                  AND (:environment = 'all' OR COALESCE(execution.target_snapshot_label, network_session.environment) = :environment)
                   AND (CAST(:network_id AS uuid) IS NULL OR execution.network_id = CAST(:network_id AS uuid))
                   AND (
                     (CAST(:agent_id AS uuid) IS NULL AND CAST(:provider_model_id AS uuid) IS NULL AND CAST(:release_id AS uuid) IS NULL)
@@ -718,7 +733,7 @@ class SQLAlchemyProjectUsageReader:
                   AND execution.created_at < :start
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
                   AND :operation <> 'agent'
-                  AND (:environment = 'all' OR network_session.environment = :environment)
+                  AND (:environment = 'all' OR COALESCE(execution.target_snapshot_label, network_session.environment) = :environment)
                   AND (CAST(:network_id AS uuid) IS NULL OR execution.network_id = CAST(:network_id AS uuid))
             )
             SELECT
@@ -849,7 +864,7 @@ class SQLAlchemyProjectUsageReader:
                   AND execution.created_at < :end
                   AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
                   AND :operation <> 'agent'
-                  AND (:environment = 'all' OR network_session.environment = :environment)
+                  AND (:environment = 'all' OR COALESCE(execution.target_snapshot_label, network_session.environment) = :environment)
                   AND (CAST(:network_id AS uuid) IS NULL OR execution.network_id = CAST(:network_id AS uuid))
                   AND (
                     (CAST(:agent_id AS uuid) IS NULL AND CAST(:provider_model_id AS uuid) IS NULL AND CAST(:release_id AS uuid) IS NULL)
@@ -1118,7 +1133,10 @@ class SQLAlchemyProjectUsageReader:
                 network.name AS network_name,
                 execution.network_version_id,
                 execution.root_trace_id,
-                network_session.environment,
+                COALESCE(
+                    execution.target_snapshot_label,
+                    network_session.environment
+                ) AS environment,
                 execution.run_purpose,
                 execution.evaluation_run_id,
                 execution.evaluation_trial_id,
@@ -1149,7 +1167,7 @@ class SQLAlchemyProjectUsageReader:
               AND execution.created_at < :end
               AND execution.status IN ('completed', 'failed', 'timed_out', 'uncertain', 'cancelled')
               AND :operation <> 'agent'
-              AND (:environment = 'all' OR network_session.environment = :environment)
+              AND (:environment = 'all' OR COALESCE(execution.target_snapshot_label, network_session.environment) = :environment)
               AND (CAST(:network_id AS uuid) IS NULL OR execution.network_id = CAST(:network_id AS uuid))
               AND (
                 (CAST(:agent_id AS uuid) IS NULL AND CAST(:provider_model_id AS uuid) IS NULL AND CAST(:release_id AS uuid) IS NULL)
