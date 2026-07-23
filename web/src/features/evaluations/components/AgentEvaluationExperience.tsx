@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  Bot,
   Check,
   ChevronRight,
   GitCompareArrows,
@@ -24,6 +25,7 @@ import type {
   CreateCatalogEvaluationInput,
   CreatePairedComparisonInput,
 } from '@/features/evaluations/catalogTypes'
+import { useEvaluationJudgeModels } from '@/features/evaluations/experienceHooks'
 import type {
   EvaluationRun,
   EvaluationSourceType,
@@ -70,6 +72,11 @@ function versionsFor(releases: AgentRelease[], source: EvaluationSourceType) {
 function label(value?: string | null) {
   if (!value) return 'Unknown'
   return value.split('_').map((item) => item.charAt(0).toUpperCase() + item.slice(1)).join(' ')
+}
+
+function price(value?: number | null) {
+  if (value == null) return 'pricing unknown'
+  return `$${value.toFixed(value < 1 ? 4 : 2)}/1M`
 }
 
 function SnapshotSelector({
@@ -163,12 +170,14 @@ export function AgentEvaluationExperience({
   onCreateSuite,
 }: Props) {
   const production = releases.find((item) => item.status === 'production')
+  const judgeModelsQuery = useEvaluationJudgeModels(projectId)
   const previewSingle = usePreviewCatalogEvaluation(projectId)
   const previewComparison = usePreviewPairedEvaluationComparison(projectId)
   const createRun = useCreateCatalogEvaluationRun(projectId)
   const createComparison = useCreatePairedEvaluationComparison(projectId)
   const [mode, setMode] = useState<SetupMode>('single')
   const [suiteVersionId, setSuiteVersionId] = useState(initialSuiteVersionId || '')
+  const [judgeModelId, setJudgeModelId] = useState('')
   const [repetitions, setRepetitions] = useState(1)
   const [candidateSource, setCandidateSource] = useState<EvaluationSourceType>(
     production ? 'release' : 'draft',
@@ -182,6 +191,14 @@ export function AgentEvaluationExperience({
   const lastPreviewKey = useRef('')
 
   const selectedSuite = suites.find((item) => item.current_version_id === suiteVersionId)
+  const eligibleJudgeModels = useMemo(
+    () => (judgeModelsQuery.data ?? []).filter((item) => item.eligible),
+    [judgeModelsQuery.data],
+  )
+  const selectedJudge = eligibleJudgeModels.find((item) => item.provider_model_id === judgeModelId)
+  const suiteDefaultJudge = eligibleJudgeModels.find(
+    (item) => item.provider_model_id === selectedSuite?.judge_provider_model_id,
+  )
   const activeRuns = runs.filter((item) => activeStatuses.has(item.status))
 
   useEffect(() => {
@@ -195,6 +212,19 @@ export function AgentEvaluationExperience({
     }
   }, [suites, suiteVersionId])
 
+  useEffect(() => {
+    if (!selectedSuite || !eligibleJudgeModels.length) {
+      setJudgeModelId('')
+      return
+    }
+    const preferred = eligibleJudgeModels.some(
+      (item) => item.provider_model_id === selectedSuite.judge_provider_model_id,
+    )
+      ? selectedSuite.judge_provider_model_id || ''
+      : eligibleJudgeModels[0].provider_model_id
+    setJudgeModelId(preferred)
+  }, [suiteVersionId, selectedSuite?.judge_provider_model_id, eligibleJudgeModels])
+
   const target = (source: EvaluationSourceType, versionId: string): EvaluationTargetInput => ({
     target_type: 'agent',
     source_type: source,
@@ -203,7 +233,7 @@ export function AgentEvaluationExperience({
   })
 
   const input = useMemo<CreateCatalogEvaluationInput | CreatePairedComparisonInput | null>(() => {
-    if (!suiteVersionId) return null
+    if (!suiteVersionId || !judgeModelId) return null
     if (candidateSource !== 'draft' && !candidateVersionId) return null
     const candidate = target(candidateSource, candidateVersionId)
     if (mode === 'single') {
@@ -211,6 +241,7 @@ export function AgentEvaluationExperience({
         suite_version_id: suiteVersionId,
         repetitions,
         target: candidate,
+        judge_provider_model_id: judgeModelId,
         acknowledge_tool_side_effects: acknowledge,
         approved_high_risk_tool_ids: approvedHighRiskIds,
         idempotency_key: idempotencyKey,
@@ -222,12 +253,14 @@ export function AgentEvaluationExperience({
       repetitions,
       candidate,
       reference: target(referenceSource, referenceVersionId),
+      judge_provider_model_id: judgeModelId,
       acknowledge_tool_side_effects: acknowledge,
       approved_high_risk_tool_ids: approvedHighRiskIds,
       idempotency_key: idempotencyKey,
     }
   }, [
     suiteVersionId,
+    judgeModelId,
     repetitions,
     candidateSource,
     candidateVersionId,
@@ -246,7 +279,7 @@ export function AgentEvaluationExperience({
     lastPreviewKey.current = ''
     previewSingle.reset()
     previewComparison.reset()
-  }, [mode, suiteVersionId, repetitions, candidateSource, candidateVersionId, referenceSource, referenceVersionId])
+  }, [mode, suiteVersionId, judgeModelId, repetitions, candidateSource, candidateVersionId, referenceSource, referenceVersionId])
 
   useEffect(() => {
     if (!input || previewKey === lastPreviewKey.current) return
@@ -281,18 +314,18 @@ export function AgentEvaluationExperience({
 
   const start = async () => {
     if (!input) {
-      toast.error('Select the exact snapshot or snapshots to evaluate')
+      toast.error('Select an exact target and an eligible Judge Model')
       return
     }
     try {
       if (mode === 'single') {
         const run = await createRun.mutateAsync(input as CreateCatalogEvaluationInput)
         onRunCreated?.(run.id)
-        toast.success('Evaluation Run queued. This snapshot remains available in Evaluations.')
+        toast.success('Evaluation Run queued with the selected Judge Model.')
       } else {
         const comparison = await createComparison.mutateAsync(input as CreatePairedComparisonInput)
         onComparisonCreated?.(comparison.id)
-        toast.success('Two independent Evaluation Runs and one Comparison were created.')
+        toast.success('Two Evaluations were queued with the selected Judge Model.')
       }
       setIdempotencyKey(crypto.randomUUID())
     } catch (error) {
@@ -370,6 +403,64 @@ export function AgentEvaluationExperience({
             {selectedSuite.case_count || 0} Test Cases · Policy score ≥ {String(selectedSuite.acceptance_policy?.minimum_score ?? 70)} · immutable Suite {selectedSuite.current_version}
           </p>
         ) : null}
+
+        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/[0.025] p-4">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+            <label className="space-y-2 text-xs text-muted">
+              <span className="flex items-center gap-2">
+                <Bot className="h-3.5 w-3.5 text-primary-light" />
+                Judge Model for this Run
+              </span>
+              <Select
+                value={judgeModelId}
+                disabled={judgeModelsQuery.isLoading || !eligibleJudgeModels.length}
+                onChange={(event) => setJudgeModelId(event.target.value)}
+                options={eligibleJudgeModels.map((model) => ({
+                  value: model.provider_model_id,
+                  label: `${model.display_name} · ${model.provider}`,
+                }))}
+              />
+              {!eligibleJudgeModels.length && !judgeModelsQuery.isLoading ? (
+                <p className="text-[10px] text-red-300">No eligible Judge Model is available in this Project.</p>
+              ) : null}
+            </label>
+
+            {selectedJudge ? (
+              <div className="rounded-lg border border-border/70 bg-background/35 px-3 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-white">{selectedJudge.display_name}</p>
+                    <p className="mt-1 truncate font-mono text-[10px] text-muted">
+                      {selectedJudge.provider} · {selectedJudge.model}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className={judgeModelId === selectedSuite?.judge_provider_model_id ? '' : 'border-primary/30 text-primary-light'}>
+                    {judgeModelId === selectedSuite?.judge_provider_model_id ? 'Suite default' : 'Run override'}
+                  </Badge>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge variant="outline">{selectedJudge.capabilities.response_strategy}</Badge>
+                  <Badge variant="outline">
+                    {selectedJudge.budget.effective_initial_tokens.toLocaleString()} → {selectedJudge.budget.effective_retry_tokens.toLocaleString()} tokens
+                  </Badge>
+                  <Badge variant="outline">Credential: {selectedJudge.credential_name}</Badge>
+                </div>
+                <p className="mt-3 text-[10px] leading-4 text-muted">
+                  Input {price(selectedJudge.pricing.input_cost_per_1m_tokens)} · Output {price(selectedJudge.pricing.output_cost_per_1m_tokens)}. The exact Judge snapshot is frozen into this Run and recorded in Evaluation history.
+                </p>
+                {suiteDefaultJudge && judgeModelId !== selectedSuite?.judge_provider_model_id ? (
+                  <p className="mt-2 text-[10px] text-primary-light">
+                    Suite default: {suiteDefaultJudge.display_name}. This override does not mutate the Suite Version.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-border/70 text-xs text-muted">
+                Select an eligible Judge Model.
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <div className={cn('grid gap-4', mode === 'compare' && 'lg:grid-cols-2')}>
@@ -408,14 +499,17 @@ export function AgentEvaluationExperience({
             </div>
             <p className="mt-1 text-[11px] text-muted">
               {mode === 'compare'
-                ? 'Candidate and Reference become separate Evaluation Runs. The Comparison only references their evidence.'
-                : 'The exact snapshot and Suite Version identify one durable Evaluation.'}
+                ? 'Candidate and Reference become separate Evaluation Runs using the same selected Judge protocol.'
+                : 'The exact snapshot, Suite Version and selected Judge identify the durable Evaluation evidence.'}
             </p>
           </div>
-          {preview.isPending ? <Badge variant="outline">Calculating…</Badge>
-            : previewData ? <Badge variant="outline">Ready</Badge>
-              : preview.isError ? <Badge variant="outline">Preflight failed</Badge>
-                : <Badge variant="outline">Complete the setup</Badge>}
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedJudge ? <Badge variant="outline">Judge: {selectedJudge.display_name}</Badge> : null}
+            {preview.isPending ? <Badge variant="outline">Calculating…</Badge>
+              : previewData ? <Badge variant="outline">Ready</Badge>
+                : preview.isError ? <Badge variant="outline">Preflight failed</Badge>
+                  : <Badge variant="outline">Complete the setup</Badge>}
+          </div>
         </div>
         {preview.isError ? (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300">
