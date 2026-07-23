@@ -1,4 +1,5 @@
 import type {
+  EvaluationKpis,
   EvaluationPreflight,
   EvaluationRun,
   EvaluationTargetInput,
@@ -33,6 +34,14 @@ export interface EvaluationCatalogRunSummary {
   completed_at: string | null
   created_at: string
   judge?: EvaluationRunJudgeSummary | null
+  kpis?: EvaluationKpis | null
+}
+
+export interface EvaluationFreshness {
+  status: 'current' | 'superseded' | 'immutable' | 'unknown' | 'target_unavailable'
+  evaluated_snapshot_hash: string | null
+  current_snapshot_hash: string | null
+  current_display_version?: string | null
 }
 
 export interface EvaluationCatalogItem {
@@ -56,6 +65,7 @@ export interface EvaluationCatalogItem {
   latest_run_id: string | null
   run_count: number | null
   evaluation_protocol_hash: string | null
+  freshness?: EvaluationFreshness
   latest_run?: EvaluationCatalogRunSummary | null
   runs?: EvaluationCatalogRunSummary[]
   archived_at?: string | null
@@ -108,6 +118,7 @@ export interface ComparisonSideSummary {
     network_version_id: string | null
   } | null
   summary: Record<string, any>
+  kpis?: EvaluationKpis | Record<string, any>
   runtime: {
     runtime_cost_usd: number | null
     latency_median_ms: number | null
@@ -154,12 +165,35 @@ export interface EvaluationComparisonCase {
   winner: 'candidate' | 'reference' | 'tie' | null
 }
 
+export interface ComparisonWinnerKpi {
+  key: string
+  direction: 'maximize' | 'minimize'
+  weight: number
+  candidate: number | null
+  reference: number | null
+  delta: number | null
+  winner: 'candidate' | 'reference' | 'tie' | null
+}
+
+export interface EvaluationComparisonWinner {
+  schema_version: string
+  side: 'candidate' | 'reference' | 'tie' | null
+  candidate_score: number | null
+  reference_score: number | null
+  available_weight: number
+  authoritative: boolean
+  confidence: 'authoritative' | 'indicative'
+  kpis: ComparisonWinnerKpi[]
+  policy: Record<string, { weight: number; direction: 'maximize' | 'minimize' }>
+}
+
 export interface EvaluationComparisonAggregate {
   comparison_available: boolean
   comparison_kind?: string
   compatibility?: Record<string, any>
   candidate?: ComparisonSideSummary
   reference?: ComparisonSideSummary
+  winner?: EvaluationComparisonWinner
   delta?: {
     score: number | null
     pass_rate_percentage_points: number | null
