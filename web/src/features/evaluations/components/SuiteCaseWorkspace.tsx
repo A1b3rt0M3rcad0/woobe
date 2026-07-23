@@ -60,6 +60,9 @@ function emptyTurn(position: number, message = ''): EvaluationSessionTurnInput {
     message,
     expected_behavior: [],
     forbidden_behavior: [],
+    expected_contract: {
+      tools: { required: [], forbidden: [] },
+    },
   }
 }
 
@@ -192,6 +195,7 @@ export function SuiteCaseWorkspace({ cases, validation, onChange }: Props) {
         position: index + 1,
         expected_behavior: [...(turn.expected_behavior || [])],
         forbidden_behavior: [...(turn.forbidden_behavior || [])],
+        expected_contract: JSON.parse(JSON.stringify(turn.expected_contract || {})),
       })),
       expected_outcome: selected.expected_outcome
         ? { ...selected.expected_outcome }
@@ -436,6 +440,40 @@ export function SuiteCaseWorkspace({ cases, validation, onChange }: Props) {
                         value={lineList(turn.forbidden_behavior)}
                         onChange={(event) => patchTurn(index, { forbidden_behavior: fromLines(event.target.value) })}
                         className="min-h-20 w-full rounded-lg border border-border bg-background p-3 text-xs text-white outline-none"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className="space-y-2 text-[10px] text-muted">
+                      <span>Required Tools in this Turn · one per line</span>
+                      <textarea
+                        value={lineList(turn.expected_contract?.tools?.required)}
+                        onChange={(event) => patchTurn(index, {
+                          expected_contract: {
+                            ...(turn.expected_contract || {}),
+                            tools: {
+                              ...(turn.expected_contract?.tools || {}),
+                              required: fromLines(event.target.value),
+                            },
+                          },
+                        })}
+                        className="min-h-16 w-full rounded-lg border border-border bg-background p-3 text-xs text-white outline-none"
+                      />
+                    </label>
+                    <label className="space-y-2 text-[10px] text-muted">
+                      <span>Forbidden Tools in this Turn · one per line</span>
+                      <textarea
+                        value={lineList(turn.expected_contract?.tools?.forbidden)}
+                        onChange={(event) => patchTurn(index, {
+                          expected_contract: {
+                            ...(turn.expected_contract || {}),
+                            tools: {
+                              ...(turn.expected_contract?.tools || {}),
+                              forbidden: fromLines(event.target.value),
+                            },
+                          },
+                        })}
+                        className="min-h-16 w-full rounded-lg border border-border bg-background p-3 text-xs text-white outline-none"
                       />
                     </label>
                   </div>
