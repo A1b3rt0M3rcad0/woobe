@@ -123,6 +123,31 @@ function normalizedTurns(source: Record<string, any>): EvaluationSessionTurnInpu
       ),
       expected_behavior: listValue(turn.expected_behavior ?? turn.required_behavior),
       forbidden_behavior: listValue(turn.forbidden_behavior),
+      expected_contract: {
+        ...(turn.expected_contract || turn.deterministic_checks || {}),
+        ...(
+          turn.required_tool
+          || turn.required_tools
+          || turn.forbidden_tool
+          || turn.forbidden_tools
+            ? {
+                tools: {
+                  ...((turn.expected_contract || turn.deterministic_checks || {}).tools || {}),
+                  required: listValue(
+                    (turn.expected_contract || turn.deterministic_checks || {}).tools?.required
+                    ?? turn.required_tool
+                    ?? turn.required_tools,
+                  ),
+                  forbidden: listValue(
+                    (turn.expected_contract || turn.deterministic_checks || {}).tools?.forbidden
+                    ?? turn.forbidden_tool
+                    ?? turn.forbidden_tools,
+                  ),
+                },
+              }
+            : {}
+        ),
+      },
     }))
 }
 
