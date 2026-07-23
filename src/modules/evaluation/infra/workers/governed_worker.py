@@ -290,17 +290,42 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
                 ]
                 if not completed_values:
                     continue
+                configured_volume_unit = str(
+                    (suite.estimate_defaults or {}).get("volume_unit") or ""
+                )
+                all_session_trials = all(
+                    (item.get("metrics") or {}).get("interaction_mode") == "session"
+                    for item in completed_values
+                )
+                volume_unit = (
+                    configured_volume_unit
+                    if configured_volume_unit
+                    in {"runs_per_month", "sessions_per_month"}
+                    else "sessions_per_month"
+                    if all_session_trials
+                    else "runs_per_month"
+                )
+                if volume_unit == "sessions_per_month":
+                    completed_values = [
+                        item
+                        for item in completed_values
+                        if (item.get("metrics") or {}).get("interaction_mode")
+                        == "session"
+                    ]
+                    if not completed_values:
+                        continue
                 estimate = build_estimate(
                     values=completed_values,
                     volume=volume,
                     target_type=target.target_type,
+                    volume_unit=volume_unit,
                 )
                 session.add(
                     EstimateRunModel(
                         project_id=run.project_id,
                         evaluation_run_id=run.id,
                         target_id=target.id,
-                        volume_unit="runs_per_month",
+                        volume_unit=volume_unit,
                         volume=volume,
                         assumptions={
                             "projection_method": "observed_trial_distribution",
@@ -308,6 +333,7 @@ class GovernedEvaluationRunProcessor(ConcurrentOutcomeAwareEvaluationRunProcesso
                             "origin": "suite_default",
                             "evidence_revision": evidence_revision,
                             "cost_scope": "target_runtime_only",
+                            "volume_unit": volume_unit,
                         },
                         observation_summary=estimate["observation_summary"],
                         price_snapshot=None,
