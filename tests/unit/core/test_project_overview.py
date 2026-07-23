@@ -15,6 +15,9 @@ from modules.core.application.dtos.project_overview import (
 from modules.core.application.use_cases.get_project_overview import (
     GetProjectOverviewUseCase,
 )
+from modules.core.infra.database.active_project_overview_reader import (
+    ActiveDocumentProjectOverviewReader,
+)
 from modules.core.infra.database.project_overview_reader import (
     SQLAlchemyProjectOverviewReader,
     _AGENT_ENVIRONMENT_CTE,
@@ -160,6 +163,17 @@ def test_recent_releases_filter_tab_and_dedupe_current_slots() -> None:
     assert "PARTITION BY release.agent_id, release.status" in source
     assert "WHERE status_rank = 1" in source
     assert "ELSE 'draft'" not in source
+
+
+def test_overview_readers_exclude_evaluation_runs_from_operational_kpis() -> None:
+    active_source = inspect.getsource(ActiveDocumentProjectOverviewReader)
+    aggregate_source = inspect.getsource(SQLAlchemyProjectOverviewReader)
+    uow_source = inspect.getsource(UnitOfWorkProjectOverviewReader)
+
+    assert "trace.run_purpose = 'operational'" in active_source
+    assert "execution.run_purpose = 'operational'" in active_source
+    assert "trace.run_purpose = 'operational'" in aggregate_source
+    assert "trace.run_purpose = 'operational'" in uow_source
 
 
 @pytest.mark.asyncio
