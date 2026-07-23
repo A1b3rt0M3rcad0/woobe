@@ -4,7 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 
-from modules.evaluation.application.catalog_service import EvaluationCatalogService
+from modules.evaluation.application.complete_catalog_service import (
+    CompleteEvaluationCatalogService,
+)
 from modules.evaluation.presentation.catalog_routes import CreatePairedComparisonRequest
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 from shared.infra.errors import ConflictError
@@ -19,7 +21,7 @@ async def preview_paired_comparison(
     request: Request,
 ):
     require_evaluation_user(request, project_id)
-    service = EvaluationCatalogService(request.app.state.session_factory)
+    service = CompleteEvaluationCatalogService(request.app.state.session_factory)
     candidate = await service.preview_evaluation(
         project_id=project_id,
         suite_version_id=payload.suite_version_id,
@@ -27,6 +29,7 @@ async def preview_paired_comparison(
         target=payload.candidate.model_dump(mode="json", exclude_none=True),
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
+        judge_provider_model_id=payload.judge_provider_model_id,
     )
     reference = await service.preview_evaluation(
         project_id=project_id,
@@ -35,6 +38,7 @@ async def preview_paired_comparison(
         target=payload.reference.model_dump(mode="json", exclude_none=True),
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
+        judge_provider_model_id=payload.judge_provider_model_id,
     )
     if candidate["target"]["snapshot_hash"] == reference["target"]["snapshot_hash"]:
         raise ConflictError(
@@ -55,6 +59,8 @@ async def preview_paired_comparison(
         "repetitions": payload.repetitions,
         "target_run_count": candidate["target_run_count"] + reference["target_run_count"],
         "judge_call_count": candidate["judge_call_count"] + reference["judge_call_count"],
+        "judge_provider_model_id": candidate.get("judge_provider_model_id"),
+        "judge_preflight": candidate.get("judge_preflight"),
         "evaluation_protocol_hash": candidate["evaluation_protocol_hash"],
         "preflight": {
             "tools": list(tools.values()),
