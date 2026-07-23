@@ -17,6 +17,7 @@ class LangchainLLMFactory(LLMFactory):
         max_tokens: int = 1000,
         streaming: bool = False,
         response_format: dict | None = None,
+        extra_body: dict | None = None,
     ):
         langchain_mod = importlib.import_module("modules.agent.infra.llm.langchain_factory")
         return langchain_mod.create_chat_model(
@@ -28,4 +29,5 @@ class LangchainLLMFactory(LLMFactory):
             max_tokens=max_tokens,
             streaming=streaming,
             response_format=response_format,
+            extra_body=extra_body,
         )
