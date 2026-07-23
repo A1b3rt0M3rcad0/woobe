@@ -128,6 +128,7 @@ class UnitOfWorkProjectOverviewReader(SQLAlchemyProjectOverviewReader):
                 LEFT JOIN agent_environment
                     ON agent_environment.agent_id = trace.agent_id
                 WHERE trace.project_id = :project_id
+                  AND trace.run_purpose = 'operational'
                   AND trace.started_at >= :start
                   AND trace.started_at < :end
                   AND trace.status IN ('completed', 'failed', 'cancelled')
