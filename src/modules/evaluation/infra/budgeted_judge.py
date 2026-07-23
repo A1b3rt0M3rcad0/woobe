@@ -103,9 +103,9 @@ class BudgetedEvaluatorModelGateway(AdaptiveEvaluatorModelGateway):
             "reasoning_effort": judge_config.get("reasoning_effort", "none"),
             "max_tokens": configured_output,
             "maximum_retry_tokens": retry_ceiling,
-            # Reasoning-control and response-format fallbacks may consume attempts before
-            # a completion-budget expansion. Five calls is the bounded operational ceiling.
-            "attempts": max(5, int(judge_config.get("attempts", 2))),
+            # Two provider-control fallbacks plus three effective Judge calls fit in this
+            # bounded six-attempt envelope without allowing unbounded external retries.
+            "attempts": max(6, int(judge_config.get("attempts", 2))),
             "maximum_payload_chars": min(
                 int(judge_config.get("maximum_payload_chars", 120_000)),
                 max(10_000, configured_input * 4),
