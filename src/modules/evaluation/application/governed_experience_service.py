@@ -96,14 +96,13 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
         )
         return await super().create_composed_suite_version(**kwargs)
 
-    async def retry_judgments(
+    async def _assert_retry_allowed(
         self,
         *,
         project_id: UUID,
         run_id: UUID,
         trial_ids: list[UUID] | None = None,
-        failure_codes: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> None:
         selected = set(trial_ids or [])
         async with self._session_factory() as session:
             run = await session.get(EvaluationRunModel, run_id)
@@ -148,6 +147,20 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
                 f"Judge retry is blocked for {code}. "
                 f"{policy.get('recommended_action') or 'Change the Judge configuration first.'}"
             )
+
+    async def retry_judgments(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        trial_ids: list[UUID] | None = None,
+        failure_codes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        await self._assert_retry_allowed(
+            project_id=project_id,
+            run_id=run_id,
+            trial_ids=trial_ids,
+        )
         return await super().retry_judgments(
             project_id=project_id,
             run_id=run_id,
