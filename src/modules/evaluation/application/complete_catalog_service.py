@@ -301,7 +301,16 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
         session,
         comparison: EvaluationComparisonModel,
     ) -> None:
+        # A completed Comparison is an immutable pair of exact Evidence Revisions.
+        # Never recalculate its Winner from a later retry of either source Run.
+        already_completed = (
+            comparison.completed_at is not None
+            and isinstance(comparison.aggregate_result, dict)
+        )
         await super()._refresh_comparison(session, comparison)
+        if already_completed:
+            return
+
         aggregate = (
             dict(comparison.aggregate_result)
             if isinstance(comparison.aggregate_result, dict)
@@ -329,8 +338,16 @@ class CompleteEvaluationCatalogService(OperationalEvaluationCatalogService):
         )
         candidate_kpis = candidate_aggregate.get("kpis")
         reference_kpis = reference_aggregate.get("kpis")
-        candidate_kpis = dict(candidate_kpis) if isinstance(candidate_kpis, dict) else self._legacy_kpis(candidate_side, candidate_run)
-        reference_kpis = dict(reference_kpis) if isinstance(reference_kpis, dict) else self._legacy_kpis(reference_side, reference_run)
+        candidate_kpis = (
+            dict(candidate_kpis)
+            if isinstance(candidate_kpis, dict)
+            else self._legacy_kpis(candidate_side, candidate_run)
+        )
+        reference_kpis = (
+            dict(reference_kpis)
+            if isinstance(reference_kpis, dict)
+            else self._legacy_kpis(reference_side, reference_run)
+        )
         candidate_side["kpis"] = candidate_kpis
         reference_side["kpis"] = reference_kpis
         aggregate["candidate"] = candidate_side
