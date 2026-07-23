@@ -7,6 +7,7 @@ import {
   Database,
   RotateCcw,
   ShieldAlert,
+  TerminalSquare,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,6 +18,7 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { EvidenceRichRun } from '@/features/evaluations/catalogTypes'
 import { post } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
+import { EvaluationDiagnosticsDialog } from './EvaluationDiagnosticsDialog'
 import { EvaluationResultsView } from './EvaluationResultsView'
 
 function money(value?: number | null) {
@@ -54,6 +56,7 @@ export function EvidenceRunView({
   const client = useQueryClient()
   const [note, setNote] = useState('')
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const [logsOpen, setLogsOpen] = useState(false)
   const unavailable = run.evidence_status === 'unavailable'
   const groups = useMemo(() => groupedCases(run), [run])
   const selectedGroup = useMemo(
@@ -95,6 +98,7 @@ export function EvidenceRunView({
       client.invalidateQueries({ queryKey: ['evaluation-evidence-run', projectId, run.id] })
       client.invalidateQueries({ queryKey: ['catalog-evaluation', projectId] })
       client.invalidateQueries({ queryKey: ['evaluation-run-progress', projectId, run.id] })
+      client.invalidateQueries({ queryKey: ['evaluation-run-diagnostics', projectId, run.id] })
       toast.success('Judgments queued with controlled reasoning')
     },
     onError: (error) => {
@@ -105,6 +109,11 @@ export function EvidenceRunView({
   if (!unavailable) {
     return (
       <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setLogsOpen(true)}>
+            <TerminalSquare className="mr-2 h-4 w-4" />View execution logs
+          </Button>
+        </div>
         {run.provenance_warnings?.length ? (
           <section className="space-y-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-4">
             {run.provenance_warnings.map((warning) => (
@@ -122,6 +131,12 @@ export function EvidenceRunView({
           </section>
         ) : null}
         <EvaluationResultsView run={run} />
+        <EvaluationDiagnosticsDialog
+          open={logsOpen}
+          projectId={projectId}
+          runId={run.id}
+          onClose={() => setLogsOpen(false)}
+        />
       </div>
     )
   }
@@ -143,6 +158,9 @@ export function EvidenceRunView({
             <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
               Target outputs, Tool calls, RAG sources and Traces remain preserved. Retry processes only the affected Judgments.
             </p>
+            <Button className="mt-4" variant="outline" onClick={() => setLogsOpen(true)}>
+              <TerminalSquare className="mr-2 h-4 w-4" />View all execution logs
+            </Button>
           </div>
           <div className="flex flex-wrap gap-5 text-right text-xs">
             <div><p className="text-[9px] uppercase text-muted">Runtime</p><p className="mt-1 text-lg font-semibold text-white">{completeness?.runtime_completed || 0}/{completeness?.total_trials || 0}</p></div>
@@ -168,17 +186,21 @@ export function EvidenceRunView({
           </div>
           <p className="mt-2 text-[11px] leading-5 text-muted">{primary?.summary || 'No Trial produced a conclusive Judge score.'}</p>
           <p className="mt-3 text-[11px] text-primary-light">{primary?.recommended_action || 'Retry only affected Judgments.'}</p>
-          {primary?.stage === 'judge' ? (
-            <Button
-              className="mt-4"
-              variant="outline"
-              loading={retryJudgments.isPending}
-              onClick={() => retryJudgments.mutate()}
-            >
-              <RotateCcw className="mr-2 h-3.5 w-3.5" />
-              Retry Judgments
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setLogsOpen(true)}>
+              <TerminalSquare className="mr-2 h-3.5 w-3.5" />Execution logs
             </Button>
-          ) : null}
+            {primary?.stage === 'judge' ? (
+              <Button
+                variant="outline"
+                loading={retryJudgments.isPending}
+                onClick={() => retryJudgments.mutate()}
+              >
+                <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                Retry Judgments
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         {run.provenance_warnings?.map((warning) => (
@@ -311,6 +333,13 @@ export function EvidenceRunView({
           </div>
         )}
       </section>
+
+      <EvaluationDiagnosticsDialog
+        open={logsOpen}
+        projectId={projectId}
+        runId={run.id}
+        onClose={() => setLogsOpen(false)}
+      />
     </div>
   )
 }
