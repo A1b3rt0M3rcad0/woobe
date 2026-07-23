@@ -31,6 +31,34 @@ function base(projectId: string) {
   return `/evaluation/projects/${projectId}`
 }
 
+function integer(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback
+}
+
+function governedJudgeConfig(value?: Record<string, any> | null) {
+  const source = value || {}
+  const platformCap = Math.max(256, Math.min(integer(source.platform_output_cap, 4096), 4096))
+  const initial = Math.max(256, Math.min(integer(source.max_tokens, 1200), platformCap))
+  const retry = Math.max(
+    initial,
+    Math.min(integer(source.maximum_retry_tokens, 2048), platformCap),
+  )
+  return {
+    ...source,
+    temperature: Math.max(0, Math.min(Number(source.temperature ?? 0), 2)),
+    output_budget_policy: 'fixed',
+    max_tokens: initial,
+    maximum_retry_tokens: retry,
+    platform_output_cap: platformCap,
+    attempts: Math.max(1, Math.min(integer(source.attempts, 3), 4)),
+    timeout_seconds: Math.max(5, Math.min(Number(source.timeout_seconds ?? 90), 180)),
+    maximum_input_tokens: Math.max(1000, Math.min(integer(source.maximum_input_tokens, 8000), 32000)),
+    reasoning_policy: source.reasoning_policy || 'provider_default',
+    reasoning_effort: source.reasoning_effort || 'none',
+  }
+}
+
 function normalizeAuthoringResourceError(error: unknown): Error {
   if (error instanceof ApiError && error.status === 404) {
     return new ApiError(
@@ -106,7 +134,10 @@ export function getEvaluationSuites(projectId: string) {
 }
 
 export function createEvaluationSuite(projectId: string, input: CreateEvaluationSuiteInput) {
-  return post<EvaluationSuite>(`${base(projectId)}/suites`, input)
+  return post<EvaluationSuite>(`${base(projectId)}/suites`, {
+    ...input,
+    judge_config: governedJudgeConfig(input.judge_config),
+  })
 }
 
 export function createEvaluationSuiteVersion(
@@ -114,7 +145,10 @@ export function createEvaluationSuiteVersion(
   suiteId: string,
   input: Omit<CreateEvaluationSuiteInput, 'name' | 'description' | 'target_type'>,
 ) {
-  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, input)
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions`, {
+    ...input,
+    judge_config: governedJudgeConfig(input.judge_config),
+  })
 }
 
 export function createComposedEvaluationSuiteVersion(
@@ -122,7 +156,12 @@ export function createComposedEvaluationSuiteVersion(
   suiteId: string,
   input: CreateComposedSuiteVersionInput,
 ) {
-  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions/composed`, input)
+  return post<EvaluationSuite>(`${base(projectId)}/suites/${suiteId}/versions/composed`, {
+    ...input,
+    ...(input.judge_config
+      ? { judge_config: governedJudgeConfig(input.judge_config) }
+      : {}),
+  })
 }
 
 export function archiveEvaluationSuite(projectId: string, suiteId: string) {
@@ -188,7 +227,10 @@ export async function validateEvaluatorSuiteDraft(projectId: string, input: Vali
 }
 
 export function createComposedEvaluatorSuite(projectId: string, input: CreateComposedSuiteInput) {
-  return post<EvaluationSuite>(`${base(projectId)}/suites/composed`, input)
+  return post<EvaluationSuite>(`${base(projectId)}/suites/composed`, {
+    ...input,
+    judge_config: governedJudgeConfig(input.judge_config),
+  })
 }
 
 export function getEvaluationRuns(projectId: string) {
