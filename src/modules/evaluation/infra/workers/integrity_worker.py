@@ -57,6 +57,13 @@ class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
             if diagnostics is not None:
                 metrics["judge_diagnostics"] = diagnostics
             metrics["judge_latency_ms"] = judge.latency_ms
+            metrics["evaluation_worker"] = {
+                "processor": "IntegrityEvaluationRunProcessor",
+                "processor_version": "integrity-evaluation-worker-v1",
+                "judge_gateway": "ResilientEvaluatorModelGateway",
+                "expected_adaptive_gateway": "adaptive-judge-v4",
+                "expected_repair_gateway": "resilient-judge-v1",
+            }
             row.metrics = metrics
             if judge.structured_result is None:
                 canonical = canonical_judge_failure_code(
