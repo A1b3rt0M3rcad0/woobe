@@ -22,6 +22,11 @@ class RetryJudgmentsRequest(BaseModel):
     failure_codes: list[str] = Field(default_factory=list, max_length=50)
 
 
+class ChangeSuiteJudgeModelRequest(BaseModel):
+    judge_model_id: UUID
+    change_description: str = Field(min_length=3, max_length=2000)
+
+
 @router.get("/judge-models")
 async def list_evaluation_judge_models(
     project_id: UUID,
@@ -34,6 +39,29 @@ async def list_evaluation_judge_models(
             project_id=project_id,
         )
     return {"success": True, "data": data}
+
+
+@router.post("/suites/{suite_id}/judge-model")
+async def change_evaluation_suite_judge_model(
+    project_id: UUID,
+    suite_id: UUID,
+    payload: ChangeSuiteJudgeModelRequest,
+    request: Request,
+):
+    user_id = require_evaluation_user(request, project_id)
+    service = RevisionAwareEvaluationExperienceService(
+        request.app.state.session_factory
+    )
+    return {
+        "success": True,
+        "data": await service.create_judge_model_suite_version(
+            project_id=project_id,
+            suite_id=suite_id,
+            judge_provider_model_id=payload.judge_model_id,
+            change_description=payload.change_description,
+            created_by=user_id,
+        ),
+    }
 
 
 @router.get("/runs/{run_id}/progress")
