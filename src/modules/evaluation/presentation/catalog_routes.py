@@ -25,6 +25,7 @@ class EvaluationPreviewRequest(BaseModel):
     suite_version_id: UUID
     repetitions: int = Field(default=3, ge=1, le=25)
     target: CatalogTargetRequest
+    judge_provider_model_id: UUID | None = None
     acknowledge_tool_side_effects: bool = False
     approved_high_risk_tool_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
@@ -49,6 +50,7 @@ class CreatePairedComparisonRequest(BaseModel):
     repetitions: int = Field(default=3, ge=1, le=25)
     candidate: CatalogTargetRequest
     reference: CatalogTargetRequest
+    judge_provider_model_id: UUID | None = None
     acknowledge_tool_side_effects: bool = False
     approved_high_risk_tool_ids: list[UUID] = Field(default_factory=list, max_length=100)
     idempotency_key: str = Field(min_length=8, max_length=220)
@@ -78,6 +80,7 @@ async def preview_evaluation(
         target=payload.target.model_dump(mode="json", exclude_none=True),
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
+        judge_provider_model_id=payload.judge_provider_model_id,
     )
     return {"success": True, "data": data}
 
@@ -98,6 +101,7 @@ async def create_evaluation_run(
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
         idempotency_key=payload.idempotency_key,
+        judge_provider_model_id=payload.judge_provider_model_id,
     )
     return {"success": True, "data": data}
 
@@ -220,6 +224,7 @@ async def create_paired_comparison(
         acknowledge_tool_side_effects=payload.acknowledge_tool_side_effects,
         approved_high_risk_tool_ids=payload.approved_high_risk_tool_ids,
         idempotency_key=payload.idempotency_key,
+        judge_provider_model_id=payload.judge_provider_model_id,
     )
     return {"success": True, "data": data}
 
