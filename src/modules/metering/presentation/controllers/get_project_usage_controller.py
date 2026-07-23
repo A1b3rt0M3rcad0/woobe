@@ -18,6 +18,7 @@ class GetProjectUsageController(Controller):
             "bucket",
             "environment",
             "operation",
+            "purpose",
             "network_id",
             "agent_id",
             "provider_model_id",
