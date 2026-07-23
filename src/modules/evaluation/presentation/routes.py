@@ -127,7 +127,7 @@ class RetryJudgmentsRequest(BaseModel):
 
 class CreateEstimateRequest(BaseModel):
     volume: int = Field(ge=1, le=1_000_000_000)
-    volume_unit: str = Field(default="runs_per_month", min_length=3, max_length=64)
+    volume_unit: Literal["runs_per_month", "sessions_per_month"] = "runs_per_month"
 
 
 def _service(request: Request) -> GovernedEvaluationExperienceService:
