@@ -68,6 +68,10 @@ _EVALUATION_CONTEXT_FIELDS = (
     "evaluation_trial_id",
     "comparison_pair_id",
     "target_side",
+    "evaluation_target_id",
+    "target_snapshot_hash",
+    "target_snapshot_label",
+    "evaluation_role",
 )
 
 
