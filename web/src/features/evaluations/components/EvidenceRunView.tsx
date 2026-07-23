@@ -141,6 +141,16 @@ function CanonicalKpis({ run }: { run: EvidenceRichRun }) {
             <div><p className="text-[9px] uppercase text-muted">Cost / Session</p><p className="mt-1 text-sm font-semibold text-white">{money(session.cost_usd_per_session)}</p></div>
             <div><p className="text-[9px] uppercase text-muted">Latency / Session</p><p className="mt-1 text-sm font-semibold text-white">{latency(session.latency_ms_per_session)}</p></div>
           </div>
+          {session.dimensions && Object.keys(session.dimensions).length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {Object.entries(session.dimensions).map(([dimension, value]) => (
+                <div key={dimension} className="rounded-lg border border-border/70 px-3 py-2">
+                  <p className="text-[9px] uppercase text-muted">{dimension.replace(/_/g, ' ')}</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{score(value)}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
