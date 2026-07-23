@@ -70,7 +70,7 @@ export function EvidenceRunView({
             ))}
           </section>
         ) : null}
-        <EvaluationResultsView projectId={projectId} run={run} />
+        <EvaluationResultsView run={run} />
       </div>
     )
   }
