@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from modules.evaluation.application.evidence_revision_snapshot import (
     capture_evidence_revision,
+)
+from modules.evaluation.application.failure_taxonomy import (
+    canonical_judge_failure_code,
 )
 from modules.evaluation.infra.database.models import (
     EvaluationRunModel,
@@ -21,6 +25,38 @@ from shared.infra.config import Settings
 
 class IntegrityEvaluationRunProcessor(GovernedEvaluationRunProcessor):
     """Keep unavailable metrics distinct from zero and freeze each revision."""
+
+    async def _persist_final_result(self, **kwargs: Any) -> None:
+        await super()._persist_final_result(**kwargs)
+        trial = kwargs["trial"]
+        judge = kwargs["judge"]
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(
+                EvaluationTrialModel,
+                trial.id,
+                with_for_update=True,
+            )
+            if row is None:
+                return
+            metrics = dict(row.metrics or {})
+            diagnostics = None
+            pricing_snapshot = judge.pricing_snapshot or {}
+            if isinstance(pricing_snapshot, dict):
+                value = pricing_snapshot.get("_evaluation_judge")
+                diagnostics = value if isinstance(value, dict) else None
+            if diagnostics is not None:
+                metrics["judge_diagnostics"] = diagnostics
+            metrics["judge_latency_ms"] = judge.latency_ms
+            row.metrics = metrics
+            if judge.structured_result is None:
+                canonical = canonical_judge_failure_code(
+                    failure_code=row.failure_code,
+                    failure_detail=row.failure_detail,
+                    judge_status=judge.status,
+                    judge_error=judge.error,
+                )
+                if canonical is not None:
+                    row.failure_code = canonical
 
     async def _aggregate(self, run_id: UUID) -> None:
         await super()._aggregate(run_id)
