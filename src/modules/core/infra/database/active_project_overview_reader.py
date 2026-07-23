@@ -152,6 +152,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
             LEFT JOIN network.network_sessions AS network_session
               ON network_session.id = network_execution.network_session_id
             WHERE trace.project_id = :project_id
+              AND trace.run_purpose = 'operational'
         )
         """
 
@@ -295,6 +296,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 JOIN network.network_sessions AS network_session
                   ON network_session.id = execution.network_session_id
                 WHERE execution.project_id = :project_id
+                  AND execution.run_purpose = 'operational'
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
                   AND (
@@ -485,6 +487,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 JOIN network.network_sessions AS network_session
                   ON network_session.id = execution.network_session_id
                 WHERE execution.project_id = :project_id
+                  AND execution.run_purpose = 'operational'
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
                   AND (
@@ -768,6 +771,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 JOIN network.networks AS network
                   ON network.id = execution.network_id
                 WHERE execution.project_id = :project_id
+                  AND execution.run_purpose = 'operational'
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
                   AND (
@@ -891,6 +895,7 @@ class ActiveDocumentProjectOverviewReader(UnitOfWorkProjectOverviewReader):
                 JOIN network.networks AS network
                   ON network.id = execution.network_id
                 WHERE execution.project_id = :project_id
+                  AND execution.run_purpose = 'operational'
                   AND execution.status IN ('failed', 'timed_out', 'uncertain')
                   AND execution.created_at >= :start
                   AND execution.created_at < :end
