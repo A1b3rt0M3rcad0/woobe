@@ -12,6 +12,7 @@ import {
   useEvaluationCatalog,
   useEvaluationComparisons,
 } from '@/features/evaluations/catalogHooks'
+import { useEvaluationJudgeModels } from '@/features/evaluations/experienceHooks'
 import {
   useEvaluationRuns,
   useEvaluationSuites,
@@ -68,6 +69,7 @@ export function AgentEvaluationsModal({
   const comparisonsQuery = useEvaluationComparisons(projectId, agentId)
   const releasesQuery = useReleases(agentId)
   const modelsQuery = useProviderModels(projectId)
+  const judgeModelsQuery = useEvaluationJudgeModels(projectId)
   const [screen, setScreen] = useState<Screen>(restored.screen || 'run')
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(
     restored.selectedEvaluationId || null,
@@ -92,6 +94,20 @@ export function AgentEvaluationsModal({
       (target) => target.target_type === 'agent' && target.entity_id === agentId,
     )),
     [runsQuery.data, agentId],
+  )
+  const eligibleModelIds = useMemo(
+    () => new Set(
+      (judgeModelsQuery.data ?? [])
+        .filter((model) => model.eligible)
+        .map((model) => model.provider_model_id),
+    ),
+    [judgeModelsQuery.data],
+  )
+  const eligibleProviderModels = useMemo(
+    () => (modelsQuery.data ?? []).filter(
+      (model) => model.status === 'active' && eligibleModelIds.has(model.id),
+    ),
+    [modelsQuery.data, eligibleModelIds],
   )
 
   const persist = (
@@ -121,12 +137,14 @@ export function AgentEvaluationsModal({
     || runsQuery.isLoading
     || releasesQuery.isLoading
     || modelsQuery.isLoading
+    || judgeModelsQuery.isLoading
   )
   const failed = (
     suitesQuery.isError
     || runsQuery.isError
     || releasesQuery.isError
     || modelsQuery.isError
+    || judgeModelsQuery.isError
   )
 
   return (
@@ -196,16 +214,20 @@ export function AgentEvaluationsModal({
           ) : failed ? (
             <ErrorState message="Unable to load Agent Evaluations" />
           ) : screen === 'create-suite' ? (
-            <SuiteAuthoringWizard
-              projectId={projectId}
-              agentId={agentId}
-              releases={releasesQuery.data ?? []}
-              providerModels={modelsQuery.data ?? []}
-              onCancel={() => persist('suites')}
-              onCreated={(suite) => {
-                persist('run', selectedEvaluationId, selectedComparisonId, suite.current_version_id || null)
-              }}
-            />
+            eligibleProviderModels.length ? (
+              <SuiteAuthoringWizard
+                projectId={projectId}
+                agentId={agentId}
+                releases={releasesQuery.data ?? []}
+                providerModels={eligibleProviderModels}
+                onCancel={() => persist('suites')}
+                onCreated={(suite) => {
+                  persist('run', selectedEvaluationId, selectedComparisonId, suite.current_version_id || null)
+                }}
+              />
+            ) : (
+              <ErrorState message="No active Judge Model with an active credential is available in this Project" />
+            )
           ) : screen === 'run' ? (
             <AgentEvaluationExperience
               projectId={projectId}
