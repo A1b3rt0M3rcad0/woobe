@@ -7,6 +7,9 @@ from uuid import UUID
 
 from sqlalchemy import delete, select
 
+from modules.evaluation.application.failure_taxonomy import (
+    canonical_judge_failure_code,
+)
 from modules.evaluation.application.human_decision_service import (
     HumanDecisionEvaluationApplicationService,
     _target_manifest,
@@ -34,6 +37,14 @@ _ACTIVE_RUN_STATUSES = {
     "cancel_requested",
 }
 _TERMINAL_TRIAL_STATUSES = {"completed", "failed", "inconclusive", "cancelled"}
+_RETRYABLE_JUDGE_CODES = {
+    "judge_failed",
+    "judge_unknown_failure",
+    "judge_output_length_limit",
+    "judge_invalid_json",
+    "judge_timeout",
+    "judge_rate_limited",
+}
 
 
 def _safe_preview_target(value: Any) -> dict[str, Any] | None:
@@ -116,7 +127,9 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
             )
 
         runtime_completed = sum(
-            1 for trial in trials if bool((trial.metrics or {}).get("runtime_completed"))
+            1
+            for trial in trials
+            if bool((trial.metrics or {}).get("runtime_completed") or trial.output_payload)
         )
         judging = sum(1 for trial in trials if trial.status == "judging")
         terminal = sum(1 for trial in trials if trial.status in _TERMINAL_TRIAL_STATUSES)
@@ -207,10 +220,7 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
         failure_codes: list[str] | None = None,
     ) -> dict[str, Any]:
         selected_ids = set(trial_ids or [])
-        selected_codes = set(
-            failure_codes
-            or ["judge_failed", "judge_output_length_limit", "judge_invalid_json"]
-        )
+        selected_codes = set(failure_codes or _RETRYABLE_JUDGE_CODES)
         async with self._session_factory() as session, session.begin():
             run = await session.get(EvaluationRunModel, run_id, with_for_update=True)
             if run is None or run.project_id != project_id:
@@ -239,26 +249,41 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
             )
             calls_by_trial = {call.evaluation_trial_id: call for call in calls}
             eligible: list[EvaluationTrialModel] = []
+            inspected = 0
+            runtime_preserved = 0
+            judge_failures = 0
+            code_matches = 0
+            matched_codes: set[str] = set()
             for trial in trials:
                 if selected_ids and trial.id not in selected_ids:
                     continue
-                if trial.output_payload is None or not bool(
-                    (trial.metrics or {}).get("runtime_completed")
-                ):
+                inspected += 1
+                if trial.output_payload is None:
                     continue
+                runtime_preserved += 1
                 call = calls_by_trial.get(trial.id)
-                call_error = str(call.error or "").lower() if call else ""
-                code = str(trial.failure_code or "")
-                judge_failure = (
-                    code in selected_codes
-                    or any(value in call_error for value in selected_codes)
-                    or (call is not None and call.status == "failed" and not failure_codes)
+                canonical = canonical_judge_failure_code(
+                    failure_code=trial.failure_code,
+                    failure_detail=trial.failure_detail,
+                    judge_status=call.status if call else None,
+                    judge_error=call.error if call else None,
                 )
-                if judge_failure:
-                    eligible.append(trial)
+                if canonical is None:
+                    continue
+                judge_failures += 1
+                matched_codes.add(canonical)
+                if canonical not in _RETRYABLE_JUDGE_CODES:
+                    continue
+                if selected_codes and canonical not in selected_codes:
+                    continue
+                code_matches += 1
+                eligible.append(trial)
             if not eligible:
                 raise ConflictError(
-                    "No completed Agent evidence has a retryable Judge failure"
+                    "No retryable Judge evidence matched "
+                    f"(requested={inspected}, runtime_preserved={runtime_preserved}, "
+                    f"judge_failures={judge_failures}, code_matches={code_matches}, "
+                    f"observed_codes={','.join(sorted(matched_codes)) or 'none'})"
                 )
 
             now = datetime.now(timezone.utc)
@@ -329,9 +354,20 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
                 metrics["judge_retry_previous_cost_usd"] = (
                     accumulated_prior + prior_cost
                 )
+                diagnostics = metrics.pop("judge_diagnostics", None)
+                if diagnostics is not None:
+                    history = list(metrics.get("judge_diagnostics_history") or [])
+                    history.append(
+                        {
+                            "evidence_revision": previous_revision,
+                            "diagnostics": diagnostics,
+                        }
+                    )
+                    metrics["judge_diagnostics_history"] = history[-10:]
                 metrics.pop("judge_cost_usd", None)
                 metrics.pop("judge_latency_ms", None)
                 metrics.pop("checks", None)
+                metrics["runtime_completed"] = True
                 trial.metrics = metrics
                 trial.status = "pending"
                 trial.score = None
@@ -364,6 +400,7 @@ class EvaluationExperienceService(HumanDecisionEvaluationApplicationService):
                 "status": "queued",
                 "started_at": now.isoformat(),
                 "trial_count": len(eligible),
+                "failure_codes": sorted(matched_codes),
                 "preserved_runtime_evidence": True,
                 "previous_evidence_revision": previous_revision,
                 "evidence_revision": evidence_revision,
