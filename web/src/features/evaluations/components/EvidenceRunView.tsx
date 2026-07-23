@@ -2,48 +2,94 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
+  Bot,
   Database,
+  Eye,
   RotateCcw,
   ShieldAlert,
   TerminalSquare,
-  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { EvidenceRichRun } from '@/features/evaluations/catalogTypes'
 import { post } from '@/lib/api/client'
-import { cn } from '@/lib/utils'
 import { EvaluationDiagnosticsDialog } from './EvaluationDiagnosticsDialog'
 import { EvaluationResultsView } from './EvaluationResultsView'
+import { PreservedEvidenceDialog } from './PreservedEvidenceDialog'
 
 function money(value?: number | null) {
   return value == null ? '—' : `$${value.toFixed(value < 0.01 ? 4 : 2)}`
 }
 
-type TrialList = NonNullable<EvidenceRichRun['trials']>
-
-interface EvidenceCaseGroup {
-  key: string
-  name: string
-  trials: TrialList
+interface RunJudgeSummary {
+  displayName: string
+  provider: string | null
+  model: string | null
+  credentialName: string | null
+  responseStrategy: string | null
+  source: string
 }
 
-function groupedCases(run: EvidenceRichRun): EvidenceCaseGroup[] {
-  const map = new Map<string, TrialList>()
-  for (const trial of run.trials || []) {
-    const key = trial.case?.id || trial.pair_key
-    map.set(key, [...(map.get(key) || []), trial])
+function judgeSummary(run: EvidenceRichRun): RunJudgeSummary {
+  const aggregate = run.aggregate_result && typeof run.aggregate_result === 'object'
+    ? run.aggregate_result
+    : {}
+  const preflight = aggregate.judge_preflight && typeof aggregate.judge_preflight === 'object'
+    ? aggregate.judge_preflight as Record<string, any>
+    : {}
+  const frozenModel = preflight.judge_model && typeof preflight.judge_model === 'object'
+    ? preflight.judge_model as Record<string, any>
+    : {}
+  const protocol = run.execution_policy?.judge_protocol && typeof run.execution_policy.judge_protocol === 'object'
+    ? run.execution_policy.judge_protocol as Record<string, any>
+    : {}
+  const protocolModel = protocol.judge_model_snapshot && typeof protocol.judge_model_snapshot === 'object'
+    ? protocol.judge_model_snapshot as Record<string, any>
+    : {}
+  const call = (run.judge_calls || [])[0] as Record<string, any> | undefined
+  const source = protocol.source === 'run_override' ? 'Run override' : 'Suite default'
+  const selected = Object.keys(protocolModel).length ? protocolModel : frozenModel
+
+  return {
+    displayName: String(selected.display_name || selected.model || call?.model || 'Judge Model'),
+    provider: selected.provider || call?.provider || null,
+    model: selected.model || call?.model || null,
+    credentialName: selected.credential_name || null,
+    responseStrategy: selected.capabilities?.response_strategy || null,
+    source,
   }
-  return [...map.entries()].map(([key, trials]) => ({
-    key,
-    name: trials[trials.length - 1]?.case?.name || key,
-    trials,
-  }))
+}
+
+function JudgeUsedCard({ run }: { run: EvidenceRichRun }) {
+  const judge = useMemo(() => judgeSummary(run), [run])
+  return (
+    <section className="rounded-xl border border-primary/20 bg-primary/[0.025] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+            <Bot className="h-4 w-4 text-primary-light" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] uppercase tracking-wide text-muted">Judge used by this Run</p>
+            <p className="mt-1 truncate text-sm font-semibold text-white">{judge.displayName}</p>
+            <p className="mt-1 truncate font-mono text-[10px] text-muted">
+              {[judge.provider, judge.model].filter(Boolean).join(' · ') || 'Historical Judge metadata unavailable'}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">{judge.source}</Badge>
+          {judge.responseStrategy ? <Badge variant="outline">{judge.responseStrategy}</Badge> : null}
+          {judge.credentialName ? <Badge variant="outline">Credential: {judge.credentialName}</Badge> : null}
+        </div>
+      </div>
+      <p className="mt-3 text-[10px] leading-4 text-muted">
+        This Judge identity is historical evidence for the Run. Retrying Judgments keeps the same frozen Judge protocol.
+      </p>
+    </section>
+  )
 }
 
 export function EvidenceRunView({
@@ -55,23 +101,16 @@ export function EvidenceRunView({
 }) {
   const client = useQueryClient()
   const [note, setNote] = useState('')
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [logsOpen, setLogsOpen] = useState(false)
+  const [evidenceOpen, setEvidenceOpen] = useState(false)
   const unavailable = run.evidence_status === 'unavailable'
-  const groups = useMemo(() => groupedCases(run), [run])
-  const selectedGroup = useMemo(
-    () => groups.find((group) => group.key === selectedCaseId) || groups[0] || null,
-    [groups, selectedCaseId],
-  )
-  const selectedTrial = selectedGroup?.trials[selectedGroup.trials.length - 1]
-  const selectedJudgeCall = useMemo(
-    () => (run.judge_calls || []).find((call) => call.trial_id === selectedTrial?.id) || null,
-    [run.judge_calls, selectedTrial?.id],
-  )
   const completeness = run.evidence_completeness
   const primary = run.failure_summary?.primary
   const judgeRetryAllowed = primary?.stage === 'judge'
     && primary?.recoverability === 'retryable'
+  const preservedCaseCount = useMemo(() => new Set(
+    (run.trials || []).map((trial) => trial.case?.id || trial.pair_key),
+  ).size, [run.trials])
 
   const decide = useMutation({
     mutationFn: (decision: 'accepted' | 'rejected') => post(
@@ -111,6 +150,7 @@ export function EvidenceRunView({
   if (!unavailable) {
     return (
       <div className="space-y-4">
+        <JudgeUsedCard run={run} />
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => setLogsOpen(true)}>
             <TerminalSquare className="mr-2 h-4 w-4" />View execution logs
@@ -178,6 +218,8 @@ export function EvidenceRunView({
         </div>
       </section>
 
+      <JudgeUsedCard run={run} />
+
       <section className="flex flex-wrap gap-3">
         <div className="min-w-48 flex-1 rounded-xl border border-border/80 bg-background/35 p-4"><p className="text-[9px] uppercase text-muted">Target runtime cost</p><p className="mt-2 text-lg font-semibold text-white">{money(run.cost_breakdown?.target_runtime_cost_usd)}</p></div>
         <div className="min-w-48 flex-1 rounded-xl border border-border/80 bg-background/35 p-4"><p className="text-[9px] uppercase text-muted">Judge cost</p><p className="mt-2 text-lg font-semibold text-white">{money(run.cost_breakdown?.judge_cost_usd)}</p></div>
@@ -231,116 +273,23 @@ export function EvidenceRunView({
         </div>
       </section>
 
-      <section className="flex h-[640px] min-h-0 flex-col overflow-hidden rounded-xl border border-border/80 bg-background/30">
-        <div className="shrink-0 border-b border-border/80 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Preserved Test Case evidence</p>
-              <p className="mt-1 text-[10px] text-muted">Select a Case. JSON blocks scroll locally and can be expanded to the full-screen inspector.</p>
-            </div>
-            <Badge variant="outline">{groups.length} Cases</Badge>
-          </div>
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/80 bg-background/30 p-4">
+        <div>
+          <p className="text-sm font-semibold text-white">Preserved Test Case evidence</p>
+          <p className="mt-1 text-[10px] leading-4 text-muted">
+            {preservedCaseCount} Cases preserve the target output, expected contract, deterministic checks and Judge diagnostics. Open them only when you need the detailed evidence.
+          </p>
         </div>
-
-        {selectedGroup && selectedTrial ? (
-          <div className="flex min-h-0 flex-1 overflow-hidden">
-            <div className="w-60 shrink-0 overflow-y-auto border-r border-border/70 scrollbar-thin">
-              {groups.map((group) => {
-                const trial = group.trials[group.trials.length - 1]
-                const selected = group.key === selectedGroup.key
-                return (
-                  <button
-                    key={group.key}
-                    type="button"
-                    onClick={() => setSelectedCaseId(group.key)}
-                    className={cn(
-                      'flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0',
-                      selected ? 'bg-primary/10' : 'hover:bg-surface/20',
-                    )}
-                  >
-                    {trial.output ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" /> : <XCircle className="h-4 w-4 shrink-0 text-red-300" />}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-white">{group.name}</p>
-                      <p className="mt-1 truncate text-[10px] text-muted">
-                        {trial.output ? 'Output preserved' : 'Runtime unavailable'} · {trial.failure_classification?.code || trial.failure_code || primary?.code || 'Judge unavailable'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant="outline">{group.trials.length}</Badge>
-                      <ChevronRight className={cn('h-3.5 w-3.5 text-muted', selected && 'text-primary-light')} />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="min-w-0 flex-1 overflow-y-auto p-4 scrollbar-thin">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">{selectedGroup.name}</p>
-                  <p className="mt-1 text-[10px] text-muted">Exact evidence from the selected snapshot and Evidence Revision.</p>
-                </div>
-                <Badge variant="outline">{selectedGroup.trials.length} outcome{selectedGroup.trials.length === 1 ? '' : 's'}</Badge>
-              </div>
-
-              <div className="min-w-0 space-y-4">
-                <section className="min-w-0 rounded-xl border border-border/70 bg-surface/10 p-3">
-                  <JsonCodeBlock
-                    title="Expected Run Contract"
-                    value={{
-                      input: selectedTrial.case?.input_payload,
-                      initial_context: selectedTrial.case?.initial_context,
-                      expected_contract: selectedTrial.case?.expected_contract,
-                    }}
-                    maxHeight={300}
-                    actions={['copy', 'expand']}
-                  />
-                </section>
-                <section className="min-w-0 rounded-xl border border-border/70 bg-surface/10 p-3">
-                  <JsonCodeBlock
-                    title="Preserved target output"
-                    value={selectedTrial.output}
-                    maxHeight={320}
-                    actions={['copy', 'expand']}
-                  />
-                </section>
-                <section className="min-w-0 rounded-xl border border-border/70 bg-surface/10 p-3">
-                  <JsonCodeBlock
-                    title="Deterministic checks"
-                    value={selectedTrial.checks || []}
-                    maxHeight={280}
-                    actions={['copy', 'expand']}
-                  />
-                </section>
-                <section className="min-w-0 rounded-xl border border-border/70 bg-surface/10 p-3">
-                  <JsonCodeBlock
-                    title="Judge call and failure diagnostics"
-                    value={{
-                      failure_classification: selectedTrial.failure_classification,
-                      failure_code: selectedTrial.failure_code,
-                      failure_detail: selectedTrial.failure_detail,
-                      trace_id: selectedTrial.trace_id,
-                      judge_call: selectedJudgeCall,
-                      judge_diagnostics:
-                        selectedTrial.metrics?.judge_diagnostics
-                        || selectedJudgeCall?.pricing_snapshot?._evaluation_judge
-                        || null,
-                      metrics: selectedTrial.metrics,
-                    }}
-                    maxHeight={360}
-                    actions={['copy', 'expand']}
-                  />
-                </section>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-1 items-center justify-center px-6 text-center text-xs text-muted">
-            No preserved Test Case evidence is available.
-          </div>
-        )}
+        <Button variant="outline" disabled={!preservedCaseCount} onClick={() => setEvidenceOpen(true)}>
+          <Eye className="mr-2 h-4 w-4" />View preserved evidence
+        </Button>
       </section>
 
+      <PreservedEvidenceDialog
+        open={evidenceOpen}
+        onClose={() => setEvidenceOpen(false)}
+        run={run}
+      />
       <EvaluationDiagnosticsDialog
         open={logsOpen}
         projectId={projectId}
