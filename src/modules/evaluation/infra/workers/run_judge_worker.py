@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -14,6 +15,7 @@ from modules.evaluation.application.run_judge import (
 )
 from modules.evaluation.application.runtime_gateway import EvaluationRuntimeCancelled
 from modules.evaluation.application.scoring import (
+    DeterministicCheck,
     calculate_trial_score,
     evaluate_deterministic_checks,
 )
@@ -70,6 +72,47 @@ def _sum_optional(values: list[Any]) -> float | None:
 def _sum_optional_int(values: list[Any]) -> int | None:
     value = _sum_optional(values)
     return int(value) if value is not None else None
+
+
+def _turn_checks(
+    turn: dict[str, Any],
+    *,
+    position: int,
+    output: dict[str, Any],
+    metrics: dict[str, Any],
+) -> list[DeterministicCheck]:
+    contract = turn.get("expected_contract")
+    if not isinstance(contract, dict) or not contract:
+        return []
+    return [
+        replace(
+            item,
+            key=f"turn:{position}:{item.key}",
+            evidence={**item.evidence, "turn_position": position},
+        )
+        for item in evaluate_deterministic_checks(
+            contract,
+            output=output,
+            metrics=metrics,
+            suite_checks={},
+        )
+    ]
+
+
+def _serialized_checks(values: list[DeterministicCheck]) -> list[dict[str, Any]]:
+    return [
+        {
+            "key": item.key,
+            "dimension": item.dimension,
+            "status": item.status,
+            "score": item.score,
+            "blocking": item.blocking,
+            "reason": item.reason,
+            "evidence": item.evidence,
+            "weight": item.weight,
+        }
+        for item in values
+    ]
 
 
 class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
@@ -137,6 +180,36 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                 metrics=metrics,
                 suite_checks=suite.deterministic_checks or {},
             )
+            transcript = (
+                output.get("transcript")
+                if isinstance(output.get("transcript"), list)
+                else []
+            )
+            for position, turn in enumerate(_session_turns(case), start=1):
+                observed = (
+                    transcript[position - 1]
+                    if position <= len(transcript)
+                    and isinstance(transcript[position - 1], dict)
+                    else {}
+                )
+                turn_output = (
+                    observed.get("output")
+                    if isinstance(observed.get("output"), dict)
+                    else {}
+                )
+                turn_metrics = (
+                    observed.get("metrics")
+                    if isinstance(observed.get("metrics"), dict)
+                    else {}
+                )
+                deterministic.extend(
+                    _turn_checks(
+                        turn,
+                        position=position,
+                        output=turn_output,
+                        metrics=turn_metrics,
+                    )
+                )
             await self._mark_judge_started(trial.id)
             async with self._session_factory() as judge_session:
                 judge = await self._judge.judge(
@@ -187,8 +260,48 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
             await self._mark_trial_cancelled(trial.id, str(exc))
             return
         except Exception as exc:
+            # Once the transcript is complete, a Judge failure must remain
+            # judgment-retryable without replaying the Agent/Network Session.
+            async with self._session_factory() as session:
+                persisted = await session.get(EvaluationTrialModel, trial.id)
+                persisted_output = (
+                    dict(persisted.output_payload)
+                    if persisted is not None
+                    and isinstance(persisted.output_payload, dict)
+                    else None
+                )
+                persisted_metrics = (
+                    dict(persisted.metrics)
+                    if persisted is not None and isinstance(persisted.metrics, dict)
+                    else {}
+                )
+            if persisted_output is not None and persisted_metrics.get(
+                "runtime_completed"
+            ):
+                observed = {
+                    "type": "failure",
+                    "failure_origin": "platform",
+                    "failure_stage": "judge",
+                    "failure_code": "judge_failed",
+                    "failure_detail": str(exc)[:2000],
+                }
+                await self._persist_inconclusive_outcome(
+                    trial.id,
+                    observed,
+                    persisted_output,
+                    persisted_metrics,
+                )
+                return
+
             # A target/runtime failure belongs to this Session Trial only. Completed
             # turn rows remain immutable evidence and the worker continues the Run.
+            (
+                partial_output,
+                partial_metrics,
+                agent_run_id,
+                network_execution_id,
+                trace_id,
+            ) = await self._partial_session_evidence(trial, target, case)
             async with self._session_factory() as session, session.begin():
                 row = await session.get(
                     EvaluationTrialModel,
@@ -197,8 +310,17 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                 )
                 if row is not None and row.completed_at is None:
                     row.status = "failed"
+                    row.output_payload = partial_output
+                    row.metrics = {
+                        **partial_metrics,
+                        "runtime_completed": False,
+                    }
+                    row.agent_run_id = agent_run_id
+                    row.network_execution_id = network_execution_id
+                    row.root_trace_id = trace_id
                     row.failure_code = type(exc).__name__
                     row.failure_detail = str(exc)[:4000]
+                    row.runtime_completed_at = datetime.now(timezone.utc)
                     row.completed_at = datetime.now(timezone.utc)
             return
 
@@ -209,6 +331,7 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
         agent_session_id: UUID | None = None
         transcript: list[dict[str, Any]] = []
         metrics_by_turn: list[dict[str, Any]] = []
+        last_agent_run_id: UUID | None = None
         last_trace_id: UUID | None = None
 
         for position, turn in enumerate(turns, start=1):
@@ -236,6 +359,11 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                     },
                 )
                 agent_session_id = result.session_id or agent_session_id
+                result_agent_run_id = (
+                    getattr(result, "agent_run_id", None)
+                    or getattr(result, "run_id", None)
+                )
+                last_agent_run_id = result_agent_run_id or last_agent_run_id
                 last_trace_id = result.trace_id or last_trace_id
                 usage = result.usage or {}
                 trace = None
@@ -271,6 +399,16 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                     "provider": result.provider,
                     "model": result.model,
                 }
+                deterministic = _turn_checks(
+                    turn,
+                    position=position,
+                    output=output,
+                    metrics=turn_metrics,
+                )
+                if deterministic:
+                    turn_metrics["deterministic_checks"] = _serialized_checks(
+                        deterministic
+                    )
                 transcript.append(
                     {
                         "position": position,
@@ -278,6 +416,7 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                         "output": output,
                         "expected_behavior": turn.get("expected_behavior") or [],
                         "forbidden_behavior": turn.get("forbidden_behavior") or [],
+                        "metrics": turn_metrics,
                     }
                 )
                 metrics_by_turn.append(turn_metrics)
@@ -290,6 +429,7 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                     metrics=turn_metrics,
                     status="completed",
                     agent_session_id=agent_session_id,
+                    agent_run_id=result_agent_run_id,
                     trace_id=result.trace_id,
                     started_at=started_at,
                 )
@@ -314,7 +454,9 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
             metrics_by_turn,
             session_id=agent_session_id,
             target_type="agent",
-        ) + (None, last_trace_id)
+            planned_turn_count=len(turns),
+            session_completed=True,
+        ) + (last_agent_run_id, last_trace_id)
 
     async def _execute_network_session(self, trial, target, case):
         turns = _session_turns(case)
@@ -353,8 +495,19 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                         "output": evidence.output,
                         "expected_behavior": turn.get("expected_behavior") or [],
                         "forbidden_behavior": turn.get("forbidden_behavior") or [],
+                        "metrics": evidence.metrics,
                     }
                 )
+                deterministic = _turn_checks(
+                    turn,
+                    position=position,
+                    output=evidence.output,
+                    metrics=evidence.metrics,
+                )
+                if deterministic:
+                    evidence.metrics["deterministic_checks"] = _serialized_checks(
+                        deterministic
+                    )
                 metrics_by_turn.append(evidence.metrics)
                 await self._persist_turn(
                     trial_id=trial.id,
@@ -390,6 +543,8 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
             metrics_by_turn,
             session_id=network_session_id,
             target_type="network",
+            planned_turn_count=len(turns),
+            session_completed=True,
         )
         return output, metrics, last_execution_id, last_trace_id
 
@@ -400,8 +555,18 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
         *,
         session_id: UUID | None,
         target_type: str,
+        planned_turn_count: int,
+        session_completed: bool,
+        failure_turn: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        last_output = transcript[-1]["output"] if transcript else {}
+        last_output = next(
+            (
+                item["output"]
+                for item in reversed(transcript)
+                if isinstance(item.get("output"), dict)
+            ),
+            {},
+        )
         all_tools = [
             tool
             for item in transcript
@@ -426,9 +591,12 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
         output_tokens = [item.get("output_tokens") for item in metrics_by_turn]
         metrics = {
             "interaction_mode": "session",
-            "session_completed": bool(transcript),
-            "turn_count": len(transcript),
+            "session_completed": session_completed,
+            "session_status": "completed" if session_completed else "failed",
+            "turn_count": planned_turn_count,
+            "attempted_turn_count": len(transcript),
             "completed_turn_count": len(metrics_by_turn),
+            "failure_turn": failure_turn,
             "latency_ms": _sum_optional(latencies),
             "cost_usd": _sum_optional(costs),
             "input_tokens": _sum_optional_int(input_tokens),
@@ -447,6 +615,86 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
             "session_target_type": target_type,
         }
         return output, metrics
+
+    async def _partial_session_evidence(
+        self,
+        trial,
+        target,
+        case,
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        UUID | None,
+        UUID | None,
+        UUID | None,
+    ]:
+        async with self._session_factory() as session:
+            rows = (
+                await session.execute(
+                    text(
+                        "SELECT position, input_payload, output_payload, metrics, status, "
+                        "agent_session_id, network_session_id, agent_run_id, "
+                        "network_execution_id, trace_id, failure_code, failure_detail "
+                        "FROM evaluation.trial_turns "
+                        "WHERE evaluation_trial_id = :trial_id "
+                        "ORDER BY position"
+                    ),
+                    {"trial_id": trial.id},
+                )
+            ).mappings().all()
+        defined_turns = _session_turns(case)
+        transcript: list[dict[str, Any]] = []
+        completed_metrics: list[dict[str, Any]] = []
+        failure_turn: int | None = None
+        agent_run_id: UUID | None = None
+        network_execution_id: UUID | None = None
+        trace_id: UUID | None = None
+        session_id: UUID | None = None
+        for row in rows:
+            position = int(row["position"])
+            definition = (
+                defined_turns[position - 1]
+                if position <= len(defined_turns)
+                else {}
+            )
+            metrics = row["metrics"] if isinstance(row["metrics"], dict) else {}
+            transcript.append(
+                {
+                    "position": position,
+                    "input": row["input_payload"],
+                    "output": row["output_payload"],
+                    "expected_behavior": definition.get("expected_behavior") or [],
+                    "forbidden_behavior": definition.get("forbidden_behavior") or [],
+                    "metrics": metrics,
+                    "status": row["status"],
+                    "failure_code": row["failure_code"],
+                    "failure_detail": row["failure_detail"],
+                }
+            )
+            if row["status"] == "completed":
+                completed_metrics.append(metrics)
+            elif failure_turn is None:
+                failure_turn = position
+            agent_run_id = row["agent_run_id"] or agent_run_id
+            network_execution_id = (
+                row["network_execution_id"] or network_execution_id
+            )
+            trace_id = row["trace_id"] or trace_id
+            session_id = (
+                row["agent_session_id"]
+                or row["network_session_id"]
+                or session_id
+            )
+        output, metrics = self._session_result(
+            transcript,
+            completed_metrics,
+            session_id=session_id,
+            target_type=target.target_type,
+            planned_turn_count=len(defined_turns),
+            session_completed=False,
+            failure_turn=failure_turn,
+        )
+        return output, metrics, agent_run_id, network_execution_id, trace_id
 
     async def _persist_turn(
         self,
@@ -537,6 +785,16 @@ class RunJudgeEvaluationRunProcessor(IntegrityEvaluationRunProcessor):
                 "run_level_judge_selection": True,
                 "session_test_support": True,
             }
+            judge = kwargs.get("judge")
+            structured = getattr(judge, "structured_result", None)
+            dimensions = (
+                structured.get("dimensions")
+                if isinstance(structured, dict)
+                and isinstance(structured.get("dimensions"), dict)
+                else {}
+            )
+            if dimensions:
+                metrics["session_dimensions"] = dimensions
             row.metrics = metrics
 
 
