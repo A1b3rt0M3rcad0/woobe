@@ -70,6 +70,8 @@ export function EvidenceRunView({
   )
   const completeness = run.evidence_completeness
   const primary = run.failure_summary?.primary
+  const judgeRetryAllowed = primary?.stage === 'judge'
+    && primary?.recoverability === 'retryable'
 
   const decide = useMutation({
     mutationFn: (decision: 'accepted' | 'rejected') => post(
@@ -99,7 +101,7 @@ export function EvidenceRunView({
       client.invalidateQueries({ queryKey: ['catalog-evaluation', projectId] })
       client.invalidateQueries({ queryKey: ['evaluation-run-progress', projectId, run.id] })
       client.invalidateQueries({ queryKey: ['evaluation-run-diagnostics', projectId, run.id] })
-      toast.success('Judgments queued with controlled reasoning')
+      toast.success('Judgments queued with the same immutable Judge protocol')
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Unable to retry Judgments')
@@ -150,13 +152,18 @@ export function EvidenceRunView({
               <Badge variant="outline">Evidence unavailable</Badge>
               <Badge variant="outline">Assessment inconclusive</Badge>
               <Badge variant="outline">Revision {run.evidence_revision || 1}</Badge>
+              {primary?.recoverability === 'user_action_required' ? (
+                <Badge variant="outline" className="border-red-500/25 text-red-300">
+                  Configuration required
+                </Badge>
+              ) : null}
             </div>
             <h3 className="mt-3 flex items-center gap-2 text-base font-semibold text-white">
               <ShieldAlert className="h-4 w-4 text-amber-300" />
               The snapshot executed, but the Judge did not produce scored evidence
             </h3>
             <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
-              Target outputs, Tool calls, RAG sources and Traces remain preserved. Retry processes only the affected Judgments.
+              Target outputs, Tool calls, RAG sources and Traces remain preserved. Automatic retry is offered only for transient or repairable Judge failures.
             </p>
             <Button className="mt-4" variant="outline" onClick={() => setLogsOpen(true)}>
               <TerminalSquare className="mr-2 h-4 w-4" />View all execution logs
@@ -185,12 +192,12 @@ export function EvidenceRunView({
             {primary?.count ? <Badge variant="outline">{primary.count} Trials</Badge> : null}
           </div>
           <p className="mt-2 text-[11px] leading-5 text-muted">{primary?.summary || 'No Trial produced a conclusive Judge score.'}</p>
-          <p className="mt-3 text-[11px] text-primary-light">{primary?.recommended_action || 'Retry only affected Judgments.'}</p>
+          <p className="mt-3 text-[11px] text-primary-light">{primary?.recommended_action || 'Review the persisted Judge diagnostics.'}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setLogsOpen(true)}>
               <TerminalSquare className="mr-2 h-3.5 w-3.5" />Execution logs
             </Button>
-            {primary?.stage === 'judge' ? (
+            {judgeRetryAllowed ? (
               <Button
                 variant="outline"
                 loading={retryJudgments.isPending}
