@@ -16,6 +16,7 @@ import type {
   ProjectUsageDataQuality,
   ProjectUsageExecution,
   UsageGroupBy,
+  UsagePurpose,
 } from '../types'
 import { formatKnownMoney } from '@/lib/formatters/money'
 import { cn } from '@/lib/utils'
@@ -90,7 +91,8 @@ export function UsageOperations({
   quality,
   executions,
   groupBy,
-  contextLabel,
+  purpose,
+  contextLabel:
   organizationId,
   projectId,
   onSelectDriver,
@@ -100,6 +102,7 @@ export function UsageOperations({
   quality: ProjectUsageDataQuality
   executions: ProjectUsageExecution[]
   groupBy: UsageGroupBy
+  purpose: UsagePurpose
   contextLabel: string
   organizationId: string
   projectId: string
@@ -120,6 +123,11 @@ export function UsageOperations({
   const networkCoverageBase = quality.fully_priced_network_runs + quality.partial_network_runs + quality.unpriced_network_runs
   const networkCoverage = networkCoverageBase ? (quality.fully_priced_network_runs / networkCoverageBase) * 100 : null
   const labels = groupLabels[groupBy]
+  const runtimeLabel = purpose === 'operational'
+    ? 'Operational'
+    : purpose === 'evaluation'
+      ? 'Evaluation target'
+      : 'Runtime'
 
   return (
     <div className="space-y-4">
@@ -127,7 +135,7 @@ export function UsageOperations({
         <section className="overflow-hidden rounded-xl border border-border/90 bg-surface/70 xl:col-span-8">
           <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-white">Operational cost by {labels.singular}</h2>
+              <h2 className="text-sm font-semibold text-white">{runtimeLabel} cost by {labels.singular}</h2>
               <p className="mt-1 text-xs text-muted">{contextLabel} Cost is attributed from Agent Runs; Network rows aggregate their internal Agent Runs.</p>
             </div>
             <span className="w-fit rounded-md border border-border/80 bg-background/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
@@ -265,7 +273,7 @@ export function UsageOperations({
         <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-white">Most expensive Runs</h2>
-            <p className="mt-1 text-xs text-muted">Direct Agent Runs and Network Runs. Internal Agent Runs are represented inside their Network Run to avoid duplicate operational rows.</p>
+            <p className="mt-1 text-xs text-muted">Direct Agent Runs and Network Runs. Internal Agent Runs are represented inside their Network Run to avoid duplicate cost rows.</p>
           </div>
           <Link
             to={`/organizations/${organizationId}/projects/${projectId}/traces`}
@@ -281,9 +289,11 @@ export function UsageOperations({
           <div className="divide-y divide-border/70">
             {executions.slice(0, 8).map((execution) => {
               const isNetwork = execution.run_type === 'network'
-              const targetUrl = isNetwork
-                ? `/organizations/${organizationId}/projects/${projectId}/network?network_run_id=${execution.run_id}`
-                : `/organizations/${organizationId}/projects/${projectId}/traces?trace_id=${execution.trace_id ?? execution.run_id}`
+              const targetUrl = execution.evaluation_run_id
+                ? `/organizations/${organizationId}/projects/${projectId}/evaluations?run_id=${execution.evaluation_run_id}`
+                : isNetwork
+                  ? `/organizations/${organizationId}/projects/${projectId}/network?network_run_id=${execution.run_id}`
+                  : `/organizations/${organizationId}/projects/${projectId}/traces?trace_id=${execution.trace_id ?? execution.run_id}`
               return (
                 <div key={`${execution.run_type}-${execution.run_id}`} className="grid gap-3 px-4 py-3 transition-colors hover:bg-background/25 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
                   <div className="min-w-0">
@@ -295,6 +305,11 @@ export function UsageOperations({
                       <span className="rounded-md border border-border/80 bg-background/45 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted">
                         {isNetwork ? 'Network Run' : 'Agent Run'}
                       </span>
+                      {execution.run_purpose === 'evaluation' && (
+                        <span className="rounded-md border border-sky-400/20 bg-sky-400/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-sky-300">
+                          Evaluation
+                        </span>
+                      )}
                       <span className={cn(
                         'rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider',
                         execution.status === 'completed'
@@ -305,7 +320,8 @@ export function UsageOperations({
                       </span>
                     </div>
                     <p className="mt-1 truncate text-[10px] text-muted">
-                      {execution.environment ?? 'unknown environment'}
+                      {execution.target_snapshot_label ?? execution.environment ?? 'unknown snapshot'}
+                      {execution.target_snapshot_hash ? ` · Snapshot ${execution.target_snapshot_hash.slice(0, 10)}` : ''}
                       {isNetwork
                         ? ` · ${execution.agent_runs_count} Agent Runs`
                         : ` · ${execution.provider ?? 'Unknown provider'} / ${execution.model ?? 'Unknown model'}`}
