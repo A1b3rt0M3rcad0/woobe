@@ -37,6 +37,10 @@ class RequestExecutionContext:
     evaluation_trial_id: UUID | None = None
     comparison_pair_id: str | None = None
     target_side: str | None = None
+    evaluation_target_id: UUID | None = None
+    target_snapshot_hash: str | None = None
+    target_snapshot_label: str | None = None
+    evaluation_role: str | None = None
     agent_release_id: UUID | None = None
     agent_release_version: str | None = None
     rag_metadata: dict[str, Any] | None = None
