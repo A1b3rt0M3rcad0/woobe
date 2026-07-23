@@ -6,11 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field, model_validator
 
-from modules.evaluation.application.compatible_resumable_authoring import (
-    CompatibleResumableEvaluationSuiteAuthoringService,
-)
 from modules.evaluation.application.governed_experience_service import (
     GovernedEvaluationExperienceService,
+)
+from modules.evaluation.application.session_authoring import (
+    SessionAwareEvaluationSuiteAuthoringService,
 )
 from modules.evaluation.presentation.dependencies import require_evaluation_user
 
@@ -115,10 +115,8 @@ class CreateComposedSuiteRequest(BaseModel):
     authoring_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _service(request: Request) -> CompatibleResumableEvaluationSuiteAuthoringService:
-    return CompatibleResumableEvaluationSuiteAuthoringService(
-        request.app.state.session_factory
-    )
+def _service(request: Request) -> SessionAwareEvaluationSuiteAuthoringService:
+    return SessionAwareEvaluationSuiteAuthoringService(request.app.state.session_factory)
 
 
 def _governed_service(request: Request) -> GovernedEvaluationExperienceService:
