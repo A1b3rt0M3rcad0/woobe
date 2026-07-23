@@ -123,6 +123,7 @@ class SQLAlchemyProjectOverviewReader:
                 LEFT JOIN agent_environment
                     ON agent_environment.agent_id = trace.agent_id
                 WHERE trace.project_id = :project_id
+                  AND trace.run_purpose = 'operational'
                   AND trace.started_at >= :start
                   AND trace.started_at < :end
                   AND trace.status IN ('completed', 'failed', 'cancelled')
@@ -137,6 +138,7 @@ class SQLAlchemyProjectOverviewReader:
                 LEFT JOIN agent_environment
                     ON agent_environment.agent_id = trace.agent_id
                 WHERE trace.project_id = :project_id
+                  AND trace.run_purpose = 'operational'
                   AND trace.started_at >= :previous_start
                   AND trace.started_at < :start
                   AND trace.status IN ('completed', 'failed', 'cancelled')
@@ -283,6 +285,7 @@ class SQLAlchemyProjectOverviewReader:
                 LEFT JOIN agent_environment
                     ON agent_environment.agent_id = trace.agent_id
                 WHERE trace.project_id = :project_id
+                  AND trace.run_purpose = 'operational'
                   AND trace.started_at >= :start
                   AND trace.started_at < :end
                   AND trace.status IN ('completed', 'failed', 'cancelled')
@@ -451,6 +454,7 @@ class SQLAlchemyProjectOverviewReader:
             LEFT JOIN agent_environment
                 ON agent_environment.agent_id = trace.agent_id
             WHERE trace.project_id = :project_id
+                  AND trace.run_purpose = 'operational'
               AND trace.started_at >= :start
               AND trace.started_at < :end
               AND trace.status IN ('completed', 'failed', 'cancelled')
@@ -523,6 +527,9 @@ class SQLAlchemyProjectOverviewReader:
                     ) AS tool_name,
                     trace_event.created_at AS occurred_at
                 FROM observability.trace_events AS trace_event
+                JOIN observability.traces AS trace
+                  ON trace.id = trace_event.trace_id
+                 AND trace.run_purpose = 'operational'
                 WHERE trace_event.project_id = :project_id
                   AND trace_event.created_at >= :start
                   AND trace_event.created_at < :end
