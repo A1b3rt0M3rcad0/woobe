@@ -40,6 +40,7 @@ async def record_evaluation_model_usage(
 
     total_tokens = int(input_tokens or 0) + int(output_tokens or 0)
     cost_status = "priced" if cost_usd is not None else "unpriced"
+    evaluation_role = "judge" if usage_subtype == "judge" else "suite_authoring"
     session.add(
         UsageEventModel(
             project_id=project_id,
@@ -51,7 +52,7 @@ async def record_evaluation_model_usage(
             occurred_at=datetime.now(timezone.utc),
             trace_id=None,
             call_id=str(source_id),
-            environment="evaluation",
+            environment=None,
             run_purpose="evaluation",
             evaluation_run_id=evaluation_run_id,
             evaluation_trial_id=evaluation_trial_id,
@@ -75,6 +76,7 @@ async def record_evaluation_model_usage(
             data={
                 "usage_category": "quality_assurance",
                 "usage_subtype": usage_subtype,
+                "evaluation_role": evaluation_role,
                 "total_tokens": total_tokens,
                 **(data or {}),
             },
