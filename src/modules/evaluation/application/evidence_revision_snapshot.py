@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from modules.evaluation.application.evaluation_kpis import canonical_evaluation_kpis
 from modules.evaluation.infra.database.evidence_revision_models import (
     EvaluationEvidenceRevisionModel,
 )
@@ -25,6 +26,55 @@ def revision_number(run: EvaluationRunModel) -> int:
         return max(1, int(aggregate.get("evidence_revision") or 1))
     except (TypeError, ValueError):
         return 1
+
+
+async def _turns_by_trial(session, trial_ids: list[UUID]) -> dict[str, list[dict[str, Any]]]:
+    if not trial_ids:
+        return {}
+    rows = (
+        await session.execute(
+            text(
+                "SELECT id, evaluation_trial_id, position, input_payload, output_payload, "
+                "metrics, status, agent_session_id, network_session_id, agent_run_id, "
+                "network_execution_id, trace_id, failure_code, failure_detail, "
+                "started_at, completed_at "
+                "FROM evaluation.trial_turns "
+                "WHERE evaluation_trial_id = ANY(:trial_ids) "
+                "ORDER BY evaluation_trial_id, position"
+            ),
+            {"trial_ids": trial_ids},
+        )
+    ).mappings().all()
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["evaluation_trial_id"]), []).append(
+            {
+                "id": str(row["id"]),
+                "position": int(row["position"]),
+                "input_payload": row["input_payload"],
+                "output": row["output_payload"],
+                "metrics": row["metrics"],
+                "status": row["status"],
+                "agent_session_id": str(row["agent_session_id"])
+                if row["agent_session_id"]
+                else None,
+                "network_session_id": str(row["network_session_id"])
+                if row["network_session_id"]
+                else None,
+                "agent_run_id": str(row["agent_run_id"]) if row["agent_run_id"] else None,
+                "network_execution_id": str(row["network_execution_id"])
+                if row["network_execution_id"]
+                else None,
+                "trace_id": str(row["trace_id"]) if row["trace_id"] else None,
+                "failure_code": row["failure_code"],
+                "failure_detail": row["failure_detail"],
+                "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                "completed_at": row["completed_at"].isoformat()
+                if row["completed_at"]
+                else None,
+            }
+        )
+    return grouped
 
 
 async def build_evidence_snapshot(session, run: EvaluationRunModel) -> dict[str, Any]:
@@ -93,8 +143,72 @@ async def build_evidence_snapshot(session, run: EvaluationRunModel) -> dict[str,
                 "evidence": check.evidence,
             }
         )
+    turns = await _turns_by_trial(session, [trial.id for trial in trials])
 
-    aggregate = run.aggregate_result if isinstance(run.aggregate_result, dict) else {}
+    trial_payloads: list[dict[str, Any]] = []
+    for trial in trials:
+        case = cases.get(trial.test_case_id)
+        input_payload = case.input_payload if case is not None else {}
+        interaction_mode = (
+            str(input_payload.get("interaction_mode") or "single_turn")
+            if isinstance(input_payload, dict)
+            else "single_turn"
+        )
+        trial_payloads.append(
+            {
+                "id": str(trial.id),
+                "target_id": str(trial.evaluation_target_id),
+                "test_case_id": str(trial.test_case_id),
+                "repetition": trial.repetition,
+                "pair_key": trial.pair_key,
+                "status": trial.status,
+                "score": trial.score,
+                "passed": trial.passed,
+                "agent_run_id": str(trial.agent_run_id) if trial.agent_run_id else None,
+                "network_execution_id": str(trial.network_execution_id)
+                if trial.network_execution_id
+                else None,
+                "trace_id": str(trial.root_trace_id) if trial.root_trace_id else None,
+                "output": trial.output_payload,
+                "metrics": trial.metrics,
+                "observed_outcome": trial.observed_outcome,
+                "failure_origin": trial.failure_origin,
+                "failure_stage": trial.failure_stage,
+                "failure_code": trial.failure_code,
+                "failure_detail": trial.failure_detail,
+                "interaction_mode": interaction_mode,
+                "turns": turns.get(str(trial.id), []),
+                "case": (
+                    {
+                        "id": str(case.id),
+                        "name": case.name,
+                        "case_type": case.case_type,
+                        "interaction_mode": interaction_mode,
+                        "position": case.position,
+                        "input_payload": case.input_payload,
+                        "turns": (
+                            case.input_payload.get("turns", [])
+                            if isinstance(case.input_payload, dict)
+                            else []
+                        ),
+                        "initial_context": case.initial_context,
+                        "expected_contract": case.expected_contract,
+                        "severity": case.severity,
+                        "weight": case.weight,
+                        "blocking": case.blocking,
+                        "production_frequency": case.production_frequency,
+                    }
+                    if case is not None
+                    else None
+                ),
+                "checks": checks_by_trial.get(trial.id, []),
+            }
+        )
+
+    aggregate = dict(run.aggregate_result) if isinstance(run.aggregate_result, dict) else {}
+    kpis = canonical_evaluation_kpis(trial_payloads)
+    aggregate["kpis"] = kpis
+    run.aggregate_result = aggregate
     conclusive = sum(
         1 for trial in trials if trial.score is not None and trial.passed is not None
     )
@@ -149,49 +263,7 @@ async def build_evidence_snapshot(session, run: EvaluationRunModel) -> dict[str,
             }
             for target in targets
         ],
-        "trials": [
-            {
-                "id": str(trial.id),
-                "target_id": str(trial.evaluation_target_id),
-                "test_case_id": str(trial.test_case_id),
-                "repetition": trial.repetition,
-                "pair_key": trial.pair_key,
-                "status": trial.status,
-                "score": trial.score,
-                "passed": trial.passed,
-                "agent_run_id": str(trial.agent_run_id) if trial.agent_run_id else None,
-                "network_execution_id": str(trial.network_execution_id)
-                if trial.network_execution_id
-                else None,
-                "trace_id": str(trial.root_trace_id) if trial.root_trace_id else None,
-                "output": trial.output_payload,
-                "metrics": trial.metrics,
-                "observed_outcome": trial.observed_outcome,
-                "failure_origin": trial.failure_origin,
-                "failure_stage": trial.failure_stage,
-                "failure_code": trial.failure_code,
-                "failure_detail": trial.failure_detail,
-                "case": (
-                    {
-                        "id": str(cases[trial.test_case_id].id),
-                        "name": cases[trial.test_case_id].name,
-                        "case_type": cases[trial.test_case_id].case_type,
-                        "position": cases[trial.test_case_id].position,
-                        "input_payload": cases[trial.test_case_id].input_payload,
-                        "initial_context": cases[trial.test_case_id].initial_context,
-                        "expected_contract": cases[trial.test_case_id].expected_contract,
-                        "severity": cases[trial.test_case_id].severity,
-                        "weight": cases[trial.test_case_id].weight,
-                        "blocking": cases[trial.test_case_id].blocking,
-                        "production_frequency": cases[trial.test_case_id].production_frequency,
-                    }
-                    if trial.test_case_id in cases
-                    else None
-                ),
-                "checks": checks_by_trial.get(trial.id, []),
-            }
-            for trial in trials
-        ],
+        "trials": trial_payloads,
         "judge_calls": [
             {
                 "id": str(call.id),
