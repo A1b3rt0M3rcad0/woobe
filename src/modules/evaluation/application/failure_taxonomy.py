@@ -7,6 +7,57 @@ def _text(*values: Any) -> str:
     return " ".join(str(value or "") for value in values).lower()
 
 
+def canonical_judge_failure_code(
+    *,
+    failure_code: str | None,
+    failure_detail: str | None,
+    judge_status: str | None = None,
+    judge_error: str | None = None,
+) -> str | None:
+    combined = _text(failure_code, failure_detail, judge_error)
+    code = str(failure_code or "")
+    judge_failed = (
+        code.startswith("judge_")
+        or judge_status == "failed"
+        or "judge" in combined
+        or "evaluator model" in combined
+        or "lengthfinishreasonerror" in combined
+    )
+    if not judge_failed:
+        return None
+    if any(
+        value in combined
+        for value in ("insufficient balance", "insufficient credits", "insufficient_quota")
+    ):
+        return "judge_insufficient_balance"
+    if any(value in combined for value in ("invalid json", "json decode", "structured response")):
+        return "judge_invalid_json"
+    if any(
+        value in combined
+        for value in (
+            "lengthfinishreasonerror",
+            "length limit was reached",
+            "finish_reason=length",
+            "finish reason 'length'",
+            "finish reason: length",
+            "maximum output length",
+            "max_completion_tokens",
+            "completion length",
+            "output token",
+        )
+    ):
+        return "judge_output_length_limit"
+    if any(value in combined for value in ("rate limit", "429")):
+        return "judge_rate_limited"
+    if any(value in combined for value in ("timeout", "timed out")):
+        return "judge_timeout"
+    if any(value in combined for value in ("credential", "unauthorized", "401", "403")):
+        return "judge_credential_invalid"
+    if code.startswith("judge_"):
+        return code
+    return "judge_unknown_failure"
+
+
 def classify_evaluation_failure(
     *,
     trial_status: str | None,
@@ -20,41 +71,33 @@ def classify_evaluation_failure(
 
     combined = _text(failure_code, failure_detail, judge_error)
     code = str(failure_code or "")
-
-    judge_failed = (
-        code.startswith("judge_")
-        or judge_status == "failed"
-        or "judge" in combined
-        or "evaluator model" in combined
+    resolved = canonical_judge_failure_code(
+        failure_code=failure_code,
+        failure_detail=failure_detail,
+        judge_status=judge_status,
+        judge_error=judge_error,
     )
-    if judge_failed:
-        if any(value in combined for value in ("insufficient balance", "insufficient credits", "insufficient_quota")):
-            resolved = "judge_insufficient_balance"
+    if resolved is not None:
+        if resolved == "judge_insufficient_balance":
             action = "Restore provider balance or choose another active Judge Model, then resume."
             recoverability = "user_action_required"
-        elif any(value in combined for value in ("invalid json", "json decode", "structured response")):
-            resolved = "judge_invalid_json"
+        elif resolved == "judge_invalid_json":
             action = "Retry Judgments with the adaptive structured-output fallback."
             recoverability = "retryable"
-        elif any(value in combined for value in ("length", "max_tokens", "output token")):
-            resolved = "judge_output_length_limit"
-            action = "Retry Judgments with a larger automatic output budget."
+        elif resolved == "judge_output_length_limit":
+            action = "Retry Judgments with the controlled reasoning profile."
             recoverability = "retryable"
-        elif any(value in combined for value in ("rate limit", "429")):
-            resolved = "judge_rate_limited"
+        elif resolved == "judge_rate_limited":
             action = "Resume after the provider rate limit clears."
             recoverability = "retryable"
-        elif any(value in combined for value in ("timeout", "timed out")):
-            resolved = "judge_timeout"
+        elif resolved == "judge_timeout":
             action = "Retry only the affected Judgments."
             recoverability = "retryable"
-        elif any(value in combined for value in ("credential", "unauthorized", "401", "403")):
-            resolved = "judge_credential_invalid"
+        elif resolved == "judge_credential_invalid":
             action = "Activate a valid Project Credential for the Judge Model."
             recoverability = "user_action_required"
         else:
-            resolved = code if code.startswith("judge_") else "judge_unknown_failure"
-            action = "Review the persisted Judge error and retry only affected outputs."
+            action = "Review the persisted Judge diagnostics and retry only affected outputs."
             recoverability = "review_required"
         return {
             "stage": "judge",
@@ -97,20 +140,24 @@ def classify_evaluation_failure(
     return None
 
 
-def summarize_failures(trials: list[dict[str, Any]], judge_calls: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize_failures(
+    trials: list[dict[str, Any]],
+    judge_calls: list[dict[str, Any]],
+) -> dict[str, Any]:
     calls = {str(item.get("trial_id")): item for item in judge_calls}
     groups: dict[str, dict[str, Any]] = {}
     affected = 0
     for trial in trials:
         call = calls.get(str(trial.get("id")))
         metrics = trial.get("metrics") if isinstance(trial.get("metrics"), dict) else {}
+        runtime_completed = bool(metrics.get("runtime_completed") or trial.get("output"))
         item = classify_evaluation_failure(
             trial_status=trial.get("status"),
             failure_code=trial.get("failure_code"),
             failure_detail=trial.get("failure_detail"),
             judge_status=call.get("status") if call else None,
             judge_error=call.get("error") if call else None,
-            runtime_completed=bool(metrics.get("runtime_completed")),
+            runtime_completed=runtime_completed,
         )
         if item is None:
             continue
@@ -119,7 +166,10 @@ def summarize_failures(trials: list[dict[str, Any]], judge_calls: list[dict[str,
         group = groups.setdefault(key, {**item, "count": 0, "trial_ids": []})
         group["count"] += 1
         group["trial_ids"].append(str(trial.get("id")))
-    ordered = sorted(groups.values(), key=lambda value: (-int(value["count"]), str(value["code"])))
+    ordered = sorted(
+        groups.values(),
+        key=lambda value: (-int(value["count"]), str(value["code"])),
+    )
     return {
         "affected_trial_count": affected,
         "groups": ordered,
@@ -127,4 +177,8 @@ def summarize_failures(trials: list[dict[str, Any]], judge_calls: list[dict[str,
     }
 
 
-__all__ = ["classify_evaluation_failure", "summarize_failures"]
+__all__ = [
+    "canonical_judge_failure_code",
+    "classify_evaluation_failure",
+    "summarize_failures",
+]
