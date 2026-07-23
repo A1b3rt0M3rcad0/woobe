@@ -44,6 +44,10 @@ class GovernedEvaluationExperienceService(EvaluationExperienceService):
             )
             if credential is None or credential.project_id != project_id:
                 raise NotFoundError("Judge Model credential not found in this Project")
+            if model.status != "active":
+                raise ConflictError("The selected Judge Model is not active")
+            if credential.status != "active":
+                raise ConflictError("The selected Judge Model credential is not active")
             normalized = normalized_judge_config(model.meta or {}, judge_config or {})
             snapshot = judge_model_snapshot(
                 model,
