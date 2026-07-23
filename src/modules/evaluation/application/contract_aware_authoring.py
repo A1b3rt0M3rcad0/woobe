@@ -26,8 +26,18 @@ class ContractAwareEvaluationSuiteAuthoringService(
             project_id=project_id,
             reference_target=reference_target,
         )
+        # Positional case slots are an internal authoring-worker contract. Public
+        # validation continues to expose only normalized valid cases so existing
+        # manual/import consumers never receive None placeholders.
+        public_cases = validation.get("valid_cases")
+        if not isinstance(public_cases, list):
+            public_cases = [
+                item
+                for item in validation.get("cases") or []
+                if isinstance(item, dict)
+            ]
         if reference_target is None or project_id is None:
-            return validation
+            return {**validation, "cases": public_cases}
 
         async with self._session_factory() as session:
             resolved = await self._target_resolver.resolve(
@@ -48,7 +58,7 @@ class ContractAwareEvaluationSuiteAuthoringService(
             str(reference_target.get("output_contract_mode") or "").lower()
             == "semantic_only"
         )
-        cases = [dict(item) for item in validation.get("cases") or []]
+        cases = [dict(item) for item in public_cases]
         warnings = list(validation.get("warnings") or [])
         normalization = list(validation.get("normalization_warnings") or [])
         enforced = 0
