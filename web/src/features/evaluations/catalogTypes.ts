@@ -215,6 +215,7 @@ export interface CreatePostHocComparisonInput {
 export interface EvidenceRichRun extends EvaluationRun {
   evaluation_id?: string | null
   evaluation_protocol_hash?: string | null
+  evidence_revision?: number
   evidence_status?: 'complete' | 'partial' | 'unavailable'
   evidence_completeness?: {
     total_trials: number
@@ -237,6 +238,7 @@ export interface EvidenceRichRun extends EvaluationRun {
     code: string
     message: string
     severity: string
+    recommended_action?: string
   }>
   legacy_comparison?: boolean
 }
