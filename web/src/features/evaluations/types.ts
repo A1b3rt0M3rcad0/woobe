@@ -286,12 +286,15 @@ export interface EvaluationTarget {
   composition_hash: string | null
   display_name: string
   display_version: string
+  manifest?: Record<string, any>
 }
 
 export interface EvaluationEstimateScenario {
   provider_cost_usd?: number | null
   latency_ms_per_run?: number | null
+  latency_ms_per_session?: number | null
   agent_runs?: number | null
+  turns?: number | null
 }
 
 export interface EvaluationEstimate {
@@ -300,9 +303,11 @@ export interface EvaluationEstimate {
   volume: number
   volume_unit: string
   confidence: string
-  observation_summary: Record<string, unknown>
+  assumptions?: Record<string, any>
+  observation_summary: Record<string, any>
   scenarios: Record<'optimistic' | 'expected' | 'conservative', EvaluationEstimateScenario>
   limitations: string[]
+  created_at?: string
 }
 
 export interface EvaluationCheck {
@@ -427,10 +432,12 @@ export interface EvaluationRun {
   repetitions: number
   execution_policy?: EvaluationExecutionPolicy
   qualification_status: string | null
+  assessment_status?: string | null
   overall_score: number | null
   pass_rate: number | null
   aggregate_result: Record<string, any> | null
   kpis?: EvaluationKpis | null
+  evidence_revision?: number
   estimated_preflight_cost: number | null
   measured_total_cost: number | null
   failure_code: string | null
@@ -442,6 +449,7 @@ export interface EvaluationRun {
   trials?: EvaluationTrial[]
   judge_calls?: Array<Record<string, any>>
   estimates?: EvaluationEstimate[]
+  decisions?: Array<Record<string, any>>
 }
 
 export interface EvaluationQualification {
@@ -460,4 +468,50 @@ export interface EvaluationQualification {
   critical_failures: number
   summary: Record<string, unknown>
   created_at: string
+}
+
+export interface EvaluationPreflightTool {
+  id: string
+  name: string
+  risk_level: EvaluationToolRisk
+  source: string
+}
+
+export interface EvaluationPreflight {
+  tools: EvaluationPreflightTool[]
+  requires_acknowledgement: boolean
+  blocked_high_risk_tool_ids: string[]
+  risk_counts: Record<EvaluationToolRisk, number>
+}
+
+export interface EvaluationPreview {
+  mode: EvaluationRunMode
+  candidate: Record<string, any>
+  baseline: Record<string, any> | null
+  case_count: number
+  repetitions: number
+  target_run_count: number
+  judge_call_count: number
+  judge_provider_model_id: string
+  tool_execution_warning: string
+  preflight: EvaluationPreflight
+  requires_confirmation: boolean
+  can_execute: boolean
+}
+
+export interface CreateEvaluationRunInput {
+  suite_version_id: string
+  repetitions: number
+  candidate: EvaluationTargetInput
+  baseline?: EvaluationTargetInput
+  acknowledge_tool_side_effects?: boolean
+  approved_high_risk_tool_ids?: string[]
+  idempotency_key?: string
+}
+
+export interface CreateEvaluationDatasetInput {
+  name: string
+  description?: string
+  change_description?: string
+  cases: EvaluationCaseInput[]
 }
