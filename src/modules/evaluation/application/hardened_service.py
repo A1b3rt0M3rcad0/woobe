@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from modules.evaluation.application.judge_policy import JudgePreflightService
 from modules.evaluation.application.preflight import EvaluationPreflightService
 from modules.evaluation.application.service import EvaluationApplicationService
 from modules.evaluation.domain.enums import EvaluationMode, EvaluationRunStatus
@@ -28,6 +29,7 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
     def __init__(self, session_factory) -> None:
         super().__init__(session_factory)
         self._preflight = EvaluationPreflightService()
+        self._judge_preflight = JudgePreflightService()
 
     @staticmethod
     def _reject_legacy_baseline(baseline: dict[str, Any] | None) -> None:
@@ -88,22 +90,29 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                 targets=[target],
                 approved_high_risk_tool_ids=set(approved_high_risk_tool_ids or []),
             )
+            judge_preflight = await self._judge_preflight.inspect_suite(
+                session,
+                project_id=project_id,
+                suite_version=suite,
+                repetitions=repetitions,
+                target_count=1,
+            )
 
+        tool_can_execute = not preflight.blocked_high_risk_tool_ids and (
+            acknowledge_tool_side_effects or not preflight.requires_acknowledgement
+        )
         return {
             **base,
             "mode": EvaluationMode.ABSOLUTE.value,
             "candidate": asdict(target),
             "baseline": None,
             "preflight": preflight.to_dict(),
+            "judge_preflight": judge_preflight,
             "requires_confirmation": (
                 preflight.requires_acknowledgement
                 and not acknowledge_tool_side_effects
             ),
-            "can_execute": not preflight.blocked_high_risk_tool_ids
-            and (
-                acknowledge_tool_side_effects
-                or not preflight.requires_acknowledgement
-            ),
+            "can_execute": tool_can_execute and bool(judge_preflight.get("can_execute")),
         }
 
     async def create_run(
@@ -136,6 +145,18 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
         if preview["requires_confirmation"]:
             raise ConflictError(
                 "Evaluation executes real Tools. Confirm Tool side effects before starting"
+            )
+        judge_preflight = preview.get("judge_preflight") or {}
+        if not judge_preflight.get("can_execute"):
+            blockers = judge_preflight.get("blockers") or []
+            detail = "; ".join(
+                str(item.get("message") or item.get("code"))
+                for item in blockers
+                if isinstance(item, dict)
+            )
+            raise ConflictError(
+                "Judge Model preflight blocked this Evaluation"
+                + (f": {detail}" if detail else "")
             )
 
         normalized_key = idempotency_key.strip() if idempotency_key else None
@@ -181,10 +202,26 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                         "requested_parallel_pairs": 3,
                         "pair_members_serialized": False,
                         "single_target_invariant": True,
+                        "judge_canary_required": True,
+                        "judge_circuit_breaker_enabled": True,
+                        "judge_preflight_hash": judge_preflight.get("preflight_hash"),
+                        "judge_protocol": {
+                            "judge_model_snapshot_hash": (
+                                (judge_preflight.get("judge_model") or {}).get(
+                                    "snapshot_hash"
+                                )
+                            ),
+                            "normalized_judge_config": judge_preflight.get(
+                                "normalized_judge_config"
+                            ),
+                        },
                     },
                     randomization_seed=random.SystemRandom().randint(1, 2_147_483_647),
                     request_idempotency_key=normalized_key,
                     requested_by=requested_by,
+                    estimated_preflight_cost=judge_preflight.get(
+                        "estimated_maximum_cost_usd"
+                    ),
                     aggregate_result={
                         "_request": {
                             "idempotency_key": normalized_key,
@@ -195,6 +232,9 @@ class HardenedEvaluationApplicationService(EvaluationApplicationService):
                             ],
                         },
                         "preflight": preview["preflight"],
+                        "judge_preflight": judge_preflight,
+                        "judge_canary": {"status": "pending"},
+                        "judge_circuit_breaker": {"status": "closed"},
                     },
                 )
                 session.add(run)
