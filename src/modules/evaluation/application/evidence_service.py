@@ -253,7 +253,7 @@ class EvidenceRichEvaluationApplicationService(
             row = (
                 await session.execute(
                     text(
-                        "SELECT evaluation_id, evaluation_protocol_hash "
+                        "SELECT evaluation_id, evaluation_protocol_hash, execution_policy "
                         "FROM evaluation.runs WHERE id = :run_id AND project_id = :project_id"
                     ),
                     {"run_id": run_id, "project_id": project_id},
@@ -264,6 +264,11 @@ class EvidenceRichEvaluationApplicationService(
             str(row.evaluation_protocol_hash)
             if row and row.evaluation_protocol_hash
             else None
+        )
+        payload["execution_policy"] = (
+            dict(row.execution_policy)
+            if row and isinstance(row.execution_policy, dict)
+            else payload.get("execution_policy")
         )
         return payload
 
