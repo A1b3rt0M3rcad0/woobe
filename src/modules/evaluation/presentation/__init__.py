@@ -15,12 +15,15 @@ from modules.evaluation.presentation.version_routes import router as version_rou
 
 router = APIRouter()
 router.include_router(pagination_router)
+# These routes intentionally precede the legacy resource router because both expose
+# progress and Judgment retry paths. FastAPI resolves the first matching route, so
+# revision capture must be registered first to preserve historical evidence.
+router.include_router(experience_router)
 router.include_router(resource_router)
 router.include_router(version_router)
 router.include_router(secure_version_router)
 router.include_router(authoring_router)
 router.include_router(decision_router)
-router.include_router(experience_router)
 router.include_router(catalog_router)
 router.include_router(comparison_preview_router)
 router.include_router(evidence_router)
