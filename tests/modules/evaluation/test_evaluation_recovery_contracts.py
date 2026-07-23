@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from modules.evaluation.domain.authoring_contract import suite_generation_json_schema
 from modules.evaluation.domain.contracts import validate_suite_draft
+from modules.evaluation.infra.budgeted_judge import _reasoning_policy
 from modules.evaluation.infra.judge import JudgeResult
 from modules.evaluation.infra.resilient_judge import (
     _canonicalize_repair_payload,
@@ -117,3 +118,12 @@ def test_invalid_json_failure_is_repairable() -> None:
 
 def test_credential_failure_is_not_repairable() -> None:
     assert _repairable(_failed_result("judge_failed: 401 unauthorized credential")) is False
+
+
+def test_reasoning_controls_are_opt_in_by_default() -> None:
+    assert _reasoning_policy({}, {}) == "provider_default"
+    assert _reasoning_policy({"supports_reasoning": True}, {}) == "provider_default"
+
+
+def test_explicit_reasoning_policy_is_preserved() -> None:
+    assert _reasoning_policy({}, {"reasoning_policy": "disabled"}) == "disabled"
