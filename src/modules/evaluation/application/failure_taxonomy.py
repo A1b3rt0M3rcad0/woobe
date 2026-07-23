@@ -22,14 +22,60 @@ def canonical_judge_failure_code(
         or "judge" in combined
         or "evaluator model" in combined
         or "lengthfinishreasonerror" in combined
+        or "api status error" in combined
     )
     if not judge_failed:
         return None
     if any(
         value in combined
-        for value in ("insufficient balance", "insufficient credits", "insufficient_quota")
+        for value in (
+            "error code: 402",
+            "status code: 402",
+            "payment required",
+            "requires more credits",
+            "can only afford",
+            "insufficient balance",
+            "insufficient credits",
+            "insufficient_quota",
+            "spending limit",
+            "credit limit",
+            "judge_insufficient_balance",
+            "judge_insufficient_credits",
+        )
     ):
-        return "judge_insufficient_balance"
+        return "judge_insufficient_credits"
+    if any(
+        value in combined
+        for value in (
+            "model not found",
+            "no endpoints found",
+            "model unavailable",
+            "unknown model",
+            "judge_model_unavailable",
+        )
+    ):
+        return "judge_model_unavailable"
+    if any(
+        value in combined
+        for value in (
+            "context length",
+            "context window",
+            "maximum context",
+            "too many input tokens",
+            "prompt is too long",
+        )
+    ):
+        return "judge_context_limit"
+    if any(
+        value in combined
+        for value in (
+            "unsupported parameter",
+            "unknown parameter",
+            "unrecognized parameter",
+            "extra inputs are not permitted",
+        )
+    ):
+        return "judge_unsupported_parameter"
     if any(value in combined for value in ("invalid json", "json decode", "structured response")):
         return "judge_invalid_json"
     if any(
@@ -47,15 +93,145 @@ def canonical_judge_failure_code(
         )
     ):
         return "judge_output_length_limit"
-    if any(value in combined for value in ("rate limit", "429")):
+    if any(value in combined for value in ("rate limit", "rate_limit", "429")):
         return "judge_rate_limited"
     if any(value in combined for value in ("timeout", "timed out")):
         return "judge_timeout"
-    if any(value in combined for value in ("credential", "unauthorized", "401", "403")):
+    if any(
+        value in combined
+        for value in (
+            "credential",
+            "unauthorized",
+            "error code: 401",
+            "status code: 401",
+            "error code: 403",
+            "status code: 403",
+            "forbidden",
+        )
+    ):
         return "judge_credential_invalid"
+    if any(
+        value in combined
+        for value in (
+            "error code: 500",
+            "error code: 502",
+            "error code: 503",
+            "error code: 504",
+            "service unavailable",
+            "bad gateway",
+            "gateway timeout",
+        )
+    ):
+        return "judge_provider_5xx"
+    if any(value in combined for value in ("safety blocked", "content filtered", "moderation blocked")):
+        return "judge_safety_blocked"
     if code.startswith("judge_"):
         return code
     return "judge_unknown_failure"
+
+
+def judge_failure_policy(code: str | None) -> dict[str, Any]:
+    policies: dict[str, dict[str, Any]] = {
+        "judge_insufficient_credits": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "run",
+            "circuit_breaker": True,
+            "recoverability": "user_action_required",
+            "recommended_action": "Add provider credits, reduce the Judge output budget or create a Suite Version with another Judge Model.",
+        },
+        "judge_credential_invalid": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "run",
+            "circuit_breaker": True,
+            "recoverability": "user_action_required",
+            "recommended_action": "Activate a valid Project Credential for the Judge Model.",
+        },
+        "judge_model_unavailable": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "run",
+            "circuit_breaker": True,
+            "recoverability": "user_action_required",
+            "recommended_action": "Create a new Suite Version with an active Judge Model.",
+        },
+        "judge_context_limit": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "configuration_required",
+            "recommended_action": "Reduce the Judge input budget or select a model with a larger context window.",
+        },
+        "judge_unsupported_parameter": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "model",
+            "circuit_breaker": True,
+            "recoverability": "configuration_required",
+            "recommended_action": "Use the provider-default response strategy or select a compatible Judge Model.",
+        },
+        "judge_invalid_json": {
+            "retryable": True,
+            "repairable": True,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "retryable",
+            "recommended_action": "Retry the affected Judgment with the compact structured-output repair.",
+        },
+        "judge_output_length_limit": {
+            "retryable": True,
+            "repairable": True,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "retryable",
+            "recommended_action": "Retry within the immutable Suite output ceiling; do not raise the budget above the configured limit.",
+        },
+        "judge_rate_limited": {
+            "retryable": True,
+            "repairable": False,
+            "scope": "credential",
+            "circuit_breaker": False,
+            "recoverability": "retryable",
+            "recommended_action": "Resume after the provider rate limit clears.",
+        },
+        "judge_timeout": {
+            "retryable": True,
+            "repairable": False,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "retryable",
+            "recommended_action": "Retry only the affected Judgments.",
+        },
+        "judge_provider_5xx": {
+            "retryable": True,
+            "repairable": False,
+            "scope": "provider",
+            "circuit_breaker": False,
+            "recoverability": "retryable",
+            "recommended_action": "Retry after the provider recovers.",
+        },
+        "judge_safety_blocked": {
+            "retryable": False,
+            "repairable": False,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "review_required",
+            "recommended_action": "Review the Test Case and provider safety policy.",
+        },
+    }
+    return policies.get(
+        str(code or ""),
+        {
+            "retryable": False,
+            "repairable": False,
+            "scope": "trial",
+            "circuit_breaker": False,
+            "recoverability": "review_required",
+            "recommended_action": "Review the persisted Judge diagnostics before retrying.",
+        },
+    )
 
 
 def classify_evaluation_failure(
@@ -78,33 +254,12 @@ def classify_evaluation_failure(
         judge_error=judge_error,
     )
     if resolved is not None:
-        if resolved == "judge_insufficient_balance":
-            action = "Restore provider balance or choose another active Judge Model, then resume."
-            recoverability = "user_action_required"
-        elif resolved == "judge_invalid_json":
-            action = "Retry Judgments with the adaptive structured-output fallback."
-            recoverability = "retryable"
-        elif resolved == "judge_output_length_limit":
-            action = "Retry Judgments with the controlled reasoning profile."
-            recoverability = "retryable"
-        elif resolved == "judge_rate_limited":
-            action = "Resume after the provider rate limit clears."
-            recoverability = "retryable"
-        elif resolved == "judge_timeout":
-            action = "Retry only the affected Judgments."
-            recoverability = "retryable"
-        elif resolved == "judge_credential_invalid":
-            action = "Activate a valid Project Credential for the Judge Model."
-            recoverability = "user_action_required"
-        else:
-            action = "Review the persisted Judge diagnostics and retry only affected outputs."
-            recoverability = "review_required"
+        policy = judge_failure_policy(resolved)
         return {
             "stage": "judge",
             "kind": "judge",
             "code": resolved,
-            "recoverability": recoverability,
-            "recommended_action": action,
+            **policy,
             "summary": "The target output was preserved, but the Judge did not produce usable evidence.",
         }
 
@@ -180,5 +335,6 @@ def summarize_failures(
 __all__ = [
     "canonical_judge_failure_code",
     "classify_evaluation_failure",
+    "judge_failure_policy",
     "summarize_failures",
 ]
