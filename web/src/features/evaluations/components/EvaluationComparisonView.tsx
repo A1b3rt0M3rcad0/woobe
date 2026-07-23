@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   CheckCircle2,
   ChevronDown,
   GitCompareArrows,
   Minus,
   ShieldCheck,
+  Trophy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,6 +16,7 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useDecideEvaluationComparison } from '@/features/evaluations/catalogHooks'
 import type {
   ComparisonSideSummary,
+  ComparisonWinnerKpi,
   EvaluationComparison,
   EvaluationComparisonCase,
 } from '@/features/evaluations/catalogTypes'
@@ -42,11 +42,33 @@ function delta(value?: number | null, suffix = '') {
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}${suffix}`
 }
 
+function label(value: string) {
+  return value
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 function Winner({ value }: { value: EvaluationComparisonCase['winner'] }) {
   if (value === 'candidate') return <span className="text-emerald-300">Candidate</span>
   if (value === 'reference') return <span className="text-amber-300">Reference</span>
   if (value === 'tie') return <span className="text-muted">Tie</span>
   return <span className="text-muted">Unavailable</span>
+}
+
+function KpiWinner({ value }: { value: ComparisonWinnerKpi['winner'] }) {
+  if (value === 'candidate') return <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">Candidate</Badge>
+  if (value === 'reference') return <Badge variant="outline" className="border-amber-500/30 text-amber-300">Reference</Badge>
+  if (value === 'tie') return <Badge variant="outline">Tie</Badge>
+  return <Badge variant="outline">Unavailable</Badge>
+}
+
+function kpiValue(item: ComparisonWinnerKpi, side: 'candidate' | 'reference') {
+  const value = item[side]
+  if (value == null) return '—'
+  if (item.key.includes('cost')) return money(value)
+  if (item.key.includes('latency')) return `${Math.round(value)}ms`
+  if (item.key.includes('rate')) return percentage(value)
+  return value.toFixed(1)
 }
 
 function SideCard({ title, side }: { title: string; side: ComparisonSideSummary }) {
@@ -65,10 +87,10 @@ function SideCard({ title, side }: { title: string; side: ComparisonSideSummary 
         <Badge variant="outline">Revision {side.run.evidence_revision}</Badge>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-        <div><p className="text-[9px] uppercase text-muted">Score</p><p className="mt-1 font-semibold text-white">{score(side.summary?.weighted_score)}</p></div>
-        <div><p className="text-[9px] uppercase text-muted">Pass</p><p className="mt-1 font-semibold text-white">{percentage(side.summary?.weighted_pass_rate)}</p></div>
-        <div><p className="text-[9px] uppercase text-muted">Runtime cost</p><p className="mt-1 font-semibold text-white">{money(side.runtime.runtime_cost_usd)}</p></div>
-        <div><p className="text-[9px] uppercase text-muted">Median latency</p><p className="mt-1 font-semibold text-white">{side.runtime.latency_median_ms == null ? '—' : `${Math.round(side.runtime.latency_median_ms)}ms`}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Score</p><p className="mt-1 font-semibold text-white">{score(side.kpis?.quality_score ?? side.summary?.weighted_score)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Pass</p><p className="mt-1 font-semibold text-white">{percentage(side.kpis?.pass_rate ?? side.summary?.weighted_pass_rate)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Runtime cost</p><p className="mt-1 font-semibold text-white">{money(side.kpis?.runtime_cost_usd_total ?? side.runtime.runtime_cost_usd)}</p></div>
+        <div><p className="text-[9px] uppercase text-muted">Median latency</p><p className="mt-1 font-semibold text-white">{(side.kpis?.latency_median_ms ?? side.runtime.latency_median_ms) == null ? '—' : `${Math.round(Number(side.kpis?.latency_median_ms ?? side.runtime.latency_median_ms))}ms`}</p></div>
       </div>
       {side.failures.primary ? (
         <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3">
@@ -107,11 +129,16 @@ function TrialEvidence({ title, trial }: { title: string; trial: EvaluationTrial
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {trial.interaction_mode === 'session' ? <Badge variant="outline">Session · {trial.turns?.length || 0} turns</Badge> : null}
           <Badge variant="outline">Score {score(trial.score)}</Badge>
           <Badge variant="outline">Repetition {trial.repetition}</Badge>
         </div>
       </div>
-      <JsonCodeBlock title={`${title} output`} value={trial.output} maxHeight={240} />
+      {trial.interaction_mode === 'session' ? (
+        <JsonCodeBlock title={`${title} session transcript`} value={trial.turns || trial.output?.transcript || []} maxHeight={300} />
+      ) : (
+        <JsonCodeBlock title={`${title} output`} value={trial.output} maxHeight={240} />
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <JsonCodeBlock title="Deterministic and Judge checks" value={trial.checks || []} maxHeight={220} />
         <JsonCodeBlock
@@ -154,6 +181,7 @@ export function EvaluationComparisonView({
     [cases],
   )
   const ready = comparison.status === 'ready' && Boolean(aggregate?.comparison_available)
+  const calculatedWinner = aggregate?.winner
 
   const submit = async (
     decision: 'select_candidate' | 'keep_reference' | 'no_preference',
@@ -169,7 +197,7 @@ export function EvaluationComparisonView({
         decision_basis: override ? 'manual_override' : 'evidence',
         note: note.trim() || undefined,
       })
-      toast.success('Comparison decision saved for these exact evidence revisions')
+      toast.success('Operational decision saved for these exact evidence revisions')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to save decision')
     }
@@ -179,7 +207,7 @@ export function EvaluationComparisonView({
     { value: 'overview', label: 'Overview' },
     { value: 'cases', label: `Cases (${cases.length})` },
     { value: 'attention', label: `Attention (${unavailableCases.length})` },
-    { value: 'decision', label: 'Decision' },
+    { value: 'decision', label: 'Operational decision' },
     { value: 'technical', label: 'Technical' },
   ]
 
@@ -197,6 +225,7 @@ export function EvaluationComparisonView({
               <Badge variant="outline">{comparison.comparison_mode === 'paired' ? 'Paired Comparison' : 'Post-hoc Comparison'}</Badge>
               <Badge variant="outline">{comparison.status}</Badge>
               <Badge variant="outline">Immutable evidence pair</Badge>
+              {calculatedWinner ? <Badge variant="outline">Winner: {calculatedWinner.side ? label(calculatedWinner.side) : 'Unavailable'}</Badge> : null}
             </div>
             <h3 className="mt-3 flex items-center gap-2 text-base font-semibold text-white">
               <GitCompareArrows className="h-4 w-4 text-primary-light" />Evaluation Comparison
@@ -248,39 +277,74 @@ export function EvaluationComparisonView({
 
       {tab === 'overview' ? (
         <div className="space-y-4">
+          {calculatedWinner ? (
+            <section className="rounded-xl border border-primary/25 bg-primary/[0.035] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="flex items-center gap-2 text-[9px] uppercase tracking-wide text-muted"><Trophy className="h-3.5 w-3.5 text-primary-light" />Calculated KPI winner</p>
+                  <p className="mt-2 text-xl font-semibold text-white">
+                    {calculatedWinner.side ? label(calculatedWinner.side) : 'Unavailable'}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted">
+                    {calculatedWinner.authoritative ? 'Authoritative · same protocol and repetition count' : 'Indicative · evidence is comparable but not fully symmetric'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-5 text-right text-xs">
+                  <div><p className="text-[9px] uppercase text-muted">Candidate KPI score</p><p className="mt-1 text-lg font-semibold text-emerald-300">{calculatedWinner.candidate_score == null ? '—' : percentage(calculatedWinner.candidate_score * 100)}</p></div>
+                  <div><p className="text-[9px] uppercase text-muted">Reference KPI score</p><p className="mt-1 text-lg font-semibold text-amber-300">{calculatedWinner.reference_score == null ? '—' : percentage(calculatedWinner.reference_score * 100)}</p></div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
           {candidate && reference ? (
             <div className="grid gap-4 xl:grid-cols-2">
               <SideCard title="Candidate Evaluation" side={candidate} />
               <SideCard title="Reference Evaluation" side={reference} />
             </div>
           ) : null}
-          <section className="overflow-hidden rounded-xl border border-border/80 bg-background/30">
-            <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
-              <span>Metric</span><span>Candidate</span><span>Reference</span><span>Delta</span>
-            </div>
-            {[
-              ['Weighted score', candidate?.summary?.weighted_score, reference?.summary?.weighted_score, aggregate?.delta?.score, ''],
-              ['Weighted pass', candidate?.summary?.weighted_pass_rate, reference?.summary?.weighted_pass_rate, aggregate?.delta?.pass_rate_percentage_points, ' pp'],
-              ['Runtime cost', candidate?.runtime.runtime_cost_usd, reference?.runtime.runtime_cost_usd, aggregate?.delta?.runtime_cost_usd, '$'],
-              ['Median latency', candidate?.runtime.latency_median_ms, reference?.runtime.latency_median_ms, aggregate?.delta?.latency_median_ms, 'ms'],
-            ].map(([name, candidateValue, referenceValue, deltaValue, suffix]) => (
-              <div key={String(name)} className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] border-b border-border/70 px-4 py-3 text-xs last:border-b-0">
-                <span className="text-white">{name}</span>
-                <span className="text-slate-200">{candidateValue == null ? '—' : Number(candidateValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
-                <span className="text-slate-200">{referenceValue == null ? '—' : Number(referenceValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
-                <span className="flex items-center gap-1 text-slate-200">
-                  {deltaValue == null ? <Minus className="h-3 w-3 text-muted" /> : Number(deltaValue) > 0 ? <ArrowUp className="h-3 w-3 text-emerald-300" /> : <ArrowDown className="h-3 w-3 text-amber-300" />}
-                  {deltaValue == null ? '—' : `${name === 'Runtime cost' ? '$' : ''}${delta(Number(deltaValue), suffix === '$' ? '' : String(suffix))}`}
-                </span>
+
+          {calculatedWinner?.kpis?.length ? (
+            <section className="overflow-hidden rounded-xl border border-border/80 bg-background/30">
+              <div className="grid grid-cols-[minmax(180px,1fr)_110px_120px_120px_100px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
+                <span>KPI</span><span>Direction</span><span>Candidate</span><span>Reference</span><span>Winner</span>
               </div>
-            ))}
-          </section>
+              {calculatedWinner.kpis.map((item) => (
+                <div key={item.key} className="grid grid-cols-[minmax(180px,1fr)_110px_120px_120px_100px] items-center border-b border-border/70 px-4 py-3 text-xs last:border-b-0">
+                  <span className="text-white">{label(item.key)} <span className="ml-1 text-[9px] text-muted">{Math.round(item.weight * 100)}%</span></span>
+                  <span className="text-muted">{item.direction === 'maximize' ? 'Higher wins' : 'Lower wins'}</span>
+                  <span className={item.winner === 'candidate' ? 'font-medium text-emerald-300' : 'text-slate-200'}>{kpiValue(item, 'candidate')}</span>
+                  <span className={item.winner === 'reference' ? 'font-medium text-amber-300' : 'text-slate-200'}>{kpiValue(item, 'reference')}</span>
+                  <KpiWinner value={item.winner} />
+                </div>
+              ))}
+            </section>
+          ) : (
+            <section className="overflow-hidden rounded-xl border border-border/80 bg-background/30">
+              <div className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
+                <span>Metric</span><span>Candidate</span><span>Reference</span><span>Delta</span>
+              </div>
+              {[
+                ['Weighted score', candidate?.summary?.weighted_score, reference?.summary?.weighted_score, aggregate?.delta?.score, ''],
+                ['Weighted pass', candidate?.summary?.weighted_pass_rate, reference?.summary?.weighted_pass_rate, aggregate?.delta?.pass_rate_percentage_points, ' pp'],
+                ['Runtime cost', candidate?.runtime.runtime_cost_usd, reference?.runtime.runtime_cost_usd, aggregate?.delta?.runtime_cost_usd, '$'],
+                ['Median latency', candidate?.runtime.latency_median_ms, reference?.runtime.latency_median_ms, aggregate?.delta?.latency_median_ms, 'ms'],
+              ].map(([name, candidateValue, referenceValue, deltaValue, suffix]) => (
+                <div key={String(name)} className="grid grid-cols-[minmax(180px,1fr)_120px_120px_120px] border-b border-border/70 px-4 py-3 text-xs last:border-b-0">
+                  <span className="text-white">{name}</span>
+                  <span className="text-slate-200">{candidateValue == null ? '—' : Number(candidateValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
+                  <span className="text-slate-200">{referenceValue == null ? '—' : Number(referenceValue).toFixed(name === 'Runtime cost' ? 4 : 1)}</span>
+                  <span className="flex items-center gap-1 text-slate-200"><Minus className="h-3 w-3 text-muted" />{deltaValue == null ? '—' : `${name === 'Runtime cost' ? '$' : ''}${delta(Number(deltaValue), suffix === '$' ? '' : String(suffix))}`}</span>
+                </div>
+              ))}
+            </section>
+          )}
         </div>
       ) : null}
 
       {tab === 'cases' ? (
         <section className="overflow-hidden rounded-xl border border-border/80 bg-background/30">
-          <div className="grid grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px_32px] border-b border-border px-4 py-3 text-[9px] uppercase text-muted">
+          <div className="grid grid-cols-[minmax(220px,1fr)_120px_120px_100px_100px_32px] border-b border-border px-4 py-3 text-[9px] uppercase tracking-wide text-muted">
             <span>Test Case</span><span>Candidate</span><span>Reference</span><span>Delta</span><span>Result</span><span />
           </div>
           {cases.map((item) => {
@@ -348,9 +412,9 @@ export function EvaluationComparisonView({
         <section className="rounded-xl border border-border/80 bg-background/30 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4 text-primary-light" />Comparison decision</h4>
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4 text-primary-light" />Operational decision</h4>
               <p className="mt-1 text-[11px] text-muted">
-                Selects between these exact Runs and evidence revisions. It does not rewrite either Evaluation.
+                The calculated Winner above is evidence. This optional decision records what the operator chose to do and may explicitly override that Winner without rewriting either Evaluation.
               </p>
             </div>
             <Badge variant="outline">{comparison.decision?.decision || 'Pending'}</Badge>
