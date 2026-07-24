@@ -1,20 +1,29 @@
 import { Activity, CircleDot, History } from 'lucide-react'
+import type { RuntimeEnvironment } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
 
 export type LeftPanelTab = 'debug' | 'traces' | 'sessions'
 
 interface OperationsRailProps {
   activeTab: LeftPanelTab | null
+  environment: RuntimeEnvironment
   onTabChange: (tab: LeftPanelTab) => void
 }
 
-const items: { id: LeftPanelTab; label: string; icon: typeof Activity }[] = [
+const draftItems: { id: LeftPanelTab; label: string; icon: typeof Activity }[] = [
   { id: 'debug', label: 'Current Run', icon: CircleDot },
   { id: 'traces', label: 'Runs', icon: Activity },
   { id: 'sessions', label: 'Sessions', icon: History },
 ]
 
-export function OperationsRail({ activeTab, onTabChange }: OperationsRailProps) {
+const immutableItems: { id: LeftPanelTab; label: string; icon: typeof Activity }[] = [
+  { id: 'traces', label: 'Runs', icon: Activity },
+  { id: 'debug', label: 'Debug', icon: CircleDot },
+]
+
+export function OperationsRail({ activeTab, environment, onTabChange }: OperationsRailProps) {
+  const items = environment === 'draft' ? draftItems : immutableItems
+
   return (
     <div className="w-[58px] shrink-0 flex flex-col items-center border-r border-border/90 bg-surface/75 py-3 gap-1 shadow-sm shadow-black/5">
       {items.map((item) => {
