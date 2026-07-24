@@ -22,14 +22,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate Compose configuration
+      - name: Prepare environment templates
         run: |
           cp .env.example .env
-          docker compose config --quiet
+          cp .env.web.example .env.web
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
       - name: Build backend image
         run: docker build --tag projectrai-api:ci .
       - name: Build frontend image
-        run: docker build --tag projectrai-web:ci web
+        run: docker build --secret id=web_env,src=.env.web --tag projectrai-web:ci web
   smoke:
     name: smoke
     needs: build
@@ -39,7 +41,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Prepare isolated environment
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          cp .env.web.example .env.web
       - name: Start essential services
         run: docker compose up --detach --build api workers
       - name: Wait for API health
