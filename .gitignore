@@ -14,9 +14,6 @@ web\node_modules
 # Local upload storage
 /storage/uploads/
 
-# Local and production secrets
+# Deployment environment files
 .env*
 !.env.example
-!.env.production.example
-!.env.web.example
-!.env.web.production.example
