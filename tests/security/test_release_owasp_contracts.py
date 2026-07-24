@@ -39,12 +39,14 @@ def test_production_topology_does_not_publish_data_services_or_bind_mount_source
     compose = read("docker-compose.prod.yml")
     db_block = service_block(compose, "db", "pgbouncer")
     pgbouncer_block = service_block(compose, "pgbouncer", "rabbitmq")
-    rabbit_block = compose.split("\n  rabbitmq:\n", maxsplit=1)[1].split("\nnetworks:\n", maxsplit=1)[0]
+    rabbit_block = service_block(compose, "rabbitmq", "redis")
+    redis_block = compose.split("\n  redis:\n", maxsplit=1)[1].split("\nsecrets:\n", maxsplit=1)[0]
     web_block = service_block(compose, "web", "db")
 
     assert "ports:" not in db_block
     assert "ports:" not in pgbouncer_block
     assert "ports:" not in rabbit_block
+    assert "ports:" not in redis_block
     assert 'ports:\n      - "8080:8080"' in web_block
     assert compose.count("    ports:\n") == 1
     assert "../" not in compose
@@ -52,19 +54,31 @@ def test_production_topology_does_not_publish_data_services_or_bind_mount_source
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
+    assert "uploads_data:/app/storage/uploads" in compose
 
 
 def test_production_environment_is_template_only_and_rejects_wildcard_origins() -> None:
     environment = read(".env.production.example")
-    assert "Never commit .env.production" in environment
-    assert "PROJECTRAI_SECRET_KEY=replace-with-at-least-32-random-characters" in environment
-    assert "PROJECTRAI_ENCRYPTION_KEY=replace-with-at-least-32-random-characters" in environment
+    web_environment = read(".env.web.production.example")
+
+    assert "Never commit the resulting .env or .env.web" in environment
+    assert "PROJECTRAI_SECRET_KEY=\n" in environment
+    assert "PROJECTRAI_ENCRYPTION_KEY=\n" in environment
+    assert "POSTGRES_PASSWORD=\n" in environment
+    assert "RABBITMQ_PASSWORD=\n" in environment
     assert "PROJECTRAI_CORS_ORIGINS=*" not in environment
     assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
+    assert "VITE_API_URL=" not in environment
+
+    assert "VITE_API_URL=https://app.example.com" in web_environment
+    assert "POSTGRES_PASSWORD" not in web_environment
+    assert "PROJECTRAI_SECRET_KEY" not in web_environment
+    assert "PROJECTRAI_ENCRYPTION_KEY" not in web_environment
 
     gitignore = read(".gitignore")
     assert ".env*" in gitignore
     assert "!.env.production.example" in gitignore
+    assert "!.env.web.production.example" in gitignore
 
 
 def test_frontend_only_logs_request_details_in_development() -> None:
