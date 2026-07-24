@@ -16,11 +16,13 @@ export function AgentLifecycleAction({
   projectId,
   environment,
   disabled = false,
+  onEnvironmentChange,
 }: {
   agentId: string
   projectId: string
   environment: RuntimeEnvironment
   disabled?: boolean
+  onEnvironmentChange: (environment: RuntimeEnvironment) => void
 }) {
   const { data: releases = [] } = useReleases(agentId)
   const createRelease = useCreateRelease(agentId)
@@ -71,6 +73,7 @@ export function AgentLifecycleAction({
         copySnapshot: true,
       })
       setStageOpen(false)
+      onEnvironmentChange('staging')
       toast.success(`${staged.version} created as current Staging`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to promote Draft to Staging')
@@ -88,6 +91,7 @@ export function AgentLifecycleAction({
       })
       setPublishOpen(false)
       setReleaseDescription('')
+      onEnvironmentChange('production')
       toast.success(`${result.version} published to Agent Production`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to publish Agent Release')
