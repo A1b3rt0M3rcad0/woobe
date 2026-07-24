@@ -70,11 +70,12 @@ API and Workers must not use the direct migration/PostgreSQL URL.
 
 The Compose files deliberately pass only the variables a service consumes. The same rule should be applied to Kubernetes Secrets, ECS task definitions, systemd units or standalone `docker run` deployments.
 
+API and Worker determine their runtime role from their own entrypoints (`src.main` and `src.worker_main`). There is no `PROJECTRAI_SERVICE_ROLE` deployment variable.
+
 ### API
 
 Requires at minimum:
 
-- `PROJECTRAI_SERVICE_ROLE=api`;
 - `PROJECTRAI_DATABASE_URL`;
 - `PROJECTRAI_REDIS_URL` when Redis-backed features are enabled;
 - object-storage settings;
@@ -88,7 +89,6 @@ API does not require `PROJECTRAI_RABBITMQ_URL` to start.
 
 Requires at minimum:
 
-- `PROJECTRAI_SERVICE_ROLE=worker`;
 - `PROJECTRAI_DATABASE_URL`;
 - `PROJECTRAI_RABBITMQ_URL`;
 - `PROJECTRAI_REDIS_URL` when enabled;
@@ -151,6 +151,8 @@ For AWS S3, normally leave `PROJECTRAI_S3_ENDPOINT_URL` empty and prefer IAM/wor
 
 The Docker build receives only `VITE_API_URL` as a build argument. The complete `.env` is never mounted into the frontend build.
 
+Local Vite uses the neutral `manifest` mode so legacy `.env.web` or `.env.production` files from older setups do not override the canonical root `.env`.
+
 Nginx serves static SPA assets only. It does not proxy to a Docker service named `api`. The browser calls `VITE_API_URL` directly. If Production requires one public origin, route `/api` or API hostnames at the external ingress/load balancer.
 
 ## Production security values
@@ -166,7 +168,7 @@ Before setting `PROJECTRAI_ENVIRONMENT=production`, replace the local/example va
 - production object-storage endpoint/bucket/authentication;
 - correct public `VITE_API_URL`.
 
-Production runtime validation is service-aware: browser/API security rules apply to the API role; RabbitMQ credential validation applies to the Worker role.
+Production runtime validation is service-aware: browser/API security rules apply to the API process; RabbitMQ credential validation applies to the Worker process.
 
 ## Full-stack local/integration deployment
 
