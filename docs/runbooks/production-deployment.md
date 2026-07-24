@@ -4,30 +4,56 @@
 
 This runbook deploys the MVP with `docker-compose.prod.yml`. PostgreSQL, PgBouncer and RabbitMQ remain on an internal Docker network. Only the unprivileged web reverse proxy publishes a host port. TLS must terminate at the platform ingress or load balancer in front of that port; direct Internet exposure of plain HTTP is not supported.
 
-For a real deployment, mirror the images to a registry and pin immutable digests through a reviewed Compose override. The base file uses local `projectrai-api:0.1.0` and `projectrai-web:0.1.0` tags for staging validation.
+Development and Production use the same environment-variable contract. PostgreSQL credentials come only from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`. RabbitMQ credentials come only from `RABBITMQ_USER` and `RABBITMQ_PASSWORD`. Application URLs are derived by the shared container entrypoint.
+
+The database topology is intentionally fixed:
+
+- `migrate` connects directly to PostgreSQL at `db:5432`;
+- `api` and `workers` connect through PgBouncer at `pgbouncer:6432`;
+- PgBouncer connects to the same PostgreSQL using the same `POSTGRES_*` credentials;
+- PgBouncer capacity can be tuned with `PGBOUNCER_*` without duplicating credentials.
+
+For a real deployment, mirror the images to a registry and pin immutable digests through a reviewed Compose override. The base file keeps local build definitions and `projectrai-api:0.1.0` / `projectrai-web:0.1.0` tags so the production topology can also be validated locally.
 
 ## Required configuration
 
-Copy `.env.production.example` outside the repository and replace every placeholder. Store the resulting values in the deployment secret manager, not in Git. Production startup rejects debug mode, wildcard or HTTP CORS origins, wildcard trusted hosts, weak keys, default database/RabbitMQ credentials and non-JSON logging.
+Start from the production template:
+
+```bash
+cp .env.production.example .env
+```
+
+Fill the required secret/domain values in `.env`, then store the resulting values in the deployment secret manager rather than Git. Production startup rejects debug mode, wildcard or HTTP CORS origins, wildcard trusted hosts, weak keys, default database/RabbitMQ credentials and non-JSON logging.
 
 Required externally managed values:
 
-- `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`: independent random values, at least 32 characters.
-- exact HTTPS `PROJECTRAI_CORS_ORIGINS` and exact `PROJECTRAI_TRUSTED_HOSTS`.
-- non-default PostgreSQL and RabbitMQ credentials.
-- a reviewed Compose override that pins immutable application image digests.
+- `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`: independent random values, at least 32 characters;
+- exact HTTPS `PROJECTRAI_CORS_ORIGINS` and exact `PROJECTRAI_TRUSTED_HOSTS`;
+- non-default `POSTGRES_PASSWORD` and `RABBITMQ_PASSWORD`;
+- public `VITE_API_URL` used by the frontend build;
+- a reviewed Compose override that pins immutable application image digests for a real release.
+
+The normal PgBouncer starting policy is:
+
+```text
+PGBOUNCER_POOL_MODE=transaction
+PGBOUNCER_MAX_CLIENT_CONN=200
+PGBOUNCER_DEFAULT_POOL_SIZE=20
+PGBOUNCER_RESERVE_POOL_SIZE=5
+PGBOUNCER_MAX_DB_CONNECTIONS=30
+```
+
+Treat these values as deployment capacity settings, not application secrets. Increase them only from observed database/PgBouncer saturation and PostgreSQL capacity.
 
 ## Build and preflight
 
 ```bash
-docker build --pull -t projectrai-api:0.1.0 .
-docker build --pull -t projectrai-web:0.1.0 web
+docker compose -f docker-compose.prod.yml build
 
 docker image inspect projectrai-api:0.1.0 --format '{{.Config.User}}'
 docker image inspect projectrai-web:0.1.0 --format '{{.Config.User}}'
 
-docker compose --env-file /run/secrets/projectrai.env \
-  -f docker-compose.prod.yml config --quiet
+docker compose -f docker-compose.prod.yml config --quiet
 ```
 
 Both image user values must be non-empty and not `0`/`root`. Review the rendered Compose output and confirm that `db`, `pgbouncer` and `rabbitmq` have no host `ports` entries and that no service uses bind mounts.
@@ -40,8 +66,7 @@ Both image user values must be non-empty and not `0`/`root`. Review the rendered
 4. Run health and authenticated smoke checks.
 
 ```bash
-export ENV_FILE=/run/secrets/projectrai.env
-COMPOSE="docker compose --env-file $ENV_FILE -f docker-compose.prod.yml"
+COMPOSE="docker compose -f docker-compose.prod.yml"
 
 $COMPOSE up -d db rabbitmq pgbouncer
 $COMPOSE run --rm migrate
@@ -52,6 +77,12 @@ SMOKE_EMAIL="$SMOKE_EMAIL" \
 SMOKE_PASSWORD="$SMOKE_PASSWORD" \
 SMOKE_PROJECT_ID="$SMOKE_PROJECT_ID" \
 ./scripts/smoke_production.sh
+```
+
+For a single-host validation after `.env` is configured, the compact flow is:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 `/live` proves process liveness. `/ready` performs a bounded database check and returns 503 while the dependency is unavailable. The worker container health check verifies the PID 1 worker runtime remains active; worker loop failures are emitted as structured logs and metrics.
