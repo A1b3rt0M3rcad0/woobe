@@ -325,7 +325,7 @@ export function Sidebar() {
             <Play className="h-4 w-4 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">ProjectRAI</p>
+            <p className="truncate text-sm font-semibold text-white">Woobe</p>
             <p className="truncate text-xs text-muted">Control plane</p>
           </div>
         </div>
