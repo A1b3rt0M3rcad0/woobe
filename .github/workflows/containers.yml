@@ -22,16 +22,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Prepare environment templates
-        run: |
-          cp .env.example .env
-          cp .env.web.example .env.web
+      - name: Prepare deployment manifest
+        run: cp .env.example .env
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build backend image
         run: docker build --tag projectrai-api:ci .
       - name: Build frontend image
-        run: docker build --secret id=web_env,src=.env.web --tag projectrai-web:ci web
+        shell: bash
+        run: |
+          set -euo pipefail
+          VITE_API_URL="$(sed -n 's/^VITE_API_URL=//p' .env)"
+          docker build --build-arg "VITE_API_URL=$VITE_API_URL" --tag projectrai-web:ci web
   smoke:
     name: smoke
     needs: build
@@ -41,22 +43,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Prepare isolated environment
-        run: |
-          cp .env.example .env
-          cp .env.web.example .env.web
+        run: cp .env.example .env
       - name: Start essential services
         run: docker compose up --detach --build api workers
-      - name: Wait for API health
+      - name: Wait for API readiness
         shell: bash
         run: |
           set -euo pipefail
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error http://127.0.0.1:8000/health; then
+            if curl --fail --silent --show-error http://127.0.0.1:8000/ready; then
               exit 0
             fi
             sleep 2
           done
-          echo "API did not become healthy" >&2
+          echo "API did not become ready" >&2
           docker compose ps
           exit 1
       - name: Show service logs on failure
