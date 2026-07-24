@@ -1,16 +1,26 @@
 name: projectrai
 
+x-app-environment: &app-environment
+  PROJECTRAI_DATABASE_URL: ""
+  PROJECTRAI_DATABASE_HOST: pgbouncer
+  PROJECTRAI_DATABASE_PORT: "6432"
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+  PROJECTRAI_RABBITMQ_URL: ""
+  PROJECTRAI_RABBITMQ_HOST: rabbitmq
+  PROJECTRAI_RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: ${RABBITMQ_USER}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+  PROJECTRAI_RUN_MIGRATIONS: "false"
+
 x-app-service: &app-service
+  build: .
   image: projectrai-api:0.1.0
   env_file:
-    - .env.production
+    - .env
   environment:
-    PROJECTRAI_ENVIRONMENT: production
-    PROJECTRAI_DEBUG: "false"
-    PROJECTRAI_REFRESH_COOKIE_SECURE: "true"
-    PROJECTRAI_JSON_LOGS: "true"
-    PROJECTRAI_METRICS_ENABLED: "true"
-    PROJECTRAI_RUN_MIGRATIONS: "false"
+    <<: *app-environment
   networks:
     - application
     - data
@@ -27,19 +37,12 @@ x-app-service: &app-service
 services:
   migrate:
     <<: *app-service
-    command:
-      - sh
-      - -c
-      - >-
-        export PROJECTRAI_DATABASE_URL="postgresql+asyncpg://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@db:5432/$${POSTGRES_DB}";
-        exec alembic upgrade head
     environment:
-      PROJECTRAI_ENVIRONMENT: production
-      PROJECTRAI_DEBUG: "false"
-      PROJECTRAI_REFRESH_COOKIE_SECURE: "true"
-      PROJECTRAI_JSON_LOGS: "true"
+      <<: *app-environment
+      PROJECTRAI_DATABASE_HOST: db
+      PROJECTRAI_DATABASE_PORT: "5432"
       PROJECTRAI_METRICS_ENABLED: "false"
-      PROJECTRAI_RUN_MIGRATIONS: "false"
+    command: ["alembic", "upgrade", "head"]
     depends_on:
       db:
         condition: service_healthy
@@ -82,6 +85,10 @@ services:
     stop_grace_period: 45s
 
   web:
+    build:
+      context: web
+      secrets:
+        - web_env
     image: projectrai-web:0.1.0
     depends_on:
       api:
@@ -110,8 +117,10 @@ services:
 
   db:
     image: pgvector/pgvector:pg17
-    env_file:
-      - .env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -127,17 +136,19 @@ services:
 
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0
-    env_file:
-      - .env.production
     environment:
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_HOST: db
       DB_PORT: "5432"
-      DB_NAME: projectrai
+      DB_NAME: ${POSTGRES_DB}
       LISTEN_ADDR: "0.0.0.0"
       LISTEN_PORT: "6432"
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: "200"
-      DEFAULT_POOL_SIZE: "30"
+      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-200}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-20}
+      RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-5}
+      MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
       AUTH_TYPE: scram-sha-256
     depends_on:
       db:
@@ -155,8 +166,10 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
-    env_file:
-      - .env.production
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: /
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -169,6 +182,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+secrets:
+  web_env:
+    file: ./.env
 
 networks:
   application:
