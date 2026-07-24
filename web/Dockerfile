@@ -6,14 +6,11 @@ ARG NGINX_VERSION=1.29.4
 FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /app
 
-ARG VITE_API_URL
-
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .
-RUN node -e "const value=process.env.VITE_API_URL; if (!value) throw new Error('VITE_API_URL build argument is required'); const url=new URL(value); if (!['http:','https:'].includes(url.protocol)) throw new Error('VITE_API_URL must use http or https')" \
-    && npm run build
+RUN --mount=type=secret,id=web_env,target=/.env.web,required=true npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
