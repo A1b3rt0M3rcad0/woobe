@@ -70,7 +70,7 @@ def test_production_environment_is_template_only_and_rejects_wildcard_origins() 
     assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
     assert "VITE_API_URL=" not in environment
 
-    assert "VITE_API_URL=https://app.example.com" in web_environment
+    assert "VITE_API_URL=\n" in web_environment
     assert "POSTGRES_PASSWORD" not in web_environment
     assert "PROJECTRAI_SECRET_KEY" not in web_environment
     assert "PROJECTRAI_ENCRYPTION_KEY" not in web_environment
