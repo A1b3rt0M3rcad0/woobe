@@ -11,8 +11,9 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .
 RUN --mount=type=secret,id=web_env,target=/.env.web,required=true \
-    grep -Eq '^VITE_API_URL=https?://[^[:space:]]+$' /.env.web \
-    && ! grep -Eq '^(POSTGRES_|RABBITMQ_|PROJECTRAI_)' /.env.web \
+    tr -d '\r' < /.env.web > /tmp/projectrai-web.env \
+    && grep -Eq '^VITE_API_URL=https?://[^[:space:]]+$' /tmp/projectrai-web.env \
+    && ! grep -Eq '^(POSTGRES_|RABBITMQ_|PROJECTRAI_)' /tmp/projectrai-web.env \
     && npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
