@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { cn } from '@/lib/utils'
 import { AgentControlsPopover } from './AgentControlsPopover'
+import { AgentLifecycleAction } from './AgentLifecycleAction'
 import type { Agent, ReleaseStatus, RuntimeEnvironment } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
@@ -127,6 +128,7 @@ export function PlaygroundHeader({
         </Button>
 
         <AgentControlsPopover agent={agent} projectId={projectId} />
+        <AgentLifecycleAction agentId={agent.id} projectId={projectId} environment={environment} disabled={environmentChangeDisabled} />
 
         <button
           onClick={onToggleRightPanel}
