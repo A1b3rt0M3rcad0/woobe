@@ -15,7 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare Compose environment
-        run: cp .env.production.example .env.production
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from secrets import token_urlsafe
+
+          content = Path('.env.production.example').read_text()
+          replacements = {
+              'PROJECTRAI_SECRET_KEY=': f'PROJECTRAI_SECRET_KEY={token_urlsafe(48)}',
+              'PROJECTRAI_ENCRYPTION_KEY=': f'PROJECTRAI_ENCRYPTION_KEY={token_urlsafe(48)}',
+              'PROJECTRAI_CORS_ORIGINS=': 'PROJECTRAI_CORS_ORIGINS=https://app.example.com',
+              'PROJECTRAI_TRUSTED_HOSTS=': 'PROJECTRAI_TRUSTED_HOSTS=app.example.com',
+              'POSTGRES_PASSWORD=': f'POSTGRES_PASSWORD={token_urlsafe(24)}',
+              'RABBITMQ_PASSWORD=': f'RABBITMQ_PASSWORD={token_urlsafe(24)}',
+          }
+          lines = []
+          for line in content.splitlines():
+              replacement = next((value for prefix, value in replacements.items() if line == prefix), None)
+              lines.append(replacement if replacement is not None else line)
+          Path('.env').write_text('\n'.join(lines) + '\n')
+          Path('.env.web').write_text('VITE_API_URL=https://app.example.com\n')
+          PY
       - name: Validate production topology
         run: |
           docker compose -f docker-compose.prod.yml config --quiet
@@ -25,7 +45,7 @@ jobs:
           from pathlib import Path
 
           services = json.loads(Path('compose-prod.json').read_text())['services']
-          for name in ('db', 'pgbouncer', 'rabbitmq'):
+          for name in ('db', 'pgbouncer', 'rabbitmq', 'redis'):
               assert not services[name].get('ports'), f'{name} publishes a host port'
           for name, service in services.items():
               for volume in service.get('volumes', []):
@@ -35,11 +55,11 @@ jobs:
       - name: Build production images
         run: |
           docker build --tag projectrai-api:ci .
-          docker build --tag projectrai-web:ci web
+          docker build --secret id=web_env,src=.env.web --tag projectrai-web:ci web
       - name: Verify cached builds without build-network access
         run: |
           docker build --network=none --tag projectrai-api:ci-offline .
-          docker build --network=none --tag projectrai-web:ci-offline web
+          docker build --network=none --secret id=web_env,src=.env.web --tag projectrai-web:ci-offline web
       - name: Require non-root runtime users
         run: |
           for image in projectrai-api:ci projectrai-web:ci; do
