@@ -48,6 +48,8 @@ services:
     environment:
       <<: *projectrai-environment
       PROJECTRAI_RUN_MIGRATIONS: "false"
+    volumes:
+      - uploads_data:/app/storage/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -76,6 +78,8 @@ services:
     environment:
       <<: *projectrai-environment
       PROJECTRAI_RUN_MIGRATIONS: "false"
+    volumes:
+      - uploads_data:/app/storage/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -91,8 +95,8 @@ services:
   web:
     build:
       context: web
-      secrets:
-        - web_env
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in .env}
     ports:
       - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
@@ -111,7 +115,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=\"$${POSTGRES_PASSWORD}\" psql -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -tAc 'SELECT 1' | grep -qx 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -139,7 +147,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U $${DB_USER} -d $${DB_NAME}"]
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=\"$${DB_PASSWORD}\" psql -h 127.0.0.1 -p 6432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\" -tAc 'SELECT 1' | grep -qx 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -173,10 +185,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-secrets:
-  web_env:
-    file: ./.env
-
 volumes:
   pgdata:
   rabbitmq_data:
+  uploads_data:
