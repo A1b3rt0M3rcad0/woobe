@@ -4,14 +4,14 @@ x-app-environment: &app-environment
   PROJECTRAI_DATABASE_URL: ""
   PROJECTRAI_DATABASE_HOST: pgbouncer
   PROJECTRAI_DATABASE_PORT: "6432"
-  POSTGRES_USER: ${POSTGRES_USER}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+  POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
   PROJECTRAI_RABBITMQ_URL: ""
   PROJECTRAI_RABBITMQ_HOST: rabbitmq
   PROJECTRAI_RABBITMQ_PORT: "5672"
-  RABBITMQ_USER: ${RABBITMQ_USER}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+  RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
   PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL:-redis://redis:6379/0}
   PROJECTRAI_RUN_MIGRATIONS: "false"
 
@@ -127,9 +127,9 @@ services:
   db:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -150,11 +150,11 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0
     environment:
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       DB_HOST: db
       DB_PORT: "5432"
-      DB_NAME: ${POSTGRES_DB}
+      DB_NAME: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       LISTEN_ADDR: "0.0.0.0"
       LISTEN_PORT: "6432"
       POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
@@ -184,8 +184,8 @@ services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
       RABBITMQ_DEFAULT_VHOST: /
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
