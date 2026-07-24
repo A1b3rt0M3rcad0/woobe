@@ -2,50 +2,114 @@
 
 ## Scope and invariants
 
-This runbook deploys the MVP with `docker-compose.prod.yml`. PostgreSQL, PgBouncer, RabbitMQ and Redis remain on the internal data network. Only the unprivileged web reverse proxy publishes a host port. TLS must terminate at the platform ingress or load balancer in front of that port; direct Internet exposure of plain HTTP is not supported.
+ProjectRAI/Woobe uses one deployment contract for development, staging and production: `.env.example`.
 
-Backend/infrastructure configuration and frontend build configuration are intentionally separated:
+The application must not infer where PostgreSQL, PgBouncer, RabbitMQ, Redis, object storage or the Web/API are running. Communication between services is expressed through explicit URLs in the deployment manifest.
 
-- `.env` contains backend and infrastructure settings/secrets;
-- `.env.web` contains only public `VITE_*` frontend build values.
+`docker-compose.yml` is the full-stack integration/single-node harness. It can provision PostgreSQL, PgBouncer, RabbitMQ, Redis and MinIO locally, but those service names are not application defaults.
 
-PostgreSQL credentials come only from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`. RabbitMQ credentials come only from `RABBITMQ_USER` and `RABBITMQ_PASSWORD`. Application database/RabbitMQ URLs are derived by the shared container entrypoint.
+`docker-compose.prod.yml` is an application-only hardened reference containing `migrate`, `api`, `workers` and `web`. It assumes dependency endpoints are externally reachable and configured in `.env`. A real deployment may instead run the same images through Kubernetes, ECS, Nomad, independent Docker hosts or VMs.
 
-The database topology is fixed:
+## Single environment manifest
 
-- `migrate` connects directly to PostgreSQL at `db:5432`;
-- `api` and `workers` connect through PgBouncer at `pgbouncer:6432`;
-- PgBouncer uses the same `POSTGRES_*` credentials;
-- PgBouncer capacity is tuned with `PGBOUNCER_*`, independently from credentials.
-
-The single-host MVP topology uses a named `uploads_data` volume shared by API/workers for local Knowledge files. Multi-host or ephemeral deployments should switch `PROJECTRAI_STORAGE_DRIVER` to `s3` and configure the existing S3 settings instead of relying on that local volume.
-
-For a real deployment, mirror images to a registry and pin immutable digests through a reviewed Compose override. The base file keeps local build definitions and `projectrai-api:0.1.0` / `projectrai-web:0.1.0` tags so the topology can also be validated locally.
-
-## Required configuration
-
-Start from the templates:
+Start from:
 
 ```bash
-cp .env.production.example .env
-cp .env.web.production.example .env.web
+cp .env.example .env
 ```
 
-Fill the required values before deployment. Store the final `.env` in the deployment secret manager rather than Git. `.env.web` must contain only public `VITE_*` values and may never contain database, RabbitMQ, encryption or authentication secrets.
+Do not create a different variable schema for Production. Change only deployment values/endpoints and set:
 
-Required externally managed values:
+```env
+PROJECTRAI_ENVIRONMENT=production
+```
 
-- `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`: independent URL-safe random values, at least 32 characters;
-- exact HTTPS `PROJECTRAI_CORS_ORIGINS` and exact `PROJECTRAI_TRUSTED_HOSTS`;
-- non-default `POSTGRES_PASSWORD` and `RABBITMQ_PASSWORD`;
-- public `VITE_API_URL` in `.env.web`;
-- a reviewed Compose override pinning immutable application image digests for a real release.
+The manifest is organized by service and documents who consumes each endpoint.
 
-Prefer URL-safe generated secrets, for example `secrets.token_urlsafe(...)`. If a manually chosen `.env` value contains `$`, single-quote the full value so Docker Compose does not interpolate it.
+Primary connection boundaries:
 
-Production startup rejects debug mode, wildcard or HTTP CORS origins, wildcard trusted hosts, weak keys, default database/RabbitMQ credentials and non-JSON logging.
+```text
+PROJECTRAI_POSTGRES_URL
+  PostgreSQL direct endpoint
+  consumers: migration + PgBouncer
 
-## PgBouncer baseline
+PROJECTRAI_DATABASE_URL
+  pooled/runtime PostgreSQL endpoint
+  consumers: API + Workers
+
+PROJECTRAI_RABBITMQ_URL
+  broker endpoint
+  consumer: Workers
+
+PROJECTRAI_REDIS_URL
+  Redis endpoint
+  consumers: Redis-backed API/Worker features
+
+PROJECTRAI_S3_ENDPOINT_URL + bucket/credentials
+  object storage
+  consumers: API + Workers
+
+VITE_API_URL
+  public API endpoint embedded in the browser bundle
+```
+
+For PostgreSQL specifically:
+
+```text
+Migration ───── PROJECTRAI_POSTGRES_URL ─────► PostgreSQL
+PgBouncer ───── PROJECTRAI_POSTGRES_URL ─────► PostgreSQL
+API ─────────── PROJECTRAI_DATABASE_URL ─────► PgBouncer/pool
+Workers ─────── PROJECTRAI_DATABASE_URL ─────► PgBouncer/pool
+```
+
+API and Workers must not use the direct migration/PostgreSQL URL.
+
+## Service-specific configuration
+
+`.env` is a deployment manifest, not a requirement to inject every variable into every process.
+
+The Compose files deliberately pass only the variables a service consumes. The same rule should be applied to Kubernetes Secrets, ECS task definitions, systemd units or standalone `docker run` deployments.
+
+### API
+
+Requires at minimum:
+
+- `PROJECTRAI_SERVICE_ROLE=api`;
+- `PROJECTRAI_DATABASE_URL`;
+- `PROJECTRAI_REDIS_URL` when Redis-backed features are enabled;
+- object-storage settings;
+- `PROJECTRAI_SECRET_KEY`;
+- `PROJECTRAI_ENCRYPTION_KEY`;
+- API/CORS/cookie configuration.
+
+API does not require `PROJECTRAI_RABBITMQ_URL` to start.
+
+### Workers
+
+Requires at minimum:
+
+- `PROJECTRAI_SERVICE_ROLE=worker`;
+- `PROJECTRAI_DATABASE_URL`;
+- `PROJECTRAI_RABBITMQ_URL`;
+- `PROJECTRAI_REDIS_URL` when enabled;
+- object-storage settings;
+- `PROJECTRAI_ENCRYPTION_KEY`.
+
+### Migration
+
+Requires only the direct database boundary:
+
+```env
+PROJECTRAI_POSTGRES_URL=postgresql://...
+```
+
+Migration is an explicit deployment job. Application container startup never runs Alembic implicitly.
+
+### PgBouncer
+
+The bundled PgBouncer container consumes `PROJECTRAI_POSTGRES_URL` as its upstream `DATABASE_URL` and exposes the endpoint represented by `PROJECTRAI_DATABASE_URL` to application runtimes.
+
+Baseline capacity values:
 
 ```text
 PGBOUNCER_POOL_MODE=transaction
@@ -55,76 +119,132 @@ PGBOUNCER_RESERVE_POOL_SIZE=5
 PGBOUNCER_MAX_DB_CONNECTIONS=30
 ```
 
-Treat these as capacity settings, not secrets. Increase them only from observed PgBouncer/PostgreSQL saturation and verified database capacity.
+These are capacity settings, not application connection settings.
 
-## Build and preflight
+## Bundled infrastructure bootstrap variables
+
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `RABBITMQ_USER` and `RABBITMQ_PASSWORD` exist only for the infrastructure containers in the full-stack Compose harness.
+
+When PostgreSQL/RabbitMQ are externally managed, API/Workers/Migration do not need those bootstrap variables. They receive only their connection URLs.
+
+For the bundled local stack, keep bootstrap credentials aligned with the URLs in `.env`.
+
+## Object storage
+
+Local development uses S3-compatible MinIO through the same `s3` storage driver used by distributed deployments.
+
+```text
+Development:
+API/Workers ─► MinIO
+
+Production:
+API/Workers ─► S3 / R2 / managed S3-compatible storage
+```
+
+This avoids any dependency on a shared Docker filesystem. API and Workers may therefore run on different machines without losing access to uploaded Knowledge documents.
+
+For AWS S3, normally leave `PROJECTRAI_S3_ENDPOINT_URL` empty and prefer IAM/workload identity rather than static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`.
+
+## Frontend
+
+`VITE_API_URL` is part of the single `.env` manifest because it is a public connection endpoint, not a backend secret.
+
+The Docker build receives only `VITE_API_URL` as a build argument. The complete `.env` is never mounted into the frontend build.
+
+Nginx serves static SPA assets only. It does not proxy to a Docker service named `api`. The browser calls `VITE_API_URL` directly. If Production requires one public origin, route `/api` or API hostnames at the external ingress/load balancer.
+
+## Production security values
+
+Before setting `PROJECTRAI_ENVIRONMENT=production`, replace the local/example values:
+
+- strong independent `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`;
+- non-default database credentials in `PROJECTRAI_DATABASE_URL`;
+- non-default RabbitMQ credentials in `PROJECTRAI_RABBITMQ_URL` for Workers;
+- exact HTTPS `PROJECTRAI_CORS_ORIGINS`;
+- exact `PROJECTRAI_TRUSTED_HOSTS`;
+- secure access/refresh cookies;
+- production object-storage endpoint/bucket/authentication;
+- correct public `VITE_API_URL`.
+
+Production runtime validation is service-aware: browser/API security rules apply to the API role; RabbitMQ credential validation applies to the Worker role.
+
+## Full-stack local/integration deployment
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+The full stack provides:
+
+- API: `http://localhost:8000`;
+- Web: `http://localhost:5173`;
+- PostgreSQL: `localhost:5432`;
+- PgBouncer: `localhost:6432`;
+- RabbitMQ management: `http://localhost:15672`;
+- Redis: `localhost:6379`;
+- MinIO API: `http://localhost:9000`;
+- MinIO console: `http://localhost:9001`.
+
+This topology is a harness. Application configuration still uses explicit URLs, so moving any dependency to another host only requires changing `.env`.
+
+## Application-only Production reference
+
+With external dependencies configured in `.env`:
 
 ```bash
 docker compose -f docker-compose.prod.yml config --quiet
 docker compose -f docker-compose.prod.yml build
-
-docker image inspect projectrai-api:0.1.0 --format '{{.Config.User}}'
-docker image inspect projectrai-web:0.1.0 --format '{{.Config.User}}'
 ```
 
-Both image users must be non-empty and non-root. Review rendered Compose output and confirm that `db`, `pgbouncer`, `rabbitmq` and `redis` have no host `ports`, and that application source is not bind-mounted.
-
-The PostgreSQL and PgBouncer healthchecks execute authenticated `SELECT 1` probes. A wrong password must therefore keep the dependency unhealthy rather than merely proving that its TCP listener is accepting connections.
-
-## Deploy
-
-1. Start stateful/runtime dependencies.
-2. Run the migration service once and require exit code zero.
-3. Start API, workers and web.
-4. Run health and authenticated smoke checks.
+Run migration before application rollout:
 
 ```bash
-COMPOSE="docker compose -f docker-compose.prod.yml"
-
-$COMPOSE up -d db rabbitmq redis pgbouncer
-$COMPOSE run --rm migrate
-$COMPOSE up -d api workers web
-
-PROJECTRAI_BASE_URL=https://app.example.com \
-SMOKE_EMAIL="$SMOKE_EMAIL" \
-SMOKE_PASSWORD="$SMOKE_PASSWORD" \
-SMOKE_PROJECT_ID="$SMOKE_PROJECT_ID" \
-./scripts/smoke_production.sh
+docker compose -f docker-compose.prod.yml run --rm migrate
 ```
 
-`/live` proves process liveness. `/ready` performs a bounded database check and returns 503 while the dependency is unavailable. Worker health verifies the PID 1 worker runtime remains active.
-
-## Operational visibility
-
-Application logs are JSON and include request/correlation identifiers. Sensitive values continue through the shared redaction filter.
-
-The API exposes Prometheus text metrics on its internal `/metrics` endpoint. The public Nginx route intentionally does not proxy that endpoint. Scrape it from the application network.
-
-RabbitMQ queue state can be inspected from the deployment host:
+Then start the application services:
 
 ```bash
-$COMPOSE exec rabbitmq rabbitmqctl list_queues \
-  name messages_ready messages_unacknowledged consumers message_bytes
-$COMPOSE exec rabbitmq rabbitmqctl list_exchanges name type durable
+docker compose -f docker-compose.prod.yml up -d api workers web
 ```
 
-Alert initially on `/ready` failures, unhealthy workers, sustained queue growth, provider/tool failures, HTTP 5xx rate, database pool exhaustion and persistent PgBouncer client waiting.
+For a fully distributed deployment, run each service independently with only its required subset of environment variables.
+
+## Health semantics
+
+- `/live`: API process is alive;
+- `/health`: lightweight process health;
+- `/ready`: bounded direct check through `PROJECTRAI_DATABASE_URL`; returns 503 while the runtime database endpoint is unavailable.
+
+The full-stack PostgreSQL and PgBouncer healthchecks execute authenticated `SELECT 1` probes using their configured URLs.
+
+Worker startup explicitly connects to its database and RabbitMQ dependencies before entering the worker loop.
+
+## Backup and restore
+
+Backup and restore scripts use the direct database endpoint rather than Docker host defaults:
+
+```env
+PROJECTRAI_POSTGRES_URL=postgresql://...
+```
+
+Example:
+
+```bash
+PROJECTRAI_POSTGRES_URL="$PROJECTRAI_POSTGRES_URL" ./scripts/backup_postgres.sh
+```
+
+Restore requires the same direct URL plus the existing explicit confirmation guard.
 
 ## Graceful shutdown
 
-API and workers receive SIGTERM and have a 45-second grace period. During rollout, remove a replica from ingress before stopping it. Do not force-kill a process with an active SSE stream unless the grace period expires.
+API and workers receive SIGTERM. During rollout, remove an API replica from ingress before stopping it. Do not force-kill an active runtime/SSE process unless its grace period expires.
 
 ## Rollback
 
-Application rollback is image-based. Create a reviewed `docker-compose.rollback.yml` that overrides API/web images with previous immutable digests, then run:
-
-```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.rollback.yml up -d --no-deps api workers web
-./scripts/smoke_production.sh
-```
-
-Do not automatically downgrade Alembic during application rollback. MVP migrations must remain backward-compatible for at least one application version. Schema rollback requires a reviewed migration-specific procedure and a verified backup.
+Application rollback is image-based. Repoint API/Worker/Web to previous immutable image digests and run smoke checks again. Do not automatically downgrade Alembic during application rollback. MVP migrations must remain backward-compatible for at least one application version.
 
 ## Release gate
 
-Before Production promotion, attach evidence for image users/sizes, SBOMs, vulnerability reports, Compose policy validation, migrations, reverse-proxy smoke, graceful shutdown and the latest restore drill. The `development-mvp -> development` promotion remains a separate human decision.
+Before Production promotion, attach evidence for image users/sizes, SBOM/vulnerability reports, migration success, API readiness, smoke tests, graceful shutdown and database backup/restore procedures.
