@@ -90,6 +90,7 @@ class ListAgentSessionsOutput(BaseModel):
     agent_id: UUID
     status: SessionStatus
     mode: SessionMode
+    data: dict | None = None
     last_message_at: datetime | None = None
     created_at: datetime | None = None
     message_count: int = 0
