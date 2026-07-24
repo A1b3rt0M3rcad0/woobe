@@ -80,7 +80,7 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
-    settings = Settings.model_validate({})
+    settings = Settings(service_role="api")
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
