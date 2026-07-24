@@ -34,10 +34,8 @@ jobs:
           PROJECTRAI_METRICS_ENABLED=true
           PROJECTRAI_LOG_LEVEL=INFO
           PROJECTRAI_REQUEST_MAX_BYTES=1048576
-          PROJECTRAI_DATABASE_URL=
-          PROJECTRAI_RABBITMQ_URL=
           PROJECTRAI_RABBITMQ_EXCHANGE=projectrai.events
-          PROJECTRAI_REDIS_URL=
+          PROJECTRAI_REDIS_URL=redis://redis:6379/0
           PROJECTRAI_SECRET_KEY={secret_key}
           PROJECTRAI_ENCRYPTION_KEY={encryption_key}
           PROJECTRAI_ACCESS_COOKIE_SECURE=true
@@ -46,6 +44,10 @@ jobs:
           PROJECTRAI_TRUSTED_HOSTS=127.0.0.1,localhost
           PROJECTRAI_DB_POOL_SIZE=5
           PROJECTRAI_DB_MAX_OVERFLOW=5
+          PROJECTRAI_STORAGE_DRIVER=local
+          PROJECTRAI_UPLOAD_LOCAL_DIR=./storage/uploads
+          PROJECTRAI_MCP_SESSION_CACHE_ENABLED=true
+          PROJECTRAI_MCP_SESSION_TTL_SECONDS=3600
           POSTGRES_USER=projectrai
           POSTGRES_PASSWORD={database_password}
           POSTGRES_DB=projectrai
@@ -56,9 +58,9 @@ jobs:
           PGBOUNCER_DEFAULT_POOL_SIZE=20
           PGBOUNCER_RESERVE_POOL_SIZE=5
           PGBOUNCER_MAX_DB_CONNECTIONS=30
-          VITE_API_URL=http://127.0.0.1:8080
           """
-          Path(".env").write_text(content)
+          Path('.env').write_text(content)
+          Path('.env.web').write_text('VITE_API_URL=http://127.0.0.1:8080\n')
           PY
       - name: Build production images
         run: docker compose -f docker-compose.prod.yml build
@@ -66,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f docker-compose.prod.yml config --quiet
-          docker compose -f docker-compose.prod.yml up -d db pgbouncer rabbitmq
+          docker compose -f docker-compose.prod.yml up -d db pgbouncer rabbitmq redis
           if ! docker compose -f docker-compose.prod.yml run --name projectrai-release-migrate migrate > production-migrate.log 2>&1; then
             cat production-migrate.log
             exit 1
