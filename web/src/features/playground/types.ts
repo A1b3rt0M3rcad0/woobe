@@ -4,6 +4,7 @@ export interface SessionListItem {
   agent_id: string
   status: string
   mode: string
+  data?: Record<string, unknown> | null
   last_message_at: string | null
   created_at: string | null
   message_count: number
@@ -40,6 +41,8 @@ export interface CreateSessionRequest {
   data?: Record<string, unknown>
 }
 
+export type AgentExecutionContext = 'playground' | 'staging' | 'production'
+
 export interface AskRequest {
   project_id: string
   agent_id: string
@@ -48,7 +51,7 @@ export interface AskRequest {
   tenant_id?: string
   user_id?: string
   metadata?: Record<string, unknown>
-  execution_context?: 'playground' | 'production'
+  execution_context?: AgentExecutionContext
   loaded_release_id?: string | null
   snapshot_override?: Record<string, unknown> | null
 }
