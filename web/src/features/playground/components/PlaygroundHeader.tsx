@@ -42,24 +42,30 @@ export function PlaygroundHeader({
   const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId?: string; projectId: string }>()
 
-  const handleBackToProject = () => {
-    if (organizationId && projectId) {
-      navigate(`/organizations/${organizationId}/projects/${projectId}`)
-    } else if (projectId) {
-      navigate(`/projects/${projectId}`)
+  const handleBack = () => {
+    const historyIndex = window.history.state?.idx
+    if (typeof historyIndex === 'number' && historyIndex > 0) {
+      navigate(-1)
+      return
     }
+
+    if (organizationId) {
+      navigate(`/organizations/${organizationId}/projects/${projectId}/agents`)
+      return
+    }
+    navigate(`/projects/${projectId}/agents`)
   }
 
   return (
     <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} h-[72px] shrink-0 flex items-center justify-between border-b border-border/90 bg-surface/80 px-4 shadow-sm shadow-black/5 backdrop-blur-sm`}>
       <div className="flex items-center gap-3 min-w-0">
         <button
-          onClick={handleBackToProject}
+          onClick={handleBack}
           className="flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-xs font-medium text-muted hover:text-white hover:border-border/80 hover:bg-background/60 transition-colors shrink-0"
-          title="Back to project"
+          title="Back"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Project</span>
+          <span className="hidden sm:inline">Back</span>
         </button>
         <div className="h-8 w-px bg-border/80" />
         <div className="flex items-center gap-2 shrink-0 rounded-lg border border-border/70 bg-background/45 px-2.5 py-1.5 min-w-0">
