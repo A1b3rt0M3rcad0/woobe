@@ -5,7 +5,7 @@ name: projectrai
 # so global guards would force API-only hosts to carry Worker/Web/Migration secrets.
 # Each runtime validates its own required subset instead.
 x-app-common-environment: &app-common-environment
-  PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-development}
+  PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-production}
   PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-false}
   PROJECTRAI_JSON_LOGS: ${PROJECTRAI_JSON_LOGS:-true}
   PROJECTRAI_METRICS_ENABLED: ${PROJECTRAI_METRICS_ENABLED:-true}
