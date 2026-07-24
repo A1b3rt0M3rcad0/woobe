@@ -82,6 +82,8 @@ def test_production_compose_is_application_only_and_hardened() -> None:
     assert "PROJECTRAI_RABBITMQ_URL" in worker_block
     assert "VITE_API_URL" in web_block
     assert "PROJECTRAI_SERVICE_ROLE" not in compose
+    assert "${VAR:?}" not in compose
+    assert "PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-production}" in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
