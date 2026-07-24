@@ -37,6 +37,22 @@ def _validate_connection_url(value: str, *, schemes: set[str], variable: str) ->
     return normalized
 
 
+def _validate_database_url(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    parsed = urlsplit(normalized.replace("postgresql+asyncpg://", "postgresql://", 1))
+    if parsed.scheme == "postgresql":
+        if not parsed.hostname:
+            raise ValueError("PROJECTRAI_DATABASE_URL must include a PostgreSQL hostname")
+        return normalized
+    if parsed.scheme in {"sqlite", "sqlite+aiosqlite"}:
+        return normalized
+    raise ValueError(
+        "PROJECTRAI_DATABASE_URL must be PostgreSQL for runtime deployments or SQLite for tests"
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PROJECTRAI_",
@@ -146,11 +162,7 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: str) -> str:
-        return _validate_connection_url(
-            value,
-            schemes={"postgresql"},
-            variable="PROJECTRAI_DATABASE_URL",
-        )
+        return _validate_database_url(value)
 
     @field_validator("rabbitmq_url")
     @classmethod
@@ -224,10 +236,6 @@ class Settings(BaseSettings):
             errors.append("PROJECTRAI_SECRET_KEY must contain at least 32 characters for API")
         if role == "worker" and not self.rabbitmq_url.strip():
             errors.append("PROJECTRAI_RABBITMQ_URL is required for Workers")
-        if self.mcp_session_cache_enabled and not self.redis_url:
-            errors.append(
-                "PROJECTRAI_REDIS_URL is required when PROJECTRAI_MCP_SESSION_CACHE_ENABLED=true"
-            )
         if self.storage_driver.strip().lower() == "s3" and not (self.s3_bucket or "").strip():
             errors.append("PROJECTRAI_S3_BUCKET is required when PROJECTRAI_STORAGE_DRIVER=s3")
         if errors:
