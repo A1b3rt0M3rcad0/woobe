@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
@@ -19,6 +20,31 @@ def service_block(compose: str, service: str, next_service: str | None = None) -
     end = f"\n  {next_service}:\n"
     assert end in remainder, f"service boundary {next_service!r} not found"
     return remainder.split(end, maxsplit=1)[0]
+
+
+def manifest_keys(environment: str) -> set[str]:
+    keys: set[str] = set()
+    for raw_line in environment.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        keys.add(line.split("=", maxsplit=1)[0])
+    return keys
+
+
+def settings_environment_keys() -> set[str]:
+    tree = ast.parse(read("src/shared/infra/config/config.py"))
+    settings_class = next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Settings"
+    )
+    fields = {
+        node.target.id
+        for node in settings_class.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    # Runtime role is intrinsic to main.py/worker_main.py, not deployment configuration.
+    fields.discard("service_role")
+    return {f"PROJECTRAI_{field.upper()}" for field in fields}
 
 
 def test_production_frontend_has_required_browser_security_headers() -> None:
@@ -55,6 +81,7 @@ def test_production_compose_is_application_only_and_hardened() -> None:
     assert "PROJECTRAI_DATABASE_URL" in worker_block
     assert "PROJECTRAI_RABBITMQ_URL" in worker_block
     assert "VITE_API_URL" in web_block
+    assert "PROJECTRAI_SERVICE_ROLE" not in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
@@ -71,6 +98,7 @@ def test_environment_manifest_documents_url_boundaries_and_single_template() -> 
         "# RABBITMQ",
         "# REDIS",
         "# OBJECT STORAGE — S3 COMPATIBLE",
+        "# RUNTIME / NETWORK POLICY",
         "# API",
         "# WORKERS",
         "# WEB",
@@ -92,12 +120,19 @@ def test_environment_manifest_documents_url_boundaries_and_single_template() -> 
     assert "PROJECTRAI_STORAGE_DRIVER=s3" in environment
     assert "PROJECTRAI_CORS_ORIGINS=*" not in environment
     assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
+    assert "PROJECTRAI_SERVICE_ROLE=" not in environment
 
     gitignore = read(".gitignore")
     assert ".env*" in gitignore
     assert "!.env.example" in gitignore
     assert "!.env.production.example" not in gitignore
     assert "!.env.web.example" not in gitignore
+
+
+def test_environment_manifest_covers_every_settings_field() -> None:
+    environment = read(".env.example")
+    missing = settings_environment_keys() - manifest_keys(environment)
+    assert not missing, f"Settings fields missing from .env.example: {sorted(missing)}"
 
 
 def test_local_compose_keeps_application_connections_url_driven() -> None:
@@ -108,6 +143,7 @@ def test_local_compose_keeps_application_connections_url_driven() -> None:
     assert "PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL" in compose
     assert "PROJECTRAI_S3_ENDPOINT_URL: ${PROJECTRAI_S3_ENDPOINT_URL" in compose
     assert "VITE_API_URL: ${VITE_API_URL" in compose
+    assert "PROJECTRAI_SERVICE_ROLE" not in compose
     assert "uploads_data" not in compose
     assert "minio:" in compose
 
