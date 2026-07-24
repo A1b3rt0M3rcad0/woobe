@@ -17,5 +17,4 @@ web\node_modules
 # Local and production secrets
 .env*
 !.env.example
-!.env.web.example
 !.env.production.example
