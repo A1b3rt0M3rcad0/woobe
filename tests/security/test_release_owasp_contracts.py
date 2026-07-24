@@ -135,6 +135,21 @@ def test_environment_manifest_covers_every_settings_field() -> None:
     assert not missing, f"Settings fields missing from .env.example: {sorted(missing)}"
 
 
+def test_compose_files_consume_all_projectrai_manifest_variables() -> None:
+    environment = read(".env.example")
+    expected = {
+        key
+        for key in manifest_keys(environment)
+        if key.startswith("PROJECTRAI_")
+    }
+    expected.add("VITE_API_URL")
+
+    for compose_path in ("docker-compose.yml", "docker-compose.prod.yml"):
+        compose = read(compose_path)
+        missing = {key for key in expected if key not in compose}
+        assert not missing, f"{compose_path} ignores manifest variables: {sorted(missing)}"
+
+
 def test_local_compose_keeps_application_connections_url_driven() -> None:
     compose = read("docker-compose.yml")
     assert "DATABASE_URL: ${PROJECTRAI_POSTGRES_URL" in compose
