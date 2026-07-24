@@ -217,22 +217,23 @@ Infra local:
 
 ## Configuração local
 
-Crie um `.env` na raiz. Os nomes seguem o prefixo `PROJECTRAI_`.
+A configuração é separada por fronteira de segurança:
 
-Variáveis essenciais:
+- `.env` contém backend, infraestrutura e secrets;
+- `.env.web` contém somente variáveis públicas `VITE_*` usadas pelo frontend.
 
-```env
-PROJECTRAI_DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/projectrai
-PROJECTRAI_SECRET_KEY=dev-docker-secret-key-32chars!!
-PROJECTRAI_ENCRYPTION_KEY=dev-docker-enc-key-32chars!!
-PROJECTRAI_RABBITMQ_URL=amqp://projectrai:projectrai@rabbitmq:5672/
-PROJECTRAI_RABBITMQ_EXCHANGE=domain.events
-PROJECTRAI_REDIS_URL=redis://redis:6379/0
-PROJECTRAI_DEBUG=true
-PROJECTRAI_LOG_LEVEL=INFO
+Prepare os dois arquivos a partir dos templates:
+
+```bash
+cp .env.example .env
+cp .env.web.example .env.web
 ```
 
-Para produção, o `Settings` valida requisitos mínimos de segurança: `DEBUG=false`, secrets fortes, CORS com origens exatas HTTPS, trusted hosts definidos, cookies seguros, logs JSON e ausência de credenciais padrão em PostgreSQL/RabbitMQ.
+No Docker Compose, `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` são a única fonte das credenciais PostgreSQL. `RABBITMQ_USER` e `RABBITMQ_PASSWORD` fazem o mesmo para RabbitMQ. O entrypoint deriva as URLs internas; API/workers usam PgBouncer e migrations usam PostgreSQL diretamente.
+
+O frontend build recebe apenas `.env.web`; secrets do backend não são expostos ao processo Vite.
+
+Para produção, use `.env.production.example` e `.env.web.production.example`. O `Settings` valida requisitos mínimos de segurança: `DEBUG=false`, secrets fortes, CORS com origens exatas HTTPS, trusted hosts definidos, cookies seguros, logs JSON e ausência de credenciais padrão em PostgreSQL/RabbitMQ.
 
 ## Rodando com Docker Compose
 
@@ -248,7 +249,7 @@ Serviços principais:
 - PgBouncer: `localhost:6432`
 - RabbitMQ: `localhost:15672`
 
-O compose executa migrations com Alembic antes de subir API e workers. A API expõe healthcheck em `/health` e liveness em `/live`.
+O Compose executa migrations com Alembic antes de subir API e workers. API/workers usam `pgbouncer:6432`; o serviço `migrate` usa `db:5432`. PostgreSQL e PgBouncer possuem healthchecks autenticados.
 
 ## Rodando backend sem Docker
 
@@ -257,6 +258,8 @@ Instale as dependências:
 ```bash
 uv sync
 ```
+
+O entrypoint que deriva URLs existe apenas nos containers. Para executar o backend diretamente contra dependências locais/externas, defina `PROJECTRAI_DATABASE_URL` e `PROJECTRAI_RABBITMQ_URL` explicitamente no ambiente ou descomente/adapte os exemplos comentados em `.env.example`.
 
 Execute migrations:
 
@@ -278,13 +281,16 @@ uv run python -m src.worker_main
 
 ## Rodando frontend
 
+Na raiz do repositório:
+
 ```bash
+cp .env.web.example .env.web
 cd web
 npm install
 npm run dev
 ```
 
-Build de produção:
+Build de produção/local:
 
 ```bash
 cd web
