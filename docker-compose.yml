@@ -95,8 +95,8 @@ services:
   web:
     build:
       context: web
-      args:
-        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in .env}
+      secrets:
+        - web_env
     ports:
       - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
@@ -184,6 +184,10 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
+secrets:
+  web_env:
+    file: ./.env.web
 
 volumes:
   pgdata:
