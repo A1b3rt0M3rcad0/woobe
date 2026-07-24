@@ -128,7 +128,7 @@ export function PlaygroundHeader({
         </Button>
 
         <AgentControlsPopover agent={agent} projectId={projectId} />
-        <AgentLifecycleAction agentId={agent.id} projectId={projectId} environment={environment} disabled={environmentChangeDisabled} />
+        <AgentLifecycleAction agentId={agent.id} projectId={projectId} environment={environment} disabled={environmentChangeDisabled} onEnvironmentChange={onEnvironmentChange} />
 
         <button
           onClick={onToggleRightPanel}
