@@ -15,9 +15,23 @@ type ReleaseLibraryModalProps = {
   releases: AgentRelease[]
   onClose: () => void
   onDeploy: (release: AgentRelease) => void
+  readOnly?: boolean
+  title?: string
+  description?: string
+  actionLabel?: string
 }
 
-export function ReleaseLibraryModal({ open, agentId, releases, onClose, onDeploy }: ReleaseLibraryModalProps) {
+export function ReleaseLibraryModal({
+  open,
+  agentId,
+  releases,
+  onClose,
+  onDeploy,
+  readOnly = false,
+  title = 'Available Releases',
+  description = 'Immutable Agent Releases available for inspection.',
+  actionLabel = 'Deploy',
+}: ReleaseLibraryModalProps) {
   const [selected, setSelected] = useState<AgentRelease | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
@@ -56,9 +70,9 @@ export function ReleaseLibraryModal({ open, agentId, releases, onClose, onDeploy
               </button>
             ) : null}
             <div>
-              <h2 className="text-base font-semibold text-white">{selected ? selected.version : 'Available Releases'}</h2>
+              <h2 className="text-base font-semibold text-white">{selected ? selected.version : title}</h2>
               <p className="mt-1 text-xs text-muted">
-                {selected ? 'Release ready to be activated in Production.' : 'Only immutable Releases that can be promoted to Production are shown.'}
+                {selected ? 'Immutable Agent Release snapshot.' : description}
               </p>
             </div>
           </div>
@@ -97,21 +111,23 @@ export function ReleaseLibraryModal({ open, agentId, releases, onClose, onDeploy
                       <Button size="sm" variant="outline" loading={loadingId === release.id} onClick={(event) => { event.stopPropagation(); void view(release) }}>
                         <Eye className="mr-1 h-3.5 w-3.5" />View
                       </Button>
-                      <Button size="sm" onClick={(event) => { event.stopPropagation(); deploy(release) }}>
-                        <Rocket className="mr-1 h-3.5 w-3.5" />Deploy
-                      </Button>
+                      {!readOnly ? (
+                        <Button size="sm" onClick={(event) => { event.stopPropagation(); deploy(release) }}>
+                          <Rocket className="mr-1 h-3.5 w-3.5" />{actionLabel}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted">No Releases are currently available for Production.</div>
+            <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted">No immutable Agent Releases are available.</div>
           )}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
-          {selected ? <Button size="sm" onClick={() => deploy(selected)}><Rocket className="mr-1 h-3.5 w-3.5" />Deploy Release</Button> : null}
+          {selected && !readOnly ? <Button size="sm" onClick={() => deploy(selected)}><Rocket className="mr-1 h-3.5 w-3.5" />{actionLabel}</Button> : null}
           <Button size="sm" variant="outline" onClick={close}>Close</Button>
         </div>
       </div>
