@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --mode web",
-    "build": "tsc -b && vite build --mode web",
+    "dev": "vite --mode manifest",
+    "build": "tsc -b && vite build --mode manifest",
     "preview": "vite preview",
     "seed": "cd .. && uv run python scripts/seed_customer.py",
     "test": "vitest",
