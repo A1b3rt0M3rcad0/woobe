@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
-        extra={"environment": settings.environment},
+        extra={"environment": settings.environment, "service_role": settings.service_role},
     )
 
     app = FastAPI(
@@ -127,11 +127,7 @@ def create_app() -> FastAPI:
     )
 
     cors_origins = _csv_values(settings.cors_origins)
-    trusted_hosts = list(
-        dict.fromkeys(
-            [*_csv_values(settings.trusted_hosts), "127.0.0.1", "localhost", "api"]
-        )
-    )
+    trusted_hosts = _csv_values(settings.trusted_hosts)
     logger.info(
         "HTTP boundary configured",
         extra={
@@ -281,6 +277,19 @@ def create_app() -> FastAPI:
     @app.get("/health", include_in_schema=False)
     async def health():
         return {"status": "ok"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def ready():
+        try:
+            async with asyncio.timeout(settings.readiness_timeout_seconds):
+                async with app.state.async_engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "dependency": "database"},
+            )
+        return {"status": "ok", "dependency": "database"}
 
     return app
 
