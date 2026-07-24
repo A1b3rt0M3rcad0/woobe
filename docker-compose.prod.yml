@@ -75,7 +75,6 @@ services:
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
     environment:
       <<: *app-common-environment
-      PROJECTRAI_SERVICE_ROLE: api
       PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:?Set PROJECTRAI_SECRET_KEY in .env}
       PROJECTRAI_AUTH_ISSUER: ${PROJECTRAI_AUTH_ISSUER:-projectrai}
       PROJECTRAI_AUTH_AUDIENCE: ${PROJECTRAI_AUTH_AUDIENCE:-projectrai-web}
@@ -115,7 +114,6 @@ services:
     command: ["python", "-m", "src.worker_main"]
     environment:
       <<: *app-common-environment
-      PROJECTRAI_SERVICE_ROLE: worker
       PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL:?Set PROJECTRAI_RABBITMQ_URL in .env}
       PROJECTRAI_RABBITMQ_EXCHANGE: ${PROJECTRAI_RABBITMQ_EXCHANGE:-projectrai.events}
       PROJECTRAI_WORKER_INTERVAL: ${PROJECTRAI_WORKER_INTERVAL:-5.0}
