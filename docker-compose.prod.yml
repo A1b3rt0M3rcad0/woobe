@@ -12,7 +12,7 @@ x-app-environment: &app-environment
   PROJECTRAI_RABBITMQ_PORT: "5672"
   RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
   RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL:-redis://redis:6379/0}
+  PROJECTRAI_REDIS_URL: redis://redis:6379/0
   PROJECTRAI_RUN_MIGRATIONS: "false"
 
 x-app-service: &app-service
