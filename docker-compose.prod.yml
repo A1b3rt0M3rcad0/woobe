@@ -12,6 +12,7 @@ x-app-environment: &app-environment
   PROJECTRAI_RABBITMQ_PORT: "5672"
   RABBITMQ_USER: ${RABBITMQ_USER}
   RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL:-redis://redis:6379/0}
   PROJECTRAI_RUN_MIGRATIONS: "false"
 
 x-app-service: &app-service
@@ -51,12 +52,16 @@ services:
   api:
     <<: *app-service
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    volumes:
+      - uploads_data:/app/storage/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
       pgbouncer:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
@@ -69,12 +74,16 @@ services:
   workers:
     <<: *app-service
     command: ["python", "-m", "src.worker_main"]
+    volumes:
+      - uploads_data:/app/storage/uploads
     depends_on:
       migrate:
         condition: service_completed_successfully
       pgbouncer:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import pathlib; data=pathlib.Path('/proc/1/cmdline').read_bytes(); raise SystemExit(0 if b'worker_main' in data else 1)"]
@@ -129,7 +138,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=\"$${POSTGRES_PASSWORD}\" psql -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -tAc 'SELECT 1' | grep -qx 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -159,7 +172,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U $${DB_USER} -d $${DB_NAME}"]
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=\"$${DB_PASSWORD}\" psql -h 127.0.0.1 -p 6432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\" -tAc 'SELECT 1' | grep -qx 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -183,9 +200,23 @@ services:
       timeout: 5s
       retries: 12
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
 secrets:
   web_env:
-    file: ./.env
+    file: ./.env.web
 
 networks:
   application:
@@ -195,3 +226,4 @@ networks:
 volumes:
   pgdata:
   rabbitmq_data:
+  uploads_data:
