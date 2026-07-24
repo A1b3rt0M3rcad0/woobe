@@ -25,6 +25,18 @@ def _normalize_async_postgres_url(value: str) -> str:
     return normalized
 
 
+def _validate_connection_url(value: str, *, schemes: set[str], variable: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    parseable = normalized.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parsed = urlsplit(parseable)
+    if parsed.scheme not in schemes or not parsed.hostname:
+        expected = ", ".join(sorted(schemes))
+        raise ValueError(f"{variable} must use one of [{expected}] and include a hostname")
+    return normalized
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PROJECTRAI_",
@@ -32,8 +44,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # The same application image runs API and Workers. The orchestrator sets the role
-    # so validation can require only the dependencies that service actually consumes.
+    # Runtime identity is fixed by the API/Worker bootstrap, not by deployment topology.
     service_role: str = "api"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/projectrai"
@@ -132,6 +143,52 @@ class Settings(BaseSettings):
             return _normalize_async_postgres_url(value)
         return value
 
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, value: str) -> str:
+        return _validate_connection_url(
+            value,
+            schemes={"postgresql"},
+            variable="PROJECTRAI_DATABASE_URL",
+        )
+
+    @field_validator("rabbitmq_url")
+    @classmethod
+    def validate_rabbitmq_url(cls, value: str) -> str:
+        return _validate_connection_url(
+            value,
+            schemes={"amqp", "amqps"},
+            variable="PROJECTRAI_RABBITMQ_URL",
+        )
+
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return _validate_connection_url(
+            normalized,
+            schemes={"redis", "rediss"},
+            variable="PROJECTRAI_REDIS_URL",
+        )
+
+    @field_validator("s3_endpoint_url")
+    @classmethod
+    def validate_s3_endpoint_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return _validate_connection_url(
+            normalized,
+            schemes={"http", "https"},
+            variable="PROJECTRAI_S3_ENDPOINT_URL",
+        )
+
     @staticmethod
     def _is_weak_secret(value: str) -> bool:
         normalized = value.strip().lower()
@@ -156,7 +213,7 @@ class Settings(BaseSettings):
     def validate_service_requirements(self) -> Settings:
         role = self.service_role.strip().lower()
         if role not in {"api", "worker"}:
-            raise ValueError("PROJECTRAI_SERVICE_ROLE must be 'api' or 'worker'")
+            raise ValueError("service_role must be 'api' or 'worker'")
 
         errors: list[str] = []
         if not self.database_url.strip():
@@ -167,6 +224,10 @@ class Settings(BaseSettings):
             errors.append("PROJECTRAI_SECRET_KEY must contain at least 32 characters for API")
         if role == "worker" and not self.rabbitmq_url.strip():
             errors.append("PROJECTRAI_RABBITMQ_URL is required for Workers")
+        if self.mcp_session_cache_enabled and not self.redis_url:
+            errors.append(
+                "PROJECTRAI_REDIS_URL is required when PROJECTRAI_MCP_SESSION_CACHE_ENABLED=true"
+            )
         if self.storage_driver.strip().lower() == "s3" and not (self.s3_bucket or "").strip():
             errors.append("PROJECTRAI_S3_BUCKET is required when PROJECTRAI_STORAGE_DRIVER=s3")
         if errors:
