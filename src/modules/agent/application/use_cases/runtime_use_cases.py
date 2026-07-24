@@ -201,6 +201,7 @@ class ListAgentSessionsUseCase:
                 agent_id=cast(UUID, s.agent_id),
                 status=SessionStatus(s.status),
                 mode=RuntimeSessionMode(s.mode),
+                data=s.data,
                 last_message_at=s.last_message_at,
                 created_at=s.created_at,
                 message_count=count,
