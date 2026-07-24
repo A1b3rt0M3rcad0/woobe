@@ -1,5 +1,13 @@
 x-projectrai-environment: &projectrai-environment
-  PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL}
+  # Development Compose uses the same credential source that initializes Postgres.
+  # The runtime entrypoint derives PROJECTRAI_DATABASE_URL with URL-encoding so a
+  # stale or mismatched value from .env cannot diverge from POSTGRES_PASSWORD.
+  PROJECTRAI_DATABASE_URL: ""
+  PROJECTRAI_DATABASE_HOST: db
+  PROJECTRAI_DATABASE_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  POSTGRES_DB: ${POSTGRES_DB:-projectrai}
   PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
   PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
   PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
