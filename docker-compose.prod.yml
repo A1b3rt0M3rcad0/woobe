@@ -1,30 +1,38 @@
 name: projectrai
 
-x-app-environment: &app-environment
-  PROJECTRAI_DATABASE_URL: ""
-  PROJECTRAI_DATABASE_HOST: pgbouncer
-  PROJECTRAI_DATABASE_PORT: "6432"
-  POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-  POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
-  PROJECTRAI_RABBITMQ_URL: ""
-  PROJECTRAI_RABBITMQ_HOST: rabbitmq
-  PROJECTRAI_RABBITMQ_PORT: "5672"
-  RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-  PROJECTRAI_REDIS_URL: redis://redis:6379/0
-  PROJECTRAI_RUN_MIGRATIONS: "false"
+x-app-common-environment: &app-common-environment
+  PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:?Set PROJECTRAI_ENVIRONMENT in .env}
+  PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-false}
+  PROJECTRAI_JSON_LOGS: ${PROJECTRAI_JSON_LOGS:-true}
+  PROJECTRAI_METRICS_ENABLED: ${PROJECTRAI_METRICS_ENABLED:-true}
+  PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
+  PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL:?Set PROJECTRAI_DATABASE_URL in .env}
+  PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:?Set PROJECTRAI_ENCRYPTION_KEY in .env}
+  PROJECTRAI_DB_POOL_SIZE: ${PROJECTRAI_DB_POOL_SIZE:-5}
+  PROJECTRAI_DB_MAX_OVERFLOW: ${PROJECTRAI_DB_MAX_OVERFLOW:-5}
+  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL:?Set PROJECTRAI_REDIS_URL in .env}
+  PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS: ${PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS:-2.0}
+  PROJECTRAI_MCP_SESSION_CACHE_ENABLED: ${PROJECTRAI_MCP_SESSION_CACHE_ENABLED:-true}
+  PROJECTRAI_MCP_SESSION_KEY_PREFIX: ${PROJECTRAI_MCP_SESSION_KEY_PREFIX:-projectrai:mcp-session}
+  PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS:-3600}
+  PROJECTRAI_STORAGE_DRIVER: ${PROJECTRAI_STORAGE_DRIVER:?Set PROJECTRAI_STORAGE_DRIVER in .env}
+  PROJECTRAI_UPLOAD_MAX_MB: ${PROJECTRAI_UPLOAD_MAX_MB:-25}
+  PROJECTRAI_UPLOAD_ALLOWED_EXTENSIONS: ${PROJECTRAI_UPLOAD_ALLOWED_EXTENSIONS:-.txt,.md,.pdf,.docx}
+  PROJECTRAI_S3_BUCKET: ${PROJECTRAI_S3_BUCKET:?Set PROJECTRAI_S3_BUCKET in .env}
+  PROJECTRAI_S3_REGION: ${PROJECTRAI_S3_REGION:-us-east-1}
+  PROJECTRAI_S3_PREFIX: ${PROJECTRAI_S3_PREFIX:-uploads}
+  PROJECTRAI_S3_ENDPOINT_URL: ${PROJECTRAI_S3_ENDPOINT_URL:-}
+  PROJECTRAI_S3_FORCE_PATH_STYLE: ${PROJECTRAI_S3_FORCE_PATH_STYLE:-false}
+  PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION: ${PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION:-AES256}
+  PROJECTRAI_RAG_DOCX_MAX_UNCOMPRESSED_MB: ${PROJECTRAI_RAG_DOCX_MAX_UNCOMPRESSED_MB:-100}
+  PROJECTRAI_RAG_DOCX_MAX_ENTRIES: ${PROJECTRAI_RAG_DOCX_MAX_ENTRIES:-1000}
+  PROJECTRAI_RAG_DOCX_MAX_COMPRESSION_RATIO: ${PROJECTRAI_RAG_DOCX_MAX_COMPRESSION_RATIO:-100}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
 
 x-app-service: &app-service
   build: .
   image: projectrai-api:0.1.0
-  env_file:
-    - .env
-  environment:
-    <<: *app-environment
-  networks:
-    - application
-    - data
   restart: unless-stopped
   init: true
   read_only: true
@@ -39,30 +47,37 @@ services:
   migrate:
     <<: *app-service
     environment:
-      <<: *app-environment
-      PROJECTRAI_DATABASE_HOST: db
-      PROJECTRAI_DATABASE_PORT: "5432"
-      PROJECTRAI_METRICS_ENABLED: "false"
+      PROJECTRAI_POSTGRES_URL: ${PROJECTRAI_POSTGRES_URL:?Set PROJECTRAI_POSTGRES_URL in .env}
     command: ["alembic", "upgrade", "head"]
-    depends_on:
-      db:
-        condition: service_healthy
     restart: "no"
 
   api:
     <<: *app-service
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
-    volumes:
-      - uploads_data:/app/storage/uploads
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      pgbouncer:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    environment:
+      <<: *app-common-environment
+      PROJECTRAI_SERVICE_ROLE: api
+      PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:?Set PROJECTRAI_SECRET_KEY in .env}
+      PROJECTRAI_REQUEST_MAX_BYTES: ${PROJECTRAI_REQUEST_MAX_BYTES:-1048576}
+      PROJECTRAI_AUTH_ISSUER: ${PROJECTRAI_AUTH_ISSUER:-projectrai}
+      PROJECTRAI_AUTH_AUDIENCE: ${PROJECTRAI_AUTH_AUDIENCE:-projectrai-web}
+      PROJECTRAI_ACCESS_TOKEN_TTL_SECONDS: ${PROJECTRAI_ACCESS_TOKEN_TTL_SECONDS:-900}
+      PROJECTRAI_REFRESH_TOKEN_TTL_DAYS: ${PROJECTRAI_REFRESH_TOKEN_TTL_DAYS:-30}
+      PROJECTRAI_AUTH_CLOCK_SKEW_SECONDS: ${PROJECTRAI_AUTH_CLOCK_SKEW_SECONDS:-30}
+      PROJECTRAI_ACCESS_COOKIE_NAME: ${PROJECTRAI_ACCESS_COOKIE_NAME:-projectrai_access}
+      PROJECTRAI_ACCESS_COOKIE_SECURE: ${PROJECTRAI_ACCESS_COOKIE_SECURE:-true}
+      PROJECTRAI_ACCESS_COOKIE_SAME_SITE: ${PROJECTRAI_ACCESS_COOKIE_SAME_SITE:-lax}
+      PROJECTRAI_REFRESH_COOKIE_NAME: ${PROJECTRAI_REFRESH_COOKIE_NAME:-projectrai_refresh}
+      PROJECTRAI_REFRESH_COOKIE_SECURE: ${PROJECTRAI_REFRESH_COOKIE_SECURE:-true}
+      PROJECTRAI_REFRESH_COOKIE_SAME_SITE: ${PROJECTRAI_REFRESH_COOKIE_SAME_SITE:-lax}
+      PROJECTRAI_CSRF_COOKIE_NAME: ${PROJECTRAI_CSRF_COOKIE_NAME:-projectrai_csrf}
+      PROJECTRAI_CSRF_HEADER_NAME: ${PROJECTRAI_CSRF_HEADER_NAME:-x-csrf-token}
+      PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS:?Set PROJECTRAI_CORS_ORIGINS in .env}
+      PROJECTRAI_TRUSTED_HOSTS: ${PROJECTRAI_TRUSTED_HOSTS:?Set PROJECTRAI_TRUSTED_HOSTS in .env}
+      PROJECTRAI_HOST: 0.0.0.0
+      PROJECTRAI_PORT: 8000
+    ports:
+      - "${PROJECTRAI_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 15s
@@ -74,17 +89,14 @@ services:
   workers:
     <<: *app-service
     command: ["python", "-m", "src.worker_main"]
-    volumes:
-      - uploads_data:/app/storage/uploads
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      pgbouncer:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    environment:
+      <<: *app-common-environment
+      PROJECTRAI_SERVICE_ROLE: worker
+      PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL:?Set PROJECTRAI_RABBITMQ_URL in .env}
+      PROJECTRAI_RABBITMQ_EXCHANGE: ${PROJECTRAI_RABBITMQ_EXCHANGE:-projectrai.events}
+      PROJECTRAI_WORKER_INTERVAL: ${PROJECTRAI_WORKER_INTERVAL:-5.0}
+      PROJECTRAI_NETWORK_WORKER_PREFETCH: ${PROJECTRAI_NETWORK_WORKER_PREFETCH:-4}
+      PROJECTRAI_NETWORK_WORKER_SLOTS: ${PROJECTRAI_NETWORK_WORKER_SLOTS:-4}
     healthcheck:
       test: ["CMD", "python", "-c", "import pathlib; data=pathlib.Path('/proc/1/cmdline').read_bytes(); raise SystemExit(0 if b'worker_main' in data else 1)"]
       interval: 15s
@@ -96,16 +108,11 @@ services:
   web:
     build:
       context: web
-      secrets:
-        - web_env
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in .env}
     image: projectrai-web:0.1.0
-    depends_on:
-      api:
-        condition: service_healthy
     ports:
-      - "8080:8080"
-    networks:
-      - application
+      - "${PROJECTRAI_WEB_PORT:-8080}:8080"
     restart: unless-stopped
     init: true
     read_only: true
@@ -123,107 +130,3 @@ services:
       timeout: 5s
       retries: 4
       start_period: 10s
-
-  db:
-    image: pgvector/pgvector:pg17
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - data
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "PGPASSWORD=\"$${POSTGRES_PASSWORD}\" psql -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" -tAc 'SELECT 1' | grep -qx 1",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
-  pgbouncer:
-    image: edoburu/pgbouncer:v1.25.2-p0
-    environment:
-      DB_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_NAME: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
-      LISTEN_ADDR: "0.0.0.0"
-      LISTEN_PORT: "6432"
-      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
-      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-200}
-      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-20}
-      RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-5}
-      MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
-      AUTH_TYPE: scram-sha-256
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - data
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "PGPASSWORD=\"$${DB_PASSWORD}\" psql -h 127.0.0.1 -p 6432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\" -tAc 'SELECT 1' | grep -qx 1",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-
-  rabbitmq:
-    image: rabbitmq:4-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
-      RABBITMQ_DEFAULT_VHOST: /
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - data
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-  redis:
-    image: redis:7.4-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
-    networks:
-      - data
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-
-secrets:
-  web_env:
-    file: ./.env.web
-
-networks:
-  application:
-  data:
-    internal: true
-
-volumes:
-  pgdata:
-  rabbitmq_data:
-  uploads_data:
