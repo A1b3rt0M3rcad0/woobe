@@ -37,11 +37,7 @@ jobs:
 
     env:
       PYTHONPATH: src
-      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
-      PROJECTRAI_SECRET_KEY: ci-secret-key-at-least-32-characters
-      PROJECTRAI_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
-      PROJECTRAI_ENVIRONMENT: test
-      PROJECTRAI_DEBUG: "false"
+      PROJECTRAI_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/projectrai
 
     steps:
       - name: Checkout
