@@ -3,15 +3,18 @@ import { Button } from '@/components/ui/Button'
 import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
+import { cn } from '@/lib/utils'
 import { AgentControlsPopover } from './AgentControlsPopover'
-import type { Agent } from '@/features/agents/types'
-import type { ReleaseStatus } from '@/features/agents/types'
+import type { Agent, ReleaseStatus, RuntimeEnvironment } from '@/features/agents/types'
 
 interface PlaygroundHeaderProps {
   agent: Agent
   projectId: string
   showLeftPanel: boolean
   showRightPanel: boolean
+  environment: RuntimeEnvironment
+  environmentChangeDisabled?: boolean
+  onEnvironmentChange: (environment: RuntimeEnvironment) => void
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
   onApiClick: () => void
@@ -20,11 +23,16 @@ interface PlaygroundHeaderProps {
   releaseStatus?: ReleaseStatus
 }
 
+const environments: RuntimeEnvironment[] = ['draft', 'staging', 'production']
+
 export function PlaygroundHeader({
   agent,
   projectId,
   showLeftPanel,
   showRightPanel,
+  environment,
+  environmentChangeDisabled = false,
+  onEnvironmentChange,
   onToggleLeftPanel,
   onToggleRightPanel,
   onApiClick,
@@ -73,6 +81,32 @@ export function PlaygroundHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        <div role="tablist" aria-label="Agent environment" className="flex rounded-xl border border-border bg-background/35 p-1">
+          {environments.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={item === environment}
+              disabled={environmentChangeDisabled}
+              onClick={() => onEnvironmentChange(item)}
+              title={item === 'draft' ? 'Mutable working configuration' : item === 'staging' ? 'Immutable validation snapshot' : 'Immutable active Production release'}
+              className={cn(
+                'rounded-lg px-3 py-1.5 text-[10px] capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                item === environment
+                  ? item === 'production'
+                    ? 'bg-emerald-500/10 text-emerald-300'
+                    : item === 'staging'
+                      ? 'bg-indigo-500/10 text-indigo-300'
+                      : 'bg-primary/10 text-primary-light'
+                  : 'text-muted hover:text-white',
+              )}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={onToggleLeftPanel}
           className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${showLeftPanel ? 'border-primary/30 bg-primary/10 text-primary-light shadow-sm shadow-primary/5' : 'border-transparent text-muted hover:text-white hover:border-border/80 hover:bg-background/60'}`}
