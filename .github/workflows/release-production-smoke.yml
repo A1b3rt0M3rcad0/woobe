@@ -35,7 +35,6 @@ jobs:
           PROJECTRAI_LOG_LEVEL=INFO
           PROJECTRAI_REQUEST_MAX_BYTES=1048576
           PROJECTRAI_RABBITMQ_EXCHANGE=projectrai.events
-          PROJECTRAI_REDIS_URL=redis://redis:6379/0
           PROJECTRAI_SECRET_KEY={secret_key}
           PROJECTRAI_ENCRYPTION_KEY={encryption_key}
           PROJECTRAI_ACCESS_COOKIE_SECURE=true
