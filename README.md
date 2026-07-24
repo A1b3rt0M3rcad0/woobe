@@ -229,12 +229,12 @@ cp .env.example .env
 O `.env` é organizado por serviço e funciona como manifesto da topologia. Comunicação entre serviços usa URLs explícitas:
 
 ```text
-PROJECTRAI_POSTGRES_URL   -> PostgreSQL direto; Migration/PgBouncer
-PROJECTRAI_DATABASE_URL   -> endpoint pooled; API/Workers
-PROJECTRAI_RABBITMQ_URL   -> RabbitMQ; Workers
-PROJECTRAI_REDIS_URL      -> Redis
+PROJECTRAI_POSTGRES_URL    -> PostgreSQL direto; Migration/PgBouncer
+PROJECTRAI_DATABASE_URL    -> endpoint pooled; API/Workers
+PROJECTRAI_RABBITMQ_URL    -> RabbitMQ; Workers
+PROJECTRAI_REDIS_URL       -> Redis
 PROJECTRAI_S3_ENDPOINT_URL -> object storage
-VITE_API_URL              -> API pública consumida pelo browser
+VITE_API_URL               -> API pública consumida pelo browser
 ```
 
 `POSTGRES_*` e `RABBITMQ_*` existem somente para bootstrap dos containers de infraestrutura do harness local. Aplicação e workers não derivam URLs a partir deles.
@@ -291,23 +291,23 @@ export PROJECTRAI_POSTGRES_URL='postgresql://user:pass@host:5432/projectrai'
 uv run alembic upgrade head
 ```
 
-Para API:
+Para API, configure as variáveis do bloco `API` e as dependências compartilhadas do manifesto e execute:
 
 ```bash
-export PROJECTRAI_SERVICE_ROLE=api
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Para Workers:
+Para Workers, configure as variáveis do bloco `WORKERS` e suas dependências e execute:
 
 ```bash
-export PROJECTRAI_SERVICE_ROLE=worker
 uv run python -m src.worker_main
 ```
 
+API e Worker fixam internamente seus próprios papéis de runtime; não existe `PROJECTRAI_SERVICE_ROLE` no contrato de deployment.
+
 ## Rodando frontend
 
-O Vite lê `VITE_API_URL` do `.env` na raiz:
+O Vite lê `VITE_API_URL` do `.env` na raiz usando o modo neutro `manifest`, evitando arquivos legados `.env.web`/`.env.production`:
 
 ```bash
 cd web
