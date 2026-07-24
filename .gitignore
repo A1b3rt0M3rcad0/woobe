@@ -18,3 +18,5 @@ web\node_modules
 .env*
 !.env.example
 !.env.production.example
+!.env.web.example
+!.env.web.production.example
