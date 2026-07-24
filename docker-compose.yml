@@ -1,26 +1,29 @@
 x-projectrai-environment: &projectrai-environment
-  # Development Compose uses the same credential source that initializes Postgres.
-  # The runtime entrypoint derives PROJECTRAI_DATABASE_URL with URL-encoding so a
-  # stale or mismatched value from .env cannot diverge from POSTGRES_PASSWORD.
+  # Docker owns the local infrastructure credentials. Application connection URLs
+  # are derived by the shared entrypoint from these values and the per-service host.
   PROJECTRAI_DATABASE_URL: ""
-  PROJECTRAI_DATABASE_HOST: db
-  PROJECTRAI_DATABASE_PORT: "5432"
-  POSTGRES_USER: ${POSTGRES_USER:-postgres}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  PROJECTRAI_DATABASE_HOST: pgbouncer
+  PROJECTRAI_DATABASE_PORT: "6432"
+  POSTGRES_USER: ${POSTGRES_USER:-projectrai}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-projectrai}
   POSTGRES_DB: ${POSTGRES_DB:-projectrai}
+  PROJECTRAI_RABBITMQ_URL: ""
+  PROJECTRAI_RABBITMQ_HOST: rabbitmq
+  PROJECTRAI_RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: ${RABBITMQ_USER:-projectrai}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-projectrai}
   PROJECTRAI_DEBUG: ${PROJECTRAI_DEBUG:-true}
   PROJECTRAI_SECRET_KEY: ${PROJECTRAI_SECRET_KEY:-dev-docker-secret-key-32chars!!}
   PROJECTRAI_ENCRYPTION_KEY: ${PROJECTRAI_ENCRYPTION_KEY:-dev-docker-enc-key-32chars!!}
   PROJECTRAI_LOG_LEVEL: ${PROJECTRAI_LOG_LEVEL:-INFO}
-  PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL}
-  PROJECTRAI_RABBITMQ_EXCHANGE: ${PROJECTRAI_RABBITMQ_EXCHANGE}
-  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL}
+  PROJECTRAI_RABBITMQ_EXCHANGE: ${PROJECTRAI_RABBITMQ_EXCHANGE:-projectrai.events}
+  PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL:-redis://redis:6379/0}
   PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS: ${PROJECTRAI_REDIS_CONNECT_TIMEOUT_SECONDS:-2.0}
   PROJECTRAI_MCP_SESSION_CACHE_ENABLED: ${PROJECTRAI_MCP_SESSION_CACHE_ENABLED:-true}
   PROJECTRAI_MCP_SESSION_KEY_PREFIX: ${PROJECTRAI_MCP_SESSION_KEY_PREFIX:-projectrai:mcp-session}
-  PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS}
-  PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS}
-  PROJECTRAI_TRUSTED_HOSTS: ${PROJECTRAI_TRUSTED_HOSTS}
+  PROJECTRAI_MCP_SESSION_TTL_SECONDS: ${PROJECTRAI_MCP_SESSION_TTL_SECONDS:-3600}
+  PROJECTRAI_CORS_ORIGINS: ${PROJECTRAI_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+  PROJECTRAI_TRUSTED_HOSTS: ${PROJECTRAI_TRUSTED_HOSTS:-localhost,127.0.0.1,test,api}
 
 services:
   migrate:
@@ -28,6 +31,8 @@ services:
     env_file: .env
     environment:
       <<: *projectrai-environment
+      PROJECTRAI_DATABASE_HOST: db
+      PROJECTRAI_DATABASE_PORT: "5432"
       PROJECTRAI_RUN_MIGRATIONS: "false"
     command: ["alembic", "upgrade", "head"]
     depends_on:
@@ -46,6 +51,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -72,6 +79,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -94,38 +103,46 @@ services:
   db:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-projectrai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-projectrai}
       POSTGRES_DB: ${POSTGRES_DB:-projectrai}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
   pgbouncer:
-    image: edoburu/pgbouncer
+    image: edoburu/pgbouncer:v1.25.2-p0
     ports:
       - "6432:6432"
     environment:
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_USER: ${POSTGRES_USER:-projectrai}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-projectrai}
       DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: ${POSTGRES_DB:-projectrai}
       LISTEN_ADDR: "0.0.0.0"
       LISTEN_PORT: "6432"
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: "100"
-      DEFAULT_POOL_SIZE: "25"
+      POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
+      MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-200}
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-20}
+      RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-5}
+      MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
+      AUTH_TYPE: scram-sha-256
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U $${DB_USER} -d $${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   rabbitmq:
@@ -158,7 +175,7 @@ services:
 
 secrets:
   web_env:
-    file: ./.env.web
+    file: ./.env
 
 volumes:
   pgdata:
