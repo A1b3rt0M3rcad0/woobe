@@ -279,8 +279,12 @@ function PlaygroundContent() {
     if (next === environment || isSending) return
     cancelStream()
     resetConversationView()
+    if (next !== 'draft' && leftPanelTab === 'sessions') {
+      setLeftPanelTab('traces')
+      setSelectedTraceId(null)
+    }
     setEnvironment(next)
-  }, [cancelStream, environment, isSending, resetConversationView])
+  }, [cancelStream, environment, isSending, leftPanelTab, resetConversationView])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
     if (isStateless) return
@@ -568,7 +572,7 @@ function PlaygroundContent() {
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} onTabChange={handleLeftPanelTabChange} />
+          <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
           {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={agentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
           <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={environmentReleaseQuery.isLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
