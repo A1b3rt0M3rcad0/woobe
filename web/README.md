@@ -32,7 +32,7 @@ npm run dev
 
 The frontend opens at `http://localhost:5173` by default.
 
-The Vite scripts run with `--mode web`, and `web/vite.config.ts` points `envDir` to the repository root, so local Vite reads `VITE_API_URL` from the root `.env`.
+The Vite scripts use the neutral `manifest` mode, and `web/vite.config.ts` points `envDir` to the repository root. This loads the canonical root `.env` without reusing the legacy `.env.web` or `.env.production` mode-specific files from older setups.
 
 ## Run with Docker Compose
 
