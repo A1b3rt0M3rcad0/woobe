@@ -100,7 +100,7 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
             <Play className="h-4 w-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">ProjectRAI</p>
+            <p className="text-sm font-semibold text-white">Woobe</p>
             <p className="text-xs text-muted">Workspace selection</p>
           </div>
         </div>
