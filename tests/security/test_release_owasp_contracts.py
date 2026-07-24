@@ -82,7 +82,7 @@ def test_production_compose_is_application_only_and_hardened() -> None:
     assert "PROJECTRAI_RABBITMQ_URL" in worker_block
     assert "VITE_API_URL" in web_block
     assert "PROJECTRAI_SERVICE_ROLE" not in compose
-    assert "${VAR:?}" not in compose
+    assert ":?Set " not in compose
     assert "PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-production}" in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
@@ -163,6 +163,13 @@ def test_local_compose_keeps_application_connections_url_driven() -> None:
     assert "PROJECTRAI_SERVICE_ROLE" not in compose
     assert "uploads_data" not in compose
     assert "minio:" in compose
+
+
+def test_frontend_uses_manifest_mode_instead_of_legacy_env_modes() -> None:
+    package = read("web/package.json")
+    assert "vite --mode manifest" in package
+    assert "vite build --mode manifest" in package
+    assert "--mode web" not in package
 
 
 def test_frontend_only_logs_request_details_in_development() -> None:
