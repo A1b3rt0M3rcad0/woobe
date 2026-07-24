@@ -190,10 +190,12 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     }
 
     let session = activeSession
+    let preparedDraftRevision: number | undefined
     if (!session) {
       setCreatingSession(true)
       try { session = await onCreateSession() } finally { setCreatingSession(false) }
       if (!session) return
+      if (environment === 'draft') preparedDraftRevision = session.draftRevision ?? undefined
     }
 
     setText('')
@@ -216,7 +218,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     let status: NetworkExecution['status'] = 'success'
 
     try {
-      const expectedDraftRevision = environment === 'draft' ? await onBeforeDraftRun() : undefined
+      const expectedDraftRevision = environment === 'draft' ? preparedDraftRevision ?? await onBeforeDraftRun() : undefined
       const executionBindings = environment === 'draft' ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding> : bindings
       await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message: content, expectedDraftRevision }, {
         onExecutionId: (id) => { executionId = id; executionIdRef.current = id },
