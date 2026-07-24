@@ -173,7 +173,8 @@ A regra de UX esperada é simples: MCP público começa com `Load tools`; MCP pr
 ├── specs/                      # ADRs, specs e inventários arquiteturais
 ├── tests/                      # testes unitários, integração, contrato e arquitetura
 ├── Dockerfile                  # imagem da API/workers
-├── docker-compose.yml          # stack local completa
+├── docker-compose.yml          # stack local completa / integration harness
+├── docker-compose.prod.yml     # referência application-only endurecida
 ├── pyproject.toml              # dependências e tooling Python
 └── README.md
 ```
@@ -190,6 +191,7 @@ Backend:
 - PostgreSQL com pgvector
 - RabbitMQ via `aio-pika`
 - Redis para cache de sessão MCP
+- S3-compatible object storage para Knowledge
 - LangChain / LangChain OpenAI
 - Ruff, Pyright e Pytest
 
@@ -205,39 +207,46 @@ Frontend:
 - Tailwind CSS
 - Vitest
 
-Infra local:
+Infra do harness local:
 
 - PostgreSQL/pgvector
 - PgBouncer
 - RabbitMQ Management
 - Redis
+- MinIO
 - API
 - Workers
 - Web
 
-## Configuração local
+## Configuração
 
-A configuração é separada por fronteira de segurança:
-
-- `.env` contém backend, infraestrutura e secrets;
-- `.env.web` contém somente variáveis públicas `VITE_*` usadas pelo frontend.
-
-Prepare os dois arquivos a partir dos templates:
+Existe um único contrato de ambiente para Development, Staging e Production:
 
 ```bash
 cp .env.example .env
-cp .env.web.example .env.web
 ```
 
-No Docker Compose, `POSTGRES_USER`, `POSTGRES_PASSWORD` e `POSTGRES_DB` são a única fonte das credenciais PostgreSQL. `RABBITMQ_USER` e `RABBITMQ_PASSWORD` fazem o mesmo para RabbitMQ. O entrypoint deriva as URLs internas; API/workers usam PgBouncer e migrations usam PostgreSQL diretamente.
+O `.env` é organizado por serviço e funciona como manifesto da topologia. Comunicação entre serviços usa URLs explícitas:
 
-O frontend build recebe apenas `.env.web`; secrets do backend não são expostos ao processo Vite.
+```text
+PROJECTRAI_POSTGRES_URL   -> PostgreSQL direto; Migration/PgBouncer
+PROJECTRAI_DATABASE_URL   -> endpoint pooled; API/Workers
+PROJECTRAI_RABBITMQ_URL   -> RabbitMQ; Workers
+PROJECTRAI_REDIS_URL      -> Redis
+PROJECTRAI_S3_ENDPOINT_URL -> object storage
+VITE_API_URL              -> API pública consumida pelo browser
+```
 
-Para produção, use `.env.production.example` e `.env.web.production.example`. O `Settings` valida requisitos mínimos de segurança: `DEBUG=false`, secrets fortes, CORS com origens exatas HTTPS, trusted hosts definidos, cookies seguros, logs JSON e ausência de credenciais padrão em PostgreSQL/RabbitMQ.
+`POSTGRES_*` e `RABBITMQ_*` existem somente para bootstrap dos containers de infraestrutura do harness local. Aplicação e workers não derivam URLs a partir deles.
+
+O mesmo `.env.example` é usado em Production; altere `PROJECTRAI_ENVIRONMENT`, URLs, secrets, domínios e credenciais. Não existe um schema separado de variáveis para Production.
+
+Cada serviço deve receber somente seu subconjunto de variáveis. O Compose faz essa separação explicitamente; deployments em Kubernetes/ECS/VMs devem seguir a mesma regra.
 
 ## Rodando com Docker Compose
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
@@ -247,9 +256,25 @@ Serviços principais:
 - Web: `http://localhost:5173`
 - PostgreSQL: `localhost:5432`
 - PgBouncer: `localhost:6432`
-- RabbitMQ: `localhost:15672`
+- RabbitMQ Management: `http://localhost:15672`
+- Redis: `localhost:6379`
+- MinIO: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
 
-O Compose executa migrations com Alembic antes de subir API e workers. API/workers usam `pgbouncer:6432`; o serviço `migrate` usa `db:5432`. PostgreSQL e PgBouncer possuem healthchecks autenticados.
+O Compose é um harness all-in-one. A aplicação continua usando URLs explícitas, portanto qualquer dependência pode ser movida para outro host sem alterar código.
+
+Migration conecta por `PROJECTRAI_POSTGRES_URL` diretamente ao PostgreSQL. API e Workers usam `PROJECTRAI_DATABASE_URL`, normalmente apontando para PgBouncer.
+
+## Production / deployment distribuído
+
+`docker-compose.prod.yml` contém apenas `migrate`, `api`, `workers` e `web`. PostgreSQL, PgBouncer, RabbitMQ, Redis e object storage são endpoints externos definidos no mesmo `.env`.
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate
+docker compose -f docker-compose.prod.yml up -d api workers web
+```
+
+Os mesmos containers podem ser executados separadamente em servidores/orquestradores diferentes. Consulte `docs/runbooks/production-deployment.md` para a matriz de dependências por serviço.
 
 ## Rodando backend sem Docker
 
@@ -259,38 +284,40 @@ Instale as dependências:
 uv sync
 ```
 
-O entrypoint que deriva URLs existe apenas nos containers. Para executar o backend diretamente contra dependências locais/externas, defina `PROJECTRAI_DATABASE_URL` e `PROJECTRAI_RABBITMQ_URL` explicitamente no ambiente ou descomente/adapte os exemplos comentados em `.env.example`.
-
-Execute migrations:
+Use URLs alcançáveis a partir do host onde cada processo roda. Para migration:
 
 ```bash
+export PROJECTRAI_POSTGRES_URL='postgresql://user:pass@host:5432/projectrai'
 uv run alembic upgrade head
 ```
 
-Suba a API:
+Para API:
 
 ```bash
+export PROJECTRAI_SERVICE_ROLE=api
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Suba os workers:
+Para Workers:
 
 ```bash
+export PROJECTRAI_SERVICE_ROLE=worker
 uv run python -m src.worker_main
 ```
 
 ## Rodando frontend
 
-Na raiz do repositório:
+O Vite lê `VITE_API_URL` do `.env` na raiz:
 
 ```bash
-cp .env.web.example .env.web
 cd web
 npm install
 npm run dev
 ```
 
-Build de produção/local:
+No Docker, somente `VITE_API_URL` é passado ao build; o arquivo `.env` completo não entra no frontend builder.
+
+Build:
 
 ```bash
 cd web
