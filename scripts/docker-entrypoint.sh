@@ -1,11 +1,9 @@
 #!/bin/sh
 set -e
 
-# Development Docker Compose owns the local Postgres instance, so POSTGRES_*
-# is the single credential source. Compose intentionally clears
-# PROJECTRAI_DATABASE_URL and provides host/port; derive the application URL
-# here with proper URL encoding. External deployments can still provide an
-# explicit PROJECTRAI_DATABASE_URL and bypass this derivation entirely.
+# Docker-managed infrastructure uses credentials from the shared .env contract.
+# Connection URLs are derived per container from the target host/port. External
+# deployments may still provide explicit PROJECTRAI_*_URL values to bypass this.
 if [ -z "${PROJECTRAI_DATABASE_URL:-}" ] \
   && [ -n "${POSTGRES_USER:-}" ] \
   && [ -n "${POSTGRES_DB:-}" ]; then
@@ -16,13 +14,30 @@ from urllib.parse import quote
 user = quote(os.environ["POSTGRES_USER"], safe="")
 password = quote(os.environ.get("POSTGRES_PASSWORD", ""), safe="")
 database = quote(os.environ["POSTGRES_DB"], safe="")
-host = os.environ.get("PROJECTRAI_DATABASE_HOST", "db")
-port = os.environ.get("PROJECTRAI_DATABASE_PORT", "5432")
+host = os.environ.get("PROJECTRAI_DATABASE_HOST", "pgbouncer")
+port = os.environ.get("PROJECTRAI_DATABASE_PORT", "6432")
 
 print(f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}")
 PY
 )"
   export PROJECTRAI_DATABASE_URL
+fi
+
+if [ -z "${PROJECTRAI_RABBITMQ_URL:-}" ] \
+  && [ -n "${RABBITMQ_USER:-}" ]; then
+  PROJECTRAI_RABBITMQ_URL="$(python - <<'PY'
+import os
+from urllib.parse import quote
+
+user = quote(os.environ["RABBITMQ_USER"], safe="")
+password = quote(os.environ.get("RABBITMQ_PASSWORD", ""), safe="")
+host = os.environ.get("PROJECTRAI_RABBITMQ_HOST", "rabbitmq")
+port = os.environ.get("PROJECTRAI_RABBITMQ_PORT", "5672")
+
+print(f"amqp://{user}:{password}@{host}:{port}/")
+PY
+)"
+  export PROJECTRAI_RABBITMQ_URL
 fi
 
 case "${PROJECTRAI_RUN_MIGRATIONS:-true}" in
