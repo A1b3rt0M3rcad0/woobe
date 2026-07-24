@@ -10,15 +10,18 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def service_block(compose: str, service: str, next_service: str) -> str:
+def service_block(compose: str, service: str, next_service: str | None = None) -> str:
     start = f"\n  {service}:\n"
-    end = f"\n  {next_service}:\n"
     assert start in compose, f"service {service!r} not found"
-    assert end in compose, f"service boundary {next_service!r} not found"
-    return compose.split(start, maxsplit=1)[1].split(end, maxsplit=1)[0]
+    remainder = compose.split(start, maxsplit=1)[1]
+    if next_service is None:
+        return remainder
+    end = f"\n  {next_service}:\n"
+    assert end in remainder, f"service boundary {next_service!r} not found"
+    return remainder.split(end, maxsplit=1)[0]
 
 
-def test_production_proxy_has_required_browser_security_headers() -> None:
+def test_production_frontend_has_required_browser_security_headers() -> None:
     nginx = read("web/nginx.conf")
     required = (
         "X-Content-Type-Options",
@@ -32,53 +35,81 @@ def test_production_proxy_has_required_browser_security_headers() -> None:
         assert f"add_header {header}" in nginx
     assert "server_tokens off" in nginx
     assert "frame-ancestors 'none'" in nginx
-    assert "proxy_buffering off" in nginx
+    assert "connect-src 'self' __API_ORIGIN__" in nginx
+    assert "proxy_pass http://api" not in nginx
 
 
-def test_production_topology_does_not_publish_data_services_or_bind_mount_source() -> None:
+def test_production_compose_is_application_only_and_hardened() -> None:
     compose = read("docker-compose.prod.yml")
-    db_block = service_block(compose, "db", "pgbouncer")
-    pgbouncer_block = service_block(compose, "pgbouncer", "rabbitmq")
-    rabbit_block = service_block(compose, "rabbitmq", "redis")
-    redis_block = compose.split("\n  redis:\n", maxsplit=1)[1].split("\nsecrets:\n", maxsplit=1)[0]
-    web_block = service_block(compose, "web", "db")
+    migrate_block = service_block(compose, "migrate", "api")
+    api_block = service_block(compose, "api", "workers")
+    worker_block = service_block(compose, "workers", "web")
+    web_block = service_block(compose, "web")
 
-    assert "ports:" not in db_block
-    assert "ports:" not in pgbouncer_block
-    assert "ports:" not in rabbit_block
-    assert "ports:" not in redis_block
-    assert 'ports:\n      - "8080:8080"' in web_block
-    assert compose.count("    ports:\n") == 1
-    assert "../" not in compose
-    assert "./src:" not in compose
+    for infrastructure_service in ("db", "pgbouncer", "rabbitmq", "redis", "minio"):
+        assert f"\n  {infrastructure_service}:\n" not in compose
+
+    assert "PROJECTRAI_POSTGRES_URL" in migrate_block
+    assert "PROJECTRAI_DATABASE_URL" in api_block
+    assert "PROJECTRAI_RABBITMQ_URL" not in api_block
+    assert "PROJECTRAI_DATABASE_URL" in worker_block
+    assert "PROJECTRAI_RABBITMQ_URL" in worker_block
+    assert "VITE_API_URL" in web_block
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
-    assert "uploads_data:/app/storage/uploads" in compose
+    assert "./src:" not in compose
+    assert "uploads_data" not in compose
 
 
-def test_production_environment_is_template_only_and_rejects_wildcard_origins() -> None:
-    environment = read(".env.production.example")
-    web_environment = read(".env.web.production.example")
+def test_environment_manifest_documents_url_boundaries_and_single_template() -> None:
+    environment = read(".env.example")
 
-    assert "Never commit the resulting .env or .env.web" in environment
-    assert "PROJECTRAI_SECRET_KEY=\n" in environment
-    assert "PROJECTRAI_ENCRYPTION_KEY=\n" in environment
-    assert "POSTGRES_PASSWORD=\n" in environment
-    assert "RABBITMQ_PASSWORD=\n" in environment
+    for section in (
+        "# POSTGRESQL — DIRECT DATABASE",
+        "# PGBOUNCER — RUNTIME DATABASE ENDPOINT",
+        "# RABBITMQ",
+        "# REDIS",
+        "# OBJECT STORAGE — S3 COMPATIBLE",
+        "# API",
+        "# WORKERS",
+        "# WEB",
+    ):
+        assert section in environment
+
+    for variable in (
+        "PROJECTRAI_POSTGRES_URL=",
+        "PROJECTRAI_DATABASE_URL=",
+        "PROJECTRAI_RABBITMQ_URL=",
+        "PROJECTRAI_REDIS_URL=",
+        "PROJECTRAI_S3_ENDPOINT_URL=",
+        "VITE_API_URL=",
+    ):
+        assert variable in environment
+
+    assert "API and WORKERS must NOT use this URL directly" in environment
+    assert "API does not require RabbitMQ to start" in environment
+    assert "PROJECTRAI_STORAGE_DRIVER=s3" in environment
     assert "PROJECTRAI_CORS_ORIGINS=*" not in environment
     assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
-    assert "VITE_API_URL=" not in environment
-
-    assert "VITE_API_URL=\n" in web_environment
-    assert "POSTGRES_PASSWORD" not in web_environment
-    assert "PROJECTRAI_SECRET_KEY" not in web_environment
-    assert "PROJECTRAI_ENCRYPTION_KEY" not in web_environment
 
     gitignore = read(".gitignore")
     assert ".env*" in gitignore
-    assert "!.env.production.example" in gitignore
-    assert "!.env.web.production.example" in gitignore
+    assert "!.env.example" in gitignore
+    assert "!.env.production.example" not in gitignore
+    assert "!.env.web.example" not in gitignore
+
+
+def test_local_compose_keeps_application_connections_url_driven() -> None:
+    compose = read("docker-compose.yml")
+    assert "DATABASE_URL: ${PROJECTRAI_POSTGRES_URL" in compose
+    assert "PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL" in compose
+    assert "PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL" in compose
+    assert "PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL" in compose
+    assert "PROJECTRAI_S3_ENDPOINT_URL: ${PROJECTRAI_S3_ENDPOINT_URL" in compose
+    assert "VITE_API_URL: ${VITE_API_URL" in compose
+    assert "uploads_data" not in compose
+    assert "minio:" in compose
 
 
 def test_frontend_only_logs_request_details_in_development() -> None:
