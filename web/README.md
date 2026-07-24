@@ -3,17 +3,18 @@
 ## Prerequisites
 
 - Node.js 18+
-- Backend running on the URL configured in the root `.env.web` file
+- Root `.env` created from `.env.example`
+- Backend reachable at `VITE_API_URL`
 
 ## Setup
 
 From the repository root:
 
 ```bash
-cp .env.web.example .env.web
+cp .env.example .env
 ```
 
-`.env.web` is intentionally frontend-only. Keep only public `VITE_*` values in it; backend/database/RabbitMQ secrets belong in the root `.env`.
+`VITE_API_URL` lives in the same deployment manifest as the other service endpoints. It is public by design: Vite embeds only `VITE_*` values in the browser bundle. Backend secrets are not passed to the frontend Docker build.
 
 Then install frontend dependencies:
 
@@ -29,21 +30,22 @@ cd web
 npm run dev
 ```
 
-The frontend opens at `http://localhost:5173`.
+The frontend opens at `http://localhost:5173` by default.
 
-The Vite scripts run with `--mode web`, and `web/vite.config.ts` points `envDir` to the repository root, so frontend config is read from root `.env.web`.
+The Vite scripts run with `--mode web`, and `web/vite.config.ts` points `envDir` to the repository root, so local Vite reads `VITE_API_URL` from the root `.env`.
 
 ## Run with Docker Compose
 
-From the repository root, prepare both environment files:
+From the repository root:
 
 ```bash
 cp .env.example .env
-cp .env.web.example .env.web
 docker compose up --build web
 ```
 
-Docker BuildKit mounts only `.env.web` into the frontend builder. The backend `.env` is never exposed to the frontend build.
+Docker Compose extracts only `VITE_API_URL` from `.env` and passes it as a public build argument. PostgreSQL, RabbitMQ, encryption and authentication secrets are not exposed to the frontend build.
+
+The runtime Nginx serves only the SPA/static assets. The browser calls `VITE_API_URL` directly; routing to the API is therefore independent from Docker service names and can target another host/load balancer.
 
 ## Seed demo data
 
@@ -56,7 +58,7 @@ Login: `customer@gmail.com` / `customer`
 
 ## Build
 
-From the repository root, `.env.web` must exist. Then:
+With `VITE_API_URL` exported or available in the root `.env`:
 
 ```bash
 cd web
