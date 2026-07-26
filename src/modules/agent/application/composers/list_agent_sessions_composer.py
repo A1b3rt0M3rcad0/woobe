@@ -3,7 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.agent.presentation.controllers.list_agent_sessions_controller import (
     ListAgentSessionsController,
 )
-from modules.agent.application.use_cases import ListAgentSessionsUseCase
+from modules.agent.application.use_cases.environment_filtered_sessions import (
+    EnvironmentFilteredListAgentSessionsUseCase,
+)
 from shared.infra.transactional_handler import TransactionalHandler
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
@@ -16,7 +18,7 @@ def list_agent_sessions_composer(
     session_repo = uow.sessions
     message_repo = uow.messages
 
-    use_case = ListAgentSessionsUseCase(
+    use_case = EnvironmentFilteredListAgentSessionsUseCase(
         session_repo=session_repo,
         message_repo=message_repo,
     )
