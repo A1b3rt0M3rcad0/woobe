@@ -9,6 +9,7 @@ interface SessionsPanelProps {
   sessions: SessionListItem[]
   currentSessionId: string | null
   sessionMode: 'stateful' | 'stateless'
+  creationDisabledReason?: string
   onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
   onLoadMoreSessions?: () => void
@@ -45,6 +46,7 @@ export function SessionsPanel({
   sessions,
   currentSessionId,
   sessionMode,
+  creationDisabledReason,
   onNewSession,
   onSelectSession,
   onLoadMoreSessions,
@@ -54,7 +56,9 @@ export function SessionsPanel({
   isCreatingSession = false,
 }: SessionsPanelProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const newSessionsDisabled = sessionMode === 'stateless'
+  const newSessionsDisabled = sessionMode === 'stateless' || Boolean(creationDisabledReason)
+  const disabledReason = creationDisabledReason
+    ?? (sessionMode === 'stateless' ? 'This Agent runtime is stateless and cannot create persistent Sessions' : undefined)
 
   useEffect(() => {
     const node = sentinelRef.current
@@ -81,7 +85,7 @@ export function SessionsPanel({
           type="button"
           onClick={() => void onNewSession()}
           disabled={isCreatingSession || newSessionsDisabled}
-          title={newSessionsDisabled ? 'The current Agent snapshot is stateless and cannot create persistent Sessions' : undefined}
+          title={disabledReason}
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-medium text-primary-light transition-colors hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isCreatingSession ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -89,10 +93,10 @@ export function SessionsPanel({
         </button>
       </div>
 
-      {newSessionsDisabled && (
+      {disabledReason && (
         <div className="flex gap-2 rounded-xl border border-border/80 bg-background/45 p-3 text-xs leading-5 text-muted">
           <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <p>The current snapshot is stateless. Existing historical Sessions remain available for inspection, but new persistent Sessions cannot be created.</p>
+          <p>{disabledReason} Historical Sessions remain available for inspection.</p>
         </div>
       )}
 
@@ -119,7 +123,7 @@ export function SessionsPanel({
         <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/45 px-4 py-8 text-center">
           <MessageSquare className="mb-2 h-8 w-8 text-muted" />
           <p className="text-sm text-muted">No sessions yet</p>
-          <p className="mt-1 text-xs text-muted">{newSessionsDisabled ? 'This snapshot does not create persistent Sessions.' : 'Create a Session to test this Agent.'}</p>
+          <p className="mt-1 text-xs text-muted">{newSessionsDisabled ? 'Persistent Sessions cannot be created in the current runtime state.' : 'Create a Session to test this Agent.'}</p>
           {!newSessionsDisabled ? (
             <button
               type="button"
@@ -138,7 +142,7 @@ export function SessionsPanel({
         <div className="space-y-1.5">
           {sessions.map((session) => {
             const isCurrent = session.id === currentSessionId
-            const releaseVersion = typeof session.data?.release_version === 'string' ? session.data.release_version : null
+            const openedVersion = session.opened_release_version
             return (
               <button
                 type="button"
@@ -165,7 +169,7 @@ export function SessionsPanel({
                   </div>
                   {isCurrent ? <span className="text-[10px] font-medium uppercase text-primary-light">Selected</span> : null}
                 </div>
-                {releaseVersion ? <p className="mt-1 font-mono text-[10px] text-indigo-300">Pinned · {releaseVersion}</p> : null}
+                {openedVersion ? <p className="mt-1 font-mono text-[10px] text-indigo-300">Opened · {openedVersion}</p> : null}
                 <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
