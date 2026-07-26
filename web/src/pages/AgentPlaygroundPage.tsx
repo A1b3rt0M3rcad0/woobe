@@ -160,7 +160,7 @@ function PlaygroundContent() {
     hasNextPage: hasMoreSessions,
     isLoading: sessionsLoading,
     isFetchingNextPage: sessionsLoadingMore,
-  } = useAgentSessions(agentId, projectId)
+  } = useAgentSessions(agentId, projectId, environment)
 
   const allSessions = useMemo(() => {
     const byId = new Map<string, SessionListItem>()
@@ -216,6 +216,10 @@ function PlaygroundContent() {
   const agentSessionMode = environment === 'draft'
     ? state.sessionMode
     : releaseSessionMode === 'stateless' ? 'stateless' : 'stateful'
+  const currentEnvironmentSessionMode = environment === 'draft'
+    ? state.sessionMode
+    : currentEnvironmentRelease?.session_mode === 'stateless' ? 'stateless' : 'stateful'
+  const currentEnvironmentStateless = currentEnvironmentSessionMode === 'stateless'
   const isStateless = agentSessionMode === 'stateless'
   const activeSessionId = isStateless ? null : sessionIdState
 
@@ -279,20 +283,15 @@ function PlaygroundContent() {
     if (next === environment || isSending) return
     cancelStream()
     resetConversationView()
-    if (next !== 'draft' && leftPanelTab === 'sessions') {
-      setLeftPanelTab('traces')
-      setSelectedTraceId(null)
-    }
     setEnvironment(next)
-  }, [cancelStream, environment, isSending, leftPanelTab, resetConversationView])
+  }, [cancelStream, environment, isSending, resetConversationView])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
-    if (isStateless) return
     cancelStream()
     resetConversationView()
     setCurrentSessionId(sessionIdValue)
     queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
-  }, [cancelStream, isStateless, queryClient, resetConversationView, setCurrentSessionId])
+  }, [cancelStream, queryClient, resetConversationView, setCurrentSessionId])
 
   const handleNewSession = useCallback(async () => {
     if (!projectId || !agentId || creatingSession) return
@@ -304,8 +303,8 @@ function PlaygroundContent() {
       toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
       return
     }
-    if (isStateless) {
-      toast.info('Stateless Agents do not create persistent Sessions')
+    if (currentEnvironmentStateless) {
+      toast.info('The current Agent snapshot is stateless and does not create persistent Sessions')
       return
     }
     cancelStream()
@@ -332,7 +331,7 @@ function PlaygroundContent() {
         created_at: created.created_at ?? null,
         message_count: 0,
       }
-      queryClient.setQueryData<InfiniteData<SessionListPage>>(['agent-sessions', agentId, projectId], (old) => {
+      queryClient.setQueryData<InfiniteData<SessionListPage>>(['agent-sessions', agentId, projectId, environment], (old) => {
         const newPage: SessionListPage = { items: [listItem], next_cursor: null, has_next: false }
         if (!old || old.pages.length === 0) return { pages: [newPage], pageParams: [null] }
         const [firstPage, ...restPages] = old.pages
@@ -360,7 +359,7 @@ function PlaygroundContent() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, cancelStream, createRuntimeSession, creatingSession, currentEnvironmentRelease?.id, currentEnvironmentRelease?.version, environment, environmentReady, isStateless, projectId, queryClient, runtimeEnabled, setCurrentSessionId])
+  }, [agentId, cancelStream, createRuntimeSession, creatingSession, currentEnvironmentRelease?.id, currentEnvironmentRelease?.version, currentEnvironmentStateless, environment, environmentReady, projectId, queryClient, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -433,7 +432,7 @@ function PlaygroundContent() {
         onTokenRetract: (info) => {
           rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
           if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
-          updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current, activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' } }))
+          updateLastAssistantMessage((last) => ({ ...last, activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' } }))
         },
         onInternalToken: (token) => rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token }),
         onSources: (sources) => {
@@ -573,7 +572,7 @@ function PlaygroundContent() {
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
-          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={agentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
+          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={currentEnvironmentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
           <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={environmentReleaseQuery.isLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
