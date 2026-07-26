@@ -252,6 +252,7 @@ export interface AgentReleaseActivation {
   release_id: string
   previous_release_id?: string | null
   action: 'deploy' | 'reactivate' | 'rollback'
+  change_description?: string | null
   created_by?: string | null
   created_at?: string
 }
