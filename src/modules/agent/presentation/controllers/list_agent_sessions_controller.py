@@ -34,10 +34,10 @@ class ListAgentSessionsController(Controller):
         input_dto = ListAgentSessionsInput(
             project_id=project_id,
             agent_id=agent_id,
+            environment=environment or None,
             cursor=cursor,
             limit=limit,
         )
-        object.__setattr__(input_dto, "environment", environment or None)
         try:
             result = await self._use_case.execute(input_dto)
         except Exception as e:
