@@ -15,6 +15,7 @@ class AgentReleaseActivation:
     release_id: UUID = field(default_factory=uuid6.uuid7)
     previous_release_id: UUID | None = None
     action: str = "deploy"
+    change_description: str | None = None
     created_by: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
