@@ -1,7 +1,12 @@
+export type AgentSessionEnvironment = 'draft' | 'staging' | 'production'
+
 export interface SessionListItem {
   id: string
   project_id: string
   agent_id: string
+  runtime_environment: AgentSessionEnvironment
+  opened_release_id?: string | null
+  opened_release_version?: string | null
   status: string
   mode: string
   data?: Record<string, unknown> | null
@@ -20,6 +25,8 @@ export interface Session {
   id: string
   project_id: string
   agent_id: string
+  runtime_environment: AgentSessionEnvironment
+  opened_release_id?: string | null
   external_session_id?: string
   tenant_id?: string
   user_id?: string
@@ -34,6 +41,7 @@ export interface Session {
 export interface CreateSessionRequest {
   project_id: string
   agent_id: string
+  runtime_environment?: AgentSessionEnvironment
   external_session_id?: string
   tenant_id?: string
   user_id?: string
