@@ -13,6 +13,7 @@ from modules.agent.application.use_cases.auto_compatible_release_lifecycle impor
 from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.application.use_cases.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
 from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
@@ -25,6 +26,16 @@ class MemoryReleaseRepository:
 
     async def get_by_id(self, item_id):
         return self.items.get(item_id)
+
+    async def get_active_production(self, agent_id):
+        return next(
+            (
+                item
+                for item in self.items.values()
+                if item.agent_id == agent_id and item.status == ReleaseStatus.production
+            ),
+            None,
+        )
 
     async def save(self, item):
         self.items[item.id] = item
@@ -173,15 +184,15 @@ def test_release_identity_is_bound_to_execution_context():
 
 
 @pytest.mark.asyncio
-async def test_staging_session_keeps_its_pinned_release_after_staging_moves():
+async def test_staging_session_follows_current_staging_release_after_staging_moves():
     project_id = uuid4()
     agent_id = uuid4()
     session_id = uuid4()
     base_agent = Agent(id=agent_id, project_id=project_id, model="draft-model")
-    pinned = _release(status=ReleaseStatus.staging, version="staging-v1")
-    pinned.project_id = project_id
-    pinned.agent_id = agent_id
-    pinned.model = "model-v1"
+    opened = _release(status=ReleaseStatus.released, version="staging-v1")
+    opened.project_id = project_id
+    opened.agent_id = agent_id
+    opened.model = "model-v1"
     current = _release(status=ReleaseStatus.staging, version="staging-v2")
     current.project_id = project_id
     current.agent_id = agent_id
@@ -189,15 +200,13 @@ async def test_staging_session_keeps_its_pinned_release_after_staging_moves():
     session = SimpleNamespace(
         project_id=project_id,
         agent_id=agent_id,
-        data={
-            "runtime_environment": "staging",
-            "loaded_release_id": str(pinned.id),
-            "release_version": pinned.version,
-        },
+        runtime_environment="staging",
+        opened_release_id=opened.id,
+        data=None,
     )
     uow = SimpleNamespace(
         agents=SimpleNamespace(get_by_id=AsyncMock(return_value=base_agent)),
-        releases=MemoryReleaseRepository(pinned, current),
+        releases=MemoryReleaseRepository(opened, current),
         sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)),
         provider_models=None,
     )
@@ -207,12 +216,14 @@ async def test_staging_session_keeps_its_pinned_release_after_staging_moves():
         session_id=session_id,
         message="continue",
         execution_context="staging",
+        loaded_release_id=opened.id,
     )
 
-    loaded = await ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._load_agent(uow, input_dto)
+    loaded = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._load_agent(uow, input_dto)
 
-    assert loaded.model == "model-v1"
-    assert input_dto.loaded_release_id == pinned.id
+    assert loaded.model == "model-v2"
+    assert input_dto.loaded_release_id == current.id
+    assert session.opened_release_id == opened.id
 
 
 @pytest.mark.asyncio
@@ -222,7 +233,9 @@ async def test_session_cannot_cross_runtime_environments():
     session = SimpleNamespace(
         project_id=project_id,
         agent_id=agent_id,
-        data={"runtime_environment": "draft"},
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
     )
     uow = SimpleNamespace(sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)))
     input_dto = AskInput(
@@ -234,11 +247,11 @@ async def test_session_cannot_cross_runtime_environments():
     )
 
     with pytest.raises(ConflictError, match="belongs to draft"):
-        await ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._session_runtime_binding(uow, input_dto)
+        await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._session_runtime_binding(uow, input_dto)
 
 
 @pytest.mark.asyncio
-async def test_runtime_session_persists_environment_and_release_binding():
+async def test_runtime_session_persists_environment_and_opening_release_provenance():
     project_id = uuid4()
     agent_id = uuid4()
     release_id = uuid4()
@@ -251,8 +264,16 @@ async def test_runtime_session_persists_environment_and_release_binding():
         metadata={"source": "playground"},
     )
     agent = Agent(id=agent_id, project_id=project_id, model="model-a")
+    created = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
     session_repo = SimpleNamespace(
-        create=AsyncMock(side_effect=lambda session: session),
+        create=AsyncMock(return_value=created),
         update=AsyncMock(),
     )
     context = new_execution_context()
@@ -260,7 +281,7 @@ async def test_runtime_session_persists_environment_and_release_binding():
     context.agent_release_version = "staging-v1"
     token = current_execution.set(context)
     try:
-        session = await ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._resolve_session(
+        session = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._resolve_session(
             session_repo,
             input_dto,
             agent,
@@ -268,12 +289,9 @@ async def test_runtime_session_persists_environment_and_release_binding():
     finally:
         current_execution.reset(token)
 
-    assert session.data == {
-        "runtime_environment": "staging",
-        "source": "playground",
-        "loaded_release_id": str(release_id),
-        "release_version": "staging-v1",
-    }
+    assert session.runtime_environment == "staging"
+    assert session.opened_release_id == release_id
+    assert session.data == {"source": "playground"}
     session_repo.update.assert_awaited_once()
 
 
