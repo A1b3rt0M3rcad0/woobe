@@ -103,6 +103,12 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
             action = self._activation_action
             if action != "rollback":
                 action = "reactivate" if result.id in existing_release_ids else "deploy"
+            raw_description = getattr(input_dto, "change_description", None) if input_dto is not None else None
+            change_description = raw_description.strip() if isinstance(raw_description, str) and raw_description.strip() else None
+            if change_description is None and action == "deploy":
+                release_notes = getattr(input_dto, "release_notes", None) if input_dto is not None else None
+                if isinstance(release_notes, str) and release_notes.strip():
+                    change_description = release_notes.strip()
             await self._activation_repo.save(
                 AgentReleaseActivation(
                     project_id=result.project_id,
@@ -110,6 +116,7 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
                     release_id=result.id,
                     previous_release_id=previous.id if previous is not None else None,
                     action=action,
+                    change_description=change_description,
                     created_by=getattr(input_dto, "user_id", None),
                 )
             )
