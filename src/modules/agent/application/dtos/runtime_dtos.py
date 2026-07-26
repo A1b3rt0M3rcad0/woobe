@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -80,6 +81,7 @@ class ListMessagesOutput(BaseModel):
 class ListAgentSessionsInput(BaseModel):
     project_id: UUID
     agent_id: UUID
+    environment: Literal["draft", "staging", "production"] | None = None
     cursor: str | None = None
     limit: int = Field(default=20, ge=1, le=100)
 
