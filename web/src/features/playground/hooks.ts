@@ -2,11 +2,12 @@ import { useCallback } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
-  getAgentSessions,
   ask,
   getSessionMessages,
 } from './api'
+import { getAgentSessionsByEnvironment } from './session-api'
 import { askStreamV1, type StreamCallbacks } from './stream-client'
+import type { RuntimeEnvironment } from '@/features/agents/types'
 import type { CreateSessionRequest, AskRequest } from './types'
 
 let activeStreamController: AbortController | null = null
@@ -64,10 +65,14 @@ export function useAsk() {
   })
 }
 
-export function useAgentSessions(agentId: string | undefined, projectId: string | undefined) {
+export function useAgentSessions(
+  agentId: string | undefined,
+  projectId: string | undefined,
+  environment: RuntimeEnvironment,
+) {
   return useInfiniteQuery({
-    queryKey: ['agent-sessions', agentId, projectId],
-    queryFn: ({ pageParam }) => getAgentSessions(agentId!, projectId!, {
+    queryKey: ['agent-sessions', agentId, projectId, environment],
+    queryFn: ({ pageParam }) => getAgentSessionsByEnvironment(agentId!, projectId!, environment, {
       limit: AGENT_SESSIONS_PAGE_SIZE,
       cursor: pageParam,
     }),
