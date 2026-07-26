@@ -1,84 +1,136 @@
-from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.use_cases.environment_filtered_sessions import (
-    EnvironmentFilteredListAgentSessionsUseCase,
+from modules.agent.application.dtos.runtime_dtos import CreateSessionInput, ListAgentSessionsInput
+from modules.agent.application.use_cases.environment_session_use_cases import (
+    EnvironmentAwareCreateSessionUseCase,
+    EnvironmentAwareListAgentSessionsUseCase,
 )
+from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.enums import ReleaseStatus
 
 
-def _session(*, project_id, agent_id, environment=None, minutes=0):
-    data = {} if environment is None else {"runtime_environment": environment}
-    return SimpleNamespace(
+@pytest.mark.asyncio
+async def test_session_list_delegates_environment_filtering_to_repository() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    release_id = uuid4()
+    session = SimpleNamespace(
         id=uuid4(),
         project_id=project_id,
         agent_id=agent_id,
+        runtime_environment="staging",
+        opened_release_id=release_id,
         status="active",
         mode="chat",
-        data=data,
-        last_message_at=datetime.now(timezone.utc) + timedelta(minutes=minutes),
-        created_at=datetime.now(timezone.utc),
+        data={"source": "playground", "loaded_release_id": str(uuid4())},
+        last_message_at=None,
+        created_at=None,
     )
+    page = SimpleNamespace(
+        items=[(session, 7)],
+        next_cursor="next",
+        has_next=True,
+    )
+    repo = SimpleNamespace(
+        paginate_by_agent_environment=AsyncMock(return_value=page),
+    )
+    use_case = EnvironmentAwareListAgentSessionsUseCase(repo)
 
-
-@pytest.mark.asyncio
-async def test_sessions_are_filtered_before_environment_pagination() -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    draft = _session(project_id=project_id, agent_id=agent_id, environment="draft", minutes=5)
-    staging_new = _session(project_id=project_id, agent_id=agent_id, environment="staging", minutes=4)
-    production = _session(project_id=project_id, agent_id=agent_id, environment="production", minutes=3)
-    staging_old = _session(project_id=project_id, agent_id=agent_id, environment="staging", minutes=2)
-
-    session_repo = SimpleNamespace(list_by_agent=AsyncMock(return_value=[draft, staging_new, production, staging_old]))
-    message_repo = SimpleNamespace(count_by_session=AsyncMock(return_value=0))
-    use_case = EnvironmentFilteredListAgentSessionsUseCase(session_repo, message_repo)
-
-    first_page = await use_case.execute(SimpleNamespace(
+    result = await use_case.execute(ListAgentSessionsInput(
         project_id=project_id,
         agent_id=agent_id,
         environment="staging",
-        cursor=None,
-        limit=1,
-    ))
-
-    assert [item.id for item in first_page.items] == [staging_new.id]
-    assert first_page.has_next is True
-    assert first_page.next_cursor == str(staging_new.id)
-
-    second_page = await use_case.execute(SimpleNamespace(
-        project_id=project_id,
-        agent_id=agent_id,
-        environment="staging",
-        cursor=first_page.next_cursor,
-        limit=1,
-    ))
-
-    assert [item.id for item in second_page.items] == [staging_old.id]
-    assert second_page.has_next is False
-
-
-@pytest.mark.asyncio
-async def test_legacy_sessions_without_environment_are_draft() -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    legacy = _session(project_id=project_id, agent_id=agent_id, environment=None)
-    staging = _session(project_id=project_id, agent_id=agent_id, environment="staging")
-
-    use_case = EnvironmentFilteredListAgentSessionsUseCase(
-        SimpleNamespace(list_by_agent=AsyncMock(return_value=[legacy, staging])),
-        SimpleNamespace(count_by_session=AsyncMock(return_value=0)),
-    )
-
-    result = await use_case.execute(SimpleNamespace(
-        project_id=project_id,
-        agent_id=agent_id,
-        environment="draft",
         cursor=None,
         limit=20,
     ))
 
-    assert [item.id for item in result.items] == [legacy.id]
+    repo.paginate_by_agent_environment.assert_awaited_once_with(
+        project_id,
+        agent_id,
+        "staging",
+        limit=20,
+        cursor=None,
+    )
+    assert result.items[0].runtime_environment == "staging"
+    assert result.items[0].opened_release_id == release_id
+    assert result.items[0].message_count == 7
+    assert result.items[0].data == {"source": "playground"}
+    assert result.next_cursor == "next"
+    assert result.has_next is True
+
+
+@pytest.mark.asyncio
+async def test_production_session_records_opening_release_without_client_pin() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    release = AgentRelease(
+        project_id=project_id,
+        agent_id=agent_id,
+        version="v2",
+        status=ReleaseStatus.production,
+    )
+    agent = SimpleNamespace(
+        id=agent_id,
+        project_id=project_id,
+        session_mode="stateful",
+    )
+    saved = []
+
+    async def save_session(session):
+        saved.append(session)
+        return session
+
+    use_case = EnvironmentAwareCreateSessionUseCase(
+        SimpleNamespace(create=AsyncMock(side_effect=save_session)),
+        SimpleNamespace(get_by_id=AsyncMock(return_value=agent)),
+        SimpleNamespace(get_active_production=AsyncMock(return_value=release)),
+        SimpleNamespace(write=AsyncMock()),
+    )
+
+    result = await use_case.execute(CreateSessionInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="production",
+        data={
+            "source": "playground",
+            "loaded_release_id": str(uuid4()),
+            "release_version": "forged",
+        },
+    ))
+
+    assert saved[0].runtime_environment == "production"
+    assert saved[0].opened_release_id == release.id
+    assert saved[0].data == {"source": "playground"}
+    assert result.opened_release_id == release.id
+    assert result.data == {"source": "playground"}
+
+
+@pytest.mark.asyncio
+async def test_draft_session_has_no_opening_release() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    agent = SimpleNamespace(
+        id=agent_id,
+        project_id=project_id,
+        session_mode="stateful",
+    )
+    repo = SimpleNamespace(create=AsyncMock(side_effect=lambda session: session))
+    use_case = EnvironmentAwareCreateSessionUseCase(
+        repo,
+        SimpleNamespace(get_by_id=AsyncMock(return_value=agent)),
+        SimpleNamespace(),
+        SimpleNamespace(write=AsyncMock()),
+    )
+
+    result = await use_case.execute(CreateSessionInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+    ))
+
+    assert result.runtime_environment == "draft"
+    assert result.opened_release_id is None
