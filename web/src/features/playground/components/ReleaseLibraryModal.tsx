@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ArrowLeft, Eye, Package, Rocket, X } from 'lucide-react'
+import { ArrowLeft, Eye, Package, Rocket } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Dialog } from '@/components/ui/Dialog'
 import { getRelease } from '@/features/agents/api'
 import type { AgentRelease } from '@/features/agents/types'
 import { ReleaseDetailsView } from './ReleaseDetailsView'
@@ -35,8 +36,6 @@ export function ReleaseLibraryModal({
   const [selected, setSelected] = useState<AgentRelease | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
-  if (!open) return null
-
   const close = () => {
     setSelected(null)
     setLoadingId(null)
@@ -60,25 +59,22 @@ export function ReleaseLibraryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40">
-        <div className="flex items-start justify-between gap-4 border-b border-border/90 bg-background/20 p-5">
-          <div className="flex items-start gap-3">
-            {selected ? (
-              <button className="mt-0.5 rounded-lg border border-border/70 p-1.5 text-muted hover:bg-background/60 hover:text-white" onClick={() => setSelected(null)} aria-label="Back to releases">
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            ) : null}
-            <div>
-              <h2 className="text-base font-semibold text-white">{selected ? selected.version : title}</h2>
-              <p className="mt-1 text-xs text-muted">
-                {selected ? 'Immutable Agent Release snapshot.' : description}
-              </p>
-            </div>
-          </div>
-          <button className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" onClick={close} aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
+    <Dialog
+      open={open}
+      onClose={close}
+      title={selected ? selected.version : title}
+      className="max-w-4xl"
+      contentClassName="p-0"
+      scrollMode="content"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center gap-3 border-b border-border/90 bg-background/20 px-5 py-3">
+          {selected ? (
+            <button className="rounded-lg border border-border/70 p-1.5 text-muted hover:bg-background/60 hover:text-white" onClick={() => setSelected(null)} aria-label="Back to releases">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : null}
+          <p className="text-xs text-muted">{selected ? 'Immutable Agent Release snapshot.' : description}</p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -126,11 +122,11 @@ export function ReleaseLibraryModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
           {selected && !readOnly ? <Button size="sm" onClick={() => deploy(selected)}><Rocket className="mr-1 h-3.5 w-3.5" />{actionLabel}</Button> : null}
           <Button size="sm" variant="outline" onClick={close}>Close</Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   )
 }
