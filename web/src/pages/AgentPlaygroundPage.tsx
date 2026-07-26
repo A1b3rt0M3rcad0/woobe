@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent, useAgentRuntimeEnvironments, useRelease, useReleases } from '@/features/agents/hooks'
+import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
@@ -19,26 +19,13 @@ import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
 
-type SessionRuntimeBinding = {
-  environment: RuntimeEnvironment
-  releaseId: string | null
-  releaseVersion: string | null
-}
-
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
 }
 
 function sessionEnvironment(item: SessionListItem): RuntimeEnvironment {
-  const value = item.data?.runtime_environment
+  const value = item.runtime_environment
   return value === 'staging' || value === 'production' || value === 'draft' ? value : 'draft'
-}
-
-function sessionBinding(item: SessionListItem): SessionRuntimeBinding {
-  const environment = sessionEnvironment(item)
-  const releaseId = typeof item.data?.loaded_release_id === 'string' ? item.data.loaded_release_id : null
-  const releaseVersion = typeof item.data?.release_version === 'string' ? item.data.release_version : null
-  return { environment, releaseId, releaseVersion }
 }
 
 function traceEnvironment(data: Record<string, unknown>): RuntimeEnvironment {
@@ -162,22 +149,27 @@ function PlaygroundContent() {
     isFetchingNextPage: sessionsLoadingMore,
   } = useAgentSessions(agentId, projectId, environment)
 
-  const allSessions = useMemo(() => {
+  const releaseVersionById = useMemo(
+    () => new Map(releases.map((release) => [release.id, release.version])),
+    [releases],
+  )
+
+  const sessions = useMemo(() => {
     const byId = new Map<string, SessionListItem>()
     for (const page of sessionPages?.pages ?? []) {
-      for (const item of page.items) if (!byId.has(item.id)) byId.set(item.id, item)
+      for (const item of page.items) {
+        if (byId.has(item.id) || sessionEnvironment(item) !== environment) continue
+        byId.set(item.id, {
+          ...item,
+          opened_release_version: item.opened_release_id ? releaseVersionById.get(item.opened_release_id) ?? null : null,
+        })
+      }
     }
     return Array.from(byId.values())
-  }, [sessionPages])
-
-  const sessions = useMemo(
-    () => allSessions.filter((item) => sessionEnvironment(item) === environment),
-    [allSessions, environment],
-  )
+  }, [environment, releaseVersionById, sessionPages])
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<Record<RuntimeEnvironment, string | null>>({ draft: null, staging: null, production: null })
-  const [sessionBindingsById, setSessionBindingsById] = useState<Record<string, SessionRuntimeBinding>>({})
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
@@ -194,34 +186,13 @@ function PlaygroundContent() {
   const syncedSessionRef = useRef<string | null>(null)
 
   const sessionIdState = activeSessionIdByEnvironment[environment]
-  const activeSessionItem = sessions.find((item) => item.id === sessionIdState) ?? null
-  const activeSessionBinding = sessionIdState
-    ? sessionBindingsById[sessionIdState] ?? (activeSessionItem ? sessionBinding(activeSessionItem) : null)
-    : null
-  const selectedReleaseId = environment === 'draft'
-    ? null
-    : activeSessionBinding?.releaseId ?? currentEnvironmentRelease?.id ?? null
-  const selectedReleaseVersion = environment === 'draft'
-    ? null
-    : activeSessionBinding?.releaseVersion ?? currentEnvironmentRelease?.version ?? null
-  const environmentReleaseQuery = useRelease(agentId, selectedReleaseId ?? undefined)
-  const environmentRelease = environment === 'draft'
-    ? null
-    : environmentReleaseQuery.data
-      ?? releases.find((release) => release.id === selectedReleaseId)
-      ?? currentEnvironmentRelease
-  const environmentReady = environment === 'draft' || Boolean(selectedReleaseId)
+  const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
+  const environmentReady = environment === 'draft' || Boolean(currentEnvironmentRelease)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
-  const releaseSessionMode = environmentRelease?.session_mode ?? currentEnvironmentRelease?.session_mode
-  const agentSessionMode = environment === 'draft'
-    ? state.sessionMode
-    : releaseSessionMode === 'stateless' ? 'stateless' : 'stateful'
-  const currentEnvironmentSessionMode = environment === 'draft'
-    ? state.sessionMode
-    : currentEnvironmentRelease?.session_mode === 'stateless' ? 'stateless' : 'stateful'
-  const currentEnvironmentStateless = currentEnvironmentSessionMode === 'stateless'
+  const agentSessionMode: 'stateful' | 'stateless' = state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
   const isStateless = agentSessionMode === 'stateless'
-  const activeSessionId = isStateless ? null : sessionIdState
+  const sessionIdForRun = isStateless ? null : sessionIdState
+  const selectedSessionId = sessionIdState
 
   const {
     data: backendTraces = [],
@@ -229,31 +200,19 @@ function PlaygroundContent() {
     isError: tracesError,
     error: tracesQueryError,
     refetch: refetchTraces,
-  } = usePlaygroundTraces(projectId, agentId, activeSessionId)
+  } = usePlaygroundTraces(projectId, agentId, selectedSessionId)
 
-  const { data: historyMessages, isFetching } = useSessionMessages(activeSessionId ?? undefined)
-  const isSessionLoading = messages.length === 0 && Boolean(activeSessionId) && isFetching && syncedSessionRef.current !== activeSessionId
+  const { data: historyMessages, isFetching } = useSessionMessages(selectedSessionId ?? undefined)
+  const isSessionLoading = messages.length === 0 && Boolean(selectedSessionId) && isFetching && syncedSessionRef.current !== selectedSessionId
 
   const setCurrentSessionId = useCallback((sessionId: string | null) => {
     setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: sessionId }))
   }, [environment])
 
-  useEffect(() => { setPlaygroundSessionId(activeSessionId) }, [activeSessionId])
+  useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
 
   useEffect(() => {
-    if (!isStateless || !sessionIdState) return
-    cancelStream()
-    syncedSessionRef.current = null
-    setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: null }))
-    setMessages([])
-    setLastResponse(null)
-    setRawEvents([])
-    rawEventsRef.current = []
-    setSelectedTraceId(null)
-  }, [cancelStream, environment, isStateless, sessionIdState])
-
-  useEffect(() => {
-    if (historyMessages && activeSessionId && !isSending && !isFetching && syncedSessionRef.current !== activeSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -264,10 +223,10 @@ function PlaygroundContent() {
         provider: (m.data?.provider as string | undefined) ?? null,
         output_parse_error: (m.data?.output_parse_error as string | undefined) ?? null,
       }))
-      syncedSessionRef.current = activeSessionId
+      syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, activeSessionId, isSending, isFetching])
+  }, [historyMessages, selectedSessionId, isSending, isFetching])
 
   const resetConversationView = useCallback(() => {
     syncedSessionRef.current = null
@@ -303,27 +262,30 @@ function PlaygroundContent() {
       toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
       return
     }
-    if (currentEnvironmentStateless) {
-      toast.info('The current Agent snapshot is stateless and does not create persistent Sessions')
+    if (isStateless) {
+      toast.info('The Agent runtime is stateless and does not create persistent Sessions')
       return
     }
     cancelStream()
-    const releaseId = environment === 'draft' ? null : currentEnvironmentRelease?.id ?? null
-    const releaseVersion = environment === 'draft' ? null : currentEnvironmentRelease?.version ?? null
     const sessionData: Record<string, unknown> = {
       source: 'playground',
-      runtime_environment: environment,
       client_created_at: new Date().toISOString(),
     }
-    if (releaseId) sessionData.loaded_release_id = releaseId
-    if (releaseVersion) sessionData.release_version = releaseVersion
 
     try {
-      const created = await createRuntimeSession({ project_id: projectId, agent_id: agentId, data: sessionData })
+      const created = await createRuntimeSession({
+        project_id: projectId,
+        agent_id: agentId,
+        runtime_environment: environment,
+        data: sessionData,
+      })
       const listItem: SessionListItem = {
         id: created.id,
         project_id: created.project_id,
         agent_id: created.agent_id,
+        runtime_environment: created.runtime_environment,
+        opened_release_id: created.opened_release_id ?? null,
+        opened_release_version: created.opened_release_id ? releaseVersionById.get(created.opened_release_id) ?? null : null,
         status: created.status,
         mode: created.mode ?? 'chat',
         data: created.data ?? sessionData,
@@ -343,10 +305,6 @@ function PlaygroundContent() {
           ],
         }
       })
-      setSessionBindingsById((current) => ({
-        ...current,
-        [created.id]: { environment, releaseId, releaseVersion },
-      }))
       syncedSessionRef.current = created.id
       setCurrentSessionId(created.id)
       setMessages([])
@@ -359,7 +317,7 @@ function PlaygroundContent() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, cancelStream, createRuntimeSession, creatingSession, currentEnvironmentRelease?.id, currentEnvironmentRelease?.version, currentEnvironmentStateless, environment, environmentReady, projectId, queryClient, runtimeEnabled, setCurrentSessionId])
+  }, [agentId, cancelStream, createRuntimeSession, creatingSession, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -381,9 +339,6 @@ function PlaygroundContent() {
       return
     }
 
-    const effectiveReleaseId = environment === 'draft' ? null : selectedReleaseId
-    const effectiveReleaseVersion = environment === 'draft' ? null : environmentRelease?.version ?? selectedReleaseVersion
-
     accumulatedRef.current = ''
     metadataRef.current = {}
     rawEventsRef.current = []
@@ -395,28 +350,20 @@ function PlaygroundContent() {
         project_id: projectId!,
         agent_id: agentId!,
         message: content,
-        session_id: isStateless ? null : sessionIdState,
+        session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
         metadata: {
           source: 'playground',
           runtime_environment: environment,
           client_sent_at: new Date().toISOString(),
         },
-        ...(environment === 'draft'
-          ? { snapshot_override: toSnapshot() }
-          : { loaded_release_id: effectiveReleaseId }),
+        ...(environment === 'draft' ? { snapshot_override: toSnapshot() } : {}),
       }
       setLastRequestPayload(requestPayload as unknown as Record<string, unknown>)
       await stream(requestPayload, {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
-          if (!isStateless && meta.session_id) {
-            setCurrentSessionId(meta.session_id)
-            setSessionBindingsById((current) => ({
-              ...current,
-              [meta.session_id!]: { environment, releaseId: effectiveReleaseId, releaseVersion: effectiveReleaseVersion ?? null },
-            }))
-          }
+          if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
           if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
         },
         onAgentActivity: (activity) => {
@@ -528,11 +475,7 @@ function PlaygroundContent() {
   const environmentLabel = titleCaseEnvironment(environment)
   const versionLabel = environment === 'draft'
     ? isDirty ? 'Draft (unsaved)' : 'Current Draft'
-    : environmentRelease?.version ?? selectedReleaseVersion ?? 'not created'
-  const sessionPinned = environment !== 'draft'
-    && Boolean(activeSessionBinding?.releaseId)
-    && Boolean(currentEnvironmentRelease?.id)
-    && activeSessionBinding?.releaseId !== currentEnvironmentRelease?.id
+    : currentEnvironmentRelease?.version ?? 'not created'
   const statusLabel = `Using: ${environment === 'draft' ? versionLabel : `${environmentLabel} · ${versionLabel}`}`
   const runtimeBlockReason = !environmentReady
     ? environment === 'staging'
@@ -541,8 +484,15 @@ function PlaygroundContent() {
     : runtimeEnabled
       ? undefined
       : `${environmentLabel} runtime is off. Configuration and release management remain available.`
-  const visibleProvider = environment === 'draft' ? state.provider : environmentRelease?.provider ?? currentEnvironmentRelease?.provider
-  const visibleModel = environment === 'draft' ? state.model : environmentRelease?.model ?? currentEnvironmentRelease?.model
+  const sessionCreationDisabledReason = !environmentReady
+    ? `${environmentLabel} has not been created yet.`
+    : !runtimeEnabled
+      ? `${environmentLabel} runtime is off.`
+      : isStateless
+        ? 'This Agent runtime is stateless. Existing Sessions remain available for inspection.'
+        : undefined
+  const visibleProvider = environment === 'draft' ? state.provider : currentEnvironmentRelease?.provider
+  const visibleModel = environment === 'draft' ? state.model : currentEnvironmentRelease?.model
 
   return (
     <ErrorBoundary>
@@ -565,16 +515,15 @@ function PlaygroundContent() {
         <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
           <span className="text-muted font-medium">{statusLabel}</span>
           {environment === 'draft' && isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
-          {sessionPinned && <span className="ml-2 text-indigo-300 font-medium">· session pinned to this snapshot</span>}
           {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {environmentLabel} runtime off</span>}
           {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· environment not created</span>}
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
-          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={currentEnvironmentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
+          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={selectedSessionId} sessionMode={agentSessionMode} sessionCreationDisabledReason={sessionCreationDisabledReason} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
           <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
-          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={environmentReleaseQuery.isLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
+          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
       <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
