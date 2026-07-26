@@ -189,7 +189,9 @@ function PlaygroundContent() {
   const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
   const environmentReady = environment === 'draft' || Boolean(currentEnvironmentRelease)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
-  const agentSessionMode: 'stateful' | 'stateless' = state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
+  const agentSessionMode: 'stateful' | 'stateless' = environment === 'draft'
+    ? state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
+    : agent?.session_mode === 'stateless' ? 'stateless' : 'stateful'
   const isStateless = agentSessionMode === 'stateless'
   const sessionIdForRun = isStateless ? null : sessionIdState
   const selectedSessionId = sessionIdState
@@ -489,7 +491,7 @@ function PlaygroundContent() {
     : !runtimeEnabled
       ? `${environmentLabel} runtime is off.`
       : isStateless
-        ? 'This Agent runtime is stateless. Existing Sessions remain available for inspection.'
+        ? 'This Agent runtime is stateless.'
         : undefined
   const visibleProvider = environment === 'draft' ? state.provider : currentEnvironmentRelease?.provider
   const visibleModel = environment === 'draft' ? state.model : currentEnvironmentRelease?.model
