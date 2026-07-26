@@ -19,6 +19,7 @@ const draftItems: { id: LeftPanelTab; label: string; icon: typeof Activity }[] =
 const immutableItems: { id: LeftPanelTab; label: string; icon: typeof Activity }[] = [
   { id: 'traces', label: 'Runs', icon: Activity },
   { id: 'debug', label: 'Debug', icon: CircleDot },
+  { id: 'sessions', label: 'Sessions', icon: History },
 ]
 
 export function OperationsRail({ activeTab, environment, onTabChange }: OperationsRailProps) {
