@@ -6,6 +6,8 @@ from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
+_VALID_ENVIRONMENTS = {"draft", "staging", "production"}
+
 
 class ListAgentSessionsController(Controller):
     def __init__(self, use_case: ListAgentSessionsUseCase) -> None:
@@ -16,6 +18,12 @@ class ListAgentSessionsController(Controller):
         project_id = UUID(request.query_params["project_id"])
         raw_limit = request.query_params.get("limit", 20)
         cursor = request.query_params.get("cursor")
+        environment = request.query_params.get("environment")
+        if environment not in (None, "") and environment not in _VALID_ENVIRONMENTS:
+            return Response(
+                status_code=400,
+                body={"success": False, "message": "environment must be draft, staging or production", "data": None},
+            )
 
         try:
             limit = int(raw_limit)
@@ -29,6 +37,7 @@ class ListAgentSessionsController(Controller):
             cursor=cursor,
             limit=limit,
         )
+        object.__setattr__(input_dto, "environment", environment or None)
         try:
             result = await self._use_case.execute(input_dto)
         except Exception as e:
