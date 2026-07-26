@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, select
+from sqlalchemy import ForeignKey, Index, String, Text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,7 @@ class AgentReleaseActivationModel(BaseModel):
         nullable=True,
     )
     action: Mapped[str] = mapped_column(String(32))
+    change_description: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
@@ -38,6 +39,7 @@ def _to_entity(model: AgentReleaseActivationModel) -> AgentReleaseActivation:
         release_id=model.release_id,
         previous_release_id=model.previous_release_id,
         action=model.action,
+        change_description=model.change_description,
         created_by=model.created_by,
         created_at=model.created_at,
         updated_at=model.updated_at,
@@ -58,6 +60,7 @@ class SQLAlchemyAgentReleaseActivationRepository(
             release_id=activation.release_id,
             previous_release_id=activation.previous_release_id,
             action=activation.action,
+            change_description=activation.change_description,
             created_by=activation.created_by,
         )
         await self._add_model(model)
