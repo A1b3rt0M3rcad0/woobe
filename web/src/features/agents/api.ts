@@ -23,7 +23,7 @@ export async function getReleases(agentId: string): Promise<AgentRelease[]> { re
 export async function getRelease(agentId: string, releaseId: string): Promise<AgentRelease> { return get<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}`) }
 export async function getReleaseActivations(agentId: string): Promise<AgentReleaseActivation[]> { return get<AgentReleaseActivation[]>(`/ai/agents/${agentId}/release-activations`) }
 export async function createRelease(agentId: string, data: CreateReleaseRequest): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases`, data) }
-export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'released' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string }
+export type PromoteReleaseOptions = { userId?: string; targetStatus?: 'draft' | 'staging' | 'released' | 'production'; copySnapshot?: boolean; restoreExistingVersion?: boolean; releaseNotes?: string; changeDescription?: string }
 export async function promoteRelease(agentId: string, releaseId: string, options: PromoteReleaseOptions | string = {}): Promise<AgentRelease> {
   const isLegacy = typeof options === 'string'
   const payload: Record<string, unknown> = {
@@ -32,10 +32,18 @@ export async function promoteRelease(agentId: string, releaseId: string, options
     copy_snapshot: isLegacy ? false : options.copySnapshot ?? false,
     restore_existing_version: isLegacy ? true : options.restoreExistingVersion ?? false,
     release_notes: isLegacy ? undefined : options.releaseNotes,
+    change_description: isLegacy ? undefined : options.changeDescription,
   }
   return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/promote`, payload)
 }
-export async function rollbackRelease(agentId: string, releaseId: string, userId?: string): Promise<AgentRelease> { return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/rollback`, { user_id: userId }) }
+export type RollbackReleaseOptions = { userId?: string; changeDescription?: string }
+export async function rollbackRelease(agentId: string, releaseId: string, options: RollbackReleaseOptions | string = {}): Promise<AgentRelease> {
+  const isLegacy = typeof options === 'string'
+  return post<AgentRelease>(`/ai/agents/${agentId}/releases/${releaseId}/rollback`, {
+    user_id: isLegacy ? options : options.userId,
+    change_description: isLegacy ? undefined : options.changeDescription,
+  })
+}
 export async function getReleaseTests(agentId: string, releaseId: string): Promise<AgentReleaseTest[]> { return get<AgentReleaseTest[]>(`/ai/agents/${agentId}/releases/${releaseId}/tests`) }
 export async function createReleaseTest(agentId: string, data: CreateReleaseTestRequest): Promise<AgentReleaseTest> { return post<AgentReleaseTest>(`/ai/agents/${agentId}/release-tests`, data) }
 export async function deleteRelease(agentId: string, releaseId: string): Promise<void> { return del<void>(`/ai/agents/${agentId}/releases/${releaseId}`) }
