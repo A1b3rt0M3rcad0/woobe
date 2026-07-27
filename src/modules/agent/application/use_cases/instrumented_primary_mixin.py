@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Protocol, cast
+from uuid import uuid4
 
+from modules.agent.application.services.rag.embedding_errors import EmbeddingProviderError
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.application.use_cases.execution_context import (
     current_execution,
@@ -21,6 +24,11 @@ from modules.agent.application.use_cases.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
 from modules.agent.application.use_cases.runtime_streaming import current_runtime_stream
+from modules.agent.domain.events import AgentExecutionFailedV1
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+
+logger = logging.getLogger(__name__)
 
 
 class _PrimaryExecutionSuper(Protocol):
@@ -30,6 +38,7 @@ class _PrimaryExecutionSuper(Protocol):
 
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
+    _session_factory: Any
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -73,9 +82,91 @@ class InstrumentedPrimaryExecutionMixin:
         parent = cast(_PrimaryExecutionSuper, super())
         try:
             return await parent.execute(input_dto)
+        except EmbeddingProviderError as exc:
+            await self._persist_rag_embedding_failure(input_dto, exc)
+            raise ValueError(f"RAG embedding failed: {exc}") from exc
         finally:
             if token is not None:
                 current_execution.reset(token)
+
+    async def _persist_rag_embedding_failure(
+        self,
+        input_dto: Any,
+        exc: EmbeddingProviderError,
+    ) -> None:
+        host = cast(_PrimaryExecutionHost, self)
+        context = current_execution.get()
+        trace_id = context.trace_id if context and context.trace_id else uuid4()
+        session_id = getattr(input_dto, "session_id", None)
+        project_id = input_dto.project_id
+        agent_id = input_dto.agent_id
+        rag_metadata = dict(context.rag_metadata or {}) if context else {}
+
+        if context:
+            context.trace_id = trace_id
+            context.project_id = project_id
+            context.agent_id = agent_id
+            context.session_id = session_id
+            context.prepare_ended_at = context.prepare_ended_at or utc_now()
+
+        stream = current_runtime_stream.get()
+        if stream is not None and stream.trace_id is None:
+            stream.bind_execution(
+                trace_id=trace_id,
+                session_id=session_id,
+                project_id=project_id,
+                agent_id=agent_id,
+            )
+            await stream.emit(
+                "meta",
+                trace_id=str(trace_id),
+                session_id=str(session_id) if session_id else None,
+                project_id=str(project_id),
+                agent_id=str(agent_id),
+            )
+
+        session_factory = host._session_factory
+        if session_factory is None:
+            logger.warning("Cannot persist RAG embedding failure without session factory")
+            return
+
+        payload = {
+            "trace_id": str(trace_id),
+            "project_id": str(project_id),
+            "agent_id": str(agent_id),
+            "session_id": str(session_id) if session_id else None,
+            "provider": rag_metadata.get("embedding_provider"),
+            "model": rag_metadata.get("embedding_model"),
+            "provider_model_id": rag_metadata.get("embedding_provider_model_id"),
+            "error": str(exc),
+            "failure_phase": "rag_query_embedding",
+            "upstream_status": exc.upstream_status,
+            "upstream_error_code": exc.upstream_error_code,
+            "embedding_error_category": exc.category,
+            "embedding_retryable": exc.retryable,
+            "execution_context": (
+                context.execution_context
+                if context and context.execution_context
+                else getattr(input_dto, "execution_context", None)
+            ),
+            "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
+            "agent_release_version": context.agent_release_version if context else None,
+            "rag_metadata": rag_metadata or None,
+            "runtime_scope": "failed_rag_prepare",
+        }
+
+        try:
+            async with AgentUnitOfWork(session_factory) as uow:
+                outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+                await outbox.write(
+                    AgentExecutionFailedV1.create(
+                        agent_id=agent_id,
+                        session_id=session_id or trace_id,
+                        payload=payload,
+                    )
+                )
+        except Exception:
+            logger.exception("Failed to persist RAG embedding failure telemetry")
 
     async def _prepare(self, input_dto: Any) -> Any:
         context = current_execution.get()
@@ -83,7 +174,13 @@ class InstrumentedPrimaryExecutionMixin:
             context.prepare_started_at = utc_now()
         started = time.monotonic()
         parent = cast(_PrimaryExecutionSuper, super())
-        prepared = await parent._prepare(input_dto)
+        try:
+            prepared = await parent._prepare(input_dto)
+        except Exception:
+            if context:
+                context.prepare_ended_at = utc_now()
+                context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
+            raise
         if context:
             context.prepare_ended_at = utc_now()
             context.prepare_latency_ms = round((time.monotonic() - started) * 1000)
@@ -102,19 +199,20 @@ class InstrumentedPrimaryExecutionMixin:
         if stream is not None:
             agent, session, trace_id = prepared[0], prepared[1], prepared[2]
             sources = prepared[10]
-            stream.bind_execution(
-                trace_id=trace_id,
-                session_id=session.id if session else None,
-                project_id=input_dto.project_id,
-                agent_id=agent.id,
-            )
-            await stream.emit(
-                "meta",
-                trace_id=str(trace_id),
-                session_id=str(session.id) if session else None,
-                project_id=str(input_dto.project_id),
-                agent_id=str(agent.id),
-            )
+            if stream.trace_id is None:
+                stream.bind_execution(
+                    trace_id=trace_id,
+                    session_id=session.id if session else None,
+                    project_id=input_dto.project_id,
+                    agent_id=agent.id,
+                )
+                await stream.emit(
+                    "meta",
+                    trace_id=str(trace_id),
+                    session_id=str(session.id) if session else None,
+                    project_id=str(input_dto.project_id),
+                    agent_id=str(agent.id),
+                )
             if sources:
                 await stream.emit(
                     "sources",
