@@ -14,8 +14,9 @@ from modules.billing.application.dtos import (
     CreateSubscriptionInput,
     GetOrganizationSubscriptionInput,
 )
-from modules.billing.domain.entities import Plan, Subscription
-from modules.billing.domain.enums import PlanStatus, SubscriptionStatus
+from modules.billing.domain.entities import Customer, Plan, Subscription
+from modules.billing.domain.enums import BillingProvider, PlanStatus, SubscriptionStatus
+from shared.infra.errors import ConflictError
 
 
 class TestCreatePlanUseCase:
@@ -36,22 +37,60 @@ class TestCreatePlanUseCase:
 class TestCreateSubscriptionUseCase:
     @pytest.mark.anyio
     async def test_execute_creates_subscription(self):
+        organization_id = UUID("00000000-0000-0000-0000-000000000002")
+        customer_id = UUID("00000000-0000-0000-0000-000000000003")
+        plan_id = UUID("00000000-0000-0000-0000-000000000004")
+
         repo = AsyncMock()
         repo.save.return_value = Subscription(
             id=UUID("00000000-0000-0000-0000-000000000001"),
         )
+        customer_repo = AsyncMock()
+        customer_repo.get_by_id.return_value = Customer(
+            id=customer_id,
+            organization_id=organization_id,
+            provider=BillingProvider.custom,
+        )
+        plan_repo = AsyncMock()
+        plan_repo.get_by_id.return_value = Plan(
+            id=plan_id,
+            code="pro",
+            status=PlanStatus.active,
+        )
         outbox = AsyncMock()
-        use_case = CreateSubscriptionUseCase(repo, outbox)
+        use_case = CreateSubscriptionUseCase(repo, customer_repo, plan_repo, outbox)
 
         result = await use_case.execute(CreateSubscriptionInput(
-            organization_id=UUID("00000000-0000-0000-0000-000000000002"),
-            customer_id=UUID("00000000-0000-0000-0000-000000000003"),
-            plan_id=UUID("00000000-0000-0000-0000-000000000004"),
+            organization_id=organization_id,
+            customer_id=customer_id,
+            plan_id=plan_id,
         ))
 
         assert result.subscription_id == UUID("00000000-0000-0000-0000-000000000001")
         repo.save.assert_awaited_once()
         outbox.write.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_execute_rejects_customer_from_another_organization(self):
+        repo = AsyncMock()
+        customer_repo = AsyncMock()
+        customer_repo.get_by_id.return_value = Customer(
+            id=UUID("00000000-0000-0000-0000-000000000003"),
+            organization_id=UUID("00000000-0000-0000-0000-000000000099"),
+            provider=BillingProvider.custom,
+        )
+        plan_repo = AsyncMock()
+        outbox = AsyncMock()
+        use_case = CreateSubscriptionUseCase(repo, customer_repo, plan_repo, outbox)
+
+        with pytest.raises(ConflictError):
+            await use_case.execute(CreateSubscriptionInput(
+                organization_id=UUID("00000000-0000-0000-0000-000000000002"),
+                customer_id=UUID("00000000-0000-0000-0000-000000000003"),
+                plan_id=UUID("00000000-0000-0000-0000-000000000004"),
+            ))
+
+        repo.save.assert_not_awaited()
 
 
 class TestListActivePlansUseCase:
