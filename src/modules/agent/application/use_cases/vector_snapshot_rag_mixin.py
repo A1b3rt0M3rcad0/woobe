@@ -113,6 +113,11 @@ class VectorSnapshotRAGMixin:
         parent = cast(_VectorSnapshotRAGSuper, super())
         history = await parent._load_history(message_repo, session)
         _rag_history_context.set(history)
+        context = current_execution.get()
+        if context is not None:
+            context.project_id = getattr(session, "project_id", None)
+            context.agent_id = getattr(session, "agent_id", None)
+            context.session_id = getattr(session, "id", None)
         return history
 
     def _apply_release_to_agent(self, agent: Any, release: Any) -> Any:
