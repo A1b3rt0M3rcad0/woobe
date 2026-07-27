@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useOrganization, useUpdateOrganization, useOrganizationMembers, useOrganizationInvites, useCreateInvite } from '@/features/organizations/hooks'
+import {
+  useGrantProjectAccess,
+  useProjectMembers,
+  useProjectsForAccessManagement,
+  useRevokeProjectAccess,
+} from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,9 +20,10 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { updateOrganizationSchema, inviteMemberSchema, type UpdateOrganizationFormData, type InviteMemberFormData } from '@/features/organizations/schemas'
-import { Building2, Save, X, ArrowRight, Plus, UserPlus } from 'lucide-react'
+import { Save, X, ArrowRight, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Member, Invite } from '@/features/organizations/types'
+import type { ProjectAccessMember } from '@/features/projects/types'
 
 export default function OrganizationDetailPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
@@ -28,8 +35,14 @@ export default function OrganizationDetailPage() {
   const { data: members } = useOrganizationMembers(organizationId)
   const { data: invites } = useOrganizationInvites(organizationId)
   const createInvite = useCreateInvite()
+  const { data: projectAccess } = useProjectsForAccessManagement(organizationId)
+  const grantProjectAccess = useGrantProjectAccess()
+  const revokeProjectAccess = useRevokeProjectAccess()
 
   const [showInvite, setShowInvite] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
+  const [accessEmail, setAccessEmail] = useState('')
+  const { data: selectedProjectMembers, isLoading: isLoadingProjectMembers } = useProjectMembers(selectedProjectId)
 
   const form = useForm<UpdateOrganizationFormData>({
     resolver: zodResolver(updateOrganizationSchema),
@@ -70,9 +83,38 @@ export default function OrganizationDetailPage() {
     }
   }
 
+  const handleGrantProjectAccess = async () => {
+    if (!selectedProjectId || !accessEmail.trim()) return
+    try {
+      await grantProjectAccess.mutateAsync({
+        projectId: selectedProjectId,
+        email: accessEmail.trim(),
+      })
+      setAccessEmail('')
+      toast.success('Project access granted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to grant project access')
+    }
+  }
+
+  const handleRevokeProjectAccess = async (member: ProjectAccessMember) => {
+    if (!selectedProjectId || member.implicit_owner) return
+    try {
+      await revokeProjectAccess.mutateAsync({
+        projectId: selectedProjectId,
+        userId: member.user_id,
+      })
+      toast.success('Project access removed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove project access')
+    }
+  }
+
   if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={refetch} />
   if (!org) return <ErrorState message="Organization not found" />
+
+  const selectedProject = projectAccess?.find((project) => project.id === selectedProjectId)
 
   const memberColumns = [
     { key: 'user_id', header: 'User ID' },
@@ -85,6 +127,32 @@ export default function OrganizationDetailPage() {
     { key: 'role', header: 'Role', render: (i: Invite) => <StatusBadge status={i.role} /> },
     { key: 'status', header: 'Status', render: (i: Invite) => <StatusBadge status={i.status} /> },
     { key: 'expires_at', header: 'Expires' },
+  ]
+
+  const projectMemberColumns = [
+    { key: 'email', header: 'Member' },
+    {
+      key: 'access',
+      header: 'Access',
+      render: (m: ProjectAccessMember) => (
+        <StatusBadge status={m.implicit_owner ? 'owner · full access' : 'full access'} />
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (m: ProjectAccessMember) => m.implicit_owner ? null : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!selectedProjectMembers?.can_manage || revokeProjectAccess.isPending}
+          onClick={() => handleRevokeProjectAccess(m)}
+        >
+          Remove
+        </Button>
+      ),
+    },
   ]
 
   return (
@@ -177,25 +245,104 @@ export default function OrganizationDetailPage() {
         </div>
       </div>
 
+      {projectAccess && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-4 w-4" />
+              Project access
+            </CardTitle>
+            <p className="text-sm text-muted">
+              Project access is binary: a member listed here can operate the entire Project. Organization membership alone does not grant Project access.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {projectAccess.length === 0 ? (
+              <p className="text-sm text-muted">No Projects found in this Organization.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {projectAccess.map((project) => (
+                  <button
+                    type="button"
+                    key={project.id}
+                    className="rounded-lg border border-border p-4 text-left transition-colors hover:border-primary/50"
+                    onClick={() => setSelectedProjectId(project.id)}
+                  >
+                    <p className="font-medium">{project.name}</p>
+                    <p className="mt-1 text-xs text-muted">/{project.slug}</p>
+                    <p className="mt-3 text-xs text-muted">
+                      {project.member_count} explicit {project.member_count === 1 ? 'member' : 'members'} · owner has implicit access
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Dialog open={showInvite} onClose={() => setShowInvite(false)} title="Invite Member">
         <form onSubmit={inviteForm.handleSubmit(handleInvite)} className="space-y-4">
           <Input {...inviteForm.register('email')} error={inviteForm.formState.errors.email?.message} placeholder="Email address" />
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">Role</label>
+            <label className="block text-sm font-medium text-muted mb-1">Organization role</label>
             <select
               {...inviteForm.register('role')}
               className="flex h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
             >
               <option value="member">Member</option>
               <option value="admin">Admin</option>
-              <option value="viewer">Viewer</option>
             </select>
           </div>
+          <p className="text-xs text-muted">Joining the Organization does not automatically grant access to its Projects.</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
             <Button type="submit" loading={createInvite.isPending}>Send Invite</Button>
           </div>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedProjectId)}
+        onClose={() => {
+          setSelectedProjectId(undefined)
+          setAccessEmail('')
+        }}
+        title={selectedProject ? `Project access · ${selectedProject.name}` : 'Project access'}
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-medium">Grant full Project access</p>
+            <p className="mt-1 text-xs text-muted">The user must already be an active member of this Organization.</p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={accessEmail}
+              onChange={(event) => setAccessEmail(event.target.value)}
+              placeholder="member@company.com"
+            />
+            <Button
+              type="button"
+              onClick={handleGrantProjectAccess}
+              loading={grantProjectAccess.isPending}
+              disabled={!accessEmail.trim() || !selectedProjectMembers?.can_manage}
+            >
+              Add access
+            </Button>
+          </div>
+
+          {isLoadingProjectMembers ? (
+            <LoadingState message="Loading Project members" variant="panel" />
+          ) : selectedProjectMembers?.members.length ? (
+            <Table
+              columns={projectMemberColumns}
+              data={selectedProjectMembers.members}
+              keyExtractor={(member) => member.id ?? `owner-${member.user_id}`}
+            />
+          ) : (
+            <p className="text-sm text-muted">No explicit Project members.</p>
+          )}
+        </div>
       </Dialog>
     </div>
   )
