@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Plus } from 'lucide-react'
+import { Building2, MailPlus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
@@ -14,8 +14,13 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
+import { Card, CardContent } from '@/components/ui/Card'
 import { CreateOrganizationDialog } from '@/components/forms/CreateOrganizationDialog'
-import { useCreateOrganization } from '@/features/organizations/hooks'
+import {
+  useAcceptOrganizationInvite,
+  useCreateOrganization,
+  usePendingOrganizationInvites,
+} from '@/features/organizations/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
 const SEARCH_THRESHOLD = 5
@@ -32,9 +37,12 @@ function getInitials(name: string) {
 export default function OrganizationsPage() {
   const { organizations, selectOrganization, isLoadingOrganizations, workspaceError } = useWorkspace()
   const createOrg = useCreateOrganization()
+  const { data: pendingInvites = [], isLoading: isLoadingInvites } = usePendingOrganizationInvites()
+  const acceptInvite = useAcceptOrganizationInvite()
   const navigate = useNavigate()
   const [showCreate, setShowCreate] = useState(false)
   const [query, setQuery] = useState('')
+  const [acceptingInviteId, setAcceptingInviteId] = useState<string | null>(null)
 
   const visibleOrganizations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -58,6 +66,20 @@ export default function OrganizationsPage() {
     }
   }
 
+  const handleAcceptInvite = async (inviteId: string) => {
+    setAcceptingInviteId(inviteId)
+    try {
+      const org = await acceptInvite.mutateAsync(inviteId)
+      toast.success(`Joined ${org.name}`)
+      selectOrganization({ id: org.id, name: org.name, slug: org.slug })
+      navigate(`/organizations/${org.id}/projects`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to accept invitation')
+    } finally {
+      setAcceptingInviteId(null)
+    }
+  }
+
   const handleSelect = (org: { id: string; name: string; slug: string }) => {
     selectOrganization(org)
     navigate(`/organizations/${org.id}/projects`)
@@ -78,6 +100,48 @@ export default function OrganizationsPage() {
         </Button>
       )}
     >
+      {(isLoadingInvites || pendingInvites.length > 0) && (
+        <section>
+          <ResourceSectionHeader
+            title="Invitations"
+            description="Accept an invitation to join an Organization. Project access is granted separately."
+            count={pendingInvites.length}
+          />
+          {isLoadingInvites ? (
+            <LoadingState message="Loading invitations" variant="panel" layout="compact-cards" />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {pendingInvites.map((invite) => (
+                <Card key={invite.id}>
+                  <CardContent className="flex items-center justify-between gap-4 p-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface">
+                        <MailPlus className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{invite.organization_name}</p>
+                        <p className="truncate text-xs text-muted">
+                          /{invite.organization_slug} · {invite.role}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      loading={acceptingInviteId === invite.id}
+                      disabled={acceptingInviteId !== null && acceptingInviteId !== invite.id}
+                      onClick={() => handleAcceptInvite(invite.id)}
+                    >
+                      Accept and enter
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {showSearch && (
         <ResourceToolbar>
           <ResourceSearch
@@ -104,7 +168,9 @@ export default function OrganizationsPage() {
           <ResourceEmptyState
             icon={<Building2 className="h-4 w-4" />}
             title="Create your first Organization"
-            description="Organizations are the commercial workspace for Projects, members, plans and usage."
+            description={pendingInvites.length > 0
+              ? 'Accept an invitation above or create a new Organization.'
+              : 'Organizations are the commercial workspace for Projects, members, plans and usage.'}
             action={(
               <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
                 Create Organization
