@@ -1,10 +1,12 @@
+import json
+from uuid import UUID
+
 from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.identity.application.composers.add_member_composer import add_member_composer
 from modules.identity.application.composers.create_invite_composer import (
     create_invite_composer,
 )
-from modules.identity.application.composers.create_user_composer import create_user_composer
 from modules.identity.application.composers.get_organization_composer import (
     get_organization_composer,
 )
@@ -17,25 +19,61 @@ from modules.identity.application.composers.update_organization_composer import 
     update_organization_composer,
 )
 from modules.identity.presentation.auth_endpoints import (
+    authentication_service,
     create_organization_endpoint,
     csrf_endpoint,
     get_current_user_endpoint,
     list_organizations_endpoint,
     login_endpoint,
     logout_endpoint,
+    organization_payload,
     refresh_endpoint,
     register_endpoint,
 )
-from shared.infra.errors import AuthenticationError
+from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
+from shared.security.organization_access import OrganizationAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
 
 
+def _principal_user_id(request: FastAPIRequest) -> UUID:
+    principal = getattr(request.state, "principal", None)
+    user_id = getattr(principal, "user_id", None)
+    if user_id is None:
+        raise AuthenticationError("Authentication required")
+    return UUID(str(user_id))
+
+
+def _organization_access(request: FastAPIRequest) -> OrganizationAccessService:
+    return OrganizationAccessService(request.app.state.session_factory)
+
+
 @router.get("/organizations")
 async def list_organizations(request: FastAPIRequest):
     return await list_organizations_endpoint(request)
+
+
+@router.get("/invites/pending")
+async def list_pending_invites(request: FastAPIRequest):
+    invites = await authentication_service(request).list_pending_invites(
+        _principal_user_id(request)
+    )
+    return {"success": True, "message": "ok", "data": invites}
+
+
+@router.post("/invites/{invite_id}/accept")
+async def accept_invite(request: FastAPIRequest, invite_id: UUID):
+    organization = await authentication_service(request).accept_invite(
+        user_id=_principal_user_id(request),
+        invite_id=invite_id,
+    )
+    return {
+        "success": True,
+        "message": "accepted",
+        "data": organization_payload(organization),
+    }
 
 
 @router.get("/users/me")
@@ -70,9 +108,8 @@ async def logout(request: FastAPIRequest):
 
 @router.post("/users")
 async def create_user(request: FastAPIRequest):
-    handler = create_user_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    del request
+    raise AuthorizationError("Users can only be created through registration or invitation")
 
 
 @router.post("/organizations")
@@ -81,55 +118,79 @@ async def create_organization(request: FastAPIRequest):
 
 
 @router.post("/organizations/{org_id}/members")
-async def add_member(request: FastAPIRequest):
+async def add_member(request: FastAPIRequest, org_id: UUID):
+    payload = dict(await request.json())
+    role = payload.get("role", "member")
+    if not isinstance(role, str):
+        raise ValidationError("Invalid member role")
+    await _organization_access(request).require_role_assignment(
+        actor_user_id=_principal_user_id(request),
+        organization_id=org_id,
+        target_role=role,
+    )
     handler = add_member_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/organizations/{org_id}")
-async def get_organization(request: FastAPIRequest):
+async def get_organization(request: FastAPIRequest, org_id: UUID):
+    del org_id
     handler = get_organization_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.patch("/organizations/{org_id}")
-async def update_organization(request: FastAPIRequest):
+async def update_organization(request: FastAPIRequest, org_id: UUID):
+    await _organization_access(request).require_admin(
+        _principal_user_id(request),
+        org_id,
+    )
     handler = update_organization_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/organizations/{org_id}/members")
-async def list_members(request: FastAPIRequest):
+async def list_members(request: FastAPIRequest, org_id: UUID):
+    del org_id
     handler = list_members_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/organizations/{org_id}/invites")
-async def create_invite(request: FastAPIRequest):
-    principal = getattr(request.state, "principal", None)
-    if principal is None:
-        raise AuthenticationError("Authentication required")
+async def create_invite(request: FastAPIRequest, org_id: UUID):
+    principal_user_id = _principal_user_id(request)
     payload = dict(await request.json())
-    payload["invited_by_user_id"] = str(principal.user_id)
-    request._body = __import__("json").dumps(payload).encode("utf-8")
+    role = payload.get("role", "member")
+    if not isinstance(role, str):
+        raise ValidationError("Invalid invite role")
+    await _organization_access(request).require_role_assignment(
+        actor_user_id=principal_user_id,
+        organization_id=org_id,
+        target_role=role,
+    )
+    payload["invited_by_user_id"] = str(principal_user_id)
+    request._body = json.dumps(payload).encode("utf-8")
     handler = create_invite_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/organizations/{org_id}/invites")
-async def list_invites(request: FastAPIRequest):
+async def list_invites(request: FastAPIRequest, org_id: UUID):
+    del org_id
     handler = list_invites_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/users/{user_id}")
-async def get_user(request: FastAPIRequest):
+async def get_user(request: FastAPIRequest, user_id: UUID):
+    if _principal_user_id(request) != user_id:
+        raise NotFoundError("User not found")
     handler = get_user_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
