@@ -56,6 +56,16 @@ def upgrade() -> None:
           )
         """
     )
+    op.execute(
+        """
+        UPDATE agent.sessions
+        SET data = NULLIF(
+            data - 'runtime_environment' - 'loaded_release_id' - 'release_version',
+            '{}'::jsonb
+        )
+        WHERE data IS NOT NULL
+        """
+    )
 
     op.alter_column(
         "sessions",
