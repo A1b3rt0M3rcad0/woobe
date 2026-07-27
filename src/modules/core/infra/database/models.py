@@ -90,6 +90,28 @@ class ProjectModel(BaseModel):
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
+class ProjectMemberModel(BaseModel):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "user_id",
+            name="uq_core_project_members_project_user",
+        ),
+        Index("ix_core_project_members_user_status", "user_id", "status"),
+        Index("ix_core_project_members_project_status", "project_id", "status"),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.projects.id", ondelete="CASCADE")
+    )
+    # User identity is intentionally not a cross-module FK.
+    user_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+
+
 class ApiKeyModel(BaseModel):
     __tablename__ = "api_keys"
     __table_args__ = (
@@ -175,7 +197,7 @@ class OutboxEventModel(BaseOutbox):
 class InboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
     __table_args__ = (
-        UniqueConstraint("message_id", name="uq_core_inbox_message_id"),
+        UniqueConstraint("message_id", name="uq_core_inbox_idempotency_key"),
         UniqueConstraint("idempotency_key", name="uq_core_inbox_idempotency_key"),
         Index(
             "ix_core_inbox_pending",
