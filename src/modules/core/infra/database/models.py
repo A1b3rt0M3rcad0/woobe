@@ -197,7 +197,7 @@ class OutboxEventModel(BaseOutbox):
 class InboxEventModel(BaseInbox):
     __tablename__ = "inbox_events"
     __table_args__ = (
-        UniqueConstraint("message_id", name="uq_core_inbox_idempotency_key"),
+        UniqueConstraint("message_id", name="uq_core_inbox_message_id"),
         UniqueConstraint("idempotency_key", name="uq_core_inbox_idempotency_key"),
         Index(
             "ix_core_inbox_pending",
