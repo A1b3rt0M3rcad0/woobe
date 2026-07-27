@@ -49,25 +49,27 @@ class SQLNetworkExecutionStore:
                 return binding_session_mode
             raise RuntimeError("Pinned Agent binding has no valid session_mode")
 
+        if release_id is not None:
+            from modules.agent.infra.database.models import AgentReleaseModel
+
+            release = await session.get(AgentReleaseModel, release_id)
+            if release is None:
+                raise RuntimeError("Pinned Agent release was not found")
+            if release.project_id != project_id or release.agent_id != agent_id:
+                raise RuntimeError(
+                    "Pinned Agent release does not belong to this Network node"
+                )
+            if release.session_mode not in {"stateful", "stateless"}:
+                raise RuntimeError("Pinned Agent release has no valid session_mode")
+            return str(release.session_mode)
+
         if isinstance(snapshot_override, dict):
             session_mode = snapshot_override.get("session_mode")
             if session_mode in {"stateful", "stateless"}:
                 return str(session_mode)
             raise RuntimeError("Agent Draft snapshot has no valid session_mode")
 
-        if release_id is None:
-            raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
-
-        from modules.agent.infra.database.models import AgentReleaseModel
-
-        release = await session.get(AgentReleaseModel, release_id)
-        if release is None:
-            raise RuntimeError("Pinned Agent release was not found")
-        if release.project_id != project_id or release.agent_id != agent_id:
-            raise RuntimeError("Pinned Agent release does not belong to this Network node")
-        if release.session_mode not in {"stateful", "stateless"}:
-            raise RuntimeError("Pinned Agent release has no valid session_mode")
-        return str(release.session_mode)
+        raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
 
     async def resolve_agent_session_mode(
         self,
