@@ -27,7 +27,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
     return Object.fromEntries((['production', 'staging'] as RuntimeSlot[]).map((slot) => {
       const release = releases.find((item) => item.status === slot) ?? null
       const reference = buildApiReferenceForSlot({ slot, release })
-      const sessionMode = reference.release?.session_mode ?? agent.session_mode ?? 'stateful'
+      const sessionMode = agent.session_mode ?? 'stateful'
       const value: RuntimeEnvironmentReference = {
         available: reference.available,
         version: reference.release?.version ?? null,
@@ -42,7 +42,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
         streamEvents: reference.stream_events,
         outputContract: reference.structured_output.enabled ? reference.structured_output : null,
         warning: null,
-        note: `This Runtime Key always resolves the current ${slot === 'production' ? 'Production' : 'Staging'} Agent Release. Deploys and rollbacks do not require changing the key.`,
+        note: `This Runtime Key always resolves the current ${slot === 'production' ? 'Production' : 'Staging'} Agent Release. Existing Sessions keep their conversation context and follow the current environment Release on the next Run.`,
       }
       return [slot, value]
     })) as Record<RuntimeEnvironment, RuntimeEnvironmentReference>

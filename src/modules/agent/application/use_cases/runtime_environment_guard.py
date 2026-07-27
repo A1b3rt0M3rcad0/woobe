@@ -15,8 +15,8 @@ class AgentRuntimeEnvironmentGuard:
 
     Network execution invokes the Agent runtime in-process and identifies itself
     through metadata.source=network_runtime. Those invocations are governed by
-    the Network environment switch and the pinned Agent snapshot instead of the
-    standalone Agent switch.
+    the Network environment switch and the explicit Agent snapshot selected by
+    the Network version instead of the standalone Agent switch.
     """
 
     def __init__(
@@ -36,7 +36,9 @@ class AgentRuntimeEnvironmentGuard:
             return await self._delegate.execute(input_dto)
 
         environment = normalize_runtime_environment(
-            getattr(input_dto, "execution_context", None) or self._default_environment
+            getattr(input_dto, "execution_context", None)
+            or getattr(input_dto, "runtime_environment", None)
+            or self._default_environment
         )
         async with self._session_factory() as session, session.begin():
             await assert_runtime_environment_enabled(

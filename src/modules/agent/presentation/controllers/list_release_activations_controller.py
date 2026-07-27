@@ -24,6 +24,7 @@ class ListAgentReleaseActivationsController(Controller):
                         "release_id": str(item.release_id),
                         "previous_release_id": str(item.previous_release_id) if item.previous_release_id else None,
                         "action": item.action,
+                        "change_description": item.change_description,
                         "created_by": str(item.created_by) if item.created_by else None,
                         "created_at": item.created_at,
                     }

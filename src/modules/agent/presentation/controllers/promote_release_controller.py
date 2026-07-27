@@ -25,6 +25,7 @@ class PromoteReleaseController(Controller):
         body = request.body or {}
         input_dto = PromoteReleaseInput(**body)
         object.__setattr__(input_dto, "release_notes", body.get("release_notes"))
+        object.__setattr__(input_dto, "change_description", body.get("change_description"))
         result = await self._use_case.execute(
             agent_id,
             release_id,

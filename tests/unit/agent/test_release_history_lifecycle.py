@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,6 +13,7 @@ from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import
 )
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
+from shared.infra.errors import ValidationError
 
 
 class FakeReleaseRepository:
@@ -149,11 +151,29 @@ async def test_deploying_existing_release_records_reactivation_event() -> None:
     activations = FakeActivationRepository()
     use_case = KnowledgeSafeReleaseLifecycleUseCase(repo, FakeValidator(), activations)
 
-    result = await use_case.execute(agent_id, candidate.id, target_status='production')
+    result = await use_case.execute(
+        agent_id,
+        candidate.id,
+        SimpleNamespace(user_id=None, change_description='Reactivate validated Release'),
+        target_status='production',
+    )
 
     assert result.id == candidate.id
     assert production.status == ReleaseStatus.released
     assert len(activations.items) == 1
     assert activations.items[0].action == 'reactivate'
+    assert activations.items[0].change_description == 'Reactivate validated Release'
     assert activations.items[0].previous_release_id == production.id
     assert activations.items[0].release_id == candidate.id
+
+
+@pytest.mark.asyncio
+async def test_production_reactivation_requires_audit_reason() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    production = make_snapshot(project_id=project_id, agent_id=agent_id, version='v1', status=ReleaseStatus.production, kind='release')
+    candidate = make_snapshot(project_id=project_id, agent_id=agent_id, version='v2', status=ReleaseStatus.released, kind='release')
+    use_case = KnowledgeSafeReleaseLifecycleUseCase(FakeReleaseRepository([production, candidate]), FakeValidator(), FakeActivationRepository())
+
+    with pytest.raises(ValidationError, match='activation reason'):
+        await use_case.execute(agent_id, candidate.id, SimpleNamespace(user_id=None), target_status='production')

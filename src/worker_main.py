@@ -61,7 +61,7 @@ def _install_shutdown_handlers(
 
 
 async def run_workers(settings: Settings | None = None) -> None:
-    runtime_settings = settings or Settings()
+    runtime_settings = settings or Settings(service_role="worker")
     _configure_logging(runtime_settings)
 
     engine = create_engine(runtime_settings)

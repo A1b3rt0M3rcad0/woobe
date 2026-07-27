@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
@@ -12,8 +13,9 @@ from modules.agent.application.use_cases.auto_compatible_release_lifecycle impor
 from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.application.use_cases.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
 from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
-from modules.agent.domain.entities import AgentRelease, Tool
+from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
 from shared.infra.errors import ConflictError
 
@@ -24,6 +26,16 @@ class MemoryReleaseRepository:
 
     async def get_by_id(self, item_id):
         return self.items.get(item_id)
+
+    async def get_active_production(self, agent_id):
+        return next(
+            (
+                item
+                for item in self.items.values()
+                if item.agent_id == agent_id and item.status == ReleaseStatus.production
+            ),
+            None,
+        )
 
     async def save(self, item):
         self.items[item.id] = item
@@ -169,6 +181,118 @@ def test_release_identity_is_bound_to_execution_context():
         assert context.agent_release_version == "staging"
     finally:
         current_execution.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_staging_session_follows_current_staging_release_after_staging_moves():
+    project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
+    base_agent = Agent(id=agent_id, project_id=project_id, model="draft-model")
+    opened = _release(status=ReleaseStatus.released, version="staging-v1")
+    opened.project_id = project_id
+    opened.agent_id = agent_id
+    opened.model = "model-v1"
+    current = _release(status=ReleaseStatus.staging, version="staging-v2")
+    current.project_id = project_id
+    current.agent_id = agent_id
+    current.model = "model-v2"
+    session = SimpleNamespace(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="staging",
+        opened_release_id=opened.id,
+        data=None,
+    )
+    uow = SimpleNamespace(
+        agents=SimpleNamespace(get_by_id=AsyncMock(return_value=base_agent)),
+        releases=MemoryReleaseRepository(opened, current),
+        sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)),
+        provider_models=None,
+    )
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        message="continue",
+        execution_context="staging",
+        loaded_release_id=opened.id,
+    )
+
+    loaded = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._load_agent(uow, input_dto)
+
+    assert loaded.model == "model-v2"
+    assert input_dto.loaded_release_id == current.id
+    assert session.opened_release_id == opened.id
+
+
+@pytest.mark.asyncio
+async def test_session_cannot_cross_runtime_environments():
+    project_id = uuid4()
+    agent_id = uuid4()
+    session = SimpleNamespace(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    uow = SimpleNamespace(sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)))
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=uuid4(),
+        message="continue",
+        execution_context="production",
+    )
+
+    with pytest.raises(ConflictError, match="belongs to draft"):
+        await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._session_runtime_binding(uow, input_dto)
+
+
+@pytest.mark.asyncio
+async def test_runtime_session_persists_environment_and_opening_release_provenance():
+    project_id = uuid4()
+    agent_id = uuid4()
+    release_id = uuid4()
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        message="hello",
+        execution_context="staging",
+        loaded_release_id=release_id,
+        metadata={"source": "playground"},
+    )
+    agent = Agent(id=agent_id, project_id=project_id, model="model-a")
+    created = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    session_repo = SimpleNamespace(
+        create=AsyncMock(return_value=created),
+        update=AsyncMock(),
+    )
+    context = new_execution_context()
+    context.agent_release_id = release_id
+    context.agent_release_version = "staging-v1"
+    token = current_execution.set(context)
+    try:
+        session = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._resolve_session(
+            session_repo,
+            input_dto,
+            agent,
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert session.runtime_environment == "staging"
+    assert session.opened_release_id == release_id
+    assert session.data == {"source": "playground"}
+    session_repo.update.assert_awaited_once()
 
 
 @pytest.mark.asyncio

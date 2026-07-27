@@ -19,8 +19,9 @@ from modules.agent.application.use_cases.vector_snapshot_rag_mixin import Vector
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
-from shared.infra.errors import ValidationError
+from shared.infra.errors import ConflictError, ValidationError
 from shared.infra.llm_cost import provider_model_pricing_snapshot
+from shared.runtime_environment import normalize_runtime_environment
 
 
 RuntimeToolReader = Callable[[list[UUID]], Awaitable[list[Any]]]
@@ -35,11 +36,113 @@ def _release_sort_key(release: AgentRelease) -> float:
     return value.timestamp() if value is not None else 0.0
 
 
+def _session_data(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _session_release_id(data: dict[str, Any]) -> UUID | None:
+    raw_release_id = data.get("loaded_release_id")
+    if raw_release_id in (None, ""):
+        return None
+    try:
+        return raw_release_id if isinstance(raw_release_id, UUID) else UUID(str(raw_release_id))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Agent Session contains an invalid release binding") from exc
+
+
 class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
     _runtime_tool_reader: RuntimeToolReader | None = None
 
     def configure_runtime_tool_reader(self, reader: RuntimeToolReader) -> None:
         self._runtime_tool_reader = reader
+
+    @staticmethod
+    def _is_network_runtime(input_dto: AskInput) -> bool:
+        metadata = input_dto.metadata
+        return isinstance(metadata, dict) and metadata.get("source") == "network_runtime"
+
+    async def _session_runtime_binding(self, uow: Any, input_dto: AskInput) -> UUID | None:
+        if input_dto.session_id is None or self._is_network_runtime(input_dto):
+            return None
+        session_repo = getattr(uow, "sessions", None)
+        if session_repo is None:
+            return None
+        try:
+            session = await session_repo.get_by_id(input_dto.session_id)
+        except Exception:
+            return None
+        if session.project_id != input_dto.project_id or session.agent_id != input_dto.agent_id:
+            raise ValidationError("Agent Session does not belong to this Agent runtime")
+
+        data = _session_data(session.data)
+        requested_environment = normalize_runtime_environment(input_dto.execution_context)
+        raw_environment = data.get("runtime_environment")
+        if raw_environment not in (None, ""):
+            session_environment = normalize_runtime_environment(str(raw_environment))
+            if session_environment != requested_environment:
+                raise ConflictError(
+                    f"Agent Session belongs to {session_environment}, not {requested_environment}"
+                )
+
+        bound_release_id = _session_release_id(data)
+        if (
+            bound_release_id is not None
+            and input_dto.loaded_release_id is not None
+            and bound_release_id != input_dto.loaded_release_id
+        ):
+            raise ConflictError("Agent Session is pinned to a different Release")
+        return bound_release_id
+
+    async def _resolve_session(self, session_repo: Any, input_dto: AskInput, agent: Agent):
+        session = await super()._resolve_session(session_repo, input_dto, agent)
+        if session is None or self._is_network_runtime(input_dto):
+            return session
+
+        environment = normalize_runtime_environment(input_dto.execution_context)
+        data = _session_data(session.data)
+        raw_environment = data.get("runtime_environment")
+        if raw_environment not in (None, ""):
+            session_environment = normalize_runtime_environment(str(raw_environment))
+            if session_environment != environment:
+                raise ConflictError(
+                    f"Agent Session belongs to {session_environment}, not {environment}"
+                )
+
+        context = current_execution.get()
+        resolved_release_id = input_dto.loaded_release_id
+        resolved_release_version = None
+        if context is not None:
+            resolved_release_id = context.agent_release_id or resolved_release_id
+            resolved_release_version = context.agent_release_version
+
+        existing_release_id = _session_release_id(data)
+        if (
+            environment != "draft"
+            and existing_release_id is not None
+            and resolved_release_id is not None
+            and existing_release_id != resolved_release_id
+        ):
+            raise ConflictError("Agent Session is pinned to a different Release")
+
+        next_data = dict(data)
+        next_data["runtime_environment"] = environment
+        metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
+        source = metadata.get("source")
+        if isinstance(source, str) and source:
+            next_data["source"] = source
+
+        if environment == "draft":
+            next_data.pop("loaded_release_id", None)
+            next_data.pop("release_version", None)
+        elif resolved_release_id is not None:
+            next_data["loaded_release_id"] = str(resolved_release_id)
+            if resolved_release_version:
+                next_data["release_version"] = resolved_release_version
+
+        if next_data != data:
+            session.data = next_data
+            await session_repo.update(session)
+        return session
 
     @staticmethod
     def _apply_runtime_config_snapshot(agent: Agent, runtime_config: Any) -> Agent:
@@ -263,13 +366,17 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if runtime_context is not None:
             runtime_context.execution_context = execution_context
 
+        session_release_id = await self._session_runtime_binding(uow, input_dto)
+        effective_release_id = session_release_id or input_dto.loaded_release_id
+
         # An explicitly loaded release is an immutable runtime binding. Network
-        # versions rely on this precedence so a session never drifts to a newer
-        # active Staging or Production release after it was created.
-        if input_dto.loaded_release_id and release_repo is not None:
-            release = await release_repo.get_by_id(input_dto.loaded_release_id)
+        # versions and standalone Sessions rely on this precedence so execution
+        # never drifts to a newer active Staging or Production release.
+        if effective_release_id and release_repo is not None:
+            release = await release_repo.get_by_id(effective_release_id)
             if release is None or release.agent_id != agent.id:
                 raise ValidationError("Pinned Agent release was not found")
+            input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
@@ -282,6 +389,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             release = await release_repo.get_active_production(agent.id)
             if release is None:
                 raise RuntimeEnvironmentNotReadyError("production", input_dto.agent_id)
+            input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
@@ -295,6 +403,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             if not releases:
                 raise RuntimeEnvironmentNotReadyError("staging", input_dto.agent_id)
             release = max(releases, key=_release_sort_key)
+            input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)

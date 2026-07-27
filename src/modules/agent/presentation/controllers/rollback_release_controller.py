@@ -32,7 +32,9 @@ class RollbackReleaseController(Controller):
     async def handle(self, request: Request) -> Response:
         agent_id = UUID(request.path_params["agent_id"])
         release_id = UUID(request.path_params["release_id"])
-        input_dto = RollbackReleaseInput(**request.body)
+        body = request.body or {}
+        input_dto = RollbackReleaseInput(**body)
+        object.__setattr__(input_dto, "change_description", body.get("change_description"))
         result = await self._use_case.execute(agent_id, release_id, input_dto)
         return Response(
             status_code=200,

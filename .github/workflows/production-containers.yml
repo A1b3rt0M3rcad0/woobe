@@ -14,8 +14,40 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare Compose environment
-        run: cp .env.production.example .env.production
+      - name: Prepare production deployment manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from secrets import token_urlsafe
+
+          content = Path('.env.example').read_text()
+          database_password = token_urlsafe(24)
+          rabbitmq_password = token_urlsafe(24)
+          replacements = {
+              'PROJECTRAI_ENVIRONMENT=development': 'PROJECTRAI_ENVIRONMENT=production',
+              'PROJECTRAI_SECRET_KEY=local-projectrai-signing-key-4v7N2x9Q8m5K1c6Z': f'PROJECTRAI_SECRET_KEY={token_urlsafe(48)}',
+              'PROJECTRAI_ENCRYPTION_KEY=local-projectrai-encryption-key-7Q2m9K4x1V8c5Z6N': f'PROJECTRAI_ENCRYPTION_KEY={token_urlsafe(48)}',
+              'PROJECTRAI_POSTGRES_URL=postgresql://projectrai:projectrai@db:5432/projectrai': f'PROJECTRAI_POSTGRES_URL=postgresql://migration:{database_password}@postgres.internal:5432/projectrai',
+              'PROJECTRAI_DATABASE_URL=postgresql://projectrai:projectrai@pgbouncer:6432/projectrai': f'PROJECTRAI_DATABASE_URL=postgresql://runtime:{database_password}@pool.internal:6432/projectrai',
+              'PROJECTRAI_RABBITMQ_URL=amqp://projectrai:projectrai@rabbitmq:5672/': f'PROJECTRAI_RABBITMQ_URL=amqps://worker:{rabbitmq_password}@rabbitmq.internal:5671/',
+              'PROJECTRAI_REDIS_URL=redis://redis:6379/0': 'PROJECTRAI_REDIS_URL=rediss://redis.internal:6379/0',
+              'PROJECTRAI_S3_BUCKET=woobe-local': 'PROJECTRAI_S3_BUCKET=woobe-production',
+              'PROJECTRAI_S3_ENDPOINT_URL=http://minio:9000': 'PROJECTRAI_S3_ENDPOINT_URL=https://s3.example.com',
+              'PROJECTRAI_S3_FORCE_PATH_STYLE=true': 'PROJECTRAI_S3_FORCE_PATH_STYLE=false',
+              'PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION=': 'PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION=AES256',
+              'PROJECTRAI_ACCESS_COOKIE_SECURE=false': 'PROJECTRAI_ACCESS_COOKIE_SECURE=true',
+              'PROJECTRAI_REFRESH_COOKIE_SECURE=false': 'PROJECTRAI_REFRESH_COOKIE_SECURE=true',
+              'PROJECTRAI_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173': 'PROJECTRAI_CORS_ORIGINS=https://app.example.com',
+              'PROJECTRAI_TRUSTED_HOSTS=localhost,127.0.0.1': 'PROJECTRAI_TRUSTED_HOSTS=api.example.com',
+              'VITE_API_URL=http://localhost:8000': 'VITE_API_URL=https://api.example.com',
+              'PROJECTRAI_WEB_PORT=5173': 'PROJECTRAI_WEB_PORT=8080',
+          }
+          for old, new in replacements.items():
+              if old not in content:
+                  raise SystemExit(f'missing expected template value: {old}')
+              content = content.replace(old, new)
+          Path('.env').write_text(content)
+          PY
       - name: Validate production topology
         run: |
           docker compose -f docker-compose.prod.yml config --quiet
@@ -25,21 +57,29 @@ jobs:
           from pathlib import Path
 
           services = json.loads(Path('compose-prod.json').read_text())['services']
-          for name in ('db', 'pgbouncer', 'rabbitmq'):
-              assert not services[name].get('ports'), f'{name} publishes a host port'
+          assert set(services) == {'migrate', 'api', 'workers', 'web'}, services.keys()
           for name, service in services.items():
               for volume in service.get('volumes', []):
                   assert volume.get('type') != 'bind', f'{name} uses a bind mount'
           assert services['migrate']['restart'] == 'no'
+          assert services['api']['read_only'] is True
+          assert services['workers']['read_only'] is True
+          assert services['web']['read_only'] is True
           PY
       - name: Build production images
+        shell: bash
         run: |
+          set -euo pipefail
+          VITE_API_URL="$(sed -n 's/^VITE_API_URL=//p' .env)"
           docker build --tag projectrai-api:ci .
-          docker build --tag projectrai-web:ci web
+          docker build --build-arg "VITE_API_URL=$VITE_API_URL" --tag projectrai-web:ci web
       - name: Verify cached builds without build-network access
+        shell: bash
         run: |
+          set -euo pipefail
+          VITE_API_URL="$(sed -n 's/^VITE_API_URL=//p' .env)"
           docker build --network=none --tag projectrai-api:ci-offline .
-          docker build --network=none --tag projectrai-web:ci-offline web
+          docker build --network=none --build-arg "VITE_API_URL=$VITE_API_URL" --tag projectrai-web:ci-offline web
       - name: Require non-root runtime users
         run: |
           for image in projectrai-api:ci projectrai-web:ci; do

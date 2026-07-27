@@ -7,6 +7,7 @@ from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_activation import AgentReleaseActivation
+from shared.infra.errors import ValidationError
 
 
 def _tool_snapshots(runtime_config):
@@ -22,6 +23,14 @@ def _tool_snapshots(runtime_config):
 def _release_sort_key(release: AgentRelease) -> float:
     value = release.updated_at or release.created_at
     return value.timestamp() if value is not None else 0.0
+
+
+def _audit_text(input_dto, field_name: str) -> str | None:
+    value = getattr(input_dto, field_name, None) if input_dto is not None else None
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
 
 
 class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
@@ -86,6 +95,16 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
         previous = None
         existing_release_ids: set = set()
         if target_status == ReleaseStatus.production.value:
+            snapshot_kind = getattr(release, "snapshot_kind", None)
+            if snapshot_kind == "staging":
+                release_notes = _audit_text(input_dto, "release_notes")
+                if release_notes is None or len(release_notes) < 3:
+                    raise ValidationError("Agent Release description is required before publishing Production")
+            elif snapshot_kind == "release":
+                change_description = _audit_text(input_dto, "change_description")
+                if change_description is None or len(change_description) < 3:
+                    raise ValidationError("Agent Production activation reason is required")
+
             previous = await self._release_repo.get_active_production(agent_id)
             existing_release_ids = {
                 item.id
@@ -103,6 +122,9 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
             action = self._activation_action
             if action != "rollback":
                 action = "reactivate" if result.id in existing_release_ids else "deploy"
+            change_description = _audit_text(input_dto, "change_description")
+            if change_description is None and action == "deploy":
+                change_description = _audit_text(input_dto, "release_notes")
             await self._activation_repo.save(
                 AgentReleaseActivation(
                     project_id=result.project_id,
@@ -110,6 +132,7 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
                     release_id=result.id,
                     previous_release_id=previous.id if previous is not None else None,
                     action=action,
+                    change_description=change_description,
                     created_by=getattr(input_dto, "user_id", None),
                 )
             )

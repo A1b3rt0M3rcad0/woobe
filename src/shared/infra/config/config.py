@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INSECURE_SECRET_MARKERS = (
@@ -16,6 +16,43 @@ _INSECURE_SECRET_MARKERS = (
 )
 
 
+def _normalize_async_postgres_url(value: str) -> str:
+    normalized = value.strip()
+    if normalized.startswith("postgres://"):
+        return normalized.replace("postgres://", "postgresql+asyncpg://", 1)
+    if normalized.startswith("postgresql://"):
+        return normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return normalized
+
+
+def _validate_connection_url(value: str, *, schemes: set[str], variable: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    parseable = normalized.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parsed = urlsplit(parseable)
+    if parsed.scheme not in schemes or not parsed.hostname:
+        expected = ", ".join(sorted(schemes))
+        raise ValueError(f"{variable} must use one of [{expected}] and include a hostname")
+    return normalized
+
+
+def _validate_database_url(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    parsed = urlsplit(normalized.replace("postgresql+asyncpg://", "postgresql://", 1))
+    if parsed.scheme == "postgresql":
+        if not parsed.hostname:
+            raise ValueError("PROJECTRAI_DATABASE_URL must include a PostgreSQL hostname")
+        return normalized
+    if parsed.scheme in {"sqlite", "sqlite+aiosqlite"}:
+        return normalized
+    raise ValueError(
+        "PROJECTRAI_DATABASE_URL must be PostgreSQL for runtime deployments or SQLite for tests"
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PROJECTRAI_",
@@ -23,10 +60,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai"
+    # Runtime identity is fixed by the API/Worker bootstrap, not by deployment topology.
+    service_role: str = "api"
+
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/projectrai"
     debug: bool = False
-    secret_key: str = Field(min_length=32)
-    encryption_key: str = Field(min_length=16)
+    secret_key: str = ""
+    encryption_key: str = Field(default="", min_length=0)
     auth_issuer: str = "projectrai"
     auth_audience: str = "projectrai-web"
     access_token_ttl_seconds: int = Field(default=900, gt=0, le=3600)
@@ -112,6 +152,55 @@ class Settings(BaseSettings):
     retry_max_delay_seconds: float = 300.0
     retry_backoff_multiplier: float = 2.0
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            return _normalize_async_postgres_url(value)
+        return value
+
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, value: str) -> str:
+        return _validate_database_url(value)
+
+    @field_validator("rabbitmq_url")
+    @classmethod
+    def validate_rabbitmq_url(cls, value: str) -> str:
+        return _validate_connection_url(
+            value,
+            schemes={"amqp", "amqps"},
+            variable="PROJECTRAI_RABBITMQ_URL",
+        )
+
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return _validate_connection_url(
+            normalized,
+            schemes={"redis", "rediss"},
+            variable="PROJECTRAI_REDIS_URL",
+        )
+
+    @field_validator("s3_endpoint_url")
+    @classmethod
+    def validate_s3_endpoint_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return _validate_connection_url(
+            normalized,
+            schemes={"http", "https"},
+            variable="PROJECTRAI_S3_ENDPOINT_URL",
+        )
+
     @staticmethod
     def _is_weak_secret(value: str) -> bool:
         normalized = value.strip().lower()
@@ -131,6 +220,27 @@ class Settings(BaseSettings):
             ("projectrai", "projectrai"),
             ("guest", "guest"),
         }
+
+    @model_validator(mode="after")
+    def validate_service_requirements(self) -> Settings:
+        role = self.service_role.strip().lower()
+        if role not in {"api", "worker"}:
+            raise ValueError("service_role must be 'api' or 'worker'")
+
+        errors: list[str] = []
+        if not self.database_url.strip():
+            errors.append("PROJECTRAI_DATABASE_URL is required")
+        if len(self.encryption_key.strip()) < 16:
+            errors.append("PROJECTRAI_ENCRYPTION_KEY must contain at least 16 characters")
+        if role == "api" and len(self.secret_key.strip()) < 32:
+            errors.append("PROJECTRAI_SECRET_KEY must contain at least 32 characters for API")
+        if role == "worker" and not self.rabbitmq_url.strip():
+            errors.append("PROJECTRAI_RABBITMQ_URL is required for Workers")
+        if self.storage_driver.strip().lower() == "s3" and not (self.s3_bucket or "").strip():
+            errors.append("PROJECTRAI_S3_BUCKET is required when PROJECTRAI_STORAGE_DRIVER=s3")
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
     @model_validator(mode="after")
     def validate_network_runtime(self) -> Settings:
@@ -156,34 +266,38 @@ class Settings(BaseSettings):
         if environment not in {"production", "prod"}:
             return self
 
+        role = self.service_role.strip().lower()
         errors: list[str] = []
         if self.debug:
             errors.append("PROJECTRAI_DEBUG must be false in production")
-        if self._is_weak_secret(self.secret_key):
-            errors.append("PROJECTRAI_SECRET_KEY is weak or uses a known placeholder")
         if self._is_weak_secret(self.encryption_key):
             errors.append("PROJECTRAI_ENCRYPTION_KEY is weak or uses a known placeholder")
-        if not self.access_cookie_secure:
-            errors.append("PROJECTRAI_ACCESS_COOKIE_SECURE must be true in production")
-        if not self.refresh_cookie_secure:
-            errors.append("PROJECTRAI_REFRESH_COOKIE_SECURE must be true in production")
-
-        origins = [item.strip() for item in self.cors_origins.split(",") if item.strip()]
-        if not origins or "*" in origins:
-            errors.append("PROJECTRAI_CORS_ORIGINS must contain exact origins")
-        if any(origin.startswith("http://") for origin in origins):
-            errors.append("PROJECTRAI_CORS_ORIGINS must use HTTPS in production")
-
-        trusted_hosts = [item.strip() for item in self.trusted_hosts.split(",") if item.strip()]
-        if not trusted_hosts or "*" in trusted_hosts:
-            errors.append("PROJECTRAI_TRUSTED_HOSTS must contain exact hostnames")
-
         if self._uses_default_credentials(self.database_url):
             errors.append("PROJECTRAI_DATABASE_URL uses default credentials")
-        if self._uses_default_credentials(self.rabbitmq_url):
-            errors.append("PROJECTRAI_RABBITMQ_URL uses default credentials")
         if not self.json_logs:
             errors.append("PROJECTRAI_JSON_LOGS must be true in production")
+
+        if role == "api":
+            if self._is_weak_secret(self.secret_key):
+                errors.append("PROJECTRAI_SECRET_KEY is weak or uses a known placeholder")
+            if not self.access_cookie_secure:
+                errors.append("PROJECTRAI_ACCESS_COOKIE_SECURE must be true in production")
+            if not self.refresh_cookie_secure:
+                errors.append("PROJECTRAI_REFRESH_COOKIE_SECURE must be true in production")
+
+            origins = [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+            if not origins or "*" in origins:
+                errors.append("PROJECTRAI_CORS_ORIGINS must contain exact origins")
+            if any(origin.startswith("http://") for origin in origins):
+                errors.append("PROJECTRAI_CORS_ORIGINS must use HTTPS in production")
+
+            trusted_hosts = [
+                item.strip() for item in self.trusted_hosts.split(",") if item.strip()
+            ]
+            if not trusted_hosts or "*" in trusted_hosts:
+                errors.append("PROJECTRAI_TRUSTED_HOSTS must contain exact hostnames")
+        elif role == "worker" and self._uses_default_credentials(self.rabbitmq_url):
+            errors.append("PROJECTRAI_RABBITMQ_URL uses default credentials")
 
         if errors:
             raise ValueError("; ".join(errors))

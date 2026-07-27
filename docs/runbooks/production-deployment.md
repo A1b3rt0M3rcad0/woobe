@@ -2,91 +2,251 @@
 
 ## Scope and invariants
 
-This runbook deploys the MVP with `docker-compose.prod.yml`. PostgreSQL, PgBouncer and RabbitMQ remain on an internal Docker network. Only the unprivileged web reverse proxy publishes a host port. TLS must terminate at the platform ingress or load balancer in front of that port; direct Internet exposure of plain HTTP is not supported.
+ProjectRAI/Woobe uses one deployment contract for development, staging and production: `.env.example`.
 
-For a real deployment, mirror the images to a registry and pin immutable digests through a reviewed Compose override. The base file uses local `projectrai-api:0.1.0` and `projectrai-web:0.1.0` tags for staging validation.
+The application must not infer where PostgreSQL, PgBouncer, RabbitMQ, Redis, object storage or the Web/API are running. Communication between services is expressed through explicit URLs in the deployment manifest.
 
-## Required configuration
+`docker-compose.yml` is the full-stack integration/single-node harness. It can provision PostgreSQL, PgBouncer, RabbitMQ, Redis and MinIO locally, but those service names are not application defaults.
 
-Copy `.env.production.example` outside the repository and replace every placeholder. Store the resulting values in the deployment secret manager, not in Git. Production startup rejects debug mode, wildcard or HTTP CORS origins, wildcard trusted hosts, weak keys, default database/RabbitMQ credentials and non-JSON logging.
+`docker-compose.prod.yml` is an application-only hardened reference containing `migrate`, `api`, `workers` and `web`. It assumes dependency endpoints are externally reachable and configured in `.env`. A real deployment may instead run the same images through Kubernetes, ECS, Nomad, independent Docker hosts or VMs.
 
-Required externally managed values:
+## Single environment manifest
 
-- `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`: independent random values, at least 32 characters.
-- exact HTTPS `PROJECTRAI_CORS_ORIGINS` and exact `PROJECTRAI_TRUSTED_HOSTS`.
-- non-default PostgreSQL and RabbitMQ credentials.
-- a reviewed Compose override that pins immutable application image digests.
-
-## Build and preflight
+Start from:
 
 ```bash
-docker build --pull -t projectrai-api:0.1.0 .
-docker build --pull -t projectrai-web:0.1.0 web
-
-docker image inspect projectrai-api:0.1.0 --format '{{.Config.User}}'
-docker image inspect projectrai-web:0.1.0 --format '{{.Config.User}}'
-
-docker compose --env-file /run/secrets/projectrai.env \
-  -f docker-compose.prod.yml config --quiet
+cp .env.example .env
 ```
 
-Both image user values must be non-empty and not `0`/`root`. Review the rendered Compose output and confirm that `db`, `pgbouncer` and `rabbitmq` have no host `ports` entries and that no service uses bind mounts.
+Do not create a different variable schema for Production. Change only deployment values/endpoints and set:
 
-## Deploy
+```env
+PROJECTRAI_ENVIRONMENT=production
+```
 
-1. Start stateful dependencies.
-2. Run the migration service once and require exit code zero.
-3. Start API, workers and web.
-4. Run health and authenticated smoke checks.
+The manifest is organized by service and documents who consumes each endpoint.
+
+Primary connection boundaries:
+
+```text
+PROJECTRAI_POSTGRES_URL
+  PostgreSQL direct endpoint
+  consumers: migration + PgBouncer
+
+PROJECTRAI_DATABASE_URL
+  pooled/runtime PostgreSQL endpoint
+  consumers: API + Workers
+
+PROJECTRAI_RABBITMQ_URL
+  broker endpoint
+  consumer: Workers
+
+PROJECTRAI_REDIS_URL
+  Redis endpoint
+  consumers: Redis-backed API/Worker features
+
+PROJECTRAI_S3_ENDPOINT_URL + bucket/credentials
+  object storage
+  consumers: API + Workers
+
+VITE_API_URL
+  public API endpoint embedded in the browser bundle
+```
+
+For PostgreSQL specifically:
+
+```text
+Migration ───── PROJECTRAI_POSTGRES_URL ─────► PostgreSQL
+PgBouncer ───── PROJECTRAI_POSTGRES_URL ─────► PostgreSQL
+API ─────────── PROJECTRAI_DATABASE_URL ─────► PgBouncer/pool
+Workers ─────── PROJECTRAI_DATABASE_URL ─────► PgBouncer/pool
+```
+
+API and Workers must not use the direct migration/PostgreSQL URL.
+
+## Service-specific configuration
+
+`.env` is a deployment manifest, not a requirement to inject every variable into every process.
+
+The Compose files deliberately pass only the variables a service consumes. The same rule should be applied to Kubernetes Secrets, ECS task definitions, systemd units or standalone `docker run` deployments.
+
+API and Worker determine their runtime role from their own entrypoints (`src.main` and `src.worker_main`). There is no `PROJECTRAI_SERVICE_ROLE` deployment variable.
+
+### API
+
+Requires at minimum:
+
+- `PROJECTRAI_DATABASE_URL`;
+- `PROJECTRAI_REDIS_URL` when Redis-backed features are enabled;
+- object-storage settings;
+- `PROJECTRAI_SECRET_KEY`;
+- `PROJECTRAI_ENCRYPTION_KEY`;
+- API/CORS/cookie configuration.
+
+API does not require `PROJECTRAI_RABBITMQ_URL` to start.
+
+### Workers
+
+Requires at minimum:
+
+- `PROJECTRAI_DATABASE_URL`;
+- `PROJECTRAI_RABBITMQ_URL`;
+- `PROJECTRAI_REDIS_URL` when enabled;
+- object-storage settings;
+- `PROJECTRAI_ENCRYPTION_KEY`.
+
+### Migration
+
+Requires only the direct database boundary:
+
+```env
+PROJECTRAI_POSTGRES_URL=postgresql://...
+```
+
+Migration is an explicit deployment job. Application container startup never runs Alembic implicitly.
+
+### PgBouncer
+
+The bundled PgBouncer container consumes `PROJECTRAI_POSTGRES_URL` as its upstream `DATABASE_URL` and exposes the endpoint represented by `PROJECTRAI_DATABASE_URL` to application runtimes.
+
+Baseline capacity values:
+
+```text
+PGBOUNCER_POOL_MODE=transaction
+PGBOUNCER_MAX_CLIENT_CONN=200
+PGBOUNCER_DEFAULT_POOL_SIZE=20
+PGBOUNCER_RESERVE_POOL_SIZE=5
+PGBOUNCER_MAX_DB_CONNECTIONS=30
+```
+
+These are capacity settings, not application connection settings.
+
+## Bundled infrastructure bootstrap variables
+
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `RABBITMQ_USER` and `RABBITMQ_PASSWORD` exist only for the infrastructure containers in the full-stack Compose harness.
+
+When PostgreSQL/RabbitMQ are externally managed, API/Workers/Migration do not need those bootstrap variables. They receive only their connection URLs.
+
+For the bundled local stack, keep bootstrap credentials aligned with the URLs in `.env`.
+
+## Object storage
+
+Local development uses S3-compatible MinIO through the same `s3` storage driver used by distributed deployments.
+
+```text
+Development:
+API/Workers ─► MinIO
+
+Production:
+API/Workers ─► S3 / R2 / managed S3-compatible storage
+```
+
+This avoids any dependency on a shared Docker filesystem. API and Workers may therefore run on different machines without losing access to uploaded Knowledge documents.
+
+For AWS S3, normally leave `PROJECTRAI_S3_ENDPOINT_URL` empty and prefer IAM/workload identity rather than static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`.
+
+## Frontend
+
+`VITE_API_URL` is part of the single `.env` manifest because it is a public connection endpoint, not a backend secret.
+
+The Docker build receives only `VITE_API_URL` as a build argument. The complete `.env` is never mounted into the frontend build.
+
+Local Vite uses the neutral `manifest` mode so legacy `.env.web` or `.env.production` files from older setups do not override the canonical root `.env`.
+
+Nginx serves static SPA assets only. It does not proxy to a Docker service named `api`. The browser calls `VITE_API_URL` directly. If Production requires one public origin, route `/api` or API hostnames at the external ingress/load balancer.
+
+## Production security values
+
+Before setting `PROJECTRAI_ENVIRONMENT=production`, replace the local/example values:
+
+- strong independent `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`;
+- non-default database credentials in `PROJECTRAI_DATABASE_URL`;
+- non-default RabbitMQ credentials in `PROJECTRAI_RABBITMQ_URL` for Workers;
+- exact HTTPS `PROJECTRAI_CORS_ORIGINS`;
+- exact `PROJECTRAI_TRUSTED_HOSTS`;
+- secure access/refresh cookies;
+- production object-storage endpoint/bucket/authentication;
+- correct public `VITE_API_URL`.
+
+Production runtime validation is service-aware: browser/API security rules apply to the API process; RabbitMQ credential validation applies to the Worker process.
+
+## Full-stack local/integration deployment
 
 ```bash
-export ENV_FILE=/run/secrets/projectrai.env
-COMPOSE="docker compose --env-file $ENV_FILE -f docker-compose.prod.yml"
-
-$COMPOSE up -d db rabbitmq pgbouncer
-$COMPOSE run --rm migrate
-$COMPOSE up -d api workers web
-
-PROJECTRAI_BASE_URL=https://app.example.com \
-SMOKE_EMAIL="$SMOKE_EMAIL" \
-SMOKE_PASSWORD="$SMOKE_PASSWORD" \
-SMOKE_PROJECT_ID="$SMOKE_PROJECT_ID" \
-./scripts/smoke_production.sh
+cp .env.example .env
+docker compose up --build -d
 ```
 
-`/live` proves process liveness. `/ready` performs a bounded database check and returns 503 while the dependency is unavailable. The worker container health check verifies the PID 1 worker runtime remains active; worker loop failures are emitted as structured logs and metrics.
+The full stack provides:
 
-## Operational visibility
+- API: `http://localhost:8000`;
+- Web: `http://localhost:5173`;
+- PostgreSQL: `localhost:5432`;
+- PgBouncer: `localhost:6432`;
+- RabbitMQ management: `http://localhost:15672`;
+- Redis: `localhost:6379`;
+- MinIO API: `http://localhost:9000`;
+- MinIO console: `http://localhost:9001`.
 
-Application logs are JSON and include `request_id` and `correlation_id`. Incoming valid IDs are propagated; otherwise the API generates them. Sensitive values continue through the shared redaction filter.
+This topology is a harness. Application configuration still uses explicit URLs, so moving any dependency to another host only requires changing `.env`.
 
-The API exposes Prometheus text metrics on its internal `/metrics` endpoint. The public Nginx route intentionally does not proxy that endpoint. Scrape it from the application network. Metrics include HTTP request count/status/latency, TTFT, provider/tool/worker failures, queue lag/retry hooks and SQLAlchemy pool state.
+## Application-only Production reference
 
-RabbitMQ queue and dead-letter state remains private. Inspect it from the deployment host:
+With external dependencies configured in `.env`:
 
 ```bash
-$COMPOSE exec rabbitmq rabbitmqctl list_queues \
-  name messages_ready messages_unacknowledged consumers message_bytes
-$COMPOSE exec rabbitmq rabbitmqctl list_exchanges name type durable
+docker compose -f docker-compose.prod.yml config --quiet
+docker compose -f docker-compose.prod.yml build
 ```
 
-Alert initially on: `/ready` failures for 2 minutes, an unhealthy worker container, sustained queue growth, worker/provider/tool failure rate, HTTP 5xx rate and database pool exhaustion.
+Run migration before application rollout:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate
+```
+
+Then start the application services:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d api workers web
+```
+
+For a fully distributed deployment, run each service independently with only its required subset of environment variables.
+
+## Health semantics
+
+- `/live`: API process is alive;
+- `/health`: lightweight process health;
+- `/ready`: bounded direct check through `PROJECTRAI_DATABASE_URL`; returns 503 while the runtime database endpoint is unavailable.
+
+The full-stack PostgreSQL and PgBouncer healthchecks execute authenticated `SELECT 1` probes using their configured URLs.
+
+Worker startup explicitly connects to its database and RabbitMQ dependencies before entering the worker loop.
+
+## Backup and restore
+
+Backup and restore scripts use the direct database endpoint rather than Docker host defaults:
+
+```env
+PROJECTRAI_POSTGRES_URL=postgresql://...
+```
+
+Example:
+
+```bash
+PROJECTRAI_POSTGRES_URL="$PROJECTRAI_POSTGRES_URL" ./scripts/backup_postgres.sh
+```
+
+Restore requires the same direct URL plus the existing explicit confirmation guard.
 
 ## Graceful shutdown
 
-API and workers receive SIGTERM and have a 45-second grace period. During rollout, remove a replica from ingress before stopping it. Do not force-kill a process with an active SSE stream unless the grace period expires. Worker shutdown sets its stop event, cancels child tasks and closes RabbitMQ and database connections.
+API and workers receive SIGTERM. During rollout, remove an API replica from ingress before stopping it. Do not force-kill an active runtime/SSE process unless its grace period expires.
 
 ## Rollback
 
-Application rollback is image-based. Create a reviewed `docker-compose.rollback.yml` that overrides the API and web images with the previous immutable digests, then run:
-
-```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.rollback.yml up -d --no-deps api workers web
-./scripts/smoke_production.sh
-```
-
-Do not automatically downgrade Alembic during an application rollback. Migrations in this MVP must be backward-compatible for at least one application version. A schema rollback requires a reviewed migration-specific procedure and a verified backup.
+Application rollback is image-based. Repoint API/Worker/Web to previous immutable image digests and run smoke checks again. Do not automatically downgrade Alembic during application rollback. MVP migrations must remain backward-compatible for at least one application version.
 
 ## Release gate
 
-Before production promotion, attach evidence for image sizes, image users, SBOMs, vulnerability reports, Compose policy validation, two consecutive migration runs, reverse-proxy smoke, graceful shutdown and the latest restore drill. The `development-mvp -> development` promotion remains a separate human decision.
+Before Production promotion, attach evidence for image users/sizes, SBOM/vulnerability reports, migration success, API readiness, smoke tests, graceful shutdown and database backup/restore procedures.
