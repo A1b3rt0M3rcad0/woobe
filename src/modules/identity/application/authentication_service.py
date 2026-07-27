@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.identity.application.auth_types import (
@@ -12,12 +13,12 @@ from modules.identity.application.auth_types import (
 )
 from modules.identity.application.session_lifecycle import SessionLifecycle
 from modules.identity.domain.entities import Organization, OrganizationMember, User
-from modules.identity.domain.enums import MemberRole, MemberStatus, UserStatus
+from modules.identity.domain.enums import InviteStatus, MemberRole, MemberStatus, UserStatus
 from modules.identity.domain.errors import EmailAlreadyExistsError, InvalidCredentialsError
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 from shared.infra.config import Settings
 from shared.infra.crypto import hash_password, verify_password
-from shared.infra.errors import AuthenticationError, ConflictError
+from shared.infra.errors import AuthenticationError, ConflictError, NotFoundError
 from shared.security.access_tokens import AccessTokenCodec
 
 
@@ -181,6 +182,139 @@ class AuthenticationService:
                 if organization is not None:
                     organizations.append(organization)
             return organizations
+
+    async def list_pending_invites(self, user_id: UUID) -> list[dict[str, object]]:
+        async with IdentityUnitOfWork(self._session_factory) as uow:
+            user = await uow.users.get_by_id(user_id)
+            if user is None or user.status != UserStatus.active:
+                raise AuthenticationError("Authentication required")
+            result = await uow.session.execute(
+                text(
+                    """
+                    SELECT i.id, i.organization_id, i.email, i.role, i.status,
+                           i.expires_at, i.created_at,
+                           o.name AS organization_name, o.slug AS organization_slug
+                    FROM identity.organization_invites AS i
+                    JOIN identity.organizations AS o ON o.id = i.organization_id
+                    WHERE lower(i.email) = :email
+                      AND i.status = 'pending'
+                      AND i.expires_at > now()
+                      AND o.status = 'active'
+                    ORDER BY i.created_at DESC
+                    """
+                ),
+                {"email": user.email.strip().lower()},
+            )
+            return [dict(row) for row in result.mappings().all()]
+
+    async def accept_invite(self, *, user_id: UUID, invite_id: UUID) -> Organization:
+        async with IdentityUnitOfWork(self._session_factory) as uow:
+            user = await uow.users.get_by_id(user_id)
+            if user is None or user.status != UserStatus.active:
+                raise AuthenticationError("Authentication required")
+
+            result = await uow.session.execute(
+                text(
+                    """
+                    SELECT id, organization_id, email, role, status, expires_at
+                    FROM identity.organization_invites
+                    WHERE id = :invite_id
+                    FOR UPDATE
+                    """
+                ),
+                {"invite_id": invite_id},
+            )
+            invite = result.mappings().first()
+            if invite is None:
+                raise NotFoundError("Invite not found")
+            if str(invite["status"]) != InviteStatus.pending.value:
+                raise ConflictError("Invite is no longer pending")
+            if str(invite["email"]).strip().lower() != user.email.strip().lower():
+                raise NotFoundError("Invite not found")
+            expires_at = invite["expires_at"]
+            if expires_at is not None and expires_at <= datetime.now(UTC):
+                await uow.session.execute(
+                    text(
+                        """
+                        UPDATE identity.organization_invites
+                        SET status = 'expired', updated_at = :now
+                        WHERE id = :invite_id
+                        """
+                    ),
+                    {"invite_id": invite_id, "now": datetime.now(UTC)},
+                )
+                raise ConflictError("Invite has expired")
+
+            organization_id = UUID(str(invite["organization_id"]))
+            role = MemberRole(str(invite["role"]))
+            existing = await uow.members.get_by_organization_and_user(
+                organization_id,
+                user.id,
+            )
+            joined_at = datetime.now(UTC)
+            member_id: UUID
+            membership_changed = False
+            if existing is None:
+                member = await uow.members.save(
+                    OrganizationMember(
+                        user_id=user.id,
+                        organization_id=organization_id,
+                        role=role,
+                        joined_at=joined_at,
+                    )
+                )
+                member_id = member.id
+                membership_changed = True
+            else:
+                member_id = existing.id
+                if existing.status != MemberStatus.active or existing.role != role:
+                    await uow.session.execute(
+                        text(
+                            """
+                            UPDATE identity.organization_members
+                            SET role = :role, status = 'active', joined_at = :joined_at,
+                                updated_at = :joined_at
+                            WHERE id = :member_id
+                            """
+                        ),
+                        {
+                            "member_id": existing.id,
+                            "role": role.value,
+                            "joined_at": joined_at,
+                        },
+                    )
+                    membership_changed = True
+
+            now = datetime.now(UTC)
+            await uow.session.execute(
+                text(
+                    """
+                    UPDATE identity.organization_invites
+                    SET status = 'accepted', accepted_at = :now, updated_at = :now
+                    WHERE id = :invite_id
+                    """
+                ),
+                {"invite_id": invite_id, "now": now},
+            )
+
+            if membership_changed:
+                await uow.outbox.write(
+                    aggregate_type="organization_member",
+                    aggregate_id=member_id,
+                    event_type="organization.member_added.v1",
+                    payload={
+                        "user_id": str(user.id),
+                        "organization_id": str(organization_id),
+                        "role": role.value,
+                    },
+                    routing_key="organization.member_added.v1",
+                    idempotency_key=f"identity:organization.member_added.v1:{member_id}",
+                )
+
+            organization = await uow.organizations.get_by_id(organization_id)
+            if organization is None:
+                raise NotFoundError("Organization not found")
+            return organization
 
     async def _create_owned_organization(
         self,
