@@ -2,7 +2,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.identity.application.composers.add_member_composer import add_member_composer
 from modules.identity.application.composers.create_invite_composer import (
     create_invite_composer,
 )
@@ -125,19 +124,8 @@ async def create_organization(request: FastAPIRequest):
 
 @router.post("/organizations/{org_id}/members")
 async def add_member(request: FastAPIRequest, org_id: str):
-    organization_id = _uuid(org_id, "organization id")
-    payload = dict(await request.json())
-    role = payload.get("role", "member")
-    if not isinstance(role, str):
-        raise ValidationError("Invalid member role")
-    await _organization_access(request).require_role_assignment(
-        actor_user_id=_principal_user_id(request),
-        organization_id=organization_id,
-        target_role=role,
-    )
-    handler = add_member_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    del request, org_id
+    raise AuthorizationError("Organization membership is created by accepting an invitation")
 
 
 @router.get("/organizations/{org_id}")
