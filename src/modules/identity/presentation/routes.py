@@ -70,8 +70,13 @@ async def list_pending_invites(request: FastAPIRequest):
 
 @router.post("/invites/{invite_id}/accept")
 async def accept_invite(request: FastAPIRequest, invite_id: UUID):
+    user_id = _principal_user_id(request)
+    await _organization_access(request).require_valid_invite_acceptance(
+        user_id=user_id,
+        invite_id=invite_id,
+    )
     organization = await authentication_service(request).accept_invite(
-        user_id=_principal_user_id(request),
+        user_id=user_id,
         invite_id=invite_id,
     )
     return {
