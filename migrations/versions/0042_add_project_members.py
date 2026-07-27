@@ -62,8 +62,9 @@ def upgrade() -> None:
         schema="core",
     )
 
-    # Preserve the access users already had before Project-level isolation is enabled.
-    # New Projects created after this migration do not inherit Organization members.
+    # Preserve the access non-owner members already had before Project-level
+    # isolation is enabled. Organization owners keep implicit access and do not
+    # need duplicated Project memberships. New Projects do not inherit members.
     op.execute(
         """
         INSERT INTO core.project_members
@@ -73,6 +74,7 @@ def upgrade() -> None:
         JOIN identity.organization_members AS om
           ON om.organization_id = p.organization_id
          AND om.status = 'active'
+         AND om.role <> 'owner'
         ON CONFLICT (project_id, user_id) DO NOTHING
         """
     )
