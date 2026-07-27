@@ -31,12 +31,13 @@ def upgrade() -> None:
     # Sessions created before runtime environments existed were Draft Sessions.
     # Sessions created by the first environment-aware Playground implementation
     # stored this information inside JSONB; migrate that metadata into explicit
-    # operational columns without trusting malformed values.
+    # operational columns without trusting malformed or non-object JSON values.
     op.execute(
         """
         UPDATE agent.sessions
         SET runtime_environment = CASE
-            WHEN data ->> 'runtime_environment' IN ('draft', 'staging', 'production')
+            WHEN jsonb_typeof(data) = 'object'
+             AND data ->> 'runtime_environment' IN ('draft', 'staging', 'production')
                 THEN data ->> 'runtime_environment'
             ELSE 'draft'
         END
@@ -46,7 +47,8 @@ def upgrade() -> None:
         f"""
         UPDATE agent.sessions AS session
         SET opened_release_id = (session.data ->> 'loaded_release_id')::uuid
-        WHERE session.data ->> 'loaded_release_id' ~* '{_UUID_RE}'
+        WHERE jsonb_typeof(session.data) = 'object'
+          AND session.data ->> 'loaded_release_id' ~* '{_UUID_RE}'
           AND EXISTS (
               SELECT 1
               FROM agent.agent_releases AS release
@@ -63,7 +65,7 @@ def upgrade() -> None:
             data - 'runtime_environment' - 'loaded_release_id' - 'release_version',
             '{}'::jsonb
         )
-        WHERE data IS NOT NULL
+        WHERE jsonb_typeof(data) = 'object'
         """
     )
 
