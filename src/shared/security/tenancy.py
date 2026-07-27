@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.errors import AuthorizationError, NotFoundError
+from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
@@ -15,8 +15,13 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "credential_id": "agent.provider_credentials",
     "provider_credential_id": "agent.provider_credentials",
     "fallback_credential_id": "agent.provider_credentials",
+    "provider_model_id": "agent.provider_models",
+    "fallback_provider_model_id": "agent.provider_models",
+    "embedding_provider_model_id": "agent.provider_models",
     "collection_id": "agent.document_collections",
     "document_id": "agent.documents",
+    "snapshot_id": "agent.vector_snapshots",
+    "vector_snapshot_id": "agent.vector_snapshots",
     "tool_id": "agent.tools",
     "secret_id": "agent.tool_secrets",
     "session_id": "agent.sessions",
@@ -87,10 +92,14 @@ class TenantAuthorizer:
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
+        allow_organization_admin_for_projects: bool = False,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
+        self._require_consistent_identifiers(identifiers)
+
         checked_organizations: set[UUID] = set()
         checked_projects: set[UUID] = set()
+        request_projects: set[UUID] = set()
 
         for key, raw_value in identifiers:
             resource_id = _uuid(raw_value)
@@ -109,13 +118,21 @@ class TenantAuthorizer:
             )
             if project_id is None:
                 raise NotFoundError("Resource not found")
+            request_projects.add(project_id)
+            if len(request_projects) > 1:
+                raise ConflictError("Resources from different projects cannot be combined")
             if project_id in checked_projects:
                 continue
 
             organization_id = await self._project_organization_id(project_id)
             if organization_id is None:
                 raise NotFoundError("Resource not found")
-            await self._require_membership(user_id, organization_id)
+            await self._require_project_access(
+                user_id=user_id,
+                organization_id=organization_id,
+                project_id=project_id,
+                allow_organization_admin=allow_organization_admin_for_projects,
+            )
             checked_projects.add(project_id)
             checked_organizations.add(organization_id)
 
@@ -128,6 +145,7 @@ class TenantAuthorizer:
         body: Any,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
+        self._require_consistent_identifiers(identifiers)
         checked_context = False
         for key, raw_value in identifiers:
             resource_id = _uuid(raw_value)
@@ -159,6 +177,18 @@ class TenantAuthorizer:
             + _identifier_values(body)
         )
 
+    @staticmethod
+    def _require_consistent_identifiers(identifiers: list[tuple[str, Any]]) -> None:
+        values_by_key: dict[str, UUID] = {}
+        for key, raw_value in identifiers:
+            value = _uuid(raw_value)
+            if value is None:
+                continue
+            previous = values_by_key.get(key)
+            if previous is not None and previous != value:
+                raise ConflictError(f"Conflicting {key} values in request")
+            values_by_key[key] = value
+
     async def _project_id_for_resource(
         self,
         key: str,
@@ -170,7 +200,8 @@ class TenantAuthorizer:
                 text(indirect_query),
                 {"resource_id": resource_id},
             )
-            return result.scalar_one_or_none()
+            value = result.scalar_one_or_none()
+            return UUID(str(value)) if value is not None else None
 
         table = DIRECT_PROJECT_RESOURCES.get(key)
         if table is None:
@@ -182,20 +213,22 @@ class TenantAuthorizer:
             text(f"SELECT project_id FROM {table} WHERE id = :resource_id"),
             {"resource_id": resource_id},
         )
-        return result.scalar_one_or_none()
+        value = result.scalar_one_or_none()
+        return UUID(str(value)) if value is not None else None
 
     async def _project_organization_id(self, project_id: UUID) -> UUID | None:
         result = await self._session.execute(
             text("SELECT organization_id FROM core.projects WHERE id = :project_id"),
             {"project_id": project_id},
         )
-        return result.scalar_one_or_none()
+        value = result.scalar_one_or_none()
+        return UUID(str(value)) if value is not None else None
 
-    async def _require_membership(self, user_id: UUID, organization_id: UUID) -> None:
+    async def _organization_role(self, user_id: UUID, organization_id: UUID) -> str | None:
         result = await self._session.execute(
             text(
                 """
-                SELECT 1
+                SELECT role
                 FROM identity.organization_members
                 WHERE user_id = :user_id
                   AND organization_id = :organization_id
@@ -203,6 +236,39 @@ class TenantAuthorizer:
                 """
             ),
             {"user_id": user_id, "organization_id": organization_id},
+        )
+        role = result.scalar_one_or_none()
+        return str(role) if role is not None else None
+
+    async def _require_membership(self, user_id: UUID, organization_id: UUID) -> None:
+        if await self._organization_role(user_id, organization_id) is None:
+            raise NotFoundError("Resource not found")
+
+    async def _require_project_access(
+        self,
+        *,
+        user_id: UUID,
+        organization_id: UUID,
+        project_id: UUID,
+        allow_organization_admin: bool,
+    ) -> None:
+        role = await self._organization_role(user_id, organization_id)
+        if role is None:
+            raise NotFoundError("Resource not found")
+        if role == "owner" or (allow_organization_admin and role == "admin"):
+            return
+
+        result = await self._session.execute(
+            text(
+                """
+                SELECT 1
+                FROM core.project_members
+                WHERE user_id = :user_id
+                  AND project_id = :project_id
+                  AND status = 'active'
+                """
+            ),
+            {"user_id": user_id, "project_id": project_id},
         )
         if result.scalar_one_or_none() is None:
             raise NotFoundError("Resource not found")
