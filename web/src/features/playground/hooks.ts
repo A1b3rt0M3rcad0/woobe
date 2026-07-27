@@ -68,7 +68,7 @@ export function useAsk() {
 export function useAgentSessions(
   agentId: string | undefined,
   projectId: string | undefined,
-  environment: RuntimeEnvironment,
+  environment: RuntimeEnvironment = 'draft',
 ) {
   return useInfiniteQuery({
     queryKey: ['agent-sessions', agentId, projectId, environment],
