@@ -97,7 +97,11 @@ class InstrumentedPrimaryExecutionMixin:
         host = cast(_PrimaryExecutionHost, self)
         context = current_execution.get()
         trace_id = context.trace_id if context and context.trace_id else uuid4()
-        session_id = getattr(input_dto, "session_id", None)
+        session_id = (
+            context.session_id
+            if context is not None and context.session_id is not None
+            else getattr(input_dto, "session_id", None)
+        )
         project_id = input_dto.project_id
         agent_id = input_dto.agent_id
         rag_metadata = dict(context.rag_metadata or {}) if context else {}
