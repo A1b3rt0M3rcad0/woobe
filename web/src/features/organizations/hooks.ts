@@ -6,6 +6,8 @@ import {
   getOrganizationMembers,
   getOrganizationInvites,
   createOrganizationInvite,
+  getPendingOrganizationInvites,
+  acceptOrganizationInvite,
 } from './api'
 import type {
   UpdateOrganizationRequest,
@@ -66,6 +68,24 @@ export function useCreateInvite() {
       createOrganizationInvite(orgId, data),
     onSuccess: (_, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: ['organization-invites', orgId] })
+    },
+  })
+}
+
+export function usePendingOrganizationInvites() {
+  return useQuery({
+    queryKey: ['organization-invites', 'pending-for-user'],
+    queryFn: getPendingOrganizationInvites,
+  })
+}
+
+export function useAcceptOrganizationInvite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (inviteId: string) => acceptOrganizationInvite(inviteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-invites', 'pending-for-user'] })
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
     },
   })
 }
