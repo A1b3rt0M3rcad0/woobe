@@ -27,7 +27,12 @@ from modules.billing.application.dtos.billing_dtos import (
     GetOrganizationSubscriptionOutput,
     ListActivePlansOutput,
 )
+from shared.infra.errors import ConflictError, NotFoundError
 from shared.messaging.outbox_writer import OutboxEventWriter
+
+
+def _value(value: object) -> object:
+    return getattr(value, "value", value)
 
 
 class CreatePlanUseCase:
@@ -107,19 +112,39 @@ class CreateSubscriptionUseCase:
     def __init__(
         self,
         repo: SubscriptionRepository,
+        customer_repo: CustomerRepository,
+        plan_repo: PlanRepository,
         outbox: OutboxEventWriter,
     ) -> None:
         self._repo = repo
+        self._customer_repo = customer_repo
+        self._plan_repo = plan_repo
         self._outbox = outbox
 
     async def execute(
         self, input_dto: CreateSubscriptionInput
     ) -> CreateSubscriptionOutput:
+        customer = await self._customer_repo.get_by_id(input_dto.customer_id)
+        if customer is None:
+            raise NotFoundError("Billing customer not found")
+        if customer.organization_id != input_dto.organization_id:
+            raise ConflictError("Billing customer belongs to another organization")
+
+        provider = BillingProvider(input_dto.provider)
+        if _value(customer.provider) != _value(provider):
+            raise ConflictError("Billing customer provider does not match subscription provider")
+
+        plan = await self._plan_repo.get_by_id(input_dto.plan_id)
+        if plan is None:
+            raise NotFoundError("Billing plan not found")
+        if _value(plan.status) != _value(PlanStatus.active):
+            raise ConflictError("Billing plan is not active")
+
         subscription = Subscription(
             organization_id=input_dto.organization_id,
             customer_id=input_dto.customer_id,
             plan_id=input_dto.plan_id,
-            provider=BillingProvider(input_dto.provider),
+            provider=provider,
             provider_subscription_id=input_dto.provider_subscription_id,
             status=SubscriptionStatus(input_dto.status),
             current_period_start=input_dto.current_period_start,
