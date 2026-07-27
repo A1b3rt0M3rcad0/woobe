@@ -3,6 +3,7 @@ import type {
   OrganizationDetail,
   Member,
   Invite,
+  PendingInvite,
   UpdateOrganizationRequest,
   CreateOrganizationRequest,
   CreateInviteRequest,
@@ -30,4 +31,12 @@ export async function getOrganizationInvites(orgId: string): Promise<Invite[]> {
 
 export async function createOrganizationInvite(orgId: string, data: CreateInviteRequest): Promise<Invite> {
   return post<Invite>(`/identity/organizations/${orgId}/invites`, data)
+}
+
+export async function getPendingOrganizationInvites(): Promise<PendingInvite[]> {
+  return get<PendingInvite[]>('/identity/invites/pending')
+}
+
+export async function acceptOrganizationInvite(inviteId: string): Promise<OrganizationDetail> {
+  return post<OrganizationDetail>(`/identity/invites/${inviteId}/accept`)
 }
