@@ -36,6 +36,60 @@ class OrganizationAccessService:
             raise AuthorizationError("Unsupported organization member role")
         return actor_role
 
+    async def require_valid_invite_acceptance(
+        self,
+        *,
+        user_id: UUID,
+        invite_id: UUID,
+    ) -> None:
+        """Reject stale privileged invites created before role enforcement existed."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT i.organization_id, i.email, i.role, i.invited_by_user_id,
+                           i.status, u.email AS user_email
+                    FROM identity.organization_invites AS i
+                    JOIN identity.users AS u ON u.id = :user_id
+                    WHERE i.id = :invite_id
+                    """
+                ),
+                {"user_id": user_id, "invite_id": invite_id},
+            )
+            invite = result.mappings().first()
+            if invite is None:
+                raise NotFoundError("Invite not found")
+            if str(invite["email"]).strip().lower() != str(invite["user_email"]).strip().lower():
+                raise NotFoundError("Invite not found")
+
+            target_role = str(invite["role"]).strip().lower()
+            if target_role == "owner":
+                raise AuthorizationError("Organization ownership cannot be granted through an invitation")
+            if target_role not in {"admin", "member", "viewer"}:
+                raise AuthorizationError("Unsupported organization invite role")
+
+            inviter_role_result = await session.execute(
+                text(
+                    """
+                    SELECT role
+                    FROM identity.organization_members
+                    WHERE organization_id = :organization_id
+                      AND user_id = :invited_by_user_id
+                      AND status = 'active'
+                    """
+                ),
+                {
+                    "organization_id": invite["organization_id"],
+                    "invited_by_user_id": invite["invited_by_user_id"],
+                },
+            )
+            inviter_role = inviter_role_result.scalar_one_or_none()
+            inviter_role = str(inviter_role) if inviter_role is not None else None
+            if target_role == "admin" and inviter_role != "owner":
+                raise AuthorizationError("Only an Organization owner can grant admin membership")
+            if target_role in {"member", "viewer"} and inviter_role not in {"owner", "admin"}:
+                raise AuthorizationError("Invite issuer is no longer authorized")
+
     async def _role(
         self,
         session: AsyncSession,
