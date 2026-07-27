@@ -243,6 +243,13 @@ class VectorSnapshotRAGMixin:
         if self._embedding_factory is None:
             raise ValidationError("RAG embedding runtime is not configured")
 
+        # Session creation and the user's message happen before RAG in AskAgentUseCase.
+        # Commit that admission state before crossing the external embedding boundary so
+        # a provider failure does not make the user's submitted message disappear.
+        commit = getattr(uow, "commit", None)
+        if callable(commit):
+            await commit()
+
         try:
             embedding_client = self._embedding_factory.create_embedding_client(
                 provider=provider,
