@@ -24,6 +24,11 @@ export interface Invite {
   created_at: string | null
 }
 
+export interface PendingInvite extends Invite {
+  organization_name: string
+  organization_slug: string
+}
+
 export interface UpdateOrganizationRequest {
   name?: string
   slug?: string
