@@ -14,7 +14,7 @@ import {
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
 import { useOrganization } from '@/features/organizations/hooks'
-import { useProjects } from '@/features/projects/hooks'
+import { useProjects, useProjectsForAccessManagement } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
 const SEARCH_THRESHOLD = 5
@@ -48,9 +48,11 @@ export default function OrgProjectsPage() {
 
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
   const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
+  const { data: managedProjects } = useProjectsForAccessManagement(organizationId)
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
+  const canManageProjects = managedProjects !== undefined
 
   useEffect(() => {
     if (!org || currentOrganization?.id === org.id) return
@@ -68,7 +70,7 @@ export default function OrgProjectsPage() {
   }, [items, query])
 
   const startProjectSetup = () => {
-    if (!organizationId) return
+    if (!organizationId || !canManageProjects) return
     navigate(`/organizations/${organizationId}/setup`)
   }
 
@@ -94,10 +96,12 @@ export default function OrgProjectsPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Change Organization
           </Button>
-          <Button type="button" onClick={startProjectSetup}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Project
-          </Button>
+          {canManageProjects && (
+            <Button type="button" onClick={startProjectSetup}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Project
+            </Button>
+          )}
         </div>
       )}
     >
@@ -126,13 +130,15 @@ export default function OrgProjectsPage() {
         ) : items.length === 0 ? (
           <ResourceEmptyState
             icon={<FolderKanban className="h-4 w-4" />}
-            title="Launch your first Agent"
-            description="Create the Project boundary, configure its first Agent and continue directly to the Playground."
-            action={(
+            title={canManageProjects ? 'Create the first Project' : 'No Project access yet'}
+            description={canManageProjects
+              ? 'Create the Project boundary, configure its first Agent and continue directly to the Playground.'
+              : 'You belong to this Organization, but no Project has been shared with you yet.'}
+            action={canManageProjects ? (
               <Button type="button" size="sm" onClick={startProjectSetup}>
                 Start setup
               </Button>
-            )}
+            ) : undefined}
           />
         ) : hasSearchMiss ? (
           <ResourceEmptyState
