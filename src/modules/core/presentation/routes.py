@@ -113,6 +113,44 @@ async def list_project_members(request: FastAPIRequest, access_project_id: UUID)
     return {"success": True, "message": "ok", "data": data}
 
 
+@router.post("/projects/{access_project_id}/access", status_code=201)
+async def grant_project_subject_access(request: FastAPIRequest, access_project_id: UUID):
+    payload = await request.json()
+    subject_type = payload.get("subject_type") if isinstance(payload, dict) else None
+    subject_id = payload.get("subject_id") if isinstance(payload, dict) else None
+    if subject_type not in {"member", "invite"}:
+        raise ValidationError("subject_type must be member or invite")
+    try:
+        subject_uuid = UUID(str(subject_id))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("Invalid subject_id") from exc
+    data = await _project_access_service(request).grant_project_subject_access(
+        actor_user_id=_principal_user_id(request),
+        project_id=access_project_id,
+        subject_type=subject_type,
+        subject_id=subject_uuid,
+    )
+    return {"success": True, "message": "created", "data": data}
+
+
+@router.delete("/projects/{access_project_id}/access/{subject_type}/{subject_id}")
+async def revoke_project_subject_access(
+    request: FastAPIRequest,
+    access_project_id: UUID,
+    subject_type: str,
+    subject_id: UUID,
+):
+    if subject_type not in {"member", "invite"}:
+        raise ValidationError("subject_type must be member or invite")
+    await _project_access_service(request).revoke_project_subject_access(
+        actor_user_id=_principal_user_id(request),
+        project_id=access_project_id,
+        subject_type=subject_type,
+        subject_id=subject_id,
+    )
+    return {"success": True, "message": "deleted", "data": None}
+
+
 @router.post("/projects/{access_project_id}/members", status_code=201)
 async def grant_project_access(request: FastAPIRequest, access_project_id: UUID):
     payload = await request.json()
