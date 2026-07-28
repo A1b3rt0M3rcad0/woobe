@@ -3,6 +3,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import Request as FastAPIRequest
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from modules.identity.application.authentication_service import AuthenticationService
@@ -222,7 +223,7 @@ async def list_organizations_endpoint(request: FastAPIRequest) -> JSONResponse:
         content={
             "success": True,
             "message": "ok",
-            "data": [organization_payload(organization) for organization in organizations],
+            "data": jsonable_encoder(organizations),
         }
     )
 

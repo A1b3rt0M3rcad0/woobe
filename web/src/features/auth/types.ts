@@ -15,7 +15,11 @@ export interface Organization {
   name: string
   slug: string
   status?: string
-  created_at?: string
+  created_at?: string | null
+  membership_role?: 'owner' | 'admin' | 'member' | 'viewer'
+  can_manage_organization?: boolean
+  accessible_project_count?: number
+  access_mode?: 'implicit_owner' | 'assigned_projects'
 }
 
 export interface LoginResponse {

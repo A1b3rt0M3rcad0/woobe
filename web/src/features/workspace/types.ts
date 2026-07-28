@@ -2,6 +2,10 @@ export interface OrgShape {
   id: string
   name: string
   slug: string
+  membership_role?: 'owner' | 'admin' | 'member' | 'viewer'
+  can_manage_organization?: boolean
+  accessible_project_count?: number
+  access_mode?: 'implicit_owner' | 'assigned_projects'
 }
 
 export interface ProjectShape {
@@ -9,6 +13,8 @@ export interface ProjectShape {
   organization_id: string
   name: string
   slug: string
+  organization_role?: string
+  access_source?: 'organization_owner' | 'project_membership'
 }
 
 export interface WorkspaceContextValue {

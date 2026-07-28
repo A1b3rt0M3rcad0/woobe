@@ -1,10 +1,13 @@
 from uuid import UUID
+
 from modules.identity.application.use_cases import InviteUserUseCase
 from modules.identity.application.dtos import InviteUserInput
 from modules.identity.presentation.schemas import InviteResponse
+from shared.infra.errors import AuthenticationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.security.principal import AuthenticatedPrincipal
 
 
 class CreateInviteController(Controller):
@@ -12,9 +15,11 @@ class CreateInviteController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
+        if not isinstance(request.principal, AuthenticatedPrincipal):
+            raise AuthenticationError("Authentication required")
         body = dict(request.body)
-        body["organization_id"] = UUID(request.path_params.get("org_id"))
-        body["invited_by_user_id"] = UUID("00000000-0000-0000-0000-000000000001")
+        body["organization_id"] = UUID(str(request.path_params.get("org_id")))
+        body["invited_by_user_id"] = request.principal.user_id
         input_dto = InviteUserInput(**body)
         result = await self._use_case.execute(input_dto)
         return Response(

@@ -96,8 +96,8 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
     <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Play className="h-4 w-4 text-white" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
+            <Play className="h-4 w-4 fill-current" />
           </div>
           <div>
             <p className="text-sm font-semibold text-white">Woobe</p>

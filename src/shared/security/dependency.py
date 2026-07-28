@@ -10,12 +10,26 @@ from shared.security.http_guard import is_runtime_execution_request
 from shared.security.principal import ProjectApiPrincipal
 
 
-async def enforce_request_security(request: Request) -> AsyncIterator[None]:
-    body: Any = None
+async def _security_body(request: Request) -> Any:
+    content_type = request.headers.get("content-type", "").lower()
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        try:
+            form = await request.form()
+            return {
+                key: value
+                for key, value in form.items()
+                if isinstance(value, (str, int, float, bool))
+            }
+        except Exception:
+            return None
     try:
-        body = await request.json()
+        return await request.json()
     except Exception:
-        body = None
+        return None
+
+
+async def enforce_request_security(request: Request) -> AsyncIterator[None]:
+    body = await _security_body(request)
 
     guard = request.app.state.security_guard
     principal = await guard.authenticate_and_authorize(
