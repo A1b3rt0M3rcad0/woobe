@@ -7,8 +7,12 @@ import type { WorkspaceContextValue, OrgShape, ProjectShape } from './types'
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-const STORED_ORG_KEY = 'projectrai_org'
-const STORED_PROJECT_KEY = 'projectrai_project'
+const LEGACY_ORG_KEY = 'projectrai_org'
+const LEGACY_PROJECT_KEY = 'projectrai_project'
+
+function workspaceKey(userId: string, resource: 'organization' | 'project') {
+  return `projectrai_workspace:${userId}:${resource}`
+}
 
 function readStored<T>(key: string): T | null {
   try {
@@ -20,36 +24,53 @@ function readStored<T>(key: string): T | null {
 }
 
 function writeStored<T>(key: string, value: T | null) {
-  if (value) {
-    localStorage.setItem(key, JSON.stringify(value))
-  } else {
-    localStorage.removeItem(key)
-  }
+  if (value) localStorage.setItem(key, JSON.stringify(value))
+  else localStorage.removeItem(key)
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const [currentOrgState, setCurrentOrgState] = useState<OrgShape | null>(null)
+  const [currentProjState, setCurrentProjState] = useState<ProjectShape | null>(null)
+  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null)
 
-  const [currentOrgState, setCurrentOrgState] = useState<OrgShape | null>(() => readStored(STORED_ORG_KEY))
-  const [currentProjState, setCurrentProjState] = useState<ProjectShape | null>(() => readStored(STORED_PROJECT_KEY))
+  useEffect(() => {
+    localStorage.removeItem(LEGACY_ORG_KEY)
+    localStorage.removeItem(LEGACY_PROJECT_KEY)
+    if (!user?.id) {
+      setCurrentOrgState(null)
+      setCurrentProjState(null)
+      setHydratedUserId(null)
+      return
+    }
+    setCurrentOrgState(readStored<OrgShape>(workspaceKey(user.id, 'organization')))
+    setCurrentProjState(readStored<ProjectShape>(workspaceKey(user.id, 'project')))
+    setHydratedUserId(user.id)
+  }, [user?.id])
 
   const {
     data: organizations = [],
     isLoading: isLoadingOrganizations,
     error: orgError,
   } = useQuery({
-    queryKey: ['organizations'],
+    queryKey: ['organizations', user?.id],
     queryFn: getOrganizations,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && Boolean(user?.id) && hydratedUserId === user?.id,
   })
 
-  const orgs = useMemo(() => organizations.map((o: OrgShape) => ({ id: o.id, name: o.name, slug: o.slug })), [organizations])
+  const orgs = useMemo(() => organizations.map((o: OrgShape) => ({
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    membership_role: o.membership_role,
+    can_manage_organization: o.can_manage_organization,
+    accessible_project_count: o.accessible_project_count,
+    access_mode: o.access_mode,
+  })), [organizations])
 
   const validatedOrg = useMemo(() => {
-    if (currentOrgState && orgs.find((o) => o.id === currentOrgState.id)) {
-      return currentOrgState
-    }
-    return null
+    if (!currentOrgState) return null
+    return orgs.find((organization) => organization.id === currentOrgState.id) ?? null
   }, [currentOrgState, orgs])
 
   const {
@@ -58,9 +79,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isFetching: isFetchingProjects,
     error: projError,
   } = useQuery({
-    queryKey: ['projects', validatedOrg?.id],
+    queryKey: ['projects', user?.id, validatedOrg?.id],
     queryFn: () => getProjects(validatedOrg?.id),
-    enabled: isAuthenticated && !!validatedOrg?.id,
+    enabled: isAuthenticated && Boolean(user?.id) && hydratedUserId === user?.id && Boolean(validatedOrg?.id),
   })
 
   const projs = useMemo(() => projects.map((p: ProjectShape) => ({
@@ -68,53 +89,63 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     organization_id: p.organization_id,
     name: p.name,
     slug: p.slug,
+    organization_role: p.organization_role,
+    access_source: p.access_source,
   })), [projects])
 
   const validatedProject = useMemo(() => {
-    if (!validatedOrg) return null
-    if (currentProjState && currentProjState.organization_id === validatedOrg.id && projs.find((p) => p.id === currentProjState.id)) {
-      return currentProjState
-    }
-    return null
+    if (!validatedOrg || !currentProjState) return null
+    if (currentProjState.organization_id !== validatedOrg.id) return null
+    return projs.find((project) => project.id === currentProjState.id) ?? null
   }, [currentProjState, validatedOrg, projs])
 
   const selectOrganization = useCallback((org: OrgShape) => {
+    if (!user?.id) return
     setCurrentOrgState(org)
     setCurrentProjState(null)
-    writeStored(STORED_ORG_KEY, org)
-    writeStored(STORED_PROJECT_KEY, null)
-  }, [])
+    writeStored(workspaceKey(user.id, 'organization'), org)
+    writeStored(workspaceKey(user.id, 'project'), null)
+  }, [user?.id])
 
   const selectProject = useCallback((project: ProjectShape) => {
+    if (!user?.id) return
     setCurrentProjState(project)
-    writeStored(STORED_PROJECT_KEY, project)
-  }, [])
+    writeStored(workspaceKey(user.id, 'project'), project)
+  }, [user?.id])
 
   const clearCurrentProject = useCallback(() => {
     setCurrentProjState(null)
-    writeStored(STORED_PROJECT_KEY, null)
-  }, [])
+    if (user?.id) writeStored(workspaceKey(user.id, 'project'), null)
+  }, [user?.id])
 
   const clearCurrentOrganization = useCallback(() => {
     setCurrentOrgState(null)
     setCurrentProjState(null)
-    writeStored(STORED_ORG_KEY, null)
-    writeStored(STORED_PROJECT_KEY, null)
-  }, [])
+    if (user?.id) {
+      writeStored(workspaceKey(user.id, 'organization'), null)
+      writeStored(workspaceKey(user.id, 'project'), null)
+    }
+  }, [user?.id])
 
   useEffect(() => {
-    if (
-      isAuthenticated
-      && !isLoadingOrganizations
-      && !validatedOrg
-      && orgs.length === 1
-    ) {
-      selectOrganization(orgs[0])
+    if (!user?.id || hydratedUserId !== user.id || isLoadingOrganizations) return
+    if (currentOrgState && !validatedOrg) {
+      setCurrentOrgState(null)
+      setCurrentProjState(null)
+      writeStored(workspaceKey(user.id, 'organization'), null)
+      writeStored(workspaceKey(user.id, 'project'), null)
+      return
     }
-  }, [isAuthenticated, isLoadingOrganizations, orgs, selectOrganization, validatedOrg])
+    if (!validatedOrg && orgs.length === 1) selectOrganization(orgs[0])
+  }, [currentOrgState, hydratedUserId, isLoadingOrganizations, orgs, selectOrganization, user?.id, validatedOrg])
+
+  useEffect(() => {
+    if (!user?.id || !currentProjState || isLoadingProjects || validatedProject) return
+    setCurrentProjState(null)
+    writeStored(workspaceKey(user.id, 'project'), null)
+  }, [currentProjState, isLoadingProjects, user?.id, validatedProject])
 
   const workspaceError = (orgError || projError) as Error | null
-
   const value = useMemo(() => ({
     organizations: orgs,
     currentOrganization: validatedOrg,
@@ -124,17 +155,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     selectProject,
     clearCurrentProject,
     clearCurrentOrganization,
-    isLoadingOrganizations,
+    isLoadingOrganizations: isLoadingOrganizations || (Boolean(user?.id) && hydratedUserId !== user.id),
     isLoadingProjects,
     isFetchingProjects,
     workspaceError,
-  }), [orgs, validatedOrg, projs, validatedProject, selectOrganization, selectProject, clearCurrentProject, clearCurrentOrganization, isLoadingOrganizations, isLoadingProjects, isFetchingProjects, workspaceError])
+  }), [orgs, validatedOrg, projs, validatedProject, selectOrganization, selectProject, clearCurrentProject, clearCurrentOrganization, isLoadingOrganizations, user?.id, hydratedUserId, isLoadingProjects, isFetchingProjects, workspaceError])
 
-  return (
-    <WorkspaceContext.Provider value={value}>
-      {children}
-    </WorkspaceContext.Provider>
-  )
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
 
 export function useWorkspace() {
