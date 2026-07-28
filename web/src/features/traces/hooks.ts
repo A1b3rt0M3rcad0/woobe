@@ -10,6 +10,7 @@ import {
 import type { Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
+const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 
 function isTerminalStatus(status: string | undefined): boolean {
@@ -41,7 +42,7 @@ export function useTraces(projectId?: string, networkId?: string) {
     staleTime: 2_000,
     refetchInterval: (query) => hasActiveTrace(query.state.data as Trace[] | undefined)
       ? TRACE_REFRESH_INTERVAL_MS
-      : false,
+      : IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: false,
   })
 }
