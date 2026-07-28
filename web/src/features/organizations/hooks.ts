@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/features/auth/AuthProvider'
+import type { Organization } from '@/features/auth/types'
 import {
   getOrganization,
   updateOrganization,
@@ -12,6 +14,7 @@ import {
   acceptOrganizationInvite,
 } from './api'
 import type {
+  PendingInvite,
   UpdateOrganizationRequest,
   CreateOrganizationRequest,
   CreateInviteRequest,
@@ -106,10 +109,29 @@ export function usePendingOrganizationInvites() {
 
 export function useAcceptOrganizationInvite() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   return useMutation({
     mutationFn: (inviteId: string) => acceptOrganizationInvite(inviteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['organization-invites', 'pending-for-user'] })
+    onSuccess: (organization, inviteId) => {
+      const pendingInvites = queryClient.getQueryData<PendingInvite[]>(['organization-invites', 'pending-for-user']) ?? []
+      const acceptedInvite = pendingInvites.find((invite) => invite.id === inviteId)
+      const membershipRole: Organization['membership_role'] = acceptedInvite?.role === 'admin' ? 'admin' : 'member'
+      if (user?.id) {
+        queryClient.setQueryData<Organization[]>(['organizations', user.id], (current = []) => {
+          const summary: Organization = {
+            ...organization,
+            membership_role: membershipRole,
+            can_manage_organization: membershipRole === 'admin',
+            accessible_project_count: acceptedInvite?.project_count ?? 0,
+            access_mode: 'assigned_projects',
+          }
+          return [...current.filter((item) => item.id !== organization.id), summary]
+        })
+      }
+      queryClient.setQueryData<PendingInvite[]>(
+        ['organization-invites', 'pending-for-user'],
+        (current = []) => current.filter((invite) => invite.id !== inviteId),
+      )
       void queryClient.invalidateQueries({ queryKey: ['organizations'] })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
