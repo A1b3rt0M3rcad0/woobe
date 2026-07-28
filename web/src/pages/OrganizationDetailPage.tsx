@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { useOrganization, useUpdateOrganization, useOrganizationMembers, useOrganizationInvites, useCreateInvite } from '@/features/organizations/hooks'
 import {
   useGrantProjectAccess,
@@ -28,14 +29,23 @@ import type { ProjectAccessMember } from '@/features/projects/types'
 export default function OrganizationDetailPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
-  const { selectOrganization } = useWorkspace()
+  const { user } = useAuth()
+  const { currentOrganization, selectOrganization } = useWorkspace()
 
   const { data: org, isLoading, isError, error, refetch } = useOrganization(organizationId)
   const updateOrg = useUpdateOrganization()
   const { data: members } = useOrganizationMembers(organizationId)
-  const { data: invites } = useOrganizationInvites(organizationId)
+
+  const currentMembership = members?.find((member) => (
+    member.user_id === user?.id && member.status.toLowerCase() === 'active'
+  ))
+  const currentRole = currentMembership?.role?.toLowerCase()
+  const canManageOrganization = currentRole === 'owner' || currentRole === 'admin'
+  const canInviteAdmin = currentRole === 'owner'
+
+  const { data: invites } = useOrganizationInvites(organizationId, canManageOrganization)
   const createInvite = useCreateInvite()
-  const { data: projectAccess } = useProjectsForAccessManagement(organizationId)
+  const { data: projectAccess } = useProjectsForAccessManagement(organizationId, canManageOrganization)
   const grantProjectAccess = useGrantProjectAccess()
   const revokeProjectAccess = useRevokeProjectAccess()
 
@@ -54,8 +64,18 @@ export default function OrganizationDetailPage() {
     defaultValues: { role: 'member' },
   })
 
+  useEffect(() => {
+    if (!org || currentOrganization?.id === org.id) return
+    selectOrganization({ id: org.id, name: org.name, slug: org.slug })
+  }, [currentOrganization, org, selectOrganization])
+
+  useEffect(() => {
+    if (canInviteAdmin || inviteForm.getValues('role') !== 'admin') return
+    inviteForm.setValue('role', 'member')
+  }, [canInviteAdmin, inviteForm])
+
   const handleSave = async (data: UpdateOrganizationFormData) => {
-    if (!organizationId) return
+    if (!organizationId || !canManageOrganization) return
     try {
       const updated = await updateOrg.mutateAsync({
         id: organizationId,
@@ -69,7 +89,11 @@ export default function OrganizationDetailPage() {
   }
 
   const handleInvite = async (data: InviteMemberFormData) => {
-    if (!organizationId) return
+    if (!organizationId || !canManageOrganization) return
+    if (data.role === 'admin' && !canInviteAdmin) {
+      toast.error('Only the Organization owner can invite admins')
+      return
+    }
     try {
       await createInvite.mutateAsync({
         orgId: organizationId,
@@ -77,14 +101,14 @@ export default function OrganizationDetailPage() {
       })
       toast.success('Invite sent')
       setShowInvite(false)
-      inviteForm.reset()
+      inviteForm.reset({ role: 'member' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send invite')
     }
   }
 
   const handleGrantProjectAccess = async () => {
-    if (!selectedProjectId || !accessEmail.trim()) return
+    if (!selectedProjectId || !accessEmail.trim() || !selectedProjectMembers?.can_manage) return
     try {
       await grantProjectAccess.mutateAsync({
         projectId: selectedProjectId,
@@ -98,7 +122,7 @@ export default function OrganizationDetailPage() {
   }
 
   const handleRevokeProjectAccess = async (member: ProjectAccessMember) => {
-    if (!selectedProjectId || member.implicit_owner) return
+    if (!selectedProjectId || member.implicit_owner || !selectedProjectMembers?.can_manage) return
     try {
       await revokeProjectAccess.mutateAsync({
         projectId: selectedProjectId,
@@ -162,7 +186,7 @@ export default function OrganizationDetailPage() {
         description={`/${org.slug} · ${org.status}`}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/organizations`)}>
+            <Button variant="outline" onClick={() => navigate('/organizations')}>
               <X className="mr-2 h-4 w-4" />
               Back to organizations
             </Button>
@@ -174,15 +198,18 @@ export default function OrganizationDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Details</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-lg">Details</CardTitle>
+              {currentRole && <StatusBadge status={currentRole} />}
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-              <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="Organization name" />
-              <Input {...form.register('slug')} error={form.formState.errors.slug?.message} placeholder="slug" />
+              <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="Organization name" disabled={!canManageOrganization} />
+              <Input {...form.register('slug')} error={form.formState.errors.slug?.message} placeholder="slug" disabled={!canManageOrganization} />
               <div className="flex items-center gap-2 text-sm text-muted">
                 <span>ID: {org.id}</span>
               </div>
@@ -194,12 +221,16 @@ export default function OrganizationDetailPage() {
                   <span>Created: {new Date(org.created_at).toLocaleDateString()}</span>
                 </div>
               )}
-              <div className="flex justify-end">
-                <Button type="submit" loading={updateOrg.isPending}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
-              </div>
+              {canManageOrganization ? (
+                <div className="flex justify-end">
+                  <Button type="submit" loading={updateOrg.isPending}>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted">Organization details are read-only for members.</p>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -207,9 +238,7 @@ export default function OrganizationDetailPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Members</CardTitle>
-              </div>
+              <CardTitle className="text-lg">Members</CardTitle>
             </CardHeader>
             <CardContent>
               {members && members.length > 0 ? (
@@ -222,30 +251,32 @@ export default function OrganizationDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Invites</CardTitle>
-                <Button size="sm" onClick={() => setShowInvite(true)}>
-                  <UserPlus className="mr-1 h-4 w-4" />
-                  Invite
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {invites && invites.length > 0 ? (
-                <div className="p-0">
-                  <Table columns={inviteColumns} data={invites} keyExtractor={(i) => i.id} />
+          {canManageOrganization && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Invites</CardTitle>
+                  <Button size="sm" onClick={() => setShowInvite(true)}>
+                    <UserPlus className="mr-1 h-4 w-4" />
+                    Invite
+                  </Button>
                 </div>
-              ) : (
-                <p className="text-sm text-muted">No pending invites.</p>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {invites && invites.length > 0 ? (
+                  <div className="p-0">
+                    <Table columns={inviteColumns} data={invites} keyExtractor={(i) => i.id} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted">No pending invites.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      {projectAccess && (
+      {canManageOrganization && projectAccess && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -281,17 +312,17 @@ export default function OrganizationDetailPage() {
         </Card>
       )}
 
-      <Dialog open={showInvite} onClose={() => setShowInvite(false)} title="Invite Member">
+      <Dialog open={showInvite && canManageOrganization} onClose={() => setShowInvite(false)} title="Invite Member">
         <form onSubmit={inviteForm.handleSubmit(handleInvite)} className="space-y-4">
           <Input {...inviteForm.register('email')} error={inviteForm.formState.errors.email?.message} placeholder="Email address" />
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">Organization role</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Organization role</label>
             <select
               {...inviteForm.register('role')}
               className="flex h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
             >
               <option value="member">Member</option>
-              <option value="admin">Admin</option>
+              {canInviteAdmin && <option value="admin">Admin</option>}
             </select>
           </div>
           <p className="text-xs text-muted">Joining the Organization does not automatically grant access to its Projects.</p>
@@ -303,7 +334,7 @@ export default function OrganizationDetailPage() {
       </Dialog>
 
       <Dialog
-        open={Boolean(selectedProjectId)}
+        open={Boolean(selectedProjectId) && canManageOrganization}
         onClose={() => {
           setSelectedProjectId(undefined)
           setAccessEmail('')
