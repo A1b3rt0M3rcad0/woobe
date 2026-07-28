@@ -1,9 +1,9 @@
 import { del, get, post, patch } from '@/lib/api/client'
 import type {
   Project,
-  ProjectAccessMember,
   ProjectAccessSummary,
   ProjectMembersResponse,
+  ProjectAccessSubject,
   CreateProjectRequest,
   UpdateProjectRequest,
 } from './types'
@@ -32,10 +32,21 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
   return get<ProjectMembersResponse>(`/core/projects/${projectId}/members`)
 }
 
-export async function grantProjectAccess(projectId: string, email: string): Promise<ProjectAccessMember> {
-  return post<ProjectAccessMember>(`/core/projects/${projectId}/members`, { email })
+export async function grantProjectSubjectAccess(
+  projectId: string,
+  subjectType: ProjectAccessSubject['subject_type'],
+  subjectId: string,
+): Promise<{ subject_type: string; subject_id: string; project_access: string; access_id: string }> {
+  return post(`/core/projects/${projectId}/access`, {
+    subject_type: subjectType,
+    subject_id: subjectId,
+  })
 }
 
-export async function revokeProjectAccess(projectId: string, userId: string): Promise<void> {
-  return del<void>(`/core/projects/${projectId}/members/${userId}`)
+export async function revokeProjectSubjectAccess(
+  projectId: string,
+  subjectType: ProjectAccessSubject['subject_type'],
+  subjectId: string,
+): Promise<void> {
+  return del<void>(`/core/projects/${projectId}/access/${subjectType}/${subjectId}`)
 }
