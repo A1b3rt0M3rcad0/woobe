@@ -2,20 +2,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.identity.application.composers.create_invite_composer import (
-    create_invite_composer,
-)
 from modules.identity.application.composers.get_organization_composer import (
     get_organization_composer,
 )
 from modules.identity.application.composers.get_user_composer import get_user_composer
-from modules.identity.application.composers.list_invites_composer import (
-    list_invites_composer,
-)
-from modules.identity.application.composers.list_members_composer import list_members_composer
 from modules.identity.application.composers.update_organization_composer import (
     update_organization_composer,
 )
+from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.auth_endpoints import (
     authentication_service,
     create_organization_endpoint,
@@ -154,35 +148,89 @@ async def update_organization(request: FastAPIRequest, org_id: str):
 
 @router.get("/organizations/{org_id}/members")
 async def list_members(request: FastAPIRequest, org_id: str):
-    del org_id
-    handler = list_members_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    data = await _organization_access(request).list_members(
+        actor_user_id=_principal_user_id(request),
+        organization_id=_uuid(org_id, "organization id"),
+    )
+    return {"success": True, "message": "ok", "data": data}
 
 
-@router.post("/organizations/{org_id}/invites")
+@router.delete("/organizations/{org_id}/members/{target_user_id}")
+async def remove_member(request: FastAPIRequest, org_id: str, target_user_id: UUID):
+    data = await _organization_access(request).remove_member(
+        actor_user_id=_principal_user_id(request),
+        organization_id=_uuid(org_id, "organization id"),
+        target_user_id=target_user_id,
+    )
+    return {"success": True, "message": "removed", "data": data}
+
+
+@router.post("/organizations/{org_id}/invites", status_code=201)
 async def create_invite(request: FastAPIRequest, org_id: str):
     principal_user_id = _principal_user_id(request)
+    organization_id = _uuid(org_id, "organization id")
     payload = dict(await request.json())
-    role = payload.get("role", "member")
-    if not isinstance(role, str):
+    role_value = payload.get("role", "member")
+    email = payload.get("email")
+    project_values = payload.get("project_ids", [])
+    if not isinstance(role_value, str):
         raise ValidationError("Invalid invite role")
+    if not isinstance(email, str) or not email.strip():
+        raise ValidationError("Invite email is required")
+    if not isinstance(project_values, list):
+        raise ValidationError("project_ids must be a list")
+    try:
+        role = MemberRole(role_value.strip().lower())
+        project_ids = [UUID(str(value)) for value in project_values]
+    except (ValueError, TypeError) as exc:
+        raise ValidationError("Invalid invite role or Project id") from exc
+
     await _organization_access(request).require_role_assignment(
         actor_user_id=principal_user_id,
-        organization_id=_uuid(org_id, "organization id"),
-        target_role=role,
+        organization_id=organization_id,
+        target_role=role.value,
     )
-    handler = create_invite_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    invite = await authentication_service(request).create_invite(
+        actor_user_id=principal_user_id,
+        organization_id=organization_id,
+        email=email,
+        role=role,
+        project_ids=project_ids,
+    )
+    return {
+        "success": True,
+        "message": "created",
+        "data": {
+            "id": invite.id,
+            "organization_id": invite.organization_id,
+            "email": invite.email,
+            "role": invite.role.value,
+            "status": invite.status.value,
+            "expires_at": invite.expires_at,
+            "created_at": invite.created_at,
+            "project_ids": project_ids,
+            "project_count": len(project_ids),
+        },
+    }
 
 
 @router.get("/organizations/{org_id}/invites")
 async def list_invites(request: FastAPIRequest, org_id: str):
-    del org_id
-    handler = list_invites_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    data = await _organization_access(request).list_invites(
+        actor_user_id=_principal_user_id(request),
+        organization_id=_uuid(org_id, "organization id"),
+    )
+    return {"success": True, "message": "ok", "data": data}
+
+
+@router.delete("/organizations/{org_id}/invites/{invite_id}")
+async def cancel_invite(request: FastAPIRequest, org_id: str, invite_id: UUID):
+    data = await _organization_access(request).cancel_invite(
+        actor_user_id=_principal_user_id(request),
+        organization_id=_uuid(org_id, "organization id"),
+        invite_id=invite_id,
+    )
+    return {"success": True, "message": "cancelled", "data": data}
 
 
 @router.get("/users/{user_id}")
