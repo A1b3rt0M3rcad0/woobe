@@ -155,7 +155,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     selectProject,
     clearCurrentProject,
     clearCurrentOrganization,
-    isLoadingOrganizations: isLoadingOrganizations || (Boolean(user?.id) && hydratedUserId !== user.id),
+    isLoadingOrganizations: isLoadingOrganizations || (Boolean(user?.id) && hydratedUserId !== user?.id),
     isLoadingProjects,
     isFetchingProjects,
     workspaceError,
