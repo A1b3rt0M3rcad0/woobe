@@ -184,6 +184,8 @@ async def create_invite(request: FastAPIRequest, org_id: str):
         project_ids = [UUID(str(value)) for value in project_values]
     except (ValueError, TypeError) as exc:
         raise ValidationError("Invalid invite role or Project id") from exc
+    if role not in {MemberRole.member, MemberRole.admin}:
+        raise ValidationError("Only member and admin invitation roles are supported in the MVP")
 
     await _organization_access(request).require_role_assignment(
         actor_user_id=principal_user_id,
