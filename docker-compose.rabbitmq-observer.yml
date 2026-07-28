@@ -6,7 +6,7 @@ services:
       - rabbitmq_trace_data:/var/lib/rabbitmq/tracing
 
   rabbitmq-observer-init:
-    image: curlimages/curl:8.12.1
+    image: curlimages/curl:8.21.0
     entrypoint: ["/bin/sh", "/opt/projectrai/init-observer.sh"]
     environment:
       RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
