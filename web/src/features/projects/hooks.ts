@@ -64,11 +64,11 @@ export function useUpdateProject() {
   })
 }
 
-export function useProjectsForAccessManagement(organizationId: string | undefined) {
+export function useProjectsForAccessManagement(organizationId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['project-access', organizationId],
     queryFn: () => getProjectsForAccessManagement(organizationId!),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && enabled,
     retry: false,
   })
 }
