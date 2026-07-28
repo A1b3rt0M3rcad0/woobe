@@ -20,6 +20,8 @@ def upgrade() -> None:
         "project_invite_access",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("project_id", sa.Uuid(), nullable=False),
+        # Identity ownership stays outside Core. The invite id is validated by
+        # the application service instead of a cross-module database FK.
         sa.Column("organization_invite_id", sa.Uuid(), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False, server_default="pending"),
         sa.Column("granted_by_user_id", sa.Uuid(), nullable=True),
@@ -39,12 +41,6 @@ def upgrade() -> None:
             ["project_id"],
             ["core.projects.id"],
             name="fk_core_project_invite_access_project_id",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["organization_invite_id"],
-            ["identity.organization_invites.id"],
-            name="fk_core_project_invite_access_invite_id",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_core_project_invite_access"),
