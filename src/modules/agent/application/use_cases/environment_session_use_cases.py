@@ -12,7 +12,10 @@ from modules.agent.application.dtos.runtime_dtos import (
 )
 from modules.agent.domain.entities import Session
 from modules.agent.domain.enums import ReleaseStatus, RuntimeSessionMode, SessionStatus
-from modules.agent.domain.errors import AgentNotFoundError, RuntimeEnvironmentNotReadyError
+from modules.agent.domain.errors import (
+    AgentNotFoundError,
+    RuntimeEnvironmentNotReadyError,
+)
 from modules.agent.domain.events import AgentSessionCreatedV1
 from shared.infra.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
@@ -22,14 +25,18 @@ _VALID_ENVIRONMENTS = {"draft", "staging", "production"}
 
 
 def _release_sort_key(release: Any) -> float:
-    value = getattr(release, "updated_at", None) or getattr(release, "created_at", None)
+    value = getattr(release, "updated_at", None) or getattr(
+        release, "created_at", None
+    )
     return value.timestamp() if value is not None else 0.0
 
 
 def _session_data(data: dict | None) -> dict | None:
     if not isinstance(data, dict):
         return None
-    sanitized = {key: value for key, value in data.items() if key not in _LEGACY_RUNTIME_KEYS}
+    sanitized = {
+        key: value for key, value in data.items() if key not in _LEGACY_RUNTIME_KEYS
+    }
     return sanitized or None
 
 
@@ -59,15 +66,28 @@ class EnvironmentAwareCreateSessionUseCase:
                 raise RuntimeEnvironmentNotReadyError("production", agent_id)
             return release.id
 
-        releases = await self._release_repo.list_by_status(agent_id, ReleaseStatus.staging)
-        if not releases:
+        get_active_staging = getattr(
+            self._release_repo, "get_active_staging", None
+        )
+        if callable(get_active_staging):
+            release = await get_active_staging(agent_id)
+        else:
+            releases = await self._release_repo.list_by_status(
+                agent_id, ReleaseStatus.staging
+            )
+            release = max(releases, key=_release_sort_key) if releases else None
+        if release is None:
             raise RuntimeEnvironmentNotReadyError("staging", agent_id)
-        return max(releases, key=_release_sort_key).id
+        return release.id
 
-    async def execute(self, input_dto: CreateSessionInput) -> CreateSessionOutput:
+    async def execute(
+        self, input_dto: CreateSessionInput
+    ) -> CreateSessionOutput:
         environment = input_dto.runtime_environment
         if environment not in _VALID_ENVIRONMENTS:
-            raise ValidationError("runtime_environment must be draft, staging or production")
+            raise ValidationError(
+                "runtime_environment must be draft, staging or production"
+            )
 
         agent = await self._agent_repo.get_by_id(input_dto.agent_id)
         if agent is None or agent.project_id != input_dto.project_id:
@@ -75,9 +95,13 @@ class EnvironmentAwareCreateSessionUseCase:
 
         session_mode = getattr(agent.session_mode, "value", agent.session_mode)
         if session_mode == "stateless":
-            raise ValidationError("Stateless Agents do not create persistent Sessions")
+            raise ValidationError(
+                "Stateless Agents do not create persistent Sessions"
+            )
 
-        opened_release_id = await self._opening_release_id(input_dto.agent_id, environment)
+        opened_release_id = await self._opening_release_id(
+            input_dto.agent_id, environment
+        )
         session = Session(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
@@ -101,7 +125,9 @@ class EnvironmentAwareCreateSessionUseCase:
                 payload={
                     "mode": created.mode,
                     "runtime_environment": created.runtime_environment,
-                    "opened_release_id": str(created.opened_release_id) if created.opened_release_id else None,
+                    "opened_release_id": str(created.opened_release_id)
+                    if created.opened_release_id
+                    else None,
                 },
             )
         )
@@ -128,10 +154,14 @@ class EnvironmentAwareListAgentSessionsUseCase:
     def __init__(self, session_repo) -> None:
         self._session_repo = session_repo
 
-    async def execute(self, input_dto: ListAgentSessionsInput) -> ListAgentSessionsPageOutput:
+    async def execute(
+        self, input_dto: ListAgentSessionsInput
+    ) -> ListAgentSessionsPageOutput:
         environment = input_dto.environment or "draft"
         if environment not in _VALID_ENVIRONMENTS:
-            raise ValidationError("environment must be draft, staging or production")
+            raise ValidationError(
+                "environment must be draft, staging or production"
+            )
 
         page = await self._session_repo.paginate_by_agent_environment(
             input_dto.project_id,
