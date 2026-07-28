@@ -4,8 +4,10 @@ import {
   updateOrganization,
   createOrganizationFromApi,
   getOrganizationMembers,
+  removeOrganizationMember,
   getOrganizationInvites,
   createOrganizationInvite,
+  cancelOrganizationInvite,
   getPendingOrganizationInvites,
   acceptOrganizationInvite,
 } from './api'
@@ -26,11 +28,10 @@ export function useOrganization(id: string | undefined) {
 export function useUpdateOrganization() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateOrganizationRequest }) =>
-      updateOrganization(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateOrganizationRequest }) => updateOrganization(id, data),
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['organization', id] })
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      void queryClient.invalidateQueries({ queryKey: ['organization', id] })
+      void queryClient.invalidateQueries({ queryKey: ['organizations'] })
     },
   })
 }
@@ -39,9 +40,7 @@ export function useCreateOrganization() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateOrganizationRequest) => createOrganizationFromApi(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
-    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['organizations'] }),
   })
 }
 
@@ -50,6 +49,19 @@ export function useOrganizationMembers(orgId: string | undefined) {
     queryKey: ['organization-members', orgId],
     queryFn: () => getOrganizationMembers(orgId!),
     enabled: Boolean(orgId),
+  })
+}
+
+export function useRemoveOrganizationMember() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, userId }: { orgId: string; userId: string }) => removeOrganizationMember(orgId, userId),
+    onSuccess: (_, { orgId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['organization-members', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['organization-invites', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['project-access', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['project-members'] })
+    },
   })
 }
 
@@ -64,10 +76,23 @@ export function useOrganizationInvites(orgId: string | undefined, enabled = true
 export function useCreateInvite() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ orgId, data }: { orgId: string; data: CreateInviteRequest }) =>
-      createOrganizationInvite(orgId, data),
+    mutationFn: ({ orgId, data }: { orgId: string; data: CreateInviteRequest }) => createOrganizationInvite(orgId, data),
     onSuccess: (_, { orgId }) => {
-      queryClient.invalidateQueries({ queryKey: ['organization-invites', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['organization-invites', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['project-members'] })
+      void queryClient.invalidateQueries({ queryKey: ['project-access', orgId] })
+    },
+  })
+}
+
+export function useCancelOrganizationInvite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, inviteId }: { orgId: string; inviteId: string }) => cancelOrganizationInvite(orgId, inviteId),
+    onSuccess: (_, { orgId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['organization-invites', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['project-members'] })
+      void queryClient.invalidateQueries({ queryKey: ['project-access', orgId] })
     },
   })
 }
@@ -84,8 +109,9 @@ export function useAcceptOrganizationInvite() {
   return useMutation({
     mutationFn: (inviteId: string) => acceptOrganizationInvite(inviteId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization-invites', 'pending-for-user'] })
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      void queryClient.invalidateQueries({ queryKey: ['organization-invites', 'pending-for-user'] })
+      void queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }
