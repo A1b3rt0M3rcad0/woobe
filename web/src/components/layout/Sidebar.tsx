@@ -50,11 +50,6 @@ const operateNavItems: NavItem[] = [
   { label: 'Traces', icon: Activity, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'traces') },
 ]
 
-const accountNavItems: NavItem[] = [
-  { label: 'Billing', icon: CreditCard, href: '/billing' },
-  { label: 'Settings', icon: Settings, href: '/settings' },
-]
-
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
     <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">
@@ -99,13 +94,24 @@ function ProjectNavGroup({ title, items, orgId, projId }: { title: string; items
   )
 }
 
-function AccountNavGroup() {
+function OrganizationNavGroup({ orgId }: { orgId: string }) {
+  const organizationItems: Array<{ item: NavItem; href: string }> = [
+    {
+      item: { label: 'Organization', icon: Building2, href: `/organizations/${orgId}/settings` },
+      href: `/organizations/${orgId}/settings`,
+    },
+    {
+      item: { label: 'Billing', icon: CreditCard, href: `/organizations/${orgId}/billing` },
+      href: `/organizations/${orgId}/billing`,
+    },
+  ]
+
   return (
     <section className="space-y-2 border-t border-border p-3">
-      <SidebarSectionTitle>Account</SidebarSectionTitle>
+      <SidebarSectionTitle>Organization</SidebarSectionTitle>
       <div className="space-y-1">
-        {accountNavItems.map((item) => (
-          <SidebarNavLink key={item.label} item={item} href={item.href as string} />
+        {organizationItems.map(({ item, href }) => (
+          <SidebarNavLink key={item.label} item={item} href={href} />
         ))}
       </div>
     </section>
@@ -246,6 +252,12 @@ function ProjectContextCard({
 
           <div className="border-t border-border pt-2">
             <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Organization</p>
+            <ContextMenuItem
+              icon={Settings}
+              title="Organization settings"
+              description="Members, invites and Project access"
+              onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/settings`)}
+            />
             {organizations.map((organization) => (
               <ContextMenuItem
                 key={organization.id}
@@ -358,7 +370,7 @@ export function Sidebar() {
         </nav>
       </ScrollArea>
 
-      <AccountNavGroup />
+      {orgId && <OrganizationNavGroup orgId={orgId} />}
       <SidebarUserCard />
     </aside>
   )
