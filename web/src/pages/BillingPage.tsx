@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { usePlans, useOrganizationSubscription } from '@/features/billing/hooks'
+import { useOrganization } from '@/features/organizations/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { PageHeader } from '@/components/common/PageHeader'
 import { GuidedEmptyState } from '@/components/common/GuidedEmptyState'
@@ -13,22 +16,38 @@ import { Check, CreditCard, ShieldCheck, WalletCards } from 'lucide-react'
 import type { Plan } from '@/features/billing/types'
 
 export default function BillingPage() {
-  const { currentOrganization } = useWorkspace()
+  const { organizationId } = useParams<{ organizationId: string }>()
+  const { currentOrganization, selectOrganization } = useWorkspace()
+  const {
+    data: organization,
+    isLoading: organizationLoading,
+    isError: organizationError,
+    error: organizationErrorValue,
+    refetch: refetchOrganization,
+  } = useOrganization(organizationId)
   const { data: plans, isLoading: plansLoading, isError: plansError, refetch: refetchPlans } = usePlans()
-  const { data: subscription, isLoading: subLoading } = useOrganizationSubscription(currentOrganization?.id)
+  const { data: subscription, isLoading: subLoading } = useOrganizationSubscription(organizationId)
 
-  if (plansLoading || subLoading) return <LoadingState />
+  useEffect(() => {
+    if (!organization || currentOrganization?.id === organization.id) return
+    selectOrganization({ id: organization.id, name: organization.name, slug: organization.slug })
+  }, [currentOrganization, organization, selectOrganization])
+
+  if (!organizationId) return <ErrorState message="Organization not found" />
+  if (organizationLoading || plansLoading || subLoading) return <LoadingState />
+  if (organizationError) return <ErrorState error={organizationErrorValue} onRetry={refetchOrganization} />
   if (plansError) return <ErrorState onRetry={refetchPlans} />
+  if (!organization) return <ErrorState message="Organization not found" />
 
   const planItems = plans ?? []
   const currentPlan = planItems.find((plan) => plan.id === subscription?.plan_id)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Billing" description="Manage subscription status, available plans and organization billing limits." />
+      <PageHeader title="Billing" description={`Manage subscription status, plans and limits for ${organization.name}.`} />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <ResourceSummaryCard label="Organization" value={currentOrganization?.name || 'None'} detail="Billing context" icon={<WalletCards className="h-5 w-5" />} />
+        <ResourceSummaryCard label="Organization" value={organization.name} detail="Billing context" icon={<WalletCards className="h-5 w-5" />} />
         <ResourceSummaryCard label="Current plan" value={currentPlan?.name || 'Pending'} detail={subscription?.status || 'Billing not connected'} icon={<CreditCard className="h-5 w-5" />} />
         <ResourceSummaryCard label="Status" value={subscription?.status || 'Pending'} detail="Subscription state" icon={<ShieldCheck className="h-5 w-5" />} />
       </div>
