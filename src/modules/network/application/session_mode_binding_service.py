@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.infra.database.models import AgentReleaseModel
@@ -129,9 +130,14 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
         project_id: UUID,
         bindings: dict[str, Any],
     ) -> None:
+        parsed: dict[str, tuple[dict[str, Any], UUID, UUID]] = {}
+        release_ids: set[UUID] = set()
+
         for node_id, raw_binding in bindings.items():
             if not isinstance(raw_binding, dict):
-                raise ConflictError(f"Invalid Agent binding for Network node: {node_id}")
+                raise ConflictError(
+                    f"Invalid Agent binding for Network node: {node_id}"
+                )
 
             raw_release_id = raw_binding.get("release_id")
             raw_agent_id = raw_binding.get("agent_id")
@@ -143,7 +149,19 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
                     f"Network node has no valid immutable Agent binding: {node_id}"
                 ) from exc
 
-            release = await session.get(AgentReleaseModel, release_id)
+            parsed[node_id] = (raw_binding, release_id, agent_id)
+            release_ids.add(release_id)
+
+        if not parsed:
+            return
+
+        result = await session.execute(
+            select(AgentReleaseModel).where(AgentReleaseModel.id.in_(release_ids))
+        )
+        releases = {release.id: release for release in result.scalars().all()}
+
+        for node_id, (raw_binding, release_id, agent_id) in parsed.items():
+            release = releases.get(release_id)
             if release is None:
                 raise ConflictError(
                     f"Agent snapshot pinned by Network node was not found: {node_id}"
