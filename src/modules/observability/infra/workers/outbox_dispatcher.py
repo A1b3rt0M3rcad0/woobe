@@ -182,10 +182,21 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
             await self._mark_failed(session, record)
 
     async def mark_dead(self, record: OutboxRecord) -> None:
-        record.attempts = self.MAX_ATTEMPTS - 1
-        record.error = record.error or "max attempts exceeded"
         async with AsyncSession(self._async_engine) as session, session.begin():
-            await self._mark_failed(session, record)
+            await session.execute(
+                update(OutboxEventModel)
+                .where(
+                    OutboxEventModel.id == record.id,
+                    OutboxEventModel.locked_by == self._worker_id,
+                )
+                .values(
+                    status="dead",
+                    error=record.error or "max attempts exceeded",
+                    attempts=OutboxEventModel.attempts + 1,
+                    locked_at=None,
+                    locked_by=None,
+                )
+            )
 
     async def mark_retryable(self, record: OutboxRecord) -> None:
         async with AsyncSession(self._async_engine) as session, session.begin():
