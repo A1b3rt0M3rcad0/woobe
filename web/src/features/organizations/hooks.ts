@@ -53,11 +53,11 @@ export function useOrganizationMembers(orgId: string | undefined) {
   })
 }
 
-export function useOrganizationInvites(orgId: string | undefined) {
+export function useOrganizationInvites(orgId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['organization-invites', orgId],
     queryFn: () => getOrganizationInvites(orgId!),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   })
 }
 
