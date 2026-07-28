@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, FolderKanban, Plus } from 'lucide-react'
+import { ArrowLeft, Building2, FolderKanban, Plus } from 'lucide-react'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -95,6 +95,10 @@ export default function OrgProjectsPage() {
           <Button type="button" variant="outline" onClick={() => navigate('/organizations')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Change Organization
+          </Button>
+          <Button type="button" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/settings`)}>
+            <Building2 className="mr-2 h-4 w-4" />
+            Organization
           </Button>
           {canManageProjects && (
             <Button type="button" onClick={startProjectSetup}>
