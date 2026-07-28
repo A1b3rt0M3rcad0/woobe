@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
 import {
   ResourceEmptyState,
   ResourcePage,
@@ -22,16 +22,22 @@ import {
   usePendingOrganizationInvites,
 } from '@/features/organizations/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+import type { OrgShape } from '@/features/workspace/types'
 
 const SEARCH_THRESHOLD = 5
 
 function getInitials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'OR'
+  return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OR'
+}
+
+function roleTone(role?: string) {
+  return role === 'owner' ? 'primary' : role === 'admin' ? 'success' : 'default'
+}
+
+function organizationFooter(org: OrgShape) {
+  const count = org.accessible_project_count ?? 0
+  if (org.access_mode === 'implicit_owner') return `All Projects · ${count} currently available`
+  return `${count} assigned ${count === 1 ? 'Project' : 'Projects'}`
 }
 
 export default function OrganizationsPage() {
@@ -47,11 +53,7 @@ export default function OrganizationsPage() {
   const visibleOrganizations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return organizations
-
-    return organizations.filter((org) => (
-      org.name.toLowerCase().includes(normalizedQuery)
-      || org.slug.toLowerCase().includes(normalizedQuery)
-    ))
+    return organizations.filter((org) => `${org.name} ${org.slug} ${org.membership_role ?? ''}`.toLowerCase().includes(normalizedQuery))
   }, [organizations, query])
 
   const handleCreate = async (data: { name: string; slug: string }) => {
@@ -59,7 +61,15 @@ export default function OrganizationsPage() {
       const org = await createOrg.mutateAsync(data)
       toast.success('Organization created')
       setShowCreate(false)
-      selectOrganization({ id: org.id, name: org.name, slug: org.slug })
+      selectOrganization({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        membership_role: 'owner',
+        can_manage_organization: true,
+        accessible_project_count: 0,
+        access_mode: 'implicit_owner',
+      })
       navigate(`/organizations/${org.id}/projects`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create organization')
@@ -71,8 +81,7 @@ export default function OrganizationsPage() {
     try {
       const org = await acceptInvite.mutateAsync(inviteId)
       toast.success(`Joined ${org.name}`)
-      selectOrganization({ id: org.id, name: org.name, slug: org.slug })
-      navigate(`/organizations/${org.id}/projects`)
+      navigate('/organizations')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to accept invitation')
     } finally {
@@ -80,7 +89,7 @@ export default function OrganizationsPage() {
     }
   }
 
-  const handleSelect = (org: { id: string; name: string; slug: string }) => {
+  const handleSelect = (org: OrgShape) => {
     selectOrganization(org)
     navigate(`/organizations/${org.id}/projects`)
   }
@@ -93,18 +102,13 @@ export default function OrganizationsPage() {
     <ResourcePage
       title="Organizations"
       description="Select the commercial workspace you want to operate."
-      action={(
-        <Button type="button" onClick={() => setShowCreate(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Organization
-        </Button>
-      )}
+      action={<Button type="button" onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Create Organization</Button>}
     >
       {(isLoadingInvites || pendingInvites.length > 0) && (
         <section>
           <ResourceSectionHeader
             title="Invitations"
-            description="Accept an invitation to join an Organization. Project access is granted separately."
+            description="Accept an invitation to join an Organization. Prepared Project access is applied immediately after acceptance."
             count={pendingInvites.length}
           />
           {isLoadingInvites ? (
@@ -115,25 +119,13 @@ export default function OrganizationsPage() {
                 <Card key={invite.id}>
                   <CardContent className="flex items-center justify-between gap-4 p-4">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface">
-                        <MailPlus className="h-4 w-4" />
-                      </div>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10"><MailPlus className="h-4 w-4 text-primary-light" /></div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{invite.organization_name}</p>
-                        <p className="truncate text-xs text-muted">
-                          /{invite.organization_slug} · {invite.role}
-                        </p>
+                        <p className="truncate text-sm font-medium text-white">{invite.organization_name}</p>
+                        <p className="truncate text-xs text-muted">/{invite.organization_slug} · {invite.role} · {invite.project_count ?? 0} prepared Project(s)</p>
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      loading={acceptingInviteId === invite.id}
-                      disabled={acceptingInviteId !== null && acceptingInviteId !== invite.id}
-                      onClick={() => handleAcceptInvite(invite.id)}
-                    >
-                      Accept and enter
-                    </Button>
+                    <Button type="button" size="sm" loading={acceptingInviteId === invite.id} disabled={acceptingInviteId !== null && acceptingInviteId !== invite.id} onClick={() => handleAcceptInvite(invite.id)}>Accept and enter</Button>
                   </CardContent>
                 </Card>
               ))}
@@ -142,52 +134,18 @@ export default function OrganizationsPage() {
         </section>
       )}
 
-      {showSearch && (
-        <ResourceToolbar>
-          <ResourceSearch
-            value={query}
-            onChange={setQuery}
-            placeholder="Search Organizations..."
-            label="Search Organizations"
-          />
-        </ResourceToolbar>
-      )}
+      {showSearch && <ResourceToolbar><ResourceSearch value={query} onChange={setQuery} placeholder="Search Organizations..." label="Search Organizations" /></ResourceToolbar>}
 
       <section>
-        <ResourceSectionHeader
-          title="Organizations"
-          description="Organizations own Projects, members, plans and usage."
-          count={resultCount}
-        />
-
+        <ResourceSectionHeader title="Organizations" description="Organizations own Projects, members, plans and usage." count={resultCount} />
         {isLoadingOrganizations ? (
           <LoadingState message="Loading Organizations" variant="panel" layout="compact-cards" />
         ) : workspaceError ? (
           <ErrorState error={workspaceError} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
         ) : organizations.length === 0 ? (
-          <ResourceEmptyState
-            icon={<Building2 className="h-4 w-4" />}
-            title="Create your first Organization"
-            description={pendingInvites.length > 0
-              ? 'Accept an invitation above or create a new Organization.'
-              : 'Organizations are the commercial workspace for Projects, members, plans and usage.'}
-            action={(
-              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
-                Create Organization
-              </Button>
-            )}
-          />
+          <ResourceEmptyState icon={<Building2 className="h-4 w-4" />} title="Create your first Organization" description={pendingInvites.length > 0 ? 'Accept an invitation above or create a new Organization.' : 'Organizations are the commercial workspace for Projects, members, plans and usage.'} action={<Button type="button" size="sm" onClick={() => setShowCreate(true)}>Create Organization</Button>} />
         ) : hasSearchMiss ? (
-          <ResourceEmptyState
-            icon={<Building2 className="h-4 w-4" />}
-            title="No Organizations found"
-            description="Adjust your search or clear the current term."
-            action={(
-              <Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>
-                Clear search
-              </Button>
-            )}
-          />
+          <ResourceEmptyState icon={<Building2 className="h-4 w-4" />} title="No Organizations found" description="Adjust your search or clear the current term." action={<Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>Clear search</Button>} />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {visibleOrganizations.map((org) => (
@@ -198,19 +156,16 @@ export default function OrganizationsPage() {
                 icon={<span className="text-xs font-semibold">{getInitials(org.name)}</span>}
                 title={org.name}
                 subtitle={`/${org.slug}`}
-                footer="Open Projects"
+                status={<ResourcePill tone={roleTone(org.membership_role)}>{(org.membership_role ?? 'member').toUpperCase()}</ResourcePill>}
+                metadata={<ResourcePill>{org.access_mode === 'implicit_owner' ? 'Implicit all-Project access' : 'Explicit Project access'}</ResourcePill>}
+                footer={organizationFooter(org)}
               />
             ))}
           </div>
         )}
       </section>
 
-      <CreateOrganizationDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={handleCreate}
-        loading={createOrg.isPending}
-      />
+      <CreateOrganizationDialog open={showCreate} onClose={() => setShowCreate(false)} onSubmit={handleCreate} loading={createOrg.isPending} />
     </ResourcePage>
   )
 }
