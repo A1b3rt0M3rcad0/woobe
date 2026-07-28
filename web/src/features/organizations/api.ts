@@ -1,4 +1,4 @@
-import { get, post, patch } from '@/lib/api/client'
+import { del, get, post, patch } from '@/lib/api/client'
 import type {
   OrganizationDetail,
   Member,
@@ -7,6 +7,8 @@ import type {
   UpdateOrganizationRequest,
   CreateOrganizationRequest,
   CreateInviteRequest,
+  RemoveOrganizationMemberResult,
+  CancelOrganizationInviteResult,
 } from './types'
 
 export async function getOrganization(id: string): Promise<OrganizationDetail> {
@@ -25,12 +27,20 @@ export async function getOrganizationMembers(orgId: string): Promise<Member[]> {
   return get<Member[]>(`/identity/organizations/${orgId}/members`)
 }
 
+export async function removeOrganizationMember(orgId: string, userId: string): Promise<RemoveOrganizationMemberResult> {
+  return del<RemoveOrganizationMemberResult>(`/identity/organizations/${orgId}/members/${userId}`)
+}
+
 export async function getOrganizationInvites(orgId: string): Promise<Invite[]> {
   return get<Invite[]>(`/identity/organizations/${orgId}/invites`)
 }
 
 export async function createOrganizationInvite(orgId: string, data: CreateInviteRequest): Promise<Invite> {
   return post<Invite>(`/identity/organizations/${orgId}/invites`, data)
+}
+
+export async function cancelOrganizationInvite(orgId: string, inviteId: string): Promise<CancelOrganizationInviteResult> {
+  return del<CancelOrganizationInviteResult>(`/identity/organizations/${orgId}/invites/${inviteId}`)
 }
 
 export async function getPendingOrganizationInvites(): Promise<PendingInvite[]> {
