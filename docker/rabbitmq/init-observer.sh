@@ -34,6 +34,7 @@ request() {
     --silent \
     --show-error \
     --retry 20 \
+    --retry-all-errors \
     --retry-delay 1 \
     --retry-connrefused \
     --user "$auth" \
