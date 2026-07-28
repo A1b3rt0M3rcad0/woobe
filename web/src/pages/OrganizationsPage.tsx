@@ -79,9 +79,20 @@ export default function OrganizationsPage() {
   const handleAcceptInvite = async (inviteId: string) => {
     setAcceptingInviteId(inviteId)
     try {
+      const pendingInvite = pendingInvites.find((invite) => invite.id === inviteId)
       const org = await acceptInvite.mutateAsync(inviteId)
+      const membershipRole = pendingInvite?.role === 'admin' ? 'admin' : 'member'
+      selectOrganization({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        membership_role: membershipRole,
+        can_manage_organization: membershipRole === 'admin',
+        accessible_project_count: pendingInvite?.project_count ?? 0,
+        access_mode: 'assigned_projects',
+      })
       toast.success(`Joined ${org.name}`)
-      navigate('/organizations')
+      navigate(`/organizations/${org.id}/projects`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to accept invitation')
     } finally {
