@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -9,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from modules.network.infra.database.models import NetworkOutboxEventModel
 from shared.infra.rabbitmq import RabbitMQManager
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 _NETWORK_OUTBOX_BATCH_SIZE = 50
 _NETWORK_OUTBOX_MAX_ATTEMPTS = 5
 _NETWORK_OUTBOX_LOCK_TIMEOUT_SECONDS = 300
-_NETWORK_OUTBOX_PUBLISH_CONCURRENCY = 8
 
 
 @dataclass(frozen=True)
@@ -40,38 +38,33 @@ class NetworkOutboxDispatcherWorker:
         manager: RabbitMQManager,
         *,
         batch_size: int = _NETWORK_OUTBOX_BATCH_SIZE,
-        publish_concurrency: int = _NETWORK_OUTBOX_PUBLISH_CONCURRENCY,
     ) -> None:
         self._session_factory = async_sessionmaker(engine, expire_on_commit=False)
         self._manager = manager
         self._worker_id = f"network-outbox-{os.getpid()}"
         self._batch_size = max(1, batch_size)
-        self._publish_concurrency = max(1, publish_concurrency)
 
     async def run(self) -> None:
         records = await self._claim_batch()
         if not records:
             return
 
-        semaphore = asyncio.Semaphore(self._publish_concurrency)
+        results: list[tuple[_ClaimedNetworkOutbox, Exception | None]] = []
+        for record in records:
+            try:
+                await self._manager.publish(
+                    routing_key=record.routing_key,
+                    payload=json.dumps(record.payload),
+                    correlation_id=str(record.correlation_id or ""),
+                    message_id=str(record.id),
+                )
+                results.append((record, None))
+            except Exception as exc:
+                logger.exception(
+                    "Network outbox publish failed event_id=%s", record.id
+                )
+                results.append((record, exc))
 
-        async def publish(record: _ClaimedNetworkOutbox):
-            async with semaphore:
-                try:
-                    await self._manager.publish(
-                        routing_key=record.routing_key,
-                        payload=json.dumps(record.payload),
-                        correlation_id=str(record.correlation_id or ""),
-                        message_id=str(record.id),
-                    )
-                    return record, None
-                except Exception as exc:
-                    logger.exception(
-                        "Network outbox publish failed event_id=%s", record.id
-                    )
-                    return record, exc
-
-        results = await asyncio.gather(*(publish(record) for record in records))
         await self._finalize(results)
 
     async def _claim_batch(self) -> list[_ClaimedNetworkOutbox]:
@@ -112,9 +105,7 @@ class NetworkOutboxDispatcherWorker:
 
     async def _finalize(
         self,
-        results: list[
-            tuple[_ClaimedNetworkOutbox, Exception | None]
-        ],
+        results: list[tuple[_ClaimedNetworkOutbox, Exception | None]],
     ) -> None:
         now = datetime.now(timezone.utc)
         async with self._session_factory() as session, session.begin():
