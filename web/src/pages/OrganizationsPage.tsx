@@ -30,7 +30,7 @@ function getInitials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'OR'
 }
 
-function roleTone(role?: string) {
+function roleTone(role?: string): 'primary' | 'success' | 'default' {
   return role === 'owner' ? 'primary' : role === 'admin' ? 'success' : 'default'
 }
 
