@@ -4,7 +4,7 @@ import { ArrowLeft, Building2, FolderKanban, Plus } from 'lucide-react'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
 import {
   ResourceEmptyState,
   ResourcePage,
@@ -13,10 +13,10 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
-import { useAuth } from '@/features/auth/AuthProvider'
-import { useOrganization, useOrganizationMembers } from '@/features/organizations/hooks'
+import { useOrganization } from '@/features/organizations/hooks'
 import { useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
+import type { Project } from '@/features/projects/types'
 
 const SEARCH_THRESHOLD = 5
 
@@ -26,38 +26,29 @@ function getProjectInitial(name: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return 'Not recorded'
-
   try {
-    return new Intl.DateTimeFormat('en-US', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(value))
+    return new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value))
   } catch {
     return 'Invalid date'
   }
 }
 
+function accessLabel(project: Project) {
+  return project.access_source === 'organization_owner'
+    ? 'Organization Owner · implicit access'
+    : `${project.organization_role ?? 'Member'} · granted Project access`
+}
+
 export default function OrgProjectsPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const {
-    currentOrganization,
-    selectOrganization,
-    selectProject,
-  } = useWorkspace()
-
+  const { currentOrganization, selectOrganization, selectProject } = useWorkspace()
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
-  const { data: organizationMembers } = useOrganizationMembers(organizationId)
   const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
-  const currentMembership = organizationMembers?.find((member) => (
-    member.user_id === user?.id && member.status.toLowerCase() === 'active'
-  ))
-  const currentRole = currentMembership?.role?.toLowerCase()
+  const currentRole = currentOrganization?.membership_role
   const canManageProjects = currentRole === 'owner' || currentRole === 'admin'
 
   useEffect(() => {
@@ -68,19 +59,14 @@ export default function OrgProjectsPage() {
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return items
-
-    return items.filter((project) => (
-      project.name.toLowerCase().includes(normalizedQuery)
-      || project.slug.toLowerCase().includes(normalizedQuery)
-    ))
+    return items.filter((project) => `${project.name} ${project.slug} ${project.organization_role ?? ''}`.toLowerCase().includes(normalizedQuery))
   }, [items, query])
 
   const startProjectSetup = () => {
-    if (!organizationId || !canManageProjects) return
-    navigate(`/organizations/${organizationId}/setup`)
+    if (organizationId && canManageProjects) navigate(`/organizations/${organizationId}/setup`)
   }
 
-  const handleSelect = (project: { id: string; organization_id: string; name: string; slug: string }) => {
+  const handleSelect = (project: Project) => {
     selectProject(project)
     navigate(`/organizations/${organizationId}/projects/${project.id}`)
   }
@@ -98,41 +84,15 @@ export default function OrgProjectsPage() {
       description={org ? `Projects in ${org.name}.` : 'Select and operate a Project.'}
       action={(
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate('/organizations')}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Change Organization
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/settings`)}>
-            <Building2 className="mr-2 h-4 w-4" />
-            Organization
-          </Button>
-          {canManageProjects && (
-            <Button type="button" onClick={startProjectSetup}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Project
-            </Button>
-          )}
+          <Button type="button" variant="outline" onClick={() => navigate('/organizations')}><ArrowLeft className="mr-2 h-4 w-4" />Change Organization</Button>
+          <Button type="button" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/settings`)}><Building2 className="mr-2 h-4 w-4" />Organization</Button>
+          {canManageProjects && <Button type="button" onClick={startProjectSetup}><Plus className="mr-2 h-4 w-4" />Create Project</Button>}
         </div>
       )}
     >
-      {showSearch && (
-        <ResourceToolbar>
-          <ResourceSearch
-            value={query}
-            onChange={setQuery}
-            placeholder="Search Projects..."
-            label="Search Projects"
-          />
-        </ResourceToolbar>
-      )}
-
+      {showSearch && <ResourceToolbar><ResourceSearch value={query} onChange={setQuery} placeholder="Search Projects..." label="Search Projects" /></ResourceToolbar>}
       <section>
-        <ResourceSectionHeader
-          title="Projects"
-          description="Projects isolate Agents, Knowledge, Tools, credentials, runtime and observability."
-          count={resultCount}
-        />
-
+        <ResourceSectionHeader title="Projects" description="Projects isolate Agents, Knowledge, Tools, credentials, runtime and observability." count={resultCount} />
         {orgLoading || projectsLoading ? (
           <LoadingState message="Loading Projects" variant="panel" layout="compact-cards" />
         ) : isError ? (
@@ -141,26 +101,11 @@ export default function OrgProjectsPage() {
           <ResourceEmptyState
             icon={<FolderKanban className="h-4 w-4" />}
             title={canManageProjects ? 'Create the first Project' : 'No Project access yet'}
-            description={canManageProjects
-              ? 'Create the Project boundary, configure its first Agent and continue directly to the Playground.'
-              : 'You belong to this Organization, but no Project has been shared with you yet.'}
-            action={canManageProjects ? (
-              <Button type="button" size="sm" onClick={startProjectSetup}>
-                Start setup
-              </Button>
-            ) : undefined}
+            description={canManageProjects ? 'Create the Project boundary, configure its first Agent and continue directly to the Playground.' : 'You belong to this Organization, but no Project has been shared with you yet.'}
+            action={canManageProjects ? <Button type="button" size="sm" onClick={startProjectSetup}>Start setup</Button> : undefined}
           />
         ) : hasSearchMiss ? (
-          <ResourceEmptyState
-            icon={<FolderKanban className="h-4 w-4" />}
-            title="No Projects found"
-            description="Adjust your search or clear the current term."
-            action={(
-              <Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>
-                Clear search
-              </Button>
-            )}
-          />
+          <ResourceEmptyState icon={<FolderKanban className="h-4 w-4" />} title="No Projects found" description="Adjust your search or clear the current term." action={<Button type="button" size="sm" variant="outline" onClick={() => setQuery('')}>Clear search</Button>} />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {visibleProjects.map((project) => (
@@ -171,6 +116,8 @@ export default function OrgProjectsPage() {
                 icon={<span className="text-xs font-semibold">{getProjectInitial(project.name)}</span>}
                 title={project.name}
                 subtitle={`/${project.slug}`}
+                status={<ResourcePill tone={project.access_source === 'organization_owner' ? 'primary' : 'default'}>{project.access_source === 'organization_owner' ? 'IMPLICIT' : 'ASSIGNED'}</ResourcePill>}
+                metadata={<ResourcePill>{accessLabel(project)}</ResourcePill>}
                 footer={`Updated · ${formatDate(project.updated_at || project.created_at)}`}
               />
             ))}
