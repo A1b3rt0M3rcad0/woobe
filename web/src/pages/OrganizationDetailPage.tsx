@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Building2, Check, CreditCard, FolderKanban, Mail, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
@@ -42,7 +42,7 @@ function initials(email: string) {
   return email.split('@')[0].split(/[._-]/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U'
 }
 
-function SummaryCard({ label, value, detail, icon }: { label: string; value: string | number; detail: string; icon: React.ReactNode }) {
+function SummaryCard({ label, value, detail, icon }: { label: string; value: string | number; detail: string; icon: ReactNode }) {
   return (
     <div className="rounded-xl border border-border bg-surface/65 p-4">
       <div className="flex items-start justify-between gap-4">
@@ -116,7 +116,13 @@ export default function OrganizationDetailPage() {
   }, [projects, selectedProjectId])
 
   const peopleCount = members.length + pendingInvites.length
-  const activeProjectAccesses = useMemo(() => members.reduce((total, member) => total + Number(member.project_access_count || 0), 0), [members])
+  const projectCount = canManageOrganization ? projects.length : currentOrganization?.accessible_project_count ?? 0
+  const explicitProjectAccesses = useMemo(
+    () => members
+      .filter((member) => member.access_mode !== 'implicit_owner')
+      .reduce((total, member) => total + Number(member.project_access_count || 0), 0),
+    [members],
+  )
 
   const handleSave = async () => {
     if (!organizationId || !canManageOrganization) return
@@ -267,8 +273,8 @@ export default function OrganizationDetailPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="People" value={peopleCount} detail={`${members.length} active · ${pendingInvites.length} pending`} icon={<Users className="h-4 w-4" />} />
-        <SummaryCard label="Projects" value={projects.length} detail="Technical isolation boundaries" icon={<FolderKanban className="h-4 w-4" />} />
-        <SummaryCard label="Access grants" value={activeProjectAccesses} detail="Active explicit assignments" icon={<ShieldCheck className="h-4 w-4" />} />
+        <SummaryCard label="Projects" value={projectCount} detail="Accessible technical boundaries" icon={<FolderKanban className="h-4 w-4" />} />
+        <SummaryCard label="Access grants" value={explicitProjectAccesses} detail="Active explicit assignments" icon={<ShieldCheck className="h-4 w-4" />} />
         <SummaryCard label="Role" value={currentRole.toUpperCase()} detail={canManageOrganization ? 'Organization management' : 'Read-only Organization view'} icon={<Building2 className="h-4 w-4" />} />
       </div>
 
