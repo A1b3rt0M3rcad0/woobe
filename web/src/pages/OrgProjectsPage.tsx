@@ -13,8 +13,9 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
-import { useOrganization } from '@/features/organizations/hooks'
-import { useProjects, useProjectsForAccessManagement } from '@/features/projects/hooks'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { useOrganization, useOrganizationMembers } from '@/features/organizations/hooks'
+import { useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 
 const SEARCH_THRESHOLD = 5
@@ -40,6 +41,7 @@ function formatDate(value?: string | null) {
 export default function OrgProjectsPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const {
     currentOrganization,
     selectOrganization,
@@ -47,12 +49,16 @@ export default function OrgProjectsPage() {
   } = useWorkspace()
 
   const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
+  const { data: organizationMembers } = useOrganizationMembers(organizationId)
   const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
-  const { data: managedProjects } = useProjectsForAccessManagement(organizationId)
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
-  const canManageProjects = managedProjects !== undefined
+  const currentMembership = organizationMembers?.find((member) => (
+    member.user_id === user?.id && member.status.toLowerCase() === 'active'
+  ))
+  const currentRole = currentMembership?.role?.toLowerCase()
+  const canManageProjects = currentRole === 'owner' || currentRole === 'admin'
 
   useEffect(() => {
     if (!org || currentOrganization?.id === org.id) return
