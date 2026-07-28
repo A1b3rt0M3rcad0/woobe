@@ -42,61 +42,113 @@ class AgentOutboxDispatcherWorker(BaseOutboxDispatcher):
         super().__init__(async_engine)
         self._publisher = publisher
         self._worker_id = worker_id or f"outbox-dispatcher-{os.getpid()}"
-        self._session: AsyncSession | None = None
-        self._repo: SQLAlchemyAgentOutboxRepository | None = None
-        self._event_map: dict[UUID, AgentOutboxEventModel] = {}
+        self._envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
 
     async def run(self) -> None:
+        records = await self.claim_pending(limit=self.BATCH_SIZE)
+        if not records:
+            return
+
+        published: list[OutboxRecord] = []
+        retryable: list[OutboxRecord] = []
+        dead: list[OutboxRecord] = []
+
+        for record in records:
+            try:
+                await self.publish(record)
+                published.append(record)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to publish Agent outbox record %s: %s",
+                    record.id,
+                    exc,
+                )
+                record.error = str(exc)
+                if record.attempts + 1 >= self.MAX_ATTEMPTS:
+                    dead.append(record)
+                else:
+                    retryable.append(record)
+
         async with AsyncSession(self._async_engine) as session:
             async with session.begin():
-                self._session = session
-                self._repo = SQLAlchemyAgentOutboxRepository(session)
-                self._event_map = {}
-                await super().run()
-        self._session = None
-        self._repo = None
-        self._event_map = {}
+                repo = SQLAlchemyAgentOutboxRepository(session)
+                for record in published:
+                    await repo.mark_published(record.id)
+                for record in retryable:
+                    backoff = timedelta(
+                        seconds=RETRY_BACKOFF_BASE_SECONDS
+                        * (record.attempts + 1)
+                    )
+                    await repo.mark_retryable(
+                        record.id,
+                        record.error or "transient failure",
+                        datetime.now(timezone.utc) + backoff,
+                    )
+                for record in dead:
+                    await repo.mark_dead(
+                        record.id,
+                        record.error or "max attempts exceeded",
+                    )
+
+        self._envelope_map = {}
 
     async def claim_pending(self, limit: int) -> list[OutboxRecord]:
-        assert self._repo is not None
-        events = await self._repo.claim_batch(
-            batch_size=limit, locked_by=self._worker_id
-        )
+        envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
         records: list[OutboxRecord] = []
-        for event in events:
-            record = OutboxRecord(
-                id=event.id,
-                aggregate_type=event.aggregate_type,
-                aggregate_id=event.aggregate_id,
-                event_type=event.event_type,
-                event_version=event.event_version,
-                payload=event.payload or {},
-                correlation_id=event.correlation_id,
-                causation_id=event.causation_id,
-                attempts=event.attempts,
-                error=event.error,
-            )
-            records.append(record)
-            self._event_map[event.id] = event
+
+        async with AsyncSession(self._async_engine) as session:
+            async with session.begin():
+                repo = SQLAlchemyAgentOutboxRepository(session)
+                events = await repo.claim_batch(
+                    batch_size=limit,
+                    locked_by=self._worker_id,
+                )
+                for event in events:
+                    records.append(self._record(event))
+                    envelope_map[event.id] = outbox_to_rabbit_message(event)
+
+        self._envelope_map = envelope_map
         return records
 
+    @staticmethod
+    def _record(event: AgentOutboxEventModel) -> OutboxRecord:
+        return OutboxRecord(
+            id=event.id,
+            aggregate_type=event.aggregate_type,
+            aggregate_id=event.aggregate_id,
+            event_type=event.event_type,
+            event_version=event.event_version,
+            payload=event.payload or {},
+            correlation_id=event.correlation_id,
+            causation_id=event.causation_id,
+            attempts=event.attempts,
+            error=event.error,
+        )
+
     async def publish(self, record: OutboxRecord) -> None:
-        event = self._event_map[record.id]
-        envelope = outbox_to_rabbit_message(event)
+        envelope = self._envelope_map.get(record.id)
+        if envelope is None:
+            raise ValueError(f"Outbox record {record.id} not in claimed batch")
         await self._publisher.publish(envelope)
 
     async def mark_published(self, record: OutboxRecord) -> None:
-        assert self._repo is not None
-        await self._repo.mark_published(record.id)
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await SQLAlchemyAgentOutboxRepository(session).mark_published(record.id)
 
     async def mark_dead(self, record: OutboxRecord) -> None:
-        assert self._repo is not None
-        await self._repo.mark_dead(record.id, record.error or "max attempts exceeded")
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await SQLAlchemyAgentOutboxRepository(session).mark_dead(
+                record.id,
+                record.error or "max attempts exceeded",
+            )
 
     async def mark_retryable(self, record: OutboxRecord) -> None:
-        assert self._repo is not None
-        backoff = timedelta(seconds=RETRY_BACKOFF_BASE_SECONDS * (record.attempts + 1))
-        available_at = datetime.now(timezone.utc) + backoff
-        await self._repo.mark_retryable(
-            record.id, record.error or "transient failure", available_at
+        backoff = timedelta(
+            seconds=RETRY_BACKOFF_BASE_SECONDS * (record.attempts + 1)
         )
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await SQLAlchemyAgentOutboxRepository(session).mark_retryable(
+                record.id,
+                record.error or "transient failure",
+                datetime.now(timezone.utc) + backoff,
+            )
