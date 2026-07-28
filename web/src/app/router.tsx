@@ -48,6 +48,14 @@ function LegacyProjectRedirect() {
   return <Navigate to="/organizations" replace />
 }
 
+function LegacyBillingRedirect() {
+  const { currentOrganization } = useWorkspace()
+  if (currentOrganization) {
+    return <Navigate to={`/organizations/${currentOrganization.id}/billing`} replace />
+  }
+  return <Navigate to="/organizations" replace />
+}
+
 function DashboardRedirect() {
   const {
     organizations,
@@ -217,6 +225,7 @@ export function AppRouter() {
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
           <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
+          <Route path="/organizations/:organizationId/billing" element={<BillingPage />} />
           <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
           <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
 
@@ -261,7 +270,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
 
-          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/billing" element={<LegacyBillingRedirect />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
