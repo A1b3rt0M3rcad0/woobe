@@ -7,6 +7,8 @@ from modules.network.infra.workers.execution_worker import (
     NetworkExecutionConsumer,
     NetworkExecutionProcessor,
     NetworkLeaseRecoveryWorker,
+)
+from modules.network.infra.workers.outbox_dispatcher import (
     NetworkOutboxDispatcherWorker,
 )
 from shared.infra.config import Settings
@@ -41,7 +43,13 @@ def register_network_workers(
         lease_ttl_seconds=settings.network_execution_lease_ttl_seconds,
         heartbeat_seconds=settings.network_execution_lease_heartbeat_seconds,
     )
-    registry.register(NetworkOutboxDispatcherWorker(engine, rabbitmq_manager))
+    registry.register(
+        NetworkOutboxDispatcherWorker(
+            engine,
+            rabbitmq_manager,
+            batch_size=settings.outbox_batch_size,
+        )
+    )
     registry.register(
         NetworkExecutionConsumer(
             rabbitmq_manager,
