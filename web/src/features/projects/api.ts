@@ -8,6 +8,13 @@ import type {
   UpdateProjectRequest,
 } from './types'
 
+interface ProjectAccessMutationResponse {
+  subject_type: string
+  subject_id: string
+  project_access: string
+  access_id: string
+}
+
 export async function getProjects(organizationId?: string): Promise<Project[]> {
   return get<Project[]>('/core/projects', { params: { organization_id: organizationId } })
 }
@@ -36,8 +43,8 @@ export async function grantProjectSubjectAccess(
   projectId: string,
   subjectType: ProjectAccessSubject['subject_type'],
   subjectId: string,
-): Promise<{ subject_type: string; subject_id: string; project_access: string; access_id: string }> {
-  return post(`/core/projects/${projectId}/access`, {
+): Promise<ProjectAccessMutationResponse> {
+  return post<ProjectAccessMutationResponse>(`/core/projects/${projectId}/access`, {
     subject_type: subjectType,
     subject_id: subjectId,
   })
