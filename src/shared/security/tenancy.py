@@ -53,23 +53,37 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
 ORGANIZATION_KEYS = {"organization_id", "org_id"}
 
 
+def _is_identifier_key(key: object) -> bool:
+    return (
+        key in ORGANIZATION_KEYS
+        or key == "project_id"
+        or key in DIRECT_PROJECT_RESOURCES
+        or key in INDIRECT_PROJECT_RESOURCE_QUERIES
+    )
+
+
 def _identifier_values(value: Any) -> list[tuple[str, Any]]:
     found: list[tuple[str, Any]] = []
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if (
-                key in ORGANIZATION_KEYS
-                or key == "project_id"
-                or key in DIRECT_PROJECT_RESOURCES
-                or key in INDIRECT_PROJECT_RESOURCE_QUERIES
-            ):
-                found.append((key, item))
+            if _is_identifier_key(key):
+                found.append((str(key), item))
             elif isinstance(item, (Mapping, list, tuple)):
                 found.extend(_identifier_values(item))
     elif isinstance(value, (list, tuple)):
         for item in value:
             found.extend(_identifier_values(item))
     return found
+
+
+def _direct_identifier_values(value: Any) -> list[tuple[str, Any]]:
+    if not isinstance(value, Mapping):
+        return []
+    return [
+        (str(key), item)
+        for key, item in value.items()
+        if _is_identifier_key(key)
+    ]
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -95,7 +109,9 @@ class TenantAuthorizer:
         allow_organization_admin_for_projects: bool = False,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
-        self._require_consistent_identifiers(identifiers)
+        self._require_consistent_identifiers(
+            self._consistency_identifiers(path_params, query_params, body)
+        )
 
         checked_organizations: set[UUID] = set()
         checked_projects: set[UUID] = set()
@@ -145,7 +161,9 @@ class TenantAuthorizer:
         body: Any,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
-        self._require_consistent_identifiers(identifiers)
+        self._require_consistent_identifiers(
+            self._consistency_identifiers(path_params, query_params, body)
+        )
         checked_context = False
         for key, raw_value in identifiers:
             resource_id = _uuid(raw_value)
@@ -175,6 +193,18 @@ class TenantAuthorizer:
             _identifier_values(path_params)
             + _identifier_values(query_params)
             + _identifier_values(body)
+        )
+
+    @staticmethod
+    def _consistency_identifiers(
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> list[tuple[str, Any]]:
+        return (
+            _direct_identifier_values(path_params)
+            + _direct_identifier_values(query_params)
+            + _direct_identifier_values(body)
         )
 
     @staticmethod
