@@ -4,6 +4,7 @@ import {
   getCsrfHeaders,
   refreshAuthSession,
 } from '@/lib/api/client'
+import { createUuid } from '@/lib/uuid'
 
 import type { NetworkRuntimeEvent } from './types'
 
@@ -15,6 +16,10 @@ export interface NetworkStreamInput {
   idempotencyKey?: string
   lastEventId?: number
   expectedDraftRevision?: number
+}
+
+type PreparedNetworkStreamInput = Omit<NetworkStreamInput, 'idempotencyKey'> & {
+  idempotencyKey: string
 }
 
 export interface NetworkStreamCallbacks {
@@ -58,7 +63,7 @@ export function parseSseBlock(block: string): ParsedSseEvent | null {
 }
 
 async function requestStream(
-  input: NetworkStreamInput,
+  input: PreparedNetworkStreamInput,
   callbacks: NetworkStreamCallbacks,
   signal: AbortSignal | undefined,
   retriedAuth: boolean,
@@ -78,7 +83,7 @@ async function requestStream(
       project_id: input.projectId,
       network_session_id: input.networkSessionId,
       message: input.message,
-      idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      idempotency_key: input.idempotencyKey,
       expected_draft_revision: input.expectedDraftRevision,
     }),
   })
@@ -138,9 +143,9 @@ export async function streamNetworkExecution(
   callbacks: NetworkStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const stableInput: NetworkStreamInput = {
+  const stableInput: PreparedNetworkStreamInput = {
     ...input,
-    idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
+    idempotencyKey: input.idempotencyKey ?? createUuid(),
   }
   for (let attempt = 0; attempt < 4; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Network stream aborted', 'AbortError')
