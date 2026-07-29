@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createUuid } from './uuid'
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -24,6 +25,13 @@ describe('createUuid', () => {
         return bytes
       },
     })
+
+    expect(createUuid()).toBe('00000000-0000-4000-8000-000000000000')
+  })
+
+  it('keeps the UUID v4 contract when Web Crypto is unavailable', () => {
+    vi.stubGlobal('crypto', undefined)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
 
     expect(createUuid()).toBe('00000000-0000-4000-8000-000000000000')
   })
