@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from modules.observability.infra.database.models import OutboxEventModel
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 OBSERVABILITY_OUTBOX_BATCH_SIZE: int = 50
 OBSERVABILITY_OUTBOX_MAX_ATTEMPTS: int = 5
+OBSERVABILITY_OUTBOX_LOCK_TIMEOUT_SECONDS: int = 300
 RETRY_BACKOFF_BASE_SECONDS: int = 30
 
 
@@ -39,113 +40,164 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
     ) -> None:
         super().__init__(async_engine)
         self._publisher = publisher
-        self._worker_id = worker_id or f"observability-outbox-dispatcher-{os.getpid()}"
-        self._session: AsyncSession | None = None
-        self._event_map: dict[UUID, OutboxEventModel] = {}
+        self._worker_id = (
+            worker_id or f"observability-outbox-dispatcher-{os.getpid()}"
+        )
+        self._envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
 
     async def run(self) -> None:
+        records = await self.claim_pending(limit=self.BATCH_SIZE)
+        if not records:
+            return
+
+        published: list[OutboxRecord] = []
+        failed: list[OutboxRecord] = []
+        for record in records:
+            try:
+                await self.publish(record)
+                published.append(record)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to publish Observability outbox record %s: %s",
+                    record.id,
+                    exc,
+                )
+                record.error = str(exc)
+                failed.append(record)
+
         async with AsyncSession(self._async_engine) as session:
             async with session.begin():
-                self._session = session
-                self._event_map = {}
-                await super().run()
-        self._session = None
-        self._event_map = {}
+                for record in published:
+                    await self._mark_published(session, record)
+                for record in failed:
+                    await self._mark_failed(session, record)
+
+        self._envelope_map = {}
 
     async def claim_pending(self, limit: int) -> list[OutboxRecord]:
-        assert self._session is not None
-        from sqlalchemy import func
-        stmt = (
-            select(OutboxEventModel)
-            .where(
-                OutboxEventModel.status == "pending",
-                OutboxEventModel.attempts < self.MAX_ATTEMPTS,
-                OutboxEventModel.available_at <= func.now(),
-            )
-            .order_by(OutboxEventModel.available_at.asc())
-            .limit(limit)
-            .with_for_update(skip_locked=True)
+        now = datetime.now(timezone.utc)
+        stale_before = now - timedelta(
+            seconds=OBSERVABILITY_OUTBOX_LOCK_TIMEOUT_SECONDS
         )
-        result = await self._session.execute(stmt)
-        models = list(result.scalars().all())
-        records = []
-        for m in models:
-            self._event_map[m.id] = m
-            records.append(
-                OutboxRecord(
-                    id=m.id,
-                    aggregate_type=m.aggregate_type,
-                    aggregate_id=m.aggregate_id,
-                    event_type=m.event_type,
-                    event_version=m.event_version,
-                    payload=m.payload,
-                    correlation_id=m.correlation_id,
-                    causation_id=m.causation_id,
-                    attempts=m.attempts,
-                    error=m.error,
+        records: list[OutboxRecord] = []
+        envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
+
+        async with AsyncSession(self._async_engine) as session:
+            async with session.begin():
+                stmt = (
+                    select(OutboxEventModel)
+                    .where(
+                        OutboxEventModel.status == "pending",
+                        OutboxEventModel.attempts < self.MAX_ATTEMPTS,
+                        OutboxEventModel.available_at <= func.now(),
+                        or_(
+                            OutboxEventModel.locked_at.is_(None),
+                            OutboxEventModel.locked_at < stale_before,
+                        ),
+                    )
+                    .order_by(OutboxEventModel.available_at.asc())
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
                 )
-            )
+                result = await session.execute(stmt)
+                models = list(result.scalars().all())
+                for model in models:
+                    model.locked_at = now
+                    model.locked_by = self._worker_id
+                    records.append(self._record(model))
+                    envelope_map[model.id] = outbox_to_rabbit_message(model)
+
+        self._envelope_map = envelope_map
         return records
 
+    @staticmethod
+    def _record(model: OutboxEventModel) -> OutboxRecord:
+        return OutboxRecord(
+            id=model.id,
+            aggregate_type=model.aggregate_type,
+            aggregate_id=model.aggregate_id,
+            event_type=model.event_type,
+            event_version=model.event_version,
+            payload=model.payload or {},
+            correlation_id=model.correlation_id,
+            causation_id=model.causation_id,
+            attempts=model.attempts,
+            error=model.error,
+        )
+
     async def publish(self, record: OutboxRecord) -> None:
-        model = self._event_map.get(record.id)
-        if model is None:
+        envelope = self._envelope_map.get(record.id)
+        if envelope is None:
             raise ValueError(f"Outbox record {record.id} not in claimed batch")
-        envelope = outbox_to_rabbit_message(model)
         await self._publisher.publish(envelope)
 
-    async def mark_published(self, record: OutboxRecord) -> None:
-        assert self._session is not None
-        stmt = (
+    async def _mark_published(
+        self, session: AsyncSession, record: OutboxRecord
+    ) -> None:
+        await session.execute(
             update(OutboxEventModel)
-            .where(OutboxEventModel.id == record.id)
+            .where(
+                OutboxEventModel.id == record.id,
+                OutboxEventModel.locked_by == self._worker_id,
+            )
             .values(
                 status="published",
                 published_at=datetime.now(timezone.utc),
                 attempts=OutboxEventModel.attempts + 1,
+                locked_at=None,
+                locked_by=None,
+                error=None,
             )
         )
-        await self._session.execute(stmt)
 
-    async def mark_failed(self, record: OutboxRecord, error: str) -> None:
-        assert self._session is not None
-        backoff = RETRY_BACKOFF_BASE_SECONDS * (2 ** record.attempts)
-        stmt = (
+    async def _mark_failed(
+        self, session: AsyncSession, record: OutboxRecord
+    ) -> None:
+        backoff = RETRY_BACKOFF_BASE_SECONDS * (2**record.attempts)
+        terminal = record.attempts + 1 >= self.MAX_ATTEMPTS
+        await session.execute(
             update(OutboxEventModel)
-            .where(OutboxEventModel.id == record.id)
-            .values(
-                status="failed" if record.attempts + 1 >= self.MAX_ATTEMPTS else "pending",
-                error=error,
-                attempts=OutboxEventModel.attempts + 1,
-                available_at=datetime.now(timezone.utc) + timedelta(seconds=backoff),
+            .where(
+                OutboxEventModel.id == record.id,
+                OutboxEventModel.locked_by == self._worker_id,
             )
-        )
-        await self._session.execute(stmt)
-
-    async def mark_dead(self, record: OutboxRecord) -> None:
-        assert self._session is not None
-        stmt = (
-            update(OutboxEventModel)
-            .where(OutboxEventModel.id == record.id)
             .values(
-                status="dead",
-                error=record.error or "max attempts exceeded",
-                attempts=OutboxEventModel.attempts + 1,
-            )
-        )
-        await self._session.execute(stmt)
-
-    async def mark_retryable(self, record: OutboxRecord) -> None:
-        assert self._session is not None
-        backoff = RETRY_BACKOFF_BASE_SECONDS * (2 ** record.attempts)
-        stmt = (
-            update(OutboxEventModel)
-            .where(OutboxEventModel.id == record.id)
-            .values(
-                status="pending",
+                status="failed" if terminal else "pending",
                 error=record.error,
                 attempts=OutboxEventModel.attempts + 1,
-                available_at=datetime.now(timezone.utc) + timedelta(seconds=backoff),
+                available_at=datetime.now(timezone.utc)
+                + timedelta(seconds=backoff),
+                locked_at=None,
+                locked_by=None,
             )
         )
-        await self._session.execute(stmt)
+
+    async def mark_published(self, record: OutboxRecord) -> None:
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await self._mark_published(session, record)
+
+    async def mark_failed(self, record: OutboxRecord, error: str) -> None:
+        record.error = error
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await self._mark_failed(session, record)
+
+    async def mark_dead(self, record: OutboxRecord) -> None:
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await session.execute(
+                update(OutboxEventModel)
+                .where(
+                    OutboxEventModel.id == record.id,
+                    OutboxEventModel.locked_by == self._worker_id,
+                )
+                .values(
+                    status="dead",
+                    error=record.error or "max attempts exceeded",
+                    attempts=OutboxEventModel.attempts + 1,
+                    locked_at=None,
+                    locked_by=None,
+                )
+            )
+
+    async def mark_retryable(self, record: OutboxRecord) -> None:
+        async with AsyncSession(self._async_engine) as session, session.begin():
+            await self._mark_failed(session, record)

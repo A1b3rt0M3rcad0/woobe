@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 
 import { getRelease } from '@/features/agents/api'
 import type { Agent } from '@/features/agents/types'
+import { createUuid } from '@/lib/uuid'
 import { cn } from '@/lib/utils'
 import type { NetworkDefinition } from '../types'
 import { canConnectNetworkNodes } from '../editor/networkGraphValidation'
@@ -240,7 +241,7 @@ export function NetworkGraphEditor({
       toast.error(reason)
       return
     }
-    const id = crypto.randomUUID()
+    const id = createUuid()
     onChange({ type: 'add-edge', edge: { id, source_node_id: connection.source, target_node_id: connection.target } })
     onSelect({ type: 'edge', id })
   }

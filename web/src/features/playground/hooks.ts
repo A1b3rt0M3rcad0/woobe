@@ -61,7 +61,12 @@ export function useAsk() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: AskRequest) => ask(withStrictOutputContract(data)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['project-overview'] }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['project-overview'],
+        refetchType: 'none',
+      })
+    },
   })
 }
 
@@ -79,6 +84,8 @@ export function useAgentSessions(
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.has_next ? lastPage.next_cursor : undefined,
     enabled: !!agentId && !!projectId,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -87,6 +94,8 @@ export function useSessionMessages(sessionId: string | undefined) {
     queryKey: ['session-messages', sessionId],
     queryFn: () => getSessionMessages(sessionId!),
     enabled: !!sessionId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -103,7 +112,10 @@ export function useAskStream() {
       await askStreamV1(withStrictOutputContract(data), callbacks, controller.signal)
     } finally {
       if (activeStreamController === controller) activeStreamController = null
-      await queryClient.invalidateQueries({ queryKey: ['project-overview'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-overview'],
+        refetchType: 'none',
+      })
     }
   }, [queryClient])
   const cancel = useCallback(() => cancelActiveAskStream(), [])

@@ -1,4 +1,5 @@
 import type { Agent } from '@/features/agents/types'
+import { createUuid } from '@/lib/uuid'
 import type { NetworkAgentBindingSelector, NetworkDefinition, NetworkEdge, NetworkNode } from '../types'
 import type { NetworkDefinitionChange } from './types'
 
@@ -102,7 +103,7 @@ export function createNodeForAgent(agent: Agent, index: number): NetworkNode {
   const column = index % 3
   const row = Math.floor(index / 3)
   return {
-    id: crypto.randomUUID(),
+    id: createUuid(),
     agent_id: agent.id,
     label: agent.name,
     capability_description: (agent.description ?? '').trim().slice(0, 2000),
