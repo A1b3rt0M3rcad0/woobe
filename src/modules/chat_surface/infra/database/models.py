@@ -63,7 +63,9 @@ class ChatSurfaceModel(BaseModel):
     )
 
     public_id: Mapped[str] = mapped_column(String(32))
-    project_id: Mapped[UUID]
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.projects.id", ondelete="CASCADE")
+    )
     name: Mapped[str] = mapped_column(String(255))
     normalized_name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -208,4 +210,3 @@ class ChatSurfaceMessageRequestModel(BaseModel):
         DateTime(timezone=True),
         nullable=True,
     )
-

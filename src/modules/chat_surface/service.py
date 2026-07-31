@@ -156,6 +156,36 @@ class ChatSurfaceService:
             project_id=project_id,
             environment="production",
         )
+        if target_type == "agent":
+            activation = await session.scalar(
+                select(AgentReleaseActivationModel.id)
+                .where(
+                    AgentReleaseActivationModel.project_id == project_id,
+                    AgentReleaseActivationModel.agent_id == target_id,
+                )
+                .order_by(
+                    AgentReleaseActivationModel.created_at.desc(),
+                    AgentReleaseActivationModel.id.desc(),
+                )
+                .limit(1)
+            )
+            fallback_release = None
+            if activation is None:
+                fallback_release = await session.scalar(
+                    select(AgentReleaseModel.id)
+                    .where(
+                        AgentReleaseModel.project_id == project_id,
+                        AgentReleaseModel.agent_id == target_id,
+                        AgentReleaseModel.status == "production",
+                    )
+                    .order_by(
+                        AgentReleaseModel.updated_at.desc(),
+                        AgentReleaseModel.created_at.desc(),
+                    )
+                    .limit(1)
+                )
+            if activation is None and fallback_release is None:
+                raise ConflictError("Agent Production is not ready")
         if target_type == "network" and target.production_version_id is None:
             raise ConflictError("Network Production is not ready")
 
@@ -778,12 +808,24 @@ class ChatSurfaceService:
                 ApiKeyModel,
                 claims.surface_credential_id,
             )
+            credential_expires_at = (
+                credential.expires_at if credential is not None else None
+            )
+            if (
+                credential_expires_at is not None
+                and credential_expires_at.tzinfo is None
+            ):
+                credential_expires_at = credential_expires_at.replace(tzinfo=UTC)
             if (
                 credential is None
                 or credential.kind != "chat_surface"
                 or credential.chat_surface_id != surface.id
                 or credential.status != "active"
                 or credential.revoked_at is not None
+                or (
+                    credential_expires_at is not None
+                    and credential_expires_at <= datetime.now(UTC)
+                )
             ):
                 raise AuthenticationError("ChatSurface Session token is inactive")
             return AuthorizedChatSession(

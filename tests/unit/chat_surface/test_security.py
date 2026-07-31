@@ -32,6 +32,10 @@ def test_local_http_origin_is_only_allowed_explicitly() -> None:
         normalize_origin("http://localhost:5173", allow_insecure=True)
         == "http://localhost:5173"
     )
+    assert (
+        normalize_origin("http://[::1]:5173", allow_insecure=True)
+        == "http://[::1]:5173"
+    )
 
 
 def test_session_token_round_trip_preserves_all_bindings() -> None:

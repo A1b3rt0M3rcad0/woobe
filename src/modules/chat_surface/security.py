@@ -46,8 +46,16 @@ def normalize_origin(value: str, *, allow_insecure: bool = False) -> str:
     if scheme != "https" and not (allow_insecure and local):
         raise ValidationError("ChatSurface origins must use HTTPS")
     default_port = 443 if scheme == "https" else 80
-    port = parsed.port
-    authority = hostname if port in {None, default_port} else f"{hostname}:{port}"
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValidationError("ChatSurface origin port is invalid") from exc
+    display_hostname = f"[{hostname}]" if ":" in hostname else hostname
+    authority = (
+        display_hostname
+        if port in {None, default_port}
+        else f"{display_hostname}:{port}"
+    )
     return f"{scheme}://{authority}"
 
 
@@ -219,4 +227,3 @@ class ChatSessionTokenCodec:
         if expires_timestamp <= issued_timestamp:
             raise AuthenticationError("Invalid ChatSurface Session token")
         return claims
-

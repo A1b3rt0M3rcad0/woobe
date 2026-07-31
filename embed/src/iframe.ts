@@ -123,17 +123,36 @@ async function onSubmit(event: Event) {
     const frames = buffer.split("\n\n");
     buffer = frames.pop() ?? "";
     for (const frame of frames) {
+      const eventLine = frame
+        .split("\n")
+        .find((line) => line.startsWith("event:"));
       const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
       if (!dataLine) continue;
+      const eventType = eventLine?.slice(6).trim();
       const data = JSON.parse(dataLine.slice(5).trim());
-      if (data.type === "token" && typeof data.token === "string") {
-        answer += data.token;
+      const token =
+        typeof data.token === "string"
+          ? data.token
+          : typeof data.content === "string"
+            ? data.content
+            : typeof data.data?.content === "string"
+              ? data.data.content
+              : "";
+      if ((eventType === "token" || data.type === "token") && token) {
+        answer += token;
         assistant.textContent = answer;
       }
       if (data.type === "done" && typeof data.answer === "string" && !answer) {
         assistant.textContent = data.answer;
       }
-      if (data.type === "error") throw new Error(data.message ?? "Run failed");
+      if (
+        data.type === "error" ||
+        eventType === "execution_failed" ||
+        eventType === "execution_timed_out" ||
+        eventType === "execution_cancelled"
+      ) {
+        throw new Error(data.message ?? data.data?.message ?? "Run failed");
+      }
     }
   }
   emit("run.completed");
