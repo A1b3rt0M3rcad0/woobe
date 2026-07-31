@@ -40,6 +40,8 @@ def normalize_origin(value: str, *, allow_insecure: bool = False) -> str:
         raise ValidationError("ChatSurface origins must be exact origins")
     scheme = parsed.scheme.lower()
     hostname = parsed.hostname.lower()
+    if "*" in hostname:
+        raise ValidationError("ChatSurface origins cannot contain wildcards")
     if scheme not in {"http", "https"}:
         raise ValidationError("ChatSurface origins must use HTTP(S)")
     local = hostname in {"localhost", "127.0.0.1", "::1"}

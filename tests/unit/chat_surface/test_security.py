@@ -22,6 +22,8 @@ def test_origin_normalization_requires_exact_https_origin() -> None:
     with pytest.raises(ValidationError):
         normalize_origin("https://app.example.com/path")
     with pytest.raises(ValidationError):
+        normalize_origin("https://*.example.com")
+    with pytest.raises(ValidationError):
         normalize_origin("http://app.example.com")
 
 

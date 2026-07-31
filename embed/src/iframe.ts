@@ -101,61 +101,67 @@ async function onSubmit(event: Event) {
   messages?.appendChild(messageElement("user", message));
   emit("message.sent");
   emit("run.started");
-  const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": crypto.randomUUID(),
-    },
-    body: JSON.stringify({ message }),
-  });
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Streaming is not available");
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let answer = "";
-  const assistant = messageElement("assistant", "");
-  messages?.appendChild(assistant);
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const eventLine = frame
-        .split("\n")
-        .find((line) => line.startsWith("event:"));
-      const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
-      if (!dataLine) continue;
-      const eventType = eventLine?.slice(6).trim();
-      const data = JSON.parse(dataLine.slice(5).trim());
-      const token =
-        typeof data.token === "string"
-          ? data.token
-          : typeof data.content === "string"
-            ? data.content
-            : typeof data.data?.content === "string"
-              ? data.data.content
-              : "";
-      if ((eventType === "token" || data.type === "token") && token) {
-        answer += token;
-        assistant.textContent = answer;
-      }
-      if (data.type === "done" && typeof data.answer === "string" && !answer) {
-        assistant.textContent = data.answer;
-      }
-      if (
-        data.type === "error" ||
-        eventType === "execution_failed" ||
-        eventType === "execution_timed_out" ||
-        eventType === "execution_cancelled"
-      ) {
-        throw new Error(data.message ?? data.data?.message ?? "Run failed");
+  try {
+    const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ message }),
+    });
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Streaming is not available");
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let answer = "";
+    const assistant = messageElement("assistant", "");
+    messages?.appendChild(assistant);
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const eventLine = frame
+          .split("\n")
+          .find((line) => line.startsWith("event:"));
+        const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
+        if (!dataLine) continue;
+        const eventType = eventLine?.slice(6).trim();
+        const data = JSON.parse(dataLine.slice(5).trim());
+        const token =
+          typeof data.token === "string"
+            ? data.token
+            : typeof data.content === "string"
+              ? data.content
+              : typeof data.data?.content === "string"
+                ? data.data.content
+                : "";
+        if ((eventType === "token" || data.type === "token") && token) {
+          answer += token;
+          assistant.textContent = answer;
+        }
+        if (data.type === "done" && typeof data.answer === "string" && !answer) {
+          assistant.textContent = data.answer;
+        }
+        if (
+          data.type === "error" ||
+          eventType === "execution_failed" ||
+          eventType === "execution_timed_out" ||
+          eventType === "execution_cancelled"
+        ) {
+          throw new Error(data.message ?? data.data?.message ?? "Run failed");
+        }
       }
     }
+    emit("run.completed");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Run failed";
+    messages?.appendChild(messageElement("assistant", message));
+    emit("error", { message });
   }
-  emit("run.completed");
 }
 
 window.addEventListener("message", async (event) => {
