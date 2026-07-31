@@ -75,6 +75,8 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ValidationError("Agent Session does not belong to this Agent runtime")
 
         data = _session_data(session.data)
+        if data.get("chat_surface_dynamic_release") is True:
+            return None
         requested_environment = normalize_runtime_environment(input_dto.execution_context)
         raw_environment = data.get("runtime_environment")
         if raw_environment not in (None, ""):
@@ -100,6 +102,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
         environment = normalize_runtime_environment(input_dto.execution_context)
         data = _session_data(session.data)
+        dynamic_release = data.get("chat_surface_dynamic_release") is True
         raw_environment = data.get("runtime_environment")
         if raw_environment not in (None, ""):
             session_environment = normalize_runtime_environment(str(raw_environment))
@@ -117,7 +120,8 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
         existing_release_id = _session_release_id(data)
         if (
-            environment != "draft"
+            not dynamic_release
+            and environment != "draft"
             and existing_release_id is not None
             and resolved_release_id is not None
             and existing_release_id != resolved_release_id
@@ -134,6 +138,12 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         if environment == "draft":
             next_data.pop("loaded_release_id", None)
             next_data.pop("release_version", None)
+        elif resolved_release_id is not None and dynamic_release:
+            next_data.pop("loaded_release_id", None)
+            next_data.pop("release_version", None)
+            next_data["last_release_id"] = str(resolved_release_id)
+            if resolved_release_version:
+                next_data["last_release_version"] = resolved_release_version
         elif resolved_release_id is not None:
             next_data["loaded_release_id"] = str(resolved_release_id)
             if resolved_release_version:

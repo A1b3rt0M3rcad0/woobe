@@ -16,6 +16,7 @@ class ApiKeyStatus(StrEnum):
 class ApiKeyKind(StrEnum):
     project = auto()
     runtime = auto()
+    chat_surface = auto()
 
 
 class RuntimeTargetType(StrEnum):

@@ -529,6 +529,16 @@ class NetworkApplicationService:
             definition_snapshot: dict[str, Any] | None = None
             bindings_snapshot: dict[str, Any] | None = None
             accepted_version_id: UUID | None = network_session.network_version_id
+            if (
+                network_session.origin == "chat_surface"
+                and network_session.environment == NetworkEnvironment.PRODUCTION.value
+            ):
+                network = await session.get(NetworkModel, network_id, with_for_update=True)
+                if network is None or network.project_id != project_id:
+                    raise NotFoundError("Network not found")
+                accepted_version_id = network.production_version_id
+                if accepted_version_id is None:
+                    raise ConflictError("Network Production is not ready")
             accepted_version: str | None = None
             if network_session.environment == NetworkEnvironment.DRAFT.value:
                 network = await session.get(NetworkModel, network_id, with_for_update=True)
@@ -556,7 +566,7 @@ class NetworkApplicationService:
             else:
                 version = await session.get(
                     NetworkVersionModel,
-                    network_session.network_version_id,
+                    accepted_version_id,
                 )
                 if version is None or version.network_id != network_id:
                     raise ConflictError("Pinned Network version was not found")
@@ -566,7 +576,7 @@ class NetworkApplicationService:
 
             execution = NetworkExecutionModel(
                 network_id=network_id,
-                network_version_id=network_session.network_version_id,
+                network_version_id=accepted_version_id,
                 network_session_id=network_session_id,
                 project_id=project_id,
                 input_message=message.strip(),

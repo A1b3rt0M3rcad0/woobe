@@ -90,6 +90,13 @@ class Settings(BaseSettings):
     runtime_max_snapshot_override_bytes: int = Field(default=32768, gt=0, le=4194304)
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+    chat_surface_enabled: bool = True
+    chat_token_signing_key: str = ""
+    chat_token_issuer: str = "projectrai-chat"
+    chat_token_audience: str = "projectrai-chat-embed"
+    chat_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    chat_surface_session_create_rate_limit: int = Field(default=30, gt=0, le=10000)
+    chat_surface_token_issue_rate_limit: int = Field(default=120, gt=0, le=10000)
     network_runtime_enabled: bool = True
     network_stream_heartbeat_seconds: float = Field(default=10.0, gt=0, le=60)
     network_max_depth_default: int = Field(default=4, ge=1, le=8)
@@ -280,6 +287,15 @@ class Settings(BaseSettings):
         if role == "api":
             if self._is_weak_secret(self.secret_key):
                 errors.append("PROJECTRAI_SECRET_KEY is weak or uses a known placeholder")
+            if self.chat_surface_enabled:
+                if self._is_weak_secret(self.chat_token_signing_key):
+                    errors.append(
+                        "PROJECTRAI_CHAT_TOKEN_SIGNING_KEY is required and must be strong"
+                    )
+                elif self.chat_token_signing_key == self.secret_key:
+                    errors.append(
+                        "PROJECTRAI_CHAT_TOKEN_SIGNING_KEY must differ from PROJECTRAI_SECRET_KEY"
+                    )
             if not self.access_cookie_secure:
                 errors.append("PROJECTRAI_ACCESS_COOKIE_SECURE must be true in production")
             if not self.refresh_cookie_secure:

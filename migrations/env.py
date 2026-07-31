@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from shared.infra.database.base import Base
 from modules.identity.infra.database.models import *  # noqa: F401, F403
 from modules.core.infra.database.models import *  # noqa: F401, F403
+from modules.chat_surface.infra.database.models import *  # noqa: F401, F403
 from modules.agent.infra.database.models import *  # noqa: F401, F403
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
 from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401, F403
@@ -53,6 +54,7 @@ target_metadata = Base.metadata
 MANAGED_SCHEMAS = {
     "identity",
     "core",
+    "chat_surface",
     "agent",
     "network",
     "metering",
