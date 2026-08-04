@@ -45,6 +45,7 @@ def test_session_token_round_trip_preserves_all_bindings() -> None:
     project_id = uuid4()
     surface_id = uuid4()
     target_id = uuid4()
+    target_release_id = uuid4()
     session_id = uuid4()
     credential_id = uuid4()
     token = _codec().issue(
@@ -52,6 +53,7 @@ def test_session_token_round_trip_preserves_all_bindings() -> None:
         chat_surface_id=surface_id,
         target_type="agent",
         target_id=target_id,
+        target_release_id=target_release_id,
         session_id=session_id,
         origin="https://app.example.com",
         surface_credential_id=credential_id,
@@ -64,6 +66,7 @@ def test_session_token_round_trip_preserves_all_bindings() -> None:
     assert claims.project_id == project_id
     assert claims.chat_surface_id == surface_id
     assert claims.target_id == target_id
+    assert claims.target_release_id == target_release_id
     assert claims.session_id == session_id
     assert claims.surface_credential_id == credential_id
     assert claims.origin == "https://app.example.com"
@@ -78,6 +81,7 @@ def test_session_token_rejects_tampering_and_expiration() -> None:
         chat_surface_id=uuid4(),
         target_type="network",
         target_id=uuid4(),
+        target_release_id=uuid4(),
         session_id=uuid4(),
         origin="https://app.example.com",
         surface_credential_id=uuid4(),
