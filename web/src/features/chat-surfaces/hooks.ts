@@ -6,8 +6,14 @@ import {
   createChatSurfaceAccessKey,
   disableChatSurface,
   listChatSurfaces,
+  refreshChatSurfaceRelease,
+  updateChatSurface,
 } from './api'
-import type { ChatSurface, CreateChatSurfaceInput } from './types'
+import type {
+  ChatSurface,
+  CreateChatSurfaceInput,
+  UpdateChatSurfaceInput,
+} from './types'
 
 export function useChatSurfaces(projectId?: string) {
   return useQuery({
@@ -16,6 +22,15 @@ export function useChatSurfaces(projectId?: string) {
     enabled: Boolean(projectId),
     staleTime: 15_000,
   })
+}
+
+function replaceSurface(
+  current: ChatSurface[] | undefined,
+  updated: ChatSurface,
+): ChatSurface[] {
+  return (current ?? []).map((item) =>
+    item.id === updated.id ? updated : item,
+  )
 }
 
 export function useCreateChatSurface(projectId?: string) {
@@ -27,6 +42,38 @@ export function useCreateChatSurface(projectId?: string) {
       queryClient.setQueryData<ChatSurface[]>(
         ['chat-surfaces', projectId],
         (current = []) => [created, ...current],
+      )
+    },
+  })
+}
+
+export function useUpdateChatSurface(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      surfaceId,
+      input,
+    }: {
+      surfaceId: string
+      input: UpdateChatSurfaceInput
+    }) => updateChatSurface(surfaceId, input),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ChatSurface[]>(
+        ['chat-surfaces', projectId],
+        (current) => replaceSurface(current, updated),
+      )
+    },
+  })
+}
+
+export function useRefreshChatSurfaceRelease(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (surfaceId: string) => refreshChatSurfaceRelease(surfaceId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ChatSurface[]>(
+        ['chat-surfaces', projectId],
+        (current) => replaceSurface(current, updated),
       )
     },
   })
@@ -48,8 +95,7 @@ export function useSetChatSurfaceStatus(projectId?: string) {
     onSuccess: (updated) => {
       queryClient.setQueryData<ChatSurface[]>(
         ['chat-surfaces', projectId],
-        (current = []) =>
-          current.map((item) => (item.id === updated.id ? updated : item)),
+        (current) => replaceSurface(current, updated),
       )
     },
   })
