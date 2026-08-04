@@ -24,10 +24,7 @@ from modules.chat_surface.presentation.schemas import (
     StreamChatMessageRequest,
     UpdateChatSurfaceRequest,
 )
-from modules.chat_surface.release_bound_service import (
-    ChatSurfaceService,
-    surface_payload,
-)
+from modules.chat_surface.service import ChatSurfaceService, surface_payload
 from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.routes import _execution_stream
