@@ -43,6 +43,13 @@ class ChatSurfaceModel(BaseModel):
             "target_id",
             "status",
         ),
+        Index(
+            "ix_chat_surface_release",
+            "project_id",
+            "target_type",
+            "target_release_id",
+            "status",
+        ),
         CheckConstraint(
             "target_type IN ('agent', 'network')",
             name="ck_chat_surface_target_type",
@@ -71,6 +78,7 @@ class ChatSurfaceModel(BaseModel):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_type: Mapped[str] = mapped_column(String(32))
     target_id: Mapped[UUID]
+    target_release_id: Mapped[UUID]
     environment: Mapped[str] = mapped_column(
         String(16),
         default="production",
@@ -138,6 +146,12 @@ class ChatSurfaceSessionBindingModel(BaseModel):
             "status",
             "updated_at",
         ),
+        Index(
+            "ix_chat_surface_session_release",
+            "target_type",
+            "target_release_id",
+            "status",
+        ),
         CheckConstraint(
             "target_type IN ('agent', 'network')",
             name="ck_chat_surface_session_target_type",
@@ -155,6 +169,7 @@ class ChatSurfaceSessionBindingModel(BaseModel):
     project_id: Mapped[UUID]
     target_type: Mapped[str] = mapped_column(String(32))
     target_id: Mapped[UUID]
+    target_release_id: Mapped[UUID]
     session_id: Mapped[UUID]
     surface_credential_id: Mapped[UUID]
     idempotency_key: Mapped[str] = mapped_column(String(255))
