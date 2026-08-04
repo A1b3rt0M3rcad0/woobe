@@ -79,7 +79,7 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
   let destroyed = false;
 
   const send = (
-    type: "init" | "token.update" | "open" | "close" | "destroy",
+    type: "init" | "token.update" | "open" | "close",
     payload?: Record<string, string>,
   ) => {
     if (destroyed || !iframe.contentWindow) return;
@@ -139,7 +139,6 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
     },
     destroy() {
       if (destroyed) return;
-      send("destroy");
       destroyed = true;
       window.removeEventListener("message", onMessage);
       iframe.remove();
