@@ -1,9 +1,10 @@
-import { get, post } from '@/lib/api/client'
+import { get, patch, post } from '@/lib/api/client'
 
 import type {
   ChatSurface,
   ChatSurfaceAccessKey,
   CreateChatSurfaceInput,
+  UpdateChatSurfaceInput,
 } from './types'
 
 export function listChatSurfaces(projectId: string): Promise<ChatSurface[]> {
@@ -15,6 +16,17 @@ export function createChatSurface(
   input: CreateChatSurfaceInput,
 ): Promise<ChatSurface> {
   return post<ChatSurface>(`/chat-surfaces/projects/${projectId}`, input)
+}
+
+export function updateChatSurface(
+  surfaceId: string,
+  input: UpdateChatSurfaceInput,
+): Promise<ChatSurface> {
+  return patch<ChatSurface>(`/chat-surfaces/${surfaceId}`, input)
+}
+
+export function refreshChatSurfaceRelease(surfaceId: string): Promise<ChatSurface> {
+  return post<ChatSurface>(`/chat-surfaces/${surfaceId}/release`)
 }
 
 export function activateChatSurface(surfaceId: string): Promise<ChatSurface> {
