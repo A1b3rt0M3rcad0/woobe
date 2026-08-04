@@ -319,8 +319,6 @@ window.addEventListener("message", async (event) => {
     emit("opened");
   } else if (event.data.type === "close") {
     emit("closed");
-  } else if (event.data.type === "destroy") {
-    root.replaceChildren();
   }
 });
 
