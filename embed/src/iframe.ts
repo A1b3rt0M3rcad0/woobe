@@ -45,6 +45,8 @@ let sessionToken = "";
 let sessionId = "";
 let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
+let initialized = false;
+let bootstrapping = false;
 
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
@@ -180,6 +182,22 @@ function appendError(error: unknown) {
   emit("error", { message: text });
 }
 
+async function bootstrap() {
+  if (bootstrapping || initialized) return;
+  bootstrapping = true;
+  try {
+    const configuration = await loadConfiguration();
+    renderShell(configuration.appearance);
+    await loadHistory();
+    initialized = true;
+  } catch (error) {
+    renderShell(DEFAULT_APPEARANCE);
+    appendError(error);
+  } finally {
+    bootstrapping = false;
+  }
+}
+
 async function onSubmit(event: Event) {
   event.preventDefault();
   if (submitting) return;
@@ -285,17 +303,18 @@ window.addEventListener("message", async (event) => {
     apiBaseUrl = new URL(event.data.payload.apiBaseUrl).origin;
     sessionToken = event.data.payload.token;
     sessionId = decodeSessionId(sessionToken);
-    try {
-      const configuration = await loadConfiguration();
-      renderShell(configuration.appearance);
-      await loadHistory();
-    } catch (error) {
-      renderShell(DEFAULT_APPEARANCE);
-      appendError(error);
-    }
+    await bootstrap();
   } else if (event.data.type === "token.update") {
+    const nextSessionId = decodeSessionId(event.data.payload.token);
+    if (sessionId && nextSessionId !== sessionId) {
+      emit("error", {
+        message: "Session token cannot replace the mounted ChatSurface Session",
+      });
+      return;
+    }
     sessionToken = event.data.payload.token;
-    sessionId = decodeSessionId(sessionToken);
+    sessionId = nextSessionId;
+    await bootstrap();
   } else if (event.data.type === "open") {
     emit("opened");
   } else if (event.data.type === "close") {
