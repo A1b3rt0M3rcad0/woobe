@@ -17,6 +17,11 @@ export interface WoobeChatInstance {
   destroy(): void;
 }
 
+const loaderScriptUrl =
+  document.currentScript instanceof HTMLScriptElement && document.currentScript.src
+    ? new URL(document.currentScript.src)
+    : new URL("https://chat.woobe.ai/chat/v1/embed.js");
+
 function resolveContainer(value: string | HTMLElement): HTMLElement {
   const element =
     typeof value === "string" ? document.querySelector<HTMLElement>(value) : value;
@@ -24,26 +29,27 @@ function resolveContainer(value: string | HTMLElement): HTMLElement {
   return element;
 }
 
+function resolveFrameUrl(iframeBaseUrl?: string): URL {
+  if (!iframeBaseUrl) return new URL("iframe.html", loaderScriptUrl);
+  const normalized = iframeBaseUrl.endsWith("/")
+    ? iframeBaseUrl
+    : `${iframeBaseUrl}/`;
+  return new URL("iframe.html", normalized);
+}
+
 function mount(options: WoobeChatOptions): WoobeChatInstance {
   const container = resolveContainer(options.container);
-  const iframeBaseUrl =
-    options.iframeBaseUrl ?? "https://chat.woobe.ai";
-  const frameOrigin = new URL(iframeBaseUrl).origin;
+  const frameUrl = resolveFrameUrl(options.iframeBaseUrl);
+  const frameOrigin = frameUrl.origin;
   const hostOrigin = window.location.origin;
   const instanceId = crypto.randomUUID();
   const iframe = document.createElement("iframe");
+  frameUrl.searchParams.set("surface", options.surfaceId);
+  frameUrl.searchParams.set("instance", instanceId);
   iframe.title = "Woobe Chat";
-  iframe.src = `${frameOrigin}/iframe.html?surface=${encodeURIComponent(
-    options.surfaceId,
-  )}&instance=${encodeURIComponent(instanceId)}`;
-  iframe.allow = "clipboard-write";
-  iframe.referrerPolicy = "strict-origin";
-  iframe.sandbox.add(
-    "allow-forms",
-    "allow-scripts",
-    "allow-same-origin",
-    "allow-popups",
-  );
+  iframe.src = frameUrl.toString();
+  iframe.referrerPolicy = "no-referrer";
+  iframe.sandbox.add("allow-forms", "allow-scripts", "allow-same-origin");
   iframe.dataset.woobeChat = instanceId;
   iframe.style.cssText =
     options.mode === "floating"
