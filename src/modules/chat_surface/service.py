@@ -31,6 +31,7 @@ from modules.chat_surface.presentation.schemas import (
     CreateSurfaceAccessKeyRequest,
     CreateSurfaceSessionRequest,
     UpdateChatSurfaceRequest,
+    normalize_appearance_config,
 )
 from modules.chat_surface.security import (
     ChatSessionClaims,
@@ -42,6 +43,7 @@ from modules.network.infra.database.models import (
     NetworkMessageModel,
     NetworkModel,
     NetworkSessionModel,
+    NetworkVersionModel,
 )
 from shared.infra.errors import (
     AuthenticationError,
@@ -87,11 +89,14 @@ def surface_payload(surface: ChatSurfaceModel) -> dict:
         "description": surface.description,
         "target_type": surface.target_type,
         "target_id": str(surface.target_id),
+        "target_release_id": str(surface.target_release_id),
         "environment": surface.environment,
         "status": surface.status,
         "access_mode": surface.access_mode,
         "allowed_origins": list(surface.allowed_origins or []),
-        "appearance_config": dict(surface.appearance_config or {}),
+        "appearance_config": normalize_appearance_config(
+            dict(surface.appearance_config or {})
+        ),
         "requests_per_minute": surface.requests_per_minute,
         "max_concurrent_runs": surface.max_concurrent_runs,
         "session_token_ttl_seconds": surface.session_token_ttl_seconds,
@@ -104,6 +109,8 @@ def surface_payload(surface: ChatSurfaceModel) -> dict:
 
 
 class ChatSurfaceService:
+    """ChatSurface lifecycle bound to immutable Agent and Network Releases."""
+
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
@@ -135,20 +142,21 @@ class ChatSurfaceService:
             raise ValidationError("ChatSurface metadata is too large")
         return value
 
-    async def _validate_target(
+    async def _current_target_release(
         self,
         session: AsyncSession,
         *,
         project_id: UUID,
         target_type: str,
         target_id: UUID,
-    ) -> None:
+    ) -> tuple[UUID, str]:
         if target_type == "agent":
             target = await session.get(AgentModel, target_id)
         else:
             target = await session.get(NetworkModel, target_id)
         if target is None or target.project_id != project_id:
             raise NotFoundError(f"{target_type.capitalize()} not found")
+
         await assert_runtime_environment_enabled(
             session,
             target_type=target_type,
@@ -156,9 +164,10 @@ class ChatSurfaceService:
             project_id=project_id,
             environment="production",
         )
+
         if target_type == "agent":
-            activation = await session.scalar(
-                select(AgentReleaseActivationModel.id)
+            release_id = await session.scalar(
+                select(AgentReleaseActivationModel.release_id)
                 .where(
                     AgentReleaseActivationModel.project_id == project_id,
                     AgentReleaseActivationModel.agent_id == target_id,
@@ -169,9 +178,8 @@ class ChatSurfaceService:
                 )
                 .limit(1)
             )
-            fallback_release = None
-            if activation is None:
-                fallback_release = await session.scalar(
+            if release_id is None:
+                release_id = await session.scalar(
                     select(AgentReleaseModel.id)
                     .where(
                         AgentReleaseModel.project_id == project_id,
@@ -181,13 +189,81 @@ class ChatSurfaceService:
                     .order_by(
                         AgentReleaseModel.updated_at.desc(),
                         AgentReleaseModel.created_at.desc(),
+                        AgentReleaseModel.id.desc(),
                     )
                     .limit(1)
                 )
-            if activation is None and fallback_release is None:
+            if release_id is None:
                 raise ConflictError("Agent Production is not ready")
-        if target_type == "network" and target.production_version_id is None:
+            release = await session.get(AgentReleaseModel, release_id)
+            if (
+                release is None
+                or release.project_id != project_id
+                or release.agent_id != target_id
+            ):
+                raise ConflictError("Agent Production release was not found")
+            return release.id, release.version
+
+        release_id = target.production_version_id
+        if release_id is None:
             raise ConflictError("Network Production is not ready")
+        release = await session.get(NetworkVersionModel, release_id)
+        if (
+            release is None
+            or release.project_id != project_id
+            or release.network_id != target_id
+            or release.kind != "release"
+        ):
+            raise ConflictError("Network Production release was not found")
+        return release.id, release.version
+
+    async def _bound_target_release(
+        self,
+        session: AsyncSession,
+        *,
+        project_id: UUID,
+        target_type: str,
+        target_id: UUID,
+        target_release_id: UUID,
+    ) -> tuple[UUID, str]:
+        await assert_runtime_environment_enabled(
+            session,
+            target_type=target_type,
+            target_id=target_id,
+            project_id=project_id,
+            environment="production",
+        )
+        if target_type == "agent":
+            release = await session.get(AgentReleaseModel, target_release_id)
+            if (
+                release is None
+                or release.project_id != project_id
+                or release.agent_id != target_id
+                or release.status in {"draft", "staging"}
+            ):
+                raise ConflictError("Pinned Agent Release is unavailable")
+            return release.id, release.version
+
+        release = await session.get(NetworkVersionModel, target_release_id)
+        if (
+            release is None
+            or release.project_id != project_id
+            or release.network_id != target_id
+            or release.kind != "release"
+        ):
+            raise ConflictError("Pinned Network Release is unavailable")
+        return release.id, release.version
+
+    @staticmethod
+    def _require_surface_credential(
+        surface: ChatSurfaceModel,
+        credential: SurfaceCredential,
+    ) -> None:
+        if (
+            credential.project_id != surface.project_id
+            or credential.chat_surface_id != surface.id
+        ):
+            raise AuthenticationError("Invalid ChatSurface Access Key")
 
     async def create_surface(
         self,
@@ -199,7 +275,7 @@ class ChatSurfaceService:
         origins = self._origins(payload.allowed_origins)
         normalized_name = payload.name.casefold()
         async with self._session_factory() as session, session.begin():
-            await self._validate_target(
+            target_release_id, _ = await self._current_target_release(
                 session,
                 project_id=project_id,
                 target_type=payload.target_type,
@@ -213,6 +289,7 @@ class ChatSurfaceService:
                 description=payload.description,
                 target_type=payload.target_type,
                 target_id=payload.target_id,
+                target_release_id=target_release_id,
                 environment="production",
                 status="draft",
                 access_mode="backend_managed",
@@ -245,17 +322,6 @@ class ChatSurfaceService:
     async def get_surface(self, surface_id: UUID) -> ChatSurfaceModel:
         async with self._session_factory() as session:
             surface = await session.get(ChatSurfaceModel, surface_id)
-            if surface is None:
-                raise NotFoundError("ChatSurface not found")
-            return surface
-
-    async def get_surface_by_public_id(self, public_id: str) -> ChatSurfaceModel:
-        async with self._session_factory() as session:
-            surface = await session.scalar(
-                select(ChatSurfaceModel).where(
-                    ChatSurfaceModel.public_id == public_id
-                )
-            )
             if surface is None:
                 raise NotFoundError("ChatSurface not found")
             return surface
@@ -303,6 +369,26 @@ class ChatSurfaceService:
                 ) from exc
             return surface
 
+    async def refresh_target_release(self, surface_id: UUID) -> ChatSurfaceModel:
+        async with self._session_factory() as session, session.begin():
+            surface = await session.get(
+                ChatSurfaceModel,
+                surface_id,
+                with_for_update=True,
+            )
+            if surface is None:
+                raise NotFoundError("ChatSurface not found")
+            if surface.status == "archived":
+                raise ConflictError("Archived ChatSurface cannot change Release")
+            release_id, _ = await self._current_target_release(
+                session,
+                project_id=surface.project_id,
+                target_type=surface.target_type,
+                target_id=surface.target_id,
+            )
+            surface.target_release_id = release_id
+            return surface
+
     async def set_status(
         self,
         surface_id: UUID,
@@ -325,11 +411,12 @@ class ChatSurfaceService:
                     raise ConflictError(
                         "Active ChatSurface requires at least one allowed origin"
                     )
-                await self._validate_target(
+                await self._bound_target_release(
                     session,
                     project_id=surface.project_id,
                     target_type=surface.target_type,
                     target_id=surface.target_id,
+                    target_release_id=surface.target_release_id,
                 )
                 surface.activated_at = datetime.now(UTC)
             elif status == "archived":
@@ -522,6 +609,7 @@ class ChatSurfaceService:
         payload: CreateSurfaceSessionRequest,
     ) -> ChatSurfaceSessionBindingModel:
         credential.require("surface:sessions:create")
+        self._require_surface_credential(surface, credential)
         if surface.status != "active":
             raise ConflictError("ChatSurface is not active")
         normalized_key = idempotency_key.strip()
@@ -540,6 +628,7 @@ class ChatSurfaceService:
                 )
                 if existing is not None:
                     return existing
+
                 locked_surface = await session.get(
                     ChatSurfaceModel,
                     surface.id,
@@ -547,98 +636,60 @@ class ChatSurfaceService:
                 )
                 if locked_surface is None or locked_surface.status != "active":
                     raise ConflictError("ChatSurface is not active")
-                await self._validate_target(
+                self._require_surface_credential(locked_surface, credential)
+                release_id, release_version = await self._bound_target_release(
                     session,
-                    project_id=surface.project_id,
-                    target_type=surface.target_type,
-                    target_id=surface.target_id,
+                    project_id=locked_surface.project_id,
+                    target_type=locked_surface.target_type,
+                    target_id=locked_surface.target_id,
+                    target_release_id=locked_surface.target_release_id,
                 )
 
-                if surface.target_type == "agent":
-                    activation = await session.scalar(
-                        select(AgentReleaseActivationModel)
-                        .where(
-                            AgentReleaseActivationModel.project_id
-                            == surface.project_id,
-                            AgentReleaseActivationModel.agent_id == surface.target_id,
-                        )
-                        .order_by(
-                            AgentReleaseActivationModel.created_at.desc(),
-                            AgentReleaseActivationModel.id.desc(),
-                        )
-                        .limit(1)
-                    )
-                    opened_release_id = (
-                        activation.release_id if activation is not None else None
-                    )
-                    if opened_release_id is None:
-                        fallback_release = await session.scalar(
-                            select(AgentReleaseModel)
-                            .where(
-                                AgentReleaseModel.project_id == surface.project_id,
-                                AgentReleaseModel.agent_id == surface.target_id,
-                                AgentReleaseModel.status == "production",
-                            )
-                            .order_by(
-                                AgentReleaseModel.updated_at.desc(),
-                                AgentReleaseModel.created_at.desc(),
-                            )
-                            .limit(1)
-                        )
-                        opened_release_id = (
-                            fallback_release.id
-                            if fallback_release is not None
-                            else None
-                        )
-                    if opened_release_id is None:
-                        raise ConflictError("Agent Production is not ready")
+                if locked_surface.target_type == "agent":
                     target_session = SessionModel(
-                        project_id=surface.project_id,
-                        agent_id=surface.target_id,
+                        project_id=locked_surface.project_id,
+                        agent_id=locked_surface.target_id,
                         runtime_environment="production",
-                        opened_release_id=opened_release_id,
+                        opened_release_id=release_id,
                         external_session_id=None,
-                        tenant_id=str(surface.id),
+                        tenant_id=str(locked_surface.id),
                         user_id=None,
                         status="active",
                         mode="chat",
                         data={
                             "source": "chat_surface",
-                            "chat_surface_dynamic_release": True,
-                            "chat_surface_id": str(surface.id),
+                            "chat_surface_id": str(locked_surface.id),
+                            "runtime_environment": "production",
+                            "loaded_release_id": str(release_id),
+                            "release_version": release_version,
                         },
                         last_message_at=None,
-                        chat_surface_id=surface.id,
+                        chat_surface_id=locked_surface.id,
                         origin="chat_surface",
                     )
                 else:
-                    network = await session.get(NetworkModel, surface.target_id)
-                    if (
-                        network is None
-                        or network.project_id != surface.project_id
-                        or network.production_version_id is None
-                    ):
-                        raise ConflictError("Network Production is not ready")
                     target_session = NetworkSessionModel(
-                        network_id=surface.target_id,
-                        network_version_id=network.production_version_id,
-                        project_id=surface.project_id,
+                        network_id=locked_surface.target_id,
+                        network_version_id=release_id,
+                        project_id=locked_surface.project_id,
                         environment="production",
                         title="ChatSurface session",
-                        tenant_id=str(surface.id),
+                        tenant_id=str(locked_surface.id),
                         user_id=None,
                         external_session_id=None,
                         status="active",
-                        chat_surface_id=surface.id,
+                        chat_surface_id=locked_surface.id,
                         origin="chat_surface",
                     )
                 session.add(target_session)
                 await session.flush()
+
                 binding = ChatSurfaceSessionBindingModel(
-                    chat_surface_id=surface.id,
-                    project_id=surface.project_id,
-                    target_type=surface.target_type,
-                    target_id=surface.target_id,
+                    chat_surface_id=locked_surface.id,
+                    project_id=locked_surface.project_id,
+                    target_type=locked_surface.target_type,
+                    target_id=locked_surface.target_id,
+                    target_release_id=release_id,
                     session_id=target_session.id,
                     surface_credential_id=credential.api_key_id,
                     idempotency_key=normalized_key,
@@ -706,6 +757,7 @@ class ChatSurfaceService:
         origin: str,
     ) -> tuple[str, ChatSurfaceSessionBindingModel]:
         credential.require("surface:sessions:token:issue")
+        self._require_surface_credential(surface, credential)
         normalized_origin = normalize_origin(
             origin,
             allow_insecure=self._allow_insecure_origins,
@@ -714,17 +766,25 @@ class ChatSurfaceService:
             raise AuthorizationError("Origin is not allowed by this ChatSurface")
         if surface.status != "active":
             raise ConflictError("ChatSurface is not active")
+
         binding = await self.get_binding(
             surface_id=surface.id,
             session_id=session_id,
         )
-        if binding.status != "active":
+        if (
+            binding.status != "active"
+            or binding.project_id != surface.project_id
+            or binding.target_type != surface.target_type
+            or binding.target_id != surface.target_id
+        ):
             raise ConflictError("ChatSurface Session is not active")
+
         token = self._token_codec.issue(
             project_id=surface.project_id,
             chat_surface_id=surface.id,
             target_type=surface.target_type,
             target_id=surface.target_id,
+            target_release_id=binding.target_release_id,
             session_id=binding.session_id,
             origin=normalized_origin,
             surface_credential_id=credential.api_key_id,
@@ -741,6 +801,7 @@ class ChatSurfaceService:
         session_id: UUID,
     ) -> ChatSurfaceSessionBindingModel:
         credential.require("surface:sessions:archive")
+        self._require_surface_credential(surface, credential)
         async with self._session_factory() as session, session.begin():
             binding = await session.scalar(
                 select(ChatSurfaceSessionBindingModel)
@@ -779,8 +840,9 @@ class ChatSurfaceService:
                 host_origin,
                 allow_insecure=self._allow_insecure_origins,
             )
-            if not compare_digest(normalized, claims.origin):
+            if normalized != claims.origin:
                 raise AuthorizationError("ChatSurface Session origin does not match")
+
         async with self._session_factory() as session:
             surface = await session.get(ChatSurfaceModel, claims.chat_surface_id)
             if (
@@ -793,17 +855,30 @@ class ChatSurfaceService:
                 or claims.origin not in set(surface.allowed_origins or [])
             ):
                 raise AuthenticationError("ChatSurface Session token is inactive")
+
+            await assert_runtime_environment_enabled(
+                session,
+                target_type=surface.target_type,
+                target_id=surface.target_id,
+                project_id=surface.project_id,
+                environment="production",
+            )
+
             binding = await session.scalar(
                 select(ChatSurfaceSessionBindingModel).where(
                     ChatSurfaceSessionBindingModel.chat_surface_id == surface.id,
+                    ChatSurfaceSessionBindingModel.project_id == claims.project_id,
                     ChatSurfaceSessionBindingModel.session_id == claims.session_id,
                     ChatSurfaceSessionBindingModel.target_type == claims.target_type,
                     ChatSurfaceSessionBindingModel.target_id == claims.target_id,
+                    ChatSurfaceSessionBindingModel.target_release_id
+                    == claims.target_release_id,
                     ChatSurfaceSessionBindingModel.status == "active",
                 )
             )
             if binding is None:
                 raise NotFoundError("ChatSurface Session not found")
+
             credential = await session.get(
                 ApiKeyModel,
                 claims.surface_credential_id,
@@ -819,6 +894,7 @@ class ChatSurfaceService:
             if (
                 credential is None
                 or credential.kind != "chat_surface"
+                or credential.project_id != surface.project_id
                 or credential.chat_surface_id != surface.id
                 or credential.status != "active"
                 or credential.revoked_at is not None
@@ -828,6 +904,37 @@ class ChatSurfaceService:
                 )
             ):
                 raise AuthenticationError("ChatSurface Session token is inactive")
+
+            if binding.target_type == "agent":
+                target_session = await session.get(SessionModel, binding.session_id)
+                valid_target_session = (
+                    target_session is not None
+                    and target_session.project_id == binding.project_id
+                    and target_session.agent_id == binding.target_id
+                    and target_session.runtime_environment == "production"
+                    and target_session.opened_release_id == binding.target_release_id
+                    and target_session.chat_surface_id == surface.id
+                    and target_session.origin == "chat_surface"
+                    and target_session.status == "active"
+                )
+            else:
+                target_session = await session.get(
+                    NetworkSessionModel,
+                    binding.session_id,
+                )
+                valid_target_session = (
+                    target_session is not None
+                    and target_session.project_id == binding.project_id
+                    and target_session.network_id == binding.target_id
+                    and target_session.environment == "production"
+                    and target_session.network_version_id == binding.target_release_id
+                    and target_session.chat_surface_id == surface.id
+                    and target_session.origin == "chat_surface"
+                    and target_session.status == "active"
+                )
+            if not valid_target_session:
+                raise NotFoundError("ChatSurface Session not found")
+
             return AuthorizedChatSession(
                 surface=surface,
                 binding=binding,
@@ -1039,3 +1146,16 @@ class ChatSurfaceService:
                 "sessions": int(sessions or 0),
                 "active_sessions": int(active or 0),
             }
+
+    def embed_configuration(self, authorized: AuthorizedChatSession) -> dict:
+        return {
+            "surface_id": authorized.surface.public_id,
+            "name": authorized.surface.name,
+            "appearance": normalize_appearance_config(
+                dict(authorized.surface.appearance_config or {})
+            ),
+            "protocol_version": 1,
+        }
+
+
+__all__ = ["ChatSurfaceService", "surface_payload"]
