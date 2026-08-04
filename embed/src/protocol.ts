@@ -42,13 +42,31 @@ export interface FrameEvent {
   payload?: unknown;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function isHostMessage(value: unknown): value is HostMessage {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<HostMessage>;
-  return (
-    candidate.protocolVersion === PROTOCOL_VERSION &&
-    typeof candidate.instanceId === "string" &&
-    typeof candidate.surfaceId === "string" &&
-    typeof candidate.type === "string"
-  );
+  if (!isRecord(value)) return false;
+  if (
+    value.protocolVersion !== PROTOCOL_VERSION ||
+    typeof value.instanceId !== "string" ||
+    typeof value.surfaceId !== "string" ||
+    typeof value.type !== "string"
+  ) {
+    return false;
+  }
+
+  if (value.type === "init") {
+    return (
+      isRecord(value.payload) &&
+      typeof value.payload.token === "string" &&
+      typeof value.payload.hostOrigin === "string" &&
+      typeof value.payload.apiBaseUrl === "string"
+    );
+  }
+  if (value.type === "token.update") {
+    return isRecord(value.payload) && typeof value.payload.token === "string";
+  }
+  return value.type === "open" || value.type === "close" || value.type === "destroy";
 }
