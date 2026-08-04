@@ -19,7 +19,7 @@ export type HostMessage =
       protocolVersion: 1;
       instanceId: string;
       surfaceId: string;
-      type: "open" | "close" | "destroy";
+      type: "open" | "close";
       payload?: never;
     };
 
@@ -33,14 +33,6 @@ export type FrameEventType =
   | "error"
   | "opened"
   | "closed";
-
-export interface FrameEvent {
-  protocolVersion: 1;
-  instanceId: string;
-  surfaceId: string;
-  type: FrameEventType;
-  payload?: unknown;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -68,5 +60,5 @@ export function isHostMessage(value: unknown): value is HostMessage {
   if (value.type === "token.update") {
     return isRecord(value.payload) && typeof value.payload.token === "string";
   }
-  return value.type === "open" || value.type === "close" || value.type === "destroy";
+  return value.type === "open" || value.type === "close";
 }
