@@ -7,8 +7,6 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig({
   base: "./",
   build: {
-    manifest: true,
-    sourcemap: true,
     rollupOptions: {
       input: {
         loader: resolve(root, "src/loader.ts"),
