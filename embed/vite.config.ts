@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
+  base: "./",
   build: {
     manifest: true,
     sourcemap: true,
@@ -14,7 +15,8 @@ export default defineConfig({
         iframe: resolve(root, "iframe.html"),
       },
       output: {
-        entryFileNames: "assets/[name]-[hash].js",
+        entryFileNames: (chunk) =>
+          chunk.name === "loader" ? "embed.js" : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },
