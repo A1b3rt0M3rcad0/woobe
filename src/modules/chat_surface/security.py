@@ -67,6 +67,7 @@ class ChatSessionClaims:
     chat_surface_id: UUID
     target_type: str
     target_id: UUID
+    target_release_id: UUID
     session_id: UUID
     origin: str
     surface_credential_id: UUID
@@ -106,6 +107,7 @@ class ChatSessionTokenCodec:
         chat_surface_id: UUID,
         target_type: str,
         target_id: UUID,
+        target_release_id: UUID,
         session_id: UUID,
         origin: str,
         surface_credential_id: UUID,
@@ -123,6 +125,7 @@ class ChatSessionTokenCodec:
             "chat_surface_id": str(chat_surface_id),
             "target_type": target_type,
             "target_id": str(target_id),
+            "target_release_id": str(target_release_id),
             "environment": "production",
             "sid": str(session_id),
             "permissions": ["chat:history", "chat:send", "chat:stream"],
@@ -175,6 +178,7 @@ class ChatSessionTokenCodec:
             "chat_surface_id",
             "target_type",
             "target_id",
+            "target_release_id",
             "environment",
             "sid",
             "permissions",
@@ -207,6 +211,7 @@ class ChatSessionTokenCodec:
                 chat_surface_id=UUID(str(payload["chat_surface_id"])),
                 target_type=str(payload["target_type"]),
                 target_id=UUID(str(payload["target_id"])),
+                target_release_id=UUID(str(payload["target_release_id"])),
                 session_id=UUID(str(payload["sid"])),
                 origin=str(payload["origin"]),
                 surface_credential_id=UUID(str(payload["surface_credential_id"])),
