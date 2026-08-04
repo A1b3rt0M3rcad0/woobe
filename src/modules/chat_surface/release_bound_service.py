@@ -492,6 +492,7 @@ class ChatSurfaceService(BaseChatSurfaceService):
             binding = await session.scalar(
                 select(ChatSurfaceSessionBindingModel).where(
                     ChatSurfaceSessionBindingModel.chat_surface_id == surface.id,
+                    ChatSurfaceSessionBindingModel.project_id == claims.project_id,
                     ChatSurfaceSessionBindingModel.session_id == claims.session_id,
                     ChatSurfaceSessionBindingModel.target_type == claims.target_type,
                     ChatSurfaceSessionBindingModel.target_id == claims.target_id,
@@ -535,8 +536,10 @@ class ChatSurfaceService(BaseChatSurfaceService):
                     target_session is not None
                     and target_session.project_id == binding.project_id
                     and target_session.agent_id == binding.target_id
+                    and target_session.runtime_environment == "production"
                     and target_session.opened_release_id == binding.target_release_id
                     and target_session.chat_surface_id == surface.id
+                    and target_session.origin == "chat_surface"
                     and target_session.status == "active"
                 )
             else:
@@ -548,8 +551,10 @@ class ChatSurfaceService(BaseChatSurfaceService):
                     target_session is not None
                     and target_session.project_id == binding.project_id
                     and target_session.network_id == binding.target_id
+                    and target_session.environment == "production"
                     and target_session.network_version_id == binding.target_release_id
                     and target_session.chat_surface_id == surface.id
+                    and target_session.origin == "chat_surface"
                     and target_session.status == "active"
                 )
             if not valid_target_session:
