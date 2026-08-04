@@ -1,4 +1,23 @@
-import { PROTOCOL_VERSION, type FrameEvent } from "./protocol";
+const PROTOCOL_VERSION = 1 as const;
+
+type FrameEventType =
+  | "ready"
+  | "history.loaded"
+  | "message.sent"
+  | "run.started"
+  | "run.completed"
+  | "session.expired"
+  | "error"
+  | "opened"
+  | "closed";
+
+interface FrameEvent {
+  protocolVersion: 1;
+  instanceId: string;
+  surfaceId: string;
+  type: FrameEventType;
+  payload?: unknown;
+}
 
 export interface WoobeChatOptions {
   container: string | HTMLElement;
