@@ -162,6 +162,13 @@ class ChatSurfaceService(BaseChatSurfaceService):
         target_id: UUID,
         target_release_id: UUID,
     ) -> tuple[UUID, str]:
+        await assert_runtime_environment_enabled(
+            session,
+            target_type=target_type,
+            target_id=target_id,
+            project_id=project_id,
+            environment="production",
+        )
         if target_type == "agent":
             release = await session.get(AgentReleaseModel, target_release_id)
             if (
@@ -488,6 +495,14 @@ class ChatSurfaceService(BaseChatSurfaceService):
                 or claims.origin not in set(surface.allowed_origins or [])
             ):
                 raise AuthenticationError("ChatSurface Session token is inactive")
+
+            await assert_runtime_environment_enabled(
+                session,
+                target_type=surface.target_type,
+                target_id=surface.target_id,
+                project_id=surface.project_id,
+                environment="production",
+            )
 
             binding = await session.scalar(
                 select(ChatSurfaceSessionBindingModel).where(
