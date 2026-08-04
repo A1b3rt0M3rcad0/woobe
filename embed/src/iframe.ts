@@ -5,6 +5,29 @@ import {
 } from "./protocol";
 import "./styles.css";
 
+interface SurfaceAppearance {
+  theme: "light" | "dark" | "system";
+  primary_color: string;
+  title: string;
+  placeholder: string;
+  welcome_message: string | null;
+}
+
+interface SurfaceConfiguration {
+  surface_id: string;
+  name: string;
+  appearance: SurfaceAppearance;
+  protocol_version: number;
+}
+
+const DEFAULT_APPEARANCE: SurfaceAppearance = {
+  theme: "system",
+  primary_color: "#5B47E0",
+  title: "Woobe",
+  placeholder: "Type a message…",
+  welcome_message: null,
+};
+
 const params = new URLSearchParams(window.location.search);
 const surfaceId = params.get("surface") ?? "";
 const instanceId = params.get("instance") ?? "";
@@ -20,6 +43,8 @@ let hostOrigin = "";
 let apiBaseUrl = "";
 let sessionToken = "";
 let sessionId = "";
+let appearance = DEFAULT_APPEARANCE;
+let submitting = false;
 
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
@@ -39,7 +64,9 @@ function decodeSessionId(token: string): string {
   const payload = token.split(".")[1];
   if (!payload) throw new Error("Invalid Session token");
   const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-  const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+  const decoded = JSON.parse(
+    atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")),
+  );
   if (typeof decoded.sid !== "string") throw new Error("Invalid Session token");
   return decoded.sid;
 }
@@ -51,18 +78,50 @@ function messageElement(role: string, content: string): HTMLElement {
   return item;
 }
 
-function renderShell() {
+function messagesElement(): HTMLElement | null {
+  return root.querySelector<HTMLElement>(".chat__messages");
+}
+
+function scrollToLatest() {
+  const messages = messagesElement();
+  if (messages) messages.scrollTop = messages.scrollHeight;
+}
+
+function setSubmitting(value: boolean) {
+  submitting = value;
+  const input = root.querySelector<HTMLTextAreaElement>("textarea");
+  const button = root.querySelector<HTMLButtonElement>("button[type='submit']");
+  if (input) input.disabled = value;
+  if (button) {
+    button.disabled = value;
+    button.textContent = value ? "Sending…" : "Send";
+  }
+}
+
+function applyAppearance(next: SurfaceAppearance) {
+  appearance = next;
+  root.dataset.theme = next.theme;
+  root.style.setProperty("--woobe-primary", next.primary_color);
+  document.title = next.title;
+}
+
+function renderShell(next: SurfaceAppearance) {
+  applyAppearance(next);
   root.innerHTML = `
     <section class="chat">
-      <header class="chat__header">Woobe</header>
-      <div class="chat__messages" role="log" aria-label="Conversation"></div>
+      <header class="chat__header"></header>
+      <div class="chat__messages" role="log" aria-label="Conversation" aria-live="polite"></div>
       <form class="chat__composer">
         <label class="sr-only" for="woobe-message">Message</label>
-        <textarea id="woobe-message" rows="1" maxlength="32768" placeholder="Type a message…" required></textarea>
+        <textarea id="woobe-message" rows="1" maxlength="32768" required></textarea>
         <button type="submit">Send</button>
       </form>
     </section>
   `;
+  const header = root.querySelector<HTMLElement>(".chat__header");
+  const input = root.querySelector<HTMLTextAreaElement>("textarea");
+  if (header) header.textContent = next.title;
+  if (input) input.placeholder = next.placeholder;
   root.querySelector("form")?.addEventListener("submit", onSubmit);
 }
 
@@ -81,26 +140,62 @@ async function api(path: string, init: RequestInit = {}) {
   return response;
 }
 
+async function loadConfiguration(): Promise<SurfaceConfiguration> {
+  const response = await api(`/v1/chat/sessions/${sessionId}/surface`);
+  const payload = await response.json();
+  const configuration = payload.data as SurfaceConfiguration | undefined;
+  if (
+    !configuration ||
+    configuration.surface_id !== surfaceId ||
+    configuration.protocol_version !== PROTOCOL_VERSION
+  ) {
+    throw new Error("Invalid ChatSurface configuration");
+  }
+  return configuration;
+}
+
 async function loadHistory() {
   const response = await api(`/v1/chat/sessions/${sessionId}/messages?limit=50`);
   const payload = await response.json();
-  const messages = root?.querySelector<HTMLElement>(".chat__messages");
-  for (const item of payload.data?.items ?? []) {
-    messages?.appendChild(messageElement(item.role, item.content));
+  const messages = messagesElement();
+  const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
+  for (const item of items) {
+    if (typeof item?.role === "string" && typeof item?.content === "string") {
+      messages?.appendChild(messageElement(item.role, item.content));
+    }
   }
-  emit("history.loaded");
+  if (items.length === 0 && appearance.welcome_message) {
+    messages?.appendChild(
+      messageElement("assistant", appearance.welcome_message),
+    );
+  }
+  scrollToLatest();
+  emit("history.loaded", { count: items.length });
+}
+
+function appendError(error: unknown) {
+  const text = error instanceof Error ? error.message : "Run failed";
+  messagesElement()?.appendChild(messageElement("assistant", text));
+  scrollToLatest();
+  emit("error", { message: text });
 }
 
 async function onSubmit(event: Event) {
   event.preventDefault();
-  const input = root?.querySelector<HTMLTextAreaElement>("textarea");
-  const messages = root?.querySelector<HTMLElement>(".chat__messages");
+  if (submitting) return;
+
+  const input = root.querySelector<HTMLTextAreaElement>("textarea");
+  const messages = messagesElement();
   const message = input?.value.trim() ?? "";
   if (!message || !input) return;
+
   input.value = "";
   messages?.appendChild(messageElement("user", message));
+  scrollToLatest();
+  setSubmitting(true);
   emit("message.sent");
   emit("run.started");
+
   try {
     const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
       method: "POST",
@@ -112,55 +207,63 @@ async function onSubmit(event: Event) {
     });
     const reader = response.body?.getReader();
     if (!reader) throw new Error("Streaming is not available");
+
     const decoder = new TextDecoder();
     let buffer = "";
     let answer = "";
     const assistant = messageElement("assistant", "");
     messages?.appendChild(assistant);
+
+    const consumeFrame = (frame: string) => {
+      const lines = frame.split("\n");
+      const eventLine = lines.find((line) => line.startsWith("event:"));
+      const dataLine = lines.find((line) => line.startsWith("data:"));
+      if (!dataLine) return;
+      const eventType = eventLine?.slice(6).trim();
+      const data = JSON.parse(dataLine.slice(5).trim());
+      const token =
+        typeof data.token === "string"
+          ? data.token
+          : typeof data.content === "string"
+            ? data.content
+            : typeof data.data?.content === "string"
+              ? data.data.content
+              : "";
+      if ((eventType === "token" || data.type === "token") && token) {
+        answer += token;
+        assistant.textContent = answer;
+        scrollToLatest();
+      }
+      if (data.type === "done" && typeof data.answer === "string" && !answer) {
+        assistant.textContent = data.answer;
+        scrollToLatest();
+      }
+      if (
+        data.type === "error" ||
+        eventType === "execution_failed" ||
+        eventType === "execution_timed_out" ||
+        eventType === "execution_cancelled"
+      ) {
+        throw new Error(data.message ?? data.data?.message ?? "Run failed");
+      }
+    };
+
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const frames = buffer.split("\n\n");
       buffer = frames.pop() ?? "";
-      for (const frame of frames) {
-        const eventLine = frame
-          .split("\n")
-          .find((line) => line.startsWith("event:"));
-        const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
-        if (!dataLine) continue;
-        const eventType = eventLine?.slice(6).trim();
-        const data = JSON.parse(dataLine.slice(5).trim());
-        const token =
-          typeof data.token === "string"
-            ? data.token
-            : typeof data.content === "string"
-              ? data.content
-              : typeof data.data?.content === "string"
-                ? data.data.content
-                : "";
-        if ((eventType === "token" || data.type === "token") && token) {
-          answer += token;
-          assistant.textContent = answer;
-        }
-        if (data.type === "done" && typeof data.answer === "string" && !answer) {
-          assistant.textContent = data.answer;
-        }
-        if (
-          data.type === "error" ||
-          eventType === "execution_failed" ||
-          eventType === "execution_timed_out" ||
-          eventType === "execution_cancelled"
-        ) {
-          throw new Error(data.message ?? data.data?.message ?? "Run failed");
-        }
-      }
+      for (const frame of frames) consumeFrame(frame);
     }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeFrame(buffer);
     emit("run.completed");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Run failed";
-    messages?.appendChild(messageElement("assistant", message));
-    emit("error", { message });
+    appendError(error);
+  } finally {
+    setSubmitting(false);
+    input.focus();
   }
 }
 
@@ -173,6 +276,7 @@ window.addEventListener("message", async (event) => {
   ) {
     return;
   }
+
   if (event.data.type === "init") {
     if (parentOrigin !== null) return;
     if (event.data.payload.hostOrigin !== event.origin) return;
@@ -181,11 +285,13 @@ window.addEventListener("message", async (event) => {
     apiBaseUrl = new URL(event.data.payload.apiBaseUrl).origin;
     sessionToken = event.data.payload.token;
     sessionId = decodeSessionId(sessionToken);
-    renderShell();
     try {
+      const configuration = await loadConfiguration();
+      renderShell(configuration.appearance);
       await loadHistory();
     } catch (error) {
-      emit("error", { message: String(error) });
+      renderShell(DEFAULT_APPEARANCE);
+      appendError(error);
     }
   } else if (event.data.type === "token.update") {
     sessionToken = event.data.payload.token;
@@ -195,7 +301,7 @@ window.addEventListener("message", async (event) => {
   } else if (event.data.type === "close") {
     emit("closed");
   } else if (event.data.type === "destroy") {
-    root?.replaceChildren();
+    root.replaceChildren();
   }
 });
 
