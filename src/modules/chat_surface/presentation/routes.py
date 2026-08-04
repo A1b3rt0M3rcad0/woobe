@@ -24,7 +24,10 @@ from modules.chat_surface.presentation.schemas import (
     StreamChatMessageRequest,
     UpdateChatSurfaceRequest,
 )
-from modules.chat_surface.service import ChatSurfaceService, surface_payload
+from modules.chat_surface.release_bound_service import (
+    ChatSurfaceService,
+    surface_payload,
+)
 from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.routes import _execution_stream
@@ -84,7 +87,12 @@ def _host_origin(value: str | None) -> str:
     return value
 
 
-def _key_payload(api_key, *, secret: str | None = None, display_prefix: str | None = None):
+def _key_payload(
+    api_key,
+    *,
+    secret: str | None = None,
+    display_prefix: str | None = None,
+):
     payload = {
         "id": str(api_key.id),
         "credential_id": str(api_key.credential_id),
@@ -110,6 +118,7 @@ def _binding_payload(binding) -> dict:
         "session_id": str(binding.session_id),
         "target_type": binding.target_type,
         "target_id": str(binding.target_id),
+        "target_release_id": str(binding.target_release_id),
         "external_reference": binding.external_reference,
         "status": binding.status,
         "created_at": binding.created_at,
@@ -153,6 +162,13 @@ async def update_surface(
 ):
     _authenticated_user(request)
     surface = await _service(request).update_surface(surface_id, payload)
+    return {"success": True, "data": surface_payload(surface)}
+
+
+@router.post("/chat-surfaces/{surface_id}/release")
+async def refresh_surface_release(surface_id: UUID, request: Request):
+    _authenticated_user(request)
+    surface = await _service(request).refresh_target_release(surface_id)
     return {"success": True, "data": surface_payload(surface)}
 
 
@@ -336,6 +352,7 @@ async def issue_public_session_token(
         "success": True,
         "data": {
             "session_id": str(binding.session_id),
+            "target_release_id": str(binding.target_release_id),
             "session_token": token,
             "expires_in": surface.session_token_ttl_seconds,
         },
@@ -370,6 +387,24 @@ async def _authorized_session(
         host_origin=_host_origin(host_origin),
         permission=permission,
     )
+
+
+@router.get("/v1/chat/sessions/{session_id}/surface")
+async def get_public_surface_configuration(
+    session_id: UUID,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    authorized = await _authorized_session(
+        request,
+        session_id,
+        permission="chat:history",
+        host_origin=host_origin,
+    )
+    return {
+        "success": True,
+        "data": _service(request).embed_configuration(authorized),
+    }
 
 
 @router.get("/v1/chat/sessions/{session_id}/messages")
@@ -414,10 +449,14 @@ async def _agent_stream(
             **(payload.metadata or {}),
             "source": "chat_surface",
             "chat_surface_id": str(authorized.surface.id),
+            "chat_surface_target_release_id": str(
+                authorized.binding.target_release_id
+            ),
             "embed_protocol_version": 1,
             "server_received_at": datetime.now(timezone.utc).isoformat(),
         },
         execution_context="production",
+        loaded_release_id=authorized.binding.target_release_id,
     )
     agent_service = AskAgentStreamService(
         request.app.state.session_factory,
@@ -496,6 +535,9 @@ async def stream_public_message(
         permission="chat:send",
         host_origin=host_origin,
     )
+    if "chat:stream" not in authorized.claims.permissions:
+        raise AuthorizationError("ChatSurface Session token scope is insufficient")
+
     message_request, created = await _service(request).begin_message(
         authorized,
         idempotency_key,
@@ -550,6 +592,8 @@ async def stream_public_message(
                 execution is None
                 or execution.project_id != authorized.surface.project_id
                 or execution.network_id != authorized.surface.target_id
+                or execution.network_version_id
+                != authorized.binding.target_release_id
                 or execution.network_session_id != authorized.binding.session_id
             ):
                 raise NotFoundError("Network execution not found")
