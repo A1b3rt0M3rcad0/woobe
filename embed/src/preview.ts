@@ -28,8 +28,9 @@ function isPreviewUpdateMessage(value: unknown): value is PreviewUpdateMessage {
   );
 }
 
-const root = document.querySelector<HTMLElement>("#woobe-chat");
-if (!root) throw new Error("Woobe Chat preview root was not found");
+const rootElement = document.querySelector<HTMLElement>("#woobe-chat");
+if (!rootElement) throw new Error("Woobe Chat preview root was not found");
+const root: HTMLElement = rootElement;
 
 let parentOrigin: string | null = null;
 let ui = createChatUi(root, DEFAULT_APPEARANCE);
