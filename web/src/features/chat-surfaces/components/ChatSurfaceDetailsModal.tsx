@@ -20,6 +20,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
+import { ChatSurfaceAppearancePreview } from '@/features/chat-surfaces/components/ChatSurfaceAppearancePreview'
 import {
   useChatSurface,
   useChatSurfaceAccessKeys,
@@ -595,35 +596,7 @@ export function ChatSurfaceDetailsModal({
         </div>
       </section>
 
-      <section className="self-start rounded-xl border border-border/80 bg-surface/65 p-5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Preview</p>
-        <div className={`mt-4 overflow-hidden rounded-xl border ${form.appearance.theme === 'light' ? 'border-slate-200 bg-white text-slate-950' : 'border-white/10 bg-[#111318] text-white'}`}>
-          <div className="border-b border-current/10 px-4 py-3 text-sm font-semibold">
-            {form.appearance.title || 'ChatSurface'}
-          </div>
-          <div className="min-h-48 p-4 text-xs">
-            {form.appearance.welcome_message ? (
-              <div className="max-w-[85%] rounded-xl border border-current/10 px-3 py-2 leading-5">
-                {form.appearance.welcome_message}
-              </div>
-            ) : (
-              <p className="opacity-55">Conversation starts here.</p>
-            )}
-          </div>
-          <div className="flex gap-2 border-t border-current/10 p-3">
-            <div className="min-w-0 flex-1 rounded-lg border border-current/15 px-3 py-2 text-xs opacity-60">
-              {form.appearance.placeholder || 'Type a message…'}
-            </div>
-            <div
-              className="rounded-lg px-3 py-2 text-xs font-medium text-white"
-              style={{ backgroundColor: form.appearance.primary_color }}
-            >
-              Send
-            </div>
-          </div>
-        </div>
-        <p className="mt-3 text-[11px] leading-5 text-muted">Preview only. It does not create a Session or execute the target.</p>
-      </section>
+      <ChatSurfaceAppearancePreview appearance={form.appearance} />
     </div>
   ) : null
 
