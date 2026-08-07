@@ -49,6 +49,14 @@ export interface ChatSurfaceAccessKey {
   created_at: string
 }
 
+export interface ChatSurfaceTestSession {
+  session_id: string
+  target_release_id: string
+  session_token: string
+  expires_in: number
+  source: 'control_plane_test'
+}
+
 export interface CreateChatSurfaceInput {
   name: string
   description?: string
