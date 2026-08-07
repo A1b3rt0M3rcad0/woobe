@@ -160,6 +160,7 @@ services:
       context: web
       args:
         VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in .env}
+        VITE_CHAT_EMBED_URL: ${VITE_CHAT_EMBED_URL:-http://localhost:8081}
     ports:
       - "${PROJECTRAI_WEB_PORT:-5173}:8080"
     depends_on:
