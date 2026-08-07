@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/Input'
 import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { ChatSurfaceAppearancePreview } from '@/features/chat-surfaces/components/ChatSurfaceAppearancePreview'
+import { ChatSurfaceLiveTestDialog } from '@/features/chat-surfaces/components/ChatSurfaceLiveTestDialog'
 import {
   useChatSurface,
   useChatSurfaceAccessKeys,
@@ -196,12 +197,22 @@ export function ChatSurfaceDetailsModal({
   const [discardOpen, setDiscardOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [revokeCandidate, setRevokeCandidate] = useState<ChatSurfaceAccessKey | null>(null)
+  const [liveTestOpen, setLiveTestOpen] = useState(false)
   const initializedSurfaceRef = useRef<string | null>(null)
 
   const surface = surfaceQuery.data
   const accessKeys = keysQuery.data ?? []
   const hasChanges = Boolean(form && baseline && snapshotForm(form) !== baseline)
   const archived = surface?.status === 'archived'
+  const liveTestDisabledReason = !surface
+    ? null
+    : hasChanges
+      ? 'Save configuration changes before starting a live test.'
+      : surface.status === 'archived'
+        ? 'Archived ChatSurfaces cannot be tested.'
+        : surface.status !== 'active'
+          ? 'Activate the ChatSurface before starting a live test.'
+          : null
   const busy = updateMutation.isPending
     || releaseMutation.isPending
     || lifecycleMutation.isPending
@@ -212,6 +223,7 @@ export function ChatSurfaceDetailsModal({
   useEffect(() => {
     if (!open) {
       initializedSurfaceRef.current = null
+      setLiveTestOpen(false)
       return
     }
     if (!surface || initializedSurfaceRef.current === surface.id) return
@@ -225,6 +237,7 @@ export function ChatSurfaceDetailsModal({
     setDiscardOpen(false)
     setArchiveOpen(false)
     setRevokeCandidate(null)
+    setLiveTestOpen(false)
     initializedSurfaceRef.current = surface.id
   }, [open, surface])
 
@@ -237,6 +250,7 @@ export function ChatSurfaceDetailsModal({
     setArchiveOpen(false)
     setRevokeCandidate(null)
     setRevealedKey(null)
+    setLiveTestOpen(false)
     onClose()
   }
 
@@ -512,7 +526,7 @@ export function ChatSurfaceDetailsModal({
     </div>
   ) : null
 
-  const appearanceTab = form ? (
+  const appearanceTab = surface && form ? (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <h3 className="text-sm font-semibold text-white">Embed appearance</h3>
@@ -596,7 +610,17 @@ export function ChatSurfaceDetailsModal({
         </div>
       </section>
 
-      <ChatSurfaceAppearancePreview appearance={form.appearance} />
+      <ChatSurfaceAppearancePreview
+        appearance={form.appearance}
+        testDisabledReason={liveTestDisabledReason}
+        onTest={() => {
+          if (liveTestDisabledReason) {
+            toast.error(liveTestDisabledReason)
+            return
+          }
+          setLiveTestOpen(true)
+        }}
+      />
     </div>
   ) : null
 
@@ -936,6 +960,15 @@ export function ChatSurfaceDetailsModal({
 
       {surface && revealedKey ? (
         <AccessKeyReveal surface={surface} accessKey={revealedKey} onClose={() => setRevealedKey(null)} />
+      ) : null}
+
+      {surface ? (
+        <ChatSurfaceLiveTestDialog
+          open={liveTestOpen}
+          surface={surface}
+          targetName={targetName}
+          onClose={() => setLiveTestOpen(false)}
+        />
       ) : null}
     </>
   )
