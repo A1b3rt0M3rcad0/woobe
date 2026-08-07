@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         loader: resolve(root, "src/loader.ts"),
         iframe: resolve(root, "iframe.html"),
+        preview: resolve(root, "preview.html"),
       },
       output: {
         entryFileNames: (chunk) =>
