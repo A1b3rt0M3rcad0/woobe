@@ -44,6 +44,8 @@ export interface ChatSurfaceAccessKey {
   access_key?: string
   scopes: string[]
   status: string
+  last_used_at?: string | null
+  expires_at?: string | null
   created_at: string
 }
 
