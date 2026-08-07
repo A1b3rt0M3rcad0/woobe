@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { Maximize2 } from 'lucide-react'
 
+import { Button } from '@/components/ui/Button'
 import type { ChatSurfaceAppearance } from '@/features/chat-surfaces/types'
 
 function resolveEmbedOrigin(): string {
@@ -13,8 +15,12 @@ function resolveEmbedOrigin(): string {
 
 export function ChatSurfaceAppearancePreview({
   appearance,
+  onTest,
+  testDisabledReason,
 }: {
   appearance: ChatSurfaceAppearance
+  onTest?: () => void
+  testDisabledReason?: string | null
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
@@ -39,7 +45,22 @@ export function ChatSurfaceAppearancePreview({
 
   return (
     <section className="self-start rounded-xl border border-border/80 bg-surface/65 p-5">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Preview</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Preview</p>
+        {onTest ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={Boolean(testDisabledReason)}
+            title={testDisabledReason ?? 'Open a live test using the pinned Production Release'}
+            onClick={onTest}
+          >
+            <Maximize2 className="mr-2 h-3.5 w-3.5" />
+            Test live
+          </Button>
+        ) : null}
+      </div>
       <div className="mt-4 overflow-hidden rounded-xl border border-border/80 bg-background">
         <iframe
           ref={frameRef}
@@ -53,6 +74,9 @@ export function ChatSurfaceAppearancePreview({
       <p className="mt-3 text-[11px] leading-5 text-muted">
         Rendered by the same ChatSurface UI package used by the production embed. It does not create a Session or execute the target.
       </p>
+      {testDisabledReason ? (
+        <p className="mt-2 text-[11px] leading-5 text-amber-200/80">{testDisabledReason}</p>
+      ) : null}
     </section>
   )
 }

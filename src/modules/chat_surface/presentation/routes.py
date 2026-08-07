@@ -16,6 +16,10 @@ from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFacto
 from modules.agent.presentation.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
+from modules.chat_surface.control_plane_service import (
+    CONTROL_PLANE_TEST_SOURCE,
+    ControlPlaneChatSurfaceService,
+)
 from modules.chat_surface.presentation.schemas import (
     CreateChatSurfaceRequest,
     CreateSurfaceAccessKeyRequest,
@@ -24,7 +28,7 @@ from modules.chat_surface.presentation.schemas import (
     StreamChatMessageRequest,
     UpdateChatSurfaceRequest,
 )
-from modules.chat_surface.service import ChatSurfaceService, surface_payload
+from modules.chat_surface.service import surface_payload
 from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.routes import _execution_stream
@@ -41,11 +45,11 @@ from shared.security.rate_limit import SlidingWindowRateLimiter
 router = APIRouter(tags=["chat-surfaces"])
 
 
-def _service(request: Request) -> ChatSurfaceService:
+def _service(request: Request) -> ControlPlaneChatSurfaceService:
     settings = request.app.state.settings
     if not settings.chat_surface_enabled:
         raise NotFoundError("ChatSurface is not enabled")
-    return ChatSurfaceService(
+    return ControlPlaneChatSurfaceService(
         request.app.state.session_factory,
         request.app.state.chat_session_token_codec,
         allow_insecure_origins=settings.environment.strip().lower()
@@ -271,6 +275,31 @@ async def get_surface_activity(surface_id: UUID, request: Request):
     return {"success": True, "data": activity}
 
 
+@router.post("/chat-surfaces/{surface_id}/test-sessions", status_code=201)
+async def create_test_session(
+    surface_id: UUID,
+    request: Request,
+    origin: str | None = Header(default=None, alias="Origin"),
+):
+    if origin is None or not origin.strip():
+        raise AuthorizationError("Control Plane Origin header is required")
+    token, binding, surface = await _service(request).create_test_session(
+        surface_id=surface_id,
+        actor_id=_authenticated_user(request),
+        origin=origin,
+    )
+    return {
+        "success": True,
+        "data": {
+            "session_id": str(binding.session_id),
+            "target_release_id": str(binding.target_release_id),
+            "session_token": token,
+            "expires_in": surface.session_token_ttl_seconds,
+            "source": CONTROL_PLANE_TEST_SOURCE,
+        },
+    }
+
+
 async def _surface_access(
     public_id: str,
     request: Request,
@@ -436,6 +465,9 @@ async def _agent_stream(
     service = _service(request)
     terminal_status = "completed"
     await service.mark_message(message_request_id, status="streaming")
+    session_source = str(
+        (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
+    )
     input_dto = AskInput(
         project_id=authorized.surface.project_id,
         agent_id=authorized.surface.target_id,
@@ -444,7 +476,12 @@ async def _agent_stream(
         tenant_id=str(authorized.surface.id),
         metadata={
             **(payload.metadata or {}),
-            "source": "chat_surface",
+            "source": (
+                "chat_surface_test"
+                if session_source == CONTROL_PLANE_TEST_SOURCE
+                else "chat_surface"
+            ),
+            "chat_surface_session_source": session_source,
             "chat_surface_id": str(authorized.surface.id),
             "chat_surface_target_release_id": str(
                 authorized.binding.target_release_id
