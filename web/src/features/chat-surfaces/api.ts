@@ -11,6 +11,10 @@ export function listChatSurfaces(projectId: string): Promise<ChatSurface[]> {
   return get<ChatSurface[]>(`/chat-surfaces/projects/${projectId}`)
 }
 
+export function getChatSurface(surfaceId: string): Promise<ChatSurface> {
+  return get<ChatSurface>(`/chat-surfaces/${surfaceId}`)
+}
+
 export function createChatSurface(
   projectId: string,
   input: CreateChatSurfaceInput,
@@ -37,6 +41,16 @@ export function disableChatSurface(surfaceId: string): Promise<ChatSurface> {
   return post<ChatSurface>(`/chat-surfaces/${surfaceId}/disable`)
 }
 
+export function archiveChatSurface(surfaceId: string): Promise<ChatSurface> {
+  return post<ChatSurface>(`/chat-surfaces/${surfaceId}/archive`)
+}
+
+export function listChatSurfaceAccessKeys(
+  surfaceId: string,
+): Promise<ChatSurfaceAccessKey[]> {
+  return get<ChatSurfaceAccessKey[]>(`/chat-surfaces/${surfaceId}/access-keys`)
+}
+
 export function createChatSurfaceAccessKey(
   surfaceId: string,
   name = 'Default ChatSurface key',
@@ -44,5 +58,23 @@ export function createChatSurfaceAccessKey(
   return post<ChatSurfaceAccessKey>(
     `/chat-surfaces/${surfaceId}/access-keys`,
     { name },
+  )
+}
+
+export function rotateChatSurfaceAccessKey(
+  surfaceId: string,
+  apiKeyId: string,
+): Promise<ChatSurfaceAccessKey> {
+  return post<ChatSurfaceAccessKey>(
+    `/chat-surfaces/${surfaceId}/access-keys/${apiKeyId}/rotate`,
+  )
+}
+
+export function revokeChatSurfaceAccessKey(
+  surfaceId: string,
+  apiKeyId: string,
+): Promise<ChatSurfaceAccessKey> {
+  return post<ChatSurfaceAccessKey>(
+    `/chat-surfaces/${surfaceId}/access-keys/${apiKeyId}/revoke`,
   )
 }
