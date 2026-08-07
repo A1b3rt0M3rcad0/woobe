@@ -1,17 +1,15 @@
 import {
+  createChatUi,
+  DEFAULT_APPEARANCE,
+  type ChatUi,
+  type SurfaceAppearance,
+} from "./chat-ui";
+import {
   PROTOCOL_VERSION,
   isHostMessage,
   type FrameEventType,
 } from "./protocol";
 import "./styles.css";
-
-interface SurfaceAppearance {
-  theme: "light" | "dark" | "system";
-  primary_color: string;
-  title: string;
-  placeholder: string;
-  welcome_message: string | null;
-}
 
 interface SurfaceConfiguration {
   surface_id: string;
@@ -20,13 +18,12 @@ interface SurfaceConfiguration {
   protocol_version: number;
 }
 
-const DEFAULT_APPEARANCE: SurfaceAppearance = {
-  theme: "system",
-  primary_color: "#5B47E0",
-  title: "Woobe",
-  placeholder: "Type a message…",
-  welcome_message: null,
-};
+class SessionExpiredError extends Error {
+  constructor() {
+    super("Session expired");
+    this.name = "SessionExpiredError";
+  }
+}
 
 const params = new URLSearchParams(window.location.search);
 const surfaceId = params.get("surface") ?? "";
@@ -47,6 +44,7 @@ let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
 let initialized = false;
 let bootstrapping = false;
+let ui: ChatUi | null = null;
 
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
@@ -73,58 +71,18 @@ function decodeSessionId(token: string): string {
   return decoded.sid;
 }
 
-function messageElement(role: string, content: string): HTMLElement {
-  const item = document.createElement("article");
-  item.className = `message message--${role}`;
-  item.textContent = content;
-  return item;
-}
-
-function messagesElement(): HTMLElement | null {
-  return root.querySelector<HTMLElement>(".chat__messages");
-}
-
-function scrollToLatest() {
-  const messages = messagesElement();
-  if (messages) messages.scrollTop = messages.scrollHeight;
-}
-
-function setSubmitting(value: boolean) {
-  submitting = value;
-  const input = root.querySelector<HTMLTextAreaElement>("textarea");
-  const button = root.querySelector<HTMLButtonElement>("button[type='submit']");
-  if (input) input.disabled = value;
-  if (button) {
-    button.disabled = value;
-    button.textContent = value ? "Sending…" : "Send";
+function ensureUi(nextAppearance = appearance): ChatUi {
+  appearance = nextAppearance;
+  if (!ui) {
+    ui = createChatUi(root, nextAppearance, {
+      onSubmit(message) {
+        void sendMessage(message);
+      },
+    });
+  } else {
+    ui.setAppearance(nextAppearance);
   }
-}
-
-function applyAppearance(next: SurfaceAppearance) {
-  appearance = next;
-  root.dataset.theme = next.theme;
-  root.style.setProperty("--woobe-primary", next.primary_color);
-  document.title = next.title;
-}
-
-function renderShell(next: SurfaceAppearance) {
-  applyAppearance(next);
-  root.innerHTML = `
-    <section class="chat">
-      <header class="chat__header"></header>
-      <div class="chat__messages" role="log" aria-label="Conversation" aria-live="polite"></div>
-      <form class="chat__composer">
-        <label class="sr-only" for="woobe-message">Message</label>
-        <textarea id="woobe-message" rows="1" maxlength="32768" required></textarea>
-        <button type="submit">Send</button>
-      </form>
-    </section>
-  `;
-  const header = root.querySelector<HTMLElement>(".chat__header");
-  const input = root.querySelector<HTMLTextAreaElement>("textarea");
-  if (header) header.textContent = next.title;
-  if (input) input.placeholder = next.placeholder;
-  root.querySelector("form")?.addEventListener("submit", onSubmit);
+  return ui;
 }
 
 async function api(path: string, init: RequestInit = {}) {
@@ -137,7 +95,11 @@ async function api(path: string, init: RequestInit = {}) {
       ...(init.headers ?? {}),
     },
   });
-  if (response.status === 401) emit("session.expired");
+  if (response.status === 401) {
+    ensureUi().showSessionExpired();
+    emit("session.expired");
+    throw new SessionExpiredError();
+  }
   if (!response.ok) throw new Error(`Woobe Chat request failed (${response.status})`);
   return response;
 }
@@ -159,26 +121,28 @@ async function loadConfiguration(): Promise<SurfaceConfiguration> {
 async function loadHistory() {
   const response = await api(`/v1/chat/sessions/${sessionId}/messages?limit=50`);
   const payload = await response.json();
-  const messages = messagesElement();
   const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
+  const chatUi = ensureUi();
+  chatUi.clearMessages();
+
   for (const item of items) {
     if (typeof item?.role === "string" && typeof item?.content === "string") {
-      messages?.appendChild(messageElement(item.role, item.content));
+      if (item.role === "user" || item.role === "assistant") {
+        chatUi.appendMessage(item.role, item.content);
+      }
     }
   }
   if (items.length === 0 && appearance.welcome_message) {
-    messages?.appendChild(
-      messageElement("assistant", appearance.welcome_message),
-    );
+    chatUi.appendMessage("assistant", appearance.welcome_message);
   }
-  scrollToLatest();
+  chatUi.scrollToLatest(true);
   emit("history.loaded", { count: items.length });
 }
 
 function appendError(error: unknown) {
+  if (error instanceof SessionExpiredError) return;
   const text = error instanceof Error ? error.message : "Run failed";
-  messagesElement()?.appendChild(messageElement("assistant", text));
-  scrollToLatest();
+  ensureUi().appendError(text);
   emit("error", { message: text });
 }
 
@@ -187,32 +151,31 @@ async function bootstrap() {
   bootstrapping = true;
   try {
     const configuration = await loadConfiguration();
-    renderShell(configuration.appearance);
+    appearance = configuration.appearance;
+    ensureUi(configuration.appearance).clearSessionExpired();
     await loadHistory();
     initialized = true;
   } catch (error) {
-    renderShell(DEFAULT_APPEARANCE);
+    ensureUi(DEFAULT_APPEARANCE);
     appendError(error);
   } finally {
     bootstrapping = false;
   }
 }
 
-async function onSubmit(event: Event) {
-  event.preventDefault();
+async function sendMessage(message: string) {
   if (submitting) return;
-
-  const input = root.querySelector<HTMLTextAreaElement>("textarea");
-  const messages = messagesElement();
-  const message = input?.value.trim() ?? "";
-  if (!message || !input) return;
-
-  input.value = "";
-  messages?.appendChild(messageElement("user", message));
-  scrollToLatest();
-  setSubmitting(true);
+  const chatUi = ensureUi();
+  submitting = true;
+  chatUi.clearComposer();
+  chatUi.appendMessage("user", message, true);
+  const assistant = chatUi.appendPendingAssistant();
+  chatUi.setSubmitting(true);
   emit("message.sent");
   emit("run.started");
+
+  let answer = "";
+  let streamingStarted = false;
 
   try {
     const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
@@ -228,9 +191,12 @@ async function onSubmit(event: Event) {
 
     const decoder = new TextDecoder();
     let buffer = "";
-    let answer = "";
-    const assistant = messageElement("assistant", "");
-    messages?.appendChild(assistant);
+
+    const beginStreaming = () => {
+      if (streamingStarted) return;
+      streamingStarted = true;
+      chatUi.beginAssistantStreaming(assistant);
+    };
 
     const consumeFrame = (frame: string) => {
       const lines = frame.split("\n");
@@ -247,15 +213,19 @@ async function onSubmit(event: Event) {
             : typeof data.data?.content === "string"
               ? data.data.content
               : "";
+
       if ((eventType === "token" || data.type === "token") && token) {
+        beginStreaming();
         answer += token;
-        assistant.textContent = answer;
-        scrollToLatest();
+        chatUi.updateAssistantStreaming(assistant, answer);
       }
+
       if (data.type === "done" && typeof data.answer === "string" && !answer) {
-        assistant.textContent = data.answer;
-        scrollToLatest();
+        beginStreaming();
+        answer = data.answer;
+        chatUi.updateAssistantStreaming(assistant, answer);
       }
+
       if (
         data.type === "error" ||
         eventType === "execution_failed" ||
@@ -276,12 +246,22 @@ async function onSubmit(event: Event) {
     }
     buffer += decoder.decode();
     if (buffer.trim()) consumeFrame(buffer);
+
+    if (!answer) {
+      chatUi.removeMessage(assistant);
+      throw new Error("The Run completed without a response");
+    }
+
+    chatUi.finishAssistantStreaming(assistant);
     emit("run.completed");
   } catch (error) {
+    if (!answer) chatUi.removeMessage(assistant);
+    else chatUi.finishAssistantStreaming(assistant);
     appendError(error);
   } finally {
-    setSubmitting(false);
-    input.focus();
+    submitting = false;
+    chatUi.setSubmitting(false);
+    chatUi.focusComposer();
   }
 }
 
@@ -314,6 +294,7 @@ window.addEventListener("message", async (event) => {
     }
     sessionToken = event.data.payload.token;
     sessionId = nextSessionId;
+    ensureUi().clearSessionExpired();
     await bootstrap();
   } else if (event.data.type === "open") {
     emit("opened");
