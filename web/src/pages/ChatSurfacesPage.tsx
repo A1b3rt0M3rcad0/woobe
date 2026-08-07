@@ -1,14 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import {
-  Copy,
-  KeyRound,
-  MessageSquare,
-  Paintbrush,
-  Plus,
-  Power,
-  RefreshCw,
-} from 'lucide-react'
+import { MessageSquare, Plus } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -25,17 +17,13 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { useAgents } from '@/features/agents/hooks'
+import { ChatSurfaceDetailsModal } from '@/features/chat-surfaces/components/ChatSurfaceDetailsModal'
 import {
   useChatSurfaces,
   useCreateChatSurface,
-  useCreateChatSurfaceKey,
-  useRefreshChatSurfaceRelease,
-  useSetChatSurfaceStatus,
-  useUpdateChatSurface,
 } from '@/features/chat-surfaces/hooks'
 import type {
   ChatSurface,
-  ChatSurfaceAccessKey,
   ChatSurfaceAppearance,
   ChatSurfaceTargetType,
   ChatSurfaceTheme,
@@ -72,8 +60,7 @@ function CreateSurfaceDialog({
   }) => Promise<void>
 }) {
   const [name, setName] = useState('')
-  const [targetType, setTargetType] =
-    useState<ChatSurfaceTargetType>('agent')
+  const [targetType, setTargetType] = useState<ChatSurfaceTargetType>('agent')
   const [targetId, setTargetId] = useState('')
   const [origin, setOrigin] = useState('')
   const [displayTitle, setDisplayTitle] = useState('')
@@ -89,6 +76,7 @@ function CreateSurfaceDialog({
       toast.error('Name, Production target and allowed origin are required')
       return
     }
+
     await onSubmit({
       name: name.trim(),
       targetType,
@@ -106,10 +94,7 @@ function CreateSurfaceDialog({
 
   return (
     <Dialog open onClose={onClose} title="Publish ChatSurface">
-      <form
-        onSubmit={(event) => void submit(event)}
-        className="space-y-5"
-      >
+      <form onSubmit={(event) => void submit(event)} className="space-y-5">
         <label className="block" htmlFor="surface-name">
           <span className="text-xs font-medium text-slate-200">Name</span>
           <Input
@@ -164,14 +149,12 @@ function CreateSurfaceDialog({
             className="mt-2"
           />
           <span className="mt-1 block text-xs text-muted">
-            Exact HTTPS origin. Wildcards and paths are rejected.
+            Exact HTTPS origin. Local HTTP is accepted only when enabled by the deployment.
           </span>
         </label>
 
         <div className="border-t border-border pt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Embed appearance
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Embed appearance</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block" htmlFor="surface-display-title">
               <span className="text-xs font-medium text-slate-200">Display title</span>
@@ -239,166 +222,24 @@ function CreateSurfaceDialog({
   )
 }
 
-function AppearanceDialog({
-  surface,
-  pending,
-  onClose,
-  onSubmit,
-}: {
-  surface: ChatSurface
-  pending: boolean
-  onClose: () => void
-  onSubmit: (appearance: ChatSurfaceAppearance) => Promise<void>
-}) {
-  const current = surface.appearance_config
-  const [title, setTitle] = useState(current.title)
-  const [theme, setTheme] = useState<ChatSurfaceTheme>(current.theme)
-  const [primaryColor, setPrimaryColor] = useState(current.primary_color)
-  const [placeholder, setPlaceholder] = useState(current.placeholder)
-  const [welcomeMessage, setWelcomeMessage] = useState(current.welcome_message ?? '')
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!title.trim() || !placeholder.trim()) {
-      toast.error('Display title and placeholder are required')
-      return
-    }
-    await onSubmit({
-      title: title.trim(),
-      theme,
-      primary_color: primaryColor,
-      placeholder: placeholder.trim(),
-      welcome_message: welcomeMessage.trim() || null,
-    })
-  }
-
-  return (
-    <Dialog open onClose={onClose} title={`Appearance · ${surface.name}`}>
-      <form onSubmit={(event) => void submit(event)} className="space-y-4">
-        <label className="block" htmlFor="appearance-title">
-          <span className="text-xs font-medium text-slate-200">Display title</span>
-          <Input
-            id="appearance-title"
-            autoFocus
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="mt-2"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block" htmlFor="appearance-theme">
-            <span className="text-xs font-medium text-slate-200">Theme</span>
-            <select
-              id="appearance-theme"
-              value={theme}
-              onChange={(event) => setTheme(event.target.value as ChatSurfaceTheme)}
-              className="mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
-          <label className="block" htmlFor="appearance-color">
-            <span className="text-xs font-medium text-slate-200">Primary color</span>
-            <input
-              id="appearance-color"
-              type="color"
-              value={primaryColor}
-              onChange={(event) => setPrimaryColor(event.target.value.toUpperCase())}
-              className="mt-2 h-10 w-full rounded-lg border border-border bg-background p-1"
-            />
-          </label>
-        </div>
-        <label className="block" htmlFor="appearance-placeholder">
-          <span className="text-xs font-medium text-slate-200">Placeholder</span>
-          <Input
-            id="appearance-placeholder"
-            value={placeholder}
-            onChange={(event) => setPlaceholder(event.target.value)}
-            className="mt-2"
-          />
-        </label>
-        <label className="block" htmlFor="appearance-welcome">
-          <span className="text-xs font-medium text-slate-200">Welcome message</span>
-          <textarea
-            id="appearance-welcome"
-            value={welcomeMessage}
-            onChange={(event) => setWelcomeMessage(event.target.value)}
-            rows={3}
-            maxLength={500}
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          />
-        </label>
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={pending}>Save appearance</Button>
-        </div>
-      </form>
-    </Dialog>
-  )
-}
-
-function AccessKeyReveal({
-  surface,
-  accessKey,
-  onClose,
-}: {
-  surface: ChatSurface
-  accessKey: ChatSurfaceAccessKey
-  onClose: () => void
-}) {
-  const value = accessKey.access_key ?? ''
-  const backendExample = `WOOBE_CHAT_SURFACE_ID=${surface.public_id}\nWOOBE_CHAT_SURFACE_KEY=${value}`
-  return (
-    <Dialog open onClose={onClose} title="ChatSurface Access Key">
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-muted">
-          Store this value in the integrator backend. It will not be shown again
-          and must never be included in browser code.
-        </p>
-        <pre className="max-h-52 overflow-auto rounded-lg border border-border bg-background p-3 text-xs text-slate-200">
-          {backendExample}
-        </pre>
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void navigator.clipboard.writeText(backendExample)
-              toast.success('Backend configuration copied')
-            }}
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Copy
-          </Button>
-          <Button type="button" onClick={onClose}>Done</Button>
-        </div>
-      </div>
-    </Dialog>
-  )
-}
-
 export default function ChatSurfacesPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const surfacesQuery = useChatSurfaces(projectId)
   const agentsQuery = useAgents(projectId)
   const networksQuery = useNetworks(projectId)
   const createMutation = useCreateChatSurface(projectId)
-  const updateMutation = useUpdateChatSurface(projectId)
-  const releaseMutation = useRefreshChatSurfaceRelease(projectId)
-  const statusMutation = useSetChatSurfaceStatus(projectId)
-  const keyMutation = useCreateChatSurfaceKey()
   const [creating, setCreating] = useState(false)
-  const [editingAppearance, setEditingAppearance] = useState<ChatSurface | null>(null)
-  const [revealed, setRevealed] = useState<{
-    surface: ChatSurface
-    key: ChatSurfaceAccessKey
-  } | null>(null)
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null)
 
   const surfaces = surfacesQuery.data ?? []
   const agents = agentsQuery.data ?? []
   const networks = networksQuery.data ?? []
+  const selectedSurface = selectedSurfaceId
+    ? surfaces.find((surface) => surface.id === selectedSurfaceId) ?? null
+    : null
+  const selectedTargetName = selectedSurface
+    ? targetName(selectedSurface, agents, networks)
+    : ''
   const activeCount = useMemo(
     () => surfaces.filter((surface) => surface.status === 'active').length,
     [surfaces],
@@ -446,114 +287,31 @@ export default function ChatSurfacesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {surfaces.map((surface) => (
-              <div key={surface.id} className="relative h-full">
-                <ResourceCard
-                  icon={<MessageSquare className="h-4 w-4" />}
-                  title={surface.name}
-                  subtitle={`${surface.target_type} · ${targetName(surface, agents, networks)}`}
-                  status={<StatusBadge status={surface.status} size="compact" />}
-                  metadata={(
-                    <>
-                      <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">
-                        Production
-                      </span>
-                      <span
-                        className="rounded-full border border-border px-2 py-1 font-mono text-xs text-muted"
-                        title={surface.target_release_id}
-                      >
-                        Release {surface.target_release_id.slice(0, 8)}
-                      </span>
-                      <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">
-                        {surface.allowed_origins.length} {surface.allowed_origins.length === 1 ? 'origin' : 'origins'}
-                      </span>
-                    </>
-                  )}
-                  footer={(
-                    <span className="truncate pr-40 font-mono text-xs">
-                      {surface.public_id}
+              <ResourceCard
+                key={surface.id}
+                aria-label={`Open ChatSurface ${surface.name}`}
+                onClick={() => setSelectedSurfaceId(surface.id)}
+                icon={<MessageSquare className="h-4 w-4" />}
+                title={surface.name}
+                subtitle={`${surface.target_type === 'agent' ? 'Agent' : 'Network'} · ${targetName(surface, agents, networks)}`}
+                status={<StatusBadge status={surface.status} size="compact" />}
+                metadata={(
+                  <>
+                    <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">Production</span>
+                    <span
+                      className="rounded-full border border-border px-2 py-1 font-mono text-xs text-muted"
+                      title={surface.target_release_id}
+                    >
+                      Release {surface.target_release_id.slice(0, 8)}
                     </span>
-                  )}
-                  className="h-full"
-                />
-                <div className="absolute bottom-2 right-2 flex gap-1">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    title="Generate Access Key"
-                    aria-label={`Generate Access Key for ${surface.name}`}
-                    loading={keyMutation.isPending}
-                    onClick={async () => {
-                      try {
-                        const key = await keyMutation.mutateAsync({
-                          surfaceId: surface.id,
-                        })
-                        setRevealed({ surface, key })
-                      } catch (error) {
-                        toast.error(error instanceof Error ? error.message : 'Unable to generate Access Key')
-                      }
-                    }}
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    title="Configure appearance"
-                    aria-label={`Configure appearance for ${surface.name}`}
-                    onClick={() => setEditingAppearance(surface)}
-                  >
-                    <Paintbrush className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    title="Use current Production Release for new Sessions"
-                    aria-label={`Refresh Production Release for ${surface.name}`}
-                    loading={releaseMutation.isPending}
-                    disabled={surface.status === 'archived'}
-                    onClick={async () => {
-                      try {
-                        const previousRelease = surface.target_release_id
-                        const updated = await releaseMutation.mutateAsync(surface.id)
-                        toast.success(
-                          updated.target_release_id === previousRelease
-                            ? 'ChatSurface already uses the current Production Release'
-                            : 'New Sessions will use the current Production Release',
-                        )
-                      } catch (error) {
-                        toast.error(error instanceof Error ? error.message : 'Unable to refresh Release')
-                      }
-                    }}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    title={surface.status === 'active' ? 'Disable' : 'Activate'}
-                    aria-label={`${surface.status === 'active' ? 'Disable' : 'Activate'} ${surface.name}`}
-                    loading={statusMutation.isPending}
-                    disabled={surface.status === 'archived'}
-                    onClick={async () => {
-                      try {
-                        await statusMutation.mutateAsync({
-                          surfaceId: surface.id,
-                          active: surface.status !== 'active',
-                        })
-                        toast.success(surface.status === 'active' ? 'ChatSurface disabled' : 'ChatSurface activated')
-                      } catch (error) {
-                        toast.error(error instanceof Error ? error.message : 'Unable to update ChatSurface')
-                      }
-                    }}
-                  >
-                    <Power className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+                    <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">
+                      {surface.allowed_origins.length} {surface.allowed_origins.length === 1 ? 'origin' : 'origins'}
+                    </span>
+                  </>
+                )}
+                footer={<span className="truncate font-mono text-xs">{surface.public_id}</span>}
+                className="h-full"
+              />
             ))}
           </div>
         )}
@@ -567,7 +325,7 @@ export default function ChatSurfacesPage() {
           onClose={() => setCreating(false)}
           onSubmit={async (input) => {
             try {
-              await createMutation.mutateAsync({
+              const created = await createMutation.mutateAsync({
                 name: input.name,
                 target_type: input.targetType,
                 target_id: input.targetId,
@@ -575,6 +333,7 @@ export default function ChatSurfacesPage() {
                 appearance_config: input.appearance,
               })
               setCreating(false)
+              setSelectedSurfaceId(created.id)
               toast.success('ChatSurface draft created with an immutable Release')
             } catch (error) {
               toast.error(error instanceof Error ? error.message : 'Unable to create ChatSurface')
@@ -583,33 +342,13 @@ export default function ChatSurfacesPage() {
         />
       ) : null}
 
-      {editingAppearance ? (
-        <AppearanceDialog
-          surface={editingAppearance}
-          pending={updateMutation.isPending}
-          onClose={() => setEditingAppearance(null)}
-          onSubmit={async (appearance) => {
-            try {
-              await updateMutation.mutateAsync({
-                surfaceId: editingAppearance.id,
-                input: { appearance_config: appearance },
-              })
-              setEditingAppearance(null)
-              toast.success('ChatSurface appearance updated')
-            } catch (error) {
-              toast.error(error instanceof Error ? error.message : 'Unable to update appearance')
-            }
-          }}
-        />
-      ) : null}
-
-      {revealed ? (
-        <AccessKeyReveal
-          surface={revealed.surface}
-          accessKey={revealed.key}
-          onClose={() => setRevealed(null)}
-        />
-      ) : null}
+      <ChatSurfaceDetailsModal
+        open={Boolean(selectedSurfaceId)}
+        surfaceId={selectedSurfaceId}
+        projectId={projectId}
+        targetName={selectedTargetName}
+        onClose={() => setSelectedSurfaceId(null)}
+      />
     </ResourcePage>
   )
 }
