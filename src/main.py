@@ -28,6 +28,8 @@ from modules.agent.presentation.routes import tools_router
 from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.billing.presentation.routes import router as billing_router
+from modules.chat_surface.presentation.routes import router as chat_surface_router
+from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
@@ -101,6 +103,13 @@ def create_app() -> FastAPI:
         issuer=settings.auth_issuer,
         audience=settings.auth_audience,
         ttl_seconds=settings.access_token_ttl_seconds,
+        leeway_seconds=settings.auth_clock_skew_seconds,
+    )
+    app.state.chat_session_token_codec = ChatSessionTokenCodec(
+        signing_key=settings.chat_token_signing_key or settings.secret_key,
+        issuer=settings.chat_token_issuer,
+        audience=settings.chat_token_audience,
+        ttl_seconds=settings.chat_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
     app.state.http_tool_executor = HttpToolExecutor(
@@ -187,6 +196,7 @@ def create_app() -> FastAPI:
             "X-Correlation-ID",
             "Last-Event-ID",
             "Idempotency-Key",
+            "X-Woobe-Host-Origin",
         ],
         expose_headers=[
             "X-Request-ID",
@@ -238,6 +248,7 @@ def create_app() -> FastAPI:
     try:
         app.include_router(identity_router)
         app.include_router(core_router)
+        app.include_router(chat_surface_router)
         app.include_router(public_runtime_router)
         app.include_router(credential_router)
         app.include_router(runtime_environment_router)

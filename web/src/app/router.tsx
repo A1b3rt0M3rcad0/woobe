@@ -18,6 +18,7 @@ import OrgProjectsPage from '@/pages/OrgProjectsPage'
 import OrgProjectDetailPage from '@/pages/OrgProjectDetailPage'
 import FirstRunSetupPage from '@/pages/FirstRunSetupPage'
 import ApiKeysPage from '@/pages/ApiKeysPage'
+import ChatSurfacesPage from '@/pages/ChatSurfacesPage'
 import AgentsPage from '@/pages/AgentsPage'
 import AgentPlaygroundPage from '@/pages/AgentPlaygroundPage'
 import NetworksPage from '@/pages/NetworksPage'
@@ -198,6 +199,7 @@ export function AppRouter() {
               <Route path="/organizations/:organizationId/projects/:projectId/models" element={<ModelsPage />} />
               <Route path="/organizations/:organizationId/projects/:projectId/credentials" element={<CredentialsPage />} />
               <Route path="/organizations/:organizationId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
+              <Route path="/organizations/:organizationId/projects/:projectId/chat-surfaces" element={<ChatSurfacesPage />} />
               <Route path="/organizations/:organizationId/projects/:projectId/usage" element={<UsagePage />} />
               <Route path="/organizations/:organizationId/projects/:projectId/traces" element={<TracesPage />} />
             </Route>
@@ -219,6 +221,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/models" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/credentials" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/api-keys" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/chat-surfaces" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
           <Route path="/billing" element={<LegacyBillingRedirect />} />

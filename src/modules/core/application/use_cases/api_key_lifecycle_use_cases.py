@@ -78,6 +78,10 @@ class RotateApiKeyUseCase:
             raise ApiKeyNotFoundError("API key not found")
         if current.status != ApiKeyStatus.active or current.revoked_at is not None:
             raise ApiKeyNotActiveError("Only active API keys can be rotated")
+        if current.kind == ApiKeyKind.chat_surface:
+            raise ValidationError(
+                "Rotate ChatSurface Access Keys through the ChatSurface endpoint"
+            )
 
         requested_scopes = (
             current.scopes

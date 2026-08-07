@@ -134,13 +134,25 @@ class ApiKeyModel(BaseModel):
             "environment",
             "status",
         ),
+        Index(
+            "ix_core_api_keys_chat_surface",
+            "project_id",
+            "kind",
+            "chat_surface_id",
+            "status",
+        ),
         CheckConstraint(
             "(kind = 'project' AND agent_id IS NULL AND target_type IS NULL "
-            "AND target_id IS NULL AND environment IS NULL) OR "
+            "AND target_id IS NULL AND chat_surface_id IS NULL AND environment IS NULL) OR "
             "(kind = 'runtime' AND target_type = 'agent' AND target_id IS NOT NULL "
-            "AND agent_id = target_id AND environment IN ('staging', 'production')) OR "
+            "AND agent_id = target_id AND chat_surface_id IS NULL "
+            "AND environment IN ('staging', 'production')) OR "
             "(kind = 'runtime' AND target_type = 'network' AND target_id IS NOT NULL "
-            "AND agent_id IS NULL AND environment IN ('staging', 'production'))",
+            "AND agent_id IS NULL AND chat_surface_id IS NULL "
+            "AND environment IN ('staging', 'production')) OR "
+            "(kind = 'chat_surface' AND agent_id IS NULL AND target_type IS NULL "
+            "AND target_id IS NULL AND chat_surface_id IS NOT NULL "
+            "AND environment IS NULL)",
             name="ck_core_api_keys_runtime_binding",
         ),
         CheckConstraint(
@@ -149,7 +161,8 @@ class ApiKeyModel(BaseModel):
             name="ck_core_api_keys_runtime_target",
         ),
         CheckConstraint(
-            "kind <> 'runtime' OR jsonb_array_length(interfaces) > 0",
+            "(kind <> 'runtime' OR jsonb_array_length(interfaces) > 0) AND "
+            "(kind <> 'chat_surface' OR jsonb_array_length(interfaces) = 0)",
             name="ck_core_api_keys_runtime_interfaces",
         ),
         {"schema": "core"},
@@ -167,6 +180,7 @@ class ApiKeyModel(BaseModel):
     agent_id: Mapped[UUID | None] = mapped_column(nullable=True)
     target_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     target_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    chat_surface_id: Mapped[UUID | None] = mapped_column(nullable=True)
     environment: Mapped[str | None] = mapped_column(String(32), nullable=True)
     interfaces: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")

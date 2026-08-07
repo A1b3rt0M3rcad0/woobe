@@ -308,6 +308,12 @@ class SessionModel(BaseModel):
             "last_message_at",
             "id",
         ),
+        Index(
+            "ix_agent_sessions_chat_surface",
+            "chat_surface_id",
+            "status",
+            "last_message_at",
+        ),
         {"schema": "agent"},
     )
 
@@ -318,6 +324,10 @@ class SessionModel(BaseModel):
     )
     opened_release_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_releases.id", ondelete="RESTRICT"), nullable=True
+    )
+    chat_surface_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    origin: Mapped[str] = mapped_column(
+        String(32), default="runtime_api", server_default=text("'runtime_api'")
     )
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
