@@ -46,7 +46,7 @@ export function ChatSurfaceAppearancePreview({
           src={previewUrl}
           title="ChatSurface appearance preview"
           sandbox="allow-scripts allow-same-origin"
-          className="pointer-events-none block h-[320px] w-full border-0"
+          className="block h-[320px] w-full border-0"
           onLoad={syncAppearance}
         />
       </div>
