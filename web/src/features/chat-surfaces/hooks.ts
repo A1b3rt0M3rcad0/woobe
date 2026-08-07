@@ -71,6 +71,11 @@ function cacheSurface(queryClient: QueryClient, updated: ChatSurface) {
   )
 }
 
+function publicAccessKey(accessKey: ChatSurfaceAccessKey): ChatSurfaceAccessKey {
+  const { access_key: _secret, ...safe } = accessKey
+  return safe
+}
+
 export function useCreateChatSurface(projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -153,7 +158,7 @@ export function useCreateChatSurfaceKey() {
     onSuccess: (created) => {
       queryClient.setQueryData<ChatSurfaceAccessKey[]>(
         ['chat-surface-access-keys', created.chat_surface_id],
-        (current = []) => [created, ...current],
+        (current = []) => [publicAccessKey(created), ...current],
       )
     },
   })
@@ -173,7 +178,7 @@ export function useRotateChatSurfaceKey() {
       queryClient.setQueryData<ChatSurfaceAccessKey[]>(
         ['chat-surface-access-keys', variables.surfaceId],
         (current = []) => [
-          replacement,
+          publicAccessKey(replacement),
           ...current.map((item) =>
             item.id === variables.apiKeyId
               ? { ...item, status: 'revoked' }
