@@ -21,8 +21,15 @@ body,
   --woobe-background: #f7f8fb;
   --woobe-surface: #ffffff;
   --woobe-text: #172033;
+  --woobe-subtle-text: #667085;
   --woobe-muted-border: #e2e5ec;
   --woobe-input-border: #cbd1dc;
+  --woobe-danger-surface: #fff6f5;
+  --woobe-danger-border: #f2c6c3;
+  --woobe-danger-text: #8f2f2a;
+  --woobe-warning-surface: #fff9eb;
+  --woobe-warning-border: #ecd69f;
+  --woobe-warning-text: #74520b;
 }
 
 #woobe-chat[data-theme="dark"] {
@@ -30,8 +37,15 @@ body,
   --woobe-background: #10131a;
   --woobe-surface: #1a1f2a;
   --woobe-text: #f2f4f8;
+  --woobe-subtle-text: #9aa4b5;
   --woobe-muted-border: #303746;
   --woobe-input-border: #485166;
+  --woobe-danger-surface: #28191c;
+  --woobe-danger-border: #61343b;
+  --woobe-danger-text: #ffb4b8;
+  --woobe-warning-surface: #292315;
+  --woobe-warning-border: #5a4b26;
+  --woobe-warning-text: #efd38d;
 }
 
 #woobe-chat[data-theme="light"] {
@@ -44,8 +58,15 @@ body,
     --woobe-background: #10131a;
     --woobe-surface: #1a1f2a;
     --woobe-text: #f2f4f8;
+    --woobe-subtle-text: #9aa4b5;
     --woobe-muted-border: #303746;
     --woobe-input-border: #485166;
+    --woobe-danger-surface: #28191c;
+    --woobe-danger-border: #61343b;
+    --woobe-danger-text: #ffb4b8;
+    --woobe-warning-surface: #292315;
+    --woobe-warning-border: #5a4b26;
+    --woobe-warning-text: #efd38d;
   }
 }
 
@@ -98,6 +119,78 @@ body,
   border: 1px solid var(--woobe-muted-border);
 }
 
+.message--pending {
+  display: flex;
+  min-width: 58px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+}
+
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--woobe-subtle-text);
+  animation: woobe-typing 1.15s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+.message--streaming::after {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  content: "";
+  background: currentColor;
+  opacity: 0.65;
+  animation: woobe-cursor 0.85s steps(1, end) infinite;
+}
+
+.message--system {
+  display: grid;
+  align-self: stretch;
+  max-width: 100%;
+  gap: 4px;
+  border: 1px solid;
+}
+
+.message--system strong {
+  font-size: 13px;
+}
+
+.message--system span {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.message--error {
+  color: var(--woobe-danger-text);
+  background: var(--woobe-danger-surface);
+  border-color: var(--woobe-danger-border);
+}
+
+.message--session-expired {
+  color: var(--woobe-warning-text);
+  background: var(--woobe-warning-surface);
+  border-color: var(--woobe-warning-border);
+}
+
 .chat__composer {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -131,6 +224,11 @@ button {
   border: 0;
   border-radius: 10px;
   cursor: pointer;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px);
 }
 
 button:disabled,
@@ -151,8 +249,37 @@ textarea:disabled {
   border: 0;
 }
 
+@keyframes woobe-typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes woobe-cursor {
+  0%, 52% {
+    opacity: 0.7;
+  }
+  53%, 100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat__messages {
     scroll-behavior: auto;
+  }
+
+  .typing-indicator span,
+  .message--streaming::after {
+    animation: none;
+  }
+
+  .typing-indicator span {
+    opacity: 0.75;
   }
 }
