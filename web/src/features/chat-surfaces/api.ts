@@ -3,6 +3,7 @@ import { get, patch, post } from '@/lib/api/client'
 import type {
   ChatSurface,
   ChatSurfaceAccessKey,
+  ChatSurfaceTestSession,
   CreateChatSurfaceInput,
   UpdateChatSurfaceInput,
 } from './types'
@@ -43,6 +44,12 @@ export function disableChatSurface(surfaceId: string): Promise<ChatSurface> {
 
 export function archiveChatSurface(surfaceId: string): Promise<ChatSurface> {
   return post<ChatSurface>(`/chat-surfaces/${surfaceId}/archive`)
+}
+
+export function createChatSurfaceTestSession(
+  surfaceId: string,
+): Promise<ChatSurfaceTestSession> {
+  return post<ChatSurfaceTestSession>(`/chat-surfaces/${surfaceId}/test-sessions`)
 }
 
 export function listChatSurfaceAccessKeys(
