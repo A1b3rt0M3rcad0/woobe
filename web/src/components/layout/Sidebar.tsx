@@ -18,6 +18,7 @@ import {
   Building2,
   ChevronDown,
   List,
+  MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,7 @@ const buildNavItems: NavItem[] = [
 ]
 
 const operateNavItems: NavItem[] = [
+  { label: 'ChatSurfaces', icon: MessageSquare, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'chat-surfaces') },
   { label: 'API Keys', icon: Key, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'api-keys') },
   { label: 'Usage', icon: BarChart3, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'usage') },
   { label: 'Traces', icon: Activity, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'traces') },

@@ -80,6 +80,10 @@ def is_runtime_path(path: str) -> bool:
     )
 
 
+def is_chat_surface_public_path(path: str) -> bool:
+    return path.startswith("/v1/chat-surfaces/") or path.startswith("/v1/chat/")
+
+
 def is_runtime_execution_request(method: str, path: str) -> bool:
     if path.startswith("/runtime/") or path.startswith("/agent/runtime/"):
         return True
@@ -199,7 +203,7 @@ class HttpSecurityGuard:
             client = request.client.host if request.client else "unknown"
             await self._login_rate_limiter.consume(client)
 
-        if path in PUBLIC_PATHS:
+        if path in PUBLIC_PATHS or is_chat_surface_public_path(path):
             return None
 
         if is_runtime_path(path):

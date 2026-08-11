@@ -162,7 +162,10 @@ class SQLAlchemyApiKeyRepository(
     async def list_by_project(self, project_id: UUID) -> list[ApiKey]:
         result = await self._session.execute(
             select(ApiKeyModel)
-            .where(ApiKeyModel.project_id == project_id)
+            .where(
+                ApiKeyModel.project_id == project_id,
+                ApiKeyModel.kind != "chat_surface",
+            )
             .order_by(ApiKeyModel.created_at.desc())
         )
         return [api_key_model_to_entity(k) for k in result.scalars().all()]
@@ -172,7 +175,10 @@ class SQLAlchemyApiKeyRepository(
     ) -> CursorPage[ApiKey]:
         stmt = (
             select(ApiKeyModel)
-            .where(ApiKeyModel.project_id == project_id)
+            .where(
+                ApiKeyModel.project_id == project_id,
+                ApiKeyModel.kind != "chat_surface",
+            )
             .order_by(ApiKeyModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)

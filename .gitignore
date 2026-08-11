@@ -8,6 +8,24 @@ wheels/
 web\node_modules
 */node_modules
 
+# Test, type-check and coverage caches
+.pytest_cache/
+.ruff_cache/
+.pyright/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Notebook, editor and operating-system artifacts
+.ipynb_checkpoints/
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
 # Virtual environments
 .venv
 

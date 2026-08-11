@@ -11,6 +11,8 @@ from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
+    "surface_id": "chat_surface.chat_surfaces",
+    "chat_surface_id": "chat_surface.chat_surfaces",
     "agent_id": "agent.agents",
     "credential_id": "agent.provider_credentials",
     "provider_credential_id": "agent.provider_credentials",

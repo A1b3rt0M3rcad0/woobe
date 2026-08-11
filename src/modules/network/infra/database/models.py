@@ -91,6 +91,12 @@ class NetworkSessionModel(BaseModel):
         Index(
             "ix_network_sessions_project_status", "project_id", "status", "created_at"
         ),
+        Index(
+            "ix_network_sessions_chat_surface",
+            "chat_surface_id",
+            "status",
+            "last_message_at",
+        ),
         UniqueConstraint(
             "network_id",
             "external_session_id",
@@ -109,6 +115,10 @@ class NetworkSessionModel(BaseModel):
         ForeignKey("network.network_versions.id"), nullable=True
     )
     project_id: Mapped[UUID]
+    chat_surface_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    origin: Mapped[str] = mapped_column(
+        String(32), default="runtime_api", server_default=text("'runtime_api'")
+    )
     environment: Mapped[str] = mapped_column(String(32))
     title: Mapped[str] = mapped_column(String(255), default="New Network session")
     tenant_id: Mapped[str | None] = mapped_column(String(128))
