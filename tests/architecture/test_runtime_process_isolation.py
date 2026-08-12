@@ -30,7 +30,7 @@ def test_worker_bootstrap_owns_messaging_and_worker_lifecycle() -> None:
 
 
 def test_default_community_compose_keeps_processes_and_optional_infra_separate() -> None:
-    compose = (ROOT / "compose.yml").read_text(encoding="utf-8-sig")
+    compose = (ROOT / "compose.yaml").read_text(encoding="utf-8-sig")
 
     for service in ("db", "rabbitmq", "migrate", "api", "workers", "web", "chat-embed"):
         assert f"\n  {service}:\n" in compose
@@ -43,11 +43,13 @@ def test_default_community_compose_keeps_processes_and_optional_infra_separate()
 
 
 def test_repository_has_one_default_community_compose_contract() -> None:
-    assert (ROOT / "compose.yml").is_file()
+    assert (ROOT / "compose.yaml").is_file()
     assert (ROOT / "deploy" / "dev" / "compose.yml").is_file()
 
     for legacy_name in (
+        "compose.yml",
         "docker-compose.yml",
+        "docker-compose.yaml",
         "docker-compose.community.yml",
         "docker-compose.prod.yml",
         "docker-compose.override.yml",
