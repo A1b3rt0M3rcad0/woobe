@@ -250,10 +250,11 @@ Read [Architecture](docs/ARCHITECTURE.md) for domain, runtime, and edition bound
 
 ## Deployment surface
 
-Woobe Community intentionally keeps the public deployment surface small:
+Woobe keeps product deployment, validation, and contributor infrastructure as separate contracts:
 
 ```text
 compose.yaml                 # supported Community self-host topology
+compose.test.yaml            # standalone validation contract
 deploy/dev/compose.yml       # optional contributor extension
 ```
 
@@ -264,7 +265,13 @@ python scripts/generate_self_host_env.py
 docker compose up -d --build
 ```
 
-Do not treat `deploy/dev/compose.yml` as a production distribution. Additional deployment topologies should only become public contracts when Woobe is prepared to support them operationally.
+The validation path is explicitly selected and does not change the default Community distribution:
+
+```bash
+docker compose -f compose.test.yaml run --rm tests
+```
+
+Do not treat `compose.test.yaml` or `deploy/dev/compose.yml` as production distributions. `compose.test.yaml` is isolated test infrastructure; `deploy/dev/compose.yml` is an optional contributor extension. Additional production deployment topologies should only become public contracts when Woobe is prepared to support them operationally.
 
 ## Configuration
 
@@ -313,6 +320,7 @@ Self-hosting requires a recovery path. Back up PostgreSQL together with the Know
 | [ChatSurface](docs/runtime/CHAT_SURFACE.md) | Embed, Session, token, Release, and security contract. |
 | [MCP Tools](docs/runtime/MCP_TOOLS.md) | MCP lifecycle, OAuth, permissions, and security. |
 | [Streaming](docs/runtime/STREAMING.md) | Runtime streaming protocol. |
+| [Compose tests](docs/testing/COMPOSE_TESTS.md) | Standalone local/CI validation topology and commands. |
 | [Provider contributions](docs/CONTRIBUTING_PROVIDERS.md) | Provider contribution guidance. |
 | [Security](SECURITY.md) | Vulnerability reporting and security expectations. |
 | [Contributing](CONTRIBUTING.md) | Development and contribution workflow. |
