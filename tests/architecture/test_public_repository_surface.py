@@ -20,9 +20,8 @@ def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
 
 def test_public_deployment_surface_has_one_default_contract() -> None:
     assert (ROOT / "compose.yaml").is_file()
+    assert (ROOT / "compose.test.yaml").is_file()
     assert (ROOT / "deploy/dev/compose.yml").is_file()
-    assert (ROOT / "deploy/test/compose.yml").is_file()
-    assert (ROOT / "deploy/test/test.env").is_file()
 
     for path in (
         "compose.yml",
@@ -32,12 +31,28 @@ def test_public_deployment_surface_has_one_default_contract() -> None:
         "docker-compose.override.yml",
         "docker-compose.rabbitmq-observer.yml",
         "docker/rabbitmq",
+        "deploy/test",
     ):
         assert not (ROOT / path).exists(), path
 
 
-def test_test_topology_is_a_validation_contract_not_a_distribution() -> None:
-    assert (ROOT / "scripts/test.sh").is_file()
+def test_test_topology_is_standalone_and_shell_independent() -> None:
+    compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
+
+    assert "name: woobe-test" in compose
+    assert "backend-tests:" in compose
+    assert "frontend-tests:" in compose
+    assert "browser-mocked:" in compose
+    assert "browser-e2e:" in compose
+    assert "tests:" in compose
+    assert "host.docker.internal" not in compose
+    assert "deploy/test" not in compose
+    assert not (ROOT / "scripts/test.sh").exists()
+
+    assert "docker compose -f compose.test.yaml run --rm tests" in workflow
+    assert "scripts/test.sh" not in workflow
+
     assert (ROOT / "e2e/package.json").is_file()
     assert (ROOT / "e2e/Dockerfile").is_file()
     assert (ROOT / "e2e/fullstack.config.ts").is_file()
@@ -49,6 +64,7 @@ def test_runtime_documentation_uses_durable_product_paths() -> None:
         "docs/runtime/CHAT_SURFACE.md",
         "docs/runtime/MCP_TOOLS.md",
         "docs/runtime/STREAMING.md",
+        "docs/testing/COMPOSE_TESTS.md",
     ):
         assert (ROOT / path).is_file(), path
 

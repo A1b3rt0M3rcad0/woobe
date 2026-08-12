@@ -14,40 +14,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate test Compose contract
-        run: >-
-          docker compose
-          --env-file deploy/test/test.env
-          -p woobe-test
-          -f compose.yaml
-          -f deploy/dev/compose.yml
-          -f deploy/test/compose.yml
-          config --quiet
+
+      - name: Reset stale validation stack
+        run: docker compose -f compose.test.yaml down -v --remove-orphans || true
+
+      - name: Prepare validation artifacts
+        run: |
+          rm -rf .test-artifacts
+          mkdir -p .test-artifacts
+
+      - name: Validate standalone test Compose contract
+        run: docker compose -f compose.test.yaml config --quiet
+
       - name: Run reproducible validation stack
-        env:
-          WOOBE_TEST_KEEP_STACK: "1"
-        run: sh scripts/test.sh all
+        run: docker compose -f compose.test.yaml run --rm tests
+
       - name: Capture Compose diagnostics
         if: failure()
         run: |
-          mkdir -p .test-artifacts
-          docker compose \
-            --env-file deploy/test/test.env \
-            -p woobe-test \
-            -f compose.yaml \
-            -f deploy/dev/compose.yml \
-            -f deploy/test/compose.yml \
-            ps --all > .test-artifacts/compose-ps.txt || true
-          docker compose \
-            --env-file deploy/test/test.env \
-            -p woobe-test \
-            -f compose.yaml \
-            -f deploy/dev/compose.yml \
-            -f deploy/test/compose.yml \
-            logs --no-color > .test-artifacts/compose.log 2>&1 || true
+          docker compose -f compose.test.yaml ps --all > .test-artifacts/compose-ps.txt || true
+          docker compose -f compose.test.yaml logs --no-color > .test-artifacts/compose.log 2>&1 || true
+
       - name: Tear down validation stack
         if: always()
-        run: sh scripts/test.sh down
+        run: docker compose -f compose.test.yaml down -v --remove-orphans
+
       - name: Upload validation evidence
         if: always()
         uses: actions/upload-artifact@v4

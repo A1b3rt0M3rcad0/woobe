@@ -12,7 +12,7 @@ export default defineConfig({
     ? [['line'], ['html', { outputFolder: 'playwright-report-fullstack', open: 'never' }]]
     : 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://host.docker.internal:8080',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://web:8080',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -35,17 +35,19 @@ Durable architecture decisions belong in `docs/adr/`. Current product behavior b
 
 ## Quality
 
-Local code validation and the manual GitHub test workflow use the same Compose contract. The test topology combines `compose.yaml`, `deploy/dev/compose.yml`, and `deploy/test/compose.yml`; it is a validation environment, not a self-host distribution.
+The validation contract is the standalone root `compose.test.yaml`. It is intentionally separate from the Community distribution in `compose.yaml` and does not require Bash or WSL on the host.
 
-Run the complete validation stack with:
+Run the complete local validation stack with:
 
 ```bash
-sh scripts/test.sh all
+docker compose -f compose.test.yaml run --rm tests
 ```
 
-Focused suites are available as `backend`, `frontend`, `mocked`, and `e2e`. Backend validation includes Ruff, Pyright, migration upgrade/check/rollback and the complete Python test suite. Frontend validation runs Vitest and a production build. Browser validation keeps the deterministic mocked suite and also runs a real-stack Playwright bootstrap flow against API, Web, Workers, PostgreSQL, RabbitMQ, Redis, MinIO, PgBouncer and the deterministic fake LLM service.
+Run an individual suite by replacing `tests` with `backend-tests`, `frontend-tests`, `browser-mocked`, or `browser-e2e`. For a deterministic fresh full-stack database between repeated runs, execute `docker compose -f compose.test.yaml down -v --remove-orphans` first.
 
-The manual `.github/workflows/tests.yml` workflow invokes this same contract. Container, release acceptance, security and release workflows remain separate because they validate distribution artifacts and release-specific guarantees rather than the development test environment. Repository workflows are intentionally executed only when validation is requested.
+The manual `tests.yml` workflow uses the same Compose contract. Container, acceptance, security, and release workflows remain separate because they validate production images, the actual Community distribution, repository security, and publishing respectively. Repository workflows are intentionally executed only when validation is requested.
+
+See [Compose test workflow](docs/testing/COMPOSE_TESTS.md) for the test topology and suite responsibilities.
 
 ## Licensing contributions
 

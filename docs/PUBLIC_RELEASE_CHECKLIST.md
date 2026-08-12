@@ -5,12 +5,12 @@ This checklist is a release gate for making the Woobe repository and Community d
 ## Repository surface
 
 - [ ] Root `compose.yaml` is the only supported default Community self-host contract.
+- [ ] Root `compose.test.yaml` is a standalone validation contract and is not presented as a product distribution.
 - [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
-- [ ] Test-only infrastructure is explicit under `deploy/test/`, composes on top of Community/development contracts, and is not presented as a product distribution.
-- [ ] No `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
+- [ ] No obsolete `deploy/test/` overlay, host-shell test orchestrator, `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
 - [ ] Exactly one pull request template exists under `.github/`.
 - [ ] Browser acceptance tests use the root `e2e/` package; Python tests use the taxonomy under `tests/` without a competing `tests/e2e/` namespace.
-- [ ] Durable runtime documentation is under `docs/` and describes current behavior rather than implementation history.
+- [ ] Durable runtime and testing documentation is under `docs/` and describes current behavior rather than implementation history.
 - [ ] Legacy codename strings have been reviewed across the public tree and either removed or justified as historical compatibility where technically required.
 
 ## Secrets and Git history — blocking
@@ -40,10 +40,11 @@ Do not make the repository public while this section is incomplete.
 
 ## Quality and security
 
-- [ ] Run the manual test workflow, which must execute `scripts/test.sh all` through `deploy/test/compose.yml` and cover backend quality/tests, frontend tests/build, mocked browser flows, and real-stack Playwright E2E.
-- [ ] Confirm the test Compose contract uses deterministic local dependencies and does not require real model-provider credentials.
-- [ ] Run the manual container workflow: production image builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
-- [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the supported root `compose.yaml` distribution.
+- [ ] Validate the standalone test contract with `docker compose -f compose.test.yaml config --quiet`.
+- [ ] Run the manual tests workflow, which executes `docker compose -f compose.test.yaml run --rm tests` and covers Ruff, Pyright, migrations, pytest, Vitest, Web production build, mocked browser tests, and full-stack browser E2E.
+- [ ] Confirm the test topology uses Docker service DNS rather than `host.docker.internal` and requires no host Bash/WSL dependency.
+- [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
+- [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the actual root `compose.yaml` distribution.
 - [ ] Run the manual security workflow, including full-history secret scanning.
 - [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
 
