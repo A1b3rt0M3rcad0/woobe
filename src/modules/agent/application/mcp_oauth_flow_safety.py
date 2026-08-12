@@ -4,8 +4,8 @@ import json
 from typing import Any
 from urllib.parse import urlparse
 
+from modules.agent.application import mcp_oauth as _oauth
 from modules.agent.application import mcp_oauth_flows as _flows
-from modules.agent.application.mcp_oauth import McpOAuthMetadataResolver
 from modules.agent.application.mcp_readiness import has_valid_mcp_oauth_metadata
 from modules.agent.application.ports import ToolExecutionPort
 from modules.agent.domain.repositories import ToolRepository
@@ -71,6 +71,22 @@ def _pkce_is_not_for_woobe(metadata: dict[str, Any]) -> bool:
 
 def _has_device_code_option(metadata: dict[str, Any]) -> bool:
     return _flows._flow_option(metadata, "device_code") is not None
+
+
+def _woobe_client_hint_message(metadata: dict[str, Any]) -> str:
+    pkce_clients = _potential_clients(metadata, "authorization_code_pkce")
+    device_clients = _potential_clients(metadata, "device_code")
+    details: list[str] = []
+    if pkce_clients:
+        details.append(f"authorization_code_pkce clients: {', '.join(pkce_clients)}")
+    if device_clients:
+        details.append(f"device_code clients: {', '.join(device_clients)}")
+    suffix = f" Provider hints: {'; '.join(details)}." if details else ""
+    return (
+        "OAuth provider uses client-capability-based authorization. "
+        "Configure a provider-issued client_id/client_secret for Woobe or use the MCP device-code flow."
+        + suffix
+    )
 
 
 def _unsupported_pkce_message(metadata: dict[str, Any]) -> str:
@@ -171,6 +187,41 @@ def _invalid_discovery_message(config: dict[str, Any]) -> str:
     )
 
 
+class WoobeMcpOAuthMetadataResolver(_oauth.McpOAuthMetadataResolver):
+    async def _resource_metadata_challenge(
+        self,
+        server_url: str,
+        *,
+        timeout_ms: int,
+    ) -> tuple[str | None, list[str]]:
+        initialize_payload = {
+            "jsonrpc": "2.0",
+            "id": "oauth-discovery",
+            "method": "initialize",
+            "params": {
+                "protocolVersion": _oauth.MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "Woobe", "version": "0.1.0"},
+            },
+        }
+        result = await self._executor.execute(
+            method="POST",
+            url=server_url,
+            headers={
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": _oauth.MCP_PROTOCOL_VERSION,
+            },
+            body=json.dumps(initialize_payload),
+            timeout_ms=timeout_ms,
+        )
+        header = _oauth._headers(result).get("www-authenticate")
+        return (
+            _oauth._parse_www_authenticate_resource_metadata(header),
+            _oauth._parse_www_authenticate_scopes(header),
+        )
+
+
 class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase):
     def __init__(
         self,
@@ -203,7 +254,9 @@ class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase
         metadata = _cached_metadata(config)
         if not metadata:
             try:
-                metadata = await McpOAuthMetadataResolver(self._safe_executor).resolve(
+                metadata = await WoobeMcpOAuthMetadataResolver(
+                    self._safe_executor
+                ).resolve(
                     server_url=server_url,
                     authorization_endpoint=resolved_input.authorization_endpoint,
                     token_endpoint=resolved_input.token_endpoint,
@@ -229,12 +282,73 @@ class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase
             raise ValueError(_unsupported_pkce_message(metadata))
         return await super().execute(resolved_input)
 
+    async def _register_client(
+        self,
+        *,
+        registration_endpoint: str,
+        redirect_uri: str,
+        timeout_ms: int,
+        token_endpoint_auth_method: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "client_name": "Woobe",
+            "redirect_uris": [redirect_uri],
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": token_endpoint_auth_method,
+        }
+        result = await self._executor.execute(
+            method="POST",
+            url=registration_endpoint,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            body=json.dumps(payload),
+            timeout_ms=timeout_ms,
+        )
+        if not result.success:
+            raise ValueError(result.error or "OAuth dynamic client registration failed")
+        body = _flows._body(result)
+        if not isinstance(body, dict):
+            raise ValueError("OAuth dynamic client registration did not return JSON")
+        return body
 
+
+class WoobeMcpOAuthDeviceStartUseCase(_flows.McpOAuthDeviceStartUseCase):
+    async def _register_device_client(
+        self,
+        *,
+        registration_endpoint: str,
+        timeout_ms: int,
+        token_endpoint_auth_method: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "client_name": "Woobe",
+            "grant_types": [_flows.DEVICE_CODE_GRANT_TYPE, "refresh_token"],
+            "token_endpoint_auth_method": token_endpoint_auth_method,
+        }
+        result = await self._executor.execute(
+            method="POST",
+            url=registration_endpoint,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            body=json.dumps(payload),
+            timeout_ms=timeout_ms,
+        )
+        if not result.success:
+            raise ValueError(result.error or "OAuth dynamic client registration failed")
+        body = _flows._body(result)
+        if not isinstance(body, dict):
+            raise ValueError("OAuth dynamic client registration did not return JSON")
+        return body
+
+
+# Keep the provider-aware flow implementation isolated while normalizing all runtime
+# client branding at the module boundary used by the composers.
 _flows._flow_authorization_servers = _valid_authorization_servers
+_flows._client_hint_message = _woobe_client_hint_message
+_flows.McpOAuthMetadataResolver = WoobeMcpOAuthMetadataResolver
 
 McpOAuthDevicePollInput = _flows.McpOAuthDevicePollInput
 McpOAuthDevicePollOutput = _flows.McpOAuthDevicePollOutput
 McpOAuthDevicePollUseCase = _flows.McpOAuthDevicePollUseCase
 McpOAuthDeviceStartInput = _flows.McpOAuthDeviceStartInput
 McpOAuthDeviceStartOutput = _flows.McpOAuthDeviceStartOutput
-McpOAuthDeviceStartUseCase = _flows.McpOAuthDeviceStartUseCase
+McpOAuthDeviceStartUseCase = WoobeMcpOAuthDeviceStartUseCase
