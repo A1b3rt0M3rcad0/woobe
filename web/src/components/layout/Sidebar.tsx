@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isCloudEdition } from '@/lib/edition'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { orgProjectPath } from '@/lib/constants/routes'
@@ -102,11 +103,14 @@ function OrganizationNavGroup({ orgId }: { orgId: string }) {
       item: { label: 'Organization', icon: Building2, href: `/organizations/${orgId}/settings` },
       href: `/organizations/${orgId}/settings`,
     },
-    {
+  ]
+
+  if (isCloudEdition) {
+    organizationItems.push({
       item: { label: 'Billing', icon: CreditCard, href: `/organizations/${orgId}/billing` },
       href: `/organizations/${orgId}/billing`,
-    },
-  ]
+    })
+  }
 
   return (
     <section className="space-y-2 border-t border-border p-3">

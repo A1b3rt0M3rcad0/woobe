@@ -8,6 +8,7 @@ import { useAgents } from '@/features/agents/hooks'
 import { useNetworks } from '@/features/network/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { LoadingState } from '@/components/common/LoadingState'
+import { isCloudEdition } from '@/lib/edition'
 
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -51,9 +52,15 @@ function LegacyProjectRedirect() {
 
 function LegacyBillingRedirect() {
   const { currentOrganization } = useWorkspace()
+  if (!isCloudEdition) return <Navigate to="/organizations" replace />
   return currentOrganization
     ? <Navigate to={`/organizations/${currentOrganization.id}/billing`} replace />
     : <Navigate to="/organizations" replace />
+}
+
+function EditionBillingPage() {
+  if (!isCloudEdition) return <Navigate to="../settings" replace />
+  return <BillingPage />
 }
 
 function DashboardRedirect() {
@@ -178,7 +185,7 @@ export function AppRouter() {
           <Route element={<OrganizationWorkspaceGuard />}>
             <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
             <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
-            <Route path="/organizations/:organizationId/billing" element={<BillingPage />} />
+            <Route path="/organizations/:organizationId/billing" element={<EditionBillingPage />} />
             <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
             <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
 
