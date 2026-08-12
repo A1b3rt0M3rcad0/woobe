@@ -19,7 +19,12 @@ def upgrade() -> None:
     op.create_table(
         "instance_settings",
         sa.Column("id", sa.SmallInteger(), nullable=False),
-        sa.Column("owner_user_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "owner_user_id",
+            sa.Uuid(),
+            sa.ForeignKey("identity.users.id", ondelete="RESTRICT"),
+            nullable=True,
+        ),
         sa.Column("initialized_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "signup_mode",
