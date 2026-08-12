@@ -23,9 +23,17 @@ The primary technical isolation unit is Project. Organization is the commercial/
 
 Do not combine unrelated refactors with a feature or fix. Avoid helpers, reexports or abstractions that only move code without reducing a concrete problem.
 
+## Public repository surface
+
+The public repository is the product repository, not an archive of the internal development process.
+
+Keep durable product code, tests, current documentation, supported deployment contracts and contribution tooling in the repository. Do not commit internal AI-agent prompts or skills, implementation journals, stage markers, generated evidence, one-off debugging stacks, completed refactor plans, internal execution logs or temporary audit artifacts.
+
+Durable architecture decisions belong in `docs/adr/`. Current product behavior belongs in `docs/`. Work in progress belongs in Issues and pull requests rather than permanent `specs/` or `docs/mvp/` archives.
+
 ## Quality
 
-The repository contains backend lint/type/test workflows, frontend build/tests, migration validation, container validation and release acceptance workflows. Run only the checks relevant to your change locally; the pull request will show the authoritative CI result once CI is intentionally executed.
+The repository contains manual backend, frontend, container, acceptance, security and release workflows. Run only the checks relevant to your change locally; repository workflows are intentionally executed when validation is requested.
 
 ## Licensing contributions
 

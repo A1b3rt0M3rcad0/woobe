@@ -1,3 +1,0 @@
-Stage 07 was originally merged into development-mvp through PR #28 at merge commit 6df1bfd9f94ae7565fc92c2c77304af5154916f2.
-The original PR passed Backend, Frontend, Migrations, Containers, and Production containers workflows but had no requested reviewer or recorded review discussion.
-The follow-up branch chore/mvp-07-production-deployment-review starts from that merge commit and must remain unmerged until code review and all applicable checks complete.
