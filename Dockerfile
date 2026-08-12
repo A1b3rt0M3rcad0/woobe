@@ -23,6 +23,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     "pypdf>=6.0.0"
 RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
 
+FROM builder AS test
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app/src:/app" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --all-groups --extra test --no-install-project
+COPY src/ src/
+COPY tests/ tests/
+COPY migrations/ migrations/
+COPY scripts/ scripts/
+COPY alembic.ini pytest.ini ./
+CMD ["python", "-m", "pytest", "-q"]
+
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \

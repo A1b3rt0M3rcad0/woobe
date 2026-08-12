@@ -3,16 +3,19 @@
 ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.29.4
 
-FROM node:${NODE_VERSION}-alpine AS builder
+FROM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
-
-ARG VITE_API_URL
-ARG VITE_CHAT_EMBED_URL
-ARG VITE_WOOBE_EDITION=community
-
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
+FROM deps AS test
+COPY . .
+CMD ["npm", "run", "test:run"]
+
+FROM deps AS builder
+ARG VITE_API_URL
+ARG VITE_CHAT_EMBED_URL
+ARG VITE_WOOBE_EDITION=community
 COPY . .
 RUN test -n "${VITE_API_URL}" \
     && test -n "${VITE_CHAT_EMBED_URL}" \
