@@ -2,7 +2,7 @@
 
 ## Deployment contract
 
-The root `compose.yml` is the supported Woobe Community self-host topology. Production is selected through configuration (`WOOBE_ENVIRONMENT=production`), not through a separate production Compose file.
+The root `compose.yaml` is the supported Woobe Community self-host topology. Production is selected through configuration (`WOOBE_ENVIRONMENT=production`), not through a separate production Compose file.
 
 The default single-host topology contains:
 

@@ -1,6 +1,6 @@
 # Self-hosting Woobe Community
 
-Woobe Community uses one supported default self-host contract: the root `compose.yml`.
+Woobe Community uses one supported default self-host contract: the root `compose.yaml`.
 
 ## First start
 
@@ -65,7 +65,7 @@ docker compose up -d --build
 `deploy/dev/compose.yml` is an explicit contributor extension for exercising PgBouncer, Redis-backed MCP Session caching, and S3-compatible storage through MinIO.
 
 ```bash
-docker compose -f compose.yml -f deploy/dev/compose.yml up -d --build
+docker compose -f compose.yaml -f deploy/dev/compose.yml up -d --build
 ```
 
 It is not a second Community distribution and is not the production deployment contract.

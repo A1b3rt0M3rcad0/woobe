@@ -1,6 +1,6 @@
 # Upgrading Woobe Community
 
-Woobe Community uses the root `compose.yml` as its supported self-host topology.
+Woobe Community uses the root `compose.yaml` as its supported self-host topology.
 
 ## Before upgrading
 

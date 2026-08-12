@@ -80,7 +80,7 @@ Runs and Traces retain the versions and runtime bindings that were actually used
 
 ## Quick start
 
-Woobe Community has one supported default self-host contract: the root [`compose.yml`](compose.yml).
+Woobe Community has one supported default self-host contract: the root [`compose.yaml`](compose.yaml).
 
 ### Requirements
 
@@ -127,7 +127,7 @@ PostgreSQL, RabbitMQ, and local Knowledge uploads use the persistent Docker volu
 Redis, PgBouncer, and MinIO are **not part of the default Community product topology**. Contributors who need to exercise those integrations locally can explicitly layer [`deploy/dev/compose.yml`](deploy/dev/compose.yml):
 
 ```bash
-docker compose -f compose.yml -f deploy/dev/compose.yml up -d --build
+docker compose -f compose.yaml -f deploy/dev/compose.yml up -d --build
 ```
 
 That file is a contributor topology, not a second supported self-host distribution.
@@ -148,7 +148,7 @@ Staging validates the configuration intended for release before Production promo
 
 Production runs immutable Agent Releases and Network Releases. A Release preserves the configuration snapshot required to reproduce what was deployed, and rollback can restore an earlier release without rebuilding it.
 
-For a self-hosted Community instance, Production is **not a different Compose product**. The same root `compose.yml` is operated with `WOOBE_ENVIRONMENT=production` and production-safe secrets, cookies, host allowlists, TLS termination, and backup procedures.
+For a self-hosted Community instance, Production is **not a different Compose product**. The same root `compose.yaml` is operated with `WOOBE_ENVIRONMENT=production` and production-safe secrets, cookies, host allowlists, TLS termination, and backup procedures.
 
 Woobe does not currently advertise a separate distributed/external-infrastructure Compose topology as part of the Community MVP support surface.
 
@@ -253,7 +253,7 @@ Read [Architecture](docs/ARCHITECTURE.md) for domain, runtime, and edition bound
 Woobe Community intentionally keeps the public deployment surface small:
 
 ```text
-compose.yml                  # supported Community self-host topology
+compose.yaml                 # supported Community self-host topology
 deploy/dev/compose.yml       # optional contributor extension
 ```
 

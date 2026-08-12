@@ -4,9 +4,11 @@ This checklist is a release gate for making the Woobe repository and Community d
 
 ## Repository surface
 
-- [ ] Root `compose.yml` is the only supported default Community self-host contract.
+- [ ] Root `compose.yaml` is the only supported default Community self-host contract.
 - [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
-- [ ] No `.opencode/`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, or one-off debugging stacks remain in the public HEAD.
+- [ ] No `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
+- [ ] Exactly one pull request template exists under `.github/`.
+- [ ] Browser acceptance tests use the root `e2e/` package; Python tests use the taxonomy under `tests/` without a competing `tests/e2e/` namespace.
 - [ ] Durable runtime documentation is under `docs/` and describes current behavior rather than implementation history.
 - [ ] Legacy codename strings have been reviewed across the public tree and either removed or justified as historical compatibility where technically required.
 
@@ -27,7 +29,7 @@ Do not make the repository public while this section is incomplete.
 ## Community deployment
 
 - [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py`.
-- [ ] Validate the root `compose.yml` configuration.
+- [ ] Validate the root `compose.yaml` configuration.
 - [ ] Start the complete Community stack from the root Compose contract.
 - [ ] Confirm persistent PostgreSQL, RabbitMQ, and Knowledge volumes.
 - [ ] Exercise a production-shaped configuration with secure cookies, exact HTTPS CORS origins, exact trusted hosts, and distinct strong secrets.
