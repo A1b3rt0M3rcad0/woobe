@@ -115,6 +115,7 @@ async def finalize_failed_instrumented_execution(
     binding_payload = _model_binding_payload(agent)
     fallback_binding_payload = _fallback_model_binding_payload(agent)
     trace_binding_payload = {**binding_payload, **fallback_binding_payload}
+    failure_context = execution.failure_context or {}
 
     total_ms = round((time.monotonic() - started_at) * 1000)
     llm_ms = sum(int(call.get("latency_ms") or 0) for call in execution.llm_calls)
@@ -149,6 +150,11 @@ async def finalize_failed_instrumented_execution(
         "provider_credential_id": binding_payload["provider_credential_id"],
         "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
         "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
+        "failure_phase": failure_context.get("phase"),
+        "failure_call_index": failure_context.get("call_index"),
+        "upstream_status": failure_context.get("upstream_status"),
+        "upstream_error_code": failure_context.get("upstream_error_code"),
+        "partial_result_available": failure_context.get("partial_result_available") is True,
     }
     payload = {
         "trace_id": trace_id_text,

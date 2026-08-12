@@ -4,7 +4,8 @@ import { Bot, Plus } from 'lucide-react'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
+import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import { RuntimeEnvironmentPill } from '@/components/common/RuntimeEnvironmentPill'
 import {
   ResourceEmptyState,
   ResourcePage,
@@ -16,7 +17,7 @@ import {
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
-import { useAgents } from '@/features/agents/hooks'
+import { useAgentRuntimeEnvironments, useAgents, useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { orgProjectPath } from '@/lib/constants/routes'
 
@@ -28,6 +29,72 @@ function providerLabel(agent: Agent) {
 
 function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleString() : 'Not recorded'
+}
+
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function AgentOperationalCard({
+  agent,
+  projectId,
+  onOpen,
+}: {
+  agent: Agent
+  projectId: string
+  onOpen: () => void
+}) {
+  const runtimeQuery = useAgentRuntimeEnvironments(agent.id, projectId)
+  const releasesQuery = useReleases(agent.id)
+  const runtimeStates = runtimeQuery.data ?? agent.runtime_environments
+  const releases = releasesQuery.data ?? []
+  const hasStaging = releases.some((release) => release.status === 'staging')
+  const hasProduction = releases.some((release) => release.status === 'production')
+  const runtimeUnknown = runtimeQuery.isError && !runtimeStates
+  const releasesUnknown = releasesQuery.isError
+  const status = agent.status?.toLowerCase()
+
+  return (
+    <ResourceCard
+      aria-label={`Open Agent playground for ${agent.name}`}
+      onClick={onOpen}
+      icon={<Bot className="h-4 w-4" />}
+      title={agent.name}
+      subtitle={providerLabel(agent)}
+      status={status && status !== 'active' ? <StatusBadge status={agent.status} size="compact" /> : undefined}
+      metadata={(
+        <>
+          <RuntimeEnvironmentPill
+            environment="draft"
+            enabled={runtimeStates?.draft.enabled}
+            loading={runtimeQuery.isLoading && !runtimeStates}
+            unknown={runtimeUnknown}
+          />
+          <RuntimeEnvironmentPill
+            environment="staging"
+            enabled={runtimeStates?.staging.enabled}
+            available={hasStaging}
+            loading={releasesQuery.isLoading || (runtimeQuery.isLoading && !runtimeStates)}
+            unknown={releasesUnknown || runtimeUnknown}
+          />
+          <RuntimeEnvironmentPill
+            environment="production"
+            enabled={runtimeStates?.production.enabled}
+            available={hasProduction}
+            loading={releasesQuery.isLoading || (runtimeQuery.isLoading && !runtimeStates)}
+            unknown={releasesUnknown || runtimeUnknown}
+          />
+        </>
+      )}
+      footer={(
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{agent.session_mode ? `Session · ${titleCase(agent.session_mode)}` : 'Session mode not recorded'}</span>
+          <span aria-hidden="true">·</span>
+          <span>Updated · {formatDate(agent.updated_at || agent.created_at)}</span>
+        </span>
+      )}
+    />
+  )
 }
 
 export default function AgentsPage() {
@@ -127,16 +194,11 @@ export default function AgentsPage() {
         ) : visibleAgents.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {visibleAgents.map((agent) => (
-              <ResourceCard
+              <AgentOperationalCard
                 key={agent.id}
-                aria-label={`Open Agent playground for ${agent.name}`}
-                onClick={() => navigate(p(projectId, 'agents', agent.id, 'playground'))}
-                icon={<Bot className="h-4 w-4" />}
-                title={agent.name}
-                subtitle={providerLabel(agent)}
-                status={<StatusBadge status={agent.status || 'inactive'} size="compact" />}
-                metadata={agent.session_mode ? <ResourcePill tone="primary">{agent.session_mode}</ResourcePill> : undefined}
-                footer={`Updated · ${formatDate(agent.updated_at || agent.created_at)}`}
+                agent={agent}
+                projectId={projectId}
+                onOpen={() => navigate(p(projectId, 'agents', agent.id, 'playground'))}
               />
             ))}
           </div>

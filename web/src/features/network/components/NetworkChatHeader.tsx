@@ -1,4 +1,4 @@
-import { AlertTriangle, Lock, Network, PencilLine } from 'lucide-react'
+import { AlertTriangle, Lock, MessageSquarePlus, Network, PencilLine, RotateCcw } from 'lucide-react'
 
 import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { networkLabel } from './networkChatExecution'
@@ -10,26 +10,16 @@ interface NetworkChatHeaderProps {
   counts: Record<NetworkBinding['source'], number>
   sessions: NetworkSession[]
   activeSessionId: string | null
+  versionLabel: string
   changed: boolean
-  pinned: boolean
+  newSessionDisabled?: boolean
   onSelectSession: (sessionId: string) => void
   onNew: () => void
-  onPin: () => void
+  onResetContext: () => void
 }
 
-export function NetworkChatHeader({
-  environment,
-  counts,
-  sessions,
-  activeSessionId,
-  changed,
-  pinned,
-  onSelectSession,
-  onNew,
-  onPin,
-}: NetworkChatHeaderProps) {
+export function NetworkChatHeader({ environment, counts, sessions, activeSessionId, versionLabel, changed, newSessionDisabled = false, onSelectSession, onNew, onResetContext }: NetworkChatHeaderProps) {
   const readOnly = environment !== 'draft'
-  const draftChanged = environment === 'draft' && changed
   const immutableSnapshotChanged = environment !== 'draft' && changed
   return (
     <div className="shrink-0 border-b border-border bg-surface/45 px-4 py-3">
@@ -46,39 +36,29 @@ export function NetworkChatHeader({
                 {readOnly ? 'Read-only composition' : 'Editable Draft'}
               </span>
             </div>
-            <p className="mt-0.5 text-[10px] text-muted">{networkLabel(environment)} · {counts.draft} Draft · {counts.staging} Staging · {counts.release} Release</p>
+            <p className="mt-0.5 text-[10px] text-muted">{networkLabel(environment, versionLabel)} · {counts.draft} Draft · {counts.staging} Staging · {counts.release} Release</p>
           </div>
         </div>
-        <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} onNew={onNew} />
+        <div className="flex items-center gap-1.5">
+          <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} />
+          <button type="button" disabled={newSessionDisabled} onClick={onNew} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/55 text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45" title="New Network conversation" aria-label="New Network conversation"><MessageSquarePlus className="h-3.5 w-3.5" /></button>
+        </div>
+        <button type="button" disabled={!activeSessionId} onClick={onResetContext} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[9px] text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40" title={activeSessionId ? 'Start fresh Agent contexts in this Network Session' : 'Send the first message before resetting session context'}><RotateCcw className="h-3 w-3" />Reset context</button>
       </div>
 
-      {environment === 'draft' && counts.draft > 0 ? (
-        <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[10px] text-blue-100/80">
-          Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.
-        </div>
-      ) : null}
-      {draftChanged && !pinned ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-amber-100">Draft changed after this session started</p>
-            <p className="text-[9px] text-amber-100/65">Continue with the pinned snapshot or start a session with the current Draft.</p>
-          </div>
-          <button type="button" onClick={onPin} className="text-[10px] text-amber-200 hover:text-white">Continue pinned</button>
-          <button type="button" onClick={onNew} className="rounded-md bg-primary px-2.5 py-1.5 text-[10px] font-medium text-white">Start new session</button>
-        </div>
-      ) : null}
+      {!activeSessionId ? <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-slate-300">New conversation. A Network Session will be created automatically when you send the first message.</div> : null}
+      {environment === 'draft' && counts.draft > 0 ? <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[10px] text-blue-100/80">Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.</div> : null}
       {immutableSnapshotChanged ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-medium text-amber-100">This session belongs to an earlier {environment} snapshot</p>
-            <p className="text-[9px] text-amber-100/65">Its messages and traces remain available, but new messages require a session for {networkLabel(environment)}.</p>
+            <p className="text-[9px] text-amber-100/65">Its messages and traces remain available, but new messages require a session for {networkLabel(environment, versionLabel)}.</p>
           </div>
-          <button type="button" onClick={onNew} className="rounded-md bg-primary px-2.5 py-1.5 text-[10px] font-medium text-white">Start current snapshot session</button>
+          <button type="button" onClick={onNew} className="rounded-md bg-primary px-2.5 py-1.5 text-[10px] font-medium text-white">Start current snapshot conversation</button>
         </div>
       ) : null}
-      {environment === 'draft' && pinned ? <p className="mt-2 text-[9px] text-muted">This Network Session remains pinned to its original composition and Agent contexts.</p> : null}
+      {environment === 'draft' && activeSessionId ? <p className="mt-2 text-[9px] text-muted">This session follows the saved Draft. Every execution records the exact Draft revision it used.</p> : null}
     </div>
   )
 }

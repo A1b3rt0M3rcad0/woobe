@@ -1,42 +1,39 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Check, ChevronDown, Database, Power, PowerOff, X } from 'lucide-react'
-import { useUpdateAgent } from '@/features/agents/hooks'
+import { ChevronDown, X } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { useAgentRuntimeEnvironments, useUpdateAgentRuntimeEnvironment } from '@/features/agents/hooks'
+import type { Agent, RuntimeEnvironment } from '@/features/agents/types'
 import { cn } from '@/lib/utils'
-import type { Agent } from '@/features/agents/types'
 
-type RuntimeStatus = 'active' | 'inactive'
-type RuntimeSessionMode = 'stateful' | 'stateless'
+const environments: RuntimeEnvironment[] = ['draft', 'staging', 'production']
 
-function normalizeStatus(value?: string): RuntimeStatus {
-  return value === 'inactive' ? 'inactive' : 'active'
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function normalizeSessionMode(value?: string): RuntimeSessionMode {
-  return value === 'stateless' ? 'stateless' : 'stateful'
-}
-
-export function AgentControlsPopover({ agent }: { agent: Agent }) {
-  const updateAgent = useUpdateAgent(agent.id)
+export function AgentControlsPopover({
+  agent,
+  projectId,
+}: {
+  agent: Agent
+  projectId: string
+}) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
-  const [status, setStatus] = useState<RuntimeStatus>(normalizeStatus(agent.status))
-  const [sessionMode, setSessionMode] = useState<RuntimeSessionMode>(normalizeSessionMode(agent.session_mode))
-  const isAgentOn = status === 'active'
+  const statesQuery = useAgentRuntimeEnvironments(agent.id, projectId)
+  const updateRuntime = useUpdateAgentRuntimeEnvironment(agent.id, projectId)
 
-  useEffect(() => {
-    setStatus(normalizeStatus(agent.status))
-    setSessionMode(normalizeSessionMode(agent.session_mode))
-  }, [agent.status, agent.session_mode])
+  const enabledCount = environments.filter(
+    (environment) => statesQuery.data?.[environment]?.enabled ?? true,
+  ).length
 
   useEffect(() => {
     if (!open) return
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target
-      if (target instanceof Node && rootRef.current && !rootRef.current.contains(target)) {
-        setOpen(false)
-      }
+      if (target instanceof Node && rootRef.current && !rootRef.current.contains(target)) setOpen(false)
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -51,27 +48,14 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
     }
   }, [open])
 
-  async function updateStatus(nextStatus: RuntimeStatus) {
-    if (nextStatus === status || updateAgent.isPending) return
-    setStatus(nextStatus)
-    try {
-      await updateAgent.mutateAsync({ status: nextStatus })
-      toast.success(nextStatus === 'active' ? 'Agent enabled' : 'Agent disabled')
-    } catch (error) {
-      setStatus(normalizeStatus(agent.status))
-      toast.error(error instanceof Error ? error.message : 'Failed to update agent status')
-    }
-  }
+  async function updateEnabled(environment: RuntimeEnvironment, enabled: boolean) {
+    if (updateRuntime.isPending) return
 
-  async function updateSessionMode(nextMode: RuntimeSessionMode) {
-    if (nextMode === sessionMode || updateAgent.isPending) return
-    setSessionMode(nextMode)
     try {
-      await updateAgent.mutateAsync({ session_mode: nextMode })
-      toast.success(nextMode === 'stateful' ? 'Session memory enabled' : 'Session memory disabled')
+      await updateRuntime.mutateAsync({ environment, enabled })
+      toast.success(`${titleCase(environment)} Agent runtime ${enabled ? 'enabled' : 'disabled'}`)
     } catch (error) {
-      setSessionMode(normalizeSessionMode(agent.session_mode))
-      toast.error(error instanceof Error ? error.message : 'Failed to update session mode')
+      toast.error(error instanceof Error ? error.message : 'Failed to update Agent runtime')
     }
   }
 
@@ -86,109 +70,80 @@ export function AgentControlsPopover({ agent }: { agent: Agent }) {
             ? 'border-primary/30 bg-primary/10 text-white shadow-sm shadow-primary/5'
             : 'border-border/80 bg-background/55 text-muted hover:border-primary/30 hover:bg-primary/5 hover:text-white',
         )}
-        title="Agent controls"
+        title="Agent runtime environments"
       >
-        <span className={cn('h-1.5 w-1.5 rounded-full', isAgentOn ? 'bg-emerald-400' : 'bg-slate-500')} />
-        <span className="text-slate-200">Agent</span>
-        <span className="hidden text-muted/60 xl:inline">·</span>
-        <span className="hidden text-muted xl:inline">{sessionMode === 'stateful' ? 'Stateful' : 'Stateless'}</span>
+        <span
+          className={cn(
+            'h-1.5 w-1.5 rounded-full',
+            enabledCount === environments.length
+              ? 'bg-emerald-400'
+              : enabledCount === 0
+                ? 'bg-slate-500'
+                : 'bg-amber-400',
+          )}
+        />
+        <span className="text-slate-200">Runtime</span>
+        <span className="text-muted">{enabledCount}/{environments.length}</span>
         <ChevronDown className={cn('h-3.5 w-3.5 text-muted transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-[1000] w-[360px] overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/35 backdrop-blur-md">
-          <div className="flex items-start justify-between gap-3 border-b border-border/80 bg-background/20 px-4 py-3.5">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Agent Controls</p>
-              <p className="mt-1 text-xs leading-5 text-muted">
-                Global settings. Applies to Playground, API, Staging and Production.
-              </p>
+        <div className="absolute right-0 top-10 z-[1000] w-[310px] overflow-hidden rounded-xl border border-border/90 bg-surface/95 shadow-xl shadow-black/30 backdrop-blur-md">
+          <div className="flex items-center justify-between border-b border-border/80 px-3 py-2.5">
+            <div>
+              <p className="text-xs font-semibold text-white">Agent runtime</p>
+              <p className="mt-0.5 text-[11px] text-muted">Control direct Agent Runs by environment.</p>
             </div>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-transparent p-1 text-muted hover:border-border/80 hover:bg-background/60 hover:text-white">
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-md p-1 text-muted hover:bg-background/60 hover:text-white"
+              aria-label="Close runtime controls"
+            >
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="space-y-2.5 p-3.5">
-            <section className="rounded-xl border border-border/80 bg-background/45 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg border', isAgentOn ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-border/70 bg-surface/50 text-muted')}>
-                    {isAgentOn ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-white">Execution</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted">
-                      {isAgentOn ? 'Runtime calls are allowed.' : 'Runtime calls are blocked.'}
-                    </p>
+          <div className="divide-y divide-border/70">
+            {environments.map((environment) => {
+              const enabled = statesQuery.data?.[environment]?.enabled ?? true
+
+              return (
+                <div key={environment} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-emerald-400' : 'bg-slate-500')} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-white">{titleCase(environment)}</p>
+                      <p className="text-[10px] text-muted">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
+                    </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  aria-pressed={isAgentOn}
-                  disabled={updateAgent.isPending}
-                  onClick={() => void updateStatus(isAgentOn ? 'inactive' : 'active')}
-                  className={cn(
-                    'relative h-5 w-9 shrink-0 overflow-hidden rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                    isAgentOn ? 'border-emerald-400/40 bg-emerald-500/25' : 'border-border/80 bg-surface/70',
-                  )}
-                  title={isAgentOn ? 'Disable agent execution' : 'Enable agent execution'}
-                >
-                  <span className={cn('absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform', isAgentOn ? 'translate-x-4' : 'translate-x-0')} />
-                </button>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-border/80 bg-background/45 p-3">
-              <div className="mb-3 flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/70 bg-surface/50 text-muted">
-                  {sessionMode === 'stateful' ? <Database className="h-3.5 w-3.5" /> : <Activity className="h-3.5 w-3.5" />}
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-white">Session mode</p>
-                  <p className="mt-0.5 text-xs leading-5 text-muted">Controls whether conversations are persisted.</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/70 bg-surface/35 p-1">
-                <div className="grid grid-cols-2 gap-1">
-                  <button
-                    type="button"
-                    disabled={updateAgent.isPending}
-                    onClick={() => void updateSessionMode('stateful')}
-                    className={cn(
-                      'rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                      sessionMode === 'stateful' ? 'bg-primary/10 text-white ring-1 ring-primary/25' : 'text-muted hover:bg-background/50 hover:text-white',
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold">Stateful</span>
-                      {sessionMode === 'stateful' && <Check className="h-3.5 w-3.5 text-primary-light" />}
-                    </div>
-                    <p className="mt-1 text-[11px] leading-4 text-muted">Save session history.</p>
-                  </button>
 
                   <button
                     type="button"
-                    disabled={updateAgent.isPending}
-                    onClick={() => void updateSessionMode('stateless')}
+                    aria-pressed={enabled}
+                    disabled={updateRuntime.isPending || statesQuery.isLoading}
+                    onClick={() => void updateEnabled(environment, !enabled)}
                     className={cn(
-                      'rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                      sessionMode === 'stateless' ? 'bg-primary/10 text-white ring-1 ring-primary/25' : 'text-muted hover:bg-background/50 hover:text-white',
+                      'relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      enabled ? 'border-emerald-400/40 bg-emerald-500/25' : 'border-border/80 bg-surface/70',
                     )}
+                    title={enabled ? `Disable ${environment} runtime` : `Enable ${environment} runtime`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold">Stateless</span>
-                      {sessionMode === 'stateless' && <Check className="h-3.5 w-3.5 text-primary-light" />}
-                    </div>
-                    <p className="mt-1 text-[11px] leading-4 text-muted">Do not save history.</p>
+                    <span
+                      className={cn(
+                        'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                        enabled ? 'translate-x-4' : 'translate-x-0',
+                      )}
+                    />
                   </button>
                 </div>
-              </div>
-            </section>
-
-            <p className="px-1 text-[11px] leading-4 text-muted/80">These controls are global agent settings, not draft or release snapshot fields.</p>
+              )
+            })}
           </div>
+
+          <p className="border-t border-border/80 px-3 py-2 text-[10px] leading-4 text-muted/80">
+            Existing Runs continue. Network executions use the Network runtime.
+          </p>
         </div>
       )}
     </div>

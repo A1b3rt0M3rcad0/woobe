@@ -1,0 +1,271 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from modules.agent.application.composers.tool_runtime_factory import (
+    build_tool_runtime_registry,
+)
+from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.runtime_tool_inventory import (
+    execute_runtime_tool_inventory,
+    is_runtime_tool_inventory_id,
+)
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
+from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
+from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
+from modules.agent.application.use_cases.execution_context import (
+    current_execution,
+    new_execution_context,
+)
+from modules.agent.application.use_cases.runtime_output_validation import (
+    EmptyModelOutputError,
+)
+from modules.agent.application.use_cases.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
+from modules.agent.application.use_cases.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
+from modules.agent.infra.adapters.langchain_embedding_factory import (
+    LangchainEmbeddingFactory,
+)
+from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
+from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.network.application.runtime import (
+    AgentInvocationResult,
+    InternalDelegationTool,
+)
+from modules.network.application.runtime_failures import (
+    NetworkRuntimeFailure,
+    classify_runtime_exception,
+)
+from shared.infra.config import Settings
+
+AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+
+
+def _caused_by_empty_model_output(exception: Exception) -> bool:
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while isinstance(current, Exception) and id(current) not in seen:
+        if isinstance(current, EmptyModelOutputError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    return (
+        payload.get("visibility") == "assistant"
+        and payload.get("channel") == "final"
+        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
+    )
+
+
+class ProjectRAIAgentInvoker:
+    """Invokes the existing Agent runtime in-process with Network-only tools."""
+
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        settings: Settings,
+        http_executor: HttpToolExecutor,
+    ) -> None:
+        self._session_factory = session_factory
+        self._settings = settings
+        self._http_executor = http_executor
+
+    async def invoke(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        release_id: UUID | None,
+        snapshot_override: dict[str, Any] | None,
+        message: str,
+        agent_session_id: UUID | None,
+        execution_context: str,
+        internal_tools: list[InternalDelegationTool],
+        network_context: dict[str, object],
+        stream_handler: AgentStreamHandler | None = None,
+    ) -> AgentInvocationResult:
+        settings = self._settings
+        cipher = SecretCipherAdapter(settings.encryption_key)
+        http_executor = self._http_executor
+        internal_handlers = {tool.id: tool.handler for tool in internal_tools}
+
+        async def read_runtime_tools(tool_ids: list[UUID]):
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                tools = []
+                for tool_id in tool_ids:
+                    tool = await uow.tools.get_by_id(tool_id)
+                    if tool is not None:
+                        tools.append(tool)
+                return tools
+
+        async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+            internal_handler = internal_handlers.get(tool_id)
+            if internal_handler is not None:
+                return await internal_handler(dict(input_data or {}))
+            if is_runtime_tool_inventory_id(tool_id):
+                return execute_runtime_tool_inventory(input_data)
+
+            runtime_input = dict(input_data or {})
+            context = current_execution.get()
+            active_session_id = context.session_id if context else agent_session_id
+            if active_session_id:
+                runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(active_session_id)
+            snapshot = (
+                context.tool_snapshots.get(str(tool_id))
+                if context and context.tool_snapshots
+                else None
+            )
+            async with AgentUnitOfWork(self._session_factory) as uow:
+                resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+                registry = build_tool_runtime_registry(
+                    settings=settings,
+                    executor=http_executor,
+                    secret_resolver=resolver,
+                )
+                if snapshot is not None:
+                    result = await registry.execute(
+                        tool_from_release_snapshot(snapshot),
+                        runtime_input,
+                    )
+                    return {
+                        "success": result.success,
+                        "output": result.output,
+                        "duration_ms": result.duration_ms,
+                        "error": result.error,
+                    }
+                result = await RuntimeExecuteToolUseCase(
+                    tool_repo=uow.tools,
+                    runtime_registry=registry,
+                ).execute(ExecuteToolInput(tool_id=tool_id, input_data=runtime_input))
+                return result.model_dump()
+
+        use_case = StructuredOutputAskAgentUseCase(
+            session_factory=self._session_factory,
+            llm_factory=LangchainLLMFactory(),
+            encryption_key=settings.encryption_key,
+            tool_executor_factory=execute_tool,
+        )
+        use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        use_case.configure_runtime_tool_reader(read_runtime_tools)
+
+        context = new_execution_context()
+        context.project_id = project_id
+        context.agent_id = agent_id
+        context.session_id = agent_session_id
+        context.execution_context = execution_context
+        context.agent_release_id = release_id
+        context.internal_tool_definitions = [
+            tool.definition() for tool in internal_tools
+        ]
+        context.internal_tool_name_to_id = {
+            tool.name: str(tool.id) for tool in internal_tools
+        }
+        uuid_context_fields = {
+            "network_id",
+            "network_version_id",
+            "network_session_id",
+            "network_execution_id",
+            "network_invocation_id",
+            "parent_invocation_id",
+            "network_node_id",
+        }
+        for key, value in network_context.items():
+            if hasattr(context, key):
+                if key in uuid_context_fields and value is not None:
+                    value = UUID(str(value))
+                setattr(context, key, value)
+
+        input_dto = AskInput(
+            project_id=project_id,
+            agent_id=agent_id,
+            message=message,
+            session_id=agent_session_id,
+            metadata={"source": "network_runtime", **network_context},
+            execution_context=execution_context,
+            loaded_release_id=release_id,
+            snapshot_override=snapshot_override,
+        )
+
+        execution_token = current_execution.set(context)
+        channel: RuntimeStreamChannel | None = None
+        stream_token = None
+        streamed_output = False
+        execution_task: asyncio.Task[Any] | None = None
+        try:
+            try:
+                if stream_handler is None:
+                    output = await use_case.execute(input_dto)
+                else:
+                    channel = RuntimeStreamChannel()
+                    stream_token = current_runtime_stream.set(channel)
+                    execution_task = asyncio.create_task(use_case.execute(input_dto))
+                    while True:
+                        if execution_task.done() and channel.queue.empty():
+                            break
+                        try:
+                            event = await asyncio.wait_for(channel.queue.get(), timeout=0.1)
+                        except asyncio.TimeoutError:
+                            continue
+                        payload = dict(event.payload)
+                        if event.event_type == "token":
+                            if not _is_public_runtime_token(payload):
+                                continue
+                            streamed_output = True
+                        if event.event_type not in {"done", "error", "cancelled"}:
+                            await stream_handler(event.event_type, payload)
+                    output = await execution_task
+            except Exception as exc:
+                if _caused_by_empty_model_output(exc):
+                    failure = NetworkRuntimeFailure(
+                        code="empty_model_output",
+                        stage="output_validation",
+                        safe_message=(
+                            "The Agent completed without producing a public result."
+                        ),
+                        internal_detail=str(exc),
+                        retryable=False,
+                    )
+                else:
+                    failure = classify_runtime_exception(exc)
+                failure = failure.with_agent_context(
+                    trace_id=context.trace_id,
+                    agent_session_id=context.session_id,
+                )
+                raise failure from exc
+            return AgentInvocationResult(
+                answer=output.answer,
+                session_id=output.session_id,
+                trace_id=output.trace_id,
+                provider=output.provider,
+                model=output.model,
+                usage=output.usage.model_dump() if output.usage else None,
+                tool_calls=[item.model_dump() for item in output.tool_calls],
+                sources=[item.model_dump() for item in output.sources],
+                parsed_output=output.parsed_output,
+                output_parse_error=output.output_parse_error,
+                streamed_output=streamed_output,
+            )
+        finally:
+            if execution_task is not None and not execution_task.done():
+                execution_task.cancel()
+            if stream_token is not None:
+                current_runtime_stream.reset(stream_token)
+            current_execution.reset(execution_token)

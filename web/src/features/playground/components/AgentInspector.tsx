@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw } from 'lucide-react'
+import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentSettingsTab } from './AgentSettingsTab'
@@ -8,19 +8,23 @@ import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
 import { OutputSettingsTab } from './OutputSettingsTab'
 import { ReleaseTab } from './ReleaseTab'
+import { ReleaseDetailsView } from './ReleaseDetailsView'
 import { useAgentEditor } from '../AgentEditorContext'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useCreateRelease, useUpdateAgent } from '@/features/agents/hooks'
 import { toast } from 'sonner'
-import type { Agent } from '@/features/agents/types'
+import type { Agent, AgentRelease, RuntimeEnvironment } from '@/features/agents/types'
 
 interface AgentInspectorProps {
   agent: Agent
   projectId: string
   agentId: string
   activeTab: string
+  environment: RuntimeEnvironment
+  environmentRelease: AgentRelease | null
+  environmentReleaseLoading?: boolean
   onTabChange: (tab: string) => void
   onCollapse?: () => void
 }
@@ -32,6 +36,10 @@ const editorSubTabs = [
   { id: 'knowledge', label: 'Knowledge', icon: <BookOpen className="h-3 w-3" /> },
   { id: 'tools', label: 'Tools', icon: <Wrench className="h-3 w-3" /> },
 ]
+
+function titleCaseEnvironment(environment: RuntimeEnvironment) {
+  return environment.charAt(0).toUpperCase() + environment.slice(1)
+}
 
 function EditorHeader() {
   const { loadedReleaseVersion, isDirty } = useAgentEditor()
@@ -94,6 +102,7 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
         name: canonicalSnapshot.name,
         description: canonicalSnapshot.description,
         system_prompt: canonicalSnapshot.system_prompt,
+        session_mode: canonicalSnapshot.session_mode,
         provider_model_id: canonicalSnapshot.provider_model_id,
         provider: canonicalSnapshot.provider,
         model: canonicalSnapshot.model,
@@ -192,14 +201,62 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
   )
 }
 
-export function AgentInspector({ agent, projectId, agentId, activeTab, onTabChange }: AgentInspectorProps) {
+function EnvironmentSnapshotContent({
+  environment,
+  release,
+  loading,
+}: {
+  environment: Exclude<RuntimeEnvironment, 'draft'>
+  release: AgentRelease | null
+  loading: boolean
+}) {
+  const label = titleCaseEnvironment(environment)
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/90 bg-background/25 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <Lock className="h-3.5 w-3.5 text-muted" />
+          <span className="text-[10px] font-medium text-muted">Viewing immutable {label}</span>
+        </div>
+        {release ? <Badge variant={environment === 'production' ? 'success' : 'secondary'}>{release.version}</Badge> : null}
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        {loading && !release ? (
+          <div className="p-4 text-xs text-muted">Loading {label} snapshot…</div>
+        ) : release ? (
+          <div className="p-4"><ReleaseDetailsView release={release} /></div>
+        ) : (
+          <div className="p-4">
+            <div className="rounded-xl border border-dashed border-border p-4 text-xs leading-5 text-muted">
+              {environment === 'staging' ? 'No Agent Staging snapshot has been created yet.' : 'No Agent Production release is active.'}
+            </div>
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+}
+
+export function AgentInspector({
+  agent,
+  projectId,
+  agentId,
+  activeTab,
+  environment,
+  environmentRelease,
+  environmentReleaseLoading = false,
+  onTabChange,
+}: AgentInspectorProps) {
   const resolvedActiveTab = activeTab === 'runtime' ? 'editor' : activeTab
+  const editorContent = environment === 'draft'
+    ? <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />
+    : <EnvironmentSnapshotContent environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
   const tabs = [
     {
       id: 'editor',
-      label: 'Editor',
-      icon: <Edit3 className="h-3.5 w-3.5" />,
-      content: <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />,
+      label: environment === 'draft' ? 'Editor' : 'Snapshot',
+      icon: environment === 'draft' ? <Edit3 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />,
+      content: editorContent,
     },
     {
       id: 'versions',

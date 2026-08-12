@@ -24,6 +24,10 @@ export interface Trace {
   project_id: string
   agent_id?: string
   session_id?: string
+  network_id?: string | null
+  network_execution_id?: string | null
+  network_session_id?: string | null
+  network_version_id?: string | null
   status: string
   provider?: string
   model?: string
@@ -36,6 +40,8 @@ export interface Trace {
   total_cost_usd?: number | null
   error?: string
   data?: Record<string, unknown>
+  started_at?: string | null
+  ended_at?: string | null
   created_at?: string
 }
 
@@ -116,6 +122,10 @@ export interface TraceSummary {
   projectId: string
   agentId?: string | null
   sessionId?: string | null
+  networkId?: string | null
+  networkExecutionId?: string | null
+  networkSessionId?: string | null
+  networkVersionId?: string | null
   messageId?: string | null
   title: string
   status: TraceStatus

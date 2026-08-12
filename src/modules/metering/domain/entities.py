@@ -9,11 +9,25 @@ import uuid6
 from modules.metering.domain.enums import UsageEventType, UsageUnit
 
 
+def _uuid(value: object) -> UUID | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class UsageEvent:
     id: UUID = field(default_factory=uuid6.uuid7)
     project_id: UUID = field(default_factory=uuid6.uuid7)
     agent_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_version_id: UUID | None = None
     source_event_id: UUID | None = None
     occurred_at: datetime | None = None
     trace_id: UUID | None = None
@@ -37,6 +51,16 @@ class UsageEvent:
     data: dict | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        payload = self.data or {}
+        self.network_id = self.network_id or _uuid(payload.get("network_id"))
+        self.network_execution_id = self.network_execution_id or _uuid(
+            payload.get("network_execution_id")
+        )
+        self.network_version_id = self.network_version_id or _uuid(
+            payload.get("network_version_id")
+        )
 
 
 @dataclass

@@ -9,6 +9,9 @@ from modules.agent.application.use_cases.execution_instrumentation import (
     aggregate_usage,
     utc_iso,
 )
+from modules.agent.application.use_cases.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
 from modules.agent.application.use_cases.runtime_streaming import emit_runtime_event
 from shared.infra.llm_cost import calculate_llm_cost
 from shared.infra.llm_usage import normalize_llm_usage
@@ -109,6 +112,7 @@ class InstrumentedFallbackMixin:
         )
         if context:
             context.execution = execution
+        ensure_model_result_has_public_output(result)
         usage, _, _ = aggregate_usage(execution.llm_calls)
         result.usage_metadata = {
             "input_tokens": usage.input_tokens,

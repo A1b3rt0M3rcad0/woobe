@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 class RabbitMQManager:
-
     def __init__(self, url: str, exchange_name: str) -> None:
         self._url = url
         self._exchange_name = exchange_name
@@ -16,6 +15,7 @@ class RabbitMQManager:
         self._exchange: aio_pika.Exchange | None = None
         self._dlx_exchange: aio_pika.Exchange | None = None
         self._consuming_queues: set[str] = set()
+        self._consumer_channels: dict[str, RobustChannel] = {}
 
     @property
     def is_connected(self) -> bool:
@@ -73,14 +73,15 @@ class RabbitMQManager:
         queue_name: str,
         routing_keys: list[str],
         dlx_queue_name: str | None = None,
+        channel: RobustChannel | None = None,
     ) -> None:
-        channel = self.channel
+        active_channel = channel or self.channel
         dlq_name = dlx_queue_name or f"{queue_name}.dlq"
-        dlq_queue = await channel.declare_queue(
+        dlq_queue = await active_channel.declare_queue(
             name=dlq_name,
             durable=True,
         )
-        queue = await channel.declare_queue(
+        queue = await active_channel.declare_queue(
             name=queue_name,
             durable=True,
             arguments={
@@ -119,13 +120,29 @@ class RabbitMQManager:
         queue_name: str,
         routing_keys: list[str],
         callback,
+        prefetch_count: int | None = None,
     ) -> None:
         if queue_name in self._consuming_queues:
             return
 
-        await self.declare_topology(queue_name=queue_name, routing_keys=routing_keys)
-        queue = await self.channel.get_queue(name=queue_name, ensure=True)
-        await queue.consume(callback=callback)
+        connection = self._connection
+        if connection is None or connection.is_closed:
+            raise RuntimeError("RabbitMQManager not connected")
+        consumer_channel = await connection.channel()
+        if prefetch_count is not None:
+            await consumer_channel.set_qos(prefetch_count=max(1, prefetch_count))
+        try:
+            await self.declare_topology(
+                queue_name=queue_name,
+                routing_keys=routing_keys,
+                channel=consumer_channel,
+            )
+            queue = await consumer_channel.get_queue(name=queue_name, ensure=True)
+            await queue.consume(callback=callback)
+        except Exception:
+            await consumer_channel.close()
+            raise
+        self._consumer_channels[queue_name] = consumer_channel
         self._consuming_queues.add(queue_name)
         logger.info(
             "RabbitMQ consumer registered queue=%s routing_keys=%s",
@@ -135,6 +152,7 @@ class RabbitMQManager:
 
     async def close(self) -> None:
         self._consuming_queues.clear()
+        self._consumer_channels.clear()
         connection = self._connection
         self._connection = None
         self._channel = None

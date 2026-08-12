@@ -1,0 +1,71 @@
+.network-flow {
+  --xy-background-color: #020817;
+  --xy-background-color-default: #020817;
+  --xy-edge-stroke: rgb(71 85 105 / 0.9);
+  --xy-edge-stroke-default: rgb(71 85 105 / 0.9);
+  background-color: #020817;
+}
+
+/* Canvas and Chat stay mounted to preserve viewport and streams. The active
+   center surface must still be fully opaque, especially before a Session exists. */
+.absolute.inset-0.flex.min-w-0[aria-hidden="false"] {
+  background-color: #020817;
+}
+
+.network-flow .react-flow__renderer,
+.network-flow .react-flow__pane {
+  background: transparent;
+}
+
+.network-flow .react-flow__controls,
+.network-flow .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid rgb(71 85 105 / 0.9);
+  border-radius: 0.75rem;
+  background: #020817;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.network-flow .react-flow__minimap {
+  cursor: grab;
+}
+
+.network-flow .react-flow__minimap:hover {
+  border-color: rgb(96 165 250 / 0.55);
+}
+
+.network-flow .react-flow__minimap:active {
+  cursor: grabbing;
+}
+
+.network-flow .react-flow__controls-button {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-bottom: 1px solid rgb(51 65 85 / 0.75);
+  background: #0f1729;
+  color: #cbd5e1;
+}
+
+.network-flow .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.network-flow .react-flow__controls-button:hover,
+.network-flow .react-flow__controls-button:focus-visible {
+  background: #172554;
+  color: #fff;
+}
+
+.network-flow .react-flow__controls-button svg {
+  max-width: 0.9rem;
+  max-height: 0.9rem;
+  fill: currentColor;
+}
+
+.network-flow .react-flow__minimap-svg {
+  background: #020817;
+}

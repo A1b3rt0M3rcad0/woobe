@@ -11,17 +11,36 @@ interface ToolCallsCollapsibleProps {
   variant?: 'playground' | 'network'
 }
 
+function isRunningTool(toolCall: ToolCallInfo): boolean {
+  return toolCall.status === 'running'
+    || (toolCall.success == null && toolCall.status !== 'error')
+}
+
+function isFailedTool(toolCall: ToolCallInfo): boolean {
+  return toolCall.success === false || toolCall.status === 'error'
+}
+
+function summaryLabel(toolCalls: ToolCallInfo[]): string {
+  const running = toolCalls.filter(isRunningTool).length
+  const failed = toolCalls.filter(isFailedTool).length
+  const completed = toolCalls.length - running - failed
+  const parts = [`Tool calls (${toolCalls.length})`]
+  if (running) parts.push(`${running} running`)
+  if (completed) parts.push(`${completed} completed`)
+  if (failed) parts.push(`${failed} failed`)
+  return parts.join(' · ')
+}
+
 export function ToolCallsCollapsible({
   toolCalls,
   variant = 'playground',
 }: ToolCallsCollapsibleProps) {
   const [open, setOpen] = useState(false)
   const compact = variant === 'network'
+  const hasRunningTool = toolCalls.some(isRunningTool)
+  const hasFailedTool = toolCalls.some(isFailedTool)
 
   if (!toolCalls || toolCalls.length === 0) return null
-
-  const completedCount = toolCalls.filter((toolCall) => toolCall.status !== 'running' && toolCall.success != null).length
-  const successCount = toolCalls.filter((toolCall) => toolCall.success === true).length
 
   return (
     <div className={cn('space-y-1.5', compact ? 'mt-1.5' : 'mt-2')}>
@@ -29,26 +48,32 @@ export function ToolCallsCollapsible({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-1.5 text-primary hover:underline',
+          'flex max-w-full items-center gap-1.5 transition-colors hover:text-white',
           compact ? 'text-[9px]' : 'text-xs',
+          hasFailedTool ? 'text-red-300' : 'text-primary',
         )}
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        <Wrench className="h-3 w-3" />
-        Tool calls ({successCount}/{completedCount || toolCalls.length})
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        {hasRunningTool
+          ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+          : hasFailedTool
+            ? <XCircle className="h-3 w-3 shrink-0" />
+            : <Wrench className="h-3 w-3 shrink-0" />}
+        <span className="truncate">{summaryLabel(toolCalls)}</span>
       </button>
       {open && (
         <div className="space-y-1.5">
           {toolCalls.map((toolCall, index) => {
-            const isRunning = toolCall.status === 'running' || toolCall.success == null
-            const isSuccess = toolCall.success !== false
+            const isRunning = isRunningTool(toolCall)
+            const isSuccess = !isRunning && !isFailedTool(toolCall)
+            const failureLabel = toolCall.error_code || toolCall.error
             return (
               <div
                 key={toolCall.tool_call_id ?? index}
                 className={cn(
                   'space-y-1.5 rounded-lg border',
                   compact ? 'p-2' : 'p-2.5',
-                  isSuccess ? 'border-border bg-background' : 'border-red-500/20 bg-red-500/5',
+                  isSuccess || isRunning ? 'border-border bg-background' : 'border-red-500/20 bg-red-500/5',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -66,12 +91,12 @@ export function ToolCallsCollapsible({
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {isRunning && <span className={cn('text-muted', compact ? 'text-[8px]' : 'text-[10px]')}>running</span>}
-                    {!isSuccess && toolCall.error && (
+                    {!isSuccess && !isRunning && failureLabel && (
                       <span
                         className={cn('truncate text-red-400', compact ? 'max-w-[90px] text-[8px]' : 'max-w-[120px] text-[10px]')}
-                        title={toolCall.error}
+                        title={toolCall.error || toolCall.error_code || undefined}
                       >
-                        {toolCall.error}
+                        {failureLabel}
                       </span>
                     )}
                     {toolCall.duration_ms != null && (
@@ -93,10 +118,10 @@ export function ToolCallsCollapsible({
                     <JsonCodeBlock value={toolCall.output as Record<string, unknown>} maxHeight={compact ? 84 : 100} />
                   </div>
                 )}
-                {toolCall.error && isSuccess === false && (
+                {toolCall.error && !isSuccess && !isRunning && (
                   <div className="rounded bg-red-500/10 px-2 py-1">
                     <p className={cn('break-all font-mono text-red-300', compact ? 'text-[8px]' : 'text-[10px]')}>
-                      {toolCall.error}
+                      {toolCall.error_code ? `${toolCall.error_code}: ` : ''}{toolCall.error}
                     </p>
                   </div>
                 )}

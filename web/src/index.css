@@ -110,6 +110,34 @@
   display: none;
 }
 
+/*
+ * Run Activity keeps Agent Runs as the primary line and renders Network Runs
+ * as thin, rounded event stems. The original geometry remains unchanged, so
+ * bucket position, value, hover, and selection behavior are preserved.
+ */
+svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"] {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  transform: scaleX(0.22);
+  rx: 999px;
+  fill-opacity: 0.86;
+  filter: drop-shadow(0 0 1.5px rgb(139 92 246 / 0.34));
+  transition: transform 120ms ease, fill-opacity 120ms ease, filter 120ms ease;
+}
+
+svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"]:hover {
+  transform: scaleX(0.32);
+  fill-opacity: 1;
+  filter: drop-shadow(0 0 3px rgb(167 139 250 / 0.48));
+}
+
+/* Match the legend to the lighter Network Run event-stem vocabulary. */
+.h-3.w-2.rounded-sm.bg-violet-500\/80 {
+  width: 0.125rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 3px rgb(139 92 246 / 0.28);
+}
+
 /* Keep composition segments out of inline baseline layout. */
 .h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
   display: flex;
@@ -136,6 +164,11 @@ div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.s
 
 div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
   min-height: 2rem;
+}
+
+/* Keep the Playground loading geometry aligned with the collapsed Current Run rail. */
+div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden > div:nth-child(2).w-\[400px\].p-4 {
+  display: none;
 }
 
 /*

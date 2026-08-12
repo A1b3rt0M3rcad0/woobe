@@ -1,14 +1,28 @@
-import { useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { bulkUpdateMcpToolPermissions, disconnectMcpOAuth, refreshMcpTools, startMcpOAuth, updateMcpToolPermissions } from '@/features/tools/api'
-import type { DiscoveredMcpTool, McpReadiness, McpToolConfig, McpToolPermission, McpToolPermissionMode, Tool } from '@/features/tools/types'
-import { PlugZap, Settings2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronRight, PlugZap, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/Button'
+import { Dialog } from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
+import {
+  bulkUpdateMcpToolPermissions,
+  disconnectMcpOAuth,
+  refreshMcpTools,
+  startMcpOAuth,
+  updateMcpToolPermissions,
+} from '@/features/tools/api'
+import type {
+  DiscoveredMcpTool,
+  McpReadiness,
+  McpToolConfig,
+  McpToolPermission,
+  McpToolPermissionMode,
+  Tool,
+} from '@/features/tools/types'
+
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
-const MCP_AUTH_REQUIRED_STATES = new Set(['needs_connection', 'oauth_required', 'metadata_required'])
-const MCP_TOKEN_REJECTED_STATES = new Set(['token_invalid', 'token_rejected'])
+const MCP_REFRESHABLE_STATES = new Set(['needs_discovery', 'discovery_failed', 'no_tools', 'unavailable'])
 
 export function isMcpProviderTool(tool: Tool): boolean {
   const config = (tool.config || {}) as Record<string, unknown>
@@ -24,29 +38,39 @@ function discoveredTools(tool: Tool): DiscoveredMcpTool[] {
   return Array.isArray(config.discovered_tools) ? config.discovered_tools : []
 }
 
+function providerHost(tool: Tool): string {
+  try { return new URL(mcpConfig(tool).server?.url || '').hostname } catch { return 'MCP Server' }
+}
+
 function oauthConnected(tool: Tool): boolean {
   const oauth = mcpConfig(tool).oauth as { status?: string } | undefined
   return oauth?.status === 'connected'
 }
 
-function hasAuthChallenge(tool: Tool): boolean {
+function hasValidatedOAuth(tool: Tool): boolean {
   const config = mcpConfig(tool) as McpToolConfig & {
-    mcp_discovery?: { http_status?: number; www_authenticate?: string | null; status?: string | null }
-    mcp_resource_metadata?: { resource?: string; authorization_servers?: unknown[] }
+    mcp_oauth_discovery?: {
+      status?: string | null
+      authorization_endpoint?: string | null
+      token_endpoint?: string | null
+    }
+    oauth?: {
+      authorization_endpoint?: string | null
+      token_endpoint?: string | null
+    }
   }
-  const diagnostic = config.mcp_discovery
-  const status = String(config.mcp_status || diagnostic?.status || '')
-  return MCP_AUTH_REQUIRED_STATES.has(status)
-    || MCP_TOKEN_REJECTED_STATES.has(status)
-    || diagnostic?.http_status === 401
-    || Boolean(diagnostic?.www_authenticate)
-    || Boolean(config.mcp_resource_metadata?.resource || config.mcp_resource_metadata?.authorization_servers?.length)
+  const oauth = config.oauth
+  if (oauth?.authorization_endpoint && oauth?.token_endpoint) return true
+  const discovery = config.mcp_oauth_discovery
+  return discovery?.status === 'valid'
+    && Boolean(discovery.authorization_endpoint)
+    && Boolean(discovery.token_endpoint)
 }
 
 function shouldShowConnect(tool: Tool, state: McpReadiness, discovered: DiscoveredMcpTool[]): boolean {
   if (oauthConnected(tool)) return false
-  if (discovered.length > 0 && !hasAuthChallenge(tool)) return false
-  return state.action === 'connect' && hasAuthChallenge(tool)
+  if (discovered.length > 0 && !hasValidatedOAuth(tool)) return false
+  return state.action === 'connect' && hasValidatedOAuth(tool)
 }
 
 function permissionMode(tool: DiscoveredMcpTool): McpToolPermissionMode {
@@ -68,7 +92,7 @@ function fallbackReadiness(tool: Tool): McpReadiness {
   const config = mcpConfig(tool)
   const status = String(config.mcp_status || '')
   const ready = status === 'ready'
-  const authRequired = hasAuthChallenge(tool)
+  const authRequired = hasValidatedOAuth(tool)
 
   const state = connected && ready && counts.allow > 0
     ? 'ready'
@@ -76,24 +100,86 @@ function fallbackReadiness(tool: Tool): McpReadiness {
       ? 'ready'
       : discovered.length > 0
         ? 'needs_permission'
-        : authRequired
-          ? 'needs_connection'
-          : status === 'provider_client_rejected'
-            ? 'provider_not_supported'
-            : 'needs_discovery'
+        : status === 'provider_client_rejected'
+          ? 'provider_not_supported'
+          : status === 'provider_managed'
+            ? 'provider_managed'
+            : status === 'oauth_metadata_invalid' || (status === 'oauth_required' && !authRequired)
+              ? 'oauth_metadata_invalid'
+              : authRequired
+                ? 'needs_connection'
+                : status === 'needs_credentials' || status === 'unauthorized'
+                  ? 'needs_credentials'
+                  : status === 'scope_denied'
+                    ? 'scope_denied'
+                    : status === 'invalid_endpoint'
+                      ? 'invalid_endpoint'
+                      : status === 'unavailable'
+                        ? 'unavailable'
+                        : status === 'discovery_failed'
+                          ? 'discovery_failed'
+                          : status === 'empty' || status === 'no_tools'
+                            ? 'no_tools'
+                            : 'needs_discovery'
+
+  const labels: Record<string, string> = {
+    ready: 'Ready',
+    needs_permission: 'Needs permission',
+    needs_discovery: 'Load tools',
+    needs_connection: 'Connect',
+    provider_not_supported: 'Provider setup needed',
+    provider_managed: 'Managed connection required',
+    oauth_metadata_invalid: 'OAuth metadata invalid',
+    needs_credentials: 'Credentials required',
+    scope_denied: 'Permission denied',
+    invalid_endpoint: 'Invalid endpoint',
+    unavailable: 'Unavailable',
+    discovery_failed: 'Discovery failed',
+    no_tools: 'No tools',
+  }
+  const messages: Record<string, string> = {
+    ready: `${counts.allow} tools available to this agent.`,
+    needs_permission: 'Choose which MCP tools this agent can use.',
+    needs_discovery: 'Load this MCP provider to see its tools.',
+    needs_connection: 'This provider exposed a complete OAuth configuration. Connect before loading protected tools.',
+    provider_not_supported: 'This provider needs a provider-issued client or alternate OAuth flow.',
+    provider_managed: 'This endpoint requires a provider-managed MCP connection instead of direct OAuth discovery.',
+    oauth_metadata_invalid: 'The server advertised OAuth, but Woobe could not validate authorization and token endpoints.',
+    needs_credentials: 'Configure the required API key or connection headers.',
+    scope_denied: 'The configured credential does not have permission to access this MCP server.',
+    invalid_endpoint: 'The URL is not accepting MCP requests. Verify the endpoint path.',
+    unavailable: 'The MCP server is temporarily unavailable.',
+    discovery_failed: 'ProjectRAI could not complete MCP discovery.',
+    no_tools: 'The MCP server connected, but did not expose any tools.',
+  }
+  const actions: Record<string, string> = {
+    needs_connection: 'connect',
+    ready: 'manage_tools',
+    needs_permission: 'manage_tools',
+    provider_not_supported: 'provider_credentials',
+    provider_managed: 'provider_credentials',
+    oauth_metadata_invalid: 'review_provider',
+    needs_credentials: 'configure_credentials',
+    scope_denied: 'configure_credentials',
+    invalid_endpoint: 'edit_endpoint',
+    unavailable: 'refresh',
+    discovery_failed: 'refresh',
+    no_tools: 'refresh',
+    needs_discovery: 'refresh',
+  }
 
   return {
     state,
-    label: state === 'ready' ? 'Ready' : state === 'needs_permission' ? 'Needs permission' : state === 'needs_discovery' ? 'Load tools' : state === 'needs_connection' ? 'Connect' : state === 'provider_not_supported' ? 'Provider setup needed' : 'Not ready',
-    message: state === 'ready' ? `${counts.allow} tools available to this agent.` : state === 'needs_permission' ? 'Choose which MCP tools this agent can use.' : state === 'needs_discovery' ? 'Load this MCP provider to see its tools.' : state === 'needs_connection' ? 'Connect this provider to load protected MCP tools.' : state === 'provider_not_supported' ? 'This provider needs a provider-issued client or alternate OAuth flow.' : 'MCP tools are not available yet.',
-    action: state === 'needs_connection' ? 'connect' : state === 'needs_permission' || state === 'ready' ? 'manage_tools' : state === 'provider_not_supported' ? 'provider_credentials' : 'refresh',
+    label: labels[state] || 'Not ready',
+    message: messages[state] || 'MCP tools are not available yet.',
+    action: actions[state] || 'refresh',
     can_use_tools: state === 'ready',
     oauth_connected: connected,
     mcp_ready: ready || discovered.length > 0,
     discovered_count: discovered.length,
     exposed_count: counts.allow,
     supports_device_code: false,
-    needs_provider_client: state === 'provider_not_supported',
+    needs_provider_client: state === 'provider_not_supported' || state === 'provider_managed',
   }
 }
 
@@ -101,20 +187,38 @@ function readiness(tool: Tool): McpReadiness {
   return mcpConfig(tool).mcp_readiness || fallbackReadiness(tool)
 }
 
-function ReadinessPill({ state, label }: { state: string; label: string }) {
-  const tone = state === 'ready'
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-    : state === 'provider_not_supported' || state === 'token_rejected'
-      ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-      : state === 'needs_permission'
-        ? 'border-blue-500/30 bg-blue-500/10 text-blue-300'
-        : 'border-border bg-surface/70 text-muted'
+function statusTone(state: string): string {
+  if (state === 'ready') return 'bg-emerald-300'
+  if (state === 'needs_permission' || state === 'needs_connection') return 'bg-amber-300'
+  if (state === 'needs_discovery' || state === 'no_tools') return 'bg-blue-300'
+  return 'bg-red-300'
+}
 
+function PermissionControl({
+  mode,
+  busyKey,
+  itemName,
+  onChange,
+}: {
+  mode: McpToolPermissionMode
+  busyKey: string | null
+  itemName: string
+  onChange: (mode: McpToolPermissionMode) => void
+}) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${tone}`}>
-      {state === 'ready' ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" /> : null}
-      {label}
-    </span>
+    <div className="inline-flex rounded-lg border border-border/80 bg-background/60 p-0.5">
+      {(['allow', 'review', 'deny'] as McpToolPermissionMode[]).map((value) => (
+        <button
+          key={value}
+          type="button"
+          disabled={busyKey === `${itemName}:${value}`}
+          onClick={() => onChange(value)}
+          className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+        >
+          {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -128,6 +232,7 @@ interface Props {
 export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermissionOverridesChange }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const draftPermissionMode = permissionOverrides !== undefined && Boolean(onPermissionOverridesChange)
   const baseDiscovered = discoveredTools(tool)
   const discovered = draftPermissionMode
@@ -142,9 +247,14 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
   const counts = summary(discovered)
   const state = draftPermissionMode ? fallbackReadiness(effectiveTool) : readiness(tool)
   const showConnect = shouldShowConnect(tool, state, discovered)
-  const showLoadTools = !showConnect && discovered.length === 0 && state.state !== 'provider_not_supported'
+  const showLoadTools = !showConnect && discovered.length === 0 && MCP_REFRESHABLE_STATES.has(state.state)
   const visibleLabel = showConnect ? state.label : discovered.length > 0 ? (counts.allow > 0 ? 'Ready' : 'Needs permission') : state.label
   const visibleState = discovered.length > 0 && counts.allow > 0 ? 'ready' : state.state
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return discovered
+    return discovered.filter((item) => [item.name, item.title, item.description].some((value) => String(value || '').toLowerCase().includes(normalized)))
+  }, [discovered, query])
 
   const handleConnect = async () => {
     try {
@@ -229,95 +339,89 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
 
   if (!isMcpProviderTool(tool)) return null
 
+  const handleSummaryClick = () => {
+    if (discovered.length > 0) setManageOpen(true)
+    else if (showConnect) void handleConnect()
+    else if (showLoadTools) void handleRefresh()
+  }
+
+  const actionable = discovered.length > 0 || showConnect || showLoadTools
+  const diagnostic = !['ready', 'needs_permission', 'needs_discovery', 'no_tools'].includes(visibleState)
+
   return (
-    <div className="space-y-3 rounded-xl border border-border/70 bg-background/55 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-light ring-1 ring-primary/20">
-            <PlugZap className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white">MCP tools</p>
-            <p className="text-[10px] text-muted">{state.exposed_count} available · {state.discovered_count} found</p>
-          </div>
-        </div>
-        <ReadinessPill state={visibleState} label={visibleLabel} />
-      </div>
+    <div className="mt-2">
+      <button
+        type="button"
+        disabled={!actionable || busyKey !== null}
+        onClick={handleSummaryClick}
+        className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-accent/35 disabled:cursor-default disabled:hover:bg-transparent"
+      >
+        <PlugZap className="h-3.5 w-3.5 shrink-0 text-primary-light" />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+            <span className="font-medium text-white">MCP</span>
+            <span>·</span>
+            <span className={`h-1.5 w-1.5 rounded-full ${statusTone(visibleState)}`} />
+            <span>{visibleLabel}</span>
+            <span>·</span>
+            <span>{state.discovered_count} tools</span>
+            {state.exposed_count > 0 ? <span>· {state.exposed_count} allowed</span> : null}
+          </span>
+          <span className="mt-0.5 block truncate text-[10px] text-muted">{providerHost(tool)}</span>
+        </span>
+        {actionable ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" /> : null}
+      </button>
 
-      <p className="text-xs leading-relaxed text-muted">
-        {showConnect ? state.message : discovered.length > 0 ? 'Choose which MCP tools this agent can use.' : state.message}
-      </p>
+      {diagnostic ? <p className="mt-1 line-clamp-2 px-1 text-[10px] leading-4 text-amber-200">{state.message}</p> : null}
+      {state.oauth_connected ? (
+        <button type="button" onClick={() => void handleDisconnect()} className="mt-1 px-1 text-[10px] text-muted hover:text-white">Disconnect</button>
+      ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {showConnect ? <Button size="sm" onClick={handleConnect} loading={busyKey === 'connect'}>Connect</Button> : null}
-        {showLoadTools ? <Button size="sm" onClick={handleRefresh} loading={busyKey === 'refresh'}>{state.oauth_connected ? 'Refresh' : 'Load tools'}</Button> : null}
-        {state.state === 'provider_not_supported' ? <Button size="sm" variant="outline" disabled>Provider setup needed</Button> : null}
-        {discovered.length > 0 ? (
-          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setManageOpen(true)}>
-            <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-            Manage tools
-          </Button>
-        ) : null}
-        {state.oauth_connected && state.action !== 'refresh' && !state.can_use_tools ? <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button> : null}
-        {state.oauth_connected ? <Button size="sm" variant="ghost" onClick={handleDisconnect} loading={busyKey === 'disconnect'}>Disconnect</Button> : null}
-      </div>
-
-      {state.state === 'provider_not_supported' ? <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">This provider does not accept the normal ProjectRAI connection. Use a provider-issued client or device-code flow.</p> : null}
-
-      <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`}>
+      <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`} className="max-w-3xl" scrollMode="content">
         <div className="space-y-4">
-          <div className="rounded-md border border-border/70 bg-background/70 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium text-white">Discovered tools</p>
-                <p className="mt-1 text-xs text-muted">Choose which remote MCP tools this agent may use.</p>
-              </div>
-              <ReadinessPill state={counts.allow > 0 ? 'ready' : 'needs_permission'} label={counts.allow > 0 ? 'Ready' : 'Needs permission'} />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">{counts.allow} allowed · {counts.review} review · {counts.deny} blocked</p>
+              <p className="mt-1 text-xs text-muted">Each allowed MCP tool is exposed independently to this Agent.</p>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <span>{counts.allow} allowed</span>
-              <span>{counts.review} review</span>
-              <span>{counts.deny} blocked</span>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => handleBulk('allow')} loading={busyKey === 'bulk:allow'}>Allow all</Button>
+              <Button size="sm" variant="outline" onClick={() => handleBulk('review')} loading={busyKey === 'bulk:review'}>Review all</Button>
+              <Button size="sm" variant="outline" onClick={() => handleBulk('deny')} loading={busyKey === 'bulk:deny'}>Block all</Button>
+              <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh</Button>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => handleBulk('allow')} loading={busyKey === 'bulk:allow'}>Allow all</Button>
-            <Button size="sm" variant="outline" onClick={() => handleBulk('review')} loading={busyKey === 'bulk:review'}>Review all</Button>
-            <Button size="sm" variant="outline" onClick={() => handleBulk('deny')} loading={busyKey === 'bulk:deny'}>Block all</Button>
-            <Button size="sm" variant="ghost" onClick={handleRefresh} loading={busyKey === 'refresh'}>Refresh tools</Button>
-          </div>
+          {discovered.length > 10 ? (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tools" className="pl-9" />
+            </div>
+          ) : null}
 
-          {discovered.length > 0 ? (
-            <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
-              {discovered.map(item => {
+          {filtered.length > 0 ? (
+            <div className="divide-y divide-border/70 border-y border-border/70">
+              {filtered.map((item) => {
                 const mode = permissionMode(item)
                 return (
-                  <div key={item.name} className="rounded-md border border-border/70 bg-background/70 p-3">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="break-words text-xs font-medium text-white">{item.title || item.name}</p>
-                        <p className="mt-0.5 break-all font-mono text-[10px] text-muted">{item.name}</p>
-                        {item.description ? <p className="mt-1 line-clamp-2 text-[10px] text-muted">{item.description}</p> : null}
-                      </div>
-                      <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted">{mode}</span>
+                  <div key={item.name} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-white">{item.title || item.name}</p>
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-muted">{item.name}</p>
+                      {item.description ? <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{item.description}</p> : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant={mode === 'allow' ? 'default' : 'outline'} onClick={() => handleSingle(item.name, 'allow')} loading={busyKey === `${item.name}:allow`}>Allow</Button>
-                      <Button size="sm" variant={mode === 'review' ? 'secondary' : 'ghost'} onClick={() => handleSingle(item.name, 'review')} loading={busyKey === `${item.name}:review`}>Review</Button>
-                      <Button size="sm" variant={mode === 'deny' ? 'destructive' : 'ghost'} onClick={() => handleSingle(item.name, 'deny')} loading={busyKey === `${item.name}:deny`}>Block</Button>
-                    </div>
+                    <PermissionControl mode={mode} busyKey={busyKey} itemName={item.name} onChange={(next) => handleSingle(item.name, next)} />
                   </div>
                 )
               })}
             </div>
           ) : (
-            <div className="rounded-md border border-border/70 bg-background/70 p-4 text-xs text-muted">
-              No MCP tools have been loaded yet. Refresh tools or connect the provider if OAuth is required.
+            <div className="py-8 text-center text-xs text-muted">
+              {discovered.length > 0 ? 'No tools match this search.' : 'No MCP tools have been loaded yet.'}
             </div>
           )}
 
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
+          <div className="flex justify-end border-t border-border pt-3">
             <Button variant="outline" onClick={() => setManageOpen(false)}>Done</Button>
           </div>
         </div>

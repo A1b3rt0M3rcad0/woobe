@@ -8,8 +8,23 @@ import { EditToolModal } from '@/features/playground/components/EditToolModal'
 import { ImportToolsModal } from '@/features/playground/components/ImportToolsModal'
 import { toolPermissionsFromTools, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentToolCard } from '@/features/tools/components/AgentToolCard'
+import { isHttpToolGroup } from '@/features/tools/httpToolContract'
 import { useTools } from '@/features/tools/hooks'
-import type { McpToolPermission, Tool } from '@/features/tools/types'
+import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
+
+function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission> {
+  const permissions = { ...(toolPermissionsFromTools([tool])[tool.id] || {}) }
+  const config = (tool.config || {}) as HttpToolConfig
+  if (!isHttpToolGroup(config)) return permissions
+  for (const route of config.routes || []) {
+    const mode = route.permission?.mode || route.default_permission || 'review'
+    permissions[route.id] = {
+      mode: mode === 'allow' || mode === 'deny' || mode === 'review' ? mode : 'review',
+      risk_level: route.risk_level,
+    }
+  }
+  return permissions
+}
 
 export function NetworkAgentTools({ projectId, agentId }: { projectId: string; agentId: string }) {
   const toolsQuery = useTools(projectId)
@@ -26,7 +41,7 @@ export function NetworkAgentTools({ projectId, agentId }: { projectId: string; a
 
   const addTool = (tool: Tool) => {
     if (selectedIds.has(tool.id)) return
-    const initialPermissions = toolPermissionsFromTools([tool])[tool.id] || {}
+    const initialPermissions = initialPermissionsForTool(tool)
     setState({
       ...state,
       toolIds: [...state.toolIds, tool.id],

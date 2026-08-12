@@ -19,15 +19,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
-    "boto3>=1.35.0"
+    "boto3>=1.35.0" \
+    "pypdf>=6.0.0"
+RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PROJECTRAI_RUN_MIGRATIONS=false
+    PYTHONUNBUFFERED=1
 
 RUN groupadd --system --gid 10001 projectrai \
     && useradd --system --uid 10001 --gid projectrai --home-dir /app --shell /usr/sbin/nologin projectrai

@@ -1,9 +1,15 @@
+export type AgentSessionEnvironment = 'draft' | 'staging' | 'production'
+
 export interface SessionListItem {
   id: string
   project_id: string
   agent_id: string
+  runtime_environment: AgentSessionEnvironment
+  opened_release_id?: string | null
+  opened_release_version?: string | null
   status: string
   mode: string
+  data?: Record<string, unknown> | null
   last_message_at: string | null
   created_at: string | null
   message_count: number
@@ -19,6 +25,8 @@ export interface Session {
   id: string
   project_id: string
   agent_id: string
+  runtime_environment: AgentSessionEnvironment
+  opened_release_id?: string | null
   external_session_id?: string
   tenant_id?: string
   user_id?: string
@@ -33,12 +41,15 @@ export interface Session {
 export interface CreateSessionRequest {
   project_id: string
   agent_id: string
+  runtime_environment?: AgentSessionEnvironment
   external_session_id?: string
   tenant_id?: string
   user_id?: string
   mode?: string
   data?: Record<string, unknown>
 }
+
+export type AgentExecutionContext = 'playground' | 'staging' | 'production'
 
 export interface AskRequest {
   project_id: string
@@ -48,7 +59,7 @@ export interface AskRequest {
   tenant_id?: string
   user_id?: string
   metadata?: Record<string, unknown>
-  execution_context?: 'playground' | 'production'
+  execution_context?: AgentExecutionContext
   loaded_release_id?: string | null
   snapshot_override?: Record<string, unknown> | null
 }
@@ -72,6 +83,7 @@ export interface ToolCallInfo {
   status?: string | null
   latency_ms?: number | null
   error?: string | null
+  error_code?: string | null
 }
 
 export interface UsageInfo {

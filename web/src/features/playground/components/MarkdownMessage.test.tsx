@@ -106,6 +106,93 @@ describe('MarkdownMessage', () => {
     expect(html).not.toContain('<table')
   })
 
+  it('renders the calculus response format as inline MathML', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          'Derivada de x² + x:',
+          'Resultado: \\(2x + 1\\)',
+          '',
+          'Integral de x² + x:',
+          'Resultado: \\(\\frac{1}{3}x^3 + \\frac{1}{2}x^2\\)',
+          '',
+          'Simplificação de x² + x:',
+          'Resultado: \\(x^2 + x\\)',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('data-math-inline="true"')
+    expect(html).toContain('<math')
+    expect(html).toContain('<mfrac')
+    expect(html).toContain('<msup')
+    expect(html).not.toContain('\\(')
+  })
+
+  it('keeps currency values with dollar signs as plain text', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content={'O plano custa $10 e o limite é $20 por mês.'} />,
+    )
+
+    expect(html).toContain('$10')
+    expect(html).toContain('$20')
+    expect(html).not.toContain('data-math-inline')
+  })
+
+  it('renders display math with sums, indices and fractions', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          'Soma dos primeiros termos:',
+          '',
+          '\\[',
+          '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}',
+          '\\]',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('data-math-display="true"')
+    expect(html).toContain('<msubsup')
+    expect(html).toContain('<mfrac')
+  })
+
+  it('renders math inside markdown table cells', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          '| Operação | Resultado |',
+          '|---|---|',
+          '| Derivada | \\(2x + 1\\) |',
+          '| Integral | \\(\\frac{x^3}{3}\\) |',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('<table')
+    expect(html).toContain('data-math-inline="true"')
+    expect(html).toContain('<mfrac')
+  })
+
+  it('keeps mathematical delimiters inside code fences as literal code', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage
+        content={[
+          '```txt',
+          '\\(x^2 + y^2\\)',
+          '\\frac{1}{2}',
+          '```',
+        ].join('\n')}
+      />,
+    )
+
+    expect(html).toContain('<pre')
+    expect(html).toContain('\\(x^2 + y^2\\)')
+    expect(html).toContain('\\frac{1}{2}')
+    expect(html).not.toContain('data-math-inline')
+    expect(html).not.toContain('data-math-display')
+  })
+
   it('escapes raw html instead of injecting it', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'<script>alert(1)</script>'} />)
 

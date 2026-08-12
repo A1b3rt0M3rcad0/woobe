@@ -17,12 +17,12 @@ export function Badge({ children, tone = 'default' }: { children: ReactNode; ton
 }
 
 const items = [
-  { id: 'traces' as const, label: 'Traces', icon: Activity },
+  { id: 'traces' as const, label: 'Runs', icon: Activity },
   { id: 'debug' as const, label: 'Debug', icon: Bug },
 ]
 
 export function NetworkOperationsRail({ activeTab, onTabChange }: { activeTab: PanelTab | null; onTabChange: (tab: PanelTab) => void }) {
-  return <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-surface/75 py-3">{items.map((item) => {
+  return <nav className="relative z-40 flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border bg-surface/75 py-3">{items.map((item) => {
     const Icon = item.icon
     const active = activeTab === item.id
     return <button key={item.id} type="button" onClick={() => onTabChange(item.id)} title={item.label} className={cn('flex w-11 flex-col items-center gap-1 rounded-lg border py-2 text-[9px] transition-colors', active ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white')}><Icon className="h-4 w-4" /><span>{item.label}</span></button>

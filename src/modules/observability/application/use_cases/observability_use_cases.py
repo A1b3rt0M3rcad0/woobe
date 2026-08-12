@@ -35,6 +35,10 @@ class CreateTraceUseCase:
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
             session_id=input_dto.session_id,
+            network_id=input_dto.network_id,
+            network_execution_id=input_dto.network_execution_id,
+            network_session_id=input_dto.network_session_id,
+            network_version_id=input_dto.network_version_id,
             external_session_id=input_dto.external_session_id,
             tenant_id=input_dto.tenant_id,
             user_id=input_dto.user_id,
@@ -61,6 +65,13 @@ class CreateTraceUseCase:
             event_type="trace.created.v1",
             payload={
                 "project_id": str(saved.project_id),
+                "network_id": str(saved.network_id) if saved.network_id else None,
+                "network_execution_id": str(saved.network_execution_id)
+                if saved.network_execution_id
+                else None,
+                "network_version_id": str(saved.network_version_id)
+                if saved.network_version_id
+                else None,
                 "status": saved.status,
                 "provider": saved.provider,
                 "provider_model_id": str(saved.provider_model_id) if saved.provider_model_id else None,
@@ -139,6 +150,10 @@ class GetTraceUseCase:
             project_id=trace.project_id,
             agent_id=trace.agent_id,
             session_id=trace.session_id,
+            network_id=trace.network_id,
+            network_execution_id=trace.network_execution_id,
+            network_session_id=trace.network_session_id,
+            network_version_id=trace.network_version_id,
             status=trace.status,
             started_at=trace.started_at,
             ended_at=trace.ended_at,
@@ -186,6 +201,13 @@ class ListTracesUseCase:
             traces = await self._repo.list_by_project_and_agent(
                 input_dto.project_id, input_dto.agent_id, input_dto.limit, input_dto.offset
             )
+        elif input_dto.network_id:
+            traces = await self._repo.list_by_project_and_network(
+                input_dto.project_id,
+                input_dto.network_id,
+                input_dto.limit,
+                input_dto.offset,
+            )
         else:
             traces = await self._repo.list_by_project(
                 input_dto.project_id, input_dto.limit, input_dto.offset
@@ -197,6 +219,10 @@ class ListTracesUseCase:
                 project_id=t.project_id,
                 agent_id=t.agent_id,
                 session_id=t.session_id,
+                network_id=t.network_id,
+                network_execution_id=t.network_execution_id,
+                network_session_id=t.network_session_id,
+                network_version_id=t.network_version_id,
                 status=str(t.status.value) if hasattr(t.status, "value") else str(t.status),
                 provider=t.provider,
                 model=t.model,

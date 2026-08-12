@@ -6,8 +6,9 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { LoadingState } from '@/components/common/LoadingState'
 import { Button } from '@/components/ui/Button'
 import { AgentToolCard } from '@/features/tools/components/AgentToolCard'
+import { isHttpToolGroup } from '@/features/tools/httpToolContract'
 import { useTools, useUpdateToolStatus } from '@/features/tools/hooks'
-import type { McpToolPermission, Tool } from '@/features/tools/types'
+import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 import { toolPermissionsFromTools, useAgentEditor } from '../AgentEditorContext'
 import { CreateToolModal } from './CreateToolModal'
 import { EditToolModal } from './EditToolModal'
@@ -16,6 +17,20 @@ import { ImportToolsModal } from './ImportToolsModal'
 interface ToolsTabProps {
   projectId: string
   agentId: string
+}
+
+function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission> {
+  const permissions = { ...(toolPermissionsFromTools([tool])[tool.id] || {}) }
+  const config = (tool.config || {}) as HttpToolConfig
+  if (!isHttpToolGroup(config)) return permissions
+  for (const route of config.routes || []) {
+    const mode = route.permission?.mode || route.default_permission || 'review'
+    permissions[route.id] = {
+      mode: mode === 'allow' || mode === 'deny' || mode === 'review' ? mode : 'review',
+      risk_level: route.risk_level,
+    }
+  }
+  return permissions
 }
 
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
@@ -54,7 +69,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
   const addTool = (tool: Tool) => {
     if (selectedIds.has(tool.id)) return
-    const initialPermissions = toolPermissionsFromTools([tool])[tool.id] || {}
+    const initialPermissions = initialPermissionsForTool(tool)
     setState({
       ...state,
       toolIds: [...state.toolIds, tool.id],
@@ -107,7 +122,24 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
       <ImportToolsModal open={showImportModal} onClose={() => setShowImportModal(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addTool} />
       <CreateToolModal open={showCreateModal} onClose={() => setShowCreateModal(false)} projectId={projectId} agentId={agentId} onCreated={(tool) => { if (tool) addTool(tool); void refreshTools() }} />
-      <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={() => { setEditingTool(null); void refreshTools() }} />
+      <EditToolModal
+        tool={editingTool}
+        onClose={() => setEditingTool(null)}
+        onSaved={() => {
+          const savedTool = editingTool
+          setEditingTool(null)
+          const savedConfig = (savedTool?.config || {}) as HttpToolConfig
+          if (savedTool && savedTool.type !== 'mcp' && !isHttpToolGroup(savedConfig)) {
+            const permissions = { ...state.toolPermissions }
+            delete permissions[savedTool.id]
+            setField('toolPermissions', permissions)
+          }
+          if (savedTool && savedTool.type !== 'mcp') {
+            toast.info('HTTP Tool updated. Save Draft to refresh this Agent snapshot.')
+          }
+          void refreshTools()
+        }}
+      />
     </div>
   )
 }

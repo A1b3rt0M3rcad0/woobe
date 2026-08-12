@@ -2,6 +2,7 @@ export type ApiKeyScope = 'runtime:execute' | 'traces:read' | 'usage:read'
 export type ApiKeyKind = 'project' | 'runtime'
 export type RuntimeEnvironment = 'staging' | 'production'
 export type RuntimeInterface = 'http' | 'stream' | 'jobs'
+export type RuntimeTargetType = 'agent' | 'network'
 
 export interface ApiKey {
   id: string
@@ -13,6 +14,8 @@ export interface ApiKey {
   scopes: ApiKeyScope[]
   kind: ApiKeyKind
   agent_id?: string | null
+  target_type?: RuntimeTargetType | null
+  target_id?: string | null
   environment?: RuntimeEnvironment | null
   interfaces: RuntimeInterface[]
   status: 'active' | 'revoked' | 'expired'
@@ -33,7 +36,9 @@ export interface CreateApiKeyRequest {
 export interface CreateRuntimeApiKeyRequest {
   name: string
   description?: string | null
-  agent_id: string
+  target_type?: RuntimeTargetType
+  target_id?: string
+  agent_id?: string
   environment: RuntimeEnvironment
   interfaces: RuntimeInterface[]
   expires_at?: string | null
@@ -62,6 +67,8 @@ export interface ApiKeyCredentialResponse {
   description?: string | null
   kind: ApiKeyKind
   agent_id?: string | null
+  target_type?: RuntimeTargetType | null
+  target_id?: string | null
   environment?: RuntimeEnvironment | null
   updated_at?: string | null
 }

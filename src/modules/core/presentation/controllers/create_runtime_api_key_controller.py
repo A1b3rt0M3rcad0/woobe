@@ -35,6 +35,8 @@ class CreateRuntimeApiKeyController(Controller):
             scopes=result.scopes,
             kind=result.kind,
             agent_id=result.agent_id,
+            target_type=result.target_type.value,
+            target_id=result.target_id,
             environment=result.environment.value,
             interfaces=result.interfaces,
             status=result.status.value,

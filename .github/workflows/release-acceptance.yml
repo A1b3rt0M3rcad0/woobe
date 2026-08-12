@@ -42,7 +42,8 @@ jobs:
           --health-retries 12
     env:
       PYTHONPATH: src:.
-      PROJECTRAI_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectrai
+      PROJECTRAI_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/projectrai
+      PROJECTRAI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/projectrai
       PROJECTRAI_SECRET_KEY: ci-secret-key-at-least-32-characters
       PROJECTRAI_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
       PROJECTRAI_RABBITMQ_URL: amqp://projectrai:projectrai@localhost:5672/
@@ -83,10 +84,7 @@ jobs:
           SQL
           mkdir -p "$RUNNER_TEMP/backups"
           container_backup="$(docker run --rm --network host \
-            -e POSTGRES_HOST=127.0.0.1 \
-            -e POSTGRES_DB=projectrai \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=postgres \
+            -e PROJECTRAI_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/projectrai \
             -e BACKUP_DIR=/backups \
             -v "$PWD:/workspace:ro" \
             -v "$RUNNER_TEMP/backups:/backups" \
@@ -95,10 +93,7 @@ jobs:
           dropdb --if-exists -h localhost -U postgres projectrai_restore
           createdb -h localhost -U postgres --template=template0 projectrai_restore
           docker run --rm --network host \
-            -e POSTGRES_HOST=127.0.0.1 \
-            -e POSTGRES_DB=projectrai_restore \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=postgres \
+            -e PROJECTRAI_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/projectrai_restore \
             -e RESTORE_FILE="/backups/$backup_name" \
             -e RESTORE_CONFIRM=restore-projectrai \
             -e RESTORE_CLEAN=false \

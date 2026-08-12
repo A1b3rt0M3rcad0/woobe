@@ -13,6 +13,9 @@ from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyProviderModelRepository,
 )
+from modules.agent.infra.database.release_activation_repository import (
+    SQLAlchemyAgentReleaseActivationRepository,
+)
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentInboxRepository,
     SQLAlchemyAgentOutboxRepository,
@@ -24,7 +27,9 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyKnowledgeVersionRepository,
     SQLAlchemyMessageRepository,
     SQLAlchemyProviderCredentialRepository,
-    SQLAlchemySessionRepository,
+)
+from modules.agent.infra.database.runtime_session_repository import (
+    SQLAlchemyRuntimeSessionRepository,
 )
 from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
 
@@ -37,7 +42,8 @@ class AgentUnitOfWork(UnitOfWork):
         self._provider_credentials: SQLAlchemyProviderCredentialRepository | None = None
         self._provider_models: SQLAlchemyProviderModelRepository | None = None
         self._releases: SQLAlchemyAgentReleaseRepositoryWithProviderModels | None = None
-        self._sessions: SQLAlchemySessionRepository | None = None
+        self._release_activations: SQLAlchemyAgentReleaseActivationRepository | None = None
+        self._sessions: SQLAlchemyRuntimeSessionRepository | None = None
         self._messages: SQLAlchemyMessageRepository | None = None
         self._ask_jobs: SQLAlchemyAskJobRepository | None = None
         self._document_collections: SQLAlchemyDocumentCollectionRepository | None = None
@@ -81,9 +87,15 @@ class AgentUnitOfWork(UnitOfWork):
         return self._releases
 
     @property
-    def sessions(self) -> SQLAlchemySessionRepository:
+    def release_activations(self) -> SQLAlchemyAgentReleaseActivationRepository:
+        if self._release_activations is None:
+            self._release_activations = SQLAlchemyAgentReleaseActivationRepository(self)
+        return self._release_activations
+
+    @property
+    def sessions(self) -> SQLAlchemyRuntimeSessionRepository:
         if self._sessions is None:
-            self._sessions = SQLAlchemySessionRepository(self)
+            self._sessions = SQLAlchemyRuntimeSessionRepository(self)
         return self._sessions
 
     @property
@@ -180,6 +192,7 @@ class AgentUnitOfWork(UnitOfWork):
         self._provider_credentials = None
         self._provider_models = None
         self._releases = None
+        self._release_activations = None
         self._sessions = None
         self._messages = None
         self._ask_jobs = None

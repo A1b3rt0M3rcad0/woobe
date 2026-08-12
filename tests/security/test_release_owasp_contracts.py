@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
@@ -10,15 +11,43 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def service_block(compose: str, service: str, next_service: str) -> str:
+def service_block(compose: str, service: str, next_service: str | None = None) -> str:
     start = f"\n  {service}:\n"
-    end = f"\n  {next_service}:\n"
     assert start in compose, f"service {service!r} not found"
-    assert end in compose, f"service boundary {next_service!r} not found"
-    return compose.split(start, maxsplit=1)[1].split(end, maxsplit=1)[0]
+    remainder = compose.split(start, maxsplit=1)[1]
+    if next_service is None:
+        return remainder
+    end = f"\n  {next_service}:\n"
+    assert end in remainder, f"service boundary {next_service!r} not found"
+    return remainder.split(end, maxsplit=1)[0]
 
 
-def test_production_proxy_has_required_browser_security_headers() -> None:
+def manifest_keys(environment: str) -> set[str]:
+    keys: set[str] = set()
+    for raw_line in environment.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        keys.add(line.split("=", maxsplit=1)[0])
+    return keys
+
+
+def settings_environment_keys() -> set[str]:
+    tree = ast.parse(read("src/shared/infra/config/config.py"))
+    settings_class = next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Settings"
+    )
+    fields = {
+        node.target.id
+        for node in settings_class.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    # Runtime role is intrinsic to main.py/worker_main.py, not deployment configuration.
+    fields.discard("service_role")
+    return {f"PROJECTRAI_{field.upper()}" for field in fields}
+
+
+def test_production_frontend_has_required_browser_security_headers() -> None:
     nginx = read("web/nginx.conf")
     required = (
         "X-Content-Type-Options",
@@ -32,39 +61,115 @@ def test_production_proxy_has_required_browser_security_headers() -> None:
         assert f"add_header {header}" in nginx
     assert "server_tokens off" in nginx
     assert "frame-ancestors 'none'" in nginx
-    assert "proxy_buffering off" in nginx
+    assert "connect-src 'self' __API_ORIGIN__" in nginx
+    assert "proxy_pass http://api" not in nginx
 
 
-def test_production_topology_does_not_publish_data_services_or_bind_mount_source() -> None:
+def test_production_compose_is_application_only_and_hardened() -> None:
     compose = read("docker-compose.prod.yml")
-    db_block = service_block(compose, "db", "pgbouncer")
-    pgbouncer_block = service_block(compose, "pgbouncer", "rabbitmq")
-    rabbit_block = compose.split("\n  rabbitmq:\n", maxsplit=1)[1].split("\nnetworks:\n", maxsplit=1)[0]
-    web_block = service_block(compose, "web", "db")
+    migrate_block = service_block(compose, "migrate", "api")
+    api_block = service_block(compose, "api", "workers")
+    worker_block = service_block(compose, "workers", "web")
+    web_block = service_block(compose, "web")
 
-    assert "ports:" not in db_block
-    assert "ports:" not in pgbouncer_block
-    assert "ports:" not in rabbit_block
-    assert 'ports:\n      - "8080:8080"' in web_block
-    assert compose.count("    ports:\n") == 1
-    assert "../" not in compose
-    assert "./src:" not in compose
+    for infrastructure_service in ("db", "pgbouncer", "rabbitmq", "redis", "minio"):
+        assert f"\n  {infrastructure_service}:\n" not in compose
+
+    assert "PROJECTRAI_POSTGRES_URL" in migrate_block
+    assert "PROJECTRAI_DATABASE_URL" in api_block
+    assert "PROJECTRAI_RABBITMQ_URL" not in api_block
+    assert "PROJECTRAI_DATABASE_URL" in worker_block
+    assert "PROJECTRAI_RABBITMQ_URL" in worker_block
+    assert "VITE_API_URL" in web_block
+    assert "PROJECTRAI_SERVICE_ROLE" not in compose
+    assert ":?Set " not in compose
+    assert "PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-production}" in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose
+    assert "./src:" not in compose
+    assert "uploads_data" not in compose
 
 
-def test_production_environment_is_template_only_and_rejects_wildcard_origins() -> None:
-    environment = read(".env.production.example")
-    assert "Never commit .env.production" in environment
-    assert "PROJECTRAI_SECRET_KEY=replace-with-at-least-32-random-characters" in environment
-    assert "PROJECTRAI_ENCRYPTION_KEY=replace-with-at-least-32-random-characters" in environment
+def test_environment_manifest_documents_url_boundaries_and_single_template() -> None:
+    environment = read(".env.example")
+
+    for section in (
+        "# POSTGRESQL — DIRECT DATABASE",
+        "# PGBOUNCER — RUNTIME DATABASE ENDPOINT",
+        "# RABBITMQ",
+        "# REDIS",
+        "# OBJECT STORAGE — S3 COMPATIBLE",
+        "# RUNTIME / NETWORK POLICY",
+        "# API",
+        "# WORKERS",
+        "# WEB",
+    ):
+        assert section in environment
+
+    for variable in (
+        "PROJECTRAI_POSTGRES_URL=",
+        "PROJECTRAI_DATABASE_URL=",
+        "PROJECTRAI_RABBITMQ_URL=",
+        "PROJECTRAI_REDIS_URL=",
+        "PROJECTRAI_S3_ENDPOINT_URL=",
+        "VITE_API_URL=",
+    ):
+        assert variable in environment
+
+    assert "API and WORKERS must NOT use this URL directly" in environment
+    assert "API does not require RabbitMQ to start" in environment
+    assert "PROJECTRAI_STORAGE_DRIVER=s3" in environment
     assert "PROJECTRAI_CORS_ORIGINS=*" not in environment
     assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
+    assert "PROJECTRAI_SERVICE_ROLE=" not in environment
 
     gitignore = read(".gitignore")
     assert ".env*" in gitignore
-    assert "!.env.production.example" in gitignore
+    assert "!.env.example" in gitignore
+    assert "!.env.production.example" not in gitignore
+    assert "!.env.web.example" not in gitignore
+
+
+def test_environment_manifest_covers_every_settings_field() -> None:
+    environment = read(".env.example")
+    missing = settings_environment_keys() - manifest_keys(environment)
+    assert not missing, f"Settings fields missing from .env.example: {sorted(missing)}"
+
+
+def test_compose_files_consume_all_projectrai_manifest_variables() -> None:
+    environment = read(".env.example")
+    expected = {
+        key
+        for key in manifest_keys(environment)
+        if key.startswith("PROJECTRAI_")
+    }
+    expected.add("VITE_API_URL")
+
+    for compose_path in ("docker-compose.yml", "docker-compose.prod.yml"):
+        compose = read(compose_path)
+        missing = {key for key in expected if key not in compose}
+        assert not missing, f"{compose_path} ignores manifest variables: {sorted(missing)}"
+
+
+def test_local_compose_keeps_application_connections_url_driven() -> None:
+    compose = read("docker-compose.yml")
+    assert "DATABASE_URL: ${PROJECTRAI_POSTGRES_URL" in compose
+    assert "PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL" in compose
+    assert "PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL" in compose
+    assert "PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL" in compose
+    assert "PROJECTRAI_S3_ENDPOINT_URL: ${PROJECTRAI_S3_ENDPOINT_URL" in compose
+    assert "VITE_API_URL: ${VITE_API_URL" in compose
+    assert "PROJECTRAI_SERVICE_ROLE" not in compose
+    assert "uploads_data" not in compose
+    assert "minio:" in compose
+
+
+def test_frontend_uses_manifest_mode_instead_of_legacy_env_modes() -> None:
+    package = read("web/package.json")
+    assert "vite --mode manifest" in package
+    assert "vite build --mode manifest" in package
+    assert "--mode web" not in package
 
 
 def test_frontend_only_logs_request_details_in_development() -> None:

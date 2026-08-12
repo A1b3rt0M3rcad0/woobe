@@ -19,6 +19,7 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.presentation.credential_routes import router as credential_router
 from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
 from modules.agent.presentation.public_runtime_routes import router as public_runtime_router
+from modules.agent.presentation.release_activation_routes import router as release_activation_router
 from modules.agent.presentation.routes import agent_router
 from modules.agent.presentation.routes import router as agent_ai_router
 from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
@@ -27,9 +28,12 @@ from modules.agent.presentation.routes import tools_router
 from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.billing.presentation.routes import router as billing_router
+from modules.chat_surface.presentation.routes import router as chat_surface_router
+from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
+from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -60,6 +64,7 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
+from shared.runtime_environment_routes import router as runtime_environment_router
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
@@ -77,11 +82,11 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
-    settings = Settings.model_validate({})
+    settings = Settings(service_role="api")
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
-        extra={"environment": settings.environment},
+        extra={"environment": settings.environment, "service_role": settings.service_role},
     )
 
     app = FastAPI(
@@ -98,6 +103,13 @@ def create_app() -> FastAPI:
         issuer=settings.auth_issuer,
         audience=settings.auth_audience,
         ttl_seconds=settings.access_token_ttl_seconds,
+        leeway_seconds=settings.auth_clock_skew_seconds,
+    )
+    app.state.chat_session_token_codec = ChatSessionTokenCodec(
+        signing_key=settings.chat_token_signing_key or settings.secret_key,
+        issuer=settings.chat_token_issuer,
+        audience=settings.chat_token_audience,
+        ttl_seconds=settings.chat_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
     app.state.http_tool_executor = HttpToolExecutor(
@@ -124,11 +136,7 @@ def create_app() -> FastAPI:
     )
 
     cors_origins = _csv_values(settings.cors_origins)
-    trusted_hosts = list(
-        dict.fromkeys(
-            [*_csv_values(settings.trusted_hosts), "127.0.0.1", "localhost", "api"]
-        )
-    )
+    trusted_hosts = _csv_values(settings.trusted_hosts)
     logger.info(
         "HTTP boundary configured",
         extra={
@@ -186,8 +194,15 @@ def create_app() -> FastAPI:
             "X-CSRF-Token",
             "X-Request-ID",
             "X-Correlation-ID",
+            "Last-Event-ID",
+            "Idempotency-Key",
+            "X-Woobe-Host-Origin",
         ],
-        expose_headers=["X-Request-ID", "X-Correlation-ID"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Network-Execution-ID",
+        ],
     )
 
     app.add_exception_handler(
@@ -233,8 +248,11 @@ def create_app() -> FastAPI:
     try:
         app.include_router(identity_router)
         app.include_router(core_router)
+        app.include_router(chat_surface_router)
         app.include_router(public_runtime_router)
         app.include_router(credential_router)
+        app.include_router(runtime_environment_router)
+        app.include_router(release_activation_router)
         app.include_router(agent_router)
         app.include_router(agent_ai_router)
         app.include_router(agent_knowledge_router)
@@ -246,6 +264,7 @@ def create_app() -> FastAPI:
         app.include_router(metering_router)
         app.include_router(billing_router)
         app.include_router(observability_router)
+        app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
@@ -269,6 +288,19 @@ def create_app() -> FastAPI:
     @app.get("/health", include_in_schema=False)
     async def health():
         return {"status": "ok"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def ready():
+        try:
+            async with asyncio.timeout(settings.readiness_timeout_seconds):
+                async with app.state.async_engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "dependency": "database"},
+            )
+        return {"status": "ok", "dependency": "database"}
 
     return app
 

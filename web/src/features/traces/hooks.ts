@@ -9,15 +9,23 @@ import {
 } from './api'
 import type { Trace, TraceDetail } from './types'
 
-const TRACE_REFRESH_INTERVAL_MS = 1_000
-const TRACE_LIST_REFRESH_INTERVAL_MS = 1_500
+const TRACE_REFRESH_INTERVAL_MS = 1_500
+const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 
-function isTerminalTrace(trace: TraceDetail | undefined): boolean {
-  if (!trace) return false
+function isTerminalStatus(status: string | undefined): boolean {
+  if (!status) return false
   return ['completed', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(
-    trace.status.toLowerCase(),
+    status.toLowerCase(),
   )
+}
+
+function isTerminalTrace(trace: TraceDetail | undefined): boolean {
+  return Boolean(trace && isTerminalStatus(trace.status))
+}
+
+function hasActiveTrace(traces: Trace[] | undefined): boolean {
+  return Boolean(traces?.some((trace) => !isTerminalStatus(trace.status)))
 }
 
 function shouldRetryTrace(failureCount: number, error: Error): boolean {
@@ -26,13 +34,16 @@ function shouldRetryTrace(failureCount: number, error: Error): boolean {
     && failureCount < TRACE_NOT_FOUND_RETRIES
 }
 
-export function useTraces(projectId?: string) {
+export function useTraces(projectId?: string, networkId?: string) {
   return useQuery({
-    queryKey: ['traces', { projectId }],
-    queryFn: () => getTraces({ projectId }),
+    queryKey: ['traces', { projectId, networkId }],
+    queryFn: () => getTraces({ projectId, networkId }),
     enabled: Boolean(projectId),
-    refetchInterval: TRACE_LIST_REFRESH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    staleTime: 2_000,
+    refetchInterval: (query) => hasActiveTrace(query.state.data as Trace[] | undefined)
+      ? TRACE_REFRESH_INTERVAL_MS
+      : IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -47,7 +58,7 @@ export function useTraceDetail(id: string | undefined) {
       const trace = query.state.data
       return isTerminalTrace(trace) ? false : TRACE_REFRESH_INTERVAL_MS
     },
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -64,9 +75,14 @@ export function usePlaygroundTraces(
         agentId: sessionId ? undefined : agentId,
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
-    enabled: Boolean(projectId) && Boolean(sessionId),
-    refetchInterval: TRACE_LIST_REFRESH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    // Agent Runs exist independently of Sessions. Stateless Agents must still
+    // expose their Runs through the Agent filter.
+    enabled: Boolean(projectId) && Boolean(agentId),
+    staleTime: 2_000,
+    refetchInterval: (query) => hasActiveTrace(query.state.data)
+      ? TRACE_REFRESH_INTERVAL_MS
+      : false,
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -81,5 +97,6 @@ export function useAskJob(jobId: string | undefined | null) {
       if (data.status === 'completed' || data.status === 'failed') return false
       return 2_000
     },
+    refetchIntervalInBackground: false,
   })
 }

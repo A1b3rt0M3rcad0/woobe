@@ -17,6 +17,9 @@ from modules.agent.application.use_cases.runtime_streaming import (
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
+from modules.agent.application.use_cases.tool_result_semantics import (
+    normalize_tool_result,
+)
 from shared.infra.llm_cost import calculate_llm_cost
 from shared.infra.llm_usage import normalize_llm_usage
 
@@ -47,6 +50,7 @@ class InstrumentedExecution:
     timeline: list[dict[str, Any]] = field(default_factory=list)
     tool_wall_latency_ms: int = 0
     tool_call_duration_sum_ms: int = 0
+    failure_context: dict[str, Any] | None = None
 
 
 class InstrumentedExecutionError(RuntimeError):
@@ -59,6 +63,7 @@ class InstrumentedExecutionError(RuntimeError):
         timeline: list[dict[str, Any]] | None = None,
         tool_wall_latency_ms: int = 0,
         tool_call_duration_sum_ms: int = 0,
+        failure_context: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.llm_calls = llm_calls or []
@@ -66,6 +71,7 @@ class InstrumentedExecutionError(RuntimeError):
         self.timeline = timeline or []
         self.tool_wall_latency_ms = tool_wall_latency_ms
         self.tool_call_duration_sum_ms = tool_call_duration_sum_ms
+        self.failure_context = failure_context
 
 
 def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
@@ -81,6 +87,34 @@ def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
         "provider_credential_id": pricing_snapshot.get("provider_credential_id"),
         "pricing_id": pricing_snapshot.get("pricing_id"),
         "pricing_snapshot": pricing_snapshot,
+    }
+
+
+def _provider_failure_context(
+    exception: Exception,
+    *,
+    phase: str,
+    call_index: int,
+    provider: str,
+    model_name: str,
+) -> dict[str, Any]:
+    status = getattr(exception, "status_code", None)
+    response = getattr(exception, "response", None)
+    if status is None and response is not None:
+        status = getattr(response, "status_code", None)
+    code = getattr(exception, "code", None)
+    body = getattr(exception, "body", None)
+    if code is None and isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            code = error.get("code") or error.get("type")
+    return {
+        "phase": phase,
+        "call_index": call_index,
+        "provider": provider,
+        "model": model_name,
+        "upstream_status": status if isinstance(status, int) else None,
+        "upstream_error_code": str(code) if code else None,
     }
 
 
@@ -108,6 +142,13 @@ async def invoke_llm(
         )
     except Exception as exc:
         ended_at = utc_iso()
+        failure_context = _provider_failure_context(
+            exc,
+            phase=phase,
+            call_index=call_index,
+            provider=provider,
+            model_name=model_name,
+        )
         call = {
             "call_id": call_id,
             "call_index": call_index,
@@ -127,12 +168,14 @@ async def invoke_llm(
             "usage_complete": False,
             "provider": provider,
             "model": model_name,
+            **failure_context,
             **cost_context,
         }
         raise InstrumentedExecutionError(
             str(exc),
             llm_calls=[call],
             timeline=[{"kind": "llm", "occurred_at": ended_at, "payload": call}],
+            failure_context=failure_context,
         ) from exc
 
     ended_at = utc_iso()
@@ -195,17 +238,24 @@ async def execute_tool_call(
     output = await execute(tool_call, resolved_tool_id)
     ended_at = utc_iso()
     duration_ms = round((time.monotonic() - started) * 1000)
-    success = output.get("success", False) if isinstance(output, dict) else True
-    error = output.get("error") if isinstance(output, dict) else None
-    llm_content = compact_tool_output_for_llm(output)
+    normalized = normalize_tool_result(output)
+    llm_value = output if normalized.success else {
+        "success": False,
+        "error_code": normalized.error_code,
+        "error": normalized.error_message,
+        "result": output,
+    }
+    llm_content = compact_tool_output_for_llm(llm_value)
     info = ToolCallInfo(
         tool_call_id=tool_call["id"],
         tool_name=tool_name,
         input=tool_call.get("args"),
         output=output,
         duration_ms=duration_ms,
-        success=success,
-        error=error,
+        success=normalized.success,
+        status=normalized.status,
+        error_code=normalized.error_code,
+        error=normalized.error_message,
     )
     message = ToolMessage(
         content=llm_content,
@@ -219,9 +269,10 @@ async def execute_tool_call(
         "llm_output_size_chars": len(llm_content),
         "duration_ms": duration_ms,
         "http_latency_ms": tool_http_latency_ms(output),
-        "success": success,
-        "error": error,
-        "status": "success" if success else "error",
+        "success": normalized.success,
+        "error_code": normalized.error_code,
+        "error": normalized.error_message,
+        "status": normalized.status,
         "started_at": started_at,
         "ended_at": ended_at,
         "occurred_at": ended_at,

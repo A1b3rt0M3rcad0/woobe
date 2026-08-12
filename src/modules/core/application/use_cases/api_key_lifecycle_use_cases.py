@@ -78,6 +78,10 @@ class RotateApiKeyUseCase:
             raise ApiKeyNotFoundError("API key not found")
         if current.status != ApiKeyStatus.active or current.revoked_at is not None:
             raise ApiKeyNotActiveError("Only active API keys can be rotated")
+        if current.kind == ApiKeyKind.chat_surface:
+            raise ValidationError(
+                "Rotate ChatSurface Access Keys through the ChatSurface endpoint"
+            )
 
         requested_scopes = (
             current.scopes
@@ -115,6 +119,8 @@ class RotateApiKeyUseCase:
             scopes=scopes,
             kind=current.kind,
             agent_id=current.agent_id,
+            target_type=current.target_type,
+            target_id=current.target_id,
             environment=current.environment,
             interfaces=list(current.interfaces),
             expires_at=(
@@ -139,6 +145,8 @@ class RotateApiKeyUseCase:
                 "key_prefix": issued.display_prefix,
                 "scopes": list(saved.scopes),
                 "kind": saved.kind.value,
+                "target_type": saved.target_type.value if saved.target_type else None,
+                "target_id": str(saved.target_id) if saved.target_id else None,
                 "agent_id": str(saved.agent_id) if saved.agent_id else None,
                 "environment": saved.environment.value if saved.environment else None,
                 "interfaces": list(saved.interfaces),
@@ -158,6 +166,8 @@ class RotateApiKeyUseCase:
             scopes=list(saved.scopes),
             kind=saved.kind,
             agent_id=saved.agent_id,
+            target_type=saved.target_type,
+            target_id=saved.target_id,
             environment=saved.environment,
             interfaces=list(saved.interfaces),
             status=saved.status,
@@ -217,6 +227,8 @@ class UpdateApiKeyCredentialUseCase:
             description=saved.description,
             kind=saved.kind,
             agent_id=saved.agent_id,
+            target_type=saved.target_type,
+            target_id=saved.target_id,
             environment=saved.environment,
             updated_at=now,
         )

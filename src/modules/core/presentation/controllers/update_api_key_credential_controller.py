@@ -34,6 +34,8 @@ class UpdateApiKeyCredentialController(Controller):
             description=result.description,
             kind=result.kind.value,
             agent_id=result.agent_id,
+            target_type=result.target_type.value if result.target_type else None,
+            target_id=result.target_id,
             environment=result.environment.value if result.environment else None,
             updated_at=result.updated_at,
         )

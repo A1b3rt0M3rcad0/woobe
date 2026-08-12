@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -132,6 +133,12 @@ class AgentReleaseModel(BaseModel):
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
         Index(
+            "uq_agent_releases_staging",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'staging'"),
+        ),
+        Index(
             "uq_agent_releases_production",
             "agent_id",
             unique=True,
@@ -144,6 +151,7 @@ class AgentReleaseModel(BaseModel):
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
     version: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(32), default="draft")
+    snapshot_kind: Mapped[str] = mapped_column(String(16), default="draft")
     prompt_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_prompts.id")
     )
@@ -156,7 +164,6 @@ class AgentReleaseModel(BaseModel):
     model_config_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_model_configs.id")
     )
-    # Snapshot fields — complete agent config inline
     name: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     system_prompt: Mapped[str | None] = mapped_column(Text)
@@ -179,7 +186,6 @@ class AgentReleaseModel(BaseModel):
     agent_status: Mapped[str | None] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
     runtime_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    # Meta
     release_notes: Mapped[str | None] = mapped_column(Text)
     risk_score: Mapped[int | None] = mapped_column(Integer)
     created_by: Mapped[UUID | None]
@@ -290,11 +296,39 @@ class SessionModel(BaseModel):
     __tablename__ = "sessions"
     __table_args__ = (
         UniqueConstraint("project_id", "agent_id", "external_session_id"),
+        CheckConstraint(
+            "runtime_environment IN ('draft', 'staging', 'production')",
+            name="ck_agent_sessions_runtime_environment",
+        ),
+        Index(
+            "ix_agent_sessions_environment_activity",
+            "project_id",
+            "agent_id",
+            "runtime_environment",
+            "last_message_at",
+            "id",
+        ),
+        Index(
+            "ix_agent_sessions_chat_surface",
+            "chat_surface_id",
+            "status",
+            "last_message_at",
+        ),
         {"schema": "agent"},
     )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
+    runtime_environment: Mapped[str] = mapped_column(
+        String(16), default="draft", server_default=text("'draft'")
+    )
+    opened_release_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agent.agent_releases.id", ondelete="RESTRICT"), nullable=True
+    )
+    chat_surface_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    origin: Mapped[str] = mapped_column(
+        String(32), default="runtime_api", server_default=text("'runtime_api'")
+    )
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(128))

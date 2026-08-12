@@ -9,7 +9,9 @@ from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
-from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.application.use_cases.session_continuity_runtime_resolver import (
+    SessionContinuityReleaseRuntimeResolver,
+)
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
 from modules.agent.application.use_cases.instrumented_execution_finalizer import finalize_instrumented_execution
@@ -50,6 +52,17 @@ _RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
     f"{RUNTIME_TOOL_INVENTORY_NAME} before answering."
 )
 
+_TOOL_GROUNDING_RUNTIME_RULES = (
+    "Tool grounding rules:\n"
+    "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
+    "tenant IDs, slugs or keys required by a Tool.\n"
+    "- If a qualified identifier is missing, use a real discovery or search Tool "
+    "when one is available.\n"
+    "- If no discovery Tool is available, ask the user for the missing identifier.\n"
+    "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
+    "an identifier or reports that a resource was not found."
+)
+
 
 def _id_text(value) -> str | None:
     return str(value) if value else None
@@ -64,7 +77,7 @@ def _provider_value(value) -> str | None:
 class StructuredOutputAskAgentUseCase(
     InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
-    ReleaseRuntimeResolver,
+    SessionContinuityReleaseRuntimeResolver,
 ):
     """Agent execution with complete LLM and Tool telemetry."""
 
@@ -155,12 +168,36 @@ class StructuredOutputAskAgentUseCase(
                         ]
                     agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
             except Exception:
-                return prepared
+                updated = list(prepared)
+                tool_name_to_id = updated[8]
+            else:
+                updated = list(prepared)
+                updated[7] = agent_tools
+                updated[8] = tool_name_to_id
+                updated[9] = bool(agent_tools)
 
-            updated = list(prepared)
-            updated[7] = agent_tools
-            updated[8] = tool_name_to_id
-            updated[9] = bool(agent_tools)
+        if context and context.internal_tool_definitions:
+            definitions = list(updated[7])
+            mapping = dict(updated[8])
+            internal_mapping = context.internal_tool_name_to_id or {}
+            collisions = set(mapping).intersection(internal_mapping)
+            if collisions:
+                raise ValueError(
+                    "Network delegation tool name collides with an Agent Tool: "
+                    + ", ".join(sorted(collisions))
+                )
+            definitions.extend(context.internal_tool_definitions)
+            mapping.update(internal_mapping)
+            updated[7] = definitions
+            updated[8] = mapping
+            updated[9] = bool(definitions)
+            tool_name_to_id = mapping
+
+        if updated[9]:
+            messages = list(updated[11])
+            insert_at = len(messages) - 1 if messages else 0
+            messages.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
+            updated[11] = messages
 
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])

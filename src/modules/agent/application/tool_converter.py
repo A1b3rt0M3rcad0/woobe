@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from modules.agent.application.http_tool_contract import (
+    allowed_http_group_routes,
+    is_http_tool_group,
+)
 from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
 from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
 from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
@@ -52,6 +56,12 @@ def _is_mcp_server_provider(tool: Any) -> bool:
     return is_mcp and exposes_server
 
 
+def _is_http_group_provider(tool: Any) -> bool:
+    config = getattr(tool, "config", None) or {}
+    tool_type = _type_value(getattr(tool, "type", None))
+    return tool_type in {"http", "api", "webhook"} and is_http_tool_group(config)
+
+
 def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
     config = getattr(tool, "config", None) or {}
     discovered_tools = allowed_mcp_discovered_tools(config)
@@ -93,6 +103,50 @@ def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[lis
     return definitions, mapping
 
 
+def _http_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
+    config = getattr(tool, "config", None) or {}
+    routes = allowed_http_group_routes(config)
+    parent_name = _safe_tool_name(tool)
+    parent_description = str(getattr(tool, "description", None) or "").strip()
+    definitions: list[dict] = []
+    mapping: dict[str, str] = {}
+
+    for route in routes:
+        route_id = str(route.get("id") or route.get("operation_id") or "").strip()
+        operation_id = str(route.get("operation_id") or route_id).strip()
+        if not route_id or not operation_id:
+            continue
+        function_name = _dedupe_name(_safe_name(f"{parent_name}_{operation_id}"), used_names)
+        parameters = route.get("input_schema") or {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+        if not isinstance(parameters, dict):
+            parameters = {"type": "object", "properties": {}, "required": []}
+        route_description = str(route.get("description") or route.get("name") or operation_id)
+        description = route_description
+        if parent_description:
+            description = f"{route_description} Provider context: {parent_description}"
+        definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": function_name,
+                    "description": description,
+                    "parameters": parameters,
+                },
+            }
+        )
+        # The execution pipeline already routes child capabilities through this
+        # provider separator. HTTP group routes intentionally reuse it so older
+        # runtimes remain compatible without changing persisted tool IDs.
+        mapping[function_name] = f"{tool.id}{MCP_PROVIDER_ROUTE_SEPARATOR}{route_id}"
+
+    return definitions, mapping
+
+
 def agent_tool_to_openai_definition(tool) -> dict:
     registry = build_default_tool_runtime_registry(_DefinitionOnlyExecutor())
     return registry.to_openai_definition(tool)
@@ -109,6 +163,11 @@ def agent_tools_to_openai_definitions_and_mapping(tools: list) -> tuple[list[dic
     used_names: set[str] = set()
 
     for tool in tools:
+        if _is_http_group_provider(tool):
+            provider_definitions, provider_mapping = _http_provider_tool_definitions(tool, used_names)
+            definitions.extend(provider_definitions)
+            mapping.update(provider_mapping)
+            continue
         if _is_mcp_server_provider(tool):
             provider_definitions, provider_mapping = _mcp_provider_tool_definitions(tool, used_names)
             definitions.extend(provider_definitions)
