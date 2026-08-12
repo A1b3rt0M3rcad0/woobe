@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
@@ -31,9 +31,10 @@ import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
-import BillingPage from '@/editions/cloud/billing/BillingPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+
+const CloudBillingPage = lazy(() => import('@/editions/cloud/billing/BillingPage'))
 
 function RootRedirect() {
   const { isAuthenticated } = useAuth()
@@ -60,7 +61,11 @@ function LegacyBillingRedirect() {
 
 function EditionBillingPage() {
   if (!isCloudEdition) return <Navigate to="../settings" replace />
-  return <BillingPage />
+  return (
+    <Suspense fallback={<LoadingState message="Opening Billing" />}>
+      <CloudBillingPage />
+    </Suspense>
+  )
 }
 
 function DashboardRedirect() {
