@@ -11,6 +11,7 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
+from editions.cloud.billing.presentation.routes import router as billing_router
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -27,7 +28,6 @@ from modules.agent.presentation.routes import runtime_router as agent_runtime_ro
 from modules.agent.presentation.routes import tools_router
 from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
-from modules.billing.presentation.routes import router as billing_router
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router

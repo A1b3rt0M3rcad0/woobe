@@ -31,7 +31,7 @@ import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
-import BillingPage from '@/pages/BillingPage'
+import BillingPage from '@/editions/cloud/billing/BillingPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 

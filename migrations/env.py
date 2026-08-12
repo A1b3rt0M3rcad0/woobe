@@ -21,7 +21,7 @@ from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401,
 from modules.network.infra.database.models import *  # noqa: F401, F403
 from modules.network.infra.database.schema_extensions import *  # noqa: F401, F403
 from modules.metering.infra.database.models import *  # noqa: F401, F403
-from modules.billing.infra.database.models import *  # noqa: F401, F403
+from editions.cloud.billing.infra.database.models import *  # noqa: F401, F403
 from modules.observability.infra.database.models import *  # noqa: F401, F403
 
 

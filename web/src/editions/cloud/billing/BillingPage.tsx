@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { usePlans, useOrganizationSubscription } from '@/features/billing/hooks'
+import { usePlans, useOrganizationSubscription } from './hooks'
 import { useOrganization } from '@/features/organizations/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate } from '@/lib/formatters/date'
 import { Check, CreditCard, ShieldCheck, WalletCards } from 'lucide-react'
-import type { Plan } from '@/features/billing/types'
+import type { Plan } from './types'
 
 export default function BillingPage() {
   const { organizationId } = useParams<{ organizationId: string }>()
