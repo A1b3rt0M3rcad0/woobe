@@ -1,0 +1,54 @@
+name: Test suite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate test Compose contract
+        run: >-
+          docker compose
+          --env-file deploy/test/test.env
+          -p woobe-test
+          -f compose.yaml
+          -f deploy/dev/compose.yml
+          -f deploy/test/compose.yml
+          config --quiet
+      - name: Run reproducible validation stack
+        run: sh scripts/test.sh all
+      - name: Capture Compose diagnostics
+        if: failure()
+        run: |
+          docker compose \
+            --env-file deploy/test/test.env \
+            -p woobe-test \
+            -f compose.yaml \
+            -f deploy/dev/compose.yml \
+            -f deploy/test/compose.yml \
+            ps --all > .test-artifacts/compose-ps.txt || true
+          docker compose \
+            --env-file deploy/test/test.env \
+            -p woobe-test \
+            -f compose.yaml \
+            -f deploy/dev/compose.yml \
+            -f deploy/test/compose.yml \
+            logs --no-color > .test-artifacts/compose.log 2>&1 || true
+      - name: Tear down validation stack
+        if: always()
+        run: sh scripts/test.sh down
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: woobe-test-evidence
+          path: .test-artifacts
+          if-no-files-found: warn

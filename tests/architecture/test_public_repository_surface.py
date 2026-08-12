@@ -21,11 +21,12 @@ def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
 def test_public_deployment_surface_has_one_default_contract() -> None:
     assert (ROOT / "compose.yaml").is_file()
     assert (ROOT / "deploy/dev/compose.yml").is_file()
+    assert (ROOT / "deploy/test/compose.yml").is_file()
+    assert (ROOT / "deploy/test/test.env").is_file()
 
     for path in (
         "compose.yml",
         "docker-compose.yml",
-        "docker-compose.yaml",
         "docker-compose.community.yml",
         "docker-compose.prod.yml",
         "docker-compose.override.yml",
@@ -35,14 +36,12 @@ def test_public_deployment_surface_has_one_default_contract() -> None:
         assert not (ROOT / path).exists(), path
 
 
-def test_repository_has_one_pull_request_template() -> None:
-    assert (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").is_file()
-    assert not (ROOT / ".github/pull_request_template.md").exists()
-
-
-def test_browser_e2e_has_a_single_public_namespace() -> None:
-    assert (ROOT / "e2e").is_dir()
-    assert not (ROOT / "tests/e2e").exists()
+def test_test_topology_is_a_validation_contract_not_a_distribution() -> None:
+    assert (ROOT / "scripts/test.sh").is_file()
+    assert (ROOT / "e2e/package.json").is_file()
+    assert (ROOT / "e2e/Dockerfile").is_file()
+    assert (ROOT / "e2e/fullstack.config.ts").is_file()
+    assert (ROOT / "e2e/fullstack/community-bootstrap.spec.ts").is_file()
 
 
 def test_runtime_documentation_uses_durable_product_paths() -> None:
@@ -59,9 +58,18 @@ def test_manual_workflow_surface_is_consolidated() -> None:
     actual = {path.name for path in workflow_dir.glob("*.yml")}
     assert actual == {
         "acceptance.yml",
-        "backend.yml",
         "containers.yml",
-        "frontend.yml",
         "release.yml",
         "security.yml",
+        "tests.yml",
     }
+
+
+def test_browser_e2e_namespace_is_not_duplicated_under_python_tests() -> None:
+    assert not (ROOT / "tests/e2e").exists()
+    assert (ROOT / "e2e/tests").is_dir()
+
+
+def test_pull_request_template_is_canonical() -> None:
+    assert (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").is_file()
+    assert not (ROOT / ".github/pull_request_template.md").exists()
