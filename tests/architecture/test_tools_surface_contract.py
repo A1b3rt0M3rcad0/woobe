@@ -1,8 +1,5 @@
-"""E2E safety tests for tools agent consolidation (spec 015).
+"""Architecture contracts for the consolidated Agent Tools HTTP surface."""
 
-Validates route registration, schema compatibility, and absence
-of network calls without requiring a running database.
-"""
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
