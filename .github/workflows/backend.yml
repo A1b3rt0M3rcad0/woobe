@@ -9,7 +9,7 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -61,8 +61,15 @@ jobs:
         run: uv run ruff check src tests migrations
       - name: Full Pyright
         run: uv run pyright src migrations
-      - name: Apply migrations
-        run: uv run alembic upgrade head
+      - name: Validate migrations including one-step rollback
+        run: |
+          set -euo pipefail
+          uv run alembic upgrade head
+          uv run alembic current
+          uv run alembic check
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+          uv run alembic check
       - name: Pytest
         run: uv run python -m pytest -q --junitxml=pytest-report.xml
       - name: Upload evidence

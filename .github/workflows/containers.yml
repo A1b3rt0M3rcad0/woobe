@@ -1,4 +1,4 @@
-name: Community containers
+name: Container quality
 
 on:
   workflow_dispatch:
@@ -7,30 +7,30 @@ permissions:
   contents: read
 
 jobs:
-  community-containers:
+  containers:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Generate isolated Community manifest
+      - name: Generate isolated Community environment
         run: python scripts/generate_self_host_env.py --force
-      - name: Validate Community Compose
-        run: docker compose -f docker-compose.community.yml config --quiet
-      - name: Build backend
+      - name: Validate the supported Community Compose contract
+        run: docker compose config --quiet
+      - name: Build API image
         run: docker build --tag woobe-api:ci .
-      - name: Build frontend
+      - name: Build Web image
         run: >-
           docker build
           --build-arg VITE_API_URL=http://127.0.0.1:8000
           --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
           --build-arg VITE_WOOBE_EDITION=community
           --tag woobe-web:ci web
-      - name: Build ChatSurface embed
+      - name: Build ChatSurface image
         run: docker build --tag woobe-chat-embed:ci embed
-      - name: Require non-root application images
+      - name: Require non-root runtime users
         run: |
           set -euo pipefail
           for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
@@ -40,3 +40,45 @@ jobs:
             test "$configured_user" != "root"
             docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
           done
+      - name: Generate API SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: woobe-api:ci
+          artifact-name: woobe-api-sbom.spdx.json
+          format: spdx-json
+      - name: Generate Web SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: woobe-web:ci
+          artifact-name: woobe-web-sbom.spdx.json
+          format: spdx-json
+      - name: Generate ChatSurface SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: woobe-chat-embed:ci
+          artifact-name: woobe-chat-embed-sbom.spdx.json
+          format: spdx-json
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Web image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-web:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan ChatSurface image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-chat-embed:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
