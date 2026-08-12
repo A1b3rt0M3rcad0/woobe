@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-BILLING_DIR = PROJECT_ROOT / "src" / "modules" / "billing"
+BILLING_DIR = PROJECT_ROOT / "src" / "editions" / "cloud" / "billing"
 UOW_FILE = BILLING_DIR / "infra" / "database" / "unit_of_work.py"
 COMPOSERS_DIR = BILLING_DIR / "application" / "composers"
 

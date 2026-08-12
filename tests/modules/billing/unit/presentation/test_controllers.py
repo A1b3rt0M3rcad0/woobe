@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
-BILLING_CONTROLLERS_DIR = ROOT / "src" / "modules" / "billing" / "presentation" / "controllers"
+BILLING_CONTROLLERS_DIR = ROOT / "src" / "editions" / "cloud" / "billing" / "presentation" / "controllers"
 
 
 class TestBillingControllers:
@@ -39,8 +39,11 @@ class TestBillingControllers:
     def test_controllers_do_not_import_service(self):
         for filepath in self._controller_py_files():
             source = filepath.read_text(encoding="utf-8")
-            assert "from modules.billing.service" not in source, (
+            assert "editions.cloud.billing.service" not in source, (
                 f"{filepath.name} must not import from service/"
+            )
+            assert "modules.billing" not in source, (
+                f"{filepath.name} must not import the removed Billing compatibility namespace"
             )
 
     def test_controllers_do_not_import_repositories(self):

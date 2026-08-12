@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-ROUTES_FILE = PROJECT_ROOT / "src" / "modules" / "billing" / "presentation" / "routes.py"
+ROUTES_FILE = PROJECT_ROOT / "src" / "editions" / "cloud" / "billing" / "presentation" / "routes.py"
 
 
 class TestBillingRoutes:

@@ -1,12 +1,12 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-BILLING_ROUTES = ROOT / "src" / "modules" / "billing" / "presentation" / "routes.py"
+BILLING_ROUTES = ROOT / "src" / "editions" / "cloud" / "billing" / "presentation" / "routes.py"
 
 
 class TestBillingRoutes:
     def test_routes_file_exists(self):
-        assert BILLING_ROUTES.is_file(), "billing/presentation/routes.py must exist"
+        assert BILLING_ROUTES.is_file(), "cloud billing/presentation/routes.py must exist"
 
     def test_routes_has_billing_prefix(self):
         source = BILLING_ROUTES.read_text(encoding="utf-8")
@@ -34,12 +34,12 @@ class TestBillingRoutes:
 
     def test_routes_import_no_domain(self):
         source = BILLING_ROUTES.read_text(encoding="utf-8")
-        assert "from modules.billing.domain" not in source, (
+        assert "from editions.cloud.billing.domain" not in source, (
             "Routes must not import domain directly"
         )
 
     def test_routes_import_no_service(self):
         source = BILLING_ROUTES.read_text(encoding="utf-8")
-        assert "from modules.billing.service" not in source, (
-            "Routes must not import from legacy service/"
+        assert "editions.cloud.billing.service" not in source, (
+            "Routes must not import from a legacy service/ layer"
         )

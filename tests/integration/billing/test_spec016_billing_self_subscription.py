@@ -4,7 +4,7 @@ Covers: no consumer registration, outbox dispatcher only.
 """
 from unittest.mock import MagicMock
 
-from modules.billing.infra.workers.registry import (
+from editions.cloud.billing.infra.workers.registry import (
     BillingWorkerRegistry,
     register_billing_workers,
 )

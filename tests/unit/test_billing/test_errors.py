@@ -1,6 +1,6 @@
 import pytest
 
-from modules.billing.domain.errors import (
+from editions.cloud.billing.domain.errors import (
     PlanNotFoundError,
     CustomerNotFoundError,
     SubscriptionNotFoundError,

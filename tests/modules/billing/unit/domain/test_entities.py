@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from modules.billing.domain.entities import Plan, Customer, Subscription, PaymentEvent
-from modules.billing.domain.enums import (
+from editions.cloud.billing.domain.entities import Plan, Customer, Subscription, PaymentEvent
+from editions.cloud.billing.domain.enums import (
     BillingInterval,
     BillingProvider,
     PaymentEventStatus,

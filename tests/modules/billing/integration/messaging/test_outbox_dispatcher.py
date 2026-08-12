@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-BILLING_DIR = PROJECT_ROOT / "src" / "modules" / "billing"
+BILLING_DIR = PROJECT_ROOT / "src" / "editions" / "cloud" / "billing"
 
 EVENT_MAPPERS_FILE = BILLING_DIR / "infra" / "messaging" / "event_mappers.py"
 PUBLISHERS_FILE = BILLING_DIR / "infra" / "messaging" / "publishers.py"

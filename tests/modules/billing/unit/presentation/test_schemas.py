@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from modules.billing.presentation.schemas import (
+from editions.cloud.billing.presentation.schemas import (
     CreatePlanRequest,
     CreateSubscriptionRequest,
     PlanResponse,

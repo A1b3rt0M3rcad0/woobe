@@ -3,19 +3,19 @@ from uuid import UUID
 
 import pytest
 
-from modules.billing.application.use_cases import (
+from editions.cloud.billing.application.use_cases import (
     CreatePlanUseCase,
     CreateSubscriptionUseCase,
     GetOrganizationSubscriptionUseCase,
     ListActivePlansUseCase,
 )
-from modules.billing.application.dtos import (
+from editions.cloud.billing.application.dtos import (
     CreatePlanInput,
     CreateSubscriptionInput,
     GetOrganizationSubscriptionInput,
 )
-from modules.billing.domain.entities import Customer, Plan, Subscription
-from modules.billing.domain.enums import BillingProvider, PlanStatus, SubscriptionStatus
+from editions.cloud.billing.domain.entities import Customer, Plan, Subscription
+from editions.cloud.billing.domain.enums import BillingProvider, PlanStatus, SubscriptionStatus
 from shared.infra.errors import ConflictError
 
 

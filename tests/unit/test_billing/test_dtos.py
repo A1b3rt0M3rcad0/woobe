@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import ValidationError
 import pytest
 
-from modules.billing.service.dtos import (
+from editions.cloud.billing.application.dtos import (
     CreatePlanInput,
     CreatePlanOutput,
     CreateCustomerInput,

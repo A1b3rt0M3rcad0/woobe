@@ -1,6 +1,6 @@
 from abc import ABC
 
-from modules.billing.domain.repositories import (
+from editions.cloud.billing.domain.repositories import (
     CustomerRepository,
     PaymentEventRepository,
     PlanRepository,

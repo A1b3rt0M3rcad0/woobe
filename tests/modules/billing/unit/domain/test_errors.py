@@ -1,4 +1,4 @@
-from modules.billing.domain.errors import CustomerNotFoundError, PlanNotFoundError, SubscriptionNotFoundError
+from editions.cloud.billing.domain.errors import CustomerNotFoundError, PlanNotFoundError, SubscriptionNotFoundError
 
 
 class TestPlanNotFoundError:

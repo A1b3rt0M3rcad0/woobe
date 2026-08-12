@@ -2,11 +2,14 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BILLING_COMPOSERS_DIR = PROJECT_ROOT / "src" / "modules" / "billing" / "application" / "composers"
-BILLING_CONTROLLERS_DIR = PROJECT_ROOT / "src" / "modules" / "billing" / "presentation" / "controllers"
+BILLING_ROOT = PROJECT_ROOT / "src" / "editions" / "cloud" / "billing"
+BILLING_COMPOSERS_DIR = BILLING_ROOT / "application" / "composers"
+BILLING_CONTROLLERS_DIR = BILLING_ROOT / "presentation" / "controllers"
 
-
-FORBIDDEN_IMPORT_PREFIXES = ("modules.billing.service",)
+FORBIDDEN_IMPORT_PREFIXES = (
+    "editions.cloud.billing.service",
+    "modules.billing",
+)
 
 
 def _get_import_strings_from_file(filepath: Path) -> list[str]:
@@ -23,35 +26,30 @@ def _get_import_strings_from_file(filepath: Path) -> list[str]:
     return imports
 
 
-class TestNoNewBillingServiceImports:
-    def test_composers_do_not_import_service(self):
+def _assert_no_forbidden_imports(py_files: list[Path]) -> None:
+    violations = []
+    for filepath in sorted(py_files):
+        for imp in _get_import_strings_from_file(filepath):
+            for forbidden in FORBIDDEN_IMPORT_PREFIXES:
+                if imp.startswith(forbidden):
+                    violations.append(f"{filepath.name}: imports '{imp}'")
+    assert not violations, f"Cloud Billing contains forbidden imports: {violations}"
+
+
+class TestNoLegacyBillingImports:
+    def test_compatibility_shim_is_removed(self):
+        assert not (PROJECT_ROOT / "src" / "modules" / "billing.py").exists()
+        assert not (PROJECT_ROOT / "src" / "modules" / "billing").exists()
+
+    def test_cloud_billing_package_uses_canonical_namespace(self):
+        _assert_no_forbidden_imports(list(BILLING_ROOT.rglob("*.py")))
+
+    def test_composers_do_not_import_service_or_legacy_namespace(self):
         py_files = list(BILLING_COMPOSERS_DIR.rglob("*.py"))
-        assert len(py_files) > 0, "Composers directory must exist"
+        assert py_files, "Cloud Billing composers directory must exist"
+        _assert_no_forbidden_imports(py_files)
 
-        violations = []
-        for filepath in sorted(py_files):
-            imports = _get_import_strings_from_file(filepath)
-            for imp in imports:
-                for forbidden in FORBIDDEN_IMPORT_PREFIXES:
-                    if imp.startswith(forbidden):
-                        violations.append(f"{filepath.name}: imports '{imp}'")
-
-        assert not violations, (
-            f"Composers must not import service/: {violations}"
-        )
-
-    def test_controllers_do_not_import_service(self):
+    def test_controllers_do_not_import_service_or_legacy_namespace(self):
         py_files = list(BILLING_CONTROLLERS_DIR.rglob("*.py"))
-        assert len(py_files) > 0, "Controllers directory must exist"
-
-        violations = []
-        for filepath in sorted(py_files):
-            imports = _get_import_strings_from_file(filepath)
-            for imp in imports:
-                for forbidden in FORBIDDEN_IMPORT_PREFIXES:
-                    if imp.startswith(forbidden):
-                        violations.append(f"{filepath.name}: imports '{imp}'")
-
-        assert not violations, (
-            f"Controllers must not import service/: {violations}"
-        )
+        assert py_files, "Cloud Billing controllers directory must exist"
+        _assert_no_forbidden_imports(py_files)

@@ -1,26 +1,26 @@
-"""Tests for spec 090 — create billing worker structure."""
+"""Architecture tests for the Woobe Cloud Billing worker structure."""
 import ast
 import inspect
 from pathlib import Path
 
-from modules.billing.infra.workers.registry import BillingWorkerRegistry
+from editions.cloud.billing.infra.workers.registry import BillingWorkerRegistry
 from shared.workers.contracts import WorkerRegistryProtocol
 
 
 class TestBillingWorkerStructure:
-    """Verify the billing worker structure exists."""
+    """Verify the Cloud Billing worker structure exists outside Community/Core."""
 
     def test_workers_directory_exists(self):
-        path = Path("src/modules/billing/infra/workers")
+        path = Path("src/editions/cloud/billing/infra/workers")
         assert path.exists()
         assert path.is_dir()
 
     def test_init_file_exists(self):
-        path = Path("src/modules/billing/infra/workers/__init__.py")
+        path = Path("src/editions/cloud/billing/infra/workers/__init__.py")
         assert path.exists()
 
     def test_registry_file_exists(self):
-        path = Path("src/modules/billing/infra/workers/registry.py")
+        path = Path("src/editions/cloud/billing/infra/workers/registry.py")
         assert path.exists()
 
     def test_registry_class_exists(self):
@@ -42,10 +42,10 @@ class TestBillingWorkerStructure:
 
 
 class TestBillingWorkerStructureRejectsForbiddenDependency:
-    """Verify billing does not import agent internals."""
+    """Verify Cloud Billing does not import agent internals."""
 
     def test_no_agent_imports_in_registry(self):
-        import modules.billing.infra.workers.registry as mod
+        import editions.cloud.billing.infra.workers.registry as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)
@@ -66,7 +66,7 @@ class TestBillingWorkerStructureRejectsForbiddenDependency:
                     )
 
     def test_no_agent_imports_in_init(self):
-        import modules.billing.infra.workers as mod
+        import editions.cloud.billing.infra.workers as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)
