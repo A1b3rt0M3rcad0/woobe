@@ -1,17 +1,17 @@
 #!/bin/sh
 set -eu
 
-: "${PROJECTRAI_POSTGRES_URL:?PROJECTRAI_POSTGRES_URL is required}"
+: "${WOOBE_POSTGRES_URL:?WOOBE_POSTGRES_URL is required}"
 : "${BACKUP_DIR:=/backups}"
 
 umask 077
 mkdir -p "$BACKUP_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup="$BACKUP_DIR/projectrai-$timestamp.dump"
+backup="$BACKUP_DIR/woobe-$timestamp.dump"
 temporary="$backup.partial"
 
 pg_dump \
-  --dbname "$PROJECTRAI_POSTGRES_URL" \
+  --dbname "$WOOBE_POSTGRES_URL" \
   --format custom \
   --compress 9 \
   --no-owner \

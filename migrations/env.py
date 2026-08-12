@@ -33,17 +33,17 @@ def _async_postgres_url(value: str) -> str:
         return normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
     if normalized.startswith("postgresql+asyncpg://"):
         return normalized
-    raise RuntimeError("PROJECTRAI_POSTGRES_URL must be a PostgreSQL connection URL")
+    raise RuntimeError("WOOBE_POSTGRES_URL must be a PostgreSQL connection URL")
 
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-postgres_url = os.environ.get("PROJECTRAI_POSTGRES_URL", "").strip()
+postgres_url = os.environ.get("WOOBE_POSTGRES_URL", "").strip()
 if not postgres_url:
     raise RuntimeError(
-        "PROJECTRAI_POSTGRES_URL is required for migrations; migrations must connect "
+        "WOOBE_POSTGRES_URL is required for migrations; migrations must connect "
         "directly to PostgreSQL instead of the runtime pool"
     )
 

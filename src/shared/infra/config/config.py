@@ -44,41 +44,41 @@ def _validate_database_url(value: str) -> str:
     parsed = urlsplit(normalized.replace("postgresql+asyncpg://", "postgresql://", 1))
     if parsed.scheme == "postgresql":
         if not parsed.hostname:
-            raise ValueError("PROJECTRAI_DATABASE_URL must include a PostgreSQL hostname")
+            raise ValueError("WOOBE_DATABASE_URL must include a PostgreSQL hostname")
         return normalized
     if parsed.scheme in {"sqlite", "sqlite+aiosqlite"}:
         return normalized
     raise ValueError(
-        "PROJECTRAI_DATABASE_URL must be PostgreSQL for runtime deployments or SQLite for tests"
+        "WOOBE_DATABASE_URL must be PostgreSQL for runtime deployments or SQLite for tests"
     )
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="PROJECTRAI_",
+        env_prefix="WOOBE_",
         env_file=".env",
         extra="ignore",
     )
 
-    # Runtime identity is fixed by the API/Worker bootstrap, not by deployment topology.
     service_role: str = "api"
+    edition: str = "community"
 
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/projectrai"
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/woobe"
     debug: bool = False
     secret_key: str = ""
     encryption_key: str = Field(default="", min_length=0)
-    auth_issuer: str = "projectrai"
-    auth_audience: str = "projectrai-web"
+    auth_issuer: str = "woobe"
+    auth_audience: str = "woobe-web"
     access_token_ttl_seconds: int = Field(default=900, gt=0, le=3600)
     refresh_token_ttl_days: int = Field(default=30, gt=0, le=90)
     auth_clock_skew_seconds: int = Field(default=30, ge=0, le=300)
-    access_cookie_name: str = "projectrai_access"
+    access_cookie_name: str = "woobe_access"
     access_cookie_secure: bool = False
     access_cookie_same_site: str = "lax"
-    refresh_cookie_name: str = "projectrai_refresh"
+    refresh_cookie_name: str = "woobe_refresh"
     refresh_cookie_secure: bool = False
     refresh_cookie_same_site: str = "lax"
-    csrf_cookie_name: str = "projectrai_csrf"
+    csrf_cookie_name: str = "woobe_csrf"
     csrf_header_name: str = "x-csrf-token"
     login_rate_limit_attempts: int = Field(default=10, gt=0, le=100)
     login_rate_limit_window_seconds: int = Field(default=60, gt=0, le=3600)
@@ -92,8 +92,8 @@ class Settings(BaseSettings):
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     chat_surface_enabled: bool = True
     chat_token_signing_key: str = ""
-    chat_token_issuer: str = "projectrai-chat"
-    chat_token_audience: str = "projectrai-chat-embed"
+    chat_token_issuer: str = "woobe-chat"
+    chat_token_audience: str = "woobe-chat-embed"
     chat_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
     chat_surface_session_create_rate_limit: int = Field(default=30, gt=0, le=10000)
     chat_surface_token_issue_rate_limit: int = Field(default=120, gt=0, le=10000)
@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=10, ge=0, le=200)
     cors_origins: str = (
         "http://localhost:5173,http://127.0.0.1:5173,"
-        "http://localhost:3000,http://127.0.0.1:3000"
+        "http://localhost:8081,http://127.0.0.1:8081"
     )
     trusted_hosts: str = "localhost,127.0.0.1,test"
     environment: str = "development"
@@ -127,11 +127,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     worker_interval: float = 5.0
-    worker_health_file: str = "/tmp/projectrai/worker-health.json"
+    worker_health_file: str = "/tmp/woobe/worker-health.json"
     worker_heartbeat_interval_seconds: float = Field(default=10.0, gt=0, le=60)
     worker_health_max_age_seconds: float = Field(default=45.0, gt=5, le=300)
-    rabbitmq_url: str = "amqp://projectrai:projectrai@localhost:5672/"
-    rabbitmq_exchange: str = "domain.events"
+    rabbitmq_url: str = "amqp://woobe:woobe@localhost:5672/"
+    rabbitmq_exchange: str = "woobe.events"
     redis_url: str | None = None
     redis_connect_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     storage_driver: str = "local"
@@ -148,7 +148,7 @@ class Settings(BaseSettings):
     s3_force_path_style: bool = False
     s3_server_side_encryption: str | None = "AES256"
     mcp_session_cache_enabled: bool = True
-    mcp_session_key_prefix: str = "projectrai:mcp-session"
+    mcp_session_key_prefix: str = "woobe:mcp-session"
     mcp_session_ttl_seconds: int = Field(default=3600, gt=0, le=86400)
     outbox_batch_size: int = 50
     inbox_batch_size: int = 50
@@ -158,6 +158,22 @@ class Settings(BaseSettings):
     retry_base_delay_seconds: float = 1.0
     retry_max_delay_seconds: float = 300.0
     retry_backoff_multiplier: float = 2.0
+
+    @property
+    def is_cloud(self) -> bool:
+        return self.edition == "cloud"
+
+    @property
+    def managed_billing_enabled(self) -> bool:
+        return self.is_cloud
+
+    @field_validator("edition", mode="before")
+    @classmethod
+    def validate_edition(cls, value: object) -> str:
+        normalized = str(value).strip().lower()
+        if normalized not in {"community", "cloud"}:
+            raise ValueError("WOOBE_EDITION must be 'community' or 'cloud'")
+        return normalized
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -177,7 +193,7 @@ class Settings(BaseSettings):
         return _validate_connection_url(
             value,
             schemes={"amqp", "amqps"},
-            variable="PROJECTRAI_RABBITMQ_URL",
+            variable="WOOBE_RABBITMQ_URL",
         )
 
     @field_validator("redis_url")
@@ -191,7 +207,7 @@ class Settings(BaseSettings):
         return _validate_connection_url(
             normalized,
             schemes={"redis", "rediss"},
-            variable="PROJECTRAI_REDIS_URL",
+            variable="WOOBE_REDIS_URL",
         )
 
     @field_validator("s3_endpoint_url")
@@ -205,7 +221,7 @@ class Settings(BaseSettings):
         return _validate_connection_url(
             normalized,
             schemes={"http", "https"},
-            variable="PROJECTRAI_S3_ENDPOINT_URL",
+            variable="WOOBE_S3_ENDPOINT_URL",
         )
 
     @staticmethod
@@ -224,7 +240,7 @@ class Settings(BaseSettings):
         password = (parsed.password or "").lower()
         return (username, password) in {
             ("postgres", "postgres"),
-            ("projectrai", "projectrai"),
+            ("woobe", "woobe"),
             ("guest", "guest"),
         }
 
@@ -236,15 +252,15 @@ class Settings(BaseSettings):
 
         errors: list[str] = []
         if not self.database_url.strip():
-            errors.append("PROJECTRAI_DATABASE_URL is required")
+            errors.append("WOOBE_DATABASE_URL is required")
         if len(self.encryption_key.strip()) < 16:
-            errors.append("PROJECTRAI_ENCRYPTION_KEY must contain at least 16 characters")
+            errors.append("WOOBE_ENCRYPTION_KEY must contain at least 16 characters")
         if role == "api" and len(self.secret_key.strip()) < 32:
-            errors.append("PROJECTRAI_SECRET_KEY must contain at least 32 characters for API")
+            errors.append("WOOBE_SECRET_KEY must contain at least 32 characters for API")
         if role == "worker" and not self.rabbitmq_url.strip():
-            errors.append("PROJECTRAI_RABBITMQ_URL is required for Workers")
+            errors.append("WOOBE_RABBITMQ_URL is required for Workers")
         if self.storage_driver.strip().lower() == "s3" and not (self.s3_bucket or "").strip():
-            errors.append("PROJECTRAI_S3_BUCKET is required when PROJECTRAI_STORAGE_DRIVER=s3")
+            errors.append("WOOBE_S3_BUCKET is required when WOOBE_STORAGE_DRIVER=s3")
         if errors:
             raise ValueError("; ".join(errors))
         return self
@@ -276,44 +292,44 @@ class Settings(BaseSettings):
         role = self.service_role.strip().lower()
         errors: list[str] = []
         if self.debug:
-            errors.append("PROJECTRAI_DEBUG must be false in production")
+            errors.append("WOOBE_DEBUG must be false in production")
         if self._is_weak_secret(self.encryption_key):
-            errors.append("PROJECTRAI_ENCRYPTION_KEY is weak or uses a known placeholder")
+            errors.append("WOOBE_ENCRYPTION_KEY is weak or uses a known placeholder")
         if self._uses_default_credentials(self.database_url):
-            errors.append("PROJECTRAI_DATABASE_URL uses default credentials")
+            errors.append("WOOBE_DATABASE_URL uses default credentials")
         if not self.json_logs:
-            errors.append("PROJECTRAI_JSON_LOGS must be true in production")
+            errors.append("WOOBE_JSON_LOGS must be true in production")
 
         if role == "api":
             if self._is_weak_secret(self.secret_key):
-                errors.append("PROJECTRAI_SECRET_KEY is weak or uses a known placeholder")
+                errors.append("WOOBE_SECRET_KEY is weak or uses a known placeholder")
             if self.chat_surface_enabled:
                 if self._is_weak_secret(self.chat_token_signing_key):
                     errors.append(
-                        "PROJECTRAI_CHAT_TOKEN_SIGNING_KEY is required and must be strong"
+                        "WOOBE_CHAT_TOKEN_SIGNING_KEY is required and must be strong"
                     )
                 elif self.chat_token_signing_key == self.secret_key:
                     errors.append(
-                        "PROJECTRAI_CHAT_TOKEN_SIGNING_KEY must differ from PROJECTRAI_SECRET_KEY"
+                        "WOOBE_CHAT_TOKEN_SIGNING_KEY must differ from WOOBE_SECRET_KEY"
                     )
             if not self.access_cookie_secure:
-                errors.append("PROJECTRAI_ACCESS_COOKIE_SECURE must be true in production")
+                errors.append("WOOBE_ACCESS_COOKIE_SECURE must be true in production")
             if not self.refresh_cookie_secure:
-                errors.append("PROJECTRAI_REFRESH_COOKIE_SECURE must be true in production")
+                errors.append("WOOBE_REFRESH_COOKIE_SECURE must be true in production")
 
             origins = [item.strip() for item in self.cors_origins.split(",") if item.strip()]
             if not origins or "*" in origins:
-                errors.append("PROJECTRAI_CORS_ORIGINS must contain exact origins")
+                errors.append("WOOBE_CORS_ORIGINS must contain exact origins")
             if any(origin.startswith("http://") for origin in origins):
-                errors.append("PROJECTRAI_CORS_ORIGINS must use HTTPS in production")
+                errors.append("WOOBE_CORS_ORIGINS must use HTTPS in production")
 
             trusted_hosts = [
                 item.strip() for item in self.trusted_hosts.split(",") if item.strip()
             ]
             if not trusted_hosts or "*" in trusted_hosts:
-                errors.append("PROJECTRAI_TRUSTED_HOSTS must contain exact hostnames")
+                errors.append("WOOBE_TRUSTED_HOSTS must contain exact hostnames")
         elif role == "worker" and self._uses_default_credentials(self.rabbitmq_url):
-            errors.append("PROJECTRAI_RABBITMQ_URL uses default credentials")
+            errors.append("WOOBE_RABBITMQ_URL uses default credentials")
 
         if errors:
             raise ValueError("; ".join(errors))

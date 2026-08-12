@@ -86,12 +86,16 @@ def create_app() -> FastAPI:
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
-        extra={"environment": settings.environment, "service_role": settings.service_role},
+        extra={
+            "environment": settings.environment,
+            "edition": settings.edition,
+            "service_role": settings.service_role,
+        },
     )
 
     app = FastAPI(
-        title="ProjectRAI",
-        description="Runtime AI Platform - Production-ready AI agent runtime",
+        title="Woobe",
+        description="Control plane and runtime for versioned AI products",
         version="0.1.0",
     )
 
@@ -262,7 +266,8 @@ def create_app() -> FastAPI:
         app.include_router(tool_lifecycle_router)
         app.include_router(mcp_tools_router)
         app.include_router(metering_router)
-        app.include_router(billing_router)
+        if settings.managed_billing_enabled:
+            app.include_router(billing_router)
         app.include_router(observability_router)
         app.include_router(network_router)
     finally:
@@ -273,17 +278,17 @@ def create_app() -> FastAPI:
         engine = app.state.async_engine
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("API runtime started without background workers")
+        logger.info("Woobe API runtime started without background workers")
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await close_http_tool_executor()
         await app.state.async_engine.dispose()
-        logger.info("API runtime stopped")
+        logger.info("Woobe API runtime stopped")
 
     @app.get("/live", include_in_schema=False)
     async def live():
-        return {"status": "ok", "runtime": "api"}
+        return {"status": "ok", "runtime": "api", "product": "woobe"}
 
     @app.get("/health", include_in_schema=False)
     async def health():
@@ -309,7 +314,6 @@ app = create_app()
 
 
 async def _main() -> None:
-    # Allows `python -m src.main` smoke imports without starting uvicorn.
     await asyncio.sleep(0)
 
 
