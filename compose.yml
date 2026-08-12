@@ -1,4 +1,4 @@
-name: woobe-community
+name: woobe
 
 x-runtime-environment: &runtime-environment
   WOOBE_EDITION: community
@@ -32,10 +32,14 @@ x-runtime-environment: &runtime-environment
 x-runtime-service: &runtime-service
   build: .
   restart: unless-stopped
+  env_file:
+    - .env
   environment:
     <<: *runtime-environment
   volumes:
     - woobe_uploads:/app/storage/uploads
+  security_opt:
+    - no-new-privileges:true
 
 services:
   db:
@@ -69,6 +73,8 @@ services:
 
   migrate:
     build: .
+    env_file:
+      - .env
     environment:
       WOOBE_POSTGRES_URL: ${WOOBE_POSTGRES_URL:?Run scripts/generate_self_host_env.py}
     command: ["alembic", "upgrade", "head"]
@@ -82,19 +88,19 @@ services:
     environment:
       <<: *runtime-environment
       WOOBE_SECRET_KEY: ${WOOBE_SECRET_KEY:?Run scripts/generate_self_host_env.py}
-      WOOBE_AUTH_ISSUER: woobe
-      WOOBE_AUTH_AUDIENCE: woobe-web
-      WOOBE_ACCESS_COOKIE_NAME: woobe_access
-      WOOBE_REFRESH_COOKIE_NAME: woobe_refresh
-      WOOBE_CSRF_COOKIE_NAME: woobe_csrf
+      WOOBE_AUTH_ISSUER: ${WOOBE_AUTH_ISSUER:-woobe}
+      WOOBE_AUTH_AUDIENCE: ${WOOBE_AUTH_AUDIENCE:-woobe-web}
+      WOOBE_ACCESS_COOKIE_NAME: ${WOOBE_ACCESS_COOKIE_NAME:-woobe_access}
+      WOOBE_REFRESH_COOKIE_NAME: ${WOOBE_REFRESH_COOKIE_NAME:-woobe_refresh}
+      WOOBE_CSRF_COOKIE_NAME: ${WOOBE_CSRF_COOKIE_NAME:-woobe_csrf}
       WOOBE_ACCESS_COOKIE_SECURE: ${WOOBE_ACCESS_COOKIE_SECURE:-false}
       WOOBE_REFRESH_COOKIE_SECURE: ${WOOBE_REFRESH_COOKIE_SECURE:-false}
       WOOBE_CORS_ORIGINS: ${WOOBE_CORS_ORIGINS:?Run scripts/generate_self_host_env.py}
       WOOBE_TRUSTED_HOSTS: ${WOOBE_TRUSTED_HOSTS:-localhost,127.0.0.1}
       WOOBE_CHAT_SURFACE_ENABLED: "true"
       WOOBE_CHAT_TOKEN_SIGNING_KEY: ${WOOBE_CHAT_TOKEN_SIGNING_KEY:?Run scripts/generate_self_host_env.py}
-      WOOBE_CHAT_TOKEN_ISSUER: woobe-chat
-      WOOBE_CHAT_TOKEN_AUDIENCE: woobe-chat-embed
+      WOOBE_CHAT_TOKEN_ISSUER: ${WOOBE_CHAT_TOKEN_ISSUER:-woobe-chat}
+      WOOBE_CHAT_TOKEN_AUDIENCE: ${WOOBE_CHAT_TOKEN_AUDIENCE:-woobe-chat-embed}
     ports:
       - "${WOOBE_PORT:-8000}:8000"
     depends_on:
@@ -112,8 +118,8 @@ services:
     environment:
       <<: *runtime-environment
       WOOBE_RABBITMQ_URL: ${WOOBE_RABBITMQ_URL:?Run scripts/generate_self_host_env.py}
-      WOOBE_RABBITMQ_EXCHANGE: woobe.events
-      WOOBE_WORKER_HEALTH_FILE: /tmp/woobe/worker-health.json
+      WOOBE_RABBITMQ_EXCHANGE: ${WOOBE_RABBITMQ_EXCHANGE:-woobe.events}
+      WOOBE_WORKER_HEALTH_FILE: ${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -133,6 +139,8 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   chat-embed:
     build:
@@ -140,6 +148,8 @@ services:
     ports:
       - "${WOOBE_CHAT_EMBED_PORT:-8081}:8080"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   woobe_postgres:
