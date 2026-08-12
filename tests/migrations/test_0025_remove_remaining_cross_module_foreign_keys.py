@@ -1,13 +1,16 @@
-"""Tests for migration 0025: remove remaining cross-module FKs."""
+"""Tests for migration 0025: remove remaining cross-module FKs.
+
+Covers: metadata scan for no cross-module FK in model definitions,
+migration structure, FK names.
+"""
 import importlib
 
 MIGRATION_ID = "0025"
 
 
 def _get_migration():
-    return importlib.import_module(
-        f"migrations.versions.{MIGRATION_ID}_remove_remaining_cross_module_foreign_keys"
-    )
+    module_path = f"migrations.versions.{MIGRATION_ID}_remove_remaining_cross_module_foreign_keys"
+    return importlib.import_module(module_path)
 
 
 class TestMigrationStructure:
@@ -17,15 +20,21 @@ class TestMigrationStructure:
         assert migration.down_revision == "0024"
 
     def test_cross_module_fk_list_has_9_entries(self):
-        assert len(_get_migration().CROSS_MODULE_FKS) == 9
+        migration = _get_migration()
+        assert len(migration.CROSS_MODULE_FKS) == 9
 
     def test_all_fk_names_are_plausible(self):
-        for schema, table, column, fk_name in _get_migration().CROSS_MODULE_FKS:
+        migration = _get_migration()
+        for schema, table, column, fk_name in migration.CROSS_MODULE_FKS:
             assert fk_name.endswith("_fkey")
-            assert schema and table and column
+            assert schema
+            assert table
+            assert column
 
 
 class TestMetadataScan:
+    """No cross-module ForeignKey must remain in model definitions."""
+
     def test_core_no_cross_module_fk(self):
         from modules.core.infra.database.models import ProjectModel, ApiKeyModel
         assert "ForeignKey" not in str(ProjectModel.__table__.columns["organization_id"].foreign_keys)
@@ -45,13 +54,13 @@ class TestMetadataScan:
     def test_observability_no_cross_module_fk(self):
         from modules.observability.infra.database.models import TraceModel, TraceEventModel
         assert len(TraceModel.__table__.foreign_keys) == 0
-        assert len(TraceEventModel.__table__.foreign_keys) == 1
+        assert len(TraceEventModel.__table__.foreign_keys) == 1  # trace_id is internal
 
     def test_internal_fks_preserved(self):
         from modules.core.infra.database.models import ApiKeyModel
         from editions.cloud.billing.infra.database.models import SubscriptionModel
         from modules.observability.infra.database.models import TraceEventModel
-        assert len(ApiKeyModel.__table__.foreign_keys) == 1
-        assert len(SubscriptionModel.__table__.foreign_keys) == 2
+        assert len(ApiKeyModel.__table__.foreign_keys) == 1  # project_id -> core.projects
+        assert len(SubscriptionModel.__table__.foreign_keys) == 2  # customer_id, plan_id
         internal_fk = list(TraceEventModel.__table__.foreign_keys)[0]
         assert "observability.traces" in str(internal_fk)
