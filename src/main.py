@@ -31,6 +31,7 @@ from modules.billing.presentation.routes import router as billing_router
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
+from modules.identity.presentation.instance_routes import router as instance_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
@@ -246,6 +247,10 @@ def create_app() -> FastAPI:
         Exception,
         cast(ExceptionHandler, unhandled_exception_handler),
     )
+
+    # Instance status/bootstrap is intentionally public and has a narrow router.
+    # Community bootstrap applies its own singleton and registration policies.
+    app.include_router(instance_router)
 
     security_dependency = Depends(enforce_request_security)
     app.router.dependencies.append(security_dependency)

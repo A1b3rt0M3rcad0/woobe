@@ -9,6 +9,7 @@ from modules.identity.application.composers.get_user_composer import get_user_co
 from modules.identity.application.composers.update_organization_composer import (
     update_organization_composer,
 )
+from modules.identity.application.instance_service import InstanceService
 from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.auth_endpoints import (
     authentication_service,
@@ -40,6 +41,14 @@ def _principal_user_id(request: FastAPIRequest) -> UUID:
 
 def _organization_access(request: FastAPIRequest) -> OrganizationAccessService:
     return OrganizationAccessService(request.app.state.session_factory)
+
+
+def _instance_service(request: FastAPIRequest) -> InstanceService:
+    return InstanceService(
+        request.app.state.session_factory,
+        request.app.state.access_token_codec,
+        request.app.state.settings,
+    )
 
 
 def _uuid(value: str, field: str) -> UUID:
@@ -97,6 +106,11 @@ async def login(request: FastAPIRequest):
 
 @router.post("/auth/register")
 async def register(request: FastAPIRequest):
+    payload = dict(await request.json())
+    email = payload.get("email")
+    if not isinstance(email, str) or not email.strip():
+        raise ValidationError("Registration email is required")
+    await _instance_service(request).ensure_registration_allowed(email)
     return await register_endpoint(request)
 
 
