@@ -1,0 +1,359 @@
+name: woobe-test
+
+x-runtime-environment: &runtime-environment
+  WOOBE_EDITION: community
+  WOOBE_ENVIRONMENT: test
+  WOOBE_DEBUG: "false"
+  WOOBE_JSON_LOGS: "false"
+  WOOBE_METRICS_ENABLED: "true"
+  WOOBE_LOG_LEVEL: INFO
+  WOOBE_DATABASE_URL: postgresql://woobe_test:woobe_test_password@pgbouncer:6432/woobe_test
+  WOOBE_POSTGRES_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
+  WOOBE_SECRET_KEY: woobe-test-secret-key-at-least-32-characters
+  WOOBE_ENCRYPTION_KEY: woobe-test-encryption-key-at-least-32-characters
+  WOOBE_CHAT_TOKEN_SIGNING_KEY: woobe-test-chat-signing-key-at-least-32-characters
+  WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
+  WOOBE_RABBITMQ_EXCHANGE: woobe.test.events
+  WOOBE_REDIS_URL: redis://redis:6379/2
+  WOOBE_MCP_SESSION_CACHE_ENABLED: "true"
+  WOOBE_STORAGE_DRIVER: s3
+  WOOBE_S3_BUCKET: woobe-e2e
+  WOOBE_S3_REGION: us-east-1
+  WOOBE_S3_ENDPOINT_URL: http://minio:9000
+  WOOBE_S3_FORCE_PATH_STYLE: "true"
+  AWS_ACCESS_KEY_ID: woobe_test
+  AWS_SECRET_ACCESS_KEY: woobe_test_object_storage_key
+  WOOBE_CORS_ORIGINS: http://web:8080
+  WOOBE_TRUSTED_HOSTS: api,localhost,127.0.0.1
+  WOOBE_ACCESS_COOKIE_SECURE: "false"
+  WOOBE_REFRESH_COOKIE_SECURE: "false"
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: woobe_test
+      POSTGRES_PASSWORD: woobe_test_password
+      POSTGRES_DB: woobe_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U woobe_test -d woobe_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: "no"
+
+  db-backend:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: woobe_test
+      POSTGRES_PASSWORD: woobe_test_password
+      POSTGRES_DB: woobe_backend_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U woobe_test -d woobe_backend_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: woobe_test
+      RABBITMQ_DEFAULT_PASS: woobe_test_password
+    tmpfs:
+      - /var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: "no"
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    environment:
+      DATABASE_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
+      PGBOUNCER_CLIENT_URL: postgresql://woobe_test:woobe_test_password@pgbouncer:6432/woobe_test
+      LISTEN_ADDR: "0.0.0.0"
+      LISTEN_PORT: "6432"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "200"
+      DEFAULT_POOL_SIZE: "20"
+      RESERVE_POOL_SIZE: "5"
+      MAX_DB_CONNECTIONS: "30"
+      AUTH_TYPE: scram-sha-256
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "psql \"$${PGBOUNCER_CLIENT_URL}\" -tAc 'SELECT 1' | grep -qx 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: "no"
+
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: woobe_test
+      MINIO_ROOT_PASSWORD: woobe_test_object_storage_key
+    tmpfs:
+      - /data
+    restart: "no"
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    environment:
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: woobe_test
+      MINIO_ROOT_PASSWORD: woobe_test_object_storage_key
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        until mc alias set local "$${MINIO_URL}" "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 1; done;
+        mc mb --ignore-existing local/woobe-e2e
+    depends_on:
+      - minio
+    restart: "no"
+
+  fake-llm:
+    build:
+      context: .
+      target: test
+    pull_policy: build
+    command: ["uvicorn", "tests.fakes.openai_provider:app", "--host", "0.0.0.0", "--port", "9009"]
+    environment:
+      PYTHONPATH: /app/src:/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9009/health', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: "no"
+
+  migrate:
+    build:
+      context: .
+    pull_policy: build
+    environment:
+      WOOBE_EDITION: community
+      WOOBE_POSTGRES_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+    pull_policy: build
+    environment:
+      <<: *runtime-environment
+      WOOBE_SERVICE_ROLE: api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      fake-llm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: "no"
+
+  workers:
+    build:
+      context: .
+    pull_policy: build
+    command: ["python", "-m", "src.worker_main"]
+    environment:
+      <<: *runtime-environment
+      WOOBE_SERVICE_ROLE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      fake-llm:
+        condition: service_healthy
+    restart: "no"
+
+  chat-embed:
+    build:
+      context: embed
+    pull_policy: build
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/chat/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
+  web:
+    build:
+      context: web
+      args:
+        VITE_API_URL: http://api:8000
+        VITE_CHAT_EMBED_URL: http://chat-embed:8080
+        VITE_WOOBE_EDITION: community
+    pull_policy: build
+    depends_on:
+      api:
+        condition: service_healthy
+      chat-embed:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
+  backend-tests:
+    build:
+      context: .
+      target: test
+    pull_policy: build
+    environment:
+      WOOBE_EDITION: community
+      WOOBE_ENVIRONMENT: test
+      WOOBE_DEBUG: "false"
+      WOOBE_DATABASE_URL: postgresql://woobe_test:woobe_test_password@db-backend:5432/woobe_backend_test
+      WOOBE_POSTGRES_URL: postgresql://woobe_test:woobe_test_password@db-backend:5432/woobe_backend_test
+      WOOBE_SECRET_KEY: woobe-backend-test-secret-key-at-least-32-characters
+      WOOBE_ENCRYPTION_KEY: woobe-backend-test-encryption-key-at-least-32-characters
+      WOOBE_CHAT_TOKEN_SIGNING_KEY: woobe-backend-test-chat-key-at-least-32-characters
+      WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
+      PYTHONPATH: /app/src:/app
+    depends_on:
+      db-backend:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      fake-llm:
+        condition: service_healthy
+    volumes:
+      - ./.test-artifacts:/artifacts
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        set -eu;
+        ruff check src tests migrations;
+        pyright src migrations;
+        alembic upgrade head;
+        alembic current;
+        alembic check;
+        alembic downgrade -1;
+        alembic upgrade head;
+        alembic check;
+        python -m pytest -q --junitxml=/artifacts/backend-pytest.xml
+    restart: "no"
+
+  frontend-tests:
+    build:
+      context: web
+      target: test
+    pull_policy: build
+    environment:
+      VITE_API_URL: http://api:8000
+      VITE_CHAT_EMBED_URL: http://chat-embed:8080
+      VITE_WOOBE_EDITION: community
+    command: ["/bin/sh", "-c", "npm run test:run && npm run build"]
+    restart: "no"
+
+  web-preview:
+    build:
+      context: web
+      target: test
+    pull_policy: build
+    environment:
+      VITE_API_URL: http://web-preview:4173
+      VITE_CHAT_EMBED_URL: http://chat-embed:8080
+      VITE_WOOBE_EDITION: community
+    command: ["/bin/sh", "-c", "npm run build && npm run preview -- --host 0.0.0.0 --port 4173"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4173"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
+  browser-mocked:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    pull_policy: build
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://web-preview:4173
+    depends_on:
+      web-preview:
+        condition: service_healthy
+    volumes:
+      - ./.test-artifacts/playwright-mocked:/workspace/e2e/playwright-report
+      - ./.test-artifacts/playwright-mocked-results:/workspace/e2e/test-results
+    command: ["npx", "playwright", "test", "--config", "playwright.config.ts"]
+    restart: "no"
+
+  browser-e2e:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    pull_policy: build
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://web:8080
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    volumes:
+      - ./.test-artifacts/playwright-fullstack:/workspace/e2e/playwright-report-fullstack
+      - ./.test-artifacts/playwright-fullstack-results:/workspace/e2e/test-results
+    command: ["npx", "playwright", "test", "--config", "fullstack.config.ts"]
+    restart: "no"
+
+  tests:
+    image: alpine:3.21
+    depends_on:
+      backend-tests:
+        condition: service_completed_successfully
+      frontend-tests:
+        condition: service_completed_successfully
+      browser-mocked:
+        condition: service_completed_successfully
+      browser-e2e:
+        condition: service_completed_successfully
+    command: ["/bin/sh", "-c", "echo 'Woobe validation completed successfully.'"]
+    restart: "no"
