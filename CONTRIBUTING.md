@@ -19,6 +19,8 @@ Business rules belong in the backend. Frontend checks must not be the only barri
 
 The primary technical isolation unit is Project. Organization is the commercial/membership unit. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
 
+Community/Core code lives under `src/modules/**` and `src/shared/**`; edition-specific backend code lives under `src/editions/**`. Cloud or future Enterprise code may depend on the shared core, but shared core packages must not import edition packages. Frontend code follows the same direction: edition-specific UI belongs under `web/src/editions/**`, with edition composition performed from `web/src/app/**` rather than from shared features.
+
 ## Scope discipline
 
 Do not combine unrelated refactors with a feature or fix. Avoid helpers, reexports or abstractions that only move code without reducing a concrete problem.

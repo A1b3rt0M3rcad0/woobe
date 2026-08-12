@@ -32,9 +32,13 @@ Cloud      = Core + Cloud edition modules
 Enterprise = Core + explicitly licensed Enterprise modules, when they exist
 ```
 
-Shared operational code belongs under `src/modules/**` and common frontend features under `web/src/features/**`. Code that exists only to operate the Woobe-managed Cloud belongs under `src/editions/cloud/**` or `web/src/editions/cloud/**`.
+Shared operational code belongs under `src/modules/**` and `src/shared/**`; common frontend product code belongs outside `web/src/editions/**`. Code that exists only to operate the Woobe-managed Cloud belongs under `src/editions/cloud/**` or `web/src/editions/cloud/**`.
 
-Cloud modules may depend on the shared core. The shared core must not require Cloud modules when `WOOBE_EDITION=community`. API routing and Worker registry discovery enforce the edition boundary at runtime. Billing is currently the only Cloud-specific bounded context.
+Cloud modules may depend on the shared core. The reverse dependency is forbidden: Community/Core backend packages must not import edition packages, and Community/Core frontend code must not import edition-specific UI. Edition selection belongs in explicit composition roots such as `src/main.py`, `src/worker_main.py`, `migrations/env.py`, and `web/src/app/**`.
+
+Architecture tests under `tests/architecture/` enforce this dependency direction so adding a new Cloud or future Enterprise capability cannot silently couple the Community runtime to a commercial edition.
+
+The shared core must not require Cloud modules when `WOOBE_EDITION=community`. API routing, Worker registry composition, Alembic metadata selection, and frontend routing enforce the edition boundary at runtime. Billing is currently the only Cloud-specific bounded context.
 
 No empty Enterprise implementation tree is maintained. Enterprise directories should be introduced only with real Enterprise capabilities and an explicit edition-specific license.
 
