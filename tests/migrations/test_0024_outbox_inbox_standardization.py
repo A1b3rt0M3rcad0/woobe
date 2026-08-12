@@ -158,7 +158,7 @@ class TestFreshInstallSchema:
             )
 
     def test_billing_outbox_has_canonical_constraints(self):
-        from modules.billing.infra.database.models import OutboxEventModel
+        from editions.cloud.billing.infra.database.models import OutboxEventModel
         args = OutboxEventModel.__table_args__
         flat = _flatten_table_args(args)
         names = {getattr(c, "name", None) or str(c) for c in flat}
