@@ -23,6 +23,15 @@ cleanup() {
   compose down -v --remove-orphans >/dev/null 2>&1 || true
 }
 
+finish() {
+  status=$?
+  trap - EXIT
+  if [ "${WOOBE_TEST_KEEP_STACK:-0}" != "1" ]; then
+    cleanup
+  fi
+  exit "$status"
+}
+
 run_backend() {
   compose build backend-tests fake-llm
   compose run --rm backend-tests
@@ -61,23 +70,23 @@ prepare_artifacts
 
 case "$command" in
   backend)
-    trap cleanup EXIT INT TERM
+    trap finish EXIT
     run_backend
     ;;
   frontend)
-    trap cleanup EXIT INT TERM
+    trap finish EXIT
     run_frontend
     ;;
   mocked)
-    trap cleanup EXIT INT TERM
+    trap finish EXIT
     run_mocked_browser
     ;;
   e2e)
-    trap cleanup EXIT INT TERM
+    trap finish EXIT
     run_fullstack_e2e
     ;;
   all)
-    trap cleanup EXIT INT TERM
+    trap finish EXIT
     cleanup
     run_backend
     run_frontend

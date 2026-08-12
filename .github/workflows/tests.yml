@@ -24,10 +24,13 @@ jobs:
           -f deploy/test/compose.yml
           config --quiet
       - name: Run reproducible validation stack
+        env:
+          WOOBE_TEST_KEEP_STACK: "1"
         run: sh scripts/test.sh all
       - name: Capture Compose diagnostics
         if: failure()
         run: |
+          mkdir -p .test-artifacts
           docker compose \
             --env-file deploy/test/test.env \
             -p woobe-test \
