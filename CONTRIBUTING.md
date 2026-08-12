@@ -35,7 +35,17 @@ Durable architecture decisions belong in `docs/adr/`. Current product behavior b
 
 ## Quality
 
-The repository contains manual backend, frontend, container, acceptance, security and release workflows. Run only the checks relevant to your change locally; repository workflows are intentionally executed when validation is requested.
+Local code validation and the manual GitHub test workflow use the same Compose contract. The test topology combines `compose.yaml`, `deploy/dev/compose.yml`, and `deploy/test/compose.yml`; it is a validation environment, not a self-host distribution.
+
+Run the complete validation stack with:
+
+```bash
+sh scripts/test.sh all
+```
+
+Focused suites are available as `backend`, `frontend`, `mocked`, and `e2e`. Backend validation includes Ruff, Pyright, migration upgrade/check/rollback and the complete Python test suite. Frontend validation runs Vitest and a production build. Browser validation keeps the deterministic mocked suite and also runs a real-stack Playwright bootstrap flow against API, Web, Workers, PostgreSQL, RabbitMQ, Redis, MinIO, PgBouncer and the deterministic fake LLM service.
+
+The manual `.github/workflows/tests.yml` workflow invokes this same contract. Container, release acceptance, security and release workflows remain separate because they validate distribution artifacts and release-specific guarantees rather than the development test environment. Repository workflows are intentionally executed only when validation is requested.
 
 ## Licensing contributions
 

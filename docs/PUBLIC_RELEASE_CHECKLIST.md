@@ -6,6 +6,7 @@ This checklist is a release gate for making the Woobe repository and Community d
 
 - [ ] Root `compose.yaml` is the only supported default Community self-host contract.
 - [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
+- [ ] Test-only infrastructure is explicit under `deploy/test/`, composes on top of Community/development contracts, and is not presented as a product distribution.
 - [ ] No `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
 - [ ] Exactly one pull request template exists under `.github/`.
 - [ ] Browser acceptance tests use the root `e2e/` package; Python tests use the taxonomy under `tests/` without a competing `tests/e2e/` namespace.
@@ -39,10 +40,10 @@ Do not make the repository public while this section is incomplete.
 
 ## Quality and security
 
-- [ ] Run the manual backend workflow: Ruff, Pyright, migration validation, and pytest.
-- [ ] Run the manual frontend workflow: tests and production build.
-- [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
-- [ ] Run the manual acceptance workflow: backend acceptance, browser E2E, and production-shaped Community smoke.
+- [ ] Run the manual test workflow, which must execute `scripts/test.sh all` through `deploy/test/compose.yml` and cover backend quality/tests, frontend tests/build, mocked browser flows, and real-stack Playwright E2E.
+- [ ] Confirm the test Compose contract uses deterministic local dependencies and does not require real model-provider credentials.
+- [ ] Run the manual container workflow: production image builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
+- [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the supported root `compose.yaml` distribution.
 - [ ] Run the manual security workflow, including full-history secret scanning.
 - [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
 

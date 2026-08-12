@@ -1,6 +1,6 @@
 # Optional contributor topology.
 # Use together with the root Community compose:
-# docker compose -f compose.yml -f deploy/dev/compose.yml up -d --build
+# docker compose -f compose.yaml -f deploy/dev/compose.yml up -d --build
 
 services:
   pgbouncer:
