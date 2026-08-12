@@ -4,14 +4,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
-from modules.billing.domain.repositories import (
+from editions.cloud.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
+from editions.cloud.billing.domain.repositories import (
     CustomerRepository,
     PaymentEventRepository,
     PlanRepository,
     SubscriptionRepository,
 )
-from modules.billing.infra.database.mappers import (
+from editions.cloud.billing.infra.database.mappers import (
     customer_entity_to_model,
     customer_model_to_entity,
     payment_event_entity_to_model,
@@ -21,7 +21,7 @@ from modules.billing.infra.database.mappers import (
     subscription_entity_to_model,
     subscription_model_to_entity,
 )
-from modules.billing.infra.database.models import (
+from editions.cloud.billing.infra.database.models import (
     CustomerModel,
     OutboxEventModel,
     PaymentEventModel,

@@ -2,8 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.billing.application.composers.list_plans_composer import list_plans_composer
-from modules.billing.application.composers.get_organization_subscription_composer import get_organization_subscription_composer
+from editions.cloud.billing.application.composers.list_plans_composer import list_plans_composer
+from editions.cloud.billing.application.composers.get_organization_subscription_composer import get_organization_subscription_composer
 from shared.infra.errors import AuthenticationError, AuthorizationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 from shared.security.organization_access import OrganizationAccessService

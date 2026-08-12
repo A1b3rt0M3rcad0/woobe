@@ -6,7 +6,7 @@ from uuid import UUID
 
 import uuid6
 
-from modules.billing.domain.enums import (
+from editions.cloud.billing.domain.enums import (
     BillingInterval,
     BillingProvider,
     PaymentEventStatus,

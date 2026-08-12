@@ -1,12 +1,12 @@
-from modules.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
-from modules.billing.domain.enums import (
+from editions.cloud.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
+from editions.cloud.billing.domain.enums import (
     BillingInterval,
     BillingProvider,
     PaymentEventStatus,
     PlanStatus,
     SubscriptionStatus,
 )
-from modules.billing.infra.database.models import (
+from editions.cloud.billing.infra.database.models import (
     CustomerModel,
     PaymentEventModel,
     PlanModel,

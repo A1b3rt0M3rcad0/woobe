@@ -9,8 +9,8 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from modules.billing.infra.database.models import OutboxEventModel
-from modules.billing.infra.messaging.event_mappers import (
+from editions.cloud.billing.infra.database.models import OutboxEventModel
+from editions.cloud.billing.infra.messaging.event_mappers import (
     RabbitMQMessageEnvelope,
     outbox_to_rabbit_message,
 )

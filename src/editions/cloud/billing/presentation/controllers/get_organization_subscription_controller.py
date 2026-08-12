@@ -1,5 +1,5 @@
-from modules.billing.application.use_cases import GetOrganizationSubscriptionUseCase
-from modules.billing.application.dtos import GetOrganizationSubscriptionInput
+from editions.cloud.billing.application.use_cases import GetOrganizationSubscriptionUseCase
+from editions.cloud.billing.application.dtos import GetOrganizationSubscriptionInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

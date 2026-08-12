@@ -1,14 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.billing.infra.database.repositories import (
+from editions.cloud.billing.infra.database.repositories import (
     SQLAlchemyCustomerRepository,
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyPlanRepository,
     SQLAlchemySubscriptionRepository,
 )
-from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
-from modules.billing.application.use_cases import CreateSubscriptionUseCase
-from modules.billing.presentation.controllers.create_subscription_controller import CreateSubscriptionController
+from editions.cloud.billing.infra.database.unit_of_work import BillingUnitOfWork
+from editions.cloud.billing.application.use_cases import CreateSubscriptionUseCase
+from editions.cloud.billing.presentation.controllers.create_subscription_controller import CreateSubscriptionController
 from shared.infra.transactional_handler import TransactionalHandler
 
 

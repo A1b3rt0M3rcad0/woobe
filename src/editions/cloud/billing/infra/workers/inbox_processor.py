@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from modules.billing.infra.database.models import InboxEventModel
+from editions.cloud.billing.infra.database.models import InboxEventModel
 from shared.workers.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
 
 logger = logging.getLogger(__name__)

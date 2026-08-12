@@ -1,20 +1,20 @@
 from datetime import UTC, datetime
 
-from modules.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
-from modules.billing.domain.enums import (
+from editions.cloud.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
+from editions.cloud.billing.domain.enums import (
     BillingInterval,
     BillingProvider,
     PaymentEventStatus,
     PlanStatus,
     SubscriptionStatus,
 )
-from modules.billing.domain.repositories import (
+from editions.cloud.billing.domain.repositories import (
     CustomerRepository,
     PaymentEventRepository,
     PlanRepository,
     SubscriptionRepository,
 )
-from modules.billing.application.dtos.billing_dtos import (
+from editions.cloud.billing.application.dtos.billing_dtos import (
     CreateCustomerInput,
     CreateCustomerOutput,
     CreatePaymentEventInput,

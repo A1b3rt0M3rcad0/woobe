@@ -1,4 +1,4 @@
-from modules.billing.application.dtos.billing_dtos import (
+from editions.cloud.billing.application.dtos.billing_dtos import (
     CreateCustomerInput,
     CreateCustomerOutput,
     CreatePaymentEventInput,

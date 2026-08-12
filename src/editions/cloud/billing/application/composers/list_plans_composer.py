@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.billing.infra.database.repositories import SQLAlchemyPlanRepository
-from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
-from modules.billing.application.use_cases import ListActivePlansUseCase
-from modules.billing.presentation.controllers.list_plans_controller import ListPlansController
+from editions.cloud.billing.infra.database.repositories import SQLAlchemyPlanRepository
+from editions.cloud.billing.infra.database.unit_of_work import BillingUnitOfWork
+from editions.cloud.billing.application.use_cases import ListActivePlansUseCase
+from editions.cloud.billing.presentation.controllers.list_plans_controller import ListPlansController
 from shared.infra.transactional_handler import TransactionalHandler
 
 

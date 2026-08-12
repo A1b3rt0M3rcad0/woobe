@@ -4,7 +4,7 @@ import logging
 
 from aio_pika import DeliveryMode, Message
 
-from modules.billing.infra.messaging.event_mappers import RabbitMQMessageEnvelope
+from editions.cloud.billing.infra.messaging.event_mappers import RabbitMQMessageEnvelope
 from shared.infra.rabbitmq import RabbitMQManager
 
 logger = logging.getLogger(__name__)

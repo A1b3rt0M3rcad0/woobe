@@ -4,8 +4,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.billing.infra.messaging.publishers import BillingRabbitMQPublisher
-from modules.billing.infra.workers.outbox_dispatcher import BillingOutboxDispatcherWorker
+from editions.cloud.billing.infra.messaging.publishers import BillingRabbitMQPublisher
+from editions.cloud.billing.infra.workers.outbox_dispatcher import BillingOutboxDispatcherWorker
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 

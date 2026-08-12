@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from modules.billing.infra.messaging.event_mappers import rabbit_message_to_inbox
+from editions.cloud.billing.infra.messaging.event_mappers import rabbit_message_to_inbox
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 

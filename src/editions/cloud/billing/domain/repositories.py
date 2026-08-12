@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from modules.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
+from editions.cloud.billing.domain.entities import Customer, PaymentEvent, Plan, Subscription
 
 
 class PlanRepository(ABC):

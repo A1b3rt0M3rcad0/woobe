@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from modules.billing.infra.database.models import InboxEventModel, OutboxEventModel
+from editions.cloud.billing.infra.database.models import InboxEventModel, OutboxEventModel
 
 
 @dataclass(frozen=True)

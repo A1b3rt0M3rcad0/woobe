@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
-from modules.billing.infra.database.repositories import (
+from editions.cloud.billing.infra.database.repositories import (
     SQLAlchemyCustomerRepository,
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyPaymentEventRepository,

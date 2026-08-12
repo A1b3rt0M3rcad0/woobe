@@ -1,4 +1,4 @@
-from modules.billing.infra.database.models import (
+from editions.cloud.billing.infra.database.models import (
     CustomerModel,
     InboxEventModel,
     OutboxEventModel,
@@ -6,14 +6,14 @@ from modules.billing.infra.database.models import (
     PlanModel,
     SubscriptionModel,
 )
-from modules.billing.infra.database.repositories import (
+from editions.cloud.billing.infra.database.repositories import (
     SQLAlchemyCustomerRepository,
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyPaymentEventRepository,
     SQLAlchemyPlanRepository,
     SQLAlchemySubscriptionRepository,
 )
-from modules.billing.infra.database.unit_of_work import BillingUnitOfWork
+from editions.cloud.billing.infra.database.unit_of_work import BillingUnitOfWork
 
 __all__ = [
     "BillingUnitOfWork",
