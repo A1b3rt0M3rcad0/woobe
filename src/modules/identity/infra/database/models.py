@@ -113,12 +113,25 @@ class InstanceSettingsModel(Base):
     )
 
     id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
-    owner_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
-    initialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    signup_mode: Mapped[str] = mapped_column(String(32), default="invite_only", server_default="invite_only")
-    telemetry_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    owner_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("identity.users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    initialized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    signup_mode: Mapped[str] = mapped_column(
+        String(32), default="invite_only", server_default="invite_only"
+    )
+    telemetry_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class OutboxEventModel(BaseOutbox):
