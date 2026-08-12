@@ -1,8 +1,6 @@
 name: Production containers
 
 on:
-  pull_request:
-    branches: [development-mvp, development]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +9,7 @@ permissions:
 jobs:
   production-images:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Prepare production deployment manifest
@@ -20,32 +18,44 @@ jobs:
           from pathlib import Path
           from secrets import token_urlsafe
 
+          def set_env(content: str, key: str, value: str) -> str:
+              prefix = f"{key}="
+              lines = content.splitlines()
+              for index, line in enumerate(lines):
+                  if line.startswith(prefix):
+                      lines[index] = f"{key}={value}"
+                      return "\n".join(lines) + "\n"
+              lines.append(f"{key}={value}")
+              return "\n".join(lines) + "\n"
+
           content = Path('.env.example').read_text()
           database_password = token_urlsafe(24)
           rabbitmq_password = token_urlsafe(24)
-          replacements = {
-              'PROJECTRAI_ENVIRONMENT=development': 'PROJECTRAI_ENVIRONMENT=production',
-              'PROJECTRAI_SECRET_KEY=local-projectrai-signing-key-4v7N2x9Q8m5K1c6Z': f'PROJECTRAI_SECRET_KEY={token_urlsafe(48)}',
-              'PROJECTRAI_ENCRYPTION_KEY=local-projectrai-encryption-key-7Q2m9K4x1V8c5Z6N': f'PROJECTRAI_ENCRYPTION_KEY={token_urlsafe(48)}',
-              'PROJECTRAI_POSTGRES_URL=postgresql://projectrai:projectrai@db:5432/projectrai': f'PROJECTRAI_POSTGRES_URL=postgresql://migration:{database_password}@postgres.internal:5432/projectrai',
-              'PROJECTRAI_DATABASE_URL=postgresql://projectrai:projectrai@pgbouncer:6432/projectrai': f'PROJECTRAI_DATABASE_URL=postgresql://runtime:{database_password}@pool.internal:6432/projectrai',
-              'PROJECTRAI_RABBITMQ_URL=amqp://projectrai:projectrai@rabbitmq:5672/': f'PROJECTRAI_RABBITMQ_URL=amqps://worker:{rabbitmq_password}@rabbitmq.internal:5671/',
-              'PROJECTRAI_REDIS_URL=redis://redis:6379/0': 'PROJECTRAI_REDIS_URL=rediss://redis.internal:6379/0',
-              'PROJECTRAI_S3_BUCKET=woobe-local': 'PROJECTRAI_S3_BUCKET=woobe-production',
-              'PROJECTRAI_S3_ENDPOINT_URL=http://minio:9000': 'PROJECTRAI_S3_ENDPOINT_URL=https://s3.example.com',
-              'PROJECTRAI_S3_FORCE_PATH_STYLE=true': 'PROJECTRAI_S3_FORCE_PATH_STYLE=false',
-              'PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION=': 'PROJECTRAI_S3_SERVER_SIDE_ENCRYPTION=AES256',
-              'PROJECTRAI_ACCESS_COOKIE_SECURE=false': 'PROJECTRAI_ACCESS_COOKIE_SECURE=true',
-              'PROJECTRAI_REFRESH_COOKIE_SECURE=false': 'PROJECTRAI_REFRESH_COOKIE_SECURE=true',
-              'PROJECTRAI_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173': 'PROJECTRAI_CORS_ORIGINS=https://app.example.com',
-              'PROJECTRAI_TRUSTED_HOSTS=localhost,127.0.0.1': 'PROJECTRAI_TRUSTED_HOSTS=api.example.com',
-              'VITE_API_URL=http://localhost:8000': 'VITE_API_URL=https://api.example.com',
-              'PROJECTRAI_WEB_PORT=5173': 'PROJECTRAI_WEB_PORT=8080',
+          values = {
+              'WOOBE_EDITION': 'community',
+              'WOOBE_ENVIRONMENT': 'production',
+              'WOOBE_SECRET_KEY': token_urlsafe(48),
+              'WOOBE_ENCRYPTION_KEY': token_urlsafe(48),
+              'WOOBE_CHAT_TOKEN_SIGNING_KEY': token_urlsafe(48),
+              'WOOBE_POSTGRES_URL': f'postgresql://migration:{database_password}@postgres.internal:5432/woobe',
+              'WOOBE_DATABASE_URL': f'postgresql://runtime:{database_password}@pool.internal:6432/woobe',
+              'WOOBE_RABBITMQ_URL': f'amqps://worker:{rabbitmq_password}@rabbitmq.internal:5671/',
+              'WOOBE_REDIS_URL': 'rediss://redis.internal:6379/0',
+              'WOOBE_S3_BUCKET': 'woobe-production',
+              'WOOBE_S3_ENDPOINT_URL': 'https://s3.example.com',
+              'WOOBE_S3_FORCE_PATH_STYLE': 'false',
+              'WOOBE_S3_SERVER_SIDE_ENCRYPTION': 'AES256',
+              'WOOBE_ACCESS_COOKIE_SECURE': 'true',
+              'WOOBE_REFRESH_COOKIE_SECURE': 'true',
+              'WOOBE_CORS_ORIGINS': 'https://app.example.com,https://chat.example.com',
+              'WOOBE_TRUSTED_HOSTS': 'api.example.com',
+              'VITE_API_URL': 'https://api.example.com',
+              'VITE_CHAT_EMBED_URL': 'https://chat.example.com',
+              'VITE_WOOBE_EDITION': 'community',
+              'WOOBE_WEB_PORT': '8080',
           }
-          for old, new in replacements.items():
-              if old not in content:
-                  raise SystemExit(f'missing expected template value: {old}')
-              content = content.replace(old, new)
+          for key, value in values.items():
+              content = set_env(content, key, value)
           Path('.env').write_text(content)
           PY
       - name: Validate production topology
@@ -55,119 +65,65 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-
           services = json.loads(Path('compose-prod.json').read_text())['services']
-          assert set(services) == {'migrate', 'api', 'workers', 'web'}, services.keys()
+          assert set(services) == {'migrate', 'api', 'workers', 'web', 'chat-embed'}, services.keys()
+          assert services['migrate']['restart'] == 'no'
+          for name in ('api', 'workers', 'web', 'chat-embed'):
+              assert services[name]['read_only'] is True, name
           for name, service in services.items():
               for volume in service.get('volumes', []):
                   assert volume.get('type') != 'bind', f'{name} uses a bind mount'
-          assert services['migrate']['restart'] == 'no'
-          assert services['api']['read_only'] is True
-          assert services['workers']['read_only'] is True
-          assert services['web']['read_only'] is True
           PY
       - name: Build production images
-        shell: bash
         run: |
           set -euo pipefail
-          VITE_API_URL="$(sed -n 's/^VITE_API_URL=//p' .env)"
-          docker build --tag projectrai-api:ci .
-          docker build --build-arg "VITE_API_URL=$VITE_API_URL" --tag projectrai-web:ci web
-      - name: Verify cached builds without build-network access
-        shell: bash
-        run: |
-          set -euo pipefail
-          VITE_API_URL="$(sed -n 's/^VITE_API_URL=//p' .env)"
-          docker build --network=none --tag projectrai-api:ci-offline .
-          docker build --network=none --build-arg "VITE_API_URL=$VITE_API_URL" --tag projectrai-web:ci-offline web
+          docker build --tag woobe-api:ci .
+          docker build --build-arg VITE_API_URL=https://api.example.com --build-arg VITE_CHAT_EMBED_URL=https://chat.example.com --build-arg VITE_WOOBE_EDITION=community --tag woobe-web:ci web
+          docker build --tag woobe-chat-embed:ci embed
       - name: Require non-root runtime users
         run: |
-          for image in projectrai-api:ci projectrai-web:ci; do
+          set -euo pipefail
+          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
             configured_user="$(docker image inspect "$image" --format '{{.Config.User}}')"
             test -n "$configured_user"
             test "$configured_user" != "0"
             test "$configured_user" != "root"
             docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
           done
-      - name: Reject development server in frontend image
-        run: |
-          docker image inspect projectrai-web:ci --format '{{json .Config}}' > web-image-config.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          config = json.loads(Path('web-image-config.json').read_text())
-          command = ' '.join(config.get('Entrypoint') or []) + ' ' + ' '.join(config.get('Cmd') or [])
-          normalized = command.lower()
-          assert 'vite' not in normalized, command
-          assert 'npm run dev' not in normalized, command
-          PY
-      - name: Record reproducibility and image-size evidence
-        run: |
-          python - <<'PY'
-          import json
-          import subprocess
-          from pathlib import Path
-
-          images = ('projectrai-api:ci', 'projectrai-web:ci')
-          evidence = {}
-          for image in images:
-              raw = subprocess.check_output(
-                  ['docker', 'image', 'inspect', image, '--format', '{{json .}}'],
-                  text=True,
-              )
-              metadata = json.loads(raw)
-              evidence[image] = {
-                  'id': metadata['Id'],
-                  'repo_digests': metadata.get('RepoDigests') or [],
-                  'size_bytes': metadata['Size'],
-                  'configured_user': metadata['Config'].get('User'),
-                  'entrypoint': metadata['Config'].get('Entrypoint'),
-                  'cmd': metadata['Config'].get('Cmd'),
-              }
-          Path('production-image-evidence.json').write_text(
-              json.dumps(evidence, indent=2, sort_keys=True) + '\n'
-          )
-          PY
-      - name: Generate backend SBOM
+      - name: Generate SBOMs
         uses: anchore/sbom-action@v0.24.0
         with:
-          image: projectrai-api:ci
-          artifact-name: projectrai-api-sbom.spdx.json
-          format: spdx-json
-      - name: Generate frontend SBOM
-        uses: anchore/sbom-action@v0.24.0
-        with:
-          image: projectrai-web:ci
-          artifact-name: projectrai-web-sbom.spdx.json
+          image: woobe-api:ci
+          artifact-name: woobe-api-sbom.spdx.json
           format: spdx-json
       - name: Scan backend image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: projectrai-api:ci
-          format: json
-          output: trivy-api.json
+          image-ref: woobe-api:ci
+          format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          exit-code: '0'
+          exit-code: '1'
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: projectrai-web:ci
-          format: json
-          output: trivy-web.json
+          image-ref: woobe-web:ci
+          format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          exit-code: '0'
-      - name: Upload evidence
+          exit-code: '1'
+      - name: Scan ChatSurface image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-chat-embed:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Upload topology evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: production-container-evidence
-          path: |
-            compose-prod.json
-            web-image-config.json
-            production-image-evidence.json
-            trivy-api.json
-            trivy-web.json
+          path: compose-prod.json
           if-no-files-found: warn

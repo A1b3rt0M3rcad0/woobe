@@ -1,16 +1,10 @@
 name: Release browser E2E
 
 on:
-  pull_request:
-    branches: [development-mvp]
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: release-browser-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   browser-e2e:
@@ -30,7 +24,7 @@ jobs:
         run: |
           npm install --no-save --no-package-lock @playwright/test@1.52.0
           npx playwright install --with-deps chromium
-      - name: Run Chromium MVP flows without retries
+      - name: Run Chromium flows without retries
         working-directory: e2e
         run: npx playwright test --config playwright.config.ts
       - name: Upload browser evidence

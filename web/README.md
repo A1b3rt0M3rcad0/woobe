@@ -1,68 +1,44 @@
-# Quick Start — ProjectRAI Frontend
+# Woobe Web — Quick Start
 
 ## Prerequisites
 
-- Node.js 18+
-- Root `.env` created from `.env.example`
-- Backend reachable at `VITE_API_URL`
+- Node.js 22+
+- root `.env` generated from `.env.example`
+- backend reachable at `VITE_API_URL`
+- ChatSurface embed reachable at `VITE_CHAT_EMBED_URL`
 
 ## Setup
 
 From the repository root:
 
 ```bash
-cp .env.example .env
-```
-
-`VITE_API_URL` lives in the same deployment manifest as the other service endpoints. It is public by design: Vite embeds only `VITE_*` values in the browser bundle. Backend secrets are not passed to the frontend Docker build.
-
-Then install frontend dependencies:
-
-```bash
+python scripts/generate_self_host_env.py --force
 cd web
-npm install
-```
-
-## Run locally with Vite
-
-```bash
-cd web
+npm ci
 npm run dev
 ```
 
-The frontend opens at `http://localhost:5173` by default.
+The Vite configuration reads the canonical root deployment manifest. Only `VITE_*` values are embedded in the browser bundle; backend secrets are not passed to the frontend image.
 
-The Vite scripts use the neutral `manifest` mode, and `web/vite.config.ts` points `envDir` to the repository root. This loads the canonical root `.env` without reusing the legacy `.env.web` or `.env.production` mode-specific files from older setups.
+## Docker Compose
 
-## Run with Docker Compose
-
-From the repository root:
+For the supported Community first-run topology:
 
 ```bash
-cp .env.example .env
-docker compose up --build web
+python scripts/generate_self_host_env.py --force
+docker compose -f docker-compose.community.yml up -d --build
 ```
 
-Docker Compose extracts only `VITE_API_URL` from `.env` and passes it as a public build argument. PostgreSQL, RabbitMQ, encryption and authentication secrets are not exposed to the frontend build.
+The browser calls `VITE_API_URL` directly. ChatSurface assets and iframe runtime use `VITE_CHAT_EMBED_URL`.
 
-The runtime Nginx serves only the SPA/static assets. The browser calls `VITE_API_URL` directly; routing to the API is therefore independent from Docker service names and can target another host/load balancer.
+## Demo bootstrap
 
-## Seed demo data
+Woobe does not ship fixed demo credentials. Provide your own values:
 
 ```bash
-cd web
-npm run seed
+WOOBE_DEMO_EMAIL=owner@example.com \
+WOOBE_DEMO_PASSWORD='use-a-strong-password' \
+python scripts/seed_demo.py
 ```
 
-Login: `customer@gmail.com` / `customer`
-
-## Build
-
-With `VITE_API_URL` exported or available in the root `.env`:
-
-```bash
-cd web
-npm run build
-```
-
-Output in `web/dist/`.
+This only initializes a fresh Community instance. Existing installations require the explicit owner-bootstrap flow documented in `../docs/SELF_HOSTING.md`.
