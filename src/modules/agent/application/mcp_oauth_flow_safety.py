@@ -11,7 +11,7 @@ from modules.agent.application.ports import ToolExecutionPort
 from modules.agent.domain.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 
-PROJECTRAI_CLIENT_NAMES = {"projectrai", "project-rai", "project_rai"}
+WOOBE_CLIENT_NAMES = {"woobe"}
 
 
 def _is_absolute_http_url(value: Any) -> bool:
@@ -47,18 +47,26 @@ def _potential_clients(metadata: dict[str, Any], flow: str) -> list[str]:
     option = _flows._flow_option(metadata, flow)
     if not isinstance(option, dict) or not isinstance(option.get("potential_clients"), list):
         return []
-    return [str(item).strip().lower() for item in option["potential_clients"] if isinstance(item, str) and item.strip()]
+    return [
+        str(item).strip().lower()
+        for item in option["potential_clients"]
+        if isinstance(item, str) and item.strip()
+    ]
 
 
 def _uses_client_capability_selection(metadata: dict[str, Any]) -> bool:
     protected = metadata.get("protected_resource_metadata")
-    hints = protected.get("authorization_hints") if isinstance(protected, dict) else metadata.get("authorization_hints")
+    hints = (
+        protected.get("authorization_hints")
+        if isinstance(protected, dict)
+        else metadata.get("authorization_hints")
+    )
     return "client_capability_based" in json.dumps(hints or {}, sort_keys=True).lower()
 
 
-def _pkce_is_not_for_projectrai(metadata: dict[str, Any]) -> bool:
+def _pkce_is_not_for_woobe(metadata: dict[str, Any]) -> bool:
     clients = set(_potential_clients(metadata, "authorization_code_pkce"))
-    return bool(clients) and not bool(clients & PROJECTRAI_CLIENT_NAMES)
+    return bool(clients) and not bool(clients & WOOBE_CLIENT_NAMES)
 
 
 def _has_device_code_option(metadata: dict[str, Any]) -> bool:
@@ -69,13 +77,15 @@ def _unsupported_pkce_message(metadata: dict[str, Any]) -> str:
     pkce_clients = _potential_clients(metadata, "authorization_code_pkce")
     device_clients = _potential_clients(metadata, "device_code")
     parts = [
-        "This MCP provider advertises client-capability-based OAuth and does not list ProjectRAI as an authorization-code PKCE client.",
-        "Use the MCP device-code flow or configure provider-issued ProjectRAI OAuth client credentials.",
+        "This MCP provider advertises client-capability-based OAuth and does not list Woobe as an authorization-code PKCE client.",
+        "Use the MCP device-code flow or configure provider-issued Woobe OAuth client credentials.",
     ]
     if pkce_clients:
         parts.append(f"PKCE clients advertised by provider: {', '.join(pkce_clients)}.")
     if device_clients:
-        parts.append(f"Device-code clients advertised by provider: {', '.join(device_clients)}.")
+        parts.append(
+            f"Device-code clients advertised by provider: {', '.join(device_clients)}."
+        )
     return " ".join(parts)
 
 
@@ -126,16 +136,23 @@ def _input_with_cached_metadata(
         return input_dto
     return input_dto.model_copy(
         update={
-            "authorization_endpoint": input_dto.authorization_endpoint or cached.get("authorization_endpoint"),
+            "authorization_endpoint": input_dto.authorization_endpoint
+            or cached.get("authorization_endpoint"),
             "token_endpoint": input_dto.token_endpoint or cached.get("token_endpoint"),
-            "registration_endpoint": input_dto.registration_endpoint or cached.get("registration_endpoint"),
-            "authorization_server_issuer": input_dto.authorization_server_issuer or cached.get("authorization_server_issuer"),
+            "registration_endpoint": input_dto.registration_endpoint
+            or cached.get("registration_endpoint"),
+            "authorization_server_issuer": input_dto.authorization_server_issuer
+            or cached.get("authorization_server_issuer"),
         }
     )
 
 
 def _invalid_discovery_message(config: dict[str, Any]) -> str:
-    discovery = config.get("mcp_oauth_discovery") if isinstance(config.get("mcp_oauth_discovery"), dict) else {}
+    discovery = (
+        config.get("mcp_oauth_discovery")
+        if isinstance(config.get("mcp_oauth_discovery"), dict)
+        else {}
+    )
     status = str(discovery.get("status") or "")
     if status == "provider_managed":
         provider = str(discovery.get("provider") or "the provider")
@@ -155,12 +172,20 @@ def _invalid_discovery_message(config: dict[str, Any]) -> str:
 
 
 class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase):
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(
+        self,
+        *,
+        tool_repo: ToolRepository,
+        executor: ToolExecutionPort,
+        cipher: SecretCipherAdapter,
+    ) -> None:
         super().__init__(tool_repo=tool_repo, executor=executor, cipher=cipher)
         self._safe_tool_repo = tool_repo
         self._safe_executor = executor
 
-    async def execute(self, input_dto: _flows.McpOAuthStartInput) -> _flows.McpOAuthStartOutput:
+    async def execute(
+        self, input_dto: _flows.McpOAuthStartInput
+    ) -> _flows.McpOAuthStartOutput:
         tool = await self._safe_tool_repo.get_by_id(input_dto.tool_id)
         if tool is None:
             raise ValueError("MCP tool provider not found")
@@ -169,7 +194,9 @@ class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase
         server_url = str(server.get("url") or config.get("url") or "")
         if not server_url:
             raise ValueError("MCP server.url is required before OAuth connect")
-        if not _input_has_explicit_oauth(input_dto) and not has_valid_mcp_oauth_metadata(config):
+        if not _input_has_explicit_oauth(
+            input_dto
+        ) and not has_valid_mcp_oauth_metadata(config):
             raise ValueError(_invalid_discovery_message(config))
 
         resolved_input = _input_with_cached_metadata(input_dto, config)
@@ -185,13 +212,20 @@ class ProviderAwareMcpOAuthStartUseCase(_flows.ProviderAwareMcpOAuthStartUseCase
                     timeout_ms=resolved_input.timeout_ms,
                 )
             except ValueError as exc:
-                if "Could not discover MCP OAuth authorization and token endpoints" in str(exc):
+                if "Could not discover MCP OAuth authorization and token endpoints" in str(
+                    exc
+                ):
                     raise ValueError(
                         "This MCP server advertised OAuth, but Woobe could not validate both authorization_endpoint and token_endpoint. Verify the MCP URL or use the provider-managed connection flow."
                     ) from exc
                 raise
 
-        if not resolved_input.client_id and _uses_client_capability_selection(metadata) and _pkce_is_not_for_projectrai(metadata) and _has_device_code_option(metadata):
+        if (
+            not resolved_input.client_id
+            and _uses_client_capability_selection(metadata)
+            and _pkce_is_not_for_woobe(metadata)
+            and _has_device_code_option(metadata)
+        ):
             raise ValueError(_unsupported_pkce_message(metadata))
         return await super().execute(resolved_input)
 
