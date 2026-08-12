@@ -10,9 +10,9 @@ from uuid import uuid4
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-app = FastAPI(title="ProjectRAI deterministic fake provider", version="1.0")
+app = FastAPI(title="Woobe deterministic fake provider", version="1.0")
 
-_DEFAULT_TOKENS = ("Project", "RAI", " release", " gate", " passed")
+_DEFAULT_TOKENS = ("Woo", "be", " release", " gate", " passed")
 
 
 def _scenario(payload: dict[str, Any], header: str | None) -> str:
