@@ -1,27 +1,61 @@
 # Woobe public release checklist
 
-This checklist separates code work from repository/legal/operational actions that cannot be completed safely by a feature branch alone.
+This checklist is a release gate for making the Woobe repository and Community distribution public. It is intentionally stricter than normal development completion.
 
-## Required before changing repository visibility
+## Repository surface
 
-- Review `LICENSE.md`, `LICENSE-CLOUD.md`, `TRADEMARKS.md` and `COMMERCIAL-LICENSE.md` with qualified legal counsel.
-- Verify that `src/editions/**` and `web/src/editions/**` are excluded from the Community/Core license and that every edition-specific path has an explicit applicable license before publishing it.
-- Verify that no future Enterprise path silently inherits Community/Core rights; edition source without an explicit license must not be published as though it were Community code.
-- Run `scripts/audit_public_history.sh` against a full clone and rotate/revoke every real secret found before rewriting history.
-- Review historical branches/tags and decide whether the public repository keeps rewritten history or starts from a sanitized public baseline.
-- Validate clean Community installation, existing-database owner bootstrap, backup/restore, production Compose, ChatSurface production topology and upgrade procedure.
-- Validate Community runtime without loading Cloud Billing routes/workers and Cloud runtime with Billing explicitly enabled.
-- Run the manual GitHub workflows intentionally; this repository does not auto-run CI merely because a PR was opened.
+- [ ] Root `compose.yml` is the only supported default Community self-host contract.
+- [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
+- [ ] No `.opencode/`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, or one-off debugging stacks remain in the public HEAD.
+- [ ] Durable runtime documentation is under `docs/` and describes current behavior rather than implementation history.
+- [ ] Legacy codename strings have been reviewed across the public tree and either removed or justified as historical compatibility where technically required.
 
-## Repository administration after merge
+## Secrets and Git history — blocking
 
-- Set `development` as the GitHub default branch.
-- Protect `development` and require PR review according to the chosen maintainer policy.
-- Enable private vulnerability reporting/security advisories.
-- Add repository description, topics and documentation/homepage URL.
-- Enable Discussions only if the project wants community support there.
-- Configure GHCR package visibility for published images.
+Deleting a file from the current branch does **not** remove it from Git history.
 
-## Explicitly deferred commercial/product work
+Before changing repository visibility:
 
-SSO/SAML, SCIM, advanced RBAC/governance, advanced audit export, external KMS/secrets, supported HA, private networking, SLA/support automation, Kubernetes Operator, Helm, Terraform, marketplaces, social/CRM connectors and a license-entitlement server are not public-readiness blockers. They should be built only when product/customer demand justifies them.
+- [ ] Run the full-history secret audit (`scripts/audit_public_history.sh` / the manual security workflow).
+- [ ] Review findings manually; rotate or revoke every real credential that has ever been committed, even if the file was later deleted.
+- [ ] Decide and execute the public-history strategy: either rewrite/sanitize existing history or publish from a deliberately sanitized public baseline.
+- [ ] Verify branches and tags that will become visible, not only the current `development` HEAD.
+- [ ] Re-run the history audit against the exact repository state intended for publication.
+
+Do not make the repository public while this section is incomplete.
+
+## Community deployment
+
+- [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py`.
+- [ ] Validate the root `compose.yml` configuration.
+- [ ] Start the complete Community stack from the root Compose contract.
+- [ ] Confirm persistent PostgreSQL, RabbitMQ, and Knowledge volumes.
+- [ ] Exercise a production-shaped configuration with secure cookies, exact HTTPS CORS origins, exact trusted hosts, and distinct strong secrets.
+- [ ] Verify API `/live` and `/ready`, Web, Workers, and ChatSurface health/assets.
+- [ ] Verify first-owner bootstrap and invite-only behavior after initialization.
+- [ ] Verify backup and restore with PostgreSQL plus local Knowledge files.
+
+## Quality and security
+
+- [ ] Run the manual backend workflow: Ruff, Pyright, migration validation, and pytest.
+- [ ] Run the manual frontend workflow: tests and production build.
+- [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
+- [ ] Run the manual acceptance workflow: backend acceptance, browser E2E, and production-shaped Community smoke.
+- [ ] Run the manual security workflow, including full-history secret scanning.
+- [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
+
+## Legal and repository administration — blocking
+
+- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSE-CLOUD.md`, commercial licensing, and trademark terms.
+- [ ] Contribution/CLA strategy is decided before accepting contributions that require relicensing flexibility.
+- [ ] GitHub default branch is the intended public integration branch.
+- [ ] Branch protection/rulesets are configured for the public workflow.
+- [ ] Private vulnerability reporting/security contact is configured.
+- [ ] Repository description, topics, homepage/docs URL, and package/container visibility are correct.
+
+## Release
+
+- [ ] Version is selected according to the release policy.
+- [ ] Changelog/release notes describe user-visible changes and migration considerations.
+- [ ] Published images correspond to the reviewed commit.
+- [ ] Final public tree contains only product code, tests, current documentation, supported deployment contracts, and contribution/governance files.

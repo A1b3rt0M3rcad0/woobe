@@ -1,12 +1,14 @@
-# Woobe production deployment runbook
+# Woobe Community production deployment
 
-## Deployment contracts
+## Deployment contract
 
-Woobe uses explicit connection URLs and `WOOBE_*` configuration. `docker-compose.yml` is the full integration/single-node topology. `docker-compose.community.yml` is the supported small self-host topology. `docker-compose.prod.yml` is an application-only hardened reference for deployments with external PostgreSQL, RabbitMQ, Redis and/or object storage.
+The root `compose.yml` is the supported Woobe Community self-host topology. Production is selected through configuration (`WOOBE_ENVIRONMENT=production`), not through a separate production Compose file.
 
-Production application services are:
+The default single-host topology contains:
 
 ```text
+db
+rabbitmq
 migrate
 api
 workers
@@ -14,20 +16,17 @@ web
 chat-embed
 ```
 
-ChatSurface is part of the production topology; it is not a development-only service.
+`deploy/dev/compose.yml` is a contributor-only extension and is not the production deployment contract.
 
 ## Production configuration
 
-Set at minimum:
+Set strong, independent secrets and exact public origins/hosts. At minimum:
 
 ```env
 WOOBE_ENVIRONMENT=production
 WOOBE_SECRET_KEY=<strong random secret>
 WOOBE_ENCRYPTION_KEY=<different strong random secret>
 WOOBE_CHAT_TOKEN_SIGNING_KEY=<third strong random secret>
-WOOBE_DATABASE_URL=postgresql://...
-WOOBE_POSTGRES_URL=postgresql://...
-WOOBE_RABBITMQ_URL=amqps://...
 WOOBE_ACCESS_COOKIE_SECURE=true
 WOOBE_REFRESH_COOKIE_SECURE=true
 WOOBE_CORS_ORIGINS=https://app.example.com,https://chat.example.com
@@ -36,27 +35,44 @@ VITE_API_URL=https://api.example.com
 VITE_CHAT_EMBED_URL=https://chat.example.com
 ```
 
-`WOOBE_POSTGRES_URL` is the direct migration/database-maintenance endpoint. `WOOBE_DATABASE_URL` is the runtime endpoint used by API/Workers and may point at a pool/proxy. Do not expose database or broker ports publicly.
+Terminate TLS before the exposed services. Do not expose PostgreSQL or RabbitMQ to the public network. Keep generated `.env`, provider credentials, Tool credentials, Runtime Keys, and ChatSurface Access Keys outside source control.
 
 ## Rollout
 
-Run migrations explicitly before starting the new application version:
+Generate configuration once for a fresh installation, then replace local/public endpoint values with the actual production domains:
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm migrate
-docker compose -f docker-compose.prod.yml up -d api workers web chat-embed
+python scripts/generate_self_host_env.py
 ```
 
-Verify `/live`, `/ready`, the Web Nginx health endpoint and `/chat/v1/health` on the ChatSurface service. For the integrated smoke contract, use `scripts/smoke_production.sh`.
+Build application artifacts:
 
-## Object storage
+```bash
+docker compose build
+```
 
-Distributed deployments should use S3-compatible storage so API and Workers do not depend on a shared host filesystem. Community single-node may use the persistent local Knowledge volume documented in `docs/SELF_HOSTING.md`.
+Start durable infrastructure, run migrations explicitly, and then start application services:
+
+```bash
+docker compose up -d db rabbitmq
+docker compose run --rm migrate
+docker compose up -d api workers web chat-embed
+```
+
+Verify `/live`, `/ready`, Web, `/chat/v1/health`, and representative Agent/Network execution. `scripts/smoke_production.sh` contains the integrated HTTP smoke contract used by the repository's manual acceptance workflow.
+
+## Storage and recovery
+
+The supported Community topology uses persistent local Knowledge storage. PostgreSQL and the `woobe_uploads` volume must be part of the same backup/recovery plan.
+
+Configuration hooks for external PostgreSQL, RabbitMQ, Redis, or S3-compatible services do not by themselves create an officially supported distributed topology. The Community MVP does not currently publish a separate external-infrastructure Compose contract.
 
 ## Rollback
 
-Platform deployment rollback is image/version rollback and is separate from Agent/Network Release rollback inside Woobe. Do not run Alembic downgrade automatically because an application image is rolled back. Follow release-specific schema compatibility notes and restore a tested backup when required.
+Platform deployment rollback is image/source rollback and is separate from Agent/Network Release rollback inside Woobe. Do not run Alembic downgrade automatically because an application artifact is rolled back. Follow release-specific schema compatibility notes and restore a tested backup when required.
 
 ## Release evidence
 
-Before production promotion, intentionally run the manual backend/frontend/migration/container/release workflows, review HIGH/CRITICAL image findings, verify backup/restore and attach relevant evidence to the release/PR. CI is intentionally manual and is not started merely by opening a pull request.
+Before a public production release, intentionally execute the relevant manual backend, frontend, container, acceptance, and security workflows; review image vulnerability findings; verify backup/restore; and attach the relevant evidence to the release process.
+
+Repository workflows are intentionally manual and are not started merely by opening a pull request.

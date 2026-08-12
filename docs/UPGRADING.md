@@ -1,32 +1,54 @@
-# Upgrading Woobe
+# Upgrading Woobe Community
 
-Treat application version and database schema as separate deployment concerns.
+Woobe Community uses the root `compose.yml` as its supported self-host topology.
 
 ## Before upgrading
 
-1. Read the target release notes and migration notes.
-2. Back up PostgreSQL.
-3. Back up local Knowledge storage when `WOOBE_STORAGE_DRIVER=local`.
-4. Record the currently running Woobe version and image/tag.
+1. Read the release notes and migration compatibility notes for the target version.
+2. Back up PostgreSQL using the documented backup procedure.
+3. Back up the local Knowledge upload volume when local storage is enabled.
+4. Record the currently deployed source/image version so the application deployment can be restored if necessary.
 
-## Upgrade sequence
+Do not assume that rolling an application version back also makes a database downgrade safe.
 
-For source-based Community deployments:
+## Source-based upgrade
+
+For a source checkout, update to the intended version and rebuild the artifacts:
 
 ```bash
-git fetch --tags
-git checkout <target-tag>
-docker compose -f docker-compose.community.yml build
-docker compose -f docker-compose.community.yml run --rm migrate
-docker compose -f docker-compose.community.yml up -d
+docker compose build
 ```
 
-For image-based deployments, pull the exact target version before running the migration job.
+Apply database migrations explicitly:
+
+```bash
+docker compose run --rm migrate
+```
+
+Then restart the application services:
+
+```bash
+docker compose up -d api workers web chat-embed
+```
+
+Verify:
+
+```text
+API /live
+API /ready
+Web UI
+ChatSurface health/embed assets
+Workers
+representative Agent/Network execution
+```
+
+When `VITE_*` public configuration changes, rebuilding Web is mandatory because those values are build-time configuration.
 
 ## Rollback
 
-Application rollback and database rollback are not the same operation. Do not automatically run Alembic downgrade in production simply because an application image is rolled back.
+Application rollback and Agent/Network Release rollback are different operations.
 
-A release must document whether its schema is backward-compatible with the prior application version. When it is not, restore from a tested backup or follow the release-specific migration procedure.
+- **Product Release rollback** inside Woobe restores a previously published immutable Agent or Network Release.
+- **Platform deployment rollback** restores a previous Woobe application artifact/source version.
 
-Woobe Agent/Network rollback is a product runtime capability and is independent of rolling back the Woobe platform deployment itself.
+Do not automatically execute `alembic downgrade` merely because an application artifact is rolled back. Use the release-specific schema compatibility notes and a tested backup/restore path when database recovery is required.

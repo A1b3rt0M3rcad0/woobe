@@ -1,89 +1,98 @@
 # Self-hosting Woobe Community
 
-Woobe Community runs without a required Woobe Cloud account or call-home dependency.
+Woobe Community uses one supported default self-host contract: the root `compose.yml`.
 
-## Quick start
-
-Requirements: Docker with Docker Compose and Python 3 for configuration generation.
+## First start
 
 ```bash
-python scripts/generate_self_host_env.py --force
-docker compose -f docker-compose.community.yml up -d --build
+python scripts/generate_self_host_env.py
+docker compose up -d --build
 ```
 
-The Community topology intentionally keeps the first install small: PostgreSQL, RabbitMQ, API, Workers, Web and Chat Embed. Knowledge files use a persistent local Docker volume. Redis, PgBouncer and S3-compatible storage remain available in the full/distributed topology when needed.
+The generator creates `.env` from `.env.example` and replaces sensitive bootstrap values with independent random secrets. It refuses to overwrite an existing `.env` unless `--force` is explicitly supplied.
 
-## First user
-
-On a fresh Community database, `GET /identity/instance/status` reports an uninitialized instance. The first registration uses the dedicated bootstrap endpoint and atomically creates:
-
-- the Instance Owner;
-- the initial Organization;
-- the Organization owner membership;
-- the authentication session;
-- singleton instance settings.
-
-After bootstrap, Community defaults to `invite_only`. Registration remains possible for emails with an active Organization invite, but arbitrary public registration is rejected by the backend.
-
-## Existing databases
-
-A database that already contains users is never assigned an Instance Owner automatically. After applying migration `0060`, initialize it explicitly:
-
-```bash
-PYTHONPATH=src uv run python scripts/bootstrap_existing_instance.py \
-  --owner-email owner@example.com
-```
-
-The selected user must already be an active Organization owner.
-
-## Production exposure
-
-Before exposing Woobe to the internet, change the generated development defaults:
+Default endpoints:
 
 ```text
+Web UI:     http://localhost:8080
+API:        http://localhost:8000
+Chat Embed: http://localhost:8081
+```
+
+The first registration against a fresh Community database claims the instance atomically and creates the first Instance Owner and initial Organization. Subsequent Community registration defaults to invite-only.
+
+## Persistent state
+
+The default topology persists:
+
+```text
+woobe_postgres   PostgreSQL application state
+woobe_rabbitmq   RabbitMQ state
+woobe_uploads    local Knowledge files
+```
+
+Back up PostgreSQL and the Knowledge upload volume together. Restoring only one side can leave document metadata and physical files inconsistent.
+
+## Production configuration
+
+Production is an environment configuration of the same Community topology, not a second Compose distribution.
+
+Before public exposure, configure at least:
+
+```env
 WOOBE_ENVIRONMENT=production
+WOOBE_SECRET_KEY=<strong random value>
+WOOBE_ENCRYPTION_KEY=<different strong random value>
+WOOBE_CHAT_TOKEN_SIGNING_KEY=<third strong random value>
 WOOBE_ACCESS_COOKIE_SECURE=true
 WOOBE_REFRESH_COOKIE_SECURE=true
-WOOBE_CORS_ORIGINS=https://your-ui.example
-WOOBE_TRUSTED_HOSTS=api.example
-VITE_API_URL=https://api.example
-VITE_CHAT_EMBED_URL=https://chat.example
+WOOBE_CORS_ORIGINS=https://app.example.com,https://chat.example.com
+WOOBE_TRUSTED_HOSTS=api.example.com
+VITE_API_URL=https://api.example.com
+VITE_CHAT_EMBED_URL=https://chat.example.com
 ```
 
-Terminate TLS at a reverse proxy or load balancer. Do not expose PostgreSQL or RabbitMQ publicly.
+Terminate TLS through a reverse proxy or ingress that you operate, expose only the required Web/API/Chat endpoints, and do not expose PostgreSQL or RabbitMQ publicly. Production settings reject weak or reused signing/encryption material and unsafe host/origin configuration.
 
-Production validation rejects weak application secrets, default database credentials, insecure auth cookies, wildcard CORS/Trusted Hosts and a ChatSurface signing key that is weak or equal to the main auth signing key.
-
-## Persistent data
-
-The Community Compose persists:
-
-- PostgreSQL data in `woobe_postgres`;
-- RabbitMQ data in `woobe_rabbitmq`;
-- Knowledge uploads in `woobe_uploads`.
-
-Do not use `docker compose down -v` unless you intentionally want to destroy these volumes.
-
-## Backup
-
-Database backup:
+After updating `.env`, rebuild Web when public `VITE_*` values change:
 
 ```bash
-WOOBE_POSTGRES_URL='postgresql://...' BACKUP_DIR=./backups \
-  sh scripts/backup_postgres.sh
+docker compose up -d --build
 ```
 
-If using local Knowledge storage, back up the `woobe_uploads` volume together with the database so document metadata and physical files remain consistent.
+## Optional contributor topology
 
-## Restore
-
-Restore into an isolated database first when possible. The restore script requires an explicit confirmation value:
+`deploy/dev/compose.yml` is an explicit contributor extension for exercising PgBouncer, Redis-backed MCP Session caching, and S3-compatible storage through MinIO.
 
 ```bash
-RESTORE_FILE=/backups/woobe-....dump \
-RESTORE_CONFIRM=restore-woobe \
-WOOBE_POSTGRES_URL='postgresql://...' \
-sh scripts/restore_postgres.sh
+docker compose -f compose.yml -f deploy/dev/compose.yml up -d --build
 ```
 
-See `docs/UPGRADING.md` before changing versions.
+It is not a second Community distribution and is not the production deployment contract.
+
+## Distributed infrastructure
+
+The application configuration supports explicit PostgreSQL, RabbitMQ, Redis, and S3-compatible connection settings, but Woobe does **not currently advertise a separate distributed/external-infrastructure deployment topology as part of the Community MVP support surface**.
+
+Do not infer operational support, HA guarantees, upgrade guarantees, or an SLA from configuration hooks alone. Additional deployment topologies should become public contracts only when they are intentionally supported and tested as such.
+
+## Backup and restore
+
+Use the repository backup/restore procedures documented in [PostgreSQL backup and restore](runbooks/postgres-backup-restore.md). Include `woobe_uploads` in the same recovery plan.
+
+Before an upgrade:
+
+1. back up PostgreSQL;
+2. back up Knowledge files;
+3. record the currently deployed image/source version;
+4. review migration and compatibility notes;
+5. perform the upgrade;
+6. verify API readiness, Web, ChatSurface, Workers, and representative runtime execution.
+
+See [UPGRADING.md](UPGRADING.md).
+
+## Security
+
+Provider credentials, Tool credentials, Runtime Keys, ChatSurface Access Keys, session tokens, authentication secrets, encryption material, and database/broker credentials must be treated as secrets.
+
+Never publish a generated `.env`. Review [SECURITY.md](../SECURITY.md) and the production deployment runbook before exposing a Community instance to the internet.

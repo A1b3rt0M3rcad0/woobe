@@ -48,23 +48,33 @@ def test_production_frontend_has_required_browser_security_headers() -> None:
     assert "proxy_pass http://api" not in nginx
 
 
-def test_production_compose_is_application_only_hardened_and_chat_surface_complete() -> None:
-    compose = read("docker-compose.prod.yml")
-    for infrastructure_service in ("db", "pgbouncer", "rabbitmq", "redis", "minio"):
-        assert f"\n  {infrastructure_service}:\n" not in compose
-    for service in ("migrate", "api", "workers", "web", "chat-embed"):
+def test_default_community_compose_has_explicit_product_boundary() -> None:
+    compose = read("compose.yml")
+
+    for service in ("db", "rabbitmq", "migrate", "api", "workers", "web", "chat-embed"):
         assert f"\n  {service}:\n" in compose
-    assert "WOOBE_POSTGRES_URL" in compose
-    assert "WOOBE_DATABASE_URL" in compose
-    assert "WOOBE_RABBITMQ_URL" in compose
+    for optional_service in ("pgbouncer", "redis", "minio", "rabbitmq-observer"):
+        assert f"\n  {optional_service}:\n" not in compose
+
+    assert "WOOBE_EDITION: community" in compose
+    assert "WOOBE_STORAGE_DRIVER: local" in compose
+    assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "false"' in compose
     assert "WOOBE_CHAT_TOKEN_SIGNING_KEY" in compose
     assert "VITE_API_URL" in compose
     assert "VITE_CHAT_EMBED_URL" in compose
-    assert "WOOBE_SERVICE_ROLE" not in compose
-    assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
-    assert "cap_drop:" in compose
     assert "./src:" not in compose
+
+
+def test_legacy_compose_contracts_are_not_part_of_public_head() -> None:
+    for path in (
+        "docker-compose.yml",
+        "docker-compose.community.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.override.yml",
+        "docker-compose.rabbitmq-observer.yml",
+    ):
+        assert not (ROOT / path).exists()
 
 
 def test_environment_manifest_covers_settings_and_uses_woobe_namespace() -> None:
@@ -87,14 +97,21 @@ def test_environment_manifest_covers_settings_and_uses_woobe_namespace() -> None
     assert not missing, f"Settings fields missing from .env.example: {sorted(missing)}"
 
 
-def test_compose_files_consume_woobe_manifest_variables() -> None:
-    environment = read(".env.example")
-    expected = {key for key in manifest_keys(environment) if key.startswith("WOOBE_")}
-    # Not every bootstrap-only application variable belongs to every topology, but
-    # each canonical application setting must be consumed by at least one supported Compose file.
-    combined = read("docker-compose.yml") + read("docker-compose.prod.yml") + read("docker-compose.community.yml")
-    missing = {key for key in expected if key not in combined}
-    assert not missing, f"Compose distribution ignores manifest variables: {sorted(missing)}"
+def test_default_compose_uses_the_environment_manifest_explicitly() -> None:
+    compose = read("compose.yml")
+    assert "env_file:" in compose
+    assert "- .env" in compose
+    for key in (
+        "WOOBE_ENVIRONMENT",
+        "WOOBE_DATABASE_URL",
+        "WOOBE_ENCRYPTION_KEY",
+        "WOOBE_RABBITMQ_URL",
+        "WOOBE_SECRET_KEY",
+        "WOOBE_CHAT_TOKEN_SIGNING_KEY",
+        "WOOBE_CORS_ORIGINS",
+        "WOOBE_TRUSTED_HOSTS",
+    ):
+        assert key in compose
 
 
 def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None:
