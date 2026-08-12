@@ -24,7 +24,9 @@ O produto trata configuração e runtime como partes do mesmo ciclo operacional:
 
 `WOOBE_EDITION=community` executa o core self-hosted sem cobrança da Woobe por Run e sem dependência obrigatória da Woobe Cloud. O operador arca com sua própria infraestrutura, provedores de modelo e serviços externos usados por Tools.
 
-`WOOBE_EDITION=cloud` habilita capacidades comerciais gerenciadas pela Woobe, como Billing. O core operacional permanece o mesmo.
+`WOOBE_EDITION=cloud` executa o mesmo core e adiciona capacidades comerciais gerenciadas pela Woobe, como Billing. O core operacional não é duplicado por edição.
+
+O código Cloud pode permanecer visível no mesmo repositório para transparência e revisão, mas fica fisicamente e juridicamente separado do Community/Core. Consulte `LICENSE.md` e `LICENSE-CLOUD.md`.
 
 ## Quick start self-hosted
 
@@ -48,21 +50,25 @@ Toda configuração da aplicação usa o prefixo `WOOBE_`. Variáveis públicas 
 
 ## Arquitetura
 
-O backend FastAPI é modular por bounded context:
+O backend compartilha o core entre todas as edições e isola código comercial específico:
 
 ```text
-src/modules/
-├── identity
-├── core
-├── agent
-├── network
-├── chat_surface
-├── metering
-├── observability
-└── billing        # montado apenas na edição Cloud
+src/
+├── modules/                  # Woobe Community/Core compartilhado
+│   ├── identity/
+│   ├── core/
+│   ├── agent/
+│   ├── network/
+│   ├── chat_surface/
+│   ├── metering/
+│   └── observability/
+├── editions/
+│   └── cloud/
+│       └── billing/          # Woobe Cloud; licença separada
+└── shared/                   # infraestrutura transversal
 ```
 
-O diretório `src/shared` contém infraestrutura transversal, segurança, configuração, mensageria, observabilidade e contratos técnicos compartilhados.
+O frontend segue a mesma fronteira: funcionalidades Cloud específicas ficam em `web/src/editions/cloud/**`. Não existe uma cópia `community/` do core; Community é o core compartilhado sem os módulos comerciais de edição.
 
 ## Segurança operacional
 
@@ -80,6 +86,8 @@ Leia `CONTRIBUTING.md` antes de abrir uma alteração. A branch de integração 
 
 ## Licença
 
-Woobe é distribuída como software **source-available/fair-code e self-hostable**, não como software Open Source segundo a definição OSI. O uso interno e a construção de produtos próprios sobre Woobe são permitidos nos termos de `LICENSE.md`; oferecer o próprio control plane Woobe como serviço hospedado, white-label ou OEM exige acordo comercial separado.
+Woobe Community/Core é distribuída como software **source-available/fair-code e self-hostable**, não como software Open Source segundo a definição OSI. O uso interno e a construção de produtos próprios sobre o core são permitidos nos termos de `LICENSE.md`; oferecer o próprio control plane Woobe como serviço hospedado, white-label ou OEM exige acordo comercial separado.
+
+Código sob `src/editions/**` e `web/src/editions/**` não herda automaticamente a licença Community/Core. O código Woobe Cloud atualmente presente nesses diretórios é regido por `LICENSE-CLOUD.md`.
 
 Os arquivos de licença incluídos nesta branch de preparação pública precisam de revisão jurídica antes da mudança de visibilidade do repositório.

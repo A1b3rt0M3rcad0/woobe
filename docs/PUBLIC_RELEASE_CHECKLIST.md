@@ -4,10 +4,13 @@ This checklist separates code work from repository/legal/operational actions tha
 
 ## Required before changing repository visibility
 
-- Review `LICENSE.md`, `TRADEMARKS.md` and `COMMERCIAL-LICENSE.md` with qualified legal counsel.
+- Review `LICENSE.md`, `LICENSE-CLOUD.md`, `TRADEMARKS.md` and `COMMERCIAL-LICENSE.md` with qualified legal counsel.
+- Verify that `src/editions/**` and `web/src/editions/**` are excluded from the Community/Core license and that every edition-specific path has an explicit applicable license before publishing it.
+- Verify that no future Enterprise path silently inherits Community/Core rights; edition source without an explicit license must not be published as though it were Community code.
 - Run `scripts/audit_public_history.sh` against a full clone and rotate/revoke every real secret found before rewriting history.
 - Review historical branches/tags and decide whether the public repository keeps rewritten history or starts from a sanitized public baseline.
 - Validate clean Community installation, existing-database owner bootstrap, backup/restore, production Compose, ChatSurface production topology and upgrade procedure.
+- Validate Community runtime without loading Cloud Billing routes/workers and Cloud runtime with Billing explicitly enabled.
 - Run the manual GitHub workflows intentionally; this repository does not auto-run CI merely because a PR was opened.
 
 ## Repository administration after merge

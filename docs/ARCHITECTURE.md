@@ -22,6 +22,20 @@ Critical authorization, ownership, release immutability, duplicate-document rule
 
 Runtime infrastructure is process-separated into API and Workers. RabbitMQ supports asynchronous module/runtime work. PostgreSQL is the durable source of application state. Redis is optional where cache-backed capabilities are enabled. Knowledge files can use local persistent storage or S3-compatible storage.
 
-## Community, Cloud and Enterprise
+## Edition boundaries
 
-Community contains the operational core and can run without Woobe Cloud. Cloud adds managed commercial/operational capabilities around the same core. Enterprise capabilities are reserved for organization-scale governance/security requirements and are not implemented merely to create artificial Community limitations.
+Woobe uses composition rather than forks of the core:
+
+```text
+Community  = Core
+Cloud      = Core + Cloud edition modules
+Enterprise = Core + explicitly licensed Enterprise modules, when they exist
+```
+
+Shared operational code belongs under `src/modules/**` and common frontend features under `web/src/features/**`. Code that exists only to operate the Woobe-managed Cloud belongs under `src/editions/cloud/**` or `web/src/editions/cloud/**`.
+
+Cloud modules may depend on the shared core. The shared core must not require Cloud modules when `WOOBE_EDITION=community`. API routing and Worker registry discovery enforce the edition boundary at runtime. Billing is currently the only Cloud-specific bounded context.
+
+No empty Enterprise implementation tree is maintained. Enterprise directories should be introduced only with real Enterprise capabilities and an explicit edition-specific license.
+
+The filesystem boundary is also a licensing boundary. `LICENSE.md` covers the Community/Core source according to its scope section; `LICENSE-CLOUD.md` covers Cloud edition paths. Source visibility is not equivalent to a grant of production or commercial rights.
