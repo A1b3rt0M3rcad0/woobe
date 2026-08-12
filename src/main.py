@@ -11,7 +11,6 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
-from editions.cloud.billing.presentation.routes import router as billing_router
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -272,6 +271,8 @@ def create_app() -> FastAPI:
         app.include_router(mcp_tools_router)
         app.include_router(metering_router)
         if settings.managed_billing_enabled:
+            from editions.cloud.billing.presentation.routes import router as billing_router
+
             app.include_router(billing_router)
         app.include_router(observability_router)
         app.include_router(network_router)
