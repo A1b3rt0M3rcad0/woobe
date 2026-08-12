@@ -253,7 +253,7 @@ class TestAddArchitectureTestsForModuleBoundariesRejectsForbidden:
     """Regression: forbidden patterns are detected."""
 
     def test_detects_forbidden_cross_module_import(self):
-        code = "from modules.billing.infra.repositories import BillingRepository\n"
+        code = "from modules.core.infra.database.repositories import ProjectRepository\n"
         tree = ast.parse(code)
         violations = []
         for node in ast.walk(tree):
@@ -263,7 +263,7 @@ class TestAddArchitectureTestsForModuleBoundariesRejectsForbidden:
                     target = parts[1]
                     if target in KNOWN_MODULES and target != "agent":
                         violations.append(target)
-        assert violations == ["billing"]
+        assert violations == ["core"]
 
     def test_detects_shared_containing_module_domain(self):
         code = "from modules.agent.domain.entities import Agent\n"
