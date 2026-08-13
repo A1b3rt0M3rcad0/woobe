@@ -20,9 +20,9 @@ Deleting a file from the current branch does **not** remove it from Git history.
 
 Before changing repository visibility:
 
-- [ ] Run the full-history secret audit (`scripts/audit_public_history.sh` / the manual security workflow).
+- [ ] Run the full-history audit with `scripts/audit_public_history.sh`. The script scans secrets across all reachable refs and fails when known proprietary implementation paths remain reachable.
 - [ ] Review findings manually; rotate or revoke every real credential that has ever been committed, even if the file was later deleted.
-- [ ] Audit history for proprietary Cloud/Enterprise source that must not become public merely because it was removed from the current HEAD.
+- [ ] Review any historical proprietary-path report and confirm Cloud/Enterprise/Billing implementation cannot become public merely because it was removed from the current HEAD.
 - [ ] Decide and execute the public-history strategy: either rewrite/sanitize existing history or publish from a deliberately sanitized public baseline.
 - [ ] Verify branches and tags that will become visible, not only the current `development` HEAD.
 - [ ] Re-run the history audit against the exact repository state intended for publication.
@@ -46,16 +46,16 @@ Do not make the repository public while this section is incomplete.
 - [ ] Run the full local/CI validation contract with `docker compose -f compose.test.yaml up --build --exit-code-from tests tests`; the manual tests workflow must execute this exact same command.
 - [ ] Confirm backend mocked and backend integration suites complete successfully through their dedicated `docker/tests/Dockerfile.*` images.
 - [ ] Confirm the test topology uses Docker service DNS rather than `host.docker.internal` and requires no host Bash/WSL dependency.
-- [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
+- [ ] Run the manual container workflow: builds, non-root checks, SPDX SBOM generation, third-party dependency inventory, and HIGH/CRITICAL image scanning.
 - [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the actual root `compose.yaml` distribution.
-- [ ] Run the manual security workflow, including full-history secret scanning.
+- [ ] Run the manual security workflow and the full-history audit script.
 - [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
 
 ## Licensing and repository administration — blocking
 
-- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSING.md`, trademark terms and the external contribution strategy for the intended jurisdictions.
-- [ ] The final Contributor License Agreement and its acceptance mechanism are active before external contributions are merged.
-- [ ] The exact release dependency inventory has been reviewed and all required third-party notices are present.
+- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSING.md`, `CONTRIBUTOR_LICENSE_AGREEMENT.md`, trademark terms and the external contribution strategy for the intended jurisdictions.
+- [ ] The repository CLA text and acceptance workflow are enabled, and the CLA check is required by branch protection before external contributions are merged.
+- [ ] Run the container workflow for the exact release artifacts, review the generated `woobe-third-party-inventory`, and include every notice or attribution required by the original component licenses.
 - [ ] Community build artifacts have been inspected to confirm proprietary edition source is absent.
 - [ ] GitHub default branch is the intended public integration branch.
 - [ ] Branch protection/rulesets are configured for the public workflow.
