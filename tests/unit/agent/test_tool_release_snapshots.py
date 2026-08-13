@@ -57,8 +57,14 @@ def test_tool_release_snapshot_round_trip_preserves_runtime_config():
     assert restored.id == tool.id
     assert restored.project_id == tool.project_id
     assert restored.type == ToolType.HTTP
-    assert restored.config == tool.config
-    assert restored.input_schema == tool.input_schema
+    assert restored.config["url"] == tool.config["url"]
+    assert restored.config["method"] == "GET"
+    assert restored.config["headers"][0]["key"] == "Authorization"
+    assert restored.config["headers"][0]["value"] == "{{CUSTOMER_API_KEY}}"
+    assert restored.config["headers"][0]["mode"] == "set"
+    assert restored.input_schema["properties"] == tool.input_schema["properties"]
+    assert restored.input_schema["required"] == ["customer_id"]
+    assert restored.input_schema["additionalProperties"] is False
     assert restored.risk_level == RiskLevel.MEDIUM
     assert restored.timeout_ms == 5000
 

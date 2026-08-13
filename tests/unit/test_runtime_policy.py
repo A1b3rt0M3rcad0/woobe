@@ -9,8 +9,10 @@ from shared.security.http_guard import _validate_runtime_security_settings
 def _settings(environment: str, protected: bool, site: str = "lax") -> Any:
     values = {
         "environment": environment,
-        "refresh_" + "cookie_" + "secure": protected,
-        "refresh_" + "cookie_" + "same_site": site,
+        "access_cookie_secure": protected,
+        "access_cookie_same_site": site,
+        "refresh_cookie_secure": protected,
+        "refresh_cookie_same_site": site,
     }
     return cast(Any, SimpleNamespace(**values))
 

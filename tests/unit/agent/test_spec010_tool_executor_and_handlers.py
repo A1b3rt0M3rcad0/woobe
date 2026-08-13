@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.domain.entities import Tool
+from modules.agent.domain.enums import ToolStatus, ToolType
 from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
 from modules.agent.infra.messaging.inbox_handlers import AgentInboxEventRouter
 
@@ -31,14 +33,24 @@ class TestAgentToolExecutorWiring:
     async def test_execute_tool_with_secret_resolver(self):
         tool_repo = MagicMock()
         tool_id = uuid4()
-        tool = MagicMock()
-        tool.status = "active"
-        tool.config = {
-            "url": "https://api.example.com/{{path}}",
-            "method": "POST",
-            "headers": [{"key": "Authorization", "value": "Bearer {{secret}}"}],
-            "variables": {"path": "test"},
-        }
+        tool = Tool(
+            id=tool_id,
+            project_id=uuid4(),
+            name="Example API",
+            type=ToolType.HTTP,
+            status=ToolStatus.ACTIVE,
+            config={
+                "url": "https://api.example.com/{{path}}",
+                "method": "POST",
+                "headers": [{"key": "Authorization", "value": "Bearer {{secret}}"}],
+                "variables": {"path": "test", "secret": "placeholder"},
+            },
+            input_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        )
         tool_repo.get_by_id = AsyncMock(return_value=tool)
         executor = MagicMock()
         executor.execute = AsyncMock(
@@ -62,13 +74,19 @@ class TestAgentToolExecutorWiring:
     async def test_execute_tool_without_secret_resolver(self):
         tool_repo = MagicMock()
         tool_id = uuid4()
-        tool = MagicMock()
-        tool.status = "active"
-        tool.config = {
-            "url": "https://api.example.com/test",
-            "method": "GET",
-            "headers": [],
-        }
+        tool = Tool(
+            id=tool_id,
+            project_id=uuid4(),
+            name="Example API",
+            type=ToolType.HTTP,
+            status=ToolStatus.ACTIVE,
+            config={
+                "url": "https://api.example.com/test",
+                "method": "GET",
+                "headers": [],
+            },
+            input_schema={"type": "object", "properties": {}, "required": []},
+        )
         tool_repo.get_by_id = AsyncMock(return_value=tool)
 
         executor = MagicMock()

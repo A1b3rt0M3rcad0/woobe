@@ -122,6 +122,7 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
     )
 
     uow = MagicMock()
+    uow.commit = AsyncMock()
     uow.knowledge_versions.get_by_id = AsyncMock(return_value=knowledge)
     uow.vector_snapshots.get_by_id = AsyncMock(return_value=snapshot)
     uow.vector_snapshots.search_similar = AsyncMock(return_value=[(chunk, 0.91)])
@@ -139,6 +140,7 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
         current_execution.reset(token)
 
     embedding_client.aembed_query.assert_awaited_once_with("When does it renew?")
+    uow.commit.assert_awaited_once()
     uow.vector_snapshots.search_similar.assert_awaited_once_with(
         vector_snapshot_id=snapshot.id,
         embedding=[0.1, 0.2, 0.3],

@@ -201,6 +201,8 @@ async def test_playground_snapshot_override_uses_unsaved_agent_runtime_config():
         execution_context="playground",
         snapshot_override={"runtime_config": unsaved_runtime_config},
         loaded_release_id=None,
+        session_id=None,
+        metadata=None,
     )
     resolver = object.__new__(ReleaseRuntimeResolver)
 
@@ -245,6 +247,8 @@ async def test_production_runtime_uses_release_tool_snapshot_config_not_live_age
         execution_context="production",
         snapshot_override=None,
         loaded_release_id=None,
+        session_id=None,
+        metadata=None,
     )
     resolver = object.__new__(ReleaseRuntimeResolver)
 

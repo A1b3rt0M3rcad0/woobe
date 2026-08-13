@@ -346,11 +346,14 @@ class TestUpdateToolStatusUseCase:
 
 class TestDeleteToolUseCase:
     @pytest.mark.asyncio
-    async def test_delete_tool(self):
+    async def test_delete_tool(self, mocker):
         repo = FakeToolRepository()
         outbox = FakeOutbox()
         uc = CreateToolUseCase(repo, outbox)
-        duc = DeleteToolUseCase(repo)
+        agent_repo = mocker.AsyncMock()
+        agent_repo.list_by_project.return_value = []
+        release_repo = mocker.AsyncMock()
+        duc = DeleteToolUseCase(repo, agent_repo, release_repo)
 
         created = await uc.execute(CreateToolInput(
             project_id=uuid.uuid4(),

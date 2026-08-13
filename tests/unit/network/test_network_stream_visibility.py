@@ -13,6 +13,9 @@ class EventStore:
     async def is_cancel_requested(self, execution_id):
         return False
 
+    async def resolve_agent_session_mode(self, **kwargs):
+        return kwargs.get("binding_session_mode") or "stateless"
+
     async def start_invocation(self, **kwargs):
         return SimpleNamespace(id=uuid4(), agent_session_id=None)
 

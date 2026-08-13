@@ -47,6 +47,7 @@ class FakeSessionContext:
 
 
 def runtime_row(*, issued, environment: str):
+    agent_id = uuid4()
     return SimpleNamespace(
         id=uuid4(),
         project_id=uuid4(),
@@ -55,7 +56,9 @@ def runtime_row(*, issued, environment: str):
         key_version=issued.key_version,
         scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
         kind="runtime",
-        agent_id=uuid4(),
+        agent_id=agent_id,
+        target_type="agent",
+        target_id=agent_id,
         environment=environment,
         interfaces=["http"],
         status="active",
