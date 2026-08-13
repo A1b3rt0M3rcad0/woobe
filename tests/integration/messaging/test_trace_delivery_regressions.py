@@ -102,7 +102,11 @@ async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
         committed = False
 
         async def stream(self, _input):
-            yield 'data: {"type": "token", "content": "ok"}\n\n'
+            yield (
+                'data: {"type": "token", "content": "ok", '
+                '"visibility": "assistant", "channel": "final", '
+                '"phase": "response_generation"}\n\n'
+            )
             yield 'data: {"type": "done", "trace_id": "trace"}\n\n'
             self.committed = True
 
