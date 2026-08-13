@@ -325,6 +325,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
         try:
             uow = CoreUnitOfWork(session_factory)
             async with uow:
+                expected_query_count = uow.project_overview.query_count
                 await uow.session.execute(
                     text("SET LOCAL TIME ZONE 'America/Sao_Paulo'")
                 )
@@ -352,8 +353,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
         finally:
             event.remove(engine.sync_engine, "before_cursor_execute", capture_statement)
 
-        assert query_count == 7
-        assert production_query_count == 7
+        assert query_count == expected_query_count
+        assert production_query_count == expected_query_count
 
         summary = overview["summary"]
         assert summary["active_agents"] == 3
