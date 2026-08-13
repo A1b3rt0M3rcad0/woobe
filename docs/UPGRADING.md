@@ -11,6 +11,30 @@ Woobe Community uses the root `compose.yaml` as its supported self-host topology
 
 Do not assume that rolling an application version back also makes a database downgrade safe.
 
+## Configuration namespace migration
+
+Woobe renamed its application environment-variable namespace from `PROJECTRAI_*` to `WOOBE_*`.
+Existing installations must migrate their application configuration before starting a version that uses the `WOOBE_` namespace.
+
+For application variables, preserve the deployed value and rename the prefix:
+
+```text
+PROJECTRAI_SECRET_KEY          -> WOOBE_SECRET_KEY
+PROJECTRAI_ENCRYPTION_KEY      -> WOOBE_ENCRYPTION_KEY
+PROJECTRAI_DATABASE_URL        -> WOOBE_DATABASE_URL
+PROJECTRAI_POSTGRES_URL        -> WOOBE_POSTGRES_URL
+PROJECTRAI_RABBITMQ_URL        -> WOOBE_RABBITMQ_URL
+PROJECTRAI_REDIS_URL           -> WOOBE_REDIS_URL
+PROJECTRAI_CORS_ORIGINS        -> WOOBE_CORS_ORIGINS
+PROJECTRAI_TRUSTED_HOSTS       -> WOOBE_TRUSTED_HOSTS
+```
+
+The same rule applies to the remaining application settings previously prefixed with `PROJECTRAI_`: rename only the prefix to `WOOBE_` and preserve the configured value unless the target release notes explicitly document a value change.
+
+Infrastructure/bootstrap variables that never used the `PROJECTRAI_` prefix, including `POSTGRES_*`, `RABBITMQ_*`, `AWS_*` and `VITE_*`, are not part of this prefix migration.
+
+Do not replace an existing production `.env` with a freshly generated one. Doing so can rotate signing or encryption material and can change infrastructure credentials. Migrate the existing configuration, compare it with the target version's `.env.example`, then rebuild and restart.
+
 ## Source-based upgrade
 
 For a source checkout, update to the intended version and rebuild the artifacts:
