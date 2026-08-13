@@ -20,5 +20,6 @@ web/
 docs/
 specs/
 .opencode/
+src/editions/
 *.log
 README.md
