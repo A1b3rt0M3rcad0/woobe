@@ -11,10 +11,6 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-EDITION = os.environ.get("WOOBE_EDITION", "community").strip().lower()
-if EDITION not in {"community", "cloud"}:
-    raise RuntimeError("WOOBE_EDITION must be 'community' or 'cloud'")
-
 from shared.infra.database.base import Base  # noqa: E402
 from modules.identity.infra.database.models import *  # noqa: E402,F401,F403
 from modules.core.infra.database.models import *  # noqa: E402,F401,F403
@@ -26,9 +22,6 @@ from modules.network.infra.database.models import *  # noqa: E402,F401,F403
 from modules.network.infra.database.schema_extensions import *  # noqa: E402,F401,F403
 from modules.metering.infra.database.models import *  # noqa: E402,F401,F403
 from modules.observability.infra.database.models import *  # noqa: E402,F401,F403
-
-if EDITION == "cloud":
-    from editions.cloud.billing.infra.database.models import *  # noqa: E402,F401,F403
 
 
 def _async_postgres_url(value: str) -> str:
@@ -66,8 +59,6 @@ MANAGED_SCHEMAS = {
     "metering",
     "observability",
 }
-if EDITION == "cloud":
-    MANAGED_SCHEMAS.add("billing")
 
 
 def include_name(name: str | None, type_: str, _parent_names: Any) -> bool:
