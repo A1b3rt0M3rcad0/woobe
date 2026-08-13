@@ -1,32 +1,29 @@
-export interface OrgShape {
+export interface WorkspaceShape {
   id: string
   name: string
   slug: string
-  membership_role?: 'owner' | 'admin' | 'member' | 'viewer'
-  can_manage_organization?: boolean
-  accessible_project_count?: number
-  access_mode?: 'implicit_owner' | 'assigned_projects'
+  status?: string
+  can_manage?: boolean
 }
 
 export interface ProjectShape {
   id: string
-  organization_id: string
+  workspace_id: string
   name: string
   slug: string
-  organization_role?: string
-  access_source?: 'organization_owner' | 'project_membership'
+  access_source?: 'instance_admin' | 'project_membership'
 }
 
 export interface WorkspaceContextValue {
-  organizations: OrgShape[]
-  currentOrganization: OrgShape | null
+  workspaces: WorkspaceShape[]
+  currentWorkspace: WorkspaceShape | null
   projects: ProjectShape[]
   currentProject: ProjectShape | null
-  selectOrganization: (org: OrgShape) => void
+  selectWorkspace: (workspace: WorkspaceShape) => void
   selectProject: (project: ProjectShape) => void
   clearCurrentProject: () => void
-  clearCurrentOrganization: () => void
-  isLoadingOrganizations: boolean
+  clearCurrentWorkspace: () => void
+  isLoadingWorkspaces: boolean
   isLoadingProjects: boolean
   isFetchingProjects: boolean
   workspaceError: Error | null
