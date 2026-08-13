@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+CANONICAL_TEST_COMMAND = (
+    "docker compose -f compose.test.yaml up --build --exit-code-from tests tests"
+)
 
 
 def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
@@ -39,6 +42,7 @@ def test_public_deployment_surface_has_one_default_contract() -> None:
 def test_test_topology_is_standalone_and_shell_independent() -> None:
     compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
+    testing_docs = (ROOT / "docs/testing/COMPOSE_TESTS.md").read_text(encoding="utf-8")
 
     assert "name: woobe-test" in compose
     assert "backend-tests:" in compose
@@ -53,7 +57,9 @@ def test_test_topology_is_standalone_and_shell_independent() -> None:
     assert "npm run test:run" not in compose
     assert not (ROOT / "scripts/test.sh").exists()
 
-    assert "docker compose -f compose.test.yaml run --rm tests" in workflow
+    assert CANONICAL_TEST_COMMAND in workflow
+    assert CANONICAL_TEST_COMMAND in testing_docs
+    assert "docker compose -f compose.test.yaml run --rm tests" not in workflow
     assert "scripts/test.sh" not in workflow
 
 
