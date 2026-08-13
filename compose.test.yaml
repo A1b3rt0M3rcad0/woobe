@@ -134,11 +134,8 @@ services:
   fake-llm:
     build:
       context: .
-      target: test
+      dockerfile: docker/tests/Dockerfile.fake-llm
     pull_policy: build
-    command: ["uvicorn", "tests.fakes.openai_provider:app", "--host", "0.0.0.0", "--port", "9009"]
-    environment:
-      PYTHONPATH: /app/src:/app
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9009/health', timeout=3)"]
       interval: 5s
@@ -238,10 +235,28 @@ services:
       retries: 20
     restart: "no"
 
+  web-mocked:
+    build:
+      context: web
+      args:
+        VITE_API_URL: http://web-mocked:8080
+        VITE_CHAT_EMBED_URL: http://chat-embed:8080
+        VITE_WOOBE_EDITION: community
+    pull_policy: build
+    depends_on:
+      chat-embed:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
   backend-tests:
     build:
       context: .
-      target: test
+      dockerfile: docker/tests/Dockerfile.backend
     pull_policy: build
     environment:
       WOOBE_EDITION: community
@@ -263,85 +278,51 @@ services:
         condition: service_healthy
     volumes:
       - ./.test-artifacts:/artifacts
-    command:
-      - /bin/sh
-      - -c
-      - >-
-        set -eu;
-        ruff check src tests migrations;
-        pyright src migrations;
-        alembic upgrade head;
-        alembic current;
-        alembic check;
-        alembic downgrade -1;
-        alembic upgrade head;
-        alembic check;
-        python -m pytest -q --junitxml=/artifacts/backend-pytest.xml
     restart: "no"
 
   frontend-tests:
     build:
       context: web
-      target: test
+      dockerfile: ../docker/tests/Dockerfile.frontend
     pull_policy: build
     environment:
       VITE_API_URL: http://api:8000
       VITE_CHAT_EMBED_URL: http://chat-embed:8080
       VITE_WOOBE_EDITION: community
-    command: ["/bin/sh", "-c", "npm run test:run && npm run build"]
-    restart: "no"
-
-  web-preview:
-    build:
-      context: web
-      target: test
-    pull_policy: build
-    environment:
-      VITE_API_URL: http://web-preview:4173
-      VITE_CHAT_EMBED_URL: http://chat-embed:8080
-      VITE_WOOBE_EDITION: community
-    command: ["/bin/sh", "-c", "npm run build && npm run preview -- --host 0.0.0.0 --port 4173"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4173"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
     restart: "no"
 
   browser-mocked:
     build:
       context: .
-      dockerfile: e2e/Dockerfile
+      dockerfile: docker/tests/Dockerfile.browser-mocked
     pull_policy: build
     environment:
-      CI: "true"
-      PLAYWRIGHT_BASE_URL: http://web-preview:4173
+      PLAYWRIGHT_BASE_URL: http://web-mocked:8080
     depends_on:
-      web-preview:
+      web-mocked:
         condition: service_healthy
     volumes:
       - ./.test-artifacts/playwright-mocked:/workspace/e2e/playwright-report
       - ./.test-artifacts/playwright-mocked-results:/workspace/e2e/test-results
-    command: ["npx", "playwright", "test", "--config", "playwright.config.ts"]
     restart: "no"
 
   browser-e2e:
     build:
       context: .
-      dockerfile: e2e/Dockerfile
+      dockerfile: docker/tests/Dockerfile.browser-e2e
     pull_policy: build
     environment:
-      CI: "true"
       PLAYWRIGHT_BASE_URL: http://web:8080
     depends_on:
       web:
         condition: service_healthy
       api:
         condition: service_healthy
+      workers:
+        condition: service_started
     volumes:
       - ./.test-artifacts/playwright-fullstack:/workspace/e2e/playwright-report-fullstack
       - ./.test-artifacts/playwright-fullstack-results:/workspace/e2e/test-results
-    command: ["npx", "playwright", "test", "--config", "fullstack.config.ts"]
     restart: "no"
 
   tests:

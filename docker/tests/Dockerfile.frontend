@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-alpine
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY . .
+
+ENV VITE_API_URL=http://api:8000 \
+    VITE_CHAT_EMBED_URL=http://chat-embed:8080 \
+    VITE_WOOBE_EDITION=community
+
+CMD ["/bin/sh", "-c", "set -eu; npm run test:run; npm run build"]

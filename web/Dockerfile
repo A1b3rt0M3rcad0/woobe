@@ -8,10 +8,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
-FROM deps AS test
-COPY . .
-CMD ["npm", "run", "test:run"]
-
 FROM deps AS builder
 ARG VITE_API_URL
 ARG VITE_CHAT_EMBED_URL

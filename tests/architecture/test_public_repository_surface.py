@@ -48,13 +48,39 @@ def test_test_topology_is_standalone_and_shell_independent() -> None:
     assert "tests:" in compose
     assert "host.docker.internal" not in compose
     assert "deploy/test" not in compose
+    assert "target: test" not in compose
+    assert "ruff check src tests migrations" not in compose
+    assert "npm run test:run" not in compose
     assert not (ROOT / "scripts/test.sh").exists()
 
     assert "docker compose -f compose.test.yaml run --rm tests" in workflow
     assert "scripts/test.sh" not in workflow
 
+
+def test_test_images_are_explicit_and_separate_from_product_dockerfiles() -> None:
+    dockerfiles = {
+        "backend": ROOT / "docker/tests/Dockerfile.backend",
+        "frontend": ROOT / "docker/tests/Dockerfile.frontend",
+        "browser-mocked": ROOT / "docker/tests/Dockerfile.browser-mocked",
+        "browser-e2e": ROOT / "docker/tests/Dockerfile.browser-e2e",
+        "fake-llm": ROOT / "docker/tests/Dockerfile.fake-llm",
+    }
+    for path in dockerfiles.values():
+        assert path.is_file(), path
+
+    compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
+    for name in dockerfiles:
+        assert f"Dockerfile.{name}" in compose
+
+    backend_product = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    frontend_product = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    assert " AS test" not in backend_product
+    assert " AS test" not in frontend_product
+    assert not (ROOT / "e2e/Dockerfile").exists()
+
+
+def test_browser_e2e_contract_is_present() -> None:
     assert (ROOT / "e2e/package.json").is_file()
-    assert (ROOT / "e2e/Dockerfile").is_file()
     assert (ROOT / "e2e/fullstack.config.ts").is_file()
     assert (ROOT / "e2e/fullstack/community-bootstrap.spec.ts").is_file()
 
