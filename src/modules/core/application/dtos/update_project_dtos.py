@@ -14,7 +14,7 @@ class UpdateProjectInput(BaseModel):
 
 class UpdateProjectOutput(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: ProjectStatus
