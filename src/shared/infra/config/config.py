@@ -171,8 +171,8 @@ class Settings(BaseSettings):
     @classmethod
     def validate_edition(cls, value: object) -> str:
         normalized = str(value).strip().lower()
-        if normalized not in {"community", "cloud"}:
-            raise ValueError("WOOBE_EDITION must be 'community' or 'cloud'")
+        if normalized != "community":
+            raise ValueError("WOOBE_EDITION must be 'community' in the Community distribution")
         return normalized
 
     @field_validator("database_url", mode="before")
