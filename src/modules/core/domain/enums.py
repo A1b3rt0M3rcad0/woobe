@@ -1,6 +1,17 @@
 from enum import StrEnum, auto
 
 
+class WorkspaceStatus(StrEnum):
+    active = auto()
+    archived = auto()
+    deleted = auto()
+
+
+class WorkspaceMemberStatus(StrEnum):
+    active = auto()
+    removed = auto()
+
+
 class ProjectStatus(StrEnum):
     active = auto()
     archived = auto()
@@ -42,15 +53,8 @@ class ApiKeyScope(StrEnum):
     custom = auto()
 
 
-PROJECT_API_KEY_SCOPES = frozenset(
-    {
-        "runtime:execute",
-        "traces:read",
-        "usage:read",
-    }
-)
+PROJECT_API_KEY_SCOPES = frozenset({"runtime:execute", "traces:read", "usage:read"})
 PROJECT_API_KEY_ACCEPTED_SCOPES = PROJECT_API_KEY_SCOPES | frozenset(
     scope.value for scope in ApiKeyScope
 )
-
 RUNTIME_INTERFACES = frozenset(interface.value for interface in RuntimeInterface)

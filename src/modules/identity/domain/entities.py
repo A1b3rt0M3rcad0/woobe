@@ -6,14 +6,7 @@ from uuid import UUID
 
 import uuid6
 
-from modules.identity.domain.enums import (
-    InviteStatus,
-    MemberRole,
-    MemberStatus,
-    OrganizationStatus,
-    UserSessionStatus,
-    UserStatus,
-)
+from modules.identity.domain.enums import InviteStatus, UserSessionStatus, UserStatus
 
 
 @dataclass
@@ -27,33 +20,10 @@ class User:
 
 
 @dataclass
-class Organization:
+class UserInvite:
     id: UUID = field(default_factory=uuid6.uuid7)
-    name: str = ""
-    slug: str = ""
-    status: OrganizationStatus = OrganizationStatus.active
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-@dataclass
-class OrganizationMember:
-    id: UUID = field(default_factory=uuid6.uuid7)
-    user_id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
-    role: MemberRole = MemberRole.member
-    status: MemberStatus = MemberStatus.active
-    joined_at: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-@dataclass
-class OrganizationInvite:
-    id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     email: str = ""
-    role: MemberRole = MemberRole.member
     token_hash: str = ""
     invited_by_user_id: UUID = field(default_factory=uuid6.uuid7)
     status: InviteStatus = InviteStatus.pending

@@ -10,14 +10,6 @@ class AuthenticatedUser:
 
 
 @dataclass(frozen=True)
-class AuthenticatedOrganization:
-    id: UUID
-    name: str
-    slug: str
-    status: str
-
-
-@dataclass(frozen=True)
 class IssuedAuthentication:
     access_token: str
     refresh_token: str
@@ -25,4 +17,3 @@ class IssuedAuthentication:
     token_type: str
     expires_in: int
     user: AuthenticatedUser
-    organization: AuthenticatedOrganization | None = None

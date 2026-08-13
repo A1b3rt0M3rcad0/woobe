@@ -13,13 +13,36 @@ from modules.core.domain.enums import (
     ProjectStatus,
     RuntimeEnvironment,
     RuntimeTargetType,
+    WorkspaceMemberStatus,
+    WorkspaceStatus,
 )
+
+
+@dataclass
+class Workspace:
+    id: UUID = field(default_factory=uuid6.uuid7)
+    name: str = ""
+    slug: str = ""
+    status: WorkspaceStatus = WorkspaceStatus.active
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class WorkspaceMember:
+    id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
+    user_id: UUID = field(default_factory=uuid6.uuid7)
+    status: WorkspaceMemberStatus = WorkspaceMemberStatus.active
+    joined_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass
 class Project:
     id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     name: str = ""
     slug: str = ""
     status: ProjectStatus = ProjectStatus.active

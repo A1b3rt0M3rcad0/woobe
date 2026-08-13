@@ -17,7 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infra.database.base import Base, BaseModel
 from shared.infra.database.inbox import InboxEventModel as BaseInbox
@@ -33,50 +33,17 @@ class UserModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="active")
 
 
-class OrganizationModel(BaseModel):
-    __tablename__ = "organizations"
-    __table_args__ = (UniqueConstraint("slug"), {"schema": "identity"})
-
-    name: Mapped[str] = mapped_column(String(255))
-    slug: Mapped[str] = mapped_column(String(128))
-    status: Mapped[str] = mapped_column(String(32), default="active")
-
-    members: Mapped[list[OrganizationMemberModel]] = relationship(
-        back_populates="organization"
-    )
-
-
-class OrganizationMemberModel(BaseModel):
-    __tablename__ = "organization_members"
+class UserInviteModel(BaseModel):
+    __tablename__ = "user_invites"
     __table_args__ = (
-        UniqueConstraint("organization_id", "user_id"),
+        UniqueConstraint("workspace_id", "email", name="uq_identity_user_invites_workspace_email"),
+        Index("ix_identity_user_invites_email_status", "email", "status"),
         {"schema": "identity"},
     )
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
-    role: Mapped[str] = mapped_column(String(32))
-    status: Mapped[str] = mapped_column(String(32), default="active")
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
-    organization: Mapped[OrganizationModel] = relationship(back_populates="members")
-
-
-class OrganizationInviteModel(BaseModel):
-    __tablename__ = "organization_invites"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "email"),
-        {"schema": "identity"},
-    )
-
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("identity.organizations.id")
-    )
+    workspace_id: Mapped[UUID]
     email: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(32))
-    token_hash: Mapped[str] = mapped_column(String(255))
+    token_hash: Mapped[str] = mapped_column(String(255), default="")
     invited_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
     status: Mapped[str] = mapped_column(String(32), default="pending")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -90,9 +57,7 @@ class UserSessionModel(BaseModel):
     user_id: Mapped[UUID] = mapped_column(ForeignKey("identity.users.id"))
     refresh_token_hash: Mapped[bytes] = mapped_column(LargeBinary)
     replaced_by_session_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("identity.user_sessions.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
+        ForeignKey("identity.user_sessions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     user_agent: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(45))
@@ -113,22 +78,18 @@ class InstanceSettingsModel(Base):
     )
 
     id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
-    owner_user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("identity.users.id", ondelete="RESTRICT"),
-        nullable=True,
+    instance_id: Mapped[UUID | None] = mapped_column(unique=True, nullable=True)
+    admin_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("identity.users.id", ondelete="RESTRICT"), nullable=True
     )
-    initialized_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    initialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     signup_mode: Mapped[str] = mapped_column(
         String(32), default="invite_only", server_default="invite_only"
     )
     telemetry_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
