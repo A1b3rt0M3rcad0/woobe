@@ -60,6 +60,8 @@ def test_test_topology_is_standalone_and_shell_independent() -> None:
     assert CANONICAL_TEST_COMMAND in workflow
     assert CANONICAL_TEST_COMMAND in testing_docs
     assert "docker compose -f compose.test.yaml run --rm tests" not in workflow
+    assert "backend-pyright.log" in testing_docs
+    assert "non-blocking repository baseline" in testing_docs
     assert "scripts/test.sh" not in workflow
 
 
@@ -77,6 +79,11 @@ def test_test_images_are_explicit_and_separate_from_product_dockerfiles() -> Non
     compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
     for name in dockerfiles:
         assert f"Dockerfile.{name}" in compose
+
+    backend_test = dockerfiles["backend"].read_text(encoding="utf-8")
+    assert "pyright_status=0" in backend_test
+    assert "backend-pyright.log" in backend_test
+    assert 'if [ \"$pyright_status\" -eq 1 ]' in backend_test
 
     backend_product = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     frontend_product = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")

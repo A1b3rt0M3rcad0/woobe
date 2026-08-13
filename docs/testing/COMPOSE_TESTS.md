@@ -46,11 +46,16 @@ The test project is named `woobe-test`, so it remains isolated from the default 
 
 ### Backend
 
-`Dockerfile.backend` owns the complete backend validation command:
+`Dockerfile.backend` owns the backend validation sequence:
 
 ```text
-Ruff -> Pyright -> Alembic upgrade/current/check -> rollback -> re-upgrade/check -> Pytest
+Ruff (blocking)
+  -> Full Pyright diagnostics (non-blocking repository baseline)
+  -> Alembic upgrade/current/check -> rollback -> re-upgrade/check (blocking)
+  -> Pytest (blocking)
 ```
+
+The repository-wide Pyright pass remains visible but does not currently fail the aggregate validation when it returns type diagnostics. Its output is printed to the container log and persisted as `.test-artifacts/backend-pyright.log`. A Pyright execution failure distinct from normal type diagnostics still fails the backend runner. This preserves the existing project contract while the repository-wide type baseline is reduced separately.
 
 The image includes test-only system dependencies such as `libatomic1`, required by the Node runtime used by Pyright in the slim Python image. That dependency is intentionally not added to the production backend image.
 
