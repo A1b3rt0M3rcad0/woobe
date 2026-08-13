@@ -1,122 +1,108 @@
-# Compose test workflow
+# Compose backend test workflow
 
-Woobe keeps product deployment and validation as separate contracts:
+Woobe keeps product deployment and backend validation as separate contracts:
 
 ```text
 compose.yaml        Community self-host distribution
-compose.test.yaml   development/test validation stack
+compose.test.yaml   backend validation stack
 deploy/dev/          optional contributor infrastructure
 ```
 
-`compose.test.yaml` is standalone. It does not depend on Bash, WSL, `scripts/test.sh`, another Compose file, or a separate test env file.
+`compose.test.yaml` is standalone and intentionally backend-only. It does not start or validate Web, ChatSurface, Vite, Vitest, Playwright, browser E2E, or any other frontend surface.
 
-The Compose file is an orchestrator only. Test runtime dependencies and test commands live in dedicated Dockerfiles under `docker/tests/`:
+## Canonical command
 
-```text
-docker/tests/Dockerfile.backend
-docker/tests/Dockerfile.frontend
-docker/tests/Dockerfile.browser-mocked
-docker/tests/Dockerfile.browser-e2e
-docker/tests/Dockerfile.fake-llm
-```
-
-The product Dockerfiles (`Dockerfile` and `web/Dockerfile`) contain production build/runtime concerns only. They do not expose test stages.
-
-## Full validation
-
-Local development and GitHub Actions use the same execution contract:
+Local development and GitHub Actions use the same command:
 
 ```bash
 docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-This starts the aggregate `tests` service together with its dependency graph. The aggregate service only completes after backend, frontend, mocked-browser, and full-stack browser suites complete successfully. `--exit-code-from tests` propagates the aggregate result and stops the attached Compose project when the aggregate service exits.
+The `tests` service is only an aggregate exit point. It completes when both backend suites complete successfully and propagates their result through the Compose command.
 
-A bare `docker compose -f compose.test.yaml` is not executable because `-f` only selects the Compose file; Docker Compose still requires a subcommand such as `up`, `run`, or `down`.
-
-After a local run, remove stopped test containers and any test state with:
+After a local run, clean the isolated test project with:
 
 ```bash
 docker compose -f compose.test.yaml down -v --remove-orphans
 ```
 
-The test project is named `woobe-test`, so it remains isolated from the default Community Compose project.
+The Compose project is named `woobe-test` and does not reuse the default Community stack.
 
-## Dedicated test images
+## Test images
 
-### Backend
-
-`Dockerfile.backend` owns the backend validation sequence:
+Each backend test type has its own Dockerfile:
 
 ```text
-Ruff (blocking)
-  -> Full Pyright diagnostics (non-blocking repository baseline)
-  -> Alembic upgrade/current/check -> rollback -> re-upgrade/check (blocking)
-  -> Pytest (blocking)
+docker/tests/Dockerfile.backend-mocked
+docker/tests/Dockerfile.backend-integration
 ```
 
-The repository-wide Pyright pass remains visible but does not currently fail the aggregate validation when it returns type diagnostics. Its output is printed to the container log and persisted as `.test-artifacts/backend-pyright.log`. A Pyright execution failure distinct from normal type diagnostics still fails the backend runner. This preserves the existing project contract while the repository-wide type baseline is reduced separately.
+### Mocked backend suite
 
-The image includes test-only system dependencies such as `libatomic1`, required by the Node runtime used by Pyright in the slim Python image. That dependency is intentionally not added to the production backend image.
-
-### Frontend
-
-`Dockerfile.frontend` owns:
+`Dockerfile.backend-mocked` runs backend tests that must not depend on external infrastructure. It uses an isolated SQLite test database and executes:
 
 ```text
-Vitest -> TypeScript/Vite production build
+tests/modules
+tests/contract
+tests/fakes
+tests/messaging
+tests/editions
 ```
 
-It uses the Web build context and does not depend on a test stage in `web/Dockerfile`.
+The suite writes JUnit evidence to:
 
-### Browser mocked
+```text
+.test-artifacts/backend-mocked.xml
+```
 
-`Dockerfile.browser-mocked` runs `playwright.config.ts` against a production-shaped Web container. API calls are intercepted by the Playwright suite for deterministic UI-state coverage.
+### Backend integration suite
 
-### Browser full-stack
+`Dockerfile.backend-integration` validates the backend against real integration infrastructure supplied by Compose:
 
-`Dockerfile.browser-e2e` runs `fullstack.config.ts` against the real Web/API boundary. Its dependency graph also starts the real worker process, PostgreSQL, PgBouncer, RabbitMQ, Redis, MinIO, migrations, ChatSurface, and the deterministic fake provider.
+```text
+PostgreSQL + pgvector
+RabbitMQ
+```
 
-### Fake LLM
+Before the integration tests, the runner applies the real Alembic migration chain. It then executes:
 
-`Dockerfile.fake-llm` is a dedicated image for `tests.fakes.openai_provider`. It is test infrastructure and does not introduce a test mode into the production runtime.
+```text
+tests/integration
+tests/migrations
+```
 
-## Individual suites
+The suite writes JUnit evidence to:
 
-Individual suites remain available for focused local diagnosis:
+```text
+.test-artifacts/backend-integration.xml
+```
+
+The integration environment deliberately uses local storage and disables the Redis-backed MCP session cache. Redis, MinIO, PgBouncer, API containers, Workers, Web, ChatSurface, fake browser services, and browser runners are not part of this test contract.
+
+## Individual diagnosis
+
+The two suites can be executed independently when diagnosing a failure:
 
 ```bash
-docker compose -f compose.test.yaml run --rm --build backend-tests
-docker compose -f compose.test.yaml run --rm --build frontend-tests
-docker compose -f compose.test.yaml run --rm --build browser-mocked
-docker compose -f compose.test.yaml run --rm --build browser-e2e
+docker compose -f compose.test.yaml run --rm --build backend-mocked
+docker compose -f compose.test.yaml run --rm --build backend-integration
 ```
 
-For diagnostics, always select the test Compose file as well:
+Logs must also select the test Compose file:
 
 ```bash
-docker compose -f compose.test.yaml logs --no-color backend-tests
-docker compose -f compose.test.yaml logs --no-color frontend-tests
-docker compose -f compose.test.yaml logs --no-color browser-mocked
-docker compose -f compose.test.yaml logs --no-color browser-e2e
+docker compose -f compose.test.yaml logs --no-color backend-mocked
+docker compose -f compose.test.yaml logs --no-color backend-integration
 ```
-
-## Test topology
-
-The standalone test stack includes PostgreSQL + pgvector, a separate PostgreSQL service for backend tests, PgBouncer, RabbitMQ, Redis, MinIO, migrations, API, Workers, Web, ChatSurface, and a deterministic OpenAI-compatible fake provider.
-
-Infrastructure state is test-only. PostgreSQL, RabbitMQ, and MinIO use ephemeral container storage rather than the persistent volumes used by Community. The full-stack Web and browser communicate through Docker Compose service DNS (`web`, `api`, `chat-embed`); no `host.docker.internal` or WSL integration is required.
-
-The fake provider is test infrastructure, not a special production runtime mode. Product flows that need an LLM should use Woobe's existing OpenAI-compatible provider contract and point its Base URL at the fake service from inside the Compose network.
 
 ## CI
 
-The manual `tests.yml` workflow validates `compose.test.yaml` and then executes exactly the same command documented for local full validation:
+`.github/workflows/tests.yml` validates this Compose file and executes exactly the same canonical command used locally:
 
 ```bash
 docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-CI only adds lifecycle concerns around that command: stale-stack cleanup before the run, diagnostics on failure, final teardown, and artifact upload. The actual validation entrypoint is identical locally and in CI.
+CI only adds lifecycle and evidence handling around that command: cleanup, Compose validation, failure logs, teardown, and artifact upload. It does not define a separate frontend test path.
 
-Community release acceptance remains separate and continues to validate the actual `compose.yaml` distribution.
+Release/security/production acceptance remain separate concerns and are not part of this local/CI backend test contract.

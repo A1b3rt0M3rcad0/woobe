@@ -33,12 +33,6 @@ const networks = [
   },
 ]
 
-const runtimeEnvironments = {
-  draft: { enabled: true, updated_by: null, updated_at: null },
-  staging: { enabled: false, updated_by: null, updated_at: null },
-  production: { enabled: false, updated_by: null, updated_at: null },
-}
-
 const overview = {
   project_id: project.id, generated_at: now, from: now, to: now,
   bucket: 'hour', environment: 'all',
@@ -91,8 +85,6 @@ async function installApi(page: Page, options?: { freshCommunity?: boolean }) {
         telemetry_enabled: false,
         requires_existing_owner_bootstrap: false,
       })
-    } else if (path === '/identity/auth/csrf') {
-      await respond(route, { csrf: 'csrf-test' })
     } else if (path === '/identity/instance/bootstrap' && method === 'POST') {
       await respond(route, {
         token_type: 'Bearer', expires_in: 900, csrf: 'csrf-test', user, organization,
@@ -117,8 +109,6 @@ async function installApi(page: Page, options?: { freshCommunity?: boolean }) {
       const networkId = path.split('/').at(-1)
       const network = networks.find((item) => item.id === networkId)
       await respond(route, network ?? null, network ? 200 : 404)
-    } else if (/^\/network\/[^/]+\/runtime-environments$/.test(path)) {
-      await respond(route, runtimeEnvironments)
     } else if (/^\/network\/[^/]+\/management\/(versions|activations)$/.test(path)) {
       await respond(route, [])
     } else if (/^\/network\/[^/]+\/sessions$/.test(path)) {
@@ -164,7 +154,8 @@ test('lists and opens multiple Agent Networks', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible()
   await expect(page.getByText('Customer Support', { exact: true })).toBeVisible()
   await expect(page.getByText('Customer Onboarding', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Open Network workspace for Customer Support' }).click()
+  await page.locator('article').filter({ hasText: 'Customer Support' })
+    .getByRole('button', { name: 'Open workspace' }).click()
   await expect(page).toHaveURL(/\/networks\/network-support$/)
 })
 

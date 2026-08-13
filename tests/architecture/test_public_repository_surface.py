@@ -39,63 +39,67 @@ def test_public_deployment_surface_has_one_default_contract() -> None:
         assert not (ROOT / path).exists(), path
 
 
-def test_test_topology_is_standalone_and_shell_independent() -> None:
+def test_test_topology_is_backend_only_and_shell_independent() -> None:
     compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
     testing_docs = (ROOT / "docs/testing/COMPOSE_TESTS.md").read_text(encoding="utf-8")
 
     assert "name: woobe-test" in compose
-    assert "backend-tests:" in compose
-    assert "frontend-tests:" in compose
-    assert "browser-mocked:" in compose
-    assert "browser-e2e:" in compose
+    assert "backend-mocked:" in compose
+    assert "backend-integration:" in compose
     assert "tests:" in compose
-    assert "host.docker.internal" not in compose
-    assert "deploy/test" not in compose
-    assert "target: test" not in compose
-    assert "ruff check src tests migrations" not in compose
-    assert "npm run test:run" not in compose
-    assert not (ROOT / "scripts/test.sh").exists()
+    assert "db:" in compose
+    assert "rabbitmq:" in compose
 
+    for forbidden in (
+        "frontend-tests:",
+        "browser-mocked:",
+        "browser-e2e:",
+        "web-mocked:",
+        "chat-embed:",
+        "playwright",
+        "VITE_",
+        "host.docker.internal",
+        "deploy/test",
+        "target: test",
+    ):
+        assert forbidden not in compose
+
+    assert not (ROOT / "scripts/test.sh").exists()
     assert CANONICAL_TEST_COMMAND in workflow
     assert CANONICAL_TEST_COMMAND in testing_docs
-    assert "docker compose -f compose.test.yaml run --rm tests" not in workflow
-    assert "backend-pyright.log" in testing_docs
-    assert "non-blocking repository baseline" in testing_docs
+    assert "backend-mocked" in workflow or "backend" in workflow.lower()
+    assert "frontend" not in workflow.lower()
+    assert "playwright" not in workflow.lower()
     assert "scripts/test.sh" not in workflow
 
 
-def test_test_images_are_explicit_and_separate_from_product_dockerfiles() -> None:
-    dockerfiles = {
-        "backend": ROOT / "docker/tests/Dockerfile.backend",
-        "frontend": ROOT / "docker/tests/Dockerfile.frontend",
-        "browser-mocked": ROOT / "docker/tests/Dockerfile.browser-mocked",
-        "browser-e2e": ROOT / "docker/tests/Dockerfile.browser-e2e",
-        "fake-llm": ROOT / "docker/tests/Dockerfile.fake-llm",
-    }
-    for path in dockerfiles.values():
-        assert path.is_file(), path
+def test_backend_test_images_are_explicit_and_frontend_test_images_are_absent() -> None:
+    mocked = ROOT / "docker/tests/Dockerfile.backend-mocked"
+    integration = ROOT / "docker/tests/Dockerfile.backend-integration"
+    assert mocked.is_file()
+    assert integration.is_file()
 
     compose = (ROOT / "compose.test.yaml").read_text(encoding="utf-8")
-    for name in dockerfiles:
-        assert f"Dockerfile.{name}" in compose
+    assert "Dockerfile.backend-mocked" in compose
+    assert "Dockerfile.backend-integration" in compose
 
-    backend_test = dockerfiles["backend"].read_text(encoding="utf-8")
-    assert "pyright_status=0" in backend_test
-    assert "backend-pyright.log" in backend_test
-    assert 'if [ \"$pyright_status\" -eq 1 ]' in backend_test
+    mocked_text = mocked.read_text(encoding="utf-8")
+    assert "tests/modules tests/contract tests/fakes tests/messaging tests/editions" in mocked_text
+    assert "tests/integration" not in mocked_text
 
-    backend_product = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    frontend_product = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
-    assert " AS test" not in backend_product
-    assert " AS test" not in frontend_product
-    assert not (ROOT / "e2e/Dockerfile").exists()
+    integration_text = integration.read_text(encoding="utf-8")
+    assert "alembic upgrade head" in integration_text
+    assert "tests/integration tests/migrations" in integration_text
 
-
-def test_browser_e2e_contract_is_present() -> None:
-    assert (ROOT / "e2e/package.json").is_file()
-    assert (ROOT / "e2e/fullstack.config.ts").is_file()
-    assert (ROOT / "e2e/fullstack/community-bootstrap.spec.ts").is_file()
+    for path in (
+        "docker/tests/Dockerfile.backend",
+        "docker/tests/Dockerfile.frontend",
+        "docker/tests/Dockerfile.browser-mocked",
+        "docker/tests/Dockerfile.browser-e2e",
+        "docker/tests/Dockerfile.fake-llm",
+    ):
+        assert not (ROOT / path).exists(), path
 
 
 def test_runtime_documentation_uses_durable_product_paths() -> None:
@@ -118,11 +122,6 @@ def test_manual_workflow_surface_is_consolidated() -> None:
         "security.yml",
         "tests.yml",
     }
-
-
-def test_browser_e2e_namespace_is_not_duplicated_under_python_tests() -> None:
-    assert not (ROOT / "tests/e2e").exists()
-    assert (ROOT / "e2e/tests").is_dir()
 
 
 def test_pull_request_template_is_canonical() -> None:
