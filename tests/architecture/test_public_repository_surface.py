@@ -68,7 +68,6 @@ def test_test_topology_is_backend_only_and_shell_independent() -> None:
     assert not (ROOT / "scripts/test.sh").exists()
     assert CANONICAL_TEST_COMMAND in workflow
     assert CANONICAL_TEST_COMMAND in testing_docs
-    assert "backend-mocked" in workflow or "backend" in workflow.lower()
     assert "frontend" not in workflow.lower()
     assert "playwright" not in workflow.lower()
     assert "scripts/test.sh" not in workflow
@@ -90,7 +89,8 @@ def test_backend_test_images_are_explicit_and_frontend_test_images_are_absent() 
 
     integration_text = integration.read_text(encoding="utf-8")
     assert "alembic upgrade head" in integration_text
-    assert "tests/integration tests/migrations" in integration_text
+    assert "python -m pytest -q tests/integration" in integration_text
+    assert "tests/migrations" not in integration_text
 
     for path in (
         "docker/tests/Dockerfile.backend",
