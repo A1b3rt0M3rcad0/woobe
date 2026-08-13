@@ -19,7 +19,7 @@ Business rules belong in the backend. Frontend checks must not be the only barri
 
 The primary technical isolation unit is Project. Organization is the commercial/membership unit. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
 
-Community/Core code lives under `src/modules/**` and `src/shared/**`; edition-specific backend code lives under `src/editions/**`. Cloud or future Enterprise code may depend on the shared core, but shared core packages must not import edition packages. Frontend code follows the same direction: edition-specific UI belongs under `web/src/editions/**`, with edition composition performed from `web/src/app/**` rather than from shared features.
+The public Community product code lives under `src/modules/**`, `src/shared/**` and the shared frontend tree. Proprietary product implementation is not part of the Community source tree. Community code and build contracts must remain runnable without proprietary source.
 
 ## Scope discipline
 
@@ -37,20 +37,22 @@ Durable architecture decisions belong in `docs/adr/`. Current product behavior b
 
 The validation contract is the standalone root `compose.test.yaml`. It is intentionally separate from the Community distribution in `compose.yaml` and does not require Bash or WSL on the host.
 
-Run the complete validation stack locally with the same command used by CI:
+Run the validation stack locally with the same command used by the manual tests workflow:
 
 ```bash
 docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-The aggregate `tests` service only completes after backend, frontend, mocked-browser, and full-stack browser suites complete successfully. After a local run, clean the validation stack with `docker compose -f compose.test.yaml down -v --remove-orphans`.
+After a local run, clean it with:
 
-For focused diagnosis, individual suites can be executed with `docker compose -f compose.test.yaml run --rm --build <service>`, where `<service>` is `backend-tests`, `frontend-tests`, `browser-mocked`, or `browser-e2e`.
+```bash
+docker compose -f compose.test.yaml down -v --remove-orphans
+```
 
-The manual `tests.yml` workflow executes the exact same full-validation Compose command. Container, acceptance, security, and release workflows remain separate because they validate production images, the actual Community distribution, repository security, and publishing respectively. Repository workflows are intentionally executed only when validation is requested.
+The current validation topology is backend-focused and uses dedicated mocked and integration test images. Container, acceptance, security and release workflows remain separate and are intentionally executed only when validation is requested.
 
-See [Compose test workflow](docs/testing/COMPOSE_TESTS.md) for the test topology and suite responsibilities.
+See `docs/testing/COMPOSE_TESTS.md` for the current topology.
 
-## Licensing contributions
+## External contributions
 
-By submitting a contribution, you represent that you have the right to submit it under the repository's contribution terms. Woobe may introduce a formal Contributor License Agreement before accepting external contributions that require relicensing flexibility.
+The current external-contribution acceptance status is recorded in `CONTRIBUTOR_LICENSE_AGREEMENT.md`. Do not bypass that repository gate when reviewing or merging external pull requests.
