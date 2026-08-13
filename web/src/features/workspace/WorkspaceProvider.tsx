@@ -68,10 +68,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     queryFn: () => getProjects(currentWorkspace?.id),
     enabled: isAuthenticated && Boolean(currentWorkspace?.id),
   })
-  const projects = useMemo(
+  const projects = useMemo<ProjectShape[]>(
     () => (projectsQuery.data ?? []).map((project) => ({
       id: project.id,
       workspace_id: project.workspace_id,
+      organization_id: project.workspace_id,
       name: project.name,
       slug: project.slug,
       access_source: project.access_source,
@@ -94,8 +95,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const selectProject = useCallback((project: ProjectShape) => {
     if (!user?.id) return
-    setCurrentProjectState(project)
-    writeStored(storageKey(user.id, 'project'), project)
+    const normalized = { ...project, workspace_id: project.workspace_id || project.organization_id || '' }
+    setCurrentProjectState(normalized)
+    writeStored(storageKey(user.id, 'project'), normalized)
   }, [user?.id])
 
   const clearCurrentProject = useCallback(() => {
@@ -139,6 +141,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isLoadingProjects: projectsQuery.isLoading,
     isFetchingProjects: projectsQuery.isFetching,
     workspaceError: (workspaceQuery.error || projectsQuery.error) as Error | null,
+    organizations: workspaces,
+    currentOrganization: currentWorkspace,
+    selectOrganization: selectWorkspace,
+    clearCurrentOrganization: clearCurrentWorkspace,
+    isLoadingOrganizations: workspaceQuery.isLoading || (Boolean(user?.id) && hydratedUserId !== user?.id),
+    organizationError: workspaceQuery.error as Error | null,
   }), [clearCurrentProject, clearCurrentWorkspace, currentProject, currentWorkspace, hydratedUserId, projects, projectsQuery.error, projectsQuery.isFetching, projectsQuery.isLoading, selectProject, selectWorkspace, user?.id, workspaceQuery.error, workspaceQuery.isLoading, workspaces])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

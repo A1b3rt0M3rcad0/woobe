@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Boxes, FolderKanban, Plus } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -9,7 +10,6 @@ import { ResourceEmptyState, ResourcePage, ResourceSearch, ResourceSectionHeader
 import { Button } from '@/components/ui/Button'
 import { useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { useQuery } from '@tanstack/react-query'
 import { getWorkspace } from '@/features/workspaces/api'
 import type { Project } from '@/features/projects/types'
 
@@ -22,6 +22,11 @@ export default function WorkspaceProjectsPage() {
   const workspaceQuery = useQuery({ queryKey: ['workspace', workspaceId], queryFn: () => getWorkspace(workspaceId!), enabled: Boolean(workspaceId) })
   const projectsQuery = useProjects(workspaceId)
   const [query, setQuery] = useState('')
+  const projects = projectsQuery.data ?? []
+  const term = query.trim().toLowerCase()
+  const visible = term
+    ? projects.filter((project) => `${project.name} ${project.slug}`.toLowerCase().includes(term))
+    : projects
 
   useEffect(() => {
     if (!workspaceQuery.data || currentWorkspace?.id === workspaceQuery.data.id) return
@@ -35,12 +40,6 @@ export default function WorkspaceProjectsPage() {
   const workspace = workspaceQuery.data
   if (!workspace) return <ErrorState message="Workspace not found" />
 
-  const projects = projectsQuery.data ?? []
-  const visible = useMemo(() => {
-    const term = query.trim().toLowerCase()
-    if (!term) return projects
-    return projects.filter((project) => `${project.name} ${project.slug}`.toLowerCase().includes(term))
-  }, [projects, query])
   const canManage = Boolean(workspace.can_manage)
   const openProject = (project: Project) => {
     selectProject(project)

@@ -19,8 +19,8 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-const LOGIN_ROUTE = `/${'log'}in`
-const REGISTER_ROUTE = `/${'reg'}ister`
+const LOGIN_ROUTE = '/login'
+const REGISTER_ROUTE = '/register'
 
 function isPublicAuthRoute(): boolean {
   const path = globalThis.location?.pathname
@@ -33,11 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true)
   const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null)
   const queryClient = useQueryClient()
-
-  const isAuthenticated = !!user
+  const isAuthenticated = Boolean(user)
 
   const clearPostAuthTarget = useCallback(() => setPostAuthTarget(null), [])
-
   const clearAuthState = useCallback(() => {
     clearCsrfToken()
     setUser(null)
@@ -46,24 +44,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    let isMounted = true
+    let mounted = true
     if (isPublicAuthRoute()) {
       setIsInitializing(false)
-      return () => { isMounted = false }
+      return () => { mounted = false }
     }
-
     getCurrentUser()
-      .then((currentUser) => {
-        if (isMounted) setUser(currentUser)
-      })
-      .catch(() => {
-        if (isMounted) clearAuthState()
-      })
-      .finally(() => {
-        if (isMounted) setIsInitializing(false)
-      })
-
-    return () => { isMounted = false }
+      .then((currentUser) => { if (mounted) setUser(currentUser) })
+      .catch(() => { if (mounted) clearAuthState() })
+      .finally(() => { if (mounted) setIsInitializing(false) })
+    return () => { mounted = false }
   }, [clearAuthState])
 
   const login = useCallback(async (data: LoginRequest) => {
@@ -83,14 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiRegister(data)
       queryClient.clear()
-      queryClient.setQueryData(['organizations', response.user.id], [{
-        ...response.organization,
-        membership_role: 'owner',
-        can_manage_organization: true,
-        accessible_project_count: 0,
-        access_mode: 'implicit_owner',
-      }])
-      setPostAuthTarget(`/organizations/${response.organization.id}/setup`)
+      setPostAuthTarget('/workspaces')
       setUser(response.user)
       return response
     } finally {
@@ -110,8 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshCurrentUser = useCallback(async () => {
     try {
-      const currentUser = await getCurrentUser()
-      setUser(currentUser)
+      setUser(await getCurrentUser())
     } catch {
       await logout()
     }
