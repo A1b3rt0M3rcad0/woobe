@@ -40,24 +40,72 @@ jobs:
             test "$configured_user" != "root"
             docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
           done
+      - name: Prepare release evidence directory
+        run: mkdir -p .test-artifacts
       - name: Generate API SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
           image: woobe-api:ci
           artifact-name: woobe-api-sbom.spdx.json
+          output-file: .test-artifacts/woobe-api-sbom.spdx.json
           format: spdx-json
       - name: Generate Web SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
           image: woobe-web:ci
           artifact-name: woobe-web-sbom.spdx.json
+          output-file: .test-artifacts/woobe-web-sbom.spdx.json
           format: spdx-json
       - name: Generate ChatSurface SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
           image: woobe-chat-embed:ci
           artifact-name: woobe-chat-embed-sbom.spdx.json
+          output-file: .test-artifacts/woobe-chat-embed-sbom.spdx.json
           format: spdx-json
+      - name: Render third-party dependency inventory
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          sboms = sorted(Path('.test-artifacts').glob('woobe-*-sbom.spdx.json'))
+          rows = set()
+          for sbom in sboms:
+              payload = json.loads(sbom.read_text(encoding='utf-8'))
+              for package in payload.get('packages', []):
+                  if not isinstance(package, dict):
+                      continue
+                  rows.add((
+                      sbom.name,
+                      str(package.get('name') or 'NOASSERTION'),
+                      str(package.get('versionInfo') or 'NOASSERTION'),
+                      str(package.get('licenseDeclared') or 'NOASSERTION'),
+                      str(package.get('licenseConcluded') or 'NOASSERTION'),
+                  ))
+
+          output = Path('.test-artifacts/THIRD_PARTY_INVENTORY.md')
+          lines = [
+              '# Woobe third-party dependency inventory',
+              '',
+              'Generated from the SPDX SBOMs of the exact Community container artifacts.',
+              'This inventory is release evidence and still requires manual review of notice obligations and original license texts.',
+              '',
+              '| Artifact | Package | Version | Declared license | Concluded license |',
+              '| --- | --- | --- | --- | --- |',
+          ]
+          for row in sorted(rows):
+              escaped = [value.replace('|', '\\|').replace('\n', ' ') for value in row]
+              lines.append('| ' + ' | '.join(escaped) + ' |')
+          lines.append('')
+          output.write_text('\n'.join(lines), encoding='utf-8')
+          PY
+      - name: Upload third-party dependency inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: woobe-third-party-inventory
+          path: .test-artifacts/THIRD_PARTY_INVENTORY.md
+          if-no-files-found: error
       - name: Scan API image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
