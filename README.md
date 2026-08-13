@@ -6,21 +6,13 @@ Woobe is an **API-first, self-hostable platform for teams running AI agents and 
 
 The core principle is simple: **production should run immutable, traceable releases — not mutable drafts**.
 
-[Quick Start](#quick-start) · [Capabilities](#key-capabilities) · [Architecture](#architecture) · [Self-hosting](docs/SELF_HOSTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [License](#license)
-
 > **Pre-release status**
 >
-> Woobe is being prepared for its first public Community release. Public interfaces, deployment contracts, and license documents remain pre-release until that release is finalized.
-
----
+> Woobe is being prepared for its first public Community release. Public interfaces, deployment contracts and the Community license remain pre-release until the release checklist is completed.
 
 ## Why Woobe
 
-Building an agent is only one part of operating an AI product.
-
-Production teams also need to know which prompt ran, which model configuration was active, which tools and knowledge were bound, which network version coordinated an execution, what happened during the run, and how to restore a previous working state without reconstructing configuration manually.
-
-Woobe treats those concerns as one lifecycle:
+Building an agent is only one part of operating an AI product. Production teams also need to know which prompt ran, which model configuration was active, which tools and knowledge were bound, which network version coordinated an execution, what happened during the run, and how to restore a previous working state.
 
 ```text
 Configure
@@ -38,8 +30,6 @@ Run · Trace · Observe
 Rollback when needed
 ```
 
-Runs and Traces retain the versions and runtime bindings that were actually used, keeping configuration and execution connected throughout the product lifecycle.
-
 ## Key capabilities
 
 - **Agents** — prompts, model settings, tools, knowledge, runtime behavior, and structured output contracts.
@@ -47,7 +37,7 @@ Runs and Traces retain the versions and runtime bindings that were actually used
 - **Agent Networks** — coordinated multi-agent behavior versioned independently from individual Agents.
 - **Network Releases** — immutable snapshots of network composition and versioned bindings.
 - **Environments** — explicit Draft/Development, Staging, and Production semantics.
-- **Rollback** — restore an existing immutable release instead of rebuilding an old configuration.
+- **Rollback** — restore an existing immutable release instead of rebuilding old configuration.
 - **Runtime API** — synchronous execution, streaming, and asynchronous jobs under the same Run semantics.
 - **Sessions and Runs** — long-lived conversational context separated from finite executions.
 - **Tracing and observability** — execution events, metadata, usage, and exact versions involved in each Run.
@@ -55,7 +45,7 @@ Runs and Traces retain the versions and runtime bindings that were actually used
 - **HTTP and MCP Tools** — external capabilities with credentials and execution policy kept server-side.
 - **BYOK providers** — use your own model-provider credentials.
 - **ChatSurface** — embed released Agents or Networks using server-side Access Keys and short-lived browser tokens.
-- **Metering** — operational usage accounting kept separate from Cloud billing.
+- **Metering** — operational usage accounting kept separate from managed-service billing.
 - **Organizations and Projects** — commercial membership separated from technical isolation.
 
 ## Core concepts
@@ -80,14 +70,12 @@ Runs and Traces retain the versions and runtime bindings that were actually used
 
 ## Quick start
 
-Woobe Community has one supported default self-host contract: the root [`compose.yaml`](compose.yaml).
+Woobe Community has one supported default self-host contract: the root `compose.yaml`.
 
-### Requirements
+Requirements:
 
 - Docker with Docker Compose
 - Python 3 for first-run environment generation
-
-### Start Woobe Community
 
 ```bash
 python scripts/generate_self_host_env.py
@@ -102,11 +90,9 @@ API:        http://localhost:8000
 Chat Embed: http://localhost:8081
 ```
 
-The first registration on a fresh Community database atomically bootstraps the instance, creates the first **Instance Owner**, creates the initial **Organization**, assigns its owner membership, and starts the authentication session.
+The first registration on a fresh Community database bootstraps the instance and creates the first Instance Owner and initial Organization. After bootstrap, Community defaults to invite-only registration.
 
-After bootstrap, Community defaults to **invite-only registration**. Arbitrary public registration is rejected by the backend.
-
-For public exposure, backup, restore, TLS, and upgrade requirements, read [Self-hosting Woobe Community](docs/SELF_HOSTING.md).
+For public exposure, backup, restore, TLS, and upgrade requirements, read `docs/SELF_HOSTING.md`.
 
 ## Community topology
 
@@ -122,135 +108,72 @@ The default topology is intentionally small and single-host oriented.
 | **Web** | Woobe control-plane interface | `:8080` |
 | **Chat Embed** | Browser-facing ChatSurface assets | `:8081` |
 
-PostgreSQL, RabbitMQ, and local Knowledge uploads use the persistent Docker volumes `woobe_postgres`, `woobe_rabbitmq`, and `woobe_uploads`.
-
-Redis, PgBouncer, and MinIO are **not part of the default Community product topology**. Contributors who need to exercise those integrations locally can explicitly layer [`deploy/dev/compose.yml`](deploy/dev/compose.yml):
-
-```bash
-docker compose -f compose.yaml -f deploy/dev/compose.yml up -d --build
-```
-
-That file is a contributor topology, not a second supported self-host distribution.
+PostgreSQL, RabbitMQ, and local Knowledge uploads use persistent Docker volumes. Redis, PgBouncer, and MinIO are not part of the default Community product topology; contributor infrastructure is layered explicitly through `deploy/dev/compose.yml`.
 
 ## From development to production
 
-Woobe separates product environment semantics from infrastructure topology.
+Draft configuration is mutable. Staging validates configuration intended for release. Production runs immutable Agent Releases and Network Releases. Rollback restores an earlier immutable release rather than reconstructing old state.
 
-### Draft / Development
-
-Draft configuration is mutable. Prompts, model configuration, tools, knowledge bindings, output contracts, runtime settings, and Network composition are edited here.
-
-### Staging
-
-Staging validates the configuration intended for release before Production promotion.
-
-### Production
-
-Production runs immutable Agent Releases and Network Releases. A Release preserves the configuration snapshot required to reproduce what was deployed, and rollback can restore an earlier release without rebuilding it.
-
-For a self-hosted Community instance, Production is **not a different Compose product**. The same root `compose.yaml` is operated with `WOOBE_ENVIRONMENT=production` and production-safe secrets, cookies, host allowlists, TLS termination, and backup procedures.
-
-Woobe does not currently advertise a separate distributed/external-infrastructure Compose topology as part of the Community MVP support surface.
+A self-hosted Community instance uses the same root `compose.yaml` with `WOOBE_ENVIRONMENT=production` plus production-safe secrets, cookies, host allowlists, TLS termination and backup procedures.
 
 ## Agent Networks
 
-Woobe starts with a single Agent and grows into an Agent Network when coordinated behavior is required.
+Woobe starts with a single Agent and grows into an Agent Network when coordinated behavior is required. A Project owns one operational Agent Network. The Network is versioned independently from its Agents so the composition itself is a first-class production artifact.
 
-A Project owns one operational Agent Network. The Network is versioned independently from its Agents so the composition itself is a first-class production artifact.
-
-In Staging, a Network can validate staging or released Agent versions according to runtime policy. In Production, the Network must bind to released Agents so mutable configuration cannot silently change production behavior.
+In Production, the Network must bind to released Agents so mutable configuration cannot silently change production behavior.
 
 ## Knowledge and RAG
 
-Knowledge is Project-scoped and organized around **Collections**. Documents belong to Collections; ingestion produces chunks and vectorized representations that can be bound to Agents.
-
-**Vector Snapshots** identify the exact combination of Collections, Documents, and indexing parameters associated with runtime configuration. The goal is not only retrieval, but knowing **which knowledge state was used by a specific execution**.
-
-Community persists uploaded files locally by default. S3-compatible storage can be exercised by contributors through the optional development topology, but a distributed deployment contract is not part of the current Community MVP support surface.
+Knowledge is Project-scoped and organized around Collections. Documents belong to Collections; ingestion produces chunks and vectorized representations that can be bound to Agents. Vector Snapshots identify the exact knowledge state and indexing parameters associated with runtime configuration.
 
 ## Tools and model providers
 
-Woobe currently focuses on two external Tool boundaries:
-
-- **HTTP Tools** for external HTTP APIs.
-- **MCP Tools** for Model Context Protocol servers.
-
-Provider credentials, Tool credentials, Runtime Keys, and other sensitive values remain server-side. Self-hosted deployments use their own provider accounts under a BYOK model.
-
-See [MCP Tools](docs/runtime/MCP_TOOLS.md) for the current MCP runtime contract.
+Woobe focuses on two external Tool boundaries: HTTP Tools and MCP Tools. Provider credentials, Tool credentials, Runtime Keys, and other sensitive values remain server-side. Self-hosted deployments use their own provider accounts under a BYOK model.
 
 ## ChatSurface
 
-ChatSurface is Woobe's embeddable runtime surface for released AI products.
-
-A ChatSurface targets an immutable Agent Release or Network Release. The integrating application keeps the durable relationship between its own user and the Woobe Session, while Woobe remains responsible for conversation history and execution metadata.
+ChatSurface is Woobe's embeddable runtime surface for released AI products. A ChatSurface targets an immutable Agent Release or Network Release. The integrating application keeps the durable relationship between its own user and the Woobe Session, while Woobe remains responsible for conversation history and execution metadata.
 
 The browser never receives the permanent server-side ChatSurface Access Key. The integrator exchanges it server-side for short-lived Session access suitable for browser use.
 
-See [ChatSurface](docs/runtime/CHAT_SURFACE.md) for the integration and security contract.
+See `docs/runtime/CHAT_SURFACE.md`.
 
 ## API-first runtime
 
-The Web UI is a client of the same backend domain rules that protect the runtime. Critical behavior belongs to the backend, including ownership checks, authorization, Release immutability, runtime scopes, document duplicate rules, signup policy, and edition boundaries.
+The Web UI is a client of the same backend domain rules that protect the runtime. Critical behavior belongs to the backend, including ownership checks, authorization, Release immutability, runtime scopes, document duplicate rules, signup policy, and credential security.
 
-Runtime delivery can be synchronous, streaming, or asynchronous without creating separate execution models. See [Streaming](docs/runtime/STREAMING.md) for the current streaming contract.
+Runtime delivery can be synchronous, streaming, or asynchronous without creating separate execution models.
 
-## Editions
+## Distribution model
 
-Woobe uses **composition, not forks**, to separate product editions.
-
-```text
-Community = Core
-Cloud     = Core + Cloud modules
-Enterprise = Core + Enterprise modules (when introduced)
-```
-
-### Woobe Community
-
-`WOOBE_EDITION=community` runs the shared self-hosted core. Community does not require a Woobe Cloud account, has no required call-home dependency, and does not add a Woobe per-Run fee. The operator owns its infrastructure, model-provider costs, and external services used through Tools.
-
-### Woobe Cloud
-
-`WOOBE_EDITION=cloud` composes Cloud-specific capabilities on top of the same shared core. Billing is currently the Cloud-specific bounded context present in this repository.
+This repository and the supported self-host artifacts distribute **Woobe Community/Core only**.
 
 ```text
-src/editions/cloud/**
-web/src/editions/cloud/**
+Community  = Core distributed here
+Cloud      = proprietary Woobe-managed product; implementation is not distributed here
+Enterprise = not currently implemented or distributed
 ```
 
-The Community/Core runtime does not import or mount Cloud functionality when running as Community.
+Community does not require a Woobe Cloud account, has no required call-home dependency, and does not add a Woobe per-Run fee. The operator owns its infrastructure, model-provider costs and external services used through Tools.
+
+Woobe Cloud may build on the same core concepts, but proprietary Cloud implementation is intentionally outside the Community source tree and Community container build context. No empty Enterprise implementation tree is maintained.
 
 ## Architecture
 
 ```text
 src/
-├── modules/                       # Community/Core
-│   ├── identity/
-│   ├── core/
-│   ├── agent/
-│   ├── network/
-│   ├── chat_surface/
-│   ├── metering/
-│   └── observability/
-├── editions/
-│   └── cloud/
-│       └── billing/
-└── shared/
+├── modules/                       # Community/Core bounded contexts
+└── shared/                        # technical shared infrastructure
 
 web/
-├── src/features/                  # Community/Core UI
-└── src/editions/cloud/            # Cloud-only UI
+└── src/                           # Community/Core web application
 ```
 
-At runtime, API and Workers are separate processes. PostgreSQL stores durable state, RabbitMQ carries asynchronous work, Web serves the control plane, and Chat Embed publishes the browser-facing ChatSurface assets.
+At runtime, API and Workers are separate processes. PostgreSQL stores durable state, RabbitMQ carries asynchronous work, Web serves the control plane, and Chat Embed publishes browser-facing ChatSurface assets.
 
-The backend remains the source of truth for domain invariants. The frontend reflects those rules but is never their only enforcement layer.
-
-Read [Architecture](docs/ARCHITECTURE.md) for domain, runtime, and edition boundaries.
+Read `docs/ARCHITECTURE.md` for domain, runtime, and distribution boundaries.
 
 ## Deployment surface
-
-Woobe keeps product deployment, validation, and contributor infrastructure as separate contracts:
 
 ```text
 compose.yaml                 # supported Community self-host topology
@@ -258,86 +181,46 @@ compose.test.yaml            # standalone validation contract
 deploy/dev/compose.yml       # optional contributor extension
 ```
 
-The default user path is always:
+Default user path:
 
 ```bash
 python scripts/generate_self_host_env.py
 docker compose up -d --build
 ```
 
-The validation path is explicitly selected and does not change the default Community distribution:
+Validation path:
 
 ```bash
-docker compose -f compose.test.yaml run --rm tests
+docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-Do not treat `compose.test.yaml` or `deploy/dev/compose.yml` as production distributions. `compose.test.yaml` is isolated test infrastructure; `deploy/dev/compose.yml` is an optional contributor extension. Additional production deployment topologies should only become public contracts when Woobe is prepared to support them operationally.
-
-## Configuration
-
-Application configuration uses the `WOOBE_` prefix. Frontend build-time public configuration uses `VITE_*`.
-
-Generate a fresh Community environment with:
-
-```bash
-python scripts/generate_self_host_env.py
-```
-
-The generator writes `.env` with independent random application, encryption, ChatSurface, PostgreSQL, and RabbitMQ secrets. Do not copy development credentials into a public deployment.
+Repository workflows are manual and should be executed deliberately when validation is requested.
 
 ## Security model
 
-Production AI infrastructure needs explicit backend and runtime boundaries.
+Woobe requires strong independent application and encryption secrets, secure cookies in Production, explicit CORS and Trusted Host allowlists, server-side provider and Tool credentials, short-lived ChatSurface browser access, immutable Production Release bindings, and backend ownership enforcement.
 
-Woobe requires or documents, among other controls:
-
-- strong, distinct authentication, encryption, and ChatSurface signing secrets;
-- secure authentication cookies in Production;
-- explicit CORS and Trusted Host allowlists;
-- server-side provider and Tool credentials;
-- no permanent ChatSurface Access Key exposure to browsers;
-- immutable Release bindings for Production execution;
-- backend ownership and authorization enforcement.
-
-Read [SECURITY.md](SECURITY.md) before reporting a vulnerability or operating a public installation.
+Read `SECURITY.md` before operating a public installation.
 
 ## Backup and upgrades
 
-Self-hosting requires a recovery path. Back up PostgreSQL together with the Knowledge upload volume so metadata and physical files remain consistent.
+Back up PostgreSQL together with the Knowledge upload volume so metadata and physical files remain consistent.
 
-- [Self-hosting](docs/SELF_HOSTING.md)
-- [Upgrading](docs/UPGRADING.md)
-- [PostgreSQL backup and restore](docs/runbooks/postgres-backup-restore.md)
-- [Production deployment](docs/runbooks/production-deployment.md)
-
-## Documentation
-
-| Document | Purpose |
-| --- | --- |
-| [Architecture](docs/ARCHITECTURE.md) | Domain, runtime, and edition boundaries. |
-| [Self-hosting](docs/SELF_HOSTING.md) | Community installation and production exposure. |
-| [Upgrading](docs/UPGRADING.md) | Version upgrade procedure. |
-| [ChatSurface](docs/runtime/CHAT_SURFACE.md) | Embed, Session, token, Release, and security contract. |
-| [MCP Tools](docs/runtime/MCP_TOOLS.md) | MCP lifecycle, OAuth, permissions, and security. |
-| [Streaming](docs/runtime/STREAMING.md) | Runtime streaming protocol. |
-| [Compose tests](docs/testing/COMPOSE_TESTS.md) | Standalone local/CI validation topology and commands. |
-| [Provider contributions](docs/CONTRIBUTING_PROVIDERS.md) | Provider contribution guidance. |
-| [Security](SECURITY.md) | Vulnerability reporting and security expectations. |
-| [Contributing](CONTRIBUTING.md) | Development and contribution workflow. |
-| [Changelog](CHANGELOG.md) | Release-oriented project history. |
+- `docs/SELF_HOSTING.md`
+- `docs/UPGRADING.md`
+- `docs/runbooks/postgres-backup-restore.md`
+- `docs/runbooks/production-deployment.md`
 
 ## Contributing
 
-The integration branch is `development`. Feature and fix branches should target `development` through focused pull requests.
+The integration branch is `development`. Feature and fix branches should target `development` through focused pull requests. Read `CONTRIBUTING.md` before opening a change.
 
-The public repository is the product repository, not an archive of internal implementation plans or development tooling. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change.
+External contribution acceptance remains gated by the contribution policy described in `CONTRIBUTOR_LICENSE_AGREEMENT.md` until the final process is activated.
 
 ## License
 
-Woobe Community/Core is distributed as **source-available, fair-code, and self-hostable software** under [LICENSE.md](LICENSE.md). It is not represented as OSI Open Source software.
+Woobe Community/Core is distributed as **source-available, fair-code, and self-hostable software** under `LICENSE.md`. It is not represented as OSI Open Source software.
 
-Code under `src/editions/**` and `web/src/editions/**` is outside the automatic scope of the Community/Core license. Cloud edition code currently present in those paths is governed by [LICENSE-CLOUD.md](LICENSE-CLOUD.md).
+`LICENSING.md` explains the intended Community/Cloud/Enterprise product boundary. `TRADEMARKS.md` and `NOTICE.md` contain additional public-distribution notices.
 
-The current license texts are pre-release candidates and must receive qualified legal review before public/commercial reliance.
-
-See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md), [TRADEMARKS.md](TRADEMARKS.md), and [NOTICE.md](NOTICE.md) for additional terms and notices.
+The current Community license text is a pre-release candidate and must receive qualified legal review before public or commercial reliance. The public release also remains blocked on repository-history review and completion of third-party dependency notices as described in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
