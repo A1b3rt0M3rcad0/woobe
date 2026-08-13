@@ -37,9 +37,11 @@ _AGENT_INSERT = text(
 _RELEASE_INSERT = text(
     """
     INSERT INTO agent.agent_releases (
-        id, project_id, agent_id, version, status, promoted_at
+        id, project_id, agent_id, version, status, promoted_at,
+        session_mode, snapshot_kind
     ) VALUES (
-        :id, :project_id, :agent_id, :version, :status, :promoted_at
+        :id, :project_id, :agent_id, :version, :status, :promoted_at,
+        :session_mode, :snapshot_kind
     )
     """
 )
@@ -191,6 +193,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "1.0.0",
                         "status": "production",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "release",
                     },
                     {
                         "id": uuid4(),
@@ -199,6 +203,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "1.0.0-rc1",
                         "status": "staging",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "staging",
                     },
                     {
                         "id": uuid4(),
@@ -207,6 +213,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "9.9.9",
                         "status": "production",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "release",
                     },
                 ],
             )
