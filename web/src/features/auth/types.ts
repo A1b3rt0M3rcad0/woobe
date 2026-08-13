@@ -40,7 +40,7 @@ export interface RegisterResponse extends LoginResponse {
 
 export interface InstanceStatus {
   initialized: boolean
-  edition: 'community' | 'cloud'
+  edition: 'community'
   signup_mode: 'bootstrap' | 'open' | 'invite_only' | 'disabled'
   telemetry_enabled: boolean
   requires_existing_owner_bootstrap: boolean
