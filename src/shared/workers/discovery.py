@@ -20,10 +20,6 @@ CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
     "observability",
 )
 
-CLOUD_MODULE_WORKER_REGISTRIES: tuple[tuple[str, str], ...] = (
-    ("billing", "editions.cloud.billing.infra.workers.registry"),
-)
-
 
 class ModuleWorkerEntry:
     def __init__(
@@ -37,13 +33,11 @@ class ModuleWorkerEntry:
         self.register_func = register_func
 
 
-def discover_module_entries(*, include_cloud: bool = False) -> list[ModuleWorkerEntry]:
+def discover_module_entries() -> list[ModuleWorkerEntry]:
     module_paths = [
         (module_name, f"modules.{module_name}.infra.workers.registry")
         for module_name in CORE_MODULE_WORKER_REGISTRIES
     ]
-    if include_cloud:
-        module_paths.extend(CLOUD_MODULE_WORKER_REGISTRIES)
 
     entries: list[ModuleWorkerEntry] = []
     for module_name, module_path in module_paths:
