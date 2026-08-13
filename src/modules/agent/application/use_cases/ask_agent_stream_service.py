@@ -143,13 +143,22 @@ class AskAgentStreamService:
     ) -> None:
         if channel.trace_id is None:
             return
+
+        project_id = channel.project_id or input_dto.project_id
+        agent_id = channel.agent_id or input_dto.agent_id
+        session_id = channel.session_id or input_dto.session_id
+
         async with AgentUnitOfWork(self._session_factory) as uow:
             writer = SQLAlchemyAgentOutboxEventWriter(uow)
             event = AgentExecutionCancelledV1.create(
-                agent_id=input_dto.agent_id,
-                session_id=input_dto.session_id,
+                agent_id=agent_id,
+                session_id=session_id,
                 payload={
                     "trace_id": str(channel.trace_id),
+                    "project_id": str(project_id),
+                    "agent_id": str(agent_id),
+                    "session_id": str(session_id) if session_id is not None else None,
+                    "request_id": str(channel.request_id),
                     "reason": reason,
                 },
             )
