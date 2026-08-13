@@ -3,13 +3,11 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import Request as FastAPIRequest
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from modules.identity.application.authentication_service import AuthenticationService
-from modules.identity.application.dtos import CreateOrganizationInput, LoginInput, RegisterInput
+from modules.identity.application.dtos import LoginInput, RegisterInput
 from shared.infra.errors import AuthenticationError
-
 
 ACCESS_COOKIE_PATH = "/"
 CSRF_COOKIE_PATH = "/"
@@ -45,10 +43,7 @@ def request_is_cross_origin(request: FastAPIRequest) -> bool:
 
 
 def browser_cookie_policy(
-    request: FastAPIRequest,
-    *,
-    secure: bool,
-    same_site: str,
+    request: FastAPIRequest, *, secure: bool, same_site: str
 ) -> tuple[bool, str]:
     if request_is_cross_origin(request) and browser_request_is_secure(request):
         return True, "none"
@@ -63,7 +58,7 @@ def set_csrf_cookie(
     max_age: int,
 ) -> None:
     settings = request.app.state.settings
-    access_secure, access_same_site = browser_cookie_policy(
+    secure, same_site = browser_cookie_policy(
         request,
         secure=settings.access_cookie_secure,
         same_site=settings.access_cookie_same_site,
@@ -73,53 +68,32 @@ def set_csrf_cookie(
         value=csrf_value,
         max_age=max_age,
         httponly=False,
-        secure=access_secure,
-        samesite=access_same_site,
+        secure=secure,
+        samesite=same_site,
         path=CSRF_COOKIE_PATH,
     )
     response.headers[CSRF_RESPONSE_HEADER] = csrf_value
 
 
-def organization_payload(organization) -> dict:
-    return {
-        "id": str(organization.id),
-        "name": organization.name,
-        "slug": organization.slug,
-        "status": organization.status.value
-        if hasattr(organization.status, "value")
-        else organization.status,
-        "created_at": organization.created_at.isoformat()
-        if getattr(organization, "created_at", None)
-        else None,
-    }
-
-
 def authentication_response(
-    request: FastAPIRequest,
-    result,
-    *,
-    status_code: int,
+    request: FastAPIRequest, result, *, status_code: int
 ) -> JSONResponse:
     csrf_value = token_urlsafe(32)
-    response_data = {
-        "token_type": result.token_type,
-        "expires_in": result.expires_in,
-        "csrf": csrf_value,
-        "user": {
-            "id": str(result.user.id),
-            "email": result.user.email,
-            "status": result.user.status,
-        },
-    }
-    if result.organization is not None:
-        response_data["organization"] = organization_payload(result.organization)
-
     response = JSONResponse(
         status_code=status_code,
         content={
             "success": True,
             "message": "ok" if status_code == 200 else "created",
-            "data": response_data,
+            "data": {
+                "token_type": result.token_type,
+                "expires_in": result.expires_in,
+                "csrf": csrf_value,
+                "user": {
+                    "id": str(result.user.id),
+                    "email": result.user.email,
+                    "status": result.user.status,
+                },
+            },
         },
     )
     settings = request.app.state.settings
@@ -135,7 +109,6 @@ def authentication_response(
         secure=settings.refresh_cookie_secure,
         same_site=settings.refresh_cookie_same_site,
     )
-
     response.set_cookie(
         key=settings.access_cookie_name,
         value=result.access_token,
@@ -146,13 +119,9 @@ def authentication_response(
         path=ACCESS_COOKIE_PATH,
     )
     set_csrf_cookie(
-        request,
-        response,
-        csrf_value=csrf_value,
-        max_age=refresh_max_age,
+        request, response, csrf_value=csrf_value, max_age=refresh_max_age
     )
-
-    refresh_cookie_options = {
+    refresh_options = {
         "max_age": refresh_max_age,
         "httponly": True,
         "secure": refresh_secure,
@@ -162,12 +131,12 @@ def authentication_response(
     response.set_cookie(
         key=settings.refresh_cookie_name,
         value=result.refresh_token,
-        **refresh_cookie_options,
+        **refresh_options,
     )
     response.set_cookie(
         key=f"{settings.refresh_cookie_name}_session",
         value=str(result.session_id),
-        **refresh_cookie_options,
+        **refresh_options,
     )
     return response
 
@@ -198,53 +167,15 @@ def clear_auth_cookies(request: FastAPIRequest, response: JSONResponse) -> None:
         secure=access_secure,
         samesite=access_same_site,
     )
-
-    refresh_cookie_options = {
+    refresh_options = {
         "path": REFRESH_COOKIE_PATH,
         "httponly": True,
         "secure": refresh_secure,
         "samesite": refresh_same_site,
     }
-    response.delete_cookie(key=settings.refresh_cookie_name, **refresh_cookie_options)
+    response.delete_cookie(key=settings.refresh_cookie_name, **refresh_options)
     response.delete_cookie(
-        key=f"{settings.refresh_cookie_name}_session",
-        **refresh_cookie_options,
-    )
-
-
-async def list_organizations_endpoint(request: FastAPIRequest) -> JSONResponse:
-    principal = getattr(request.state, "principal", None)
-    if principal is None:
-        raise AuthenticationError("Authentication required")
-    organizations = await authentication_service(request).list_organizations(
-        principal.user_id
-    )
-    return JSONResponse(
-        content={
-            "success": True,
-            "message": "ok",
-            "data": jsonable_encoder(organizations),
-        }
-    )
-
-
-async def create_organization_endpoint(request: FastAPIRequest) -> JSONResponse:
-    principal = getattr(request.state, "principal", None)
-    if principal is None:
-        raise AuthenticationError("Authentication required")
-    data = CreateOrganizationInput(**(await request.json()))
-    organization = await authentication_service(request).create_organization(
-        user_id=principal.user_id,
-        name=data.name,
-        slug=data.slug,
-    )
-    return JSONResponse(
-        status_code=201,
-        content={
-            "success": True,
-            "message": "created",
-            "data": organization_payload(organization),
-        },
+        key=f"{settings.refresh_cookie_name}_session", **refresh_options
     )
 
 
@@ -257,11 +188,7 @@ async def get_current_user_endpoint(request: FastAPIRequest) -> JSONResponse:
         content={
             "success": True,
             "message": "ok",
-            "data": {
-                "id": str(user.id),
-                "email": user.email,
-                "status": user.status,
-            },
+            "data": {"id": str(user.id), "email": user.email, "status": user.status},
         }
     )
 
@@ -273,11 +200,7 @@ async def csrf_endpoint(request: FastAPIRequest) -> JSONResponse:
     settings = request.app.state.settings
     csrf_value = token_urlsafe(32)
     response = JSONResponse(
-        content={
-            "success": True,
-            "message": "ok",
-            "data": {"csrf": csrf_value},
-        }
+        content={"success": True, "message": "ok", "data": {"csrf": csrf_value}}
     )
     set_csrf_cookie(
         request,
@@ -338,11 +261,8 @@ async def logout_endpoint(request: FastAPIRequest) -> JSONResponse:
         try:
             session_id = UUID(session_value)
         except ValueError:
-            session_id = None
-    await authentication_service(request).logout(
-        session_id=session_id,
-        secret=secret,
-    )
+            pass
+    await authentication_service(request).logout(session_id=session_id, secret=secret)
     response = JSONResponse(
         content={"success": True, "message": "logged out", "data": None}
     )
