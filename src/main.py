@@ -262,8 +262,6 @@ def create_app() -> FastAPI:
         cast(ExceptionHandler, unhandled_exception_handler),
     )
 
-    # Instance status/bootstrap is intentionally public and has a narrow router.
-    # Community bootstrap applies its own singleton and registration policies.
     app.include_router(instance_router)
 
     security_dependency = Depends(enforce_request_security)
@@ -285,10 +283,6 @@ def create_app() -> FastAPI:
         app.include_router(tool_lifecycle_router)
         app.include_router(mcp_tools_router)
         app.include_router(metering_router)
-        if settings.managed_billing_enabled:
-            from editions.cloud.billing.presentation.routes import router as billing_router
-
-            app.include_router(billing_router)
         app.include_router(observability_router)
         app.include_router(network_router)
     finally:
