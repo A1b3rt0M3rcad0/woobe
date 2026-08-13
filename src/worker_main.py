@@ -80,9 +80,7 @@ async def run_workers(settings: Settings | None = None) -> None:
 
         await rabbitmq_manager.connect()
 
-        entries = discover_module_entries(
-            include_cloud=runtime_settings.managed_billing_enabled
-        )
+        entries = discover_module_entries()
         registries = build_registries(
             entries,
             engine=engine,
