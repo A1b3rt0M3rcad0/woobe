@@ -55,4 +55,6 @@ See `docs/testing/COMPOSE_TESTS.md` for the current topology.
 
 ## External contributions
 
-The current external-contribution acceptance status is recorded in `CONTRIBUTOR_LICENSE_AGREEMENT.md`. Do not bypass that repository gate when reviewing or merging external pull requests.
+External contributors must read `CONTRIBUTOR_LICENSE_AGREEMENT.md` and explicitly accept it in the pull request body using the checkbox provided by the pull request template. The `CLA acceptance` workflow verifies that acceptance for contributors who are not repository owners, members or collaborators.
+
+Do not merge an external contribution while the CLA check is failing. Public release still requires the legal and repository-governance review listed in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
