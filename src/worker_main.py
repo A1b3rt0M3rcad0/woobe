@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from collections.abc import Sequence
 
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
@@ -13,7 +14,7 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
-from shared.workers.discovery import build_registries, discover_module_entries
+from shared.workers.discovery import ModuleWorkerEntry, build_registries, discover_module_entries
 from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,11 @@ def _install_shutdown_handlers(
     return loop, installed
 
 
-async def run_workers(settings: Settings | None = None) -> None:
+async def run_workers(
+    settings: Settings | None = None,
+    *,
+    extra_entries: Sequence[ModuleWorkerEntry] = (),
+) -> None:
     runtime_settings = settings or Settings(service_role="worker")
     _configure_logging(runtime_settings)
 
@@ -81,6 +86,7 @@ async def run_workers(settings: Settings | None = None) -> None:
         await rabbitmq_manager.connect()
 
         entries = discover_module_entries()
+        entries.extend(extra_entries)
         registries = build_registries(
             entries,
             engine=engine,
