@@ -21,6 +21,21 @@ def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
         assert not (ROOT / path).exists(), path
 
 
+def test_proprietary_editions_are_not_distributed_in_community_head() -> None:
+    for path in (
+        "src/editions/cloud",
+        "web/src/editions/cloud",
+        "src/editions/enterprise",
+        "web/src/editions/enterprise",
+        "LICENSE-CLOUD.md",
+        "LICENSE-ENTERPRISE.md",
+    ):
+        assert not (ROOT / path).exists(), path
+
+    assert (ROOT / "LICENSE.md").is_file()
+    assert (ROOT / "LICENSING.md").is_file()
+
+
 def test_public_deployment_surface_has_one_default_contract() -> None:
     assert (ROOT / "compose.yaml").is_file()
     assert (ROOT / "compose.test.yaml").is_file()
@@ -85,7 +100,7 @@ def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> N
 
     mocked_text = mocked.read_text(encoding="utf-8")
     assert "python -m pytest -q tests/unit tests/fakes/test_openai_provider.py" in mocked_text
-    assert "--ignore=tests/unit/test_billing" in mocked_text
+    assert "test_billing" not in mocked_text
     for excluded in (
         "tests/modules",
         "tests/contract",
@@ -98,7 +113,7 @@ def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> N
     integration_text = integration.read_text(encoding="utf-8")
     assert "alembic upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
-    assert "--ignore=tests/integration/billing" in integration_text
+    assert "tests/integration/billing" not in integration_text
     assert "tests/editions" not in integration_text
     assert "tests/migrations" not in integration_text
 
