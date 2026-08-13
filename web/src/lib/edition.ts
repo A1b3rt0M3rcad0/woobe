@@ -1,6 +1,4 @@
-export type WoobeEdition = 'community' | 'cloud'
+export type WoobeEdition = 'community'
 
-export const woobeEdition: WoobeEdition =
-  import.meta.env.VITE_WOOBE_EDITION === 'cloud' ? 'cloud' : 'community'
-
-export const isCloudEdition = woobeEdition === 'cloud'
+export const woobeEdition: WoobeEdition = 'community'
+export const isCloudEdition = false
