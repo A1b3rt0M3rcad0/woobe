@@ -62,7 +62,7 @@ def make_api_key(project_id=None, name="TestKey"):
     )
 
 
-# ── AI factories ──────────────────────────────────────────────────
+# ── Agent factories ───────────────────────────────────────────────
 def make_agent(project_id=None, name="TestAgent"):
     from modules.agent.domain.entities import Agent
     from modules.agent.domain.enums import Provider
@@ -175,24 +175,6 @@ def make_usage_event(project_id=None, agent_id=None):
         event_type="llm_request",
         quantity=1,
         unit="request",
-        created_at=_now,
-        updated_at=_now,
-    )
-
-
-# ── Cloud Billing factories ───────────────────────────────────────
-def make_plan(code="free", name="Free", price_usd=0.0):
-    from editions.cloud.billing.domain.entities import Plan
-    return Plan(code=code, name=name, price_usd=price_usd, created_at=_now, updated_at=_now)
-
-
-def make_subscription(organization_id=None, plan_id=None):
-    from editions.cloud.billing.domain.entities import Subscription
-    return Subscription(
-        organization_id=organization_id or uuid6.uuid7(),
-        plan_id=plan_id or uuid6.uuid7(),
-        provider="custom",
-        provider_subscription_id="sub_123",
         created_at=_now,
         updated_at=_now,
     )
