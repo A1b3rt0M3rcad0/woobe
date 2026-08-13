@@ -7,13 +7,14 @@ This checklist is a release gate for making the Woobe repository and Community d
 - [ ] Root `compose.yaml` is the only supported default Community self-host contract.
 - [ ] Root `compose.test.yaml` is a standalone validation contract and is not presented as a product distribution.
 - [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
+- [ ] No proprietary Cloud or Enterprise implementation is present in the public Community HEAD or Community build contexts.
 - [ ] No obsolete `deploy/test/` overlay, host-shell test orchestrator, `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
 - [ ] Exactly one pull request template exists under `.github/`.
 - [ ] Browser acceptance tests use the root `e2e/` package; Python tests use the taxonomy under `tests/` without a competing `tests/e2e/` namespace.
 - [ ] Durable runtime and testing documentation is under `docs/` and describes current behavior rather than implementation history.
 - [ ] Legacy codename strings have been reviewed across the public tree and either removed or justified as historical compatibility where technically required.
 
-## Secrets and Git history — blocking
+## Secrets, proprietary source and Git history — blocking
 
 Deleting a file from the current branch does **not** remove it from Git history.
 
@@ -21,6 +22,7 @@ Before changing repository visibility:
 
 - [ ] Run the full-history secret audit (`scripts/audit_public_history.sh` / the manual security workflow).
 - [ ] Review findings manually; rotate or revoke every real credential that has ever been committed, even if the file was later deleted.
+- [ ] Audit history for proprietary Cloud/Enterprise source that must not become public merely because it was removed from the current HEAD.
 - [ ] Decide and execute the public-history strategy: either rewrite/sanitize existing history or publish from a deliberately sanitized public baseline.
 - [ ] Verify branches and tags that will become visible, not only the current `development` HEAD.
 - [ ] Re-run the history audit against the exact repository state intended for publication.
@@ -42,17 +44,19 @@ Do not make the repository public while this section is incomplete.
 
 - [ ] Validate the standalone test contract with `docker compose -f compose.test.yaml config --quiet`.
 - [ ] Run the full local/CI validation contract with `docker compose -f compose.test.yaml up --build --exit-code-from tests tests`; the manual tests workflow must execute this exact same command.
-- [ ] Confirm backend, frontend, mocked browser, and full-stack browser suites all complete successfully through their dedicated `docker/tests/Dockerfile.*` images.
+- [ ] Confirm backend mocked and backend integration suites complete successfully through their dedicated `docker/tests/Dockerfile.*` images.
 - [ ] Confirm the test topology uses Docker service DNS rather than `host.docker.internal` and requires no host Bash/WSL dependency.
 - [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
 - [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the actual root `compose.yaml` distribution.
 - [ ] Run the manual security workflow, including full-history secret scanning.
 - [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
 
-## Legal and repository administration — blocking
+## Licensing and repository administration — blocking
 
-- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSE-CLOUD.md`, commercial licensing, and trademark terms.
-- [ ] Contribution/CLA strategy is decided before accepting contributions that require relicensing flexibility.
+- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSING.md`, trademark terms and the external contribution strategy for the intended jurisdictions.
+- [ ] The final Contributor License Agreement and its acceptance mechanism are active before external contributions are merged.
+- [ ] The exact release dependency inventory has been reviewed and all required third-party notices are present.
+- [ ] Community build artifacts have been inspected to confirm proprietary edition source is absent.
 - [ ] GitHub default branch is the intended public integration branch.
 - [ ] Branch protection/rulesets are configured for the public workflow.
 - [ ] Private vulnerability reporting/security contact is configured.
