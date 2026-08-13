@@ -3,31 +3,20 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import uuid6
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.identity.application.auth_types import (
-    AuthenticatedOrganization,
-    AuthenticatedUser,
-    IssuedAuthentication,
-)
+from modules.identity.application.auth_types import AuthenticatedUser, IssuedAuthentication
 from modules.identity.application.session_lifecycle import SessionLifecycle
-from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
-    User,
-)
-from modules.identity.domain.enums import InviteStatus, MemberRole, MemberStatus, UserStatus
+from modules.identity.domain.entities import User, UserInvite
+from modules.identity.domain.enums import InviteStatus, UserStatus
 from modules.identity.domain.errors import EmailAlreadyExistsError, InvalidCredentialsError
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 from shared.infra.config import Settings
 from shared.infra.crypto import hash_password, verify_password
 from shared.infra.errors import AuthenticationError, ConflictError, NotFoundError
 from shared.security.access_tokens import AccessTokenCodec
-
-
-DEFAULT_ORGANIZATION_NAME = "My Organization"
 
 
 class AuthenticationService:
@@ -77,7 +66,6 @@ class AuthenticationService:
         async with IdentityUnitOfWork(self._session_factory) as uow:
             if await uow.users.get_by_email(normalized_email):
                 raise EmailAlreadyExistsError(normalized_email)
-
             user = await uow.users.save(
                 User(email=normalized_email, password=hash_password(password))
             )
@@ -89,201 +77,13 @@ class AuthenticationService:
                 routing_key="user.created.v1",
                 idempotency_key=f"identity:user.created.v1:{user.id}",
             )
-
-            organization = await self._create_owned_organization(
-                uow,
-                user_id=user.id,
-                name=DEFAULT_ORGANIZATION_NAME,
-                slug=f"org-{str(user.id)[:8]}",
-            )
-
             session = await self._sessions.issue(
                 uow,
                 user_id=user.id,
                 user_agent=user_agent,
                 ip_address=ip_address,
             )
-            return self._authentication_result(
-                user,
-                session.id,
-                session.secret,
-                organization=organization,
-            )
-
-    async def create_organization(
-        self,
-        *,
-        user_id: UUID,
-        name: str,
-        slug: str,
-    ) -> Organization:
-        async with IdentityUnitOfWork(self._session_factory) as uow:
-            user = await uow.users.get_by_id(user_id)
-            if user is None or user.status != UserStatus.active:
-                raise AuthenticationError("Authentication required")
-            return await self._create_owned_organization(
-                uow,
-                user_id=user.id,
-                name=name.strip(),
-                slug=slug.strip().lower(),
-            )
-
-    async def create_invite(
-        self,
-        *,
-        actor_user_id: UUID,
-        organization_id: UUID,
-        email: str,
-        role: MemberRole,
-        project_ids: list[UUID],
-    ) -> OrganizationInvite:
-        normalized_email = email.strip().lower()
-        if not normalized_email:
-            raise ConflictError("Invite email is required")
-
-        unique_project_ids = list(dict.fromkeys(project_ids))
-        now = datetime.now(UTC)
-        expires_at = now + timedelta(days=7)
-
-        async with IdentityUnitOfWork(self._session_factory) as uow:
-            organization = await uow.organizations.get_by_id(organization_id)
-            if organization is None:
-                raise NotFoundError("Organization not found")
-
-            if unique_project_ids:
-                project_query = text(
-                    """
-                    SELECT id
-                    FROM core.projects
-                    WHERE organization_id = :organization_id
-                      AND id IN :project_ids
-                    """
-                ).bindparams(bindparam("project_ids", expanding=True))
-                project_result = await uow.session.execute(
-                    project_query,
-                    {
-                        "organization_id": organization_id,
-                        "project_ids": unique_project_ids,
-                    },
-                )
-                valid_project_ids = {UUID(str(row[0])) for row in project_result.all()}
-                if valid_project_ids != set(unique_project_ids):
-                    raise NotFoundError("One or more Projects do not belong to this Organization")
-
-            existing_result = await uow.session.execute(
-                text(
-                    """
-                    SELECT id, status, created_at
-                    FROM identity.organization_invites
-                    WHERE organization_id = :organization_id
-                      AND lower(email) = :email
-                    FOR UPDATE
-                    """
-                ),
-                {"organization_id": organization_id, "email": normalized_email},
-            )
-            existing = existing_result.mappings().first()
-            if existing is not None and str(existing["status"]) == InviteStatus.pending.value:
-                raise ConflictError("A pending invite already exists for this email")
-
-            if existing is None:
-                invite = await uow.invites.save(
-                    OrganizationInvite(
-                        organization_id=organization_id,
-                        email=normalized_email,
-                        role=role,
-                        token_hash="",
-                        invited_by_user_id=actor_user_id,
-                        expires_at=expires_at,
-                    )
-                )
-            else:
-                invite_id = UUID(str(existing["id"]))
-                await uow.session.execute(
-                    text(
-                        """
-                        UPDATE identity.organization_invites
-                        SET role = :role,
-                            status = 'pending',
-                            invited_by_user_id = :actor_user_id,
-                            expires_at = :expires_at,
-                            accepted_at = NULL,
-                            updated_at = :now
-                        WHERE id = :invite_id
-                        """
-                    ),
-                    {
-                        "invite_id": invite_id,
-                        "role": role.value,
-                        "actor_user_id": actor_user_id,
-                        "expires_at": expires_at,
-                        "now": now,
-                    },
-                )
-                invite = OrganizationInvite(
-                    id=invite_id,
-                    organization_id=organization_id,
-                    email=normalized_email,
-                    role=role,
-                    token_hash="",
-                    invited_by_user_id=actor_user_id,
-                    status=InviteStatus.pending,
-                    expires_at=expires_at,
-                    created_at=existing["created_at"],
-                    updated_at=now,
-                )
-
-            await uow.session.execute(
-                text(
-                    """
-                    UPDATE core.project_invite_access
-                    SET status = 'cancelled', updated_at = :now
-                    WHERE organization_invite_id = :invite_id
-                      AND status = 'pending'
-                    """
-                ),
-                {"invite_id": invite.id, "now": now},
-            )
-            for project_id in unique_project_ids:
-                await uow.session.execute(
-                    text(
-                        """
-                        INSERT INTO core.project_invite_access
-                            (id, project_id, organization_invite_id, status,
-                             granted_by_user_id, created_at, updated_at)
-                        VALUES
-                            (gen_random_uuid(), :project_id, :invite_id, 'pending',
-                             :actor_user_id, :now, :now)
-                        ON CONFLICT (project_id, organization_invite_id)
-                        DO UPDATE SET status = 'pending',
-                                      granted_by_user_id = EXCLUDED.granted_by_user_id,
-                                      updated_at = EXCLUDED.updated_at
-                        """
-                    ),
-                    {
-                        "project_id": project_id,
-                        "invite_id": invite.id,
-                        "actor_user_id": actor_user_id,
-                        "now": now,
-                    },
-                )
-
-            await uow.outbox.write(
-                aggregate_type="organization_invite",
-                aggregate_id=invite.id,
-                event_type="organization.invite_created.v1",
-                payload={
-                    "organization_id": str(organization_id),
-                    "email": normalized_email,
-                    "role": role.value,
-                    "project_ids": [str(project_id) for project_id in unique_project_ids],
-                },
-                routing_key="organization.invite_created.v1",
-                idempotency_key=(
-                    f"identity:organization.invite_created.v1:{invite.id}:{int(now.timestamp())}"
-                ),
-            )
-            return invite
+            return self._authentication_result(user, session.id, session.secret)
 
     async def refresh(
         self,
@@ -307,68 +107,190 @@ class AuthenticationService:
                 raise AuthenticationError("Invalid refresh session")
             return self._authentication_result(user, session.id, session.secret)
 
-    async def logout(
-        self,
-        *,
-        session_id: UUID | None,
-        secret: str | None,
-    ) -> None:
+    async def logout(self, *, session_id: UUID | None, secret: str | None) -> None:
         async with IdentityUnitOfWork(self._session_factory) as uow:
-            await self._sessions.revoke(
-                uow,
-                session_id=session_id,
-                secret=secret,
-            )
+            await self._sessions.revoke(uow, session_id=session_id, secret=secret)
 
     async def get_user(self, user_id: UUID) -> AuthenticatedUser:
         async with IdentityUnitOfWork(self._session_factory) as uow:
             user = await uow.users.get_by_id(user_id)
             if user is None or user.status != UserStatus.active:
                 raise AuthenticationError("Authentication required")
-            return AuthenticatedUser(
-                id=user.id,
-                email=user.email,
-                status=user.status.value,
-            )
+            return AuthenticatedUser(id=user.id, email=user.email, status=user.status.value)
 
-    async def list_organizations(self, user_id: UUID) -> list[dict[str, object]]:
+    async def create_invite(
+        self,
+        *,
+        actor_user_id: UUID,
+        workspace_id: UUID,
+        email: str,
+        project_ids: list[UUID],
+    ) -> UserInvite:
+        normalized_email = email.strip().lower()
+        if not normalized_email:
+            raise ConflictError("Invite email is required")
+        unique_project_ids = list(dict.fromkeys(project_ids))
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(days=7)
+
         async with IdentityUnitOfWork(self._session_factory) as uow:
-            result = await uow.session.execute(
+            await self._require_instance_admin(uow.session, actor_user_id)
+            workspace = await uow.session.execute(
+                text("SELECT 1 FROM core.workspaces WHERE id = :workspace_id AND status = 'active'"),
+                {"workspace_id": workspace_id},
+            )
+            if workspace.scalar_one_or_none() is None:
+                raise NotFoundError("Workspace not found")
+
+            if unique_project_ids:
+                query = text(
+                    """
+                    SELECT id FROM core.projects
+                    WHERE workspace_id = :workspace_id AND id IN :project_ids
+                    """
+                ).bindparams(bindparam("project_ids", expanding=True))
+                rows = await uow.session.execute(
+                    query,
+                    {"workspace_id": workspace_id, "project_ids": unique_project_ids},
+                )
+                valid_ids = {UUID(str(row[0])) for row in rows.all()}
+                if valid_ids != set(unique_project_ids):
+                    raise ConflictError("All invited Projects must belong to the Workspace")
+
+            existing_user = await uow.users.get_by_email(normalized_email)
+            if existing_user is not None:
+                if await self._is_instance_admin(uow.session, existing_user.id):
+                    raise ConflictError("The Instance admin cannot be invited to a Workspace")
+                membership = await uow.session.execute(
+                    text(
+                        """
+                        SELECT workspace_id FROM core.workspace_members
+                        WHERE user_id = :user_id AND status = 'active'
+                        LIMIT 1
+                        """
+                    ),
+                    {"user_id": existing_user.id},
+                )
+                member_workspace = membership.scalar_one_or_none()
+                if member_workspace is not None and UUID(str(member_workspace)) != workspace_id:
+                    raise ConflictError("User already belongs to another Workspace")
+
+            pending_other = await uow.session.execute(
                 text(
                     """
-                    SELECT o.id, o.name, o.slug, o.status, o.created_at,
-                           om.role AS membership_role,
-                           (om.role IN ('owner', 'admin')) AS can_manage_organization,
-                           CASE
-                               WHEN om.role = 'owner' THEN 'implicit_owner'
-                               ELSE 'assigned_projects'
-                           END AS access_mode,
-                           CASE
-                               WHEN om.role = 'owner' THEN (
-                                   SELECT COUNT(*)
-                                   FROM core.projects AS p
-                                   WHERE p.organization_id = o.id
-                               )
-                               ELSE (
-                                   SELECT COUNT(*)
-                                   FROM core.project_members AS pm
-                                   JOIN core.projects AS p ON p.id = pm.project_id
-                                   WHERE pm.user_id = :user_id
-                                     AND pm.status = 'active'
-                                     AND p.organization_id = o.id
-                               )
-                           END AS accessible_project_count
-                    FROM identity.organization_members AS om
-                    JOIN identity.organizations AS o ON o.id = om.organization_id
-                    WHERE om.user_id = :user_id
-                      AND om.status = 'active'
-                      AND o.status = 'active'
-                    ORDER BY o.created_at DESC
+                    SELECT id FROM identity.user_invites
+                    WHERE lower(email) = :email
+                      AND status = 'pending'
+                      AND expires_at > now()
+                      AND workspace_id <> :workspace_id
+                    LIMIT 1
                     """
                 ),
-                {"user_id": user_id},
+                {"email": normalized_email, "workspace_id": workspace_id},
             )
-            return [dict(row) for row in result.mappings().all()]
+            if pending_other.scalar_one_or_none() is not None:
+                raise ConflictError("A pending invite for another Workspace already exists")
+
+            existing = await uow.session.execute(
+                text(
+                    """
+                    SELECT id, status, created_at
+                    FROM identity.user_invites
+                    WHERE workspace_id = :workspace_id AND lower(email) = :email
+                    FOR UPDATE
+                    """
+                ),
+                {"workspace_id": workspace_id, "email": normalized_email},
+            )
+            row = existing.mappings().first()
+            if row is not None and str(row["status"]) == InviteStatus.pending.value:
+                raise ConflictError("A pending invite already exists for this email")
+
+            if row is None:
+                invite = await uow.invites.save(
+                    UserInvite(
+                        workspace_id=workspace_id,
+                        email=normalized_email,
+                        invited_by_user_id=actor_user_id,
+                        expires_at=expires_at,
+                    )
+                )
+            else:
+                invite_id = UUID(str(row["id"]))
+                await uow.session.execute(
+                    text(
+                        """
+                        UPDATE identity.user_invites
+                        SET status = 'pending', invited_by_user_id = :actor_user_id,
+                            expires_at = :expires_at, accepted_at = NULL, updated_at = :now
+                        WHERE id = :invite_id
+                        """
+                    ),
+                    {
+                        "invite_id": invite_id,
+                        "actor_user_id": actor_user_id,
+                        "expires_at": expires_at,
+                        "now": now,
+                    },
+                )
+                invite = UserInvite(
+                    id=invite_id,
+                    workspace_id=workspace_id,
+                    email=normalized_email,
+                    invited_by_user_id=actor_user_id,
+                    status=InviteStatus.pending,
+                    expires_at=expires_at,
+                    created_at=row["created_at"],
+                    updated_at=now,
+                )
+
+            await uow.session.execute(
+                text(
+                    """
+                    UPDATE core.project_invite_access
+                    SET status = 'cancelled', updated_at = :now
+                    WHERE user_invite_id = :invite_id AND status = 'pending'
+                    """
+                ),
+                {"invite_id": invite.id, "now": now},
+            )
+            for project_id in unique_project_ids:
+                await uow.session.execute(
+                    text(
+                        """
+                        INSERT INTO core.project_invite_access
+                            (id, project_id, user_invite_id, status, granted_by_user_id,
+                             created_at, updated_at)
+                        VALUES
+                            (:id, :project_id, :invite_id, 'pending', :actor_user_id,
+                             :now, :now)
+                        ON CONFLICT (project_id, user_invite_id)
+                        DO UPDATE SET status = 'pending',
+                                      granted_by_user_id = EXCLUDED.granted_by_user_id,
+                                      updated_at = EXCLUDED.updated_at
+                        """
+                    ),
+                    {
+                        "id": uuid6.uuid7(),
+                        "project_id": project_id,
+                        "invite_id": invite.id,
+                        "actor_user_id": actor_user_id,
+                        "now": now,
+                    },
+                )
+            await uow.outbox.write(
+                aggregate_type="user_invite",
+                aggregate_id=invite.id,
+                event_type="user.invite_created.v1",
+                payload={
+                    "workspace_id": str(workspace_id),
+                    "email": normalized_email,
+                    "project_ids": [str(project_id) for project_id in unique_project_ids],
+                },
+                routing_key="user.invite_created.v1",
+                idempotency_key=f"identity:user.invite_created.v1:{invite.id}:{int(now.timestamp())}",
+            )
+            return invite
 
     async def list_pending_invites(self, user_id: UUID) -> list[dict[str, object]]:
         async with IdentityUnitOfWork(self._session_factory) as uow:
@@ -378,20 +300,18 @@ class AuthenticationService:
             result = await uow.session.execute(
                 text(
                     """
-                    SELECT i.id, i.organization_id, i.email, i.role, i.status,
-                           i.expires_at, i.created_at,
-                           o.name AS organization_name, o.slug AS organization_slug,
+                    SELECT i.id, i.workspace_id, i.email, i.status, i.expires_at,
+                           i.created_at, w.name AS workspace_name, w.slug AS workspace_slug,
                            COUNT(pia.id) FILTER (WHERE pia.status = 'pending') AS project_count
-                    FROM identity.organization_invites AS i
-                    JOIN identity.organizations AS o ON o.id = i.organization_id
-                    LEFT JOIN core.project_invite_access AS pia
-                      ON pia.organization_invite_id = i.id
-                     AND pia.status = 'pending'
+                    FROM identity.user_invites i
+                    JOIN core.workspaces w ON w.id = i.workspace_id
+                    LEFT JOIN core.project_invite_access pia
+                      ON pia.user_invite_id = i.id AND pia.status = 'pending'
                     WHERE lower(i.email) = :email
                       AND i.status = 'pending'
                       AND i.expires_at > now()
-                      AND o.status = 'active'
-                    GROUP BY i.id, o.id
+                      AND w.status = 'active'
+                    GROUP BY i.id, w.id
                     ORDER BY i.created_at DESC
                     """
                 ),
@@ -399,17 +319,69 @@ class AuthenticationService:
             )
             return [dict(row) for row in result.mappings().all()]
 
-    async def accept_invite(self, *, user_id: UUID, invite_id: UUID) -> Organization:
+    async def list_invites(
+        self, *, actor_user_id: UUID, workspace_id: UUID
+    ) -> list[dict[str, object]]:
+        async with IdentityUnitOfWork(self._session_factory) as uow:
+            await self._require_instance_admin(uow.session, actor_user_id)
+            result = await uow.session.execute(
+                text(
+                    """
+                    SELECT i.id, i.workspace_id, i.email, i.status, i.expires_at,
+                           i.created_at,
+                           COUNT(pia.id) FILTER (WHERE pia.status = 'pending') AS project_count
+                    FROM identity.user_invites i
+                    LEFT JOIN core.project_invite_access pia ON pia.user_invite_id = i.id
+                    WHERE i.workspace_id = :workspace_id
+                    GROUP BY i.id
+                    ORDER BY i.created_at DESC
+                    """
+                ),
+                {"workspace_id": workspace_id},
+            )
+            return [dict(row) for row in result.mappings().all()]
+
+    async def cancel_invite(self, *, actor_user_id: UUID, invite_id: UUID) -> None:
+        async with IdentityUnitOfWork(self._session_factory) as uow:
+            await self._require_instance_admin(uow.session, actor_user_id)
+            now = datetime.now(UTC)
+            result = await uow.session.execute(
+                text(
+                    """
+                    UPDATE identity.user_invites
+                    SET status = 'cancelled', updated_at = :now
+                    WHERE id = :invite_id AND status = 'pending'
+                    RETURNING id
+                    """
+                ),
+                {"invite_id": invite_id, "now": now},
+            )
+            if result.scalar_one_or_none() is None:
+                raise NotFoundError("Pending invite not found")
+            await uow.session.execute(
+                text(
+                    """
+                    UPDATE core.project_invite_access
+                    SET status = 'cancelled', updated_at = :now
+                    WHERE user_invite_id = :invite_id AND status = 'pending'
+                    """
+                ),
+                {"invite_id": invite_id, "now": now},
+            )
+
+    async def accept_invite(self, *, user_id: UUID, invite_id: UUID) -> dict[str, object]:
         async with IdentityUnitOfWork(self._session_factory) as uow:
             user = await uow.users.get_by_id(user_id)
             if user is None or user.status != UserStatus.active:
                 raise AuthenticationError("Authentication required")
+            if await self._is_instance_admin(uow.session, user_id):
+                raise ConflictError("The Instance admin cannot join a Workspace")
 
             result = await uow.session.execute(
                 text(
                     """
-                    SELECT id, organization_id, email, role, status, expires_at
-                    FROM identity.organization_invites
+                    SELECT id, workspace_id, email, status, expires_at
+                    FROM identity.user_invites
                     WHERE id = :invite_id
                     FOR UPDATE
                     """
@@ -417,80 +389,75 @@ class AuthenticationService:
                 {"invite_id": invite_id},
             )
             invite = result.mappings().first()
-            if invite is None:
+            if invite is None or str(invite["email"]).strip().lower() != user.email.strip().lower():
                 raise NotFoundError("Invite not found")
             if str(invite["status"]) != InviteStatus.pending.value:
                 raise ConflictError("Invite is no longer pending")
-            if str(invite["email"]).strip().lower() != user.email.strip().lower():
-                raise NotFoundError("Invite not found")
-            expires_at = invite["expires_at"]
-            if expires_at is not None and expires_at <= datetime.now(UTC):
+            if invite["expires_at"] is not None and invite["expires_at"] <= datetime.now(UTC):
                 await uow.session.execute(
-                    text(
-                        """
-                        UPDATE identity.organization_invites
-                        SET status = 'expired', updated_at = :now
-                        WHERE id = :invite_id
-                        """
-                    ),
+                    text("UPDATE identity.user_invites SET status = 'expired', updated_at = :now WHERE id = :invite_id"),
                     {"invite_id": invite_id, "now": datetime.now(UTC)},
                 )
                 raise ConflictError("Invite has expired")
 
-            organization_id = UUID(str(invite["organization_id"]))
-            role = MemberRole(str(invite["role"]))
-            existing = await uow.members.get_by_organization_and_user(
-                organization_id,
-                user.id,
+            workspace_id = UUID(str(invite["workspace_id"]))
+            membership = await uow.session.execute(
+                text(
+                    """
+                    SELECT id, workspace_id, status
+                    FROM core.workspace_members
+                    WHERE user_id = :user_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    FOR UPDATE
+                    """
+                ),
+                {"user_id": user_id},
             )
-            joined_at = datetime.now(UTC)
-            member_id: UUID
-            membership_changed = False
-            if existing is None:
-                member = await uow.members.save(
-                    OrganizationMember(
-                        user_id=user.id,
-                        organization_id=organization_id,
-                        role=role,
-                        joined_at=joined_at,
-                    )
-                )
-                member_id = member.id
-                membership_changed = True
-            else:
-                member_id = existing.id
-                if existing.status != MemberStatus.active or existing.role != role:
-                    await uow.session.execute(
-                        text(
-                            """
-                            UPDATE identity.organization_members
-                            SET role = :role, status = 'active', joined_at = :joined_at,
-                                updated_at = :joined_at
-                            WHERE id = :member_id
-                            """
-                        ),
-                        {
-                            "member_id": existing.id,
-                            "role": role.value,
-                            "joined_at": joined_at,
-                        },
-                    )
-                    membership_changed = True
-
+            current = membership.mappings().first()
             now = datetime.now(UTC)
+            if current is not None and str(current["status"]) == "active":
+                if UUID(str(current["workspace_id"])) != workspace_id:
+                    raise ConflictError("User already belongs to another Workspace")
+                member_id = UUID(str(current["id"]))
+            elif current is None:
+                member_id = uuid6.uuid7()
+                await uow.session.execute(
+                    text(
+                        """
+                        INSERT INTO core.workspace_members
+                            (id, workspace_id, user_id, status, joined_at, created_at, updated_at)
+                        VALUES
+                            (:id, :workspace_id, :user_id, 'active', :now, :now, :now)
+                        """
+                    ),
+                    {"id": member_id, "workspace_id": workspace_id, "user_id": user_id, "now": now},
+                )
+            else:
+                member_id = UUID(str(current["id"]))
+                await uow.session.execute(
+                    text(
+                        """
+                        UPDATE core.workspace_members
+                        SET workspace_id = :workspace_id, status = 'active', joined_at = :now, updated_at = :now
+                        WHERE id = :id
+                        """
+                    ),
+                    {"id": member_id, "workspace_id": workspace_id, "now": now},
+                )
+
             await uow.session.execute(
                 text(
                     """
                     INSERT INTO core.project_members
-                        (id, project_id, user_id, status, granted_by_user_id,
-                         created_at, updated_at)
+                        (id, project_id, user_id, status, granted_by_user_id, created_at, updated_at)
                     SELECT gen_random_uuid(), pia.project_id, :user_id, 'active',
                            pia.granted_by_user_id, :now, :now
-                    FROM core.project_invite_access AS pia
-                    JOIN core.projects AS p ON p.id = pia.project_id
-                    WHERE pia.organization_invite_id = :invite_id
+                    FROM core.project_invite_access pia
+                    JOIN core.projects p ON p.id = pia.project_id
+                    WHERE pia.user_invite_id = :invite_id
                       AND pia.status = 'pending'
-                      AND p.organization_id = :organization_id
+                      AND p.workspace_id = :workspace_id
                     ON CONFLICT (project_id, user_id)
                     DO UPDATE SET status = 'active',
                                   granted_by_user_id = EXCLUDED.granted_by_user_id,
@@ -498,128 +465,59 @@ class AuthenticationService:
                     """
                 ),
                 {
-                    "user_id": user.id,
+                    "user_id": user_id,
                     "invite_id": invite_id,
-                    "organization_id": organization_id,
+                    "workspace_id": workspace_id,
                     "now": now,
                 },
             )
             await uow.session.execute(
-                text(
-                    """
-                    UPDATE core.project_invite_access
-                    SET status = 'applied', updated_at = :now
-                    WHERE organization_invite_id = :invite_id
-                      AND status = 'pending'
-                    """
-                ),
+                text("UPDATE core.project_invite_access SET status = 'applied', updated_at = :now WHERE user_invite_id = :invite_id AND status = 'pending'"),
                 {"invite_id": invite_id, "now": now},
             )
             await uow.session.execute(
-                text(
-                    """
-                    UPDATE identity.organization_invites
-                    SET status = 'accepted', accepted_at = :now, updated_at = :now
-                    WHERE id = :invite_id
-                    """
-                ),
+                text("UPDATE identity.user_invites SET status = 'accepted', accepted_at = :now, updated_at = :now WHERE id = :invite_id"),
                 {"invite_id": invite_id, "now": now},
             )
-
-            if membership_changed:
-                await uow.outbox.write(
-                    aggregate_type="organization_member",
-                    aggregate_id=member_id,
-                    event_type="organization.member_added.v1",
-                    payload={
-                        "user_id": str(user.id),
-                        "organization_id": str(organization_id),
-                        "role": role.value,
-                    },
-                    routing_key="organization.member_added.v1",
-                    idempotency_key=f"identity:organization.member_added.v1:{member_id}",
-                )
-
-            organization = await uow.organizations.get_by_id(organization_id)
-            if organization is None:
-                raise NotFoundError("Organization not found")
-            return organization
-
-    async def _create_owned_organization(
-        self,
-        uow: IdentityUnitOfWork,
-        *,
-        user_id: UUID,
-        name: str,
-        slug: str,
-    ) -> Organization:
-        if await uow.organizations.get_by_slug(slug):
-            raise ConflictError(f"Organization with slug '{slug}' already exists")
-
-        organization = await uow.organizations.save(
-            Organization(name=name, slug=slug)
-        )
-        await uow.outbox.write(
-            aggregate_type="organization",
-            aggregate_id=organization.id,
-            event_type="organization.created.v1",
-            payload={"name": organization.name, "slug": organization.slug},
-            routing_key="organization.created.v1",
-            idempotency_key=f"identity:organization.created.v1:{organization.id}",
-        )
-
-        member = await uow.members.save(
-            OrganizationMember(
-                user_id=user_id,
-                organization_id=organization.id,
-                role=MemberRole.owner,
-                joined_at=datetime.now(UTC),
+            await uow.outbox.write(
+                aggregate_type="user_invite",
+                aggregate_id=invite_id,
+                event_type="user.invite_accepted.v1",
+                payload={"user_id": str(user_id), "workspace_id": str(workspace_id)},
+                routing_key="user.invite_accepted.v1",
+                idempotency_key=f"identity:user.invite_accepted.v1:{invite_id}",
             )
+            workspace = await uow.session.execute(
+                text("SELECT id, name, slug, status, created_at, updated_at FROM core.workspaces WHERE id = :workspace_id"),
+                {"workspace_id": workspace_id},
+            )
+            row = workspace.mappings().first()
+            if row is None:
+                raise NotFoundError("Workspace not found")
+            return dict(row)
+
+    @staticmethod
+    async def _is_instance_admin(session: AsyncSession, user_id: UUID) -> bool:
+        result = await session.execute(
+            text("SELECT 1 FROM identity.instance_settings WHERE id = 1 AND admin_user_id = :user_id AND initialized_at IS NOT NULL"),
+            {"user_id": user_id},
         )
-        await uow.outbox.write(
-            aggregate_type="organization_member",
-            aggregate_id=member.id,
-            event_type="organization.member_added.v1",
-            payload={
-                "user_id": str(user_id),
-                "organization_id": str(organization.id),
-                "role": member.role.value,
-            },
-            routing_key="organization.member_added.v1",
-            idempotency_key=f"identity:organization.member_added.v1:{member.id}",
-        )
-        return organization
+        return result.scalar_one_or_none() is not None
+
+    @classmethod
+    async def _require_instance_admin(cls, session: AsyncSession, user_id: UUID) -> None:
+        if not await cls._is_instance_admin(session, user_id):
+            from shared.infra.errors import AuthorizationError
+            raise AuthorizationError("Instance admin access is required")
 
     def _authentication_result(
-        self,
-        user: User,
-        session_id: UUID,
-        refresh_secret: str,
-        *,
-        organization: Organization | None = None,
+        self, user: User, session_id: UUID, refresh_secret: str
     ) -> IssuedAuthentication:
         return IssuedAuthentication(
-            access_token=self._token_codec.issue(
-                user_id=user.id,
-                session_id=session_id,
-            ),
+            access_token=self._token_codec.issue(user_id=user.id, session_id=session_id),
             refresh_token=refresh_secret,
             session_id=session_id,
             token_type="Bearer",
             expires_in=self._token_codec.ttl_seconds,
-            user=AuthenticatedUser(
-                id=user.id,
-                email=user.email,
-                status=user.status.value,
-            ),
-            organization=(
-                AuthenticatedOrganization(
-                    id=organization.id,
-                    name=organization.name,
-                    slug=organization.slug,
-                    status=organization.status.value,
-                )
-                if organization is not None
-                else None
-            ),
+            user=AuthenticatedUser(id=user.id, email=user.email, status=user.status.value),
         )
