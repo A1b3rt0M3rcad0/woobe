@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import cast
 
 from fastapi import Depends, FastAPI, Request
@@ -93,10 +94,24 @@ def create_app() -> FastAPI:
         },
     )
 
+    @asynccontextmanager
+    async def lifespan(runtime_app: FastAPI):
+        engine = runtime_app.state.async_engine
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Woobe API runtime started without background workers")
+        try:
+            yield
+        finally:
+            await close_http_tool_executor()
+            await runtime_app.state.async_engine.dispose()
+            logger.info("Woobe API runtime stopped")
+
     app = FastAPI(
         title="Woobe",
         description="Control plane and runtime for versioned AI products",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     app.state.settings = settings
@@ -278,19 +293,6 @@ def create_app() -> FastAPI:
         app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)
-
-    @app.on_event("startup")
-    async def startup() -> None:
-        engine = app.state.async_engine
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-        logger.info("Woobe API runtime started without background workers")
-
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        await close_http_tool_executor()
-        await app.state.async_engine.dispose()
-        logger.info("Woobe API runtime stopped")
 
     @app.get("/live", include_in_schema=False)
     async def live():
