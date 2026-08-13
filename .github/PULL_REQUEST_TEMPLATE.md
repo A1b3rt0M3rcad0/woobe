@@ -43,3 +43,9 @@ Describe breaking changes, operational impact, known limitations, and the rollba
 - [ ] No secrets, tokens, customer data, or internal-only artifacts
 - [ ] Backend remains the enforcement boundary for critical rules
 - [ ] Documentation updated when public behavior or contracts changed
+
+## External contributor CLA
+
+External contributors must explicitly accept the repository CLA before merge:
+
+- [ ] I have read and agree to the Woobe Contributor License Agreement.
