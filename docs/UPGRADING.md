@@ -6,38 +6,53 @@ Woobe Community uses the root `compose.yaml` as its supported self-host topology
 
 1. Read the release notes and migration compatibility notes for the target version.
 2. Back up PostgreSQL using the documented backup procedure.
-3. Back up the local Knowledge upload volume when local storage is enabled.
-4. Record the currently deployed source/image version so the application deployment can be restored if necessary.
+3. Back up Knowledge files or the object-storage data used by the current installation.
+4. Record the currently deployed source/image version and `.env` so the application deployment can be restored if necessary.
 
 Do not assume that rolling an application version back also makes a database downgrade safe.
 
-## Configuration namespace migration
+## Migration from the legacy ProjectRAI deployment contract
 
-Woobe renamed its application environment-variable namespace from `PROJECTRAI_*` to `WOOBE_*`.
-Existing installations must migrate their application configuration before starting a version that uses the `WOOBE_` namespace.
+The Community distribution changed both its application configuration namespace and its bundled self-host topology. Treat an installation that still uses the legacy `docker-compose.yml` / `PROJECTRAI_*` contract as a deployment migration, not as a blind in-place Compose restart.
 
-For application variables, preserve the deployed value and rename the prefix:
+The legacy bundled topology included PgBouncer, Redis and MinIO and used the Compose project name `projectrai`. The current root `compose.yaml` uses direct PostgreSQL for the bundled runtime, disables the Redis-backed MCP session cache by default, uses local persistent Knowledge storage by default, and uses the Compose project name `woobe`.
+
+Because the Compose project name and volume names changed, existing PostgreSQL and MinIO data volumes are not automatically adopted by the new topology. Back up the old database and Knowledge/object-storage data first, start the target Community topology with reviewed configuration, and restore/migrate the data deliberately. Do not delete the old volumes until the upgraded installation has been verified.
+
+### Environment-variable namespace
+
+Application settings previously named `PROJECTRAI_*` are now named `WOOBE_*`.
+
+For settings whose endpoint or semantics remain valid, preserve the deployed value and rename the prefix. Examples:
 
 ```text
 PROJECTRAI_SECRET_KEY          -> WOOBE_SECRET_KEY
 PROJECTRAI_ENCRYPTION_KEY      -> WOOBE_ENCRYPTION_KEY
-PROJECTRAI_DATABASE_URL        -> WOOBE_DATABASE_URL
-PROJECTRAI_POSTGRES_URL        -> WOOBE_POSTGRES_URL
 PROJECTRAI_RABBITMQ_URL        -> WOOBE_RABBITMQ_URL
-PROJECTRAI_REDIS_URL           -> WOOBE_REDIS_URL
 PROJECTRAI_CORS_ORIGINS        -> WOOBE_CORS_ORIGINS
 PROJECTRAI_TRUSTED_HOSTS       -> WOOBE_TRUSTED_HOSTS
 ```
 
-The same rule applies to the remaining application settings previously prefixed with `PROJECTRAI_`: rename only the prefix to `WOOBE_` and preserve the configured value unless the target release notes explicitly document a value change.
+Preserve existing signing and encryption keys. Rotating those values accidentally during an upgrade can invalidate sessions or make persisted encrypted secrets unreadable.
 
-Infrastructure/bootstrap variables that never used the `PROJECTRAI_` prefix, including `POSTGRES_*`, `RABBITMQ_*`, `AWS_*` and `VITE_*`, are not part of this prefix migration.
+Do **not** mechanically preserve legacy internal service URLs when moving from the old bundled topology. In particular:
 
-Do not replace an existing production `.env` with a freshly generated one. Doing so can rotate signing or encryption material and can change infrastructure credentials. Migrate the existing configuration, compare it with the target version's `.env.example`, then rebuild and restart.
+```text
+legacy PROJECTRAI_DATABASE_URL -> review and set WOOBE_DATABASE_URL for the target database endpoint
+legacy PROJECTRAI_POSTGRES_URL -> review and set WOOBE_POSTGRES_URL for the target database endpoint
+legacy PROJECTRAI_REDIS_URL    -> do not copy for the default Community topology; Redis is disabled there
+legacy PROJECTRAI_S3_*         -> do not copy when adopting the default local-storage topology
+```
+
+A legacy URL such as `postgresql://...@pgbouncer:6432/...` is not valid in the current default Community Compose network because that topology no longer contains a `pgbouncer` service. The generated/current `.env.example` is the source of truth for target endpoints and defaults.
+
+Infrastructure/bootstrap variables that never used the `PROJECTRAI_` prefix, including `POSTGRES_*`, `RABBITMQ_*`, `AWS_*` and `VITE_*`, are not renamed automatically. Review them against the target topology as well; credentials and database names must remain consistent with the data being restored.
+
+Do not replace an existing production `.env` with a freshly generated one and then discard the old values. A generated file is appropriate as a target template, but secrets, credentials, origins and external endpoints from the existing deployment must be migrated deliberately.
 
 ## Source-based upgrade
 
-For a source checkout, update to the intended version and rebuild the artifacts:
+After configuration and data migration have been prepared, update to the intended version and rebuild the artifacts:
 
 ```bash
 docker compose build
@@ -64,6 +79,7 @@ Web UI
 ChatSurface health/embed assets
 Workers
 representative Agent/Network execution
+Knowledge document access
 ```
 
 When `VITE_*` public configuration changes, rebuilding Web is mandatory because those values are build-time configuration.
@@ -75,4 +91,4 @@ Application rollback and Agent/Network Release rollback are different operations
 - **Product Release rollback** inside Woobe restores a previously published immutable Agent or Network Release.
 - **Platform deployment rollback** restores a previous Woobe application artifact/source version.
 
-Do not automatically execute `alembic downgrade` merely because an application artifact is rolled back. Use the release-specific schema compatibility notes and a tested backup/restore path when database recovery is required.
+For a legacy-topology migration, keep the original database/Knowledge backups and old deployment configuration until the new topology has passed verification. Do not automatically execute `alembic downgrade` merely because an application artifact is rolled back. Use release-specific schema compatibility notes and a tested backup/restore path when database recovery is required.
