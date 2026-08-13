@@ -56,4 +56,4 @@ Woobe Enterprise is not currently implemented or distributed. No placeholder Ent
 
 ## Release status
 
-The current licensing documents are pre-release candidates. Public release remains blocked on the reviews and repository-history checks listed in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
+`LICENSE.md` is the active Community license text in this repository. Public release remains blocked until the legal, dependency-inventory, artifact and repository-history gates in `docs/PUBLIC_RELEASE_CHECKLIST.md` are completed.
