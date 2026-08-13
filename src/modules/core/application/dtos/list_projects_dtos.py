@@ -7,12 +7,12 @@ from modules.core.domain.enums import ProjectStatus
 
 
 class ListProjectsInput(BaseModel):
-    organization_id: UUID | None = None
+    workspace_id: UUID | None = None
 
 
 class ListProjectsOutput(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: ProjectStatus
