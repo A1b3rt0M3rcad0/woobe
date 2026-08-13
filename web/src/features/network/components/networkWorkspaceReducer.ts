@@ -51,9 +51,9 @@ export function networkWorkspaceReducer(
       return {
         ...state,
         selection: action.selection,
-        // Canvas selection opens the Network-scoped inspector. Shared Agent
-        // configuration remains an explicit secondary context.
-        inspectorContext: action.context ?? 'network',
+        // Selection changes the inspected entity without implicitly changing
+        // the active inspector context. Callers can request a context explicitly.
+        inspectorContext: action.context ?? state.inspectorContext,
       }
     case 'context':
       return { ...state, inspectorContext: action.context }
