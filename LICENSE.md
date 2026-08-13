@@ -22,27 +22,37 @@ Subject to those terms, Woobe grants you a worldwide, royalty-free, non-exclusiv
 
 You may fork, clone, download, copy and retain the Covered Software as reasonably necessary for a use permitted by this license.
 
-You may use the Covered Software for personal use, non-commercial use, internal business use including production, and to build or operate your own commercial products and services when Woobe is used as internal infrastructure rather than supplied as the product itself.
+You may use the Covered Software for personal use, non-commercial use and your own internal business use, including internal production deployments.
 
-You may expose AI functionality created with Woobe to your customers through Runtime APIs, ChatSurface or equivalent application integrations. You may also provide paid consulting, implementation, integration, training or support around a customer's permitted Community deployment.
+For internal business use, you may create, maintain and operate private forks and modified copies, including modifications to source code, configuration, integrations, user interface and internal branding, provided the resulting fork or modified copy is used for your own permitted operations and is not commercially supplied as the Woobe control plane or a substantially equivalent product or service to third parties.
 
-You may maintain private forks and modified copies for your own permitted use.
+You may use the Covered Software as internal infrastructure to build or operate your own commercial products and services. This remains permitted when your customers consume functionality produced through Woobe — including functionality exposed through Runtime APIs, ChatSurface or equivalent application integrations — so long as the product or service supplied to those customers is a separate product whose primary value does not consist of providing access to the Woobe control plane itself.
+
+You may provide paid consulting, implementation, integration, training or support around a customer's permitted Community deployment. Charging for professional services does not by itself constitute prohibited resale of the Covered Software.
 
 You may redistribute copies or modified copies, including source forks, source archives, binaries, packages, installers and container images, without charge when the redistribution is non-commercial, retains this license and required notices, clearly identifies modifications and does not imply official Woobe status.
 
 ## 4. Restricted uses
 
-Without a separate written commercial agreement from Woobe, you may not charge third parties for hosted access to the Woobe control plane, offer Woobe itself as a managed service or competing Woobe-as-a-Service, white-label the control plane, commercially redistribute or OEM-resell the Covered Software, use this license as authority to operate proprietary Woobe editions, circumvent edition boundaries, or remove notices in a way that misrepresents origin or official status.
+Without a separate written commercial agreement from Woobe, you may not sell, license, sublicense, rent, lease, commercially redistribute, OEM-resell, white-label for commercial supply, or charge third parties for access to the Covered Software itself or to a fork, modified copy or derivative version whose primary or substantial functionality consists of the Woobe control plane.
 
-A service is not restricted merely because it is commercial. The restriction applies when the commercial offering is substantially hosted access to the Woobe control plane itself rather than a separate product using Woobe internally.
+You may not offer the Covered Software, or a fork or modified version of it, as a hosted or managed Woobe-as-a-Service or as a competing control-plane service where customers are substantially receiving the Covered Software's own product functionality.
+
+These restrictions apply regardless of changes to product name, trademarks, branding, logos, visual design, user interface, domain, packaging, hosting arrangement or deployment model. Rebranding or modifying a fork does not convert prohibited commercial supply of the Woobe control plane into a permitted separate product.
+
+A service is not restricted merely because it is commercial. A commercial product or service is permitted when Woobe operates as internal infrastructure and the customer is buying a separate product or outcome. A separate written commercial agreement is required when the product or service being commercially supplied derives its primary or substantial customer value from providing the Woobe control plane itself or substantially equivalent control-plane functionality.
 
 Commercial redistribution remains restricted regardless of whether Woobe is supplied as source code, a repository fork, a compiled binary, a package, an installer, a container image or another substantially equivalent form.
+
+You also may not use this license as authority to operate proprietary Woobe editions, circumvent edition boundaries, or remove notices in a way that misrepresents origin or official status.
 
 ## 5. Patent permission
 
 To the extent Woobe owns patent claims necessarily infringed by the Covered Software, Woobe grants a worldwide, royalty-free, non-exclusive patent license only as necessary to exercise the uses otherwise permitted by this license. This patent permission does not expand the permitted uses or override the restricted uses above.
 
 ## 6. Modifications, forks and notices
+
+Permitted internal modifications and private forks do not need to be published merely because they are modified.
 
 Permitted redistributed modifications must be identified as modified and may not be represented as official Woobe builds without written authorization.
 
