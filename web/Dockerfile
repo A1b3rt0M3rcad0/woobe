@@ -15,7 +15,7 @@ ARG VITE_WOOBE_EDITION=community
 COPY . .
 RUN test -n "${VITE_API_URL}" \
     && test -n "${VITE_CHAT_EMBED_URL}" \
-    && test "${VITE_WOOBE_EDITION}" = "community" -o "${VITE_WOOBE_EDITION}" = "cloud" \
+    && test "${VITE_WOOBE_EDITION}" = "community" \
     && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_API_URL}" \
     && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_CHAT_EMBED_URL}" \
     && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run build \
