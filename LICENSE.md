@@ -8,17 +8,27 @@ This is a pre-release source-available/fair-code license candidate for Woobe Com
 
 This license covers the Woobe Community/Core source and Community distribution files provided with it, except components carrying a different license notice. Woobe Cloud and future proprietary editions are not covered by this license and are not intended to be distributed in the Community source tree.
 
+For this license, copies of the Covered Software include copies obtained through `git clone`, repository download, source archives, filesystem copies and repository forks, as well as compiled builds, packages, installers and container images that contain the Covered Software. Changing the technical packaging or transport does not change the rights or restrictions that apply.
+
 ## 2. Acceptance and grant
 
-By exercising permissions granted below, you accept this license. Subject to its terms, Woobe grants you a worldwide, royalty-free, non-exclusive, non-transferable and non-sublicensable license to use, copy, run and modify the Covered Software for the permitted uses below.
+You do not need to accept this license merely to view the Covered Software where applicable law or the independent terms of a repository-hosting service permit that activity. Merely creating or retaining a repository-host-provided fork, to the extent independently permitted by that host, does not by itself constitute acceptance of this license.
+
+By exercising rights granted by this license — including cloning for use outside the repository host, downloading or retaining a copy, running, building, packaging, containerizing, modifying, deploying or redistributing the Covered Software — you accept this license and agree to its terms.
+
+Subject to those terms, Woobe grants you a worldwide, royalty-free, non-exclusive, non-transferable and non-sublicensable license to use, copy, run and modify the Covered Software for the permitted uses below.
 
 ## 3. Permitted uses
+
+You may fork, clone, download, copy and retain the Covered Software as reasonably necessary for a use permitted by this license.
 
 You may use the Covered Software for personal use, non-commercial use, internal business use including production, and to build or operate your own commercial products and services when Woobe is used as internal infrastructure rather than supplied as the product itself.
 
 You may expose AI functionality created with Woobe to your customers through Runtime APIs, ChatSurface or equivalent application integrations. You may also provide paid consulting, implementation, integration, training or support around a customer's permitted Community deployment.
 
-You may redistribute copies or modified copies without charge when the redistribution is non-commercial, retains this license and required notices, clearly identifies modifications and does not imply official Woobe status.
+You may maintain private forks and modified copies for your own permitted use.
+
+You may redistribute copies or modified copies, including source forks, source archives, binaries, packages, installers and container images, without charge when the redistribution is non-commercial, retains this license and required notices, clearly identifies modifications and does not imply official Woobe status.
 
 ## 4. Restricted uses
 
@@ -26,13 +36,17 @@ Without a separate written commercial agreement from Woobe, you may not charge t
 
 A service is not restricted merely because it is commercial. The restriction applies when the commercial offering is substantially hosted access to the Woobe control plane itself rather than a separate product using Woobe internally.
 
+Commercial redistribution remains restricted regardless of whether Woobe is supplied as source code, a repository fork, a compiled binary, a package, an installer, a container image or another substantially equivalent form.
+
 ## 5. Patent permission
 
 To the extent Woobe owns patent claims necessarily infringed by the Covered Software, Woobe grants a worldwide, royalty-free, non-exclusive patent license only as necessary to exercise the uses otherwise permitted by this license. This patent permission does not expand the permitted uses or override the restricted uses above.
 
-## 6. Modifications and notices
+## 6. Modifications, forks and notices
 
-Permitted redistributed modifications must be identified as modified and may not be represented as official Woobe builds without written authorization. Applicable copyright, attribution, license and notice files must be retained.
+Permitted redistributed modifications must be identified as modified and may not be represented as official Woobe builds without written authorization.
+
+A redistributed fork must retain the applicable copyright, license, attribution and notice files and must not imply that it is an official Woobe distribution unless Woobe authorizes that representation in writing.
 
 ## 7. Third-party components
 
@@ -52,4 +66,4 @@ Rights under this license terminate automatically upon a material violation. If 
 
 ## 11. No implied rights
 
-No rights are granted except those expressly stated in this license, an applicable third-party license or a separate written agreement with Woobe. If a provision cannot be enforced in a jurisdiction, it applies only to the maximum extent permitted there and the remaining provisions continue where legally possible.
+No rights are granted except those expressly stated in this license, an applicable third-party license, rights independently provided by a repository-hosting service for its own platform functionality, or a separate written agreement with Woobe. If a provision cannot be enforced in a jurisdiction, it applies only to the maximum extent permitted there and the remaining provisions continue where legally possible.
