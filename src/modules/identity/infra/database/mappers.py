@@ -1,25 +1,6 @@
-from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
-    User,
-    UserSession,
-)
-from modules.identity.domain.enums import (
-    InviteStatus,
-    MemberRole,
-    MemberStatus,
-    OrganizationStatus,
-    UserSessionStatus,
-    UserStatus,
-)
-from modules.identity.infra.database.models import (
-    OrganizationInviteModel,
-    OrganizationMemberModel,
-    OrganizationModel,
-    UserModel,
-    UserSessionModel,
-)
+from modules.identity.domain.entities import User, UserInvite, UserSession
+from modules.identity.domain.enums import InviteStatus, UserSessionStatus, UserStatus
+from modules.identity.infra.database.models import UserInviteModel, UserModel, UserSessionModel
 
 
 def user_model_to_entity(model: UserModel) -> User:
@@ -42,62 +23,11 @@ def user_entity_to_model(entity: User) -> UserModel:
     )
 
 
-def organization_model_to_entity(model: OrganizationModel) -> Organization:
-    return Organization(
+def user_invite_model_to_entity(model: UserInviteModel) -> UserInvite:
+    return UserInvite(
         id=model.id,
-        name=model.name,
-        slug=model.slug,
-        status=OrganizationStatus(model.status),
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def organization_entity_to_model(entity: Organization) -> OrganizationModel:
-    return OrganizationModel(
-        id=entity.id,
-        name=entity.name,
-        slug=entity.slug,
-        status=entity.status.value,
-    )
-
-
-def organization_member_model_to_entity(
-    model: OrganizationMemberModel,
-) -> OrganizationMember:
-    return OrganizationMember(
-        id=model.id,
-        user_id=model.user_id,
-        organization_id=model.organization_id,
-        role=MemberRole(model.role),
-        status=MemberStatus(model.status),
-        joined_at=model.joined_at,
-        created_at=model.created_at,
-        updated_at=model.updated_at,
-    )
-
-
-def organization_member_entity_to_model(
-    entity: OrganizationMember,
-) -> OrganizationMemberModel:
-    return OrganizationMemberModel(
-        id=entity.id,
-        user_id=entity.user_id,
-        organization_id=entity.organization_id,
-        role=entity.role.value,
-        status=entity.status.value,
-        joined_at=entity.joined_at,
-    )
-
-
-def organization_invite_model_to_entity(
-    model: OrganizationInviteModel,
-) -> OrganizationInvite:
-    return OrganizationInvite(
-        id=model.id,
-        organization_id=model.organization_id,
+        workspace_id=model.workspace_id,
         email=model.email,
-        role=MemberRole(model.role),
         token_hash=model.token_hash,
         invited_by_user_id=model.invited_by_user_id,
         status=InviteStatus(model.status),
@@ -108,14 +38,11 @@ def organization_invite_model_to_entity(
     )
 
 
-def organization_invite_entity_to_model(
-    entity: OrganizationInvite,
-) -> OrganizationInviteModel:
-    return OrganizationInviteModel(
+def user_invite_entity_to_model(entity: UserInvite) -> UserInviteModel:
+    return UserInviteModel(
         id=entity.id,
-        organization_id=entity.organization_id,
+        workspace_id=entity.workspace_id,
         email=entity.email,
-        role=entity.role.value,
         token_hash=entity.token_hash,
         invited_by_user_id=entity.invited_by_user_id,
         status=entity.status.value,
@@ -125,10 +52,7 @@ def organization_invite_entity_to_model(
 
 
 def user_session_model_to_entity(model: UserSessionModel) -> UserSession:
-    if model.revoked_at is not None:
-        status = UserSessionStatus.revoked
-    else:
-        status = UserSessionStatus.active
+    status = UserSessionStatus.revoked if model.revoked_at is not None else UserSessionStatus.active
     return UserSession(
         id=model.id,
         user_id=model.user_id,
