@@ -1,1 +1,0 @@
-"""Woobe Cloud edition packages."""
