@@ -1,8 +1,8 @@
-# Woobe Sustainable Use License 1.0 — pre-release candidate
+# Woobe Sustainable Use License 1.0
 
 Copyright (c) 2026 Woobe. All rights reserved except for the permissions expressly granted below.
 
-This is a pre-release source-available/fair-code license candidate for Woobe Community/Core. It is not an OSI Open Source license and requires qualified legal review before public or commercial reliance.
+This is the source-available/fair-code license for Woobe Community/Core. It is not an OSI Open Source license. Public release remains subject to the release gates in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
 
 ## 1. Covered Software
 
