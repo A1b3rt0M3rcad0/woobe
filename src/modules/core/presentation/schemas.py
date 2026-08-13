@@ -4,8 +4,18 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class CreateWorkspaceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    slug: str = Field(min_length=1, max_length=128)
+
+
+class UpdateWorkspaceRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(default=None, min_length=1, max_length=128)
+
+
 class CreateProjectRequest(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
 
@@ -17,7 +27,7 @@ class UpdateProjectRequest(BaseModel):
 
 class ProjectResponse(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: str
