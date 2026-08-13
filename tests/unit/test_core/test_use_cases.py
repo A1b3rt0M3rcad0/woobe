@@ -74,6 +74,7 @@ class TestCreateApiKeyUseCase:
             CreateApiKeyInput(
                 project_id=project_id,
                 name="MyKey",
+                scopes=["reading"],
                 created_by_user_id=uuid6.uuid7(),
             )
         )
@@ -97,6 +98,7 @@ class TestCreateApiKeyUseCase:
                 CreateApiKeyInput(
                     project_id=uuid6.uuid7(),
                     name="MyKey",
+                    scopes=["reading"],
                     created_by_user_id=uuid6.uuid7(),
                 )
             )

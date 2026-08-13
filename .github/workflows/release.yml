@@ -1,0 +1,59 @@
+name: Publish Woobe Community images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without v prefix, for example 0.1.0
+        required: true
+        type: string
+      public_api_url:
+        description: Public API URL baked into the reference web image
+        required: true
+        type: string
+      public_chat_embed_url:
+        description: Public ChatSurface origin baked into the reference web image
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/woobe-api:${{ inputs.version }}
+      - name: Build and push Web reference image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VITE_API_URL=${{ inputs.public_api_url }}
+            VITE_CHAT_EMBED_URL=${{ inputs.public_chat_embed_url }}
+            VITE_WOOBE_EDITION=community
+          tags: ghcr.io/${{ github.repository_owner }}/woobe-web:${{ inputs.version }}
+      - name: Build and push ChatSurface
+        uses: docker/build-push-action@v6
+        with:
+          context: embed
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/woobe-chat-embed:${{ inputs.version }}

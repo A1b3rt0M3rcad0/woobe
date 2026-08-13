@@ -37,3 +37,11 @@ export interface RegisterRequest {
 export interface RegisterResponse extends LoginResponse {
   organization: Organization
 }
+
+export interface InstanceStatus {
+  initialized: boolean
+  edition: 'community'
+  signup_mode: 'bootstrap' | 'open' | 'invite_only' | 'disabled'
+  telemetry_enabled: boolean
+  requires_existing_owner_bootstrap: boolean
+}

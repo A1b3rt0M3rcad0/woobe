@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused Woobe capability or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the operational/user problem before proposing an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful behavior and expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: domain
+    attributes:
+      label: Domain impact
+      description: Note effects on releases, runtime, Runs, Sessions, Tools, Knowledge, security or billing when relevant.

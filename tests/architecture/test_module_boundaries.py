@@ -98,7 +98,7 @@ class TestModuleBoundaries:
 
     def test_detects_forbidden_cross_module_import(self):
         forbidden_source = """\
-from modules.billing.domain.entities import Invoice
+from modules.core.domain.entities import Project
 from modules.identity.domain.repositories import UserRepository
 """
         tree = ast.parse(forbidden_source)
@@ -115,7 +115,7 @@ from modules.identity.domain.repositories import UserRepository
         assert len(violations) == 2, (
             f"Expected 2 violations from fixture, got {len(violations)}"
         )
-        assert violations[0][0] == "billing"
+        assert violations[0][0] == "core"
         assert violations[1][0] == "identity"
 
     def test_allowlist_must_be_empty_in_final_state(self):

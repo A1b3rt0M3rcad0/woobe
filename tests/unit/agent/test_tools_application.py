@@ -18,8 +18,8 @@ from modules.agent.application.dtos.tools_dtos import (
     ListSecretsInput,
     ListToolsByAgentInput,
     ListToolsInput,
-    TestToolInput,
-    TestToolOutput,
+    TestToolInput as ToolTestInput,
+    TestToolOutput as ToolTestOutput,
     UpdateToolInput,
     UpdateToolStatusInput,
 )
@@ -36,7 +36,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
     ListSecretsUseCase,
     ListToolsByAgentUseCase,
     ListToolsUseCase,
-    TestToolUseCase,
+    TestToolUseCase as ToolTestUseCase,
     UpdateToolStatusUseCase,
     UpdateToolUseCase,
 )
@@ -227,7 +227,7 @@ class TestToolsDTOs:
         assert dto.output == {"result": "ok"}
 
     def test_test_tool_output(self):
-        dto = TestToolOutput(success=True, status_code=200, duration_ms=50)
+        dto = ToolTestOutput(success=True, status_code=200, duration_ms=50)
         assert dto.success is True
         assert dto.status_code == 200
 
@@ -346,11 +346,14 @@ class TestUpdateToolStatusUseCase:
 
 class TestDeleteToolUseCase:
     @pytest.mark.asyncio
-    async def test_delete_tool(self):
+    async def test_delete_tool(self, mocker):
         repo = FakeToolRepository()
         outbox = FakeOutbox()
         uc = CreateToolUseCase(repo, outbox)
-        duc = DeleteToolUseCase(repo)
+        agent_repo = mocker.AsyncMock()
+        agent_repo.list_by_project.return_value = []
+        release_repo = mocker.AsyncMock()
+        duc = DeleteToolUseCase(repo, agent_repo, release_repo)
 
         created = await uc.execute(CreateToolInput(
             project_id=uuid.uuid4(),
@@ -439,9 +442,9 @@ class TestTestToolUseCase:
         executor = FakeToolExecutor(ExecutionResult(
             success=True, status_code=200, body="ok", duration_ms=50,
         ))
-        uc = TestToolUseCase(executor)
+        uc = ToolTestUseCase(executor)
 
-        result = await uc.execute(TestToolInput(
+        result = await uc.execute(ToolTestInput(
             config={"url": "https://example.com", "method": "GET"},
         ))
 

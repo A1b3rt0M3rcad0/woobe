@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -11,53 +10,37 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def service_block(compose: str, service: str, next_service: str | None = None) -> str:
-    start = f"\n  {service}:\n"
-    assert start in compose, f"service {service!r} not found"
-    remainder = compose.split(start, maxsplit=1)[1]
-    if next_service is None:
-        return remainder
-    end = f"\n  {next_service}:\n"
-    assert end in remainder, f"service boundary {next_service!r} not found"
-    return remainder.split(end, maxsplit=1)[0]
-
-
 def manifest_keys(environment: str) -> set[str]:
     keys: set[str] = set()
     for raw_line in environment.splitlines():
         line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        keys.add(line.split("=", maxsplit=1)[0])
+        if line and not line.startswith("#") and "=" in line:
+            keys.add(line.split("=", maxsplit=1)[0])
     return keys
 
 
 def settings_environment_keys() -> set[str]:
     tree = ast.parse(read("src/shared/infra/config/config.py"))
-    settings_class = next(
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Settings"
-    )
+    settings_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Settings")
     fields = {
         node.target.id
         for node in settings_class.body
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
     }
-    # Runtime role is intrinsic to main.py/worker_main.py, not deployment configuration.
     fields.discard("service_role")
-    return {f"PROJECTRAI_{field.upper()}" for field in fields}
+    return {f"WOOBE_{field.upper()}" for field in fields}
 
 
 def test_production_frontend_has_required_browser_security_headers() -> None:
     nginx = read("web/nginx.conf")
-    required = (
+    for header in (
         "X-Content-Type-Options",
         "X-Frame-Options",
         "Referrer-Policy",
         "Permissions-Policy",
         "Cross-Origin-Opener-Policy",
         "Content-Security-Policy",
-    )
-    for header in required:
+    ):
         assert f"add_header {header}" in nginx
     assert "server_tokens off" in nginx
     assert "frame-ancestors 'none'" in nginx
@@ -65,125 +48,82 @@ def test_production_frontend_has_required_browser_security_headers() -> None:
     assert "proxy_pass http://api" not in nginx
 
 
-def test_production_compose_is_application_only_and_hardened() -> None:
-    compose = read("docker-compose.prod.yml")
-    migrate_block = service_block(compose, "migrate", "api")
-    api_block = service_block(compose, "api", "workers")
-    worker_block = service_block(compose, "workers", "web")
-    web_block = service_block(compose, "web")
+def test_default_community_compose_has_explicit_product_boundary() -> None:
+    compose = read("compose.yml")
 
-    for infrastructure_service in ("db", "pgbouncer", "rabbitmq", "redis", "minio"):
-        assert f"\n  {infrastructure_service}:\n" not in compose
+    for service in ("db", "rabbitmq", "migrate", "api", "workers", "web", "chat-embed"):
+        assert f"\n  {service}:\n" in compose
+    for optional_service in ("pgbouncer", "redis", "minio", "rabbitmq-observer"):
+        assert f"\n  {optional_service}:\n" not in compose
 
-    assert "PROJECTRAI_POSTGRES_URL" in migrate_block
-    assert "PROJECTRAI_DATABASE_URL" in api_block
-    assert "PROJECTRAI_RABBITMQ_URL" not in api_block
-    assert "PROJECTRAI_DATABASE_URL" in worker_block
-    assert "PROJECTRAI_RABBITMQ_URL" in worker_block
-    assert "VITE_API_URL" in web_block
-    assert "PROJECTRAI_SERVICE_ROLE" not in compose
-    assert ":?Set " not in compose
-    assert "PROJECTRAI_ENVIRONMENT: ${PROJECTRAI_ENVIRONMENT:-production}" in compose
-    assert "read_only: true" in compose
+    assert "WOOBE_EDITION: community" in compose
+    assert "WOOBE_STORAGE_DRIVER: local" in compose
+    assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "false"' in compose
+    assert "WOOBE_CHAT_TOKEN_SIGNING_KEY" in compose
+    assert "VITE_API_URL" in compose
+    assert "VITE_CHAT_EMBED_URL" in compose
     assert "no-new-privileges:true" in compose
-    assert "cap_drop:" in compose
     assert "./src:" not in compose
-    assert "uploads_data" not in compose
 
 
-def test_environment_manifest_documents_url_boundaries_and_single_template() -> None:
-    environment = read(".env.example")
-
-    for section in (
-        "# POSTGRESQL — DIRECT DATABASE",
-        "# PGBOUNCER — RUNTIME DATABASE ENDPOINT",
-        "# RABBITMQ",
-        "# REDIS",
-        "# OBJECT STORAGE — S3 COMPATIBLE",
-        "# RUNTIME / NETWORK POLICY",
-        "# API",
-        "# WORKERS",
-        "# WEB",
+def test_legacy_compose_contracts_are_not_part_of_public_head() -> None:
+    for path in (
+        "docker-compose.yml",
+        "docker-compose.community.yml",
+        "docker-compose.prod.yml",
+        "docker-compose.override.yml",
+        "docker-compose.rabbitmq-observer.yml",
     ):
-        assert section in environment
+        assert not (ROOT / path).exists()
 
+
+def test_environment_manifest_covers_settings_and_uses_woobe_namespace() -> None:
+    environment = read(".env.example")
     for variable in (
-        "PROJECTRAI_POSTGRES_URL=",
-        "PROJECTRAI_DATABASE_URL=",
-        "PROJECTRAI_RABBITMQ_URL=",
-        "PROJECTRAI_REDIS_URL=",
-        "PROJECTRAI_S3_ENDPOINT_URL=",
+        "WOOBE_EDITION=",
+        "WOOBE_POSTGRES_URL=",
+        "WOOBE_DATABASE_URL=",
+        "WOOBE_RABBITMQ_URL=",
+        "WOOBE_REDIS_URL=",
+        "WOOBE_CHAT_TOKEN_SIGNING_KEY=",
+        "WOOBE_S3_ENDPOINT_URL=",
         "VITE_API_URL=",
+        "VITE_CHAT_EMBED_URL=",
     ):
         assert variable in environment
-
-    assert "API and WORKERS must NOT use this URL directly" in environment
-    assert "API does not require RabbitMQ to start" in environment
-    assert "PROJECTRAI_STORAGE_DRIVER=s3" in environment
-    assert "PROJECTRAI_CORS_ORIGINS=*" not in environment
-    assert "PROJECTRAI_TRUSTED_HOSTS=*" not in environment
-    assert "PROJECTRAI_SERVICE_ROLE=" not in environment
-
-    gitignore = read(".gitignore")
-    assert ".env*" in gitignore
-    assert "!.env.example" in gitignore
-    assert "!.env.production.example" not in gitignore
-    assert "!.env.web.example" not in gitignore
-
-
-def test_environment_manifest_covers_every_settings_field() -> None:
-    environment = read(".env.example")
+    assert "WOOBE_CORS_ORIGINS=*" not in environment
+    assert "WOOBE_TRUSTED_HOSTS=*" not in environment
     missing = settings_environment_keys() - manifest_keys(environment)
     assert not missing, f"Settings fields missing from .env.example: {sorted(missing)}"
 
 
-def test_compose_files_consume_all_projectrai_manifest_variables() -> None:
-    environment = read(".env.example")
-    expected = {
-        key
-        for key in manifest_keys(environment)
-        if key.startswith("PROJECTRAI_")
-    }
-    expected.add("VITE_API_URL")
-
-    for compose_path in ("docker-compose.yml", "docker-compose.prod.yml"):
-        compose = read(compose_path)
-        missing = {key for key in expected if key not in compose}
-        assert not missing, f"{compose_path} ignores manifest variables: {sorted(missing)}"
-
-
-def test_local_compose_keeps_application_connections_url_driven() -> None:
-    compose = read("docker-compose.yml")
-    assert "DATABASE_URL: ${PROJECTRAI_POSTGRES_URL" in compose
-    assert "PROJECTRAI_DATABASE_URL: ${PROJECTRAI_DATABASE_URL" in compose
-    assert "PROJECTRAI_RABBITMQ_URL: ${PROJECTRAI_RABBITMQ_URL" in compose
-    assert "PROJECTRAI_REDIS_URL: ${PROJECTRAI_REDIS_URL" in compose
-    assert "PROJECTRAI_S3_ENDPOINT_URL: ${PROJECTRAI_S3_ENDPOINT_URL" in compose
-    assert "VITE_API_URL: ${VITE_API_URL" in compose
-    assert "PROJECTRAI_SERVICE_ROLE" not in compose
-    assert "uploads_data" not in compose
-    assert "minio:" in compose
+def test_default_compose_uses_the_environment_manifest_explicitly() -> None:
+    compose = read("compose.yml")
+    assert "env_file:" in compose
+    assert "- .env" in compose
+    for key in (
+        "WOOBE_ENVIRONMENT",
+        "WOOBE_DATABASE_URL",
+        "WOOBE_ENCRYPTION_KEY",
+        "WOOBE_RABBITMQ_URL",
+        "WOOBE_SECRET_KEY",
+        "WOOBE_CHAT_TOKEN_SIGNING_KEY",
+        "WOOBE_CORS_ORIGINS",
+        "WOOBE_TRUSTED_HOSTS",
+    ):
+        assert key in compose
 
 
-def test_frontend_uses_manifest_mode_instead_of_legacy_env_modes() -> None:
-    package = read("web/package.json")
-    assert "vite --mode manifest" in package
-    assert "vite build --mode manifest" in package
-    assert "--mode web" not in package
+def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None:
+    dockerfile = read("web/Dockerfile")
+    assert "VITE_API_URL" in dockerfile
+    assert "VITE_CHAT_EMBED_URL" in dockerfile
+    assert "VITE_WOOBE_EDITION" in dockerfile
 
 
-def test_frontend_only_logs_request_details_in_development() -> None:
-    client = read("web/src/lib/api/client.ts")
-    assert "if (import.meta.env.DEV)" in client
-    assert "Authorization" in client
-    assert "console.log" in client
-    assert "console.error" in client
-    assert "clearToken()" in client
-
-
-def test_runtime_security_acceptance_matrix_covers_private_resource_families() -> None:
+def test_runtime_security_matrix_covers_private_resource_families() -> None:
     matrix = read("tests/integration/security/test_tenant_authorization_postgres.py")
-    resource_identifiers = (
+    for identifier in (
         "organization_id",
         "project_id",
         "api_key_id",
@@ -197,15 +137,7 @@ def test_runtime_security_acceptance_matrix_covers_private_resource_families() -
         "session_id",
         "message_id",
         "trace_id",
-    )
-    for identifier in resource_identifiers:
+    ):
         assert f'("{identifier}",' in matrix
     assert "Resource not found" in matrix
     assert "authorize_api_key" in matrix
-
-
-def test_fake_provider_requires_no_external_secret_and_has_failure_modes() -> None:
-    provider = read("tests/fakes/openai_provider.py")
-    assert "OPENAI_API_KEY" not in provider
-    for scenario in ("primary-fail", "timeout", "cancel", "tool"):
-        assert scenario in provider

@@ -4,6 +4,9 @@ from pathlib import Path
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 MIGRATION_FILE = MIGRATIONS_DIR / "0024_standardize_outbox_inbox_fields.py"
 
+# Billing remains listed because this test also validates the historical migration
+# that may be required when upgrading an existing installation. Proprietary Billing
+# model implementation is intentionally not imported by the public Community tests.
 MODULE_SCHEMAS = ["billing", "core", "identity", "metering", "observability"]
 
 OUTBOX_CANONICAL_COLUMNS = [
@@ -156,16 +159,6 @@ class TestFreshInstallSchema:
             assert col_name in ann, (
                 f"Field '{col_name}' missing from shared InboxEventModel annotations"
             )
-
-    def test_billing_outbox_has_canonical_constraints(self):
-        from modules.billing.infra.database.models import OutboxEventModel
-        args = OutboxEventModel.__table_args__
-        flat = _flatten_table_args(args)
-        names = {getattr(c, "name", None) or str(c) for c in flat}
-        assert "uq_billing_outbox_idempotency_key" in names
-        assert "ix_billing_outbox_pending" in names
-        assert "ix_billing_outbox_correlation_id" in names
-        assert "ix_billing_outbox_aggregate" in names
 
     def test_core_outbox_inbox_have_canonical_constraints(self):
         from modules.core.infra.database.models import OutboxEventModel, InboxEventModel

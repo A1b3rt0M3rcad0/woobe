@@ -126,6 +126,7 @@ async def tenant_graph():
                 ApiKeyModel(
                     id=api_key_id,
                     project_id=project_b_id,
+                    credential_id=api_key_id,
                     name="Tenant B key",
                     key_prefix=f"tb{api_key_id.hex[:10]}",
                     key_hash=api_key_id.bytes + project_b_id.bytes,

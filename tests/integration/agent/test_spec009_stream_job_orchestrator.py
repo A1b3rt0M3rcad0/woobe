@@ -15,9 +15,7 @@ from modules.agent.application.use_cases.runtime_use_cases import (
     CreateAskJobInput,
     CreateAskJobUseCase,
 )
-from modules.agent.application.dtos.runtime_dtos import (
-    AskInput,
-)
+from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.domain.ports.llm_factory import LLMFactory
 
@@ -43,10 +41,10 @@ def mock_session_factory():
 
 
 class TestStreamPhases:
-    """AskAgentStreamService must use prepare/external/finalize phases with Outbox."""
+    """AskAgentStreamService must expose an async stream for AskInput."""
 
     @pytest.mark.asyncio
-    async def test_generate_accepts_ask_input(self):
+    async def test_stream_accepts_ask_input(self):
         llm_factory = MagicMock(spec=LLMFactory)
         session_factory = MagicMock()
         service = AskAgentStreamService(session_factory, llm_factory)
@@ -54,9 +52,9 @@ class TestStreamPhases:
             project_id=uuid4(), agent_id=uuid4(),
             message="test", tenant_id=None, user_id=None,
         )
-        gen = service.generate(input_dto)
-        assert gen is not None
-        assert hasattr(gen, "__aiter__")
+        stream = service.stream(input_dto)
+        assert stream is not None
+        assert hasattr(stream, "__aiter__")
 
     @pytest.mark.asyncio
     async def test_no_dynamic_imports_in_file(self):

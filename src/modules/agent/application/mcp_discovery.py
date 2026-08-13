@@ -154,7 +154,6 @@ class DiscoverMcpToolsUseCase:
             "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
             **input_dto.headers,
         }
-
         initialize_payload = {
             "jsonrpc": "2.0",
             "id": "initialize",
@@ -162,7 +161,7 @@ class DiscoverMcpToolsUseCase:
             "params": {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"},
+                "clientInfo": {"name": "Woobe", "version": "0.1.0"},
             },
         }
         init_result = await self._executor.execute(
@@ -178,12 +177,7 @@ class DiscoverMcpToolsUseCase:
 
         session_headers = _session_headers(init_result.output if isinstance(init_result.output, dict) else None)
         request_headers = {**base_headers, **session_headers}
-
-        initialized_payload = {
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {},
-        }
+        initialized_payload = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
         await self._executor.execute(
             method="POST",
             url=input_dto.server_url,
@@ -191,13 +185,7 @@ class DiscoverMcpToolsUseCase:
             body=json.dumps(initialized_payload),
             timeout_ms=input_dto.timeout_ms,
         )
-
-        list_payload = {
-            "jsonrpc": "2.0",
-            "id": "tools-list",
-            "method": "tools/list",
-            "params": {},
-        }
+        list_payload = {"jsonrpc": "2.0", "id": "tools-list", "method": "tools/list", "params": {}}
         list_result = await self._executor.execute(
             method="POST",
             url=input_dto.server_url,
@@ -210,5 +198,16 @@ class DiscoverMcpToolsUseCase:
 
         tools = _extract_tools(_extract_body(list_result.output if isinstance(list_result.output, dict) else None))
         if not tools:
-            return McpDiscoverOutput(tools=[], initialized=initialized, error="MCP server did not return any tools", phase="tools/list", http_status=list_result.status_code)
-        return McpDiscoverOutput(tools=tools, initialized=initialized, phase="tools/list", http_status=list_result.status_code)
+            return McpDiscoverOutput(
+                tools=[],
+                initialized=initialized,
+                error="MCP server did not return any tools",
+                phase="tools/list",
+                http_status=list_result.status_code,
+            )
+        return McpDiscoverOutput(
+            tools=tools,
+            initialized=initialized,
+            phase="tools/list",
+            http_status=list_result.status_code,
+        )

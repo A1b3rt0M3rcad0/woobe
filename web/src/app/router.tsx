@@ -30,7 +30,6 @@ import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
 import TracesPage from '@/pages/TracesPage'
-import BillingPage from '@/pages/BillingPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
@@ -47,13 +46,6 @@ function LegacyProjectRedirect() {
     return <Navigate to={newPath + location.search} replace />
   }
   return <Navigate to="/organizations" replace />
-}
-
-function LegacyBillingRedirect() {
-  const { currentOrganization } = useWorkspace()
-  return currentOrganization
-    ? <Navigate to={`/organizations/${currentOrganization.id}/billing`} replace />
-    : <Navigate to="/organizations" replace />
 }
 
 function DashboardRedirect() {
@@ -178,7 +170,6 @@ export function AppRouter() {
           <Route element={<OrganizationWorkspaceGuard />}>
             <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
             <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
-            <Route path="/organizations/:organizationId/billing" element={<BillingPage />} />
             <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
             <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
 
@@ -224,7 +215,6 @@ export function AppRouter() {
           <Route path="/projects/:projectId/chat-surfaces" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
-          <Route path="/billing" element={<LegacyBillingRedirect />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 

@@ -53,7 +53,7 @@ class FakeReleaseRepository:
 
 
 def make_release(*, project_id, agent_id, version, status, output_schema=None, system_prompt="prompt"):
-    return AgentRelease(
+    release = AgentRelease(
         project_id=project_id,
         agent_id=agent_id,
         version=version,
@@ -64,6 +64,14 @@ def make_release(*, project_id, agent_id, version, status, output_schema=None, s
         provider="openai",
         model="gpt-4o-mini",
     )
+    release.snapshot_kind = (
+        "draft"
+        if status == ReleaseStatus.draft
+        else "staging"
+        if status == ReleaseStatus.staging
+        else "release"
+    )
+    return release
 
 
 @pytest.mark.asyncio
@@ -96,7 +104,7 @@ async def test_production_from_staging_renamed_abbreviated_output_key_bumps_comp
 
     assert result.version.startswith("v1.0.")
     assert result.status == ReleaseStatus.production
-    assert production.status == ReleaseStatus.archived
+    assert production.status == ReleaseStatus.released
 
 
 @pytest.mark.asyncio
@@ -113,7 +121,7 @@ async def test_deploy_archived_release_restores_existing_version_without_new_ver
     assert result.id == archived.id
     assert result.version == "v0.0.20260619.00"
     assert archived.status == ReleaseStatus.production
-    assert production.status == ReleaseStatus.archived
+    assert production.status == ReleaseStatus.released
     assert len(await repo.list_by_agent(agent_id)) == 2
 
 

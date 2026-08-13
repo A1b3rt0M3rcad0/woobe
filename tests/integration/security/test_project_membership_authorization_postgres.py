@@ -36,74 +36,26 @@ async def project_access_graph():
         transaction = await session.begin()
         session.add_all(
             [
-                UserModel(
-                    id=owner_id,
-                    email=f"project-owner-{owner_id}@example.test",
-                    password=b"password-hash-owner",
-                    status="active",
-                ),
-                UserModel(
-                    id=member_id,
-                    email=f"project-member-{member_id}@example.test",
-                    password=b"password-hash-member",
-                    status="active",
-                ),
-                OrganizationModel(
-                    id=organization_id,
-                    name="Project Access Org",
-                    slug=f"project-access-{organization_id}",
-                    status="active",
-                ),
+                UserModel(id=owner_id, email=f"project-owner-{owner_id}@example.test", password=b"password-hash-owner", status="active"),
+                UserModel(id=member_id, email=f"project-member-{member_id}@example.test", password=b"password-hash-member", status="active"),
+                OrganizationModel(id=organization_id, name="Project Access Org", slug=f"project-access-{organization_id}", status="active"),
             ]
         )
         await session.flush()
 
         session.add_all(
             [
-                OrganizationMemberModel(
-                    id=uuid4(),
-                    user_id=owner_id,
-                    organization_id=organization_id,
-                    role="owner",
-                    status="active",
-                    joined_at=now,
-                ),
-                OrganizationMemberModel(
-                    id=uuid4(),
-                    user_id=member_id,
-                    organization_id=organization_id,
-                    role="member",
-                    status="active",
-                    joined_at=now,
-                ),
-                ProjectModel(
-                    id=project_a_id,
-                    organization_id=organization_id,
-                    name="Allowed Project",
-                    slug=f"allowed-{project_a_id}",
-                    status="active",
-                    data={},
-                ),
-                ProjectModel(
-                    id=project_b_id,
-                    organization_id=organization_id,
-                    name="Restricted Project",
-                    slug=f"restricted-{project_b_id}",
-                    status="active",
-                    data={},
-                ),
+                OrganizationMemberModel(id=uuid4(), user_id=owner_id, organization_id=organization_id, role="owner", status="active", joined_at=now),
+                OrganizationMemberModel(id=uuid4(), user_id=member_id, organization_id=organization_id, role="member", status="active", joined_at=now),
+                ProjectModel(id=project_a_id, organization_id=organization_id, name="Allowed Project", slug=f"allowed-{project_a_id}", status="active", data={}),
+                ProjectModel(id=project_b_id, organization_id=organization_id, name="Restricted Project", slug=f"restricted-{project_b_id}", status="active", data={}),
             ]
         )
         await session.flush()
 
         session.add_all(
             [
-                ProjectMemberModel(
-                    id=uuid4(),
-                    project_id=project_a_id,
-                    user_id=member_id,
-                    status="active",
-                ),
+                ProjectMemberModel(id=uuid4(), project_id=project_a_id, user_id=member_id, status="active"),
                 AgentModel(
                     id=agent_a_id,
                     project_id=project_a_id,
@@ -123,13 +75,7 @@ async def project_access_graph():
                     status="active",
                     settings={},
                 ),
-                DocumentCollectionModel(
-                    id=collection_b_id,
-                    project_id=project_b_id,
-                    name="Project B Collection",
-                    description=None,
-                    status="active",
-                ),
+                DocumentCollectionModel(id=collection_b_id, project_id=project_b_id, name="Project B Collection", description=None, status="active"),
             ]
         )
         await session.flush()
@@ -149,39 +95,22 @@ async def project_access_graph():
     await engine.dispose()
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_member_can_access_only_explicit_projects(project_access_graph):
     graph = project_access_graph
     authorizer = TenantAuthorizer(graph["session"])
-
-    await authorizer.authorize(
-        user_id=graph["member_id"],
-        path_params={"project_id": graph["project_a_id"]},
-        query_params={},
-        body=None,
-    )
-
+    await authorizer.authorize(user_id=graph["member_id"], path_params={"project_id": graph["project_a_id"]}, query_params={}, body=None)
     with pytest.raises(NotFoundError):
-        await authorizer.authorize(
-            user_id=graph["member_id"],
-            path_params={"project_id": graph["project_b_id"]},
-            query_params={},
-            body=None,
-        )
+        await authorizer.authorize(user_id=graph["member_id"], path_params={"project_id": graph["project_b_id"]}, query_params={}, body=None)
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_organization_owner_has_implicit_project_access(project_access_graph):
     graph = project_access_graph
-    await TenantAuthorizer(graph["session"]).authorize(
-        user_id=graph["owner_id"],
-        path_params={"project_id": graph["project_b_id"]},
-        query_params={},
-        body=None,
-    )
+    await TenantAuthorizer(graph["session"]).authorize(user_id=graph["owner_id"], path_params={"project_id": graph["project_b_id"]}, query_params={}, body=None)
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cross_project_relationship_is_rejected(project_access_graph):
     graph = project_access_graph
     with pytest.raises(ConflictError):

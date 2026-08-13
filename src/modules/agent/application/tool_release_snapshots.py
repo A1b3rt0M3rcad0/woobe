@@ -55,7 +55,7 @@ def _apply_child_permissions(items: Any, raw_permissions: dict[str, Any], *, key
         if not isinstance(item, dict):
             continue
         identifiers = [str(item.get(key) or "") for key in keys]
-        identifier = next((value for value in identifiers if value and value in raw_permissions), None)
+        identifier = next((value for value in identifiers if value), None)
         if identifier is None:
             continue
         item["permission"] = normalize_permission(raw_permissions.get(identifier))

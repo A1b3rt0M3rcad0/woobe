@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import cast
 
 from fastapi import Depends, FastAPI, Request
@@ -27,10 +28,10 @@ from modules.agent.presentation.routes import runtime_router as agent_runtime_ro
 from modules.agent.presentation.routes import tools_router
 from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
-from modules.billing.presentation.routes import router as billing_router
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
+from modules.identity.presentation.instance_routes import router as instance_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
@@ -86,13 +87,31 @@ def create_app() -> FastAPI:
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
-        extra={"environment": settings.environment, "service_role": settings.service_role},
+        extra={
+            "environment": settings.environment,
+            "edition": settings.edition,
+            "service_role": settings.service_role,
+        },
     )
 
+    @asynccontextmanager
+    async def lifespan(runtime_app: FastAPI):
+        engine = runtime_app.state.async_engine
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Woobe API runtime started without background workers")
+        try:
+            yield
+        finally:
+            await close_http_tool_executor()
+            await runtime_app.state.async_engine.dispose()
+            logger.info("Woobe API runtime stopped")
+
     app = FastAPI(
-        title="ProjectRAI",
-        description="Runtime AI Platform - Production-ready AI agent runtime",
+        title="Woobe",
+        description="Control plane and runtime for versioned AI products",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     app.state.settings = settings
@@ -243,6 +262,8 @@ def create_app() -> FastAPI:
         cast(ExceptionHandler, unhandled_exception_handler),
     )
 
+    app.include_router(instance_router)
+
     security_dependency = Depends(enforce_request_security)
     app.router.dependencies.append(security_dependency)
     try:
@@ -262,28 +283,14 @@ def create_app() -> FastAPI:
         app.include_router(tool_lifecycle_router)
         app.include_router(mcp_tools_router)
         app.include_router(metering_router)
-        app.include_router(billing_router)
         app.include_router(observability_router)
         app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
-    @app.on_event("startup")
-    async def startup() -> None:
-        engine = app.state.async_engine
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-        logger.info("API runtime started without background workers")
-
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        await close_http_tool_executor()
-        await app.state.async_engine.dispose()
-        logger.info("API runtime stopped")
-
     @app.get("/live", include_in_schema=False)
     async def live():
-        return {"status": "ok", "runtime": "api"}
+        return {"status": "ok", "runtime": "api", "product": "woobe"}
 
     @app.get("/health", include_in_schema=False)
     async def health():
@@ -309,7 +316,6 @@ app = create_app()
 
 
 async def _main() -> None:
-    # Allows `python -m src.main` smoke imports without starting uvicorn.
     await asyncio.sleep(0)
 
 

@@ -7,11 +7,8 @@ import type { WorkspaceContextValue, OrgShape, ProjectShape } from './types'
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-const LEGACY_ORG_KEY = 'projectrai_org'
-const LEGACY_PROJECT_KEY = 'projectrai_project'
-
 function workspaceKey(userId: string, resource: 'organization' | 'project') {
-  return `projectrai_workspace:${userId}:${resource}`
+  return `woobe_workspace:${userId}:${resource}`
 }
 
 function readStored<T>(key: string): T | null {
@@ -35,8 +32,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    localStorage.removeItem(LEGACY_ORG_KEY)
-    localStorage.removeItem(LEGACY_PROJECT_KEY)
     if (!user?.id) {
       setCurrentOrgState(null)
       setCurrentProjState(null)

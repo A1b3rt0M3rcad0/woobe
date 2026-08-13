@@ -49,6 +49,13 @@ class BlockingStreamService(AskAgentStreamService):
         await asyncio.Event().wait()
 
 
+def _sse_payload(frame: str) -> dict:
+    for line in frame.splitlines():
+        if line.startswith("data:"):
+            return json.loads(line.removeprefix("data:").strip())
+    raise AssertionError("SSE frame has no data payload")
+
+
 @pytest.mark.asyncio
 async def test_client_disconnect_persists_cancellation_and_projects_cancelled_trace() -> None:
     settings = Settings.model_validate({})
@@ -79,16 +86,19 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
         return disconnect_checks >= 2
 
     frames = [
-        frame async for frame in service.generate(
+        frame async for frame in service.stream(
             input_dto,
-            is_disconnected=is_disconnected,
+            disconnect_check=is_disconnected,
         )
     ]
 
-    assert len(frames) == 1
-    meta = json.loads(frames[0].removeprefix("data: ").strip())
+    assert len(frames) == 2
+    meta = _sse_payload(frames[0])
+    cancelled = _sse_payload(frames[1])
     assert meta["type"] == "meta"
     assert meta["trace_id"] == str(trace_id)
+    assert cancelled["type"] == "cancelled"
+    assert cancelled["reason"] == "client_disconnected"
 
     cancellation_filter = (
         AgentOutboxEventModel.event_type == "agent.execution.cancelled.v1",

@@ -19,6 +19,4 @@ def create_file_storage(settings: Settings) -> FileStorage:
             force_path_style=settings.s3_force_path_style,
             server_side_encryption=settings.s3_server_side_encryption or None,
         )
-    raise ValueError(
-        "PROJECTRAI_STORAGE_DRIVER must be one of: local, s3"
-    )
+    raise ValueError("WOOBE_STORAGE_DRIVER must be one of: local, s3")

@@ -103,6 +103,8 @@ async def test_identical_production_does_not_mutate_release_notes():
     staging.id = uuid4()
     staging.status = ReleaseStatus.staging
     staging.version = "staging"
+    production.snapshot_kind = "release"
+    staging.snapshot_kind = "staging"
     repo = MemoryReleaseRepository(production, staging)
     result = await AutoCompatibleReleaseLifecycleUseCase(repo).execute(
         staging.agent_id,

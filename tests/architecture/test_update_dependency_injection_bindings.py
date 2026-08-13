@@ -17,7 +17,7 @@ AGENT_INFRA_WORKERS_DIR = pathlib.Path("src/modules/agent/infra/workers")
 FORBIDDEN_MODULES = (
     "modules.metering",
     "modules.observability",
-    "modules.billing",
+    "editions.cloud.billing",
     "modules.identity",
     "modules.tools",
     "modules.core",

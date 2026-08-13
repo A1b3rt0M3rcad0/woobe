@@ -75,5 +75,5 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     assert result.content == '{"message":"16"}'
     assert tool_was_called is True
     assert len(tool_calls) == 1
-    assert isinstance(json_latency, int)
+    assert json_latency is None
     json_model.ainvoke.assert_awaited_once()

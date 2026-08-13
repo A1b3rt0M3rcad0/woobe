@@ -11,18 +11,17 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from shared.infra.database.base import Base
-from modules.identity.infra.database.models import *  # noqa: F401, F403
-from modules.core.infra.database.models import *  # noqa: F401, F403
-from modules.chat_surface.infra.database.models import *  # noqa: F401, F403
-from modules.agent.infra.database.models import *  # noqa: F401, F403
-from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
-from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401, F403
-from modules.network.infra.database.models import *  # noqa: F401, F403
-from modules.network.infra.database.schema_extensions import *  # noqa: F401, F403
-from modules.metering.infra.database.models import *  # noqa: F401, F403
-from modules.billing.infra.database.models import *  # noqa: F401, F403
-from modules.observability.infra.database.models import *  # noqa: F401, F403
+from shared.infra.database.base import Base  # noqa: E402
+from modules.identity.infra.database.models import *  # noqa: E402,F401,F403
+from modules.core.infra.database.models import *  # noqa: E402,F401,F403
+from modules.chat_surface.infra.database.models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: E402,F401
+from modules.agent.infra.database.vector_snapshot_models import *  # noqa: E402,F401,F403
+from modules.network.infra.database.models import *  # noqa: E402,F401,F403
+from modules.network.infra.database.schema_extensions import *  # noqa: E402,F401,F403
+from modules.metering.infra.database.models import *  # noqa: E402,F401,F403
+from modules.observability.infra.database.models import *  # noqa: E402,F401,F403
 
 
 def _async_postgres_url(value: str) -> str:
@@ -33,17 +32,17 @@ def _async_postgres_url(value: str) -> str:
         return normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
     if normalized.startswith("postgresql+asyncpg://"):
         return normalized
-    raise RuntimeError("PROJECTRAI_POSTGRES_URL must be a PostgreSQL connection URL")
+    raise RuntimeError("WOOBE_POSTGRES_URL must be a PostgreSQL connection URL")
 
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-postgres_url = os.environ.get("PROJECTRAI_POSTGRES_URL", "").strip()
+postgres_url = os.environ.get("WOOBE_POSTGRES_URL", "").strip()
 if not postgres_url:
     raise RuntimeError(
-        "PROJECTRAI_POSTGRES_URL is required for migrations; migrations must connect "
+        "WOOBE_POSTGRES_URL is required for migrations; migrations must connect "
         "directly to PostgreSQL instead of the runtime pool"
     )
 
@@ -58,7 +57,6 @@ MANAGED_SCHEMAS = {
     "agent",
     "network",
     "metering",
-    "billing",
     "observability",
 }
 

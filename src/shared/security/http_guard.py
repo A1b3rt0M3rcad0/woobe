@@ -44,6 +44,8 @@ PUBLIC_PATHS = {
     "/identity/auth/logout",
     "/identity/auth/register",
     "/identity/auth/refresh",
+    "/identity/instance/status",
+    "/identity/instance/bootstrap",
 }
 _LOCAL_ENVIRONMENTS = {"development", "dev", "test", "local"}
 _ALLOWED_SAME_SITE = {"lax", "strict", "none"}

@@ -36,7 +36,7 @@ async def test_create_runtime_key_binds_agent_environment_and_interfaces() -> No
     agent_id = uuid4()
     user_id = uuid4()
     project_repo = SimpleNamespace(get_by_id=AsyncMock(return_value=SimpleNamespace(id=project_id)))
-    target_reader = SimpleNamespace(get_agent_project_id=AsyncMock(return_value=project_id))
+    target_reader = SimpleNamespace(get_target_project_id=AsyncMock(return_value=project_id))
     api_key_repo = SimpleNamespace()
     api_key_repo.save = AsyncMock(side_effect=lambda key: key)
     outbox = SimpleNamespace(write=AsyncMock())
@@ -77,7 +77,7 @@ async def test_create_runtime_key_binds_agent_environment_and_interfaces() -> No
 async def test_create_runtime_key_rejects_agent_from_another_project() -> None:
     project_id = uuid4()
     project_repo = SimpleNamespace(get_by_id=AsyncMock(return_value=SimpleNamespace(id=project_id)))
-    target_reader = SimpleNamespace(get_agent_project_id=AsyncMock(return_value=uuid4()))
+    target_reader = SimpleNamespace(get_target_project_id=AsyncMock(return_value=uuid4()))
     api_key_repo = SimpleNamespace(save=AsyncMock())
     outbox = SimpleNamespace(write=AsyncMock())
     use_case = CreateRuntimeApiKeyUseCase(

@@ -1,5 +1,5 @@
 {
-  "name": "projectrai-web",
+  "name": "woobe-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,7 @@
     "dev": "vite --mode manifest",
     "build": "tsc -b && vite build --mode manifest",
     "preview": "vite preview",
-    "seed": "cd .. && uv run python scripts/seed_customer.py",
+    "seed": "cd .. && uv run python scripts/seed_demo.py",
     "test": "vitest",
     "test:run": "vitest run"
   },
