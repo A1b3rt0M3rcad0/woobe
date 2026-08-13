@@ -28,62 +28,66 @@ from shared.infra.database.outbox import OutboxEventModel as BaseOutbox
 class SecurityRateLimitEventModel(Base):
     __tablename__ = "security_rate_limit_events"
     __table_args__ = (
-        Index(
-            "ix_security_rate_limit_events_window",
-            "namespace",
-            "subject_key",
-            "occurred_at",
-        ),
+        Index("ix_security_rate_limit_events_window", "namespace", "subject_key", "occurred_at"),
         {"schema": "core"},
     )
-
-    id: Mapped[int] = mapped_column(
-        BigInteger,
-        primary_key=True,
-        autoincrement=True,
-    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     namespace: Mapped[str] = mapped_column(String(64))
     subject_key: Mapped[str] = mapped_column(String(255))
-    occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class SecurityConcurrencyLeaseModel(Base):
     __tablename__ = "security_concurrency_leases"
     __table_args__ = (
-        Index(
-            "ix_security_concurrency_leases_subject",
-            "namespace",
-            "subject_key",
-            "expires_at",
-        ),
-        Index(
-            "ix_security_concurrency_leases_expiry",
-            "expires_at",
-        ),
+        Index("ix_security_concurrency_leases_subject", "namespace", "subject_key", "expires_at"),
+        Index("ix_security_concurrency_leases_expiry", "expires_at"),
         {"schema": "core"},
     )
-
     id: Mapped[UUID] = mapped_column(primary_key=True)
     namespace: Mapped[str] = mapped_column(String(64))
     subject_key: Mapped[str] = mapped_column(String(255))
-    acquired_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WorkspaceModel(BaseModel):
+    __tablename__ = "workspaces"
+    __table_args__ = (
+        UniqueConstraint("slug", name="uq_core_workspaces_slug"),
+        {"schema": "core"},
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    slug: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), default="active")
+
+
+class WorkspaceMemberModel(BaseModel):
+    __tablename__ = "workspace_members"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_core_workspace_members_workspace_user"),
+        Index("ix_core_workspace_members_workspace_status", "workspace_id", "status"),
+        Index(
+            "uq_core_workspace_members_active_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+        {"schema": "core"},
+    )
+    workspace_id: Mapped[UUID] = mapped_column(ForeignKey("core.workspaces.id", ondelete="CASCADE"))
+    user_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ProjectModel(BaseModel):
     __tablename__ = "projects"
     __table_args__ = (
-        UniqueConstraint("organization_id", "slug"),
+        UniqueConstraint("workspace_id", "slug", name="uq_core_projects_workspace_slug"),
         {"schema": "core"},
     )
-
-    organization_id: Mapped[UUID]
+    workspace_id: Mapped[UUID] = mapped_column(ForeignKey("core.workspaces.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -93,20 +97,12 @@ class ProjectModel(BaseModel):
 class ProjectMemberModel(BaseModel):
     __tablename__ = "project_members"
     __table_args__ = (
-        UniqueConstraint(
-            "project_id",
-            "user_id",
-            name="uq_core_project_members_project_user",
-        ),
+        UniqueConstraint("project_id", "user_id", name="uq_core_project_members_project_user"),
         Index("ix_core_project_members_user_status", "user_id", "status"),
         Index("ix_core_project_members_project_status", "project_id", "status"),
         {"schema": "core"},
     )
-
-    project_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.projects.id", ondelete="CASCADE")
-    )
-    # User identity is intentionally not a cross-module FK.
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id", ondelete="CASCADE"))
     user_id: Mapped[UUID]
     status: Mapped[str] = mapped_column(String(32), default="active")
     granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
@@ -117,57 +113,26 @@ class ApiKeyModel(BaseModel):
     __table_args__ = (
         Index("ix_core_api_keys_prefix_status", "key_prefix", "status"),
         Index("ix_core_api_keys_credential_created", "credential_id", "created_at"),
-        Index(
-            "ix_core_api_keys_runtime_binding",
-            "project_id",
-            "kind",
-            "agent_id",
-            "environment",
-            "status",
-        ),
-        Index(
-            "ix_core_api_keys_runtime_target_binding",
-            "project_id",
-            "kind",
-            "target_type",
-            "target_id",
-            "environment",
-            "status",
-        ),
-        Index(
-            "ix_core_api_keys_chat_surface",
-            "project_id",
-            "kind",
-            "chat_surface_id",
-            "status",
-        ),
+        Index("ix_core_api_keys_runtime_binding", "project_id", "kind", "agent_id", "environment", "status"),
+        Index("ix_core_api_keys_runtime_target_binding", "project_id", "kind", "target_type", "target_id", "environment", "status"),
+        Index("ix_core_api_keys_chat_surface", "project_id", "kind", "chat_surface_id", "status"),
         CheckConstraint(
-            "(kind = 'project' AND agent_id IS NULL AND target_type IS NULL "
-            "AND target_id IS NULL AND chat_surface_id IS NULL AND environment IS NULL) OR "
-            "(kind = 'runtime' AND target_type = 'agent' AND target_id IS NOT NULL "
-            "AND agent_id = target_id AND chat_surface_id IS NULL "
-            "AND environment IN ('staging', 'production')) OR "
-            "(kind = 'runtime' AND target_type = 'network' AND target_id IS NOT NULL "
-            "AND agent_id IS NULL AND chat_surface_id IS NULL "
-            "AND environment IN ('staging', 'production')) OR "
-            "(kind = 'chat_surface' AND agent_id IS NULL AND target_type IS NULL "
-            "AND target_id IS NULL AND chat_surface_id IS NOT NULL "
-            "AND environment IS NULL)",
+            "(kind = 'project' AND agent_id IS NULL AND target_type IS NULL AND target_id IS NULL AND chat_surface_id IS NULL AND environment IS NULL) OR "
+            "(kind = 'runtime' AND target_type = 'agent' AND target_id IS NOT NULL AND agent_id = target_id AND chat_surface_id IS NULL AND environment IN ('staging', 'production')) OR "
+            "(kind = 'runtime' AND target_type = 'network' AND target_id IS NOT NULL AND agent_id IS NULL AND chat_surface_id IS NULL AND environment IN ('staging', 'production')) OR "
+            "(kind = 'chat_surface' AND agent_id IS NULL AND target_type IS NULL AND target_id IS NULL AND chat_surface_id IS NOT NULL AND environment IS NULL)",
             name="ck_core_api_keys_runtime_binding",
         ),
         CheckConstraint(
-            "kind <> 'runtime' OR "
-            "(target_type IN ('agent', 'network') AND target_id IS NOT NULL)",
+            "kind <> 'runtime' OR (target_type IN ('agent', 'network') AND target_id IS NOT NULL)",
             name="ck_core_api_keys_runtime_target",
         ),
         CheckConstraint(
-            "(kind <> 'runtime' OR jsonb_array_length(interfaces) > 0) AND "
-            "(kind <> 'chat_surface' OR jsonb_array_length(interfaces) = 0)",
+            "(kind <> 'runtime' OR jsonb_array_length(interfaces) > 0) AND (kind <> 'chat_surface' OR jsonb_array_length(interfaces) = 0)",
             name="ck_core_api_keys_runtime_interfaces",
         ),
         {"schema": "core"},
     )
-
     project_id: Mapped[UUID] = mapped_column(ForeignKey("core.projects.id"))
     credential_id: Mapped[UUID] = mapped_column(nullable=False)
     name: Mapped[str] = mapped_column(String(255))
@@ -197,9 +162,7 @@ class OutboxEventModel(BaseOutbox):
         UniqueConstraint("idempotency_key", name="uq_core_outbox_idempotency_key"),
         Index(
             "ix_core_outbox_pending",
-            "status",
-            "available_at",
-            "created_at",
+            "status", "available_at", "created_at",
             postgresql_where=text("status IN ('pending', 'retryable')"),
         ),
         Index("ix_core_outbox_correlation_id", "correlation_id"),
@@ -215,9 +178,7 @@ class InboxEventModel(BaseInbox):
         UniqueConstraint("idempotency_key", name="uq_core_inbox_idempotency_key"),
         Index(
             "ix_core_inbox_pending",
-            "status",
-            "available_at",
-            "created_at",
+            "status", "available_at", "created_at",
             postgresql_where=text("status IN ('received', 'retryable')"),
         ),
         Index("ix_core_inbox_correlation_id", "correlation_id"),
