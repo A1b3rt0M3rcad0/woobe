@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
@@ -8,7 +8,6 @@ import { useAgents } from '@/features/agents/hooks'
 import { useNetworks } from '@/features/network/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { LoadingState } from '@/components/common/LoadingState'
-import { isCloudEdition } from '@/lib/edition'
 
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -34,8 +33,6 @@ import TracesPage from '@/pages/TracesPage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
-const CloudBillingPage = lazy(() => import('@/editions/cloud/billing/BillingPage'))
-
 function RootRedirect() {
   const { isAuthenticated } = useAuth()
   return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
@@ -49,23 +46,6 @@ function LegacyProjectRedirect() {
     return <Navigate to={newPath + location.search} replace />
   }
   return <Navigate to="/organizations" replace />
-}
-
-function LegacyBillingRedirect() {
-  const { currentOrganization } = useWorkspace()
-  if (!isCloudEdition) return <Navigate to="/organizations" replace />
-  return currentOrganization
-    ? <Navigate to={`/organizations/${currentOrganization.id}/billing`} replace />
-    : <Navigate to="/organizations" replace />
-}
-
-function EditionBillingPage() {
-  if (!isCloudEdition) return <Navigate to="../settings" replace />
-  return (
-    <Suspense fallback={<LoadingState message="Opening Billing" />}>
-      <CloudBillingPage />
-    </Suspense>
-  )
 }
 
 function DashboardRedirect() {
@@ -190,7 +170,6 @@ export function AppRouter() {
           <Route element={<OrganizationWorkspaceGuard />}>
             <Route path="/organizations/:organizationId" element={<Navigate to="./settings" replace />} />
             <Route path="/organizations/:organizationId/settings" element={<OrganizationDetailPage />} />
-            <Route path="/organizations/:organizationId/billing" element={<EditionBillingPage />} />
             <Route path="/organizations/:organizationId/projects" element={<OrgProjectsPage />} />
             <Route path="/organizations/:organizationId/setup" element={<FirstRunSetupPage />} />
 
@@ -236,7 +215,6 @@ export function AppRouter() {
           <Route path="/projects/:projectId/chat-surfaces" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/usage" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/traces" element={<LegacyProjectRedirect />} />
-          <Route path="/billing" element={<LegacyBillingRedirect />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
