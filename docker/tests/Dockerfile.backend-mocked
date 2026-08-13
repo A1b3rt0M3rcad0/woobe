@@ -26,4 +26,4 @@ COPY migrations/ migrations/
 COPY scripts/ scripts/
 COPY alembic.ini pytest.ini ./
 
-CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; python -m pytest -q tests/modules tests/contract tests/fakes tests/messaging tests/editions --junitxml=/artifacts/backend-mocked.xml"]
+CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; python -m pytest -q tests/unit tests/fakes/test_openai_provider.py --ignore=tests/unit/test_billing --junitxml=/artifacts/backend-mocked.xml"]

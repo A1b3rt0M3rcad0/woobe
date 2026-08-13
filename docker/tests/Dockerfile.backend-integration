@@ -26,4 +26,4 @@ COPY migrations/ migrations/
 COPY scripts/ scripts/
 COPY alembic.ini pytest.ini ./
 
-CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]
+CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic upgrade head; python -m pytest -q tests/integration --ignore=tests/integration/billing --junitxml=/artifacts/backend-integration.xml"]

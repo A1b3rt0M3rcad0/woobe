@@ -73,7 +73,7 @@ def test_test_topology_is_backend_only_and_shell_independent() -> None:
     assert "scripts/test.sh" not in workflow
 
 
-def test_backend_test_images_are_explicit_and_frontend_test_images_are_absent() -> None:
+def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> None:
     mocked = ROOT / "docker/tests/Dockerfile.backend-mocked"
     integration = ROOT / "docker/tests/Dockerfile.backend-integration"
     assert mocked.is_file()
@@ -84,12 +84,22 @@ def test_backend_test_images_are_explicit_and_frontend_test_images_are_absent() 
     assert "Dockerfile.backend-integration" in compose
 
     mocked_text = mocked.read_text(encoding="utf-8")
-    assert "tests/modules tests/contract tests/fakes tests/messaging tests/editions" in mocked_text
-    assert "tests/integration" not in mocked_text
+    assert "python -m pytest -q tests/unit tests/fakes/test_openai_provider.py" in mocked_text
+    assert "--ignore=tests/unit/test_billing" in mocked_text
+    for excluded in (
+        "tests/modules",
+        "tests/contract",
+        "tests/messaging",
+        "tests/editions",
+        "tests/integration",
+    ):
+        assert excluded not in mocked_text
 
     integration_text = integration.read_text(encoding="utf-8")
     assert "alembic upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
+    assert "--ignore=tests/integration/billing" in integration_text
+    assert "tests/editions" not in integration_text
     assert "tests/migrations" not in integration_text
 
     for path in (
