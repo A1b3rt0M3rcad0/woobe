@@ -41,7 +41,8 @@ Do not make the repository public while this section is incomplete.
 ## Quality and security
 
 - [ ] Validate the standalone test contract with `docker compose -f compose.test.yaml config --quiet`.
-- [ ] Run the manual tests workflow, which executes `docker compose -f compose.test.yaml run --rm tests` and covers Ruff, Pyright, migrations, pytest, Vitest, Web production build, mocked browser tests, and full-stack browser E2E.
+- [ ] Run the full local/CI validation contract with `docker compose -f compose.test.yaml up --build --exit-code-from tests tests`; the manual tests workflow must execute this exact same command.
+- [ ] Confirm backend, frontend, mocked browser, and full-stack browser suites all complete successfully through their dedicated `docker/tests/Dockerfile.*` images.
 - [ ] Confirm the test topology uses Docker service DNS rather than `host.docker.internal` and requires no host Bash/WSL dependency.
 - [ ] Run the manual container workflow: builds, non-root checks, SBOM, and HIGH/CRITICAL image scanning.
 - [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the actual root `compose.yaml` distribution.

@@ -26,8 +26,8 @@ jobs:
       - name: Validate standalone test Compose contract
         run: docker compose -f compose.test.yaml config --quiet
 
-      - name: Run reproducible validation stack
-        run: docker compose -f compose.test.yaml run --rm tests
+      - name: Run the local/CI Compose test contract
+        run: docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 
       - name: Capture Compose diagnostics
         if: failure()

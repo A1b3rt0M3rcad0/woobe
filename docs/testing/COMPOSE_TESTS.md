@@ -24,21 +24,20 @@ The product Dockerfiles (`Dockerfile` and `web/Dockerfile`) contain production b
 
 ## Full validation
 
-From the repository root, on PowerShell, CMD, Linux, or macOS:
+Local development and GitHub Actions use the same execution contract:
 
 ```bash
-docker compose -f compose.test.yaml run --rm tests
+docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-This is the shortest supported Docker Compose invocation that both selects the test contract and runs the one-shot aggregate test service. A bare `docker compose -f compose.test.yaml` is not executable because Docker Compose requires a subcommand.
+This starts the aggregate `tests` service together with its dependency graph. The aggregate service only completes after backend, frontend, mocked-browser, and full-stack browser suites complete successfully. `--exit-code-from tests` propagates the aggregate result and stops the attached Compose project when the aggregate service exits.
 
-The `tests` service waits for the backend, frontend, mocked-browser, and full-stack browser suites to complete successfully. A failing suite makes the aggregate command fail.
+A bare `docker compose -f compose.test.yaml` is not executable because `-f` only selects the Compose file; Docker Compose still requires a subcommand such as `up`, `run`, or `down`.
 
-For a deterministic fresh full-stack database between repeated local runs:
+After a local run, remove stopped test containers and any test state with:
 
 ```bash
 docker compose -f compose.test.yaml down -v --remove-orphans
-docker compose -f compose.test.yaml run --rm tests
 ```
 
 The test project is named `woobe-test`, so it remains isolated from the default Community Compose project.
@@ -79,11 +78,13 @@ It uses the Web build context and does not depend on a test stage in `web/Docker
 
 ## Individual suites
 
+Individual suites remain available for focused local diagnosis:
+
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests
-docker compose -f compose.test.yaml run --rm frontend-tests
-docker compose -f compose.test.yaml run --rm browser-mocked
-docker compose -f compose.test.yaml run --rm browser-e2e
+docker compose -f compose.test.yaml run --rm --build backend-tests
+docker compose -f compose.test.yaml run --rm --build frontend-tests
+docker compose -f compose.test.yaml run --rm --build browser-mocked
+docker compose -f compose.test.yaml run --rm --build browser-e2e
 ```
 
 For diagnostics, always select the test Compose file as well:
@@ -101,18 +102,16 @@ The standalone test stack includes PostgreSQL + pgvector, a separate PostgreSQL 
 
 Infrastructure state is test-only. PostgreSQL, RabbitMQ, and MinIO use ephemeral container storage rather than the persistent volumes used by Community. The full-stack Web and browser communicate through Docker Compose service DNS (`web`, `api`, `chat-embed`); no `host.docker.internal` or WSL integration is required.
 
-The mocked browser suite uses a second production-shaped Web service (`web-mocked`) instead of a Vite preview process, keeping the browser test closer to the shipped frontend artifact while Playwright intercepts the API boundary.
-
 The fake provider is test infrastructure, not a special production runtime mode. Product flows that need an LLM should use Woobe's existing OpenAI-compatible provider contract and point its Base URL at the fake service from inside the Compose network.
 
 ## CI
 
-The manual `tests.yml` workflow validates `compose.test.yaml` and executes the same local contract:
+The manual `tests.yml` workflow validates `compose.test.yaml` and then executes exactly the same command documented for local full validation:
 
 ```bash
-docker compose -f compose.test.yaml run --rm tests
+docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-It removes any stale stack before the run, captures Compose status/logs on failure, tears the stack down afterward, and uploads `.test-artifacts` when present.
+CI only adds lifecycle concerns around that command: stale-stack cleanup before the run, diagnostics on failure, final teardown, and artifact upload. The actual validation entrypoint is identical locally and in CI.
 
 Community release acceptance remains separate and continues to validate the actual `compose.yaml` distribution.

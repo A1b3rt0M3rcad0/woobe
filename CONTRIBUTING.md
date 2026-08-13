@@ -37,15 +37,17 @@ Durable architecture decisions belong in `docs/adr/`. Current product behavior b
 
 The validation contract is the standalone root `compose.test.yaml`. It is intentionally separate from the Community distribution in `compose.yaml` and does not require Bash or WSL on the host.
 
-Run the complete local validation stack with:
+Run the complete validation stack locally with the same command used by CI:
 
 ```bash
-docker compose -f compose.test.yaml run --rm tests
+docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-Run an individual suite by replacing `tests` with `backend-tests`, `frontend-tests`, `browser-mocked`, or `browser-e2e`. For a deterministic fresh full-stack database between repeated runs, execute `docker compose -f compose.test.yaml down -v --remove-orphans` first.
+The aggregate `tests` service only completes after backend, frontend, mocked-browser, and full-stack browser suites complete successfully. After a local run, clean the validation stack with `docker compose -f compose.test.yaml down -v --remove-orphans`.
 
-The manual `tests.yml` workflow uses the same Compose contract. Container, acceptance, security, and release workflows remain separate because they validate production images, the actual Community distribution, repository security, and publishing respectively. Repository workflows are intentionally executed only when validation is requested.
+For focused diagnosis, individual suites can be executed with `docker compose -f compose.test.yaml run --rm --build <service>`, where `<service>` is `backend-tests`, `frontend-tests`, `browser-mocked`, or `browser-e2e`.
+
+The manual `tests.yml` workflow executes the exact same full-validation Compose command. Container, acceptance, security, and release workflows remain separate because they validate production images, the actual Community distribution, repository security, and publishing respectively. Repository workflows are intentionally executed only when validation is requested.
 
 See [Compose test workflow](docs/testing/COMPOSE_TESTS.md) for the test topology and suite responsibilities.
 
