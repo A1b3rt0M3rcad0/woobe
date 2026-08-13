@@ -64,11 +64,10 @@ PostgreSQL + pgvector
 RabbitMQ
 ```
 
-Before the integration tests, the runner applies the real Alembic migration chain. It then executes:
+Before the integration suite, the runner applies the real Alembic migration chain required by the test database. It then executes only:
 
 ```text
 tests/integration
-tests/migrations
 ```
 
 The suite writes JUnit evidence to:
