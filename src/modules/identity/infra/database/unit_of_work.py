@@ -5,16 +5,13 @@ from typing import Any
 from sqlalchemy.exc import PendingRollbackError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-
 from modules.identity.infra.database.repositories import (
-    SQLAlchemyOrganizationInviteRepository,
-    SQLAlchemyOrganizationMemberRepository,
-    SQLAlchemyOrganizationRepository,
     SQLAlchemyOutboxEventWriter,
+    SQLAlchemyUserInviteRepository,
     SQLAlchemyUserRepository,
     SQLAlchemyUserSessionRepository,
 )
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class IdentityUnitOfWork(UnitOfWork):
@@ -22,9 +19,7 @@ class IdentityUnitOfWork(UnitOfWork):
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
         self._users: SQLAlchemyUserRepository | None = None
-        self._organizations: SQLAlchemyOrganizationRepository | None = None
-        self._members: SQLAlchemyOrganizationMemberRepository | None = None
-        self._invites: SQLAlchemyOrganizationInviteRepository | None = None
+        self._invites: SQLAlchemyUserInviteRepository | None = None
         self._user_sessions: SQLAlchemyUserSessionRepository | None = None
         self._outbox: SQLAlchemyOutboxEventWriter | None = None
 
@@ -41,21 +36,9 @@ class IdentityUnitOfWork(UnitOfWork):
         return self._users
 
     @property
-    def organizations(self) -> SQLAlchemyOrganizationRepository:
-        if self._organizations is None:
-            self._organizations = SQLAlchemyOrganizationRepository(self)
-        return self._organizations
-
-    @property
-    def members(self) -> SQLAlchemyOrganizationMemberRepository:
-        if self._members is None:
-            self._members = SQLAlchemyOrganizationMemberRepository(self)
-        return self._members
-
-    @property
-    def invites(self) -> SQLAlchemyOrganizationInviteRepository:
+    def invites(self) -> SQLAlchemyUserInviteRepository:
         if self._invites is None:
-            self._invites = SQLAlchemyOrganizationInviteRepository(self)
+            self._invites = SQLAlchemyUserInviteRepository(self)
         return self._invites
 
     @property
@@ -95,8 +78,6 @@ class IdentityUnitOfWork(UnitOfWork):
             await self._session.close()
             self._session = None
         self._users = None
-        self._organizations = None
-        self._members = None
         self._invites = None
         self._user_sessions = None
         self._outbox = None
