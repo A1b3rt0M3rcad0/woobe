@@ -15,11 +15,7 @@ from modules.core.infra.database.mappers import (
     project_entity_to_model,
     project_model_to_entity,
 )
-from modules.core.infra.database.models import (
-    ApiKeyModel,
-    OutboxEventModel,
-    ProjectModel,
-)
+from modules.core.infra.database.models import ApiKeyModel, OutboxEventModel, ProjectModel
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
@@ -43,30 +39,30 @@ class SQLAlchemyProjectRepository(
         model = await self._get_model_by_id(project_id)
         return project_model_to_entity(model) if model else None
 
-    async def get_by_organization_and_slug(
-        self, organization_id: UUID, slug: str
+    async def get_by_workspace_and_slug(
+        self, workspace_id: UUID, slug: str
     ) -> Project | None:
         result = await self._session.execute(
             select(ProjectModel).where(
-                ProjectModel.organization_id == organization_id,
+                ProjectModel.workspace_id == workspace_id,
                 ProjectModel.slug == slug,
             )
         )
         model = result.scalar_one_or_none()
         return project_model_to_entity(model) if model else None
 
-    async def list_by_organization(self, organization_id: UUID) -> list[Project]:
+    async def list_by_workspace(self, workspace_id: UUID) -> list[Project]:
         result = await self._session.execute(
-            select(ProjectModel).where(ProjectModel.organization_id == organization_id)
+            select(ProjectModel).where(ProjectModel.workspace_id == workspace_id)
         )
         return [project_model_to_entity(p) for p in result.scalars().all()]
 
-    async def paginate_by_organization(
-        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    async def paginate_by_workspace(
+        self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Project]:
         stmt = (
             select(ProjectModel)
-            .where(ProjectModel.organization_id == organization_id)
+            .where(ProjectModel.workspace_id == workspace_id)
             .order_by(ProjectModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
@@ -124,11 +120,7 @@ class SQLAlchemyApiKeyRepository(
         return api_key_model_to_entity(model) if model else None
 
     async def update_credential_metadata(
-        self,
-        credential_id: UUID,
-        *,
-        name: str,
-        description: str | None,
+        self, credential_id: UUID, *, name: str, description: str | None
     ) -> ApiKey:
         result = await self._session.execute(
             select(ApiKeyModel)
@@ -218,15 +210,16 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
     ) -> None:
-        event = OutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            event_version=event_version,
-            routing_key=routing_key,
-            payload=payload,
-            idempotency_key=idempotency_key,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
+        self._session.add(
+            OutboxEventModel(
+                aggregate_type=aggregate_type,
+                aggregate_id=aggregate_id,
+                event_type=event_type,
+                event_version=event_version,
+                routing_key=routing_key,
+                payload=payload,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                causation_id=causation_id,
+            )
         )
-        self._session.add(event)
