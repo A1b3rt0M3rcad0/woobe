@@ -15,7 +15,7 @@ EDITION = os.environ.get("WOOBE_EDITION", "community").strip().lower()
 if EDITION not in {"community", "cloud"}:
     raise RuntimeError("WOOBE_EDITION must be 'community' or 'cloud'")
 
-from shared.infra.database.base import Base
+from shared.infra.database.base import Base  # noqa: E402
 from modules.identity.infra.database.models import *  # noqa: E402,F401,F403
 from modules.core.infra.database.models import *  # noqa: E402,F401,F403
 from modules.chat_surface.infra.database.models import *  # noqa: E402,F401,F403
