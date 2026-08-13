@@ -19,6 +19,8 @@ from modules.core.infra.database.active_project_overview_reader import (
 class ContextualProjectOverviewReader(ActiveDocumentProjectOverviewReader):
     """Adds a compact, environment-aware change timeline to the Overview."""
 
+    query_count = 13
+
     async def fetch(
         self,
         *,
