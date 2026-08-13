@@ -1,4 +1,4 @@
-name: Publish Woobe images
+name: Publish Woobe Community images
 
 on:
   workflow_dispatch:
@@ -15,12 +15,6 @@ on:
         description: Public ChatSurface origin baked into the reference web image
         required: true
         type: string
-      edition:
-        description: Reference web edition
-        required: true
-        default: community
-        type: choice
-        options: [community, cloud]
 
 permissions:
   contents: read
@@ -54,7 +48,7 @@ jobs:
           build-args: |
             VITE_API_URL=${{ inputs.public_api_url }}
             VITE_CHAT_EMBED_URL=${{ inputs.public_chat_embed_url }}
-            VITE_WOOBE_EDITION=${{ inputs.edition }}
+            VITE_WOOBE_EDITION=community
           tags: ghcr.io/${{ github.repository_owner }}/woobe-web:${{ inputs.version }}
       - name: Build and push ChatSurface
         uses: docker/build-push-action@v6
