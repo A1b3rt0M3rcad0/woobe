@@ -1,15 +1,29 @@
 # Public edition integration boundary
 
-This directory contains only public integration contracts used to compose external Woobe editions with Community/Core.
+This directory contains only the public integration contract used to compose separately distributed Woobe editions with Community/Core.
 
-The files in this directory are Covered Software under the repository root `LICENSE.md`. They are part of Woobe Community and may be used under the same Community terms.
+## License boundary
 
-No proprietary Cloud or Enterprise implementation belongs in this directory. Implementing, importing or depending on these contracts does not grant any license or other rights to proprietary Woobe edition source code maintained outside this repository.
+`contracts.py` is Covered Software under the repository-level `LICENSE.md` and is part of Woobe Community/Core.
 
-The intended dependency direction is one-way:
+Using, importing, implementing, or satisfying the contract does **not** grant any license or other rights to Woobe Cloud, future Woobe Enterprise code, or any other proprietary implementation maintained outside this repository. Proprietary implementations are governed exclusively by the license shipped with their own repository or by a separate written agreement with Woobe.
 
-`external edition repository -> Woobe Community public contract`
+The contract is an interoperability boundary. It is not a feature flag and it is not a license switch.
 
-Woobe Community must not import an external proprietary edition implementation.
+## Dependency direction
 
-`editions` intentionally remains a Python namespace package. Do not add `src/editions/__init__.py`; this allows a private repository to provide `editions.cloud` while Community provides `editions.contracts`.
+The allowed dependency direction is one-way:
+
+```text
+separately licensed edition implementation
+                ↓
+       Community integration contract
+                ↓
+          Community/Core runtime
+```
+
+Community/Core must never import proprietary edition implementation modules.
+
+`editions` intentionally remains a Python namespace package. Do not add `src/editions/__init__.py`. A private build may overlay a separately licensed package such as `editions.cloud` while Community provides only `editions.contracts`.
+
+No proprietary source may be committed under `src/editions/cloud/` or `src/editions/enterprise/` in this repository.

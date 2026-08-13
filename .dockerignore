@@ -20,6 +20,7 @@ web/
 docs/
 specs/
 .opencode/
-src/editions/
+src/editions/cloud/
+src/editions/enterprise/
 *.log
 README.md
