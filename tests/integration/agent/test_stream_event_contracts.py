@@ -103,16 +103,24 @@ async def test_tool_events_are_ordered_and_truthful(
     finally:
         current_runtime_stream.reset(token)
 
-    started = channel.queue.get_nowait()
-    completed = channel.queue.get_nowait()
-    assert [started.event_type, completed.event_type] == [
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+
+    assert [event.event_type for event in events] == [
+        "agent_activity",
         "tool_call_started",
         "tool_call_completed",
+        "agent_activity",
     ]
+    assert events[0].payload["status"] == "calling_tool"
+    assert events[3].payload["status"] == "processing_tool_result"
+
+    started = events[1]
+    completed = events[2]
     assert started.payload["status"] == "running"
     assert completed.payload["status"] == expected_status
     assert completed.payload["success"] is expected_success
     assert info.success is expected_success
     assert payload["status"] == expected_status
     assert message.tool_call_id == "call-1"
-    assert channel.queue.empty()
