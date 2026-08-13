@@ -22,24 +22,22 @@ Critical authorization, ownership, release immutability, duplicate-document rule
 
 Runtime infrastructure is process-separated into API and Workers. RabbitMQ supports asynchronous module/runtime work. PostgreSQL is the durable source of application state. Redis is optional where cache-backed capabilities are enabled. Knowledge files can use local persistent storage or S3-compatible storage.
 
-## Edition boundaries
+## Distribution boundaries
 
-Woobe uses composition rather than forks of the core:
+The public repository and supported self-host distribution contain Woobe Community/Core only.
 
 ```text
-Community  = Core
-Cloud      = Core + Cloud edition modules
-Enterprise = Core + explicitly licensed Enterprise modules, when they exist
+Community = Core
+Cloud     = proprietary Woobe-managed product built on Core, not distributed here
+Enterprise = not currently implemented or distributed
 ```
 
-Shared operational code belongs under `src/modules/**` and `src/shared/**`; common frontend product code belongs outside `web/src/editions/**`. Code that exists only to operate the Woobe-managed Cloud belongs under `src/editions/cloud/**` or `web/src/editions/cloud/**`.
+Shared operational code belongs under `src/modules/**` and `src/shared/**`. The Community frontend lives in the normal shared frontend tree. Proprietary Cloud implementation and future proprietary edition implementation are not part of the public Community source tree.
 
-Cloud modules may depend on the shared core. The reverse dependency is forbidden: Community/Core backend packages must not import edition packages, and Community/Core frontend code must not import edition-specific UI. Edition selection belongs in explicit composition roots such as `src/main.py`, `src/worker_main.py`, `migrations/env.py`, and `web/src/app/**`.
+Community composition roots such as `src/main.py`, `src/worker_main.py`, `migrations/env.py`, the root `compose.yaml`, and `web/src/app/**` must remain runnable without proprietary edition source.
 
-Architecture tests under `tests/architecture/` enforce this dependency direction so adding a new Cloud or future Enterprise capability cannot silently couple the Community runtime to a commercial edition.
+Architecture tests under `tests/architecture/` protect the Community boundary and must fail if proprietary edition implementation is added to the public Community distribution unintentionally.
 
-The shared core must not require Cloud modules when `WOOBE_EDITION=community`. API routing, Worker registry composition, Alembic metadata selection, and frontend routing enforce the edition boundary at runtime. Billing is currently the only Cloud-specific bounded context.
+No empty Enterprise implementation tree is maintained. Enterprise directories should be introduced only when real Enterprise capabilities exist and their distribution model has been explicitly decided.
 
-No empty Enterprise implementation tree is maintained. Enterprise directories should be introduced only with real Enterprise capabilities and an explicit edition-specific license.
-
-The filesystem boundary is also a licensing boundary. `LICENSE.md` covers the Community/Core source according to its scope section; `LICENSE-CLOUD.md` covers Cloud edition paths. Source visibility is not equivalent to a grant of production or commercial rights.
+The Community licensing and product boundary is described by `LICENSE.md` and `LICENSING.md`. Proprietary product terms are intentionally outside this repository.
