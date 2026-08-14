@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { useAgents } from '@/features/agents/hooks'
+import { createDefaultChatSurfaceAppearance } from '@/features/chat-surfaces/appearance'
 import { ChatSurfaceDetailsModal } from '@/features/chat-surfaces/components/ChatSurfaceDetailsModal'
 import {
   useChatSurfaces,
@@ -82,13 +83,13 @@ function CreateSurfaceDialog({
       targetType,
       targetId,
       origin: origin.trim(),
-      appearance: {
+      appearance: createDefaultChatSurfaceAppearance({
         title: displayTitle.trim() || name.trim(),
         theme,
         primary_color: primaryColor,
         placeholder: placeholder.trim(),
         welcome_message: welcomeMessage.trim() || null,
-      },
+      }),
     })
   }
 
