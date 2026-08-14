@@ -24,6 +24,8 @@ RUN test -n "${VITE_API_URL}" \
     && sed -e "s|__API_ORIGIN__|${API_ORIGIN}|g" -e "s|__CHAT_EMBED_ORIGIN__|${CHAT_EMBED_ORIGIN}|g" nginx.conf > /tmp/nginx.conf
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
+USER root
+RUN apk upgrade --no-cache
 COPY --from=builder /tmp/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
