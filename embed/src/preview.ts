@@ -29,12 +29,12 @@ let ui = createChatUi(root, DEFAULT_APPEARANCE);
 function render(value: SurfaceAppearance) {
   const appearance = normalizeAppearance(value);
   ui = createChatUi(root, appearance);
-  ui.appendMessage("user", "What can you help me with?");
   ui.appendMessage(
     "assistant",
     appearance.welcome_message
       || "I can help with **structured answers**, lists, links, tables and code when Rich response rendering is enabled.",
   );
+  ui.appendMessage("user", "What can you help me with?");
   const pending = ui.appendPendingAssistant();
   ui.updateAssistantActivity(pending, { status: "generating_answer" });
   ui.scrollToLatest(true);
