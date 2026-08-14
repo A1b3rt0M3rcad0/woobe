@@ -14,6 +14,8 @@ const modes: Array<{ value: UsageTrendMode; label: string }> = [
   { value: 'tokens', label: 'Tokens' },
 ]
 
+const DOMAIN_HEADROOM = 1.08
+
 function seriesFor(point: ProjectUsageTimeseriesPoint, mode: UsageTrendMode) {
   if (mode === 'cost') {
     return {
@@ -45,6 +47,18 @@ function seriesFor(point: ProjectUsageTimeseriesPoint, mode: UsageTrendMode) {
     primaryLabel: 'Generation tokens',
     secondaryLabel: '',
   }
+}
+
+function adaptiveDomainMax(values: number[]) {
+  const maxValue = values.reduce((currentMax, value) => (
+    Number.isFinite(value) && value > currentMax ? value : currentMax
+  ), 0)
+  return maxValue > 0 ? maxValue * DOMAIN_HEADROOM : 0
+}
+
+function scaledHeight(value: number, domainMax: number, drawableHeight: number) {
+  if (value <= 0 || domainMax <= 0 || drawableHeight <= 0) return 0
+  return Math.min(value / domainMax, 1) * drawableHeight
 }
 
 function formatValue(value: number, mode: UsageTrendMode) {
@@ -86,7 +100,8 @@ export function UsageTrendChart({
   }, [points])
 
   const series = points.map((point) => seriesFor(point, mode))
-  const max = Math.max(...series.flatMap((item) => [item.primary, item.secondary]), 1)
+  const primaryDomainMax = adaptiveDomainMax(series.map((item) => item.primary))
+  const secondaryDomainMax = adaptiveDomainMax(series.map((item) => item.secondary))
   const width = 1000
   const height = 220
   const paddingX = 20
@@ -95,7 +110,7 @@ export function UsageTrendChart({
   const drawableHeight = height - paddingY * 2
   const coordinates = series.map((item, index) => ({
     x: paddingX + (points.length <= 1 ? drawableWidth / 2 : (index / (points.length - 1)) * drawableWidth),
-    y: paddingY + drawableHeight - (item.primary / max) * drawableHeight,
+    y: paddingY + drawableHeight - scaledHeight(item.primary, primaryDomainMax, drawableHeight),
   }))
   const line = coordinates.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
   const area = coordinates.length
@@ -105,6 +120,7 @@ export function UsageTrendChart({
   const tickIndexes = Array.from(new Set([0, Math.floor((points.length - 1) / 2), points.length - 1])).filter((index) => index >= 0)
   const selectedPoint = points[selectedIndex]
   const selectedSeries = selectedPoint ? seriesFor(selectedPoint, mode) : null
+  const hasSecondarySeries = Boolean(series[0]?.secondaryLabel)
 
   const totals = useMemo(() => points.reduce((acc, point) => {
     const item = seriesFor(point, mode)
@@ -167,10 +183,13 @@ export function UsageTrendChart({
 
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="relative min-h-[290px] overflow-hidden rounded-lg border border-border/70 bg-background/25 p-3">
-          <div className="mb-2 flex flex-wrap gap-4 text-[10px] text-muted">
+          <div className="mb-2 flex flex-wrap items-center gap-4 text-[10px] text-muted">
             <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-5 bg-primary" />{series[0]?.primaryLabel ?? 'Agent Runs'}</span>
             {series[0]?.secondaryLabel && (
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2 rounded-sm bg-violet-400/70" />{series[0].secondaryLabel}</span>
+            )}
+            {hasSecondarySeries && (
+              <span className="text-muted">Series use independent relative scales; cards show absolute values.</span>
             )}
           </div>
           <svg viewBox={`0 0 ${width} ${height}`} className="h-[230px] w-full" preserveAspectRatio="none" role="img" aria-label={`${mode} usage trend`}>
@@ -187,7 +206,7 @@ export function UsageTrendChart({
               />
             ))}
             {series.map((item, index) => {
-              const barHeight = (item.secondary / max) * drawableHeight
+              const barHeight = scaledHeight(item.secondary, secondaryDomainMax, drawableHeight)
               return item.secondary > 0 ? (
                 <rect
                   key={`bar-${points[index]?.bucket_start ?? index}`}
