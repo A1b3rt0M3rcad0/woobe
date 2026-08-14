@@ -14,21 +14,21 @@ import { Input } from '@/components/ui/Input'
 import { Tabs } from '@/components/ui/Tabs'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import {
-  useCancelOrganizationInvite,
+  useCancelWorkspaceInvite,
   useCreateInvite,
-  useOrganization,
-  useOrganizationInvites,
-  useOrganizationMembers,
-  useRemoveOrganizationMember,
-  useUpdateOrganization,
-} from '@/features/organizations/hooks'
+  useWorkspaceDetail,
+  useWorkspaceInvites,
+  useWorkspaceMembers,
+  useRemoveWorkspaceMember,
+  useUpdateWorkspace,
+} from '@/features/workspaces/hooks'
 import {
   useGrantProjectAccess,
   useProjectMembers,
   useProjectsForAccessManagement,
   useRevokeProjectAccess,
 } from '@/features/projects/hooks'
-import type { Invite, Member } from '@/features/organizations/types'
+import type { Invite, Member } from '@/features/workspaces/types'
 import type { ProjectAccessSubject } from '@/features/projects/types'
 
 function formatDate(value?: string | null) {
@@ -64,26 +64,26 @@ function RoleChoice({ active, title, description, onClick }: { active: boolean; 
   )
 }
 
-export default function OrganizationDetailPage() {
-  const { organizationId } = useParams<{ organizationId: string }>()
+export default function WorkspaceDetailPage() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
-  const { currentOrganization, selectOrganization } = useWorkspace()
-  const currentRole = currentOrganization?.membership_role ?? 'member'
-  const canManageOrganization = currentRole === 'owner' || currentRole === 'admin'
+  const { currentWorkspace, selectWorkspace } = useWorkspace()
+  const currentRole = currentWorkspace?.membership_role ?? 'member'
+  const canManageWorkspace = currentRole === 'owner' || currentRole === 'admin'
   const canInviteAdmin = currentRole === 'owner'
 
-  const organizationQuery = useOrganization(organizationId)
-  const membersQuery = useOrganizationMembers(organizationId)
-  const invitesQuery = useOrganizationInvites(organizationId, canManageOrganization)
-  const projectAccessQuery = useProjectsForAccessManagement(organizationId, canManageOrganization)
-  const updateOrganization = useUpdateOrganization()
+  const workspaceQuery = useWorkspaceDetail(workspaceId)
+  const membersQuery = useWorkspaceMembers(workspaceId)
+  const invitesQuery = useWorkspaceInvites(workspaceId, canManageWorkspace)
+  const projectAccessQuery = useProjectsForAccessManagement(workspaceId, canManageWorkspace)
+  const updateWorkspace = useUpdateWorkspace()
   const createInvite = useCreateInvite()
-  const removeMember = useRemoveOrganizationMember()
-  const cancelInvite = useCancelOrganizationInvite()
+  const removeMember = useRemoveWorkspaceMember()
+  const cancelInvite = useCancelWorkspaceInvite()
   const grantAccess = useGrantProjectAccess()
   const revokeAccess = useRevokeProjectAccess()
 
-  const org = organizationQuery.data
+  const workspace = workspaceQuery.data
   const members = membersQuery.data ?? []
   const invites = invitesQuery.data ?? []
   const projects = projectAccessQuery.data ?? []
@@ -104,11 +104,11 @@ export default function OrganizationDetailPage() {
   const roster = rosterQuery.data?.subjects ?? []
 
   useEffect(() => {
-    if (!org) return
-    setName(org.name)
-    setSlug(org.slug)
-    if (currentOrganization?.id !== org.id) selectOrganization({ id: org.id, name: org.name, slug: org.slug })
-  }, [currentOrganization?.id, org, selectOrganization])
+    if (!workspace) return
+    setName(workspace.name)
+    setSlug(workspace.slug)
+    if (currentWorkspace?.id !== workspace.id) selectWorkspace({ id: workspace.id, name: workspace.name, slug: workspace.slug })
+  }, [currentWorkspace?.id, workspace, selectWorkspace])
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id)
@@ -116,7 +116,7 @@ export default function OrganizationDetailPage() {
   }, [projects, selectedProjectId])
 
   const peopleCount = members.length + pendingInvites.length
-  const projectCount = canManageOrganization ? projects.length : currentOrganization?.accessible_project_count ?? 0
+  const projectCount = canManageWorkspace ? projects.length : currentWorkspace?.accessible_project_count ?? 0
   const explicitProjectAccesses = useMemo(
     () => members
       .filter((member) => member.access_mode !== 'implicit_owner')
@@ -125,13 +125,13 @@ export default function OrganizationDetailPage() {
   )
 
   const handleSave = async () => {
-    if (!organizationId || !canManageOrganization) return
+    if (!workspaceId || !canManageWorkspace) return
     try {
-      const updated = await updateOrganization.mutateAsync({ id: organizationId, data: { name: name.trim(), slug: slug.trim() } })
-      selectOrganization({ ...currentOrganization!, id: updated.id, name: updated.name, slug: updated.slug })
-      toast.success('Organization updated')
+      const updated = await updateWorkspace.mutateAsync({ id: workspaceId, data: { name: name.trim(), slug: slug.trim() } })
+      selectWorkspace({ ...currentWorkspace!, id: updated.id, name: updated.name, slug: updated.slug })
+      toast.success('Workspace updated')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update Organization')
+      toast.error(error instanceof Error ? error.message : 'Failed to update Workspace')
     }
   }
 
@@ -140,10 +140,10 @@ export default function OrganizationDetailPage() {
   }
 
   const handleInvite = async () => {
-    if (!organizationId || !inviteEmail.trim()) return
+    if (!workspaceId || !inviteEmail.trim()) return
     try {
       await createInvite.mutateAsync({
-        orgId: organizationId,
+        workspaceId: workspaceId,
         data: { email: inviteEmail.trim(), role: inviteRole, project_ids: inviteProjectIds },
       })
       toast.success('Invitation created')
@@ -157,9 +157,9 @@ export default function OrganizationDetailPage() {
   }
 
   const handleRemoveMember = async () => {
-    if (!organizationId || !memberToRemove) return
+    if (!workspaceId || !memberToRemove) return
     try {
-      const result = await removeMember.mutateAsync({ orgId: organizationId, userId: memberToRemove.user_id })
+      const result = await removeMember.mutateAsync({ workspaceId: workspaceId, userId: memberToRemove.user_id })
       toast.success('Member removed', { description: `${result.project_accesses_removed} Project access(es) revoked.` })
       setMemberToRemove(null)
     } catch (error) {
@@ -168,9 +168,9 @@ export default function OrganizationDetailPage() {
   }
 
   const handleCancelInvite = async (invite: Invite) => {
-    if (!organizationId) return
+    if (!workspaceId) return
     try {
-      await cancelInvite.mutateAsync({ orgId: organizationId, inviteId: invite.id })
+      await cancelInvite.mutateAsync({ workspaceId: workspaceId, inviteId: invite.id })
       toast.success('Invitation cancelled')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to cancel invitation')
@@ -192,24 +192,24 @@ export default function OrganizationDetailPage() {
     }
   }
 
-  if (organizationQuery.isLoading) return <LoadingState />
-  if (organizationQuery.isError) return <ErrorState error={organizationQuery.error} onRetry={organizationQuery.refetch} />
-  if (!org) return <ErrorState message="Organization not found" />
+  if (workspaceQuery.isLoading) return <LoadingState />
+  if (workspaceQuery.isError) return <ErrorState error={workspaceQuery.error} onRetry={workspaceQuery.refetch} />
+  if (!workspace) return <ErrorState message="Workspace not found" />
 
   const overview = (
     <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
       <Card>
-        <CardHeader><CardTitle>Organization details</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Workspace details</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div><label className="mb-1.5 block text-xs font-medium text-muted">Name</label><Input value={name} onChange={(event) => setName(event.target.value)} disabled={!canManageOrganization} /></div>
-          <div><label className="mb-1.5 block text-xs font-medium text-muted">Slug</label><Input value={slug} onChange={(event) => setSlug(event.target.value)} disabled={!canManageOrganization} /></div>
-          <div className="grid gap-3 rounded-xl border border-border bg-background/35 p-4 text-xs text-muted sm:grid-cols-2"><span>ID<br /><code className="text-slate-300">{org.id}</code></span><span>Created<br /><strong className="font-medium text-slate-300">{formatDate(org.created_at)}</strong></span></div>
-          {canManageOrganization ? <div className="flex justify-end"><Button onClick={handleSave} loading={updateOrganization.isPending}>Save changes</Button></div> : <p className="text-xs text-muted">Organization details are read-only for your role.</p>}
+          <div><label className="mb-1.5 block text-xs font-medium text-muted">Name</label><Input value={name} onChange={(event) => setName(event.target.value)} disabled={!canManageWorkspace} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-muted">Slug</label><Input value={slug} onChange={(event) => setSlug(event.target.value)} disabled={!canManageWorkspace} /></div>
+          <div className="grid gap-3 rounded-xl border border-border bg-background/35 p-4 text-xs text-muted sm:grid-cols-2"><span>ID<br /><code className="text-slate-300">{workspace.id}</code></span><span>Created<br /><strong className="font-medium text-slate-300">{formatDate(workspace.created_at)}</strong></span></div>
+          {canManageWorkspace ? <div className="flex justify-end"><Button onClick={handleSave} loading={updateWorkspace.isPending}>Save changes</Button></div> : <p className="text-xs text-muted">Workspace details are read-only for your role.</p>}
         </CardContent>
       </Card>
       <div className="space-y-4">
-        <Card><CardHeader><CardTitle>Operating model</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-muted"><p><strong className="text-white">Organization</strong> owns plan, people and limits.</p><p><strong className="text-white">Projects</strong> isolate Agents, Knowledge, Tools, runtime and observability.</p><p><strong className="text-white">Project access</strong> is binary in the MVP.</p></CardContent></Card>
-        <Card><CardHeader><CardTitle>Quick actions</CardTitle></CardHeader><CardContent className="grid gap-2"><Button variant="outline" onClick={() => navigate(`/organizations/${organizationId}/projects`)}><FolderKanban className="mr-2 h-4 w-4" />Open Projects</Button><Button variant="outline" onClick={() => navigate(`/organizations/${organizationId}/billing`)}><CreditCard className="mr-2 h-4 w-4" />Open Billing</Button>{canManageOrganization && <Button onClick={() => setShowInvite(true)}><UserPlus className="mr-2 h-4 w-4" />Invite member</Button>}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Operating model</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-muted"><p><strong className="text-white">Workspace</strong> owns plan, people and limits.</p><p><strong className="text-white">Projects</strong> isolate Agents, Knowledge, Tools, runtime and observability.</p><p><strong className="text-white">Project access</strong> is binary in the MVP.</p></CardContent></Card>
+        <Card><CardHeader><CardTitle>Quick actions</CardTitle></CardHeader><CardContent className="grid gap-2"><Button variant="outline" onClick={() => navigate(`/workspaces/${workspaceId}/projects`)}><FolderKanban className="mr-2 h-4 w-4" />Open Projects</Button><Button variant="outline" onClick={() => navigate(`/workspaces/${workspaceId}/billing`)}><CreditCard className="mr-2 h-4 w-4" />Open Billing</Button>{canManageWorkspace && <Button onClick={() => setShowInvite(true)}><UserPlus className="mr-2 h-4 w-4" />Invite member</Button>}</CardContent></Card>
       </div>
     </div>
   )
@@ -217,14 +217,14 @@ export default function OrganizationDetailPage() {
   const people = (
     <div className="space-y-5">
       <Card>
-        <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>People</CardTitle><p className="mt-1 text-xs text-muted">Active memberships and invitations awaiting acceptance.</p></div>{canManageOrganization && <Button size="sm" onClick={() => setShowInvite(true)}><UserPlus className="mr-2 h-4 w-4" />Invite</Button>}</div></CardHeader>
+        <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>People</CardTitle><p className="mt-1 text-xs text-muted">Active memberships and invitations awaiting acceptance.</p></div>{canManageWorkspace && <Button size="sm" onClick={() => setShowInvite(true)}><UserPlus className="mr-2 h-4 w-4" />Invite</Button>}</div></CardHeader>
         <CardContent className="space-y-2">
           {members.map((member) => (
             <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border bg-background/30 p-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary-light">{initials(member.email)}</div>
               <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{member.email}</p><p className="mt-0.5 text-xs text-muted">{member.access_mode === 'implicit_owner' ? 'All Projects · implicit access' : `${member.project_access_count} assigned Project(s)`}</p></div>
               <StatusBadge status={member.role} /><StatusBadge status="active" />
-              {canManageOrganization && member.role !== 'owner' && !(currentRole === 'admin' && member.role === 'admin') && <Button size="sm" variant="outline" onClick={() => setMemberToRemove(member)}><UserMinus className="mr-1 h-3.5 w-3.5" />Remove</Button>}
+              {canManageWorkspace && member.role !== 'owner' && !(currentRole === 'admin' && member.role === 'admin') && <Button size="sm" variant="outline" onClick={() => setMemberToRemove(member)}><UserMinus className="mr-1 h-3.5 w-3.5" />Remove</Button>}
             </div>
           ))}
           {pendingInvites.map((invite) => (
@@ -243,7 +243,7 @@ export default function OrganizationDetailPage() {
   )
 
   const projectAccess = (
-    canManageOrganization ? (
+    canManageWorkspace ? (
       <div className="grid min-h-[480px] overflow-hidden rounded-xl border border-border bg-surface/50 lg:grid-cols-[280px_1fr]">
         <aside className="border-b border-border p-3 lg:border-b-0 lg:border-r">
           <div className="px-2 pb-3"><p className="text-sm font-semibold text-white">Projects</p><p className="mt-1 text-xs text-muted">Choose a Project to manage full access.</p></div>
@@ -254,44 +254,44 @@ export default function OrganizationDetailPage() {
           {rosterQuery.isLoading ? <LoadingState message="Loading access roster" variant="panel" /> : selectedProject ? <div className="space-y-2">{roster.map((subject) => {
             const enabled = subject.project_access !== 'none'
             const locked = subject.project_access === 'implicit'
-            return <div key={`${subject.subject_type}:${subject.subject_id}`} className="flex items-center gap-3 rounded-xl border border-border bg-background/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary-light">{subject.subject_type === 'invite' ? <Mail className="h-4 w-4" /> : initials(subject.email)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{subject.email}</p><p className="mt-0.5 text-xs text-muted">{subject.subject_type === 'invite' ? 'Invitation pending' : `${subject.organization_role} · active member`}</p></div><StatusBadge status={subject.organization_role} /><button type="button" disabled={locked || grantAccess.isPending || revokeAccess.isPending} onClick={() => handleAccess(subject)} className={`min-w-28 rounded-lg border px-3 py-2 text-xs font-medium ${locked ? 'cursor-not-allowed border-primary/20 bg-primary/10 text-primary-light' : enabled ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-border bg-background/50 text-muted hover:border-primary/30 hover:text-white'}`}>{locked ? 'Implicit' : subject.project_access === 'pending' ? 'On acceptance' : subject.project_access === 'active' ? 'Enabled' : 'No access'}</button></div>
+            return <div key={`${subject.subject_type}:${subject.subject_id}`} className="flex items-center gap-3 rounded-xl border border-border bg-background/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary-light">{subject.subject_type === 'invite' ? <Mail className="h-4 w-4" /> : initials(subject.email)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">{subject.email}</p><p className="mt-0.5 text-xs text-muted">{subject.subject_type === 'invite' ? 'Invitation pending' : `${subject.workspace_role} · active member`}</p></div><StatusBadge status={subject.workspace_role} /><button type="button" disabled={locked || grantAccess.isPending || revokeAccess.isPending} onClick={() => handleAccess(subject)} className={`min-w-28 rounded-lg border px-3 py-2 text-xs font-medium ${locked ? 'cursor-not-allowed border-primary/20 bg-primary/10 text-primary-light' : enabled ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-border bg-background/50 text-muted hover:border-primary/30 hover:text-white'}`}>{locked ? 'Implicit' : subject.project_access === 'pending' ? 'On acceptance' : subject.project_access === 'active' ? 'Enabled' : 'No access'}</button></div>
           })}</div> : <p className="text-sm text-muted">No Projects available.</p>}
         </section>
       </div>
-    ) : <Card><CardContent className="py-12 text-center"><ShieldCheck className="mx-auto h-8 w-8 text-muted" /><p className="mt-3 text-sm font-medium text-white">Project access management is restricted</p><p className="mt-1 text-xs text-muted">Only Organization owners and admins can manage Project access.</p></CardContent></Card>
+    ) : <Card><CardContent className="py-12 text-center"><ShieldCheck className="mx-auto h-8 w-8 text-muted" /><p className="mt-3 text-sm font-medium text-white">Project access management is restricted</p><p className="mt-1 text-xs text-muted">Only Workspace owners and admins can manage Project access.</p></CardContent></Card>
   )
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title={org.name}
-        description={`/${org.slug} · Organization workspace`}
-        actions={<div className="flex items-center gap-2"><Button variant="outline" onClick={() => navigate('/organizations')}><ArrowLeft className="mr-2 h-4 w-4" />Organizations</Button><Button onClick={() => navigate(`/organizations/${organizationId}/projects`)}>Open Projects</Button></div>}
+        title={workspace.name}
+        description={`/${workspace.slug} · Workspace`}
+        actions={<div className="flex items-center gap-2"><Button variant="outline" onClick={() => navigate('/workspaces')}><ArrowLeft className="mr-2 h-4 w-4" />Workspaces</Button><Button onClick={() => navigate(`/workspaces/${workspaceId}/projects`)}>Open Projects</Button></div>}
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface/60 px-4 py-3"><Building2 className="h-4 w-4 text-primary-light" /><span className="text-sm font-medium text-white">{org.name}</span><StatusBadge status={currentRole} /><StatusBadge status={org.status} /><span className="ml-auto text-xs text-muted">Commercial workspace · Project isolation boundary</span></div>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface/60 px-4 py-3"><Building2 className="h-4 w-4 text-primary-light" /><span className="text-sm font-medium text-white">{workspace.name}</span><StatusBadge status={currentRole} /><StatusBadge status={workspace.status} /><span className="ml-auto text-xs text-muted">Commercial workspace · Project isolation boundary</span></div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="People" value={peopleCount} detail={`${members.length} active · ${pendingInvites.length} pending`} icon={<Users className="h-4 w-4" />} />
         <SummaryCard label="Projects" value={projectCount} detail="Accessible technical boundaries" icon={<FolderKanban className="h-4 w-4" />} />
         <SummaryCard label="Access grants" value={explicitProjectAccesses} detail="Active explicit assignments" icon={<ShieldCheck className="h-4 w-4" />} />
-        <SummaryCard label="Role" value={currentRole.toUpperCase()} detail={canManageOrganization ? 'Organization management' : 'Read-only Organization view'} icon={<Building2 className="h-4 w-4" />} />
+        <SummaryCard label="Role" value={currentRole.toUpperCase()} detail={canManageWorkspace ? 'Workspace management' : 'Read-only Workspace view'} icon={<Building2 className="h-4 w-4" />} />
       </div>
 
       <Tabs tabs={[{ id: 'overview', label: 'Overview', content: overview }, { id: 'people', label: `People (${peopleCount})`, content: people }, { id: 'access', label: 'Project Access', content: projectAccess }]} />
 
-      <Dialog open={showInvite && canManageOrganization} onClose={() => setShowInvite(false)} title="Invite member" className="max-w-xl" scrollMode="content">
+      <Dialog open={showInvite && canManageWorkspace} onClose={() => setShowInvite(false)} title="Invite member" className="max-w-xl" scrollMode="content">
         <div className="space-y-5">
           <div><label className="mb-1.5 block text-xs font-medium text-muted">Email</label><Input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="person@company.com" /></div>
-          <div className="space-y-2"><p className="text-xs font-medium text-muted">Organization role</p><RoleChoice active={inviteRole === 'member'} title="Member" description="Can operate only Projects explicitly assigned to this person." onClick={() => setInviteRole('member')} />{canInviteAdmin && <RoleChoice active={inviteRole === 'admin'} title="Admin" description="Can manage the Organization and Project access, but still needs explicit access to operate a Project." onClick={() => setInviteRole('admin')} />}</div>
+          <div className="space-y-2"><p className="text-xs font-medium text-muted">Workspace role</p><RoleChoice active={inviteRole === 'member'} title="Member" description="Can operate only Projects explicitly assigned to this person." onClick={() => setInviteRole('member')} />{canInviteAdmin && <RoleChoice active={inviteRole === 'admin'} title="Admin" description="Can manage the Workspace and Project access, but still needs explicit access to operate a Project." onClick={() => setInviteRole('admin')} />}</div>
           <div><div className="mb-2"><p className="text-xs font-medium text-muted">Project access after acceptance</p><p className="mt-1 text-xs text-muted">Optional. Selected Projects become available immediately when the invitation is accepted.</p></div><div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border bg-background/30 p-2">{projects.length ? projects.map((project) => <label key={project.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-surface/70"><input type="checkbox" checked={inviteProjectIds.includes(project.id)} onChange={() => toggleInviteProject(project.id)} className="h-4 w-4 rounded border-border accent-blue-500" /><span className="min-w-0"><span className="block truncate text-sm text-white">{project.name}</span><span className="block truncate text-xs text-muted">/{project.slug}</span></span></label>) : <p className="p-3 text-xs text-muted">No Projects available.</p>}</div></div>
-          <div className="rounded-xl border border-border bg-background/35 p-3 text-xs text-muted">{inviteProjectIds.length ? `${inviteProjectIds.length} Project access grant(s) will be prepared.` : 'The person will join the Organization without Project access.'}</div>
+          <div className="rounded-xl border border-border bg-background/35 p-3 text-xs text-muted">{inviteProjectIds.length ? `${inviteProjectIds.length} Project access grant(s) will be prepared.` : 'The person will join the Workspace without Project access.'}</div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button><Button onClick={handleInvite} loading={createInvite.isPending} disabled={!inviteEmail.trim()}>Send invitation</Button></div>
         </div>
       </Dialog>
 
-      <Dialog open={Boolean(memberToRemove)} onClose={() => setMemberToRemove(null)} title="Remove member from Organization?">
-        <div className="space-y-4"><p className="text-sm text-muted"><strong className="text-white">{memberToRemove?.email}</strong> will lose access to this Organization.</p><div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-xs leading-5 text-red-100"><p>{memberToRemove?.project_access_count ?? 0} active Project access(es) will be revoked.</p><p>Pending access grants for this email will be cancelled.</p><p>Historical traces, releases and audit data remain unchanged.</p></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} loading={removeMember.isPending}>Remove member</Button></div></div>
+      <Dialog open={Boolean(memberToRemove)} onClose={() => setMemberToRemove(null)} title="Remove member from Workspace?">
+        <div className="space-y-4"><p className="text-sm text-muted"><strong className="text-white">{memberToRemove?.email}</strong> will lose access to this Workspace.</p><div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-xs leading-5 text-red-100"><p>{memberToRemove?.project_access_count ?? 0} active Project access(es) will be revoked.</p><p>Pending access grants for this email will be cancelled.</p><p>Historical traces, releases and audit data remain unchanged.</p></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} loading={removeMember.isPending}>Remove member</Button></div></div>
       </Dialog>
     </div>
   )

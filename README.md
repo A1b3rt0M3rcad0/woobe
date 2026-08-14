@@ -46,13 +46,13 @@ Rollback when needed
 - **BYOK providers** — use your own model-provider credentials.
 - **ChatSurface** — embed released Agents or Networks using server-side Access Keys and short-lived browser tokens.
 - **Metering** — operational usage accounting kept separate from managed-service billing.
-- **Organizations and Projects** — commercial membership separated from technical isolation.
+- **Workspaces and Projects** — commercial membership separated from technical isolation.
 
 ## Core concepts
 
 | Concept | Responsibility |
 | --- | --- |
-| **Organization** | Commercial and membership boundary. Owns members and Projects. |
+| **Workspace** | Commercial and membership boundary. Owns members and Projects. |
 | **Project** | Technical isolation boundary for Agents, Networks, Tools, Knowledge, runtime, Runs, and Traces. |
 | **Agent** | Mutable AI configuration during development. |
 | **Agent Release** | Immutable Agent snapshot consumed by Production. |
@@ -90,7 +90,7 @@ API:        http://localhost:8000
 Chat Embed: http://localhost:8081
 ```
 
-The first registration on a fresh Community database bootstraps the instance and creates the first Instance Owner and initial Organization. After bootstrap, Community defaults to invite-only registration.
+The first registration on a fresh Community database bootstraps the instance and creates the first Instance Owner and initial Workspace. After bootstrap, Community defaults to invite-only registration.
 
 For public exposure, backup, restore, TLS, and upgrade requirements, read `docs/SELF_HOSTING.md`.
 

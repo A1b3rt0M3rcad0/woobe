@@ -19,7 +19,7 @@ from modules.core.domain.enums import (
 @dataclass
 class Project:
     id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     name: str = ""
     slug: str = ""
     status: ProjectStatus = ProjectStatus.active

@@ -91,7 +91,7 @@ export function UsageOperations({
   executions,
   groupBy,
   contextLabel,
-  organizationId,
+  workspaceId,
   projectId,
   onSelectDriver,
 }: {
@@ -101,7 +101,7 @@ export function UsageOperations({
   executions: ProjectUsageExecution[]
   groupBy: UsageGroupBy
   contextLabel: string
-  organizationId: string
+  workspaceId: string
   projectId: string
   onSelectDriver: (row: ProjectUsageBreakdownRow) => void
 }) {
@@ -268,7 +268,7 @@ export function UsageOperations({
             <p className="mt-1 text-xs text-muted">Direct Agent Runs and Network Runs. Internal Agent Runs are represented inside their Network Run to avoid duplicate operational rows.</p>
           </div>
           <Link
-            to={`/organizations/${organizationId}/projects/${projectId}/traces`}
+            to={`/workspaces/${workspaceId}/projects/${projectId}/traces`}
             className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary-light hover:text-white"
           >
             Open diagnostics <ExternalLink className="h-3 w-3" />
@@ -282,8 +282,8 @@ export function UsageOperations({
             {executions.slice(0, 8).map((execution) => {
               const isNetwork = execution.run_type === 'network'
               const targetUrl = isNetwork
-                ? `/organizations/${organizationId}/projects/${projectId}/network?network_run_id=${execution.run_id}`
-                : `/organizations/${organizationId}/projects/${projectId}/traces?trace_id=${execution.trace_id ?? execution.run_id}`
+                ? `/workspaces/${workspaceId}/projects/${projectId}/network?network_run_id=${execution.run_id}`
+                : `/workspaces/${workspaceId}/projects/${projectId}/traces?trace_id=${execution.trace_id ?? execution.run_id}`
               return (
                 <div key={`${execution.run_type}-${execution.run_id}`} className="grid gap-3 px-4 py-3 transition-colors hover:bg-background/25 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
                   <div className="min-w-0">

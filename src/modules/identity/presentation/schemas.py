@@ -16,17 +16,17 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class CreateOrganizationRequest(BaseModel):
+class CreateWorkspaceRequest(BaseModel):
     name: str
     slug: str
 
 
-class UpdateOrganizationRequest(BaseModel):
+class UpdateWorkspaceRequest(BaseModel):
     name: str | None = None
     slug: str | None = None
 
 
-class OrganizationResponse(BaseModel):
+class WorkspaceResponse(BaseModel):
     id: UUID
     name: str
     slug: str
@@ -42,7 +42,7 @@ class AddMemberRequest(BaseModel):
 class MemberResponse(BaseModel):
     id: UUID
     user_id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     role: str
     status: str
 
@@ -54,7 +54,7 @@ class InviteRequest(BaseModel):
 
 class InviteResponse(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     email: str
     role: str
     status: str

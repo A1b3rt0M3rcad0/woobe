@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class CreateProjectRequest(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
 
@@ -17,7 +17,7 @@ class UpdateProjectRequest(BaseModel):
 
 class ProjectResponse(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: str

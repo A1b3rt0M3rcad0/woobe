@@ -49,7 +49,7 @@ function DropdownMenu({
 
 export function Topbar() {
   const { user, logout } = useAuth()
-  const { currentOrganization, currentProject, organizations, projects, selectOrganization, selectProject, clearCurrentProject } = useWorkspace()
+  const { currentWorkspace, currentProject, workspaces, projects, selectWorkspace, selectProject, clearCurrentProject } = useWorkspace()
   const navigate = useNavigate()
 
   return (
@@ -59,58 +59,58 @@ export function Topbar() {
           trigger={
             <>
               <Building2 className="h-3.5 w-3.5 shrink-0" />
-              <span className={currentOrganization ? 'text-white' : 'text-primary font-medium'}>
-                {currentOrganization?.name || 'Select organization'}
+              <span className={currentWorkspace ? 'text-white' : 'text-primary font-medium'}>
+                {currentWorkspace?.name || 'Select workspace'}
               </span>
             </>
           }
         >
-          {organizations.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted">No organizations</div>
+          {workspaces.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted">No workspaces</div>
           ) : (
-            organizations.map((org) => (
+            workspaces.map((workspace) => (
               <button
-                key={org.id}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors ${org.id === currentOrganization?.id ? 'text-white' : 'text-muted'}`}
+                key={workspace.id}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors ${workspace.id === currentWorkspace?.id ? 'text-white' : 'text-muted'}`}
                 onClick={() => {
-                  if (org.id !== currentOrganization?.id) {
-                    selectOrganization(org)
-                    navigate(`/organizations/${org.id}/projects`)
+                  if (workspace.id !== currentWorkspace?.id) {
+                    selectWorkspace(workspace)
+                    navigate(`/workspaces/${workspace.id}/projects`)
                   }
                 }}
               >
                 <Building2 className="h-3.5 w-3.5" />
-                {org.name}
+                {workspace.name}
               </button>
             ))
           )}
           <div className="border-t border-border my-1" />
-          {currentOrganization && (
+          {currentWorkspace && (
             <button
               className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-              onClick={() => navigate(`/organizations/${currentOrganization.id}/settings`)}
+              onClick={() => navigate(`/workspaces/${currentWorkspace.id}/settings`)}
             >
               <Settings className="h-3.5 w-3.5" />
-              Organization settings
+              Workspace settings
             </button>
           )}
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-            onClick={() => navigate('/organizations')}
+            onClick={() => navigate('/workspaces')}
           >
             <List className="h-3.5 w-3.5" />
-            Manage organizations
+            Manage workspaces
           </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-            onClick={() => navigate('/organizations')}
+            onClick={() => navigate('/workspaces')}
           >
             <Plus className="h-3.5 w-3.5" />
-            Create organization
+            Create workspace
           </button>
         </DropdownMenu>
 
-        {currentOrganization && (
+        {currentWorkspace && (
           <>
             <span className="text-border">/</span>
             <DropdownMenu
@@ -133,7 +133,7 @@ export function Topbar() {
                     onClick={() => {
                       if (proj.id !== currentProject?.id) {
                         selectProject(proj)
-                        navigate(`/organizations/${currentOrganization.id}/projects/${proj.id}`)
+                        navigate(`/workspaces/${currentWorkspace.id}/projects/${proj.id}`)
                       }
                     }}
                   >
@@ -146,7 +146,7 @@ export function Topbar() {
               {currentProject && (
                 <button
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                  onClick={() => navigate(`/organizations/${currentOrganization.id}/projects/${currentProject.id}/settings`)}
+                  onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects/${currentProject.id}/settings`)}
                 >
                   <Settings className="h-3.5 w-3.5" />
                   Project settings
@@ -154,14 +154,14 @@ export function Topbar() {
               )}
               <button
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                onClick={() => navigate(`/organizations/${currentOrganization.id}/projects`)}
+                onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}
               >
                 <List className="h-3.5 w-3.5" />
                 Manage projects
               </button>
               <button
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                onClick={() => navigate(`/organizations/${currentOrganization.id}/projects`)}
+                onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Create project

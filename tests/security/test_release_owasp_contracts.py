@@ -124,7 +124,7 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
 def test_runtime_security_matrix_covers_private_resource_families() -> None:
     matrix = read("tests/integration/security/test_tenant_authorization_postgres.py")
     for identifier in (
-        "organization_id",
+        "workspace_id",
         "project_id",
         "api_key_id",
         "credential_id",

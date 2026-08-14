@@ -30,7 +30,7 @@ def upgrade() -> None:
         schema="identity",
     )
     op.create_table(
-        "organizations",
+        "workspaces",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -42,27 +42,27 @@ def upgrade() -> None:
         schema="identity",
     )
     op.create_table(
-        "organization_members",
+        "workspace_members",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_id", sa.Uuid(), nullable=False),
         sa.Column("role", sa.String(32), nullable=False),
         sa.Column("status", sa.String(32), nullable=False, server_default=sa.text("'active'")),
         sa.Column("joined_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("organization_id", "user_id"),
+        sa.UniqueConstraint("workspace_id", "user_id"),
         sa.ForeignKeyConstraint(["user_id"], ["identity.users.id"]),
-        sa.ForeignKeyConstraint(["organization_id"], ["identity.organizations.id"]),
+        sa.ForeignKeyConstraint(["workspace_id"], ["identity.workspaces.id"]),
         schema="identity",
     )
     op.create_table(
-        "organization_invites",
+        "workspace_invites",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_id", sa.Uuid(), nullable=False),
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("role", sa.String(32), nullable=False),
         sa.Column("token_hash", sa.String(255), nullable=False),
@@ -71,8 +71,8 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(), nullable=False),
         sa.Column("accepted_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("organization_id", "email"),
-        sa.ForeignKeyConstraint(["organization_id"], ["identity.organizations.id"]),
+        sa.UniqueConstraint("workspace_id", "email"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["identity.workspaces.id"]),
         sa.ForeignKeyConstraint(["invited_by_user_id"], ["identity.users.id"]),
         schema="identity",
     )
@@ -140,14 +140,14 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("slug", sa.String(128), nullable=False),
         sa.Column("status", sa.String(32), nullable=False, server_default=sa.text("'active'")),
         sa.Column("data", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("organization_id", "slug"),
-        sa.ForeignKeyConstraint(["organization_id"], ["identity.organizations.id"]),
+        sa.UniqueConstraint("workspace_id", "slug"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["identity.workspaces.id"]),
         schema="core",
     )
     op.create_table(
@@ -689,14 +689,14 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_id", sa.Uuid(), nullable=False),
         sa.Column("provider", sa.String(64), nullable=False),
         sa.Column("provider_customer_id", sa.String(255), nullable=False),
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("data", postgresql.JSONB(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("provider", "provider_customer_id"),
-        sa.ForeignKeyConstraint(["organization_id"], ["identity.organizations.id"]),
+        sa.ForeignKeyConstraint(["workspace_id"], ["identity.workspaces.id"]),
         schema="billing",
     )
     op.create_table(
@@ -745,7 +745,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("organization_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_id", sa.Uuid(), nullable=False),
         sa.Column("customer_id", sa.Uuid(), nullable=False),
         sa.Column("plan_id", sa.Uuid(), nullable=False),
         sa.Column("provider", sa.String(64), nullable=False),
@@ -756,7 +756,7 @@ def upgrade() -> None:
         sa.Column("trial_ends_at", sa.DateTime(), nullable=True),
         sa.Column("canceled_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(["organization_id"], ["identity.organizations.id"]),
+        sa.ForeignKeyConstraint(["workspace_id"], ["identity.workspaces.id"]),
         sa.ForeignKeyConstraint(["customer_id"], ["billing.customers.id"]),
         sa.ForeignKeyConstraint(["plan_id"], ["billing.plans.id"]),
         schema="billing",
@@ -923,7 +923,7 @@ def downgrade() -> None:
     op.drop_table("inbox_events", schema="identity")
     op.drop_table("outbox_events", schema="identity")
     op.drop_table("user_sessions", schema="identity")
-    op.drop_table("organization_invites", schema="identity")
-    op.drop_table("organization_members", schema="identity")
-    op.drop_table("organizations", schema="identity")
+    op.drop_table("workspace_invites", schema="identity")
+    op.drop_table("workspace_members", schema="identity")
+    op.drop_table("workspaces", schema="identity")
     op.drop_table("users", schema="identity")

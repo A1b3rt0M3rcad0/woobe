@@ -60,7 +60,7 @@ export default function RegisterPage() {
 
         <div className="flex items-start gap-2 rounded-xl border border-border/80 bg-background/45 p-3 text-xs leading-5 text-muted">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-light" />
-          <p>A private Organization is provisioned automatically. You can rename it and invite members later.</p>
+          <p>A private Workspace is provisioned automatically. You can rename it and invite members later.</p>
         </div>
 
         {errors.root && (

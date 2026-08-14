@@ -17,7 +17,7 @@ Recommended branch prefixes: `feature/`, `fix/`, `chore/`, `docs/` and `ci/`.
 
 Business rules belong in the backend. Frontend checks must not be the only barrier for ownership, permissions, release immutability, rollback, document uniqueness, credential security or runtime authorization.
 
-The primary technical isolation unit is Project. Organization is the commercial/membership unit. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
+The primary technical isolation unit is Project. Workspace is the commercial/membership unit. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
 
 The public Community product code lives under `src/modules/**`, `src/shared/**` and the shared frontend tree. Proprietary product implementation is not part of the Community source tree. Community code and build contracts must remain runnable without proprietary source.
 

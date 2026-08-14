@@ -165,7 +165,7 @@ function traceNewestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
 }
 
 export default function NetworkPage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
   const { currentProject } = useWorkspace()
   const networkQuery = useNetwork(projectId, currentProject?.name || 'Project')
@@ -876,7 +876,7 @@ export default function NetworkPage() {
   return (
     <div className="flex h-screen min-w-0 flex-col overflow-hidden bg-background">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-3">
-        <button type="button" onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted"><ChevronLeft className="h-4 w-4" /></button>
+        <button type="button" onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}`)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted"><ChevronLeft className="h-4 w-4" /></button>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-semibold text-white">{currentProject?.name || 'Project'} Network</h1>

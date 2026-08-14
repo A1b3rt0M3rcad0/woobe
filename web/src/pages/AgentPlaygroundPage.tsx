@@ -6,7 +6,7 @@ import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHeader'
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
@@ -124,7 +124,7 @@ function AgentPlaygroundSkeleton() {
 }
 
 function PlaygroundContent() {
-  const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
   const { data: releases = [] } = useReleases(agentId)
@@ -135,7 +135,7 @@ function PlaygroundContent() {
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
 
-  const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
+  const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
   const stagingRelease = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
   const productionRelease = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
   const currentEnvironmentRelease = environment === 'staging' ? stagingRelease : environment === 'production' ? productionRelease : null
@@ -528,13 +528,13 @@ function PlaygroundContent() {
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
-      <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
+      <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
     </ErrorBoundary>
   )
 }
 
 export default function AgentPlaygroundPage() {
-  const { projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const { data: agent, isLoading } = useAgent(agentId)
   if (isLoading) return <AgentPlaygroundSkeleton />
   if (!agent) return <ErrorState message="Agent not found" />

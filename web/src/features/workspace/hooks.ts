@@ -1,9 +1,9 @@
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import type { OrgShape, ProjectShape } from '@/features/workspace/types'
+import type { WorkspaceShape, ProjectShape } from '@/features/workspace/types'
 
-export function useCurrentOrganization() {
-  const { currentOrganization, organizations, selectOrganization, isLoadingOrganizations } = useWorkspace()
-  return { currentOrganization, organizations, selectOrganization, isLoading: isLoadingOrganizations }
+export function useCurrentWorkspace() {
+  const { currentWorkspace, workspaces, selectWorkspace, isLoadingWorkspaces } = useWorkspace()
+  return { currentWorkspace, workspaces, selectWorkspace, isLoading: isLoadingWorkspaces }
 }
 
 export function useCurrentProject() {
@@ -14,7 +14,7 @@ export function useCurrentProject() {
     selectProject: ws.selectProject,
     clearCurrentProject: ws.clearCurrentProject,
     isLoading: ws.isLoadingProjects,
-    currentOrganization: ws.currentOrganization,
+    currentWorkspace: ws.currentWorkspace,
   }
 }
 
@@ -22,8 +22,8 @@ export function useWorkspaceHelpers() {
   const ws = useWorkspace()
   return {
     clearCurrentProject: ws.clearCurrentProject,
-    clearCurrentOrganization: ws.clearCurrentOrganization,
-    selectOrganization: ws.selectOrganization,
+    clearCurrentWorkspace: ws.clearCurrentWorkspace,
+    selectWorkspace: ws.selectWorkspace,
     selectProject: ws.selectProject,
   }
 }

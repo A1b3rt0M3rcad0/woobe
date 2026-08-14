@@ -4,14 +4,14 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserStatus,
 )
 from modules.identity.application.dtos import (
     AddMemberInput,
     AddMemberOutput,
-    CreateOrganizationInput,
-    CreateOrganizationOutput,
+    CreateWorkspaceInput,
+    CreateWorkspaceOutput,
     CreateUserInput,
     CreateUserOutput,
     InviteUserInput,
@@ -53,34 +53,34 @@ class TestCreateUserOutput:
         assert "created_at" in fields
 
 
-class TestCreateOrganizationInput:
+class TestCreateWorkspaceInput:
     def test_creation(self):
-        dto = CreateOrganizationInput(name="MyOrg", slug="my-org")
-        assert dto.name == "MyOrg"
-        assert dto.slug == "my-org"
+        dto = CreateWorkspaceInput(name="MyWorkspace", slug="my-workspace")
+        assert dto.name == "MyWorkspace"
+        assert dto.slug == "my-workspace"
 
     def test_field_presence(self):
-        fields = CreateOrganizationInput.model_fields
+        fields = CreateWorkspaceInput.model_fields
         assert "name" in fields
         assert "slug" in fields
 
 
-class TestCreateOrganizationOutput:
+class TestCreateWorkspaceOutput:
     def test_creation(self):
         uid = UUID("00000000-0000-0000-0000-000000000002")
-        dto = CreateOrganizationOutput(
+        dto = CreateWorkspaceOutput(
             id=uid,
-            name="MyOrg",
-            slug="my-org",
-            status=OrganizationStatus.active,
+            name="MyWorkspace",
+            slug="my-workspace",
+            status=WorkspaceStatus.active,
             created_at="2025-01-01T00:00:00Z",
         )
-        assert dto.name == "MyOrg"
-        assert dto.slug == "my-org"
-        assert dto.status == OrganizationStatus.active
+        assert dto.name == "MyWorkspace"
+        assert dto.slug == "my-workspace"
+        assert dto.status == WorkspaceStatus.active
 
     def test_field_presence(self):
-        fields = CreateOrganizationOutput.model_fields
+        fields = CreateWorkspaceOutput.model_fields
         assert "id" in fields
         assert "name" in fields
         assert "slug" in fields
@@ -92,21 +92,21 @@ class TestAddMemberInput:
     def test_creation(self):
         uid = UUID("00000000-0000-0000-0000-000000000003")
         oid = UUID("00000000-0000-0000-0000-000000000004")
-        dto = AddMemberInput(user_id=uid, organization_id=oid, role=MemberRole.admin)
+        dto = AddMemberInput(user_id=uid, workspace_id=oid, role=MemberRole.admin)
         assert dto.user_id == uid
-        assert dto.organization_id == oid
+        assert dto.workspace_id == oid
         assert dto.role == MemberRole.admin
 
     def test_default_role(self):
         uid = UUID("00000000-0000-0000-0000-000000000003")
         oid = UUID("00000000-0000-0000-0000-000000000004")
-        dto = AddMemberInput(user_id=uid, organization_id=oid)
+        dto = AddMemberInput(user_id=uid, workspace_id=oid)
         assert dto.role == MemberRole.member
 
     def test_field_presence(self):
         fields = AddMemberInput.model_fields
         assert "user_id" in fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "role" in fields
 
 
@@ -115,7 +115,7 @@ class TestAddMemberOutput:
         dto = AddMemberOutput(
             id=UUID("00000000-0000-0000-0000-000000000005"),
             user_id=UUID("00000000-0000-0000-0000-000000000006"),
-            organization_id=UUID("00000000-0000-0000-0000-000000000007"),
+            workspace_id=UUID("00000000-0000-0000-0000-000000000007"),
             role=MemberRole.member,
             status=MemberStatus.active,
             joined_at="2025-01-01T00:00:00Z",
@@ -127,7 +127,7 @@ class TestAddMemberOutput:
         fields = AddMemberOutput.model_fields
         assert "id" in fields
         assert "user_id" in fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "role" in fields
         assert "status" in fields
         assert "joined_at" in fields
@@ -138,12 +138,12 @@ class TestInviteUserInput:
         oid = UUID("00000000-0000-0000-0000-000000000008")
         uid = UUID("00000000-0000-0000-0000-000000000009")
         dto = InviteUserInput(
-            organization_id=oid,
+            workspace_id=oid,
             email="invite@test.com",
             role=MemberRole.viewer,
             invited_by_user_id=uid,
         )
-        assert dto.organization_id == oid
+        assert dto.workspace_id == oid
         assert dto.email == "invite@test.com"
         assert dto.role == MemberRole.viewer
         assert dto.invited_by_user_id == uid
@@ -152,7 +152,7 @@ class TestInviteUserInput:
         oid = UUID("00000000-0000-0000-0000-000000000008")
         uid = UUID("00000000-0000-0000-0000-000000000009")
         dto = InviteUserInput(
-            organization_id=oid,
+            workspace_id=oid,
             email="invite@test.com",
             invited_by_user_id=uid,
         )
@@ -160,7 +160,7 @@ class TestInviteUserInput:
 
     def test_field_presence(self):
         fields = InviteUserInput.model_fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "email" in fields
         assert "role" in fields
         assert "invited_by_user_id" in fields
@@ -170,7 +170,7 @@ class TestInviteUserOutput:
     def test_creation(self):
         dto = InviteUserOutput(
             id=UUID("00000000-0000-0000-0000-000000000010"),
-            organization_id=UUID("00000000-0000-0000-0000-000000000011"),
+            workspace_id=UUID("00000000-0000-0000-0000-000000000011"),
             email="invite@test.com",
             role=MemberRole.member,
             status=InviteStatus.pending,
@@ -182,7 +182,7 @@ class TestInviteUserOutput:
     def test_field_presence(self):
         fields = InviteUserOutput.model_fields
         assert "id" in fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "email" in fields
         assert "role" in fields
         assert "status" in fields

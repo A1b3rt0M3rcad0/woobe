@@ -6,7 +6,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
   User,
-  Organization,
+  Workspace,
 } from './types'
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
@@ -42,6 +42,6 @@ export async function getCurrentUser(): Promise<User> {
   return get<User>('/identity/users/me')
 }
 
-export async function getOrganizations(): Promise<Organization[]> {
-  return get<Organization[]>('/identity/organizations')
+export async function getWorkspaces(): Promise<Workspace[]> {
+  return get<Workspace[]>('/identity/workspaces')
 }

@@ -15,9 +15,9 @@ from shared.infra.config import Settings
 _PROJECT_INSERT = text(
     """
     INSERT INTO core.projects (
-        id, organization_id, name, slug, status, data
+        id, workspace_id, name, slug, status, data
     ) VALUES (
-        :id, :organization_id, :name, :slug, 'active', CAST(:data AS jsonb)
+        :id, :workspace_id, :name, :slug, 'active', CAST(:data AS jsonb)
     )
     """
 )
@@ -112,7 +112,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
 
     project_id = uuid4()
     other_project_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     prod_agent_id = uuid4()
     staging_agent_id = uuid4()
     draft_agent_id = uuid4()
@@ -136,14 +136,14 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                 [
                     {
                         "id": project_id,
-                        "organization_id": organization_id,
+                        "workspace_id": workspace_id,
                         "name": "Overview fixture",
                         "slug": f"overview-{project_id.hex[:12]}",
                         "data": "{}",
                     },
                     {
                         "id": other_project_id,
-                        "organization_id": organization_id,
+                        "workspace_id": workspace_id,
                         "name": "Isolation fixture",
                         "slug": f"isolation-{other_project_id.hex[:12]}",
                         "data": "{}",

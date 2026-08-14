@@ -7,35 +7,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
     User,
     UserSession,
 )
 from modules.identity.domain.repositories import (
-    OrganizationInviteRepository as OrganizationInviteRepositoryInterface,
-    OrganizationMemberRepository as OrganizationMemberRepositoryInterface,
-    OrganizationRepository as OrganizationRepositoryInterface,
+    WorkspaceInviteRepository as WorkspaceInviteRepositoryInterface,
+    WorkspaceMemberRepository as WorkspaceMemberRepositoryInterface,
+    WorkspaceRepository as WorkspaceRepositoryInterface,
     UserRepository as UserRepositoryInterface,
     UserSessionRepository as UserSessionRepositoryInterface,
 )
 from modules.identity.infra.database.mappers import (
-    organization_invite_entity_to_model,
-    organization_invite_model_to_entity,
-    organization_member_entity_to_model,
-    organization_member_model_to_entity,
-    organization_entity_to_model,
-    organization_model_to_entity,
+    workspace_invite_entity_to_model,
+    workspace_invite_model_to_entity,
+    workspace_member_entity_to_model,
+    workspace_member_model_to_entity,
+    workspace_entity_to_model,
+    workspace_model_to_entity,
     user_entity_to_model,
     user_model_to_entity,
     user_session_entity_to_model,
     user_session_model_to_entity,
 )
 from modules.identity.infra.database.models import (
-    OrganizationInviteModel,
-    OrganizationMemberModel,
-    OrganizationModel,
+    WorkspaceInviteModel,
+    WorkspaceMemberModel,
+    WorkspaceModel,
     OutboxEventModel,
     UserModel,
     UserSessionModel,
@@ -74,103 +74,103 @@ class SQLAlchemyUserRepository(BaseSQLAlchemyRepository[UserModel], UserReposito
             await self._delete_model(model)
 
 
-class SQLAlchemyOrganizationRepository(
-    BaseSQLAlchemyRepository[OrganizationModel], OrganizationRepositoryInterface
+class SQLAlchemyWorkspaceRepository(
+    BaseSQLAlchemyRepository[WorkspaceModel], WorkspaceRepositoryInterface
 ):
 
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, OrganizationModel)
+        super().__init__(session, WorkspaceModel)
 
-    async def save(self, organization: Organization) -> Organization:
-        model = organization_entity_to_model(organization)
+    async def save(self, workspace: Workspace) -> Workspace:
+        model = workspace_entity_to_model(workspace)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)
-        return organization_model_to_entity(model)
+        return workspace_model_to_entity(model)
 
-    async def get_by_id(self, organization_id: UUID) -> Organization | None:
-        model = await self._get_model_by_id(organization_id)
-        return organization_model_to_entity(model) if model else None
+    async def get_by_id(self, workspace_id: UUID) -> Workspace | None:
+        model = await self._get_model_by_id(workspace_id)
+        return workspace_model_to_entity(model) if model else None
 
-    async def get_by_slug(self, slug: str) -> Organization | None:
+    async def get_by_slug(self, slug: str) -> Workspace | None:
         result = await self._session.execute(
-            select(OrganizationModel).where(OrganizationModel.slug == slug)
+            select(WorkspaceModel).where(WorkspaceModel.slug == slug)
         )
         model = result.scalar_one_or_none()
-        return organization_model_to_entity(model) if model else None
+        return workspace_model_to_entity(model) if model else None
 
-    async def list_all(self) -> list[Organization]:
+    async def list_all(self) -> list[Workspace]:
         from sqlalchemy import select as sa_select
-        stmt = sa_select(OrganizationModel).order_by(OrganizationModel.created_at.desc())
+        stmt = sa_select(WorkspaceModel).order_by(WorkspaceModel.created_at.desc())
         result = await self._session.execute(stmt)
-        return [organization_model_to_entity(o) for o in result.scalars().all()]
+        return [workspace_model_to_entity(workspace) for workspace in result.scalars().all()]
 
-    async def delete(self, organization_id: UUID) -> None:
-        model = await self._get_model_by_id(organization_id)
+    async def delete(self, workspace_id: UUID) -> None:
+        model = await self._get_model_by_id(workspace_id)
         if model:
             await self._delete_model(model)
 
 
-class SQLAlchemyOrganizationMemberRepository(
-    BaseSQLAlchemyRepository[OrganizationMemberModel],
-    OrganizationMemberRepositoryInterface,
+class SQLAlchemyWorkspaceMemberRepository(
+    BaseSQLAlchemyRepository[WorkspaceMemberModel],
+    WorkspaceMemberRepositoryInterface,
 ):
 
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, OrganizationMemberModel)
+        super().__init__(session, WorkspaceMemberModel)
 
-    async def save(self, member: OrganizationMember) -> OrganizationMember:
-        model = organization_member_entity_to_model(member)
+    async def save(self, member: WorkspaceMember) -> WorkspaceMember:
+        model = workspace_member_entity_to_model(member)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)
-        return organization_member_model_to_entity(model)
+        return workspace_member_model_to_entity(model)
 
-    async def get_by_id(self, member_id: UUID) -> OrganizationMember | None:
+    async def get_by_id(self, member_id: UUID) -> WorkspaceMember | None:
         model = await self._get_model_by_id(member_id)
-        return organization_member_model_to_entity(model) if model else None
+        return workspace_member_model_to_entity(model) if model else None
 
-    async def get_by_organization_and_user(
-        self, organization_id: UUID, user_id: UUID
-    ) -> OrganizationMember | None:
+    async def get_by_workspace_and_user(
+        self, workspace_id: UUID, user_id: UUID
+    ) -> WorkspaceMember | None:
         result = await self._session.execute(
-            select(OrganizationMemberModel).where(
-                OrganizationMemberModel.organization_id == organization_id,
-                OrganizationMemberModel.user_id == user_id,
+            select(WorkspaceMemberModel).where(
+                WorkspaceMemberModel.workspace_id == workspace_id,
+                WorkspaceMemberModel.user_id == user_id,
             )
         )
         model = result.scalar_one_or_none()
-        return organization_member_model_to_entity(model) if model else None
+        return workspace_member_model_to_entity(model) if model else None
 
-    async def list_by_organization(
-        self, organization_id: UUID
-    ) -> list[OrganizationMember]:
+    async def list_by_workspace(
+        self, workspace_id: UUID
+    ) -> list[WorkspaceMember]:
         result = await self._session.execute(
-            select(OrganizationMemberModel).where(
-                OrganizationMemberModel.organization_id == organization_id
+            select(WorkspaceMemberModel).where(
+                WorkspaceMemberModel.workspace_id == workspace_id
             )
         )
-        return [organization_member_model_to_entity(m) for m in result.scalars().all()]
+        return [workspace_member_model_to_entity(m) for m in result.scalars().all()]
 
-    async def list_by_user(self, user_id: UUID) -> list[OrganizationMember]:
+    async def list_by_user(self, user_id: UUID) -> list[WorkspaceMember]:
         result = await self._session.execute(
-            select(OrganizationMemberModel).where(
-                OrganizationMemberModel.user_id == user_id
+            select(WorkspaceMemberModel).where(
+                WorkspaceMemberModel.user_id == user_id
             )
         )
-        return [organization_member_model_to_entity(m) for m in result.scalars().all()]
+        return [workspace_member_model_to_entity(m) for m in result.scalars().all()]
 
-    async def paginate_by_organization(
-        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
-    ) -> CursorPage[OrganizationMember]:
+    async def paginate_by_workspace(
+        self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[WorkspaceMember]:
         stmt = (
-            select(OrganizationMemberModel)
-            .where(OrganizationMemberModel.organization_id == organization_id)
-            .order_by(OrganizationMemberModel.id.desc())
+            select(WorkspaceMemberModel)
+            .where(WorkspaceMemberModel.workspace_id == workspace_id)
+            .order_by(WorkspaceMemberModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[organization_member_model_to_entity(m) for m in page.items],
+            items=[workspace_member_model_to_entity(m) for m in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,
@@ -179,15 +179,15 @@ class SQLAlchemyOrganizationMemberRepository(
 
     async def paginate_by_user(
         self, user_id: UUID, *, limit: int = 50, cursor: str | None = None
-    ) -> CursorPage[OrganizationMember]:
+    ) -> CursorPage[WorkspaceMember]:
         stmt = (
-            select(OrganizationMemberModel)
-            .where(OrganizationMemberModel.user_id == user_id)
-            .order_by(OrganizationMemberModel.id.desc())
+            select(WorkspaceMemberModel)
+            .where(WorkspaceMemberModel.user_id == user_id)
+            .order_by(WorkspaceMemberModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[organization_member_model_to_entity(m) for m in page.items],
+            items=[workspace_member_model_to_entity(m) for m in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,
@@ -200,60 +200,60 @@ class SQLAlchemyOrganizationMemberRepository(
             await self._delete_model(model)
 
 
-class SQLAlchemyOrganizationInviteRepository(
-    BaseSQLAlchemyRepository[OrganizationInviteModel],
-    OrganizationInviteRepositoryInterface,
+class SQLAlchemyWorkspaceInviteRepository(
+    BaseSQLAlchemyRepository[WorkspaceInviteModel],
+    WorkspaceInviteRepositoryInterface,
 ):
 
     def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, OrganizationInviteModel)
+        super().__init__(session, WorkspaceInviteModel)
 
-    async def save(self, invite: OrganizationInvite) -> OrganizationInvite:
-        model = organization_invite_entity_to_model(invite)
+    async def save(self, invite: WorkspaceInvite) -> WorkspaceInvite:
+        model = workspace_invite_entity_to_model(invite)
         await self._add_model(model)
         await self._flush()
         await self._refresh_model(model)
-        return organization_invite_model_to_entity(model)
+        return workspace_invite_model_to_entity(model)
 
-    async def get_by_id(self, invite_id: UUID) -> OrganizationInvite | None:
+    async def get_by_id(self, invite_id: UUID) -> WorkspaceInvite | None:
         model = await self._get_model_by_id(invite_id)
-        return organization_invite_model_to_entity(model) if model else None
+        return workspace_invite_model_to_entity(model) if model else None
 
-    async def get_by_organization_and_email(
-        self, organization_id: UUID, email: str
-    ) -> OrganizationInvite | None:
+    async def get_by_workspace_and_email(
+        self, workspace_id: UUID, email: str
+    ) -> WorkspaceInvite | None:
         result = await self._session.execute(
-            select(OrganizationInviteModel).where(
-                OrganizationInviteModel.organization_id == organization_id,
-                OrganizationInviteModel.email == email,
+            select(WorkspaceInviteModel).where(
+                WorkspaceInviteModel.workspace_id == workspace_id,
+                WorkspaceInviteModel.email == email,
             )
         )
         model = result.scalar_one_or_none()
-        return organization_invite_model_to_entity(model) if model else None
+        return workspace_invite_model_to_entity(model) if model else None
 
-    async def list_by_organization(
-        self, organization_id: UUID
-    ) -> list[OrganizationInvite]:
+    async def list_by_workspace(
+        self, workspace_id: UUID
+    ) -> list[WorkspaceInvite]:
         result = await self._session.execute(
-            select(OrganizationInviteModel).where(
-                OrganizationInviteModel.organization_id == organization_id
+            select(WorkspaceInviteModel).where(
+                WorkspaceInviteModel.workspace_id == workspace_id
             )
         )
         return [
-            organization_invite_model_to_entity(i) for i in result.scalars().all()
+            workspace_invite_model_to_entity(i) for i in result.scalars().all()
         ]
 
-    async def paginate_by_organization(
-        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
-    ) -> CursorPage[OrganizationInvite]:
+    async def paginate_by_workspace(
+        self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
+    ) -> CursorPage[WorkspaceInvite]:
         stmt = (
-            select(OrganizationInviteModel)
-            .where(OrganizationInviteModel.organization_id == organization_id)
-            .order_by(OrganizationInviteModel.id.desc())
+            select(WorkspaceInviteModel)
+            .where(WorkspaceInviteModel.workspace_id == workspace_id)
+            .order_by(WorkspaceInviteModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[organization_invite_model_to_entity(i) for i in page.items],
+            items=[workspace_invite_model_to_entity(i) for i in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,

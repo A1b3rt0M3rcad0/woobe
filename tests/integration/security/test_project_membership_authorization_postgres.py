@@ -8,8 +8,8 @@ import pytest
 from modules.agent.infra.database.models import AgentModel, DocumentCollectionModel
 from modules.core.infra.database.models import ProjectMemberModel, ProjectModel
 from modules.identity.infra.database.models import (
-    OrganizationMemberModel,
-    OrganizationModel,
+    WorkspaceMemberModel,
+    WorkspaceModel,
     UserModel,
 )
 from shared.infra.config import Settings
@@ -26,7 +26,7 @@ async def project_access_graph():
 
     owner_id = uuid4()
     member_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     project_a_id = uuid4()
     project_b_id = uuid4()
     agent_a_id = uuid4()
@@ -38,17 +38,17 @@ async def project_access_graph():
             [
                 UserModel(id=owner_id, email=f"project-owner-{owner_id}@example.test", password=b"password-hash-owner", status="active"),
                 UserModel(id=member_id, email=f"project-member-{member_id}@example.test", password=b"password-hash-member", status="active"),
-                OrganizationModel(id=organization_id, name="Project Access Org", slug=f"project-access-{organization_id}", status="active"),
+                WorkspaceModel(id=workspace_id, name="Project Access Workspace", slug=f"project-access-{workspace_id}", status="active"),
             ]
         )
         await session.flush()
 
         session.add_all(
             [
-                OrganizationMemberModel(id=uuid4(), user_id=owner_id, organization_id=organization_id, role="owner", status="active", joined_at=now),
-                OrganizationMemberModel(id=uuid4(), user_id=member_id, organization_id=organization_id, role="member", status="active", joined_at=now),
-                ProjectModel(id=project_a_id, organization_id=organization_id, name="Allowed Project", slug=f"allowed-{project_a_id}", status="active", data={}),
-                ProjectModel(id=project_b_id, organization_id=organization_id, name="Restricted Project", slug=f"restricted-{project_b_id}", status="active", data={}),
+                WorkspaceMemberModel(id=uuid4(), user_id=owner_id, workspace_id=workspace_id, role="owner", status="active", joined_at=now),
+                WorkspaceMemberModel(id=uuid4(), user_id=member_id, workspace_id=workspace_id, role="member", status="active", joined_at=now),
+                ProjectModel(id=project_a_id, workspace_id=workspace_id, name="Allowed Project", slug=f"allowed-{project_a_id}", status="active", data={}),
+                ProjectModel(id=project_b_id, workspace_id=workspace_id, name="Restricted Project", slug=f"restricted-{project_b_id}", status="active", data={}),
             ]
         )
         await session.flush()
@@ -105,7 +105,7 @@ async def test_member_can_access_only_explicit_projects(project_access_graph):
 
 
 @pytest.mark.asyncio
-async def test_organization_owner_has_implicit_project_access(project_access_graph):
+async def test_workspace_owner_has_implicit_project_access(project_access_graph):
     graph = project_access_graph
     await TenantAuthorizer(graph["session"]).authorize(user_id=graph["owner_id"], path_params={"project_id": graph["project_b_id"]}, query_params={}, body=None)
 

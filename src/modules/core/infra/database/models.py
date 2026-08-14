@@ -79,11 +79,11 @@ class SecurityConcurrencyLeaseModel(Base):
 class ProjectModel(BaseModel):
     __tablename__ = "projects"
     __table_args__ = (
-        UniqueConstraint("organization_id", "slug"),
+        UniqueConstraint("workspace_id", "slug"),
         {"schema": "core"},
     )
 
-    organization_id: Mapped[UUID]
+    workspace_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")

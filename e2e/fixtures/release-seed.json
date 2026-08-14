@@ -4,7 +4,7 @@
   "tenants": [
     {
       "user": {"id": "user-a", "email": "owner-a@example.test"},
-      "organization": {"id": "org-a", "name": "Tenant A", "slug": "tenant-a"},
+      "workspace": {"id": "workspace-a", "name": "Tenant A", "slug": "tenant-a"},
       "project": {"id": "project-a", "name": "Release Project A", "slug": "release-project-a"},
       "credential": {"id": "credential-a", "provider": "openai", "model": "fake-stream", "base_url": "http://fake-provider:8099/v1"},
       "agent": {"id": "agent-a", "name": "Release Gate Agent A"},
@@ -13,7 +13,7 @@
     },
     {
       "user": {"id": "user-b", "email": "owner-b@example.test"},
-      "organization": {"id": "org-b", "name": "Tenant B", "slug": "tenant-b"},
+      "workspace": {"id": "workspace-b", "name": "Tenant B", "slug": "tenant-b"},
       "project": {"id": "project-b", "name": "Release Project B", "slug": "release-project-b"},
       "credential": {"id": "credential-b", "provider": "openai", "model": "fake-fallback", "base_url": "http://fake-provider:8099/v1"},
       "agent": {"id": "agent-b", "name": "Release Gate Agent B"},

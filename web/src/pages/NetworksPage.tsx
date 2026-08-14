@@ -190,7 +190,7 @@ function NetworkModal({
 }
 
 export default function NetworksPage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
   const networksQuery = useNetworks(projectId)
   const createMutation = useCreateNetwork(projectId)
@@ -223,13 +223,13 @@ export default function NetworksPage() {
     })
   }, [items, maturityFilter, query])
 
-  if (!organizationId || !projectId) return <ErrorState message="Project not found" />
+  if (!workspaceId || !projectId) return <ErrorState message="Project not found" />
 
   const hasFilters = Boolean(query.trim()) || maturityFilter !== 'all'
   const resultCount = hasFilters ? `${visibleNetworks.length} of ${items.length}` : items.length
 
   const openNetwork = (networkId: string) => {
-    navigate(`/organizations/${organizationId}/projects/${projectId}/networks/${networkId}`)
+    navigate(`/workspaces/${workspaceId}/projects/${projectId}/networks/${networkId}`)
   }
 
   const clearFilters = () => {

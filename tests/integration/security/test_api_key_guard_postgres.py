@@ -83,7 +83,7 @@ async def api_key_graph():
             [
                 ProjectModel(
                     id=project_id,
-                    organization_id=uuid4(),
+                    workspace_id=uuid4(),
                     name="API key project",
                     slug=f"api-key-project-{project_id}",
                     status="active",
@@ -91,7 +91,7 @@ async def api_key_graph():
                 ),
                 ProjectModel(
                     id=foreign_project_id,
-                    organization_id=uuid4(),
+                    workspace_id=uuid4(),
                     name="Foreign project",
                     slug=f"foreign-project-{foreign_project_id}",
                     status="active",

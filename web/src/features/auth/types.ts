@@ -10,14 +10,14 @@ export interface LoginRequest {
   password: string
 }
 
-export interface Organization {
+export interface Workspace {
   id: string
   name: string
   slug: string
   status?: string
   created_at?: string | null
   membership_role?: 'owner' | 'admin' | 'member' | 'viewer'
-  can_manage_organization?: boolean
+  can_manage_workspace?: boolean
   accessible_project_count?: number
   access_mode?: 'implicit_owner' | 'assigned_projects'
 }
@@ -35,7 +35,7 @@ export interface RegisterRequest {
 }
 
 export interface RegisterResponse extends LoginResponse {
-  organization: Organization
+  workspace: Workspace
 }
 
 export interface InstanceStatus {

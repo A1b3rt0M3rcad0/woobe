@@ -13,7 +13,7 @@ class User:
     def __init__(self, **kwargs: Any) -> None: ...
 
 
-class Organization:
+class Workspace:
     id: UUID
     name: str
     slug: str
@@ -23,10 +23,10 @@ class Organization:
     def __init__(self, **kwargs: Any) -> None: ...
 
 
-class OrganizationMember:
+class WorkspaceMember:
     id: UUID
     user_id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     role: Any
     status: Any
     joined_at: datetime
@@ -35,9 +35,9 @@ class OrganizationMember:
     def __init__(self, **kwargs: Any) -> None: ...
 
 
-class OrganizationInvite:
+class WorkspaceInvite:
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     email: str
     role: Any
     token_hash: str

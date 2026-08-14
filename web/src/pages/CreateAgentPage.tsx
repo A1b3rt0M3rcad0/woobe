@@ -16,7 +16,7 @@ import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { Separator } from '@/components/ui/Separator'
 import { ChevronDown, ChevronRight, FileJson } from 'lucide-react'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { toast } from 'sonner'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
@@ -61,7 +61,7 @@ function getCredentialBaseUrl(credential: ProviderCredential): string {
 }
 
 export default function CreateAgentPage() {
-  const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId?: string; projectId: string }>()
   const navigate = useNavigate()
   const createAgent = useCreateAgent(projectId)
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
@@ -74,7 +74,7 @@ export default function CreateAgentPage() {
   const [outputSchemaError, setOutputSchemaError] = useState<string | null>(null)
   const pendingCredentialId = useRef<string | null>(null)
 
-  const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
+  const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
 
   const form = useForm<CreateAgentFormData>({
     resolver: zodResolver(createAgentSchema),

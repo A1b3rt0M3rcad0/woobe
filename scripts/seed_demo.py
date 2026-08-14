@@ -55,11 +55,11 @@ def main() -> None:
         f"{args.api}/identity/instance/bootstrap",
         {"email": args.email, "password": args.password},
     )
-    organization = result.get("data", {}).get("organization", {})
+    workspace = result.get("data", {}).get("workspace", {})
     print("Woobe Community bootstrap completed")
     print(f"Owner: {args.email}")
-    if organization.get("id"):
-        print(f"Organization: {organization['id']}")
+    if workspace.get("id"):
+        print(f"Workspace: {workspace['id']}")
 
 
 if __name__ == "__main__":

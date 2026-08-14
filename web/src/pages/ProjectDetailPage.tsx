@@ -6,7 +6,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Bot, BookOpen, Wrench, Key, BarChart3, Activity, Play, ArrowRight } from 'lucide-react'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 
 const quickLinks = [
   { label: 'Agents', icon: Bot, segment: 'agents', color: 'text-primary' },
@@ -18,11 +18,11 @@ const quickLinks = [
 ]
 
 export default function ProjectDetailPage() {
-  const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId?: string; projectId: string }>()
   const navigate = useNavigate()
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId)
 
-  const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
+  const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
 
   if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={refetch} />

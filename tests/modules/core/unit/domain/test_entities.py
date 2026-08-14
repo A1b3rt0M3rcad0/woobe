@@ -8,7 +8,7 @@ class TestProject:
     def test_create_with_defaults(self):
         project = Project()
         assert isinstance(project.id, UUID)
-        assert isinstance(project.organization_id, UUID)
+        assert isinstance(project.workspace_id, UUID)
         assert project.name == ""
         assert project.slug == ""
         assert project.status == ProjectStatus.active
@@ -19,13 +19,13 @@ class TestProject:
     def test_create_with_values(self):
         project = Project(
             id=UUID("00000000-0000-0000-0000-000000000001"),
-            organization_id=UUID("00000000-0000-0000-0000-000000000002"),
+            workspace_id=UUID("00000000-0000-0000-0000-000000000002"),
             name="Test Project",
             slug="test-project",
             status=ProjectStatus.active,
         )
         assert project.id == UUID("00000000-0000-0000-0000-000000000001")
-        assert project.organization_id == UUID("00000000-0000-0000-0000-000000000002")
+        assert project.workspace_id == UUID("00000000-0000-0000-0000-000000000002")
         assert project.name == "Test Project"
         assert project.slug == "test-project"
         assert project.status == ProjectStatus.active

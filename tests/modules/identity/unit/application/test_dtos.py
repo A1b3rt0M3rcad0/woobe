@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from modules.identity.application.dtos.identity_dtos import (
     CreateUserInput,
     CreateUserOutput,
-    CreateOrganizationInput,
+    CreateWorkspaceInput,
     LoginInput,
     GetUserOutput,
 )
@@ -27,11 +27,11 @@ class TestCreateUserOutput:
         assert dto.email == "test@example.com"
 
 
-class TestCreateOrganizationInput:
+class TestCreateWorkspaceInput:
     def test_valid_input(self):
-        dto = CreateOrganizationInput(name="My Org", slug="my-org")
-        assert dto.name == "My Org"
-        assert dto.slug == "my-org"
+        dto = CreateWorkspaceInput(name="My Workspace", slug="my-workspace")
+        assert dto.name == "My Workspace"
+        assert dto.slug == "my-workspace"
 
 
 class TestLoginInput:

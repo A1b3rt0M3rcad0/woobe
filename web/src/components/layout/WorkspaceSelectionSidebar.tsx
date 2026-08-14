@@ -4,8 +4,8 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { cn } from '@/lib/utils'
 import { SidebarUserCard } from './SidebarUserCard'
 
-function getRouteOrganizationId(pathname: string) {
-  return pathname.match(/^\/organizations\/([^/]+)\/projects/)?.[1]
+function getRouteWorkspaceId(pathname: string) {
+  return pathname.match(/^\/workspaces\/([^/]+)\/projects/)?.[1]
 }
 
 interface FlowItemProps {
@@ -56,30 +56,30 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
-  const routeOrganizationId = getRouteOrganizationId(pathname)
-  const hasRouteOrganization = Boolean(routeOrganizationId)
-  const isOrganizationsView = pathname === '/organizations'
-  const isProjectsView = hasRouteOrganization
+  const routeWorkspaceId = getRouteWorkspaceId(pathname)
+  const hasRouteWorkspace = Boolean(routeWorkspaceId)
+  const isWorkspacesView = pathname === '/workspaces'
+  const isProjectsView = hasRouteWorkspace
 
   const flowItems = (
     <>
       <FlowItem
-        title="Organizations"
-        description="Select or create an organization"
+        title="Workspaces"
+        description="Select or create a workspace"
         icon={Building2}
-        active={isOrganizationsView}
+        active={isWorkspacesView}
         compact={compact}
-        onClick={() => navigate('/organizations')}
+        onClick={() => navigate('/workspaces')}
       />
 
       <FlowItem
         title="Projects"
-        description={hasRouteOrganization ? 'Select or create a project' : 'Select an organization first'}
+        description={hasRouteWorkspace ? 'Select or create a project' : 'Select a workspace first'}
         icon={FolderKanban}
         active={isProjectsView}
-        disabled={!hasRouteOrganization}
+        disabled={!hasRouteWorkspace}
         compact={compact}
-        onClick={() => routeOrganizationId && navigate(`/organizations/${routeOrganizationId}/projects`)}
+        onClick={() => routeWorkspaceId && navigate(`/workspaces/${routeWorkspaceId}/projects`)}
       />
     </>
   )

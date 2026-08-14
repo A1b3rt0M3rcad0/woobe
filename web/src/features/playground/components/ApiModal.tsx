@@ -16,11 +16,11 @@ interface ApiModalProps {
   open: boolean
   onClose: () => void
   agent: Agent
-  orgProjectPathFn: (projId: string, ...segments: string[]) => string
+  workspaceProjectPathFn: (projId: string, ...segments: string[]) => string
   projectId: string
 }
 
-export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: ApiModalProps) {
+export function ApiModal({ open, onClose, agent, workspaceProjectPathFn, projectId }: ApiModalProps) {
   const { data: releases = [] } = useReleases(agent.id)
 
   const environments = useMemo(() => {
@@ -56,7 +56,7 @@ export function ApiModal({ open, onClose, agent, orgProjectPathFn, projectId }: 
       targetType="agent"
       targetId={agent.id}
       targetName={agent.name}
-      manageKeysPath={orgProjectPathFn(projectId, 'api-keys')}
+      manageKeysPath={workspaceProjectPathFn(projectId, 'api-keys')}
       environments={environments}
     />
   )

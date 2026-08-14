@@ -55,7 +55,7 @@ class TestEventEnvelopeAcceptsValid:
         valid_types = [
             "agent.execution_requested.v1",
             "billing.usage_recorded.v1",
-            "identity.organization_created.v3",
+            "identity.workspace_created.v3",
             "agent.ask_job.completed.v1",
             "metering.token_usage.recorded.v2",
         ]
@@ -79,7 +79,7 @@ class TestEventEnvelopeAcceptsValid:
         valid_keys = [
             "agent.execution.requested.v1",
             "billing.usage.recorded",
-            "identity.org.created.v1",
+            "identity.workspace.created.v1",
         ]
         for k in valid_keys:
             assert ROUTING_KEY_PATTERN.match(k), f"Should match: {k}"

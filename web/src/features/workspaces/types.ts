@@ -1,4 +1,4 @@
-export interface OrganizationDetail {
+export interface WorkspaceDetail {
   id: string
   name: string
   slug: string
@@ -9,7 +9,7 @@ export interface OrganizationDetail {
 export interface Member {
   id: string
   user_id: string
-  organization_id: string
+  workspace_id: string
   email: string
   role: string
   status: string
@@ -20,7 +20,7 @@ export interface Member {
 
 export interface Invite {
   id: string
-  organization_id: string
+  workspace_id: string
   email: string
   role: string
   status: string
@@ -32,16 +32,16 @@ export interface Invite {
 }
 
 export interface PendingInvite extends Invite {
-  organization_name: string
-  organization_slug: string
+  workspace_name: string
+  workspace_slug: string
 }
 
-export interface UpdateOrganizationRequest {
+export interface UpdateWorkspaceRequest {
   name?: string
   slug?: string
 }
 
-export interface CreateOrganizationRequest {
+export interface CreateWorkspaceRequest {
   name: string
   slug: string
 }
@@ -52,13 +52,13 @@ export interface CreateInviteRequest {
   project_ids: string[]
 }
 
-export interface RemoveOrganizationMemberResult {
-  organization_membership_removed: boolean
+export interface RemoveWorkspaceMemberResult {
+  workspace_membership_removed: boolean
   project_accesses_removed: number
   pending_accesses_cancelled: number
 }
 
-export interface CancelOrganizationInviteResult {
+export interface CancelWorkspaceInviteResult {
   invite_cancelled: boolean
   pending_accesses_cancelled: number
 }

@@ -10,6 +10,6 @@ test('bootstraps a fresh Community instance through the real stack', async ({ pa
   await page.getByPlaceholder('At least 6 characters').fill(ownerPassword)
   await page.getByRole('button', { name: 'Create account' }).click()
 
-  await expect(page).toHaveURL(/\/organizations\/[^/]+\/setup/)
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/setup/)
   await expect(page.getByText('Woobe', { exact: true }).first()).toBeVisible()
 })

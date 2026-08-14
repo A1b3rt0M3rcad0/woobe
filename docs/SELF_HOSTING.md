@@ -19,7 +19,7 @@ API:        http://localhost:8000
 Chat Embed: http://localhost:8081
 ```
 
-The first registration against a fresh Community database claims the instance atomically and creates the first Instance Owner and initial Organization. Subsequent Community registration defaults to invite-only.
+The first registration against a fresh Community database claims the instance atomically and creates the first Instance Owner and initial Workspace. Subsequent Community registration defaults to invite-only.
 
 ## Persistent state
 

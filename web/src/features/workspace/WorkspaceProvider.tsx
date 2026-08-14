@@ -1,13 +1,13 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { getOrganizations } from '@/features/auth/api'
+import { getWorkspaces } from '@/features/auth/api'
 import { getProjects } from '@/features/projects/api'
-import type { WorkspaceContextValue, OrgShape, ProjectShape } from './types'
+import type { WorkspaceContextValue, WorkspaceShape, ProjectShape } from './types'
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
-function workspaceKey(userId: string, resource: 'organization' | 'project') {
+function workspaceKey(userId: string, resource: 'workspace' | 'project') {
   return `woobe_workspace:${userId}:${resource}`
 }
 
@@ -27,46 +27,46 @@ function writeStored<T>(key: string, value: T | null) {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth()
-  const [currentOrgState, setCurrentOrgState] = useState<OrgShape | null>(null)
+  const [currentWorkspaceState, setCurrentWorkspaceState] = useState<WorkspaceShape | null>(null)
   const [currentProjState, setCurrentProjState] = useState<ProjectShape | null>(null)
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user?.id) {
-      setCurrentOrgState(null)
+      setCurrentWorkspaceState(null)
       setCurrentProjState(null)
       setHydratedUserId(null)
       return
     }
-    setCurrentOrgState(readStored<OrgShape>(workspaceKey(user.id, 'organization')))
+    setCurrentWorkspaceState(readStored<WorkspaceShape>(workspaceKey(user.id, 'workspace')))
     setCurrentProjState(readStored<ProjectShape>(workspaceKey(user.id, 'project')))
     setHydratedUserId(user.id)
   }, [user?.id])
 
   const {
-    data: organizations = [],
-    isLoading: isLoadingOrganizations,
-    error: orgError,
+    data: workspaceResults = [],
+    isLoading: isLoadingWorkspaces,
+    error: workspaceQueryError,
   } = useQuery({
-    queryKey: ['organizations', user?.id],
-    queryFn: getOrganizations,
+    queryKey: ['workspaces', user?.id],
+    queryFn: getWorkspaces,
     enabled: isAuthenticated && Boolean(user?.id) && hydratedUserId === user?.id,
   })
 
-  const orgs = useMemo(() => organizations.map((o: OrgShape) => ({
-    id: o.id,
-    name: o.name,
-    slug: o.slug,
-    membership_role: o.membership_role,
-    can_manage_organization: o.can_manage_organization,
-    accessible_project_count: o.accessible_project_count,
-    access_mode: o.access_mode,
-  })), [organizations])
+  const workspaces = useMemo(() => workspaceResults.map((workspace: WorkspaceShape) => ({
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    membership_role: workspace.membership_role,
+    can_manage_workspace: workspace.can_manage_workspace,
+    accessible_project_count: workspace.accessible_project_count,
+    access_mode: workspace.access_mode,
+  })), [workspaceResults])
 
-  const validatedOrg = useMemo(() => {
-    if (!currentOrgState) return null
-    return orgs.find((organization) => organization.id === currentOrgState.id) ?? null
-  }, [currentOrgState, orgs])
+  const validatedWorkspace = useMemo(() => {
+    if (!currentWorkspaceState) return null
+    return workspaces.find((workspace) => workspace.id === currentWorkspaceState.id) ?? null
+  }, [currentWorkspaceState, workspaces])
 
   const {
     data: projects = [],
@@ -74,31 +74,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isFetching: isFetchingProjects,
     error: projError,
   } = useQuery({
-    queryKey: ['projects', user?.id, validatedOrg?.id],
-    queryFn: () => getProjects(validatedOrg?.id),
-    enabled: isAuthenticated && Boolean(user?.id) && hydratedUserId === user?.id && Boolean(validatedOrg?.id),
+    queryKey: ['projects', user?.id, validatedWorkspace?.id],
+    queryFn: () => getProjects(validatedWorkspace?.id),
+    enabled: isAuthenticated && Boolean(user?.id) && hydratedUserId === user?.id && Boolean(validatedWorkspace?.id),
   })
 
   const projs = useMemo(() => projects.map((p: ProjectShape) => ({
     id: p.id,
-    organization_id: p.organization_id,
+    workspace_id: p.workspace_id,
     name: p.name,
     slug: p.slug,
-    organization_role: p.organization_role,
+    workspace_role: p.workspace_role,
     access_source: p.access_source,
   })), [projects])
 
   const validatedProject = useMemo(() => {
-    if (!validatedOrg || !currentProjState) return null
-    if (currentProjState.organization_id !== validatedOrg.id) return null
+    if (!validatedWorkspace || !currentProjState) return null
+    if (currentProjState.workspace_id !== validatedWorkspace.id) return null
     return projs.find((project) => project.id === currentProjState.id) ?? null
-  }, [currentProjState, validatedOrg, projs])
+  }, [currentProjState, validatedWorkspace, projs])
 
-  const selectOrganization = useCallback((org: OrgShape) => {
+  const selectWorkspace = useCallback((workspace: WorkspaceShape) => {
     if (!user?.id) return
-    setCurrentOrgState(org)
+    setCurrentWorkspaceState(workspace)
     setCurrentProjState(null)
-    writeStored(workspaceKey(user.id, 'organization'), org)
+    writeStored(workspaceKey(user.id, 'workspace'), workspace)
     writeStored(workspaceKey(user.id, 'project'), null)
   }, [user?.id])
 
@@ -113,26 +113,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (user?.id) writeStored(workspaceKey(user.id, 'project'), null)
   }, [user?.id])
 
-  const clearCurrentOrganization = useCallback(() => {
-    setCurrentOrgState(null)
+  const clearCurrentWorkspace = useCallback(() => {
+    setCurrentWorkspaceState(null)
     setCurrentProjState(null)
     if (user?.id) {
-      writeStored(workspaceKey(user.id, 'organization'), null)
+      writeStored(workspaceKey(user.id, 'workspace'), null)
       writeStored(workspaceKey(user.id, 'project'), null)
     }
   }, [user?.id])
 
   useEffect(() => {
-    if (!user?.id || hydratedUserId !== user.id || isLoadingOrganizations) return
-    if (currentOrgState && !validatedOrg) {
-      setCurrentOrgState(null)
+    if (!user?.id || hydratedUserId !== user.id || isLoadingWorkspaces) return
+    if (currentWorkspaceState && !validatedWorkspace) {
+      setCurrentWorkspaceState(null)
       setCurrentProjState(null)
-      writeStored(workspaceKey(user.id, 'organization'), null)
+      writeStored(workspaceKey(user.id, 'workspace'), null)
       writeStored(workspaceKey(user.id, 'project'), null)
       return
     }
-    if (!validatedOrg && orgs.length === 1) selectOrganization(orgs[0])
-  }, [currentOrgState, hydratedUserId, isLoadingOrganizations, orgs, selectOrganization, user?.id, validatedOrg])
+    if (!validatedWorkspace && workspaces.length === 1) selectWorkspace(workspaces[0])
+  }, [currentWorkspaceState, hydratedUserId, isLoadingWorkspaces, workspaces, selectWorkspace, user?.id, validatedWorkspace])
 
   useEffect(() => {
     if (!user?.id || !currentProjState || isLoadingProjects || validatedProject) return
@@ -140,21 +140,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     writeStored(workspaceKey(user.id, 'project'), null)
   }, [currentProjState, isLoadingProjects, user?.id, validatedProject])
 
-  const workspaceError = (orgError || projError) as Error | null
+  const workspaceError = (workspaceQueryError || projError) as Error | null
   const value = useMemo(() => ({
-    organizations: orgs,
-    currentOrganization: validatedOrg,
+    workspaces: workspaces,
+    currentWorkspace: validatedWorkspace,
     projects: projs,
     currentProject: validatedProject,
-    selectOrganization,
+    selectWorkspace,
     selectProject,
     clearCurrentProject,
-    clearCurrentOrganization,
-    isLoadingOrganizations: isLoadingOrganizations || (Boolean(user?.id) && hydratedUserId !== user?.id),
+    clearCurrentWorkspace,
+    isLoadingWorkspaces: isLoadingWorkspaces || (Boolean(user?.id) && hydratedUserId !== user?.id),
     isLoadingProjects,
     isFetchingProjects,
     workspaceError,
-  }), [orgs, validatedOrg, projs, validatedProject, selectOrganization, selectProject, clearCurrentProject, clearCurrentOrganization, isLoadingOrganizations, user?.id, hydratedUserId, isLoadingProjects, isFetchingProjects, workspaceError])
+  }), [workspaces, validatedWorkspace, projs, validatedProject, selectWorkspace, selectProject, clearCurrentProject, clearCurrentWorkspace, isLoadingWorkspaces, user?.id, hydratedUserId, isLoadingProjects, isFetchingProjects, workspaceError])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

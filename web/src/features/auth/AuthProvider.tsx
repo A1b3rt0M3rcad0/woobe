@@ -83,14 +83,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiRegister(data)
       queryClient.clear()
-      queryClient.setQueryData(['organizations', response.user.id], [{
-        ...response.organization,
+      queryClient.setQueryData(['workspaces', response.user.id], [{
+        ...response.workspace,
         membership_role: 'owner',
-        can_manage_organization: true,
+        can_manage_workspace: true,
         accessible_project_count: 0,
         access_mode: 'implicit_owner',
       }])
-      setPostAuthTarget(`/organizations/${response.organization.id}/setup`)
+      setPostAuthTarget(`/workspaces/${response.workspace.id}/setup`)
       setUser(response.user)
       return response
     } finally {

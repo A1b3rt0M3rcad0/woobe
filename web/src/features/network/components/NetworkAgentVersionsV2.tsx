@@ -27,7 +27,7 @@ function ReleaseRow({ release, label, onView, loading }: { release: AgentRelease
 }
 
 export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenComposition }: NetworkAgentVersionsProps) {
-  const { organizationId } = useParams<{ organizationId?: string }>()
+  const { workspaceId } = useParams<{ workspaceId?: string }>()
   const navigate = useNavigate()
   const { data: releases = [], isLoading } = useReleases(agent.id)
   const [snapshot, setSnapshot] = useState<AgentRelease | null>(null)
@@ -44,7 +44,7 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
   }
 
   const openPlayground = () => {
-    if (organizationId) navigate(`/organizations/${organizationId}/projects/${projectId}/agents/${agent.id}/playground`)
+    if (workspaceId) navigate(`/workspaces/${workspaceId}/projects/${projectId}/agents/${agent.id}/playground`)
     else navigate(`/projects/${projectId}/agents/${agent.id}/playground`)
   }
 

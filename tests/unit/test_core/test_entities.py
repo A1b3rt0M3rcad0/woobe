@@ -10,7 +10,7 @@ class TestProject:
     def test_default_creation(self):
         p = Project()
         assert isinstance(p.id, UUID)
-        assert isinstance(p.organization_id, UUID)
+        assert isinstance(p.workspace_id, UUID)
         assert p.name == ""
         assert p.slug == ""
         assert p.status == ProjectStatus.active
@@ -22,7 +22,7 @@ class TestProject:
         now = datetime.now()
         p = Project(
             id=uuid6.uuid7(),
-            organization_id=uuid6.uuid7(),
+            workspace_id=uuid6.uuid7(),
             name="MyProject",
             slug="my-project",
             status=ProjectStatus.archived,
@@ -31,7 +31,7 @@ class TestProject:
             updated_at=now,
         )
         assert isinstance(p.id, UUID)
-        assert isinstance(p.organization_id, UUID)
+        assert isinstance(p.workspace_id, UUID)
         assert isinstance(p.name, str)
         assert isinstance(p.slug, str)
         assert isinstance(p.status, ProjectStatus)

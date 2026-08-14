@@ -19,12 +19,12 @@ export function upsertProject(current: Project[] | undefined, project: Project):
   return projects.map((item, index) => index === existingIndex ? project : item)
 }
 
-export function useProjects(organizationId?: string) {
+export function useProjects(workspaceId?: string) {
   const { user } = useAuth()
   return useQuery({
-    queryKey: ['projects', user?.id, organizationId],
-    queryFn: () => getProjects(organizationId),
-    enabled: Boolean(user?.id && organizationId),
+    queryKey: ['projects', user?.id, workspaceId],
+    queryFn: () => getProjects(workspaceId),
+    enabled: Boolean(user?.id && workspaceId),
   })
 }
 
@@ -36,20 +36,20 @@ export function useProject(id: string | undefined) {
   })
 }
 
-export function useCreateProject(organizationId?: string) {
+export function useCreateProject(workspaceId?: string) {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   return useMutation({
     mutationFn: (data: CreateProjectRequest) => createProject(data),
     onSuccess: (project) => {
       queryClient.setQueryData<Project[]>(
-        ['projects', user?.id, organizationId],
+        ['projects', user?.id, workspaceId],
         (current) => upsertProject(current, project),
       )
       queryClient.setQueryData(['project', project.id], project)
-      void queryClient.invalidateQueries({ queryKey: ['projects', user?.id, organizationId] })
-      void queryClient.invalidateQueries({ queryKey: ['project-access', project.organization_id] })
-      void queryClient.invalidateQueries({ queryKey: ['organizations', user?.id] })
+      void queryClient.invalidateQueries({ queryKey: ['projects', user?.id, workspaceId] })
+      void queryClient.invalidateQueries({ queryKey: ['project-access', project.workspace_id] })
+      void queryClient.invalidateQueries({ queryKey: ['workspaces', user?.id] })
     },
   })
 }
@@ -61,16 +61,16 @@ export function useUpdateProject() {
     onSuccess: (project, { id }) => {
       void queryClient.invalidateQueries({ queryKey: ['project', id] })
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
-      void queryClient.invalidateQueries({ queryKey: ['project-access', project.organization_id] })
+      void queryClient.invalidateQueries({ queryKey: ['project-access', project.workspace_id] })
     },
   })
 }
 
-export function useProjectsForAccessManagement(organizationId: string | undefined, enabled = true) {
+export function useProjectsForAccessManagement(workspaceId: string | undefined, enabled = true) {
   return useQuery({
-    queryKey: ['project-access', organizationId],
-    queryFn: () => getProjectsForAccessManagement(organizationId!),
-    enabled: Boolean(organizationId) && enabled,
+    queryKey: ['project-access', workspaceId],
+    queryFn: () => getProjectsForAccessManagement(workspaceId!),
+    enabled: Boolean(workspaceId) && enabled,
     retry: false,
   })
 }
@@ -98,8 +98,8 @@ export function useGrantProjectAccess() {
     onSuccess: (_, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: ['project-members', projectId] })
       void queryClient.invalidateQueries({ queryKey: ['project-access'] })
-      void queryClient.invalidateQueries({ queryKey: ['organization-members'] })
-      void queryClient.invalidateQueries({ queryKey: ['organization-invites'] })
+      void queryClient.invalidateQueries({ queryKey: ['workspace-members'] })
+      void queryClient.invalidateQueries({ queryKey: ['workspace-invites'] })
     },
   })
 }
@@ -119,8 +119,8 @@ export function useRevokeProjectAccess() {
     onSuccess: (_, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: ['project-members', projectId] })
       void queryClient.invalidateQueries({ queryKey: ['project-access'] })
-      void queryClient.invalidateQueries({ queryKey: ['organization-members'] })
-      void queryClient.invalidateQueries({ queryKey: ['organization-invites'] })
+      void queryClient.invalidateQueries({ queryKey: ['workspace-members'] })
+      void queryClient.invalidateQueries({ queryKey: ['workspace-invites'] })
     },
   })
 }

@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/Button'
 import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
 import { useAgentRuntimeEnvironments, useAgents, useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 
 type AgentStatusFilter = 'all' | 'active' | 'inactive' | 'archived'
 
@@ -98,7 +98,7 @@ function AgentOperationalCard({
 }
 
 export default function AgentsPage() {
-  const { organizationId, projectId } = useParams<{ organizationId?: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId?: string; projectId: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: agents, isLoading, isError, error, refetch } = useAgents(projectId)
@@ -106,7 +106,7 @@ export default function AgentsPage() {
   const [statusFilter, setStatusFilter] = useState<AgentStatusFilter>('all')
   const [showCreateAgent, setShowCreateAgent] = useState(false)
 
-  const p = (currentProjectId: string, ...segments: string[]) => orgProjectPath(organizationId, currentProjectId, ...segments)
+  const p = (currentProjectId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, currentProjectId, ...segments)
   const items = agents ?? []
 
   useEffect(() => {

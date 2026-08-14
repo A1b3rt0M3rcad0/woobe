@@ -54,9 +54,9 @@ def _alter_column_to_timestamp(schema: str, table: str, column: str) -> None:
 FIXES = [
     # (schema, table, column)
     # identity
-    ("identity", "organization_members", "joined_at"),
-    ("identity", "organization_invites", "expires_at"),
-    ("identity", "organization_invites", "accepted_at"),
+    ("identity", "workspace_members", "joined_at"),
+    ("identity", "workspace_invites", "expires_at"),
+    ("identity", "workspace_invites", "accepted_at"),
     ("identity", "user_sessions", "revoked_at"),
     ("identity", "user_sessions", "expires_at"),
     ("identity", "user_sessions", "last_used_at"),

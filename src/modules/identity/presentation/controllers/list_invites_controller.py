@@ -11,8 +11,8 @@ class ListInvitesController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        org_id = request.path_params["org_id"]
-        result = await self._use_case.execute(ListInvitesInput(organization_id=org_id))
+        workspace_id = request.path_params["workspace_id"]
+        result = await self._use_case.execute(ListInvitesInput(workspace_id=workspace_id))
         return Response(
             status_code=200,
             body={
@@ -20,7 +20,7 @@ class ListInvitesController(Controller):
                 "message": "ok",
                 "data": [InviteResponse(
                     id=i.id,
-                    organization_id=i.organization_id,
+                    workspace_id=i.workspace_id,
                     email=i.email,
                     role=i.role.value if hasattr(i.role, "value") else i.role,
                     status=i.status.value if hasattr(i.status, "value") else i.status,

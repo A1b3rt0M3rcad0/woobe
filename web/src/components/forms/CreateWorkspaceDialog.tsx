@@ -2,24 +2,24 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { NameSlugFields } from './NameSlugFields'
 import { slugify } from '@/lib/slug'
-import { createOrganizationSchema, type CreateOrganizationFormData } from '@/features/organizations/schemas'
+import { createWorkspaceSchema, type CreateWorkspaceFormData } from '@/features/workspaces/schemas'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 
-interface CreateOrganizationDialogProps {
+interface CreateWorkspaceDialogProps {
   open: boolean
   onClose: () => void
   onSubmit: (data: { name: string; slug: string }) => Promise<void>
   loading?: boolean
 }
 
-export function CreateOrganizationDialog({ open, onClose, onSubmit, loading }: CreateOrganizationDialogProps) {
-  const form = useForm<CreateOrganizationFormData>({ resolver: zodResolver(createOrganizationSchema) })
+export function CreateWorkspaceDialog({ open, onClose, onSubmit, loading }: CreateWorkspaceDialogProps) {
+  const form = useForm<CreateWorkspaceFormData>({ resolver: zodResolver(createWorkspaceSchema) })
 
-  const submit = async (data: CreateOrganizationFormData) => {
+  const submit = async (data: CreateWorkspaceFormData) => {
     await onSubmit({
       name: data.name.trim(),
-      slug: slugify(data.slug || data.name, 'organization'),
+      slug: slugify(data.slug || data.name, 'workspace'),
     })
     form.reset()
   }
@@ -30,14 +30,14 @@ export function CreateOrganizationDialog({ open, onClose, onSubmit, loading }: C
   }
 
   return (
-    <Dialog open={open} onClose={close} title="Create Organization">
+    <Dialog open={open} onClose={close} title="Create Workspace">
       <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
         <NameSlugFields
           form={form}
           namePath="name"
           slugPath="slug"
-          namePlaceholder="Organization name"
-          fallback="organization"
+          namePlaceholder="Workspace name"
+          fallback="workspace"
           uniqueScope="globally"
           lockSlug
         />

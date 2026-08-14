@@ -162,9 +162,9 @@ entries:
   # --- core -> identity ---
   - source_module: core
     source_table: projects
-    source_column: organization_id
+    source_column: workspace_id
     target_schema: identity
-    target_table: organizations
+    target_table: workspaces
     reason: "Temporary FK during migration; remove at spec 134"
     removal_spec: "134"
     expires_after_spec: "134"
@@ -181,18 +181,18 @@ entries:
   # --- billing -> identity ---
   - source_module: billing
     source_table: customers
-    source_column: organization_id
+    source_column: workspace_id
     target_schema: identity
-    target_table: organizations
+    target_table: workspaces
     reason: "Temporary FK during migration; remove at spec 134"
     removal_spec: "134"
     expires_after_spec: "134"
 
   - source_module: billing
     source_table: subscriptions
-    source_column: organization_id
+    source_column: workspace_id
     target_schema: identity
-    target_table: organizations
+    target_table: workspaces
     reason: "Temporary FK during migration; remove at spec 134"
     removal_spec: "134"
     expires_after_spec: "134"

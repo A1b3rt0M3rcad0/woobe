@@ -105,7 +105,7 @@ function ScopeChip({
 }
 
 export default function UsagePage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const networksQuery = useNetworks(projectId)
   const [range, setRange] = useState<UsageRange>('30d')
   const [environment, setEnvironment] = useState<UsageEnvironment>('all')
@@ -378,7 +378,7 @@ export default function UsagePage() {
             executions={usage.top_executions}
             groupBy={usage.group_by}
             contextLabel={scopeSummary}
-            organizationId={organizationId ?? ''}
+            workspaceId={workspaceId ?? ''}
             projectId={projectId ?? ''}
             onSelectDriver={handleDriverSelect}
           />

@@ -2,14 +2,14 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 
 const now = new Date().toISOString()
 const user = { id: 'user-a', email: 'owner-a@example.test', status: 'active' }
-const organization = {
-  id: 'org-a', name: 'Woobe Test Organization', slug: 'woobe-test', status: 'active',
-  membership_role: 'owner', can_manage_organization: true, accessible_project_count: 1,
+const workspace = {
+  id: 'workspace-a', name: 'Woobe Test Workspace', slug: 'woobe-test', status: 'active',
+  membership_role: 'owner', can_manage_workspace: true, accessible_project_count: 1,
   access_mode: 'implicit_owner',
 }
 const project = {
-  id: 'project-a', organization_id: organization.id, name: 'Release Project',
-  slug: 'release-project', status: 'active', organization_role: 'owner', access_source: 'organization',
+  id: 'project-a', workspace_id: workspace.id, name: 'Release Project',
+  slug: 'release-project', status: 'active', workspace_role: 'owner', access_source: 'workspace',
 }
 const emptyNetworkDefinition = {
   schema_version: 2,
@@ -87,16 +87,16 @@ async function installApi(page: Page, options?: { freshCommunity?: boolean }) {
       })
     } else if (path === '/identity/instance/bootstrap' && method === 'POST') {
       await respond(route, {
-        token_type: 'Bearer', expires_in: 900, csrf: 'csrf-test', user, organization,
+        token_type: 'Bearer', expires_in: 900, csrf: 'csrf-test', user, workspace,
       }, 201)
     } else if (path === '/identity/auth/login' && method === 'POST') {
       await respond(route, { token_type: 'Bearer', expires_in: 900, csrf: 'csrf-test', user })
     } else if (path === '/identity/users/me') {
       await respond(route, user)
-    } else if (path === '/identity/organizations') {
-      await respond(route, [organization])
-    } else if (path === `/identity/organizations/${organization.id}`) {
-      await respond(route, organization)
+    } else if (path === '/identity/workspaces') {
+      await respond(route, [workspace])
+    } else if (path === `/identity/workspaces/${workspace.id}`) {
+      await respond(route, workspace)
     } else if (path === '/core/projects' && method === 'GET') {
       await respond(route, [project])
     } else if (path === `/core/projects/${project.id}`) {
@@ -126,7 +126,7 @@ async function login(page: Page) {
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('Enter your password').fill('ReleaseGate123!')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/organizations\/org-a\/projects\/project-a|\/dashboard/)
+  await expect(page).toHaveURL(/\/workspaces\/workspace-a\/projects\/project-a|\/dashboard/)
 }
 
 test('bootstraps the first Woobe Community owner', async ({ page }) => {
@@ -135,14 +135,14 @@ test('bootstraps the first Woobe Community owner', async ({ page }) => {
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('At least 6 characters').fill('ReleaseGate123!')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/organizations\/org-a\/setup/)
+  await expect(page).toHaveURL(/\/workspaces\/workspace-a\/setup/)
   await expect(page.getByText('Woobe', { exact: true }).first()).toBeVisible()
 })
 
 test('opens a Project and keeps Cloud Billing out of Community navigation', async ({ page }) => {
   await installApi(page)
   await login(page)
-  await page.goto(`/organizations/${organization.id}/projects/${project.id}`)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)
   await expect(page.getByText('Overview', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Billing', { exact: true })).toHaveCount(0)
 })
@@ -150,7 +150,7 @@ test('opens a Project and keeps Cloud Billing out of Community navigation', asyn
 test('lists and opens multiple Agent Networks', async ({ page }) => {
   await installApi(page)
   await login(page)
-  await page.goto(`/organizations/${organization.id}/projects/${project.id}/networks`)
+  await page.goto(`/workspaces/${workspace.id}/projects/${project.id}/networks`)
   await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible()
   await expect(page.getByText('Customer Support', { exact: true })).toBeVisible()
   await expect(page.getByText('Customer Onboarding', { exact: true })).toBeVisible()
