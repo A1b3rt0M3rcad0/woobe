@@ -13,6 +13,8 @@ COPY . .
 RUN npm run typecheck && npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
+USER root
+RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 

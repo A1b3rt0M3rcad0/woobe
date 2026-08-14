@@ -74,7 +74,7 @@ export function AuthLayout() {
           </div>
 
           <p className="mt-4 text-center text-[11px] leading-5 text-muted">
-            Secure access for organization workspaces, projects and runtime operations.
+            Secure access for workspaces, projects and runtime operations.
           </p>
         </section>
       </main>

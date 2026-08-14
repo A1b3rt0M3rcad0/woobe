@@ -26,7 +26,7 @@ WOOBE_POSTGRES_URL='postgresql://.../woobe_restore' \
 sh scripts/restore_postgres.sh
 ```
 
-Then verify the checksum, Alembic head, Organization/Project ownership, runtime keys, Agents/Releases, Network/Releases, Knowledge metadata, Sessions/Runs/Traces and cross-tenant authorization. If local Knowledge storage is in use, restore the matching files and verify document access.
+Then verify the checksum, Alembic head, Workspace/Project ownership, runtime keys, Agents/Releases, Network/Releases, Knowledge metadata, Sessions/Runs/Traces and cross-tenant authorization. If local Knowledge storage is in use, restore the matching files and verify document access.
 
 ## Recovery sequence
 

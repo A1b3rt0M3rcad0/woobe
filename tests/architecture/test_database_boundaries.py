@@ -188,7 +188,7 @@ class TestDatabaseBoundaries:
             "agent_id",
             "project_id",
             "user_id",
-            "organization_id",
+            "workspace_id",
             "session_id",
             "collection_id",
             "knowledge_version_id",

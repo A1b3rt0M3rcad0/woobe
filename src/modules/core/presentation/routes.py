@@ -51,16 +51,16 @@ def _project_access_service(request: FastAPIRequest) -> ProjectAccessService:
 
 @router.get("/projects")
 async def list_projects(request: FastAPIRequest):
-    organization_id = request.query_params.get("organization_id")
-    if not organization_id:
+    workspace_id = request.query_params.get("workspace_id")
+    if not workspace_id:
         return {"success": True, "message": "ok", "data": []}
     try:
-        organization_uuid = UUID(str(organization_id))
+        workspace_uuid = UUID(str(workspace_id))
     except ValueError as exc:
-        raise ValidationError("Invalid organization_id") from exc
+        raise ValidationError("Invalid workspace_id") from exc
     projects = await _project_access_service(request).list_accessible_projects(
         user_id=_principal_user_id(request),
-        organization_id=organization_uuid,
+        workspace_id=workspace_uuid,
     )
     return {"success": True, "message": "ok", "data": projects}
 
@@ -68,17 +68,17 @@ async def list_projects(request: FastAPIRequest):
 @router.post("/projects")
 async def create_project(request: FastAPIRequest):
     payload = await request.json()
-    organization_id = payload.get("organization_id") if isinstance(payload, dict) else None
-    if organization_id is None:
-        raise ValidationError("organization_id is required")
+    workspace_id = payload.get("workspace_id") if isinstance(payload, dict) else None
+    if workspace_id is None:
+        raise ValidationError("workspace_id is required")
     try:
-        organization_uuid = UUID(str(organization_id))
+        workspace_uuid = UUID(str(workspace_id))
     except ValueError as exc:
-        raise ValidationError("Invalid organization_id") from exc
+        raise ValidationError("Invalid workspace_id") from exc
 
     user_id = _principal_user_id(request)
     access = _project_access_service(request)
-    await access.require_organization_admin(user_id, organization_uuid)
+    await access.require_workspace_admin(user_id, workspace_uuid)
 
     handler = create_project_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
@@ -92,14 +92,14 @@ async def create_project(request: FastAPIRequest):
     return response_adapter(response)
 
 
-@router.get("/organizations/{organization_id}/project-access")
+@router.get("/workspaces/{workspace_id}/project-access")
 async def list_projects_for_access_management(
     request: FastAPIRequest,
-    organization_id: UUID,
+    workspace_id: UUID,
 ):
     projects = await _project_access_service(request).list_projects_for_access_management(
         user_id=_principal_user_id(request),
-        organization_id=organization_id,
+        workspace_id=workspace_id,
     )
     return {"success": True, "message": "ok", "data": projects}
 

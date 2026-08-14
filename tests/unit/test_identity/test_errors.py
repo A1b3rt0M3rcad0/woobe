@@ -1,7 +1,7 @@
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
-    OrganizationNotFoundError,
+    WorkspaceNotFoundError,
     UserNotFoundError,
 )
 from shared.infra.errors import ConflictError, DomainError, NotFoundError
@@ -20,17 +20,17 @@ class TestEmailAlreadyExistsError:
         assert "user@test.com" in str(err)
 
 
-class TestOrganizationNotFoundError:
+class TestWorkspaceNotFoundError:
     def test_inheritance(self):
-        err = OrganizationNotFoundError("org-id")
+        err = WorkspaceNotFoundError("workspace-id")
         assert isinstance(err, Exception)
         assert isinstance(err, DomainError)
         assert isinstance(err, NotFoundError)
-        assert isinstance(err, OrganizationNotFoundError)
+        assert isinstance(err, WorkspaceNotFoundError)
 
     def test_message_format(self):
-        err = OrganizationNotFoundError("org-123")
-        assert "org-123" in str(err)
+        err = WorkspaceNotFoundError("workspace-123")
+        assert "workspace-123" in str(err)
 
 
 class TestUserNotFoundError:

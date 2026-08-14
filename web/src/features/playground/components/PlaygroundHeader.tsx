@@ -47,7 +47,7 @@ export function PlaygroundHeader({
   releaseStatus,
 }: PlaygroundHeaderProps) {
   const navigate = useNavigate()
-  const { organizationId } = useParams<{ organizationId?: string; projectId: string }>()
+  const { workspaceId } = useParams<{ workspaceId?: string; projectId: string }>()
   const [manager, setManager] = useState<{ section: AgentManagerSection; mode: AgentManagerMode } | null>(null)
 
   const handleBack = () => {
@@ -57,8 +57,8 @@ export function PlaygroundHeader({
       return
     }
 
-    if (organizationId) {
-      navigate(`/organizations/${organizationId}/projects/${projectId}/agents`)
+    if (workspaceId) {
+      navigate(`/workspaces/${workspaceId}/projects/${projectId}/agents`)
       return
     }
     navigate(`/projects/${projectId}/agents`)

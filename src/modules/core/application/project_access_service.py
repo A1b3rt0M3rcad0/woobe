@@ -11,59 +11,59 @@ from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 
 
 class ProjectAccessService:
-    """MVP authorization for Organization membership and full Project access."""
+    """MVP authorization for Workspace membership and full Project access."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
-    async def require_organization_admin(self, user_id: UUID, organization_id: UUID) -> str:
+    async def require_workspace_admin(self, user_id: UUID, workspace_id: UUID) -> str:
         async with self._session_factory() as session:
-            role = await self._organization_role(session, user_id, organization_id)
+            role = await self._workspace_role(session, user_id, workspace_id)
             if role not in {"owner", "admin"}:
-                raise AuthorizationError("Organization owner or admin access is required")
+                raise AuthorizationError("Workspace owner or admin access is required")
             return role
 
     async def list_accessible_projects(
         self,
         *,
         user_id: UUID,
-        organization_id: UUID,
+        workspace_id: UUID,
     ) -> list[dict[str, object]]:
         async with self._session_factory() as session:
-            role = await self._organization_role(session, user_id, organization_id)
+            role = await self._workspace_role(session, user_id, workspace_id)
             if role == "owner":
                 result = await session.execute(
                     text(
                         """
-                        SELECT id, organization_id, name, slug, status, created_at, updated_at,
-                               :role AS organization_role,
-                               'organization_owner' AS access_source
+                        SELECT id, workspace_id, name, slug, status, created_at, updated_at,
+                               :role AS workspace_role,
+                               'workspace_owner' AS access_source
                         FROM core.projects
-                        WHERE organization_id = :organization_id
+                        WHERE workspace_id = :workspace_id
                         ORDER BY created_at DESC
                         """
                     ),
-                    {"organization_id": organization_id, "role": role},
+                    {"workspace_id": workspace_id, "role": role},
                 )
             else:
                 result = await session.execute(
                     text(
                         """
-                        SELECT p.id, p.organization_id, p.name, p.slug, p.status,
+                        SELECT p.id, p.workspace_id, p.name, p.slug, p.status,
                                p.created_at, p.updated_at,
-                               :role AS organization_role,
+                               :role AS workspace_role,
                                'project_membership' AS access_source
                         FROM core.projects AS p
                         JOIN core.project_members AS pm
                           ON pm.project_id = p.id
                          AND pm.user_id = :user_id
                          AND pm.status = 'active'
-                        WHERE p.organization_id = :organization_id
+                        WHERE p.workspace_id = :workspace_id
                         ORDER BY p.created_at DESC
                         """
                     ),
                     {
-                        "organization_id": organization_id,
+                        "workspace_id": workspace_id,
                         "user_id": user_id,
                         "role": role,
                     },
@@ -74,26 +74,26 @@ class ProjectAccessService:
         self,
         *,
         user_id: UUID,
-        organization_id: UUID,
+        workspace_id: UUID,
     ) -> list[dict[str, object]]:
         async with self._session_factory() as session:
-            await self._require_organization_admin(session, user_id, organization_id)
+            await self._require_workspace_admin(session, user_id, workspace_id)
             result = await session.execute(
                 text(
                     """
-                    SELECT p.id, p.organization_id, p.name, p.slug, p.status,
+                    SELECT p.id, p.workspace_id, p.name, p.slug, p.status,
                            p.created_at, p.updated_at,
                            COUNT(DISTINCT pm.id) FILTER (WHERE pm.status = 'active') AS member_count,
                            COUNT(DISTINCT pia.id) FILTER (WHERE pia.status = 'pending') AS pending_count
                     FROM core.projects AS p
                     LEFT JOIN core.project_members AS pm ON pm.project_id = p.id
                     LEFT JOIN core.project_invite_access AS pia ON pia.project_id = p.id
-                    WHERE p.organization_id = :organization_id
+                    WHERE p.workspace_id = :workspace_id
                     GROUP BY p.id
                     ORDER BY p.created_at DESC
                     """
                 ),
-                {"organization_id": organization_id},
+                {"workspace_id": workspace_id},
             )
             return [dict(row) for row in result.mappings().all()]
 
@@ -104,8 +104,8 @@ class ProjectAccessService:
         project_id: UUID,
     ) -> dict[str, object]:
         async with self._session_factory() as session:
-            organization_id = await self._project_organization_id(session, project_id)
-            role = await self._organization_role(session, user_id, organization_id)
+            workspace_id = await self._project_workspace_id(session, project_id)
+            role = await self._workspace_role(session, user_id, workspace_id)
             can_manage = role in {"owner", "admin"}
             if not can_manage:
                 await self._require_project_member(session, user_id, project_id)
@@ -118,23 +118,23 @@ class ProjectAccessService:
                            u.id AS user_id,
                            NULL::uuid AS invite_id,
                            u.email,
-                           om.role AS organization_role,
-                           om.status AS organization_status,
+                           wm.role AS workspace_role,
+                           wm.status AS workspace_status,
                            CASE
-                               WHEN om.role = 'owner' THEN 'implicit'
+                               WHEN wm.role = 'owner' THEN 'implicit'
                                WHEN pm.status = 'active' THEN 'active'
                                ELSE 'none'
                            END AS project_access,
                            pm.id AS project_member_id,
                            NULL::uuid AS pending_access_id
-                    FROM identity.organization_members AS om
-                    JOIN identity.users AS u ON u.id = om.user_id
+                    FROM identity.workspace_members AS wm
+                    JOIN identity.users AS u ON u.id = wm.user_id
                     LEFT JOIN core.project_members AS pm
                       ON pm.project_id = :project_id
-                     AND pm.user_id = om.user_id
-                    WHERE om.organization_id = :organization_id
-                      AND om.status = 'active'
-                    ORDER BY CASE om.role
+                     AND pm.user_id = wm.user_id
+                    WHERE wm.workspace_id = :workspace_id
+                      AND wm.status = 'active'
+                    ORDER BY CASE wm.role
                                WHEN 'owner' THEN 0
                                WHEN 'admin' THEN 1
                                ELSE 2
@@ -142,7 +142,7 @@ class ProjectAccessService:
                              lower(u.email)
                     """
                 ),
-                {"project_id": project_id, "organization_id": organization_id},
+                {"project_id": project_id, "workspace_id": workspace_id},
             )
             subjects = [dict(row) for row in members_result.mappings().all()]
 
@@ -154,22 +154,22 @@ class ProjectAccessService:
                            NULL::uuid AS user_id,
                            i.id AS invite_id,
                            i.email,
-                           i.role AS organization_role,
-                           'pending' AS organization_status,
+                           i.role AS workspace_role,
+                           'pending' AS workspace_status,
                            CASE WHEN pia.status = 'pending' THEN 'pending' ELSE 'none' END AS project_access,
                            NULL::uuid AS project_member_id,
                            pia.id AS pending_access_id
-                    FROM identity.organization_invites AS i
+                    FROM identity.workspace_invites AS i
                     LEFT JOIN core.project_invite_access AS pia
-                      ON pia.organization_invite_id = i.id
+                      ON pia.workspace_invite_id = i.id
                      AND pia.project_id = :project_id
-                    WHERE i.organization_id = :organization_id
+                    WHERE i.workspace_id = :workspace_id
                       AND i.status = 'pending'
                       AND i.expires_at > now()
                     ORDER BY lower(i.email)
                     """
                 ),
-                {"project_id": project_id, "organization_id": organization_id},
+                {"project_id": project_id, "workspace_id": workspace_id},
             )
             subjects.extend(dict(row) for row in invites_result.mappings().all())
             return {"subjects": subjects, "can_manage": can_manage}
@@ -184,30 +184,30 @@ class ProjectAccessService:
     ) -> dict[str, object]:
         now = datetime.now(UTC)
         async with self._session_factory() as session:
-            organization_id = await self._project_organization_id(session, project_id)
-            await self._require_organization_admin(session, actor_user_id, organization_id)
+            workspace_id = await self._project_workspace_id(session, project_id)
+            await self._require_workspace_admin(session, actor_user_id, workspace_id)
 
             if subject_type == "member":
                 target_result = await session.execute(
                     text(
                         """
-                        SELECT u.id, u.email, om.role
+                        SELECT u.id, u.email, wm.role
                         FROM identity.users AS u
-                        JOIN identity.organization_members AS om
-                          ON om.user_id = u.id
-                         AND om.organization_id = :organization_id
-                         AND om.status = 'active'
+                        JOIN identity.workspace_members AS wm
+                          ON wm.user_id = u.id
+                         AND wm.workspace_id = :workspace_id
+                         AND wm.status = 'active'
                         WHERE u.id = :subject_id
                           AND u.status = 'active'
                         """
                     ),
-                    {"organization_id": organization_id, "subject_id": subject_id},
+                    {"workspace_id": workspace_id, "subject_id": subject_id},
                 )
                 target = target_result.mappings().first()
                 if target is None:
-                    raise NotFoundError("Organization member not found")
+                    raise NotFoundError("Workspace member not found")
                 if str(target["role"]) == "owner":
-                    raise ConflictError("Organization owner already has implicit Project access")
+                    raise ConflictError("Workspace owner already has implicit Project access")
 
                 member_id = uuid6.uuid7()
                 result = await session.execute(
@@ -248,28 +248,28 @@ class ProjectAccessService:
                     text(
                         """
                         SELECT id, email
-                        FROM identity.organization_invites
+                        FROM identity.workspace_invites
                         WHERE id = :subject_id
-                          AND organization_id = :organization_id
+                          AND workspace_id = :workspace_id
                           AND status = 'pending'
                           AND expires_at > now()
                         """
                     ),
-                    {"subject_id": subject_id, "organization_id": organization_id},
+                    {"subject_id": subject_id, "workspace_id": workspace_id},
                 )
                 if invite_result.mappings().first() is None:
-                    raise NotFoundError("Pending Organization invite not found")
+                    raise NotFoundError("Pending Workspace invite not found")
                 pending_id = uuid6.uuid7()
                 result = await session.execute(
                     text(
                         """
                         INSERT INTO core.project_invite_access
-                            (id, project_id, organization_invite_id, status,
+                            (id, project_id, workspace_invite_id, status,
                              granted_by_user_id, created_at, updated_at)
                         VALUES
                             (:id, :project_id, :invite_id, 'pending',
                              :actor_user_id, :now, :now)
-                        ON CONFLICT (project_id, organization_invite_id)
+                        ON CONFLICT (project_id, workspace_invite_id)
                         DO UPDATE SET status = 'pending',
                                       granted_by_user_id = EXCLUDED.granted_by_user_id,
                                       updated_at = EXCLUDED.updated_at
@@ -305,13 +305,13 @@ class ProjectAccessService:
     ) -> None:
         now = datetime.now(UTC)
         async with self._session_factory() as session:
-            organization_id = await self._project_organization_id(session, project_id)
-            await self._require_organization_admin(session, actor_user_id, organization_id)
+            workspace_id = await self._project_workspace_id(session, project_id)
+            await self._require_workspace_admin(session, actor_user_id, workspace_id)
 
             if subject_type == "member":
-                target_role = await self._organization_role(session, subject_id, organization_id)
+                target_role = await self._workspace_role(session, subject_id, workspace_id)
                 if target_role == "owner":
-                    raise ConflictError("Organization owner access cannot be revoked from a Project")
+                    raise ConflictError("Workspace owner access cannot be revoked from a Project")
                 result = await session.execute(
                     text(
                         """
@@ -336,7 +336,7 @@ class ProjectAccessService:
                         UPDATE core.project_invite_access
                         SET status = 'cancelled', updated_at = :updated_at
                         WHERE project_id = :project_id
-                          AND organization_invite_id = :subject_id
+                          AND workspace_invite_id = :subject_id
                           AND status = 'pending'
                         RETURNING id
                         """
@@ -365,25 +365,25 @@ class ProjectAccessService:
         if not normalized_email:
             raise ConflictError("Member email is required")
         async with self._session_factory() as session:
-            organization_id = await self._project_organization_id(session, project_id)
+            workspace_id = await self._project_workspace_id(session, project_id)
             target_result = await session.execute(
                 text(
                     """
                     SELECT u.id
                     FROM identity.users AS u
-                    JOIN identity.organization_members AS om
-                      ON om.user_id = u.id
-                     AND om.organization_id = :organization_id
-                     AND om.status = 'active'
+                    JOIN identity.workspace_members AS wm
+                      ON wm.user_id = u.id
+                     AND wm.workspace_id = :workspace_id
+                     AND wm.status = 'active'
                     WHERE lower(u.email) = :email
                       AND u.status = 'active'
                     """
                 ),
-                {"organization_id": organization_id, "email": normalized_email},
+                {"workspace_id": workspace_id, "email": normalized_email},
             )
             target_user_id = target_result.scalar_one_or_none()
         if target_user_id is None:
-            raise NotFoundError("User must be an active member of this Organization")
+            raise NotFoundError("User must be an active member of this Workspace")
         return await self.grant_project_subject_access(
             actor_user_id=actor_user_id,
             project_id=project_id,
@@ -412,8 +412,8 @@ class ProjectAccessService:
         project_id: UUID,
     ) -> None:
         async with self._session_factory() as session:
-            organization_id = await self._project_organization_id(session, project_id)
-            role = await self._require_organization_admin(session, actor_user_id, organization_id)
+            workspace_id = await self._project_workspace_id(session, project_id)
+            role = await self._require_workspace_admin(session, actor_user_id, workspace_id)
             if role == "owner":
                 return
             now = datetime.now(UTC)
@@ -457,48 +457,48 @@ class ProjectAccessService:
                 )
             await session.commit()
 
-    async def _project_organization_id(self, session: AsyncSession, project_id: UUID) -> UUID:
+    async def _project_workspace_id(self, session: AsyncSession, project_id: UUID) -> UUID:
         result = await session.execute(
-            text("SELECT organization_id FROM core.projects WHERE id = :project_id"),
+            text("SELECT workspace_id FROM core.projects WHERE id = :project_id"),
             {"project_id": project_id},
         )
-        organization_id = result.scalar_one_or_none()
-        if organization_id is None:
+        workspace_id = result.scalar_one_or_none()
+        if workspace_id is None:
             raise NotFoundError("Project not found")
-        return UUID(str(organization_id))
+        return UUID(str(workspace_id))
 
-    async def _organization_role(
+    async def _workspace_role(
         self,
         session: AsyncSession,
         user_id: UUID,
-        organization_id: UUID,
+        workspace_id: UUID,
     ) -> str:
         result = await session.execute(
             text(
                 """
                 SELECT role
-                FROM identity.organization_members
+                FROM identity.workspace_members
                 WHERE user_id = :user_id
-                  AND organization_id = :organization_id
+                  AND workspace_id = :workspace_id
                   AND status = 'active'
                 """
             ),
-            {"user_id": user_id, "organization_id": organization_id},
+            {"user_id": user_id, "workspace_id": workspace_id},
         )
         role = result.scalar_one_or_none()
         if role is None:
             raise NotFoundError("Resource not found")
         return str(role)
 
-    async def _require_organization_admin(
+    async def _require_workspace_admin(
         self,
         session: AsyncSession,
         user_id: UUID,
-        organization_id: UUID,
+        workspace_id: UUID,
     ) -> str:
-        role = await self._organization_role(session, user_id, organization_id)
+        role = await self._workspace_role(session, user_id, workspace_id)
         if role not in {"owner", "admin"}:
-            raise AuthorizationError("Organization owner or admin access is required")
+            raise AuthorizationError("Workspace owner or admin access is required")
         return role
 
     async def _require_project_member(

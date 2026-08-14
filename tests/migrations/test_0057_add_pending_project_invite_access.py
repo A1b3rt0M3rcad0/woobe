@@ -19,7 +19,7 @@ def test_migration_declares_pending_invite_access_table():
     migration = _get_migration()
     source = open(migration.__file__, encoding="utf-8").read()
     assert '"project_invite_access"' in source
-    assert '"organization_invite_id"' in source
+    assert '"workspace_invite_id"' in source
     assert '"project_id"' in source
     assert '"status"' in source
     assert "uq_core_project_invite_access_project_invite" in source

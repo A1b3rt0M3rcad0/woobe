@@ -3,16 +3,16 @@ from datetime import datetime, timezone
 
 from modules.identity.domain.entities import (
     User,
-    Organization,
-    OrganizationMember,
-    OrganizationInvite,
+    Workspace,
+    WorkspaceMember,
+    WorkspaceInvite,
     UserSession,
 )
 from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
@@ -44,45 +44,45 @@ class TestUser:
         assert user.status == UserStatus.active
 
 
-class TestOrganization:
+class TestWorkspace:
     def test_create_with_defaults(self):
-        org = Organization()
-        assert isinstance(org.id, UUID)
-        assert org.name == ""
-        assert org.slug == ""
-        assert org.status == OrganizationStatus.active
+        workspace = Workspace()
+        assert isinstance(workspace.id, UUID)
+        assert workspace.name == ""
+        assert workspace.slug == ""
+        assert workspace.status == WorkspaceStatus.active
 
     def test_create_with_values(self):
-        org = Organization(
+        workspace = Workspace(
             id=UUID("00000000-0000-0000-0000-000000000001"),
-            name="Test Org",
-            slug="test-org",
+            name="Test Workspace",
+            slug="test-workspace",
         )
-        assert org.name == "Test Org"
-        assert org.slug == "test-org"
+        assert workspace.name == "Test Workspace"
+        assert workspace.slug == "test-workspace"
 
     def test_active_by_default(self):
-        org = Organization()
-        assert org.status == OrganizationStatus.active
+        workspace = Workspace()
+        assert workspace.status == WorkspaceStatus.active
 
 
-class TestOrganizationMember:
+class TestWorkspaceMember:
     def test_create_with_defaults(self):
-        member = OrganizationMember()
+        member = WorkspaceMember()
         assert isinstance(member.id, UUID)
         assert member.role == MemberRole.member
         assert member.status == MemberStatus.active
 
 
-class TestOrganizationInvite:
+class TestWorkspaceInvite:
     def test_create_with_defaults(self):
-        invite = OrganizationInvite()
+        invite = WorkspaceInvite()
         assert isinstance(invite.id, UUID)
         assert invite.status == InviteStatus.pending
         assert invite.role == MemberRole.member
 
     def test_create_with_values(self):
-        invite = OrganizationInvite(
+        invite = WorkspaceInvite(
             id=UUID("00000000-0000-0000-0000-000000000001"),
             email="invite@example.com",
             role=MemberRole.admin,

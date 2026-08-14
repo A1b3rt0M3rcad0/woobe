@@ -9,7 +9,7 @@ import {
   RuntimeApiReferenceModal,
   type RuntimeEnvironmentReference,
 } from '@/features/runtime-reference/RuntimeApiReferenceModal'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import type { AgentNodeId, NetworkBinding } from './networkWorkspaceTypes'
 
 type Props = {
@@ -51,7 +51,7 @@ export function NetworkApiModal({
   versions,
   bindings,
 }: Props) {
-  const { organizationId } = useParams<{ organizationId?: string }>()
+  const { workspaceId } = useParams<{ workspaceId?: string }>()
   const networkQuery = useQuery({
     queryKey: ['network', projectId, networkId, 'api-reference'],
     queryFn: () => getNetwork(projectId, networkId),
@@ -214,7 +214,7 @@ export function NetworkApiModal({
       targetType="network"
       targetId={networkId}
       targetName={networkQuery.data?.name ?? 'Network'}
-      manageKeysPath={orgProjectPath(organizationId, projectId, 'api-keys')}
+      manageKeysPath={workspaceProjectPath(workspaceId, projectId, 'api-keys')}
       environments={environments}
     />
   )

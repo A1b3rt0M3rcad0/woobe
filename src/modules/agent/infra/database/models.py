@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -38,7 +39,9 @@ class ProviderCredentialModel(BaseModel):
     encrypted_secret: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
 
 class AgentModel(BaseModel):
@@ -65,6 +68,39 @@ class AgentModel(BaseModel):
     session_mode: Mapped[str] = mapped_column(String(32), default="stateful")
     status: Mapped[str] = mapped_column(String(32), default="active")
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class AgentRuntimeEnvironmentStateModel(BaseModel):
+    __tablename__ = "agent_runtime_environment_states"
+    __table_args__ = (
+        CheckConstraint(
+            "environment IN ('draft', 'staging', 'production')",
+            name="ck_agent_runtime_environment_states_environment",
+        ),
+        UniqueConstraint(
+            "agent_id",
+            "environment",
+            name="uq_agent_runtime_environment_states_target_environment",
+        ),
+        Index(
+            "ix_agent_runtime_environment_states_project_environment",
+            "project_id",
+            "environment",
+        ),
+        {"schema": "agent"},
+    )
+
+    project_id: Mapped[UUID]
+    agent_id: Mapped[UUID] = mapped_column(
+        ForeignKey("agent.agents.id", ondelete="CASCADE")
+    )
+    environment: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+    )
+    updated_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class AgentPromptModel(BaseModel):
@@ -107,7 +143,9 @@ class AgentContractModel(BaseModel):
 class AgentModelConfigModel(BaseModel):
     __tablename__ = "agent_model_configs"
     __table_args__ = (
-        Index("ix_agent_model_configs_agent_version", "agent_id", "version", unique=True),
+        Index(
+            "ix_agent_model_configs_agent_version", "agent_id", "version", unique=True
+        ),
         {"schema": "agent"},
     )
 
@@ -132,6 +170,10 @@ class AgentReleaseModel(BaseModel):
     __table_args__ = (
         Index("ix_agent_releases_agent_version", "agent_id", "version", unique=True),
         Index("ix_agent_releases_agent_status", "agent_id", "status"),
+        CheckConstraint(
+            "session_mode IN ('stateful', 'stateless')",
+            name="ck_agent_releases_session_mode",
+        ),
         Index(
             "uq_agent_releases_staging",
             "agent_id",
@@ -182,7 +224,7 @@ class AgentReleaseModel(BaseModel):
     base_url: Mapped[str | None] = mapped_column(String(512))
     temperature: Mapped[float | None] = mapped_column(Float)
     max_output_tokens: Mapped[int | None] = mapped_column(Integer)
-    session_mode: Mapped[str | None] = mapped_column(String(32))
+    session_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     agent_status: Mapped[str | None] = mapped_column(String(32))
     collection_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PG_UUID))
     runtime_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -279,7 +321,9 @@ class DocumentChunkModel(BaseModel):
 class KnowledgeVersionModel(BaseModel):
     __tablename__ = "knowledge_versions"
     __table_args__ = (
-        Index("ix_knowledge_versions_agent_version", "agent_id", "version", unique=True),
+        Index(
+            "ix_knowledge_versions_agent_version", "agent_id", "version", unique=True
+        ),
         {"schema": "agent"},
     )
 

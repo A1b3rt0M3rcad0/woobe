@@ -15,8 +15,8 @@ interface ProjectAccessMutationResponse {
   access_id: string
 }
 
-export async function getProjects(organizationId?: string): Promise<Project[]> {
-  return get<Project[]>('/core/projects', { params: { organization_id: organizationId } })
+export async function getProjects(workspaceId?: string): Promise<Project[]> {
+  return get<Project[]>('/core/projects', { params: { workspace_id: workspaceId } })
 }
 
 export async function getProject(id: string): Promise<Project> {
@@ -31,8 +31,8 @@ export async function updateProject(id: string, data: UpdateProjectRequest): Pro
   return patch<Project>(`/core/projects/${id}`, data)
 }
 
-export async function getProjectsForAccessManagement(organizationId: string): Promise<ProjectAccessSummary[]> {
-  return get<ProjectAccessSummary[]>(`/core/organizations/${organizationId}/project-access`)
+export async function getProjectsForAccessManagement(workspaceId: string): Promise<ProjectAccessSummary[]> {
+  return get<ProjectAccessSummary[]>(`/core/workspaces/${workspaceId}/project-access`)
 }
 
 export async function getProjectMembers(projectId: string): Promise<ProjectMembersResponse> {

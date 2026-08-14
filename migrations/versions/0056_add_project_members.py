@@ -63,18 +63,18 @@ def upgrade() -> None:
     )
 
     # Preserve the access non-owner members already had before Project-level
-    # isolation is enabled. Organization owners keep implicit access and do not
+    # isolation is enabled. Workspace owners keep implicit access and do not
     # need duplicated Project memberships. New Projects do not inherit members.
     op.execute(
         """
         INSERT INTO core.project_members
             (id, project_id, user_id, status, granted_by_user_id, created_at, updated_at)
-        SELECT gen_random_uuid(), p.id, om.user_id, 'active', NULL, now(), now()
+        SELECT gen_random_uuid(), p.id, wm.user_id, 'active', NULL, now(), now()
         FROM core.projects AS p
-        JOIN identity.organization_members AS om
-          ON om.organization_id = p.organization_id
-         AND om.status = 'active'
-         AND om.role <> 'owner'
+        JOIN identity.workspace_members AS wm
+          ON wm.workspace_id = p.workspace_id
+         AND wm.status = 'active'
+         AND wm.role <> 'owner'
         ON CONFLICT (project_id, user_id) DO NOTHING
         """
     )

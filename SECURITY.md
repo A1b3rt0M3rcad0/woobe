@@ -17,7 +17,7 @@ Do not include production secrets, customer data or full provider credentials in
 Important Woobe trust boundaries include:
 
 - control-plane user sessions and CSRF protection;
-- Project and Organization ownership/authorization;
+- Project and Workspace ownership/authorization;
 - Runtime Keys and API-key scopes;
 - provider credentials and persisted secret encryption;
 - ChatSurface Access Keys versus browser Session Access Tokens;

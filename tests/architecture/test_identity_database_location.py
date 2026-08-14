@@ -34,14 +34,14 @@ class TestIdentityDatabaseLocation:
         assert path.is_file()
         content = path.read_text(encoding="utf-8")
         assert "UserModel" in content
-        assert "OrganizationModel" in content
-        assert "OrganizationMemberModel" in content
-        assert "OrganizationInviteModel" in content
+        assert "WorkspaceModel" in content
+        assert "WorkspaceMemberModel" in content
+        assert "WorkspaceInviteModel" in content
         assert "UserSessionModel" in content
 
     def test_database_init_exports_repositories(self):
         path = IDENTITY_DIR / "infra" / "database" / "__init__.py"
         content = path.read_text(encoding="utf-8")
         assert "SQLAlchemyUserRepository" in content
-        assert "SQLAlchemyOrganizationRepository" in content
+        assert "SQLAlchemyWorkspaceRepository" in content
         assert "SQLAlchemyOutboxEventWriter" in content

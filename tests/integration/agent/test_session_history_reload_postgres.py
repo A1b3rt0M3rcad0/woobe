@@ -61,7 +61,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
         db.add(
             ProjectModel(
                 id=project_id,
-                organization_id=uuid4(),
+                workspace_id=uuid4(),
                 name="Reload test project",
                 slug=f"reload-project-{project_id}",
                 status="active",

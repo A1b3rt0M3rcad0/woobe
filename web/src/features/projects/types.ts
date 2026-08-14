@@ -1,13 +1,13 @@
 export interface Project {
   id: string
-  organization_id: string
+  workspace_id: string
   name: string
   slug: string
   status?: string
   created_at?: string
   updated_at?: string
-  organization_role?: string
-  access_source?: 'organization_owner' | 'project_membership'
+  workspace_role?: string
+  access_source?: 'workspace_owner' | 'project_membership'
 }
 
 export interface ProjectAccessSummary extends Project {
@@ -21,8 +21,8 @@ export interface ProjectAccessSubject {
   user_id: string | null
   invite_id: string | null
   email: string
-  organization_role: string
-  organization_status: 'active' | 'pending'
+  workspace_role: string
+  workspace_status: 'active' | 'pending'
   project_access: 'implicit' | 'active' | 'pending' | 'none'
   project_member_id: string | null
   pending_access_id: string | null
@@ -34,7 +34,7 @@ export interface ProjectMembersResponse {
 }
 
 export interface CreateProjectRequest {
-  organization_id: string
+  workspace_id: string
   name: string
   slug: string
 }

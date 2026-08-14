@@ -2,7 +2,7 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
@@ -17,9 +17,9 @@ class TestUserStatus:
         assert values == {"active", "inactive", "suspended", "deleted"}
 
 
-class TestOrganizationStatus:
+class TestWorkspaceStatus:
     def test_all_values(self):
-        values = {s.value for s in OrganizationStatus}
+        values = {s.value for s in WorkspaceStatus}
         assert values == {"active", "inactive", "suspended"}
 
 

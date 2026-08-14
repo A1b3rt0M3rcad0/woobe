@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 export type FirstRunStage = 'project' | 'agent' | 'test'
 
 interface FirstRunShellProps {
-  organizationName: string
+  workspaceName: string
   projectName?: string
   activeStage: FirstRunStage
   onExit: () => void
@@ -20,7 +20,7 @@ const stages: Array<{ key: FirstRunStage; label: string; description: string }> 
 ]
 
 export function FirstRunShell({
-  organizationName,
+  workspaceName,
   projectName,
   activeStage,
   onExit,
@@ -86,8 +86,8 @@ export function FirstRunShell({
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Context</p>
             <div className="mt-4 space-y-4">
               <div>
-                <p className="text-xs text-muted">Organization</p>
-                <p className="mt-1 truncate text-sm font-medium text-white" title={organizationName}>{organizationName}</p>
+                <p className="text-xs text-muted">Workspace</p>
+                <p className="mt-1 truncate text-sm font-medium text-white" title={workspaceName}>{workspaceName}</p>
               </div>
               <div className="h-px bg-border/80" />
               <div>

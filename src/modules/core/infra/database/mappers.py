@@ -12,7 +12,7 @@ from modules.core.infra.database.models import ApiKeyModel, ProjectModel
 def project_model_to_entity(model: ProjectModel) -> Project:
     return Project(
         id=model.id,
-        organization_id=model.organization_id,
+        workspace_id=model.workspace_id,
         name=model.name,
         slug=model.slug,
         status=ProjectStatus(model.status),
@@ -25,7 +25,7 @@ def project_model_to_entity(model: ProjectModel) -> Project:
 def project_entity_to_model(entity: Project) -> ProjectModel:
     return ProjectModel(
         id=entity.id,
-        organization_id=entity.organization_id,
+        workspace_id=entity.workspace_id,
         name=entity.name,
         slug=entity.slug,
         status=entity.status.value,

@@ -630,7 +630,7 @@ class TestAgentIntegrationRetryAndDeadLetter:
     def test_inbox_ignored_for_unhandled_event_type(self):
         event = SimulatedInboxEvent(
             _id=30,
-            _event_type="identity.organization_created",
+            _event_type="identity.workspace_created",
             _status=InboxStatus.RECEIVED,
         )
 

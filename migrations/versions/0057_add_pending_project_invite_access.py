@@ -1,4 +1,4 @@
-"""add pending Project access for Organization invitations
+"""add pending Project access for Workspace invitations
 
 Revision ID: 0057
 Revises: 0056
@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.Uuid(), nullable=False),
         # Identity ownership stays outside Core. The invite id is validated by
         # the application service instead of a cross-module database FK.
-        sa.Column("organization_invite_id", sa.Uuid(), nullable=False),
+        sa.Column("workspace_invite_id", sa.Uuid(), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False, server_default="pending"),
         sa.Column("granted_by_user_id", sa.Uuid(), nullable=True),
         sa.Column(
@@ -46,7 +46,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name="pk_core_project_invite_access"),
         sa.UniqueConstraint(
             "project_id",
-            "organization_invite_id",
+            "workspace_invite_id",
             name="uq_core_project_invite_access_project_invite",
         ),
         schema="core",
@@ -54,7 +54,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_core_project_invite_access_invite_status",
         "project_invite_access",
-        ["organization_invite_id", "status"],
+        ["workspace_invite_id", "status"],
         schema="core",
     )
     op.create_index(

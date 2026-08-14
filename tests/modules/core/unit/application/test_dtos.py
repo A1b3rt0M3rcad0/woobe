@@ -12,7 +12,7 @@ from modules.core.domain.enums import ProjectStatus
 
 class TestCreateProjectInput:
     def test_valid_input(self):
-        dto = CreateProjectInput(organization_id=uuid4(), name="Test Project", slug="test-project")
+        dto = CreateProjectInput(workspace_id=uuid4(), name="Test Project", slug="test-project")
         assert dto.name == "Test Project"
         assert dto.slug == "test-project"
 
@@ -21,7 +21,7 @@ class TestCreateProjectOutput:
     def test_valid_output(self):
         uid = uuid4()
         now = datetime.now(timezone.utc)
-        dto = CreateProjectOutput(id=uid, organization_id=uuid4(), name="Test Project", slug="test-project", status=ProjectStatus.active, created_at=now)
+        dto = CreateProjectOutput(id=uid, workspace_id=uuid4(), name="Test Project", slug="test-project", status=ProjectStatus.active, created_at=now)
         assert dto.id == uid
         assert dto.name == "Test Project"
 
@@ -29,7 +29,7 @@ class TestCreateProjectOutput:
 class TestGetProjectOutput:
     def test_valid_output(self):
         uid = uuid4()
-        dto = GetProjectOutput(id=uid, organization_id=uuid4(), name="Project", slug="project", status=ProjectStatus.active)
+        dto = GetProjectOutput(id=uid, workspace_id=uuid4(), name="Project", slug="project", status=ProjectStatus.active)
         assert dto.slug == "project"
 
 

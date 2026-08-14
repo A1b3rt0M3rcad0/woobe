@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { registerSchema } from './schemas'
 
 describe('registerSchema', () => {
-  it('accepts registration without an organization name', () => {
+  it('accepts registration without a workspace name', () => {
     const result = registerSchema.safeParse({
       email: 'owner@example.com',
       password: 'password',

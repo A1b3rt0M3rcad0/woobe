@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
-export const createOrganizationSchema = z.object({
+export const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   slug: z.string().optional(),
 })
 
-export const updateOrganizationSchema = z.object({
+export const updateWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   slug: z.string().optional(),
 })
@@ -15,6 +15,6 @@ export const inviteMemberSchema = z.object({
   role: z.string().default('member'),
 })
 
-export type CreateOrganizationFormData = z.infer<typeof createOrganizationSchema>
-export type UpdateOrganizationFormData = z.infer<typeof updateOrganizationSchema>
+export type CreateWorkspaceFormData = z.infer<typeof createWorkspaceSchema>
+export type UpdateWorkspaceFormData = z.infer<typeof updateWorkspaceSchema>
 export type InviteMemberFormData = z.infer<typeof inviteMemberSchema>

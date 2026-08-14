@@ -52,12 +52,12 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
     """,
 }
 
-ORGANIZATION_KEYS = {"organization_id", "org_id"}
+WORKSPACE_KEYS = {"workspace_id", "workspace_id"}
 
 
 def _is_identifier_key(key: object) -> bool:
     return (
-        key in ORGANIZATION_KEYS
+        key in WORKSPACE_KEYS
         or key == "project_id"
         or key in DIRECT_PROJECT_RESOURCES
         or key in INDIRECT_PROJECT_RESOURCE_QUERIES
@@ -108,14 +108,14 @@ class TenantAuthorizer:
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
-        allow_organization_admin_for_projects: bool = False,
+        allow_workspace_admin_for_projects: bool = False,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
         self._require_consistent_identifiers(
             self._consistency_identifiers(path_params, query_params, body)
         )
 
-        checked_organizations: set[UUID] = set()
+        checked_workspaces: set[UUID] = set()
         checked_projects: set[UUID] = set()
         request_projects: set[UUID] = set()
 
@@ -123,10 +123,10 @@ class TenantAuthorizer:
             resource_id = _uuid(raw_value)
             if resource_id is None:
                 continue
-            if key in ORGANIZATION_KEYS:
-                if resource_id not in checked_organizations:
+            if key in WORKSPACE_KEYS:
+                if resource_id not in checked_workspaces:
                     await self._require_membership(user_id, resource_id)
-                    checked_organizations.add(resource_id)
+                    checked_workspaces.add(resource_id)
                 continue
 
             project_id = (
@@ -142,17 +142,17 @@ class TenantAuthorizer:
             if project_id in checked_projects:
                 continue
 
-            organization_id = await self._project_organization_id(project_id)
-            if organization_id is None:
+            workspace_id = await self._project_workspace_id(project_id)
+            if workspace_id is None:
                 raise NotFoundError("Resource not found")
             await self._require_project_access(
                 user_id=user_id,
-                organization_id=organization_id,
+                workspace_id=workspace_id,
                 project_id=project_id,
-                allow_organization_admin=allow_organization_admin_for_projects,
+                allow_workspace_admin=allow_workspace_admin_for_projects,
             )
             checked_projects.add(project_id)
-            checked_organizations.add(organization_id)
+            checked_workspaces.add(workspace_id)
 
     async def authorize_api_key(
         self,
@@ -171,7 +171,7 @@ class TenantAuthorizer:
             resource_id = _uuid(raw_value)
             if resource_id is None:
                 continue
-            if key in ORGANIZATION_KEYS:
+            if key in WORKSPACE_KEYS:
                 raise NotFoundError("Resource not found")
             resolved_project_id = (
                 resource_id
@@ -248,46 +248,46 @@ class TenantAuthorizer:
         value = result.scalar_one_or_none()
         return UUID(str(value)) if value is not None else None
 
-    async def _project_organization_id(self, project_id: UUID) -> UUID | None:
+    async def _project_workspace_id(self, project_id: UUID) -> UUID | None:
         result = await self._session.execute(
-            text("SELECT organization_id FROM core.projects WHERE id = :project_id"),
+            text("SELECT workspace_id FROM core.projects WHERE id = :project_id"),
             {"project_id": project_id},
         )
         value = result.scalar_one_or_none()
         return UUID(str(value)) if value is not None else None
 
-    async def _organization_role(self, user_id: UUID, organization_id: UUID) -> str | None:
+    async def _workspace_role(self, user_id: UUID, workspace_id: UUID) -> str | None:
         result = await self._session.execute(
             text(
                 """
                 SELECT role
-                FROM identity.organization_members
+                FROM identity.workspace_members
                 WHERE user_id = :user_id
-                  AND organization_id = :organization_id
+                  AND workspace_id = :workspace_id
                   AND status = 'active'
                 """
             ),
-            {"user_id": user_id, "organization_id": organization_id},
+            {"user_id": user_id, "workspace_id": workspace_id},
         )
         role = result.scalar_one_or_none()
         return str(role) if role is not None else None
 
-    async def _require_membership(self, user_id: UUID, organization_id: UUID) -> None:
-        if await self._organization_role(user_id, organization_id) is None:
+    async def _require_membership(self, user_id: UUID, workspace_id: UUID) -> None:
+        if await self._workspace_role(user_id, workspace_id) is None:
             raise NotFoundError("Resource not found")
 
     async def _require_project_access(
         self,
         *,
         user_id: UUID,
-        organization_id: UUID,
+        workspace_id: UUID,
         project_id: UUID,
-        allow_organization_admin: bool,
+        allow_workspace_admin: bool,
     ) -> None:
-        role = await self._organization_role(user_id, organization_id)
+        role = await self._workspace_role(user_id, workspace_id)
         if role is None:
             raise NotFoundError("Resource not found")
-        if role == "owner" or (allow_organization_admin and role == "admin"):
+        if role == "owner" or (allow_workspace_admin and role == "admin"):
             return
 
         result = await self._session.execute(

@@ -18,7 +18,7 @@ async def test_project_overview_query_budget_and_index() -> None:
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     project_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     start = datetime(2026, 5, 20, tzinfo=UTC)
     end = start + timedelta(days=30)
 
@@ -28,16 +28,16 @@ async def test_project_overview_query_budget_and_index() -> None:
                 text(
                     """
                     INSERT INTO core.projects (
-                        id, organization_id, name, slug, status, data
+                        id, workspace_id, name, slug, status, data
                     ) VALUES (
-                        :id, :organization_id, 'Performance fixture', :slug,
+                        :id, :workspace_id, 'Performance fixture', :slug,
                         'active', '{}'::jsonb
                     )
                     """
                 ),
                 {
                     "id": project_id,
-                    "organization_id": organization_id,
+                    "workspace_id": workspace_id,
                     "slug": f"overview-perf-{project_id.hex[:12]}",
                 },
             )

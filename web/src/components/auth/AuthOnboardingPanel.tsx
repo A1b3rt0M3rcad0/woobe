@@ -1,7 +1,7 @@
 import { Bot, Building2, FolderKanban } from 'lucide-react'
 
 const steps = [
-  { icon: Building2, title: 'Create an organization', description: 'Group members, billing and projects.' },
+  { icon: Building2, title: 'Create a workspace', description: 'Group members, billing and projects.' },
   { icon: FolderKanban, title: 'Create a project', description: 'Isolate agents, knowledge, tools and keys.' },
   { icon: Bot, title: 'Build agents', description: 'Configure models, instructions and integrations.' },
 ]

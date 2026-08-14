@@ -36,7 +36,7 @@ class UpdateProjectUseCase:
 
         return UpdateProjectOutput(
             id=saved.id,
-            organization_id=saved.organization_id,
+            workspace_id=saved.workspace_id,
             name=saved.name,
             slug=saved.slug,
             status=saved.status,

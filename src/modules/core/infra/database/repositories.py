@@ -43,30 +43,30 @@ class SQLAlchemyProjectRepository(
         model = await self._get_model_by_id(project_id)
         return project_model_to_entity(model) if model else None
 
-    async def get_by_organization_and_slug(
-        self, organization_id: UUID, slug: str
+    async def get_by_workspace_and_slug(
+        self, workspace_id: UUID, slug: str
     ) -> Project | None:
         result = await self._session.execute(
             select(ProjectModel).where(
-                ProjectModel.organization_id == organization_id,
+                ProjectModel.workspace_id == workspace_id,
                 ProjectModel.slug == slug,
             )
         )
         model = result.scalar_one_or_none()
         return project_model_to_entity(model) if model else None
 
-    async def list_by_organization(self, organization_id: UUID) -> list[Project]:
+    async def list_by_workspace(self, workspace_id: UUID) -> list[Project]:
         result = await self._session.execute(
-            select(ProjectModel).where(ProjectModel.organization_id == organization_id)
+            select(ProjectModel).where(ProjectModel.workspace_id == workspace_id)
         )
         return [project_model_to_entity(p) for p in result.scalars().all()]
 
-    async def paginate_by_organization(
-        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    async def paginate_by_workspace(
+        self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Project]:
         stmt = (
             select(ProjectModel)
-            .where(ProjectModel.organization_id == organization_id)
+            .where(ProjectModel.workspace_id == workspace_id)
             .order_by(ProjectModel.id.desc())
         )
         page = await self._paginate_models(stmt, limit=limit, cursor=cursor)

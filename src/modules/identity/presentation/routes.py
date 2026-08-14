@@ -2,30 +2,30 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.identity.application.composers.get_organization_composer import (
-    get_organization_composer,
+from modules.identity.application.composers.get_workspace_composer import (
+    get_workspace_composer,
 )
 from modules.identity.application.composers.get_user_composer import get_user_composer
-from modules.identity.application.composers.update_organization_composer import (
-    update_organization_composer,
+from modules.identity.application.composers.update_workspace_composer import (
+    update_workspace_composer,
 )
 from modules.identity.application.instance_service import InstanceService
 from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.auth_endpoints import (
     authentication_service,
-    create_organization_endpoint,
+    create_workspace_endpoint,
     csrf_endpoint,
     get_current_user_endpoint,
-    list_organizations_endpoint,
+    list_workspaces_endpoint,
     login_endpoint,
     logout_endpoint,
-    organization_payload,
+    workspace_payload,
     refresh_endpoint,
     register_endpoint,
 )
 from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
-from shared.security.organization_access import OrganizationAccessService
+from shared.security.workspace_access import WorkspaceAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
@@ -39,8 +39,8 @@ def _principal_user_id(request: FastAPIRequest) -> UUID:
     return UUID(str(user_id))
 
 
-def _organization_access(request: FastAPIRequest) -> OrganizationAccessService:
-    return OrganizationAccessService(request.app.state.session_factory)
+def _workspace_access(request: FastAPIRequest) -> WorkspaceAccessService:
+    return WorkspaceAccessService(request.app.state.session_factory)
 
 
 def _instance_service(request: FastAPIRequest) -> InstanceService:
@@ -58,9 +58,9 @@ def _uuid(value: str, field: str) -> UUID:
         raise ValidationError(f"Invalid {field}") from exc
 
 
-@router.get("/organizations")
-async def list_organizations(request: FastAPIRequest):
-    return await list_organizations_endpoint(request)
+@router.get("/workspaces")
+async def list_workspaces(request: FastAPIRequest):
+    return await list_workspaces_endpoint(request)
 
 
 @router.get("/invites/pending")
@@ -74,18 +74,18 @@ async def list_pending_invites(request: FastAPIRequest):
 @router.post("/invites/{invite_id}/accept")
 async def accept_invite(request: FastAPIRequest, invite_id: UUID):
     user_id = _principal_user_id(request)
-    await _organization_access(request).require_valid_invite_acceptance(
+    await _workspace_access(request).require_valid_invite_acceptance(
         user_id=user_id,
         invite_id=invite_id,
     )
-    organization = await authentication_service(request).accept_invite(
+    workspace = await authentication_service(request).accept_invite(
         user_id=user_id,
         invite_id=invite_id,
     )
     return {
         "success": True,
         "message": "accepted",
-        "data": organization_payload(organization),
+        "data": workspace_payload(workspace),
     }
 
 
@@ -130,59 +130,59 @@ async def create_user(request: FastAPIRequest):
     raise AuthorizationError("Users can only be created through registration or invitation")
 
 
-@router.post("/organizations")
-async def create_organization(request: FastAPIRequest):
-    return await create_organization_endpoint(request)
+@router.post("/workspaces")
+async def create_workspace(request: FastAPIRequest):
+    return await create_workspace_endpoint(request)
 
 
-@router.post("/organizations/{org_id}/members")
-async def add_member(request: FastAPIRequest, org_id: str):
-    del request, org_id
-    raise AuthorizationError("Organization membership is created by accepting an invitation")
+@router.post("/workspaces/{workspace_id}/members")
+async def add_member(request: FastAPIRequest, workspace_id: str):
+    del request, workspace_id
+    raise AuthorizationError("Workspace membership is created by accepting an invitation")
 
 
-@router.get("/organizations/{org_id}")
-async def get_organization(request: FastAPIRequest, org_id: str):
-    del org_id
-    handler = get_organization_composer(request.app.state.session_factory)
+@router.get("/workspaces/{workspace_id}")
+async def get_workspace(request: FastAPIRequest, workspace_id: str):
+    del workspace_id
+    handler = get_workspace_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.patch("/organizations/{org_id}")
-async def update_organization(request: FastAPIRequest, org_id: str):
-    await _organization_access(request).require_admin(
+@router.patch("/workspaces/{workspace_id}")
+async def update_workspace(request: FastAPIRequest, workspace_id: str):
+    await _workspace_access(request).require_admin(
         _principal_user_id(request),
-        _uuid(org_id, "organization id"),
+        _uuid(workspace_id, "workspace id"),
     )
-    handler = update_organization_composer(request.app.state.session_factory)
+    handler = update_workspace_composer(request.app.state.session_factory)
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
-@router.get("/organizations/{org_id}/members")
-async def list_members(request: FastAPIRequest, org_id: str):
-    data = await _organization_access(request).list_members(
+@router.get("/workspaces/{workspace_id}/members")
+async def list_members(request: FastAPIRequest, workspace_id: str):
+    data = await _workspace_access(request).list_members(
         actor_user_id=_principal_user_id(request),
-        organization_id=_uuid(org_id, "organization id"),
+        workspace_id=_uuid(workspace_id, "workspace id"),
     )
     return {"success": True, "message": "ok", "data": data}
 
 
-@router.delete("/organizations/{org_id}/members/{target_user_id}")
-async def remove_member(request: FastAPIRequest, org_id: str, target_user_id: UUID):
-    data = await _organization_access(request).remove_member(
+@router.delete("/workspaces/{workspace_id}/members/{target_user_id}")
+async def remove_member(request: FastAPIRequest, workspace_id: str, target_user_id: UUID):
+    data = await _workspace_access(request).remove_member(
         actor_user_id=_principal_user_id(request),
-        organization_id=_uuid(org_id, "organization id"),
+        workspace_id=_uuid(workspace_id, "workspace id"),
         target_user_id=target_user_id,
     )
     return {"success": True, "message": "removed", "data": data}
 
 
-@router.post("/organizations/{org_id}/invites", status_code=201)
-async def create_invite(request: FastAPIRequest, org_id: str):
+@router.post("/workspaces/{workspace_id}/invites", status_code=201)
+async def create_invite(request: FastAPIRequest, workspace_id: str):
     principal_user_id = _principal_user_id(request)
-    organization_id = _uuid(org_id, "organization id")
+    workspace_id = _uuid(workspace_id, "workspace id")
     payload = dict(await request.json())
     role_value = payload.get("role", "member")
     email = payload.get("email")
@@ -201,14 +201,14 @@ async def create_invite(request: FastAPIRequest, org_id: str):
     if role not in {MemberRole.member, MemberRole.admin}:
         raise ValidationError("Only member and admin invitation roles are supported in the MVP")
 
-    await _organization_access(request).require_role_assignment(
+    await _workspace_access(request).require_role_assignment(
         actor_user_id=principal_user_id,
-        organization_id=organization_id,
+        workspace_id=workspace_id,
         target_role=role.value,
     )
     invite = await authentication_service(request).create_invite(
         actor_user_id=principal_user_id,
-        organization_id=organization_id,
+        workspace_id=workspace_id,
         email=email,
         role=role,
         project_ids=project_ids,
@@ -218,7 +218,7 @@ async def create_invite(request: FastAPIRequest, org_id: str):
         "message": "created",
         "data": {
             "id": invite.id,
-            "organization_id": invite.organization_id,
+            "workspace_id": invite.workspace_id,
             "email": invite.email,
             "role": invite.role.value,
             "status": invite.status.value,
@@ -230,20 +230,20 @@ async def create_invite(request: FastAPIRequest, org_id: str):
     }
 
 
-@router.get("/organizations/{org_id}/invites")
-async def list_invites(request: FastAPIRequest, org_id: str):
-    data = await _organization_access(request).list_invites(
+@router.get("/workspaces/{workspace_id}/invites")
+async def list_invites(request: FastAPIRequest, workspace_id: str):
+    data = await _workspace_access(request).list_invites(
         actor_user_id=_principal_user_id(request),
-        organization_id=_uuid(org_id, "organization id"),
+        workspace_id=_uuid(workspace_id, "workspace id"),
     )
     return {"success": True, "message": "ok", "data": data}
 
 
-@router.delete("/organizations/{org_id}/invites/{invite_id}")
-async def cancel_invite(request: FastAPIRequest, org_id: str, invite_id: UUID):
-    data = await _organization_access(request).cancel_invite(
+@router.delete("/workspaces/{workspace_id}/invites/{invite_id}")
+async def cancel_invite(request: FastAPIRequest, workspace_id: str, invite_id: UUID):
+    data = await _workspace_access(request).cancel_invite(
         actor_user_id=_principal_user_id(request),
-        organization_id=_uuid(org_id, "organization id"),
+        workspace_id=_uuid(workspace_id, "workspace id"),
         invite_id=invite_id,
     )
     return {"success": True, "message": "cancelled", "data": data}

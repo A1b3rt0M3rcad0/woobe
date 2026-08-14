@@ -37,7 +37,7 @@ import type {
 } from '@/features/dashboard/adapters'
 import { useProjectOverview } from '@/features/dashboard/hooks'
 import type { DashboardEnvironment, DashboardRangePreset } from '@/features/dashboard/types'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 
 const ENVIRONMENTS: Array<{ value: DashboardEnvironment; label: string; tone: string; dot: string }> = [
   { value: 'all', label: 'All', tone: 'border-slate-600/70 bg-slate-800/60 text-slate-100', dot: 'bg-slate-300' },
@@ -503,7 +503,7 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
 }
 
 export default function DashboardPage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
   const [environment, setEnvironment] = useState<DashboardEnvironment>('all')
   const [range, setRange] = useState<DashboardRangePreset>('24h')
@@ -515,17 +515,17 @@ export default function DashboardPage() {
   const goTo = (segment: string) => {
     if (!projectId) return
     const parts = segment.split('/').filter(Boolean)
-    navigate(orgProjectPath(organizationId, projectId, ...parts))
+    navigate(workspaceProjectPath(workspaceId, projectId, ...parts))
   }
 
   const openRun = (run: DashboardRunRow) => {
     if (!projectId) return
     if (run.kind === 'network' && run.networkId) {
-      navigate(`${orgProjectPath(organizationId, projectId, 'networks', run.networkId)}?run=${encodeURIComponent(run.id)}`)
+      navigate(`${workspaceProjectPath(workspaceId, projectId, 'networks', run.networkId)}?run=${encodeURIComponent(run.id)}`)
       return
     }
     if (run.agentId) {
-      navigate(`${orgProjectPath(organizationId, projectId, 'agents', run.agentId, 'playground')}?run=${encodeURIComponent(run.id)}`)
+      navigate(`${workspaceProjectPath(workspaceId, projectId, 'agents', run.agentId, 'playground')}?run=${encodeURIComponent(run.id)}`)
       return
     }
     goTo('traces')

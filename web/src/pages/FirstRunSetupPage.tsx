@@ -10,74 +10,74 @@ import { FirstRunAgentSetup } from '@/features/first-run/components/FirstRunAgen
 import { FirstRunProjectStep } from '@/features/first-run/components/FirstRunProjectStep'
 import { FirstRunShell } from '@/features/first-run/components/FirstRunShell'
 import type { Agent } from '@/features/agents/types'
-import { useOrganization } from '@/features/organizations/hooks'
+import { useWorkspaceDetail } from '@/features/workspaces/hooks'
 import { useCreateProject, useProject } from '@/features/projects/hooks'
 import { createProjectSchema, type CreateProjectFormData } from '@/features/projects/schemas'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { slugify } from '@/lib/slug'
 
-export function firstRunProjectSetupPath(organizationId: string, projectId: string) {
-  return `/organizations/${organizationId}/projects/${projectId}/setup`
+export function firstRunProjectSetupPath(workspaceId: string, projectId: string) {
+  return `/workspaces/${workspaceId}/projects/${projectId}/setup`
 }
 
-export function firstRunPlaygroundPath(organizationId: string, projectId: string, agentId: string) {
-  return `/organizations/${organizationId}/projects/${projectId}/agents/${agentId}/playground?firstRun=1`
+export function firstRunPlaygroundPath(workspaceId: string, projectId: string, agentId: string) {
+  return `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}/playground?firstRun=1`
 }
 
-export function firstRunExitPath(organizationId: string, projectId?: string) {
+export function firstRunExitPath(workspaceId: string, projectId?: string) {
   return projectId
-    ? `/organizations/${organizationId}/projects/${projectId}/agents`
-    : `/organizations/${organizationId}/projects`
+    ? `/workspaces/${workspaceId}/projects/${projectId}/agents`
+    : `/workspaces/${workspaceId}/projects`
 }
 
 export default function FirstRunSetupPage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId?: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId?: string }>()
   const navigate = useNavigate()
   const {
-    currentOrganization,
+    currentWorkspace,
     currentProject,
-    selectOrganization,
+    selectWorkspace,
     selectProject,
   } = useWorkspace()
-  const organizationQuery = useOrganization(organizationId)
+  const workspaceQuery = useWorkspaceDetail(workspaceId)
   const projectQuery = useProject(projectId)
-  const createProject = useCreateProject(organizationId)
+  const createProject = useCreateProject(workspaceId)
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: { name: '' },
   })
 
-  const organization = organizationQuery.data
+  const workspace = workspaceQuery.data
   const project = projectQuery.data || (currentProject?.id === projectId ? currentProject : null)
 
   useEffect(() => {
-    if (!organization || currentOrganization?.id === organization.id) return
-    selectOrganization({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
+    if (!workspace || currentWorkspace?.id === workspace.id) return
+    selectWorkspace({
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
     })
-  }, [currentOrganization, organization, selectOrganization])
+  }, [currentWorkspace, workspace, selectWorkspace])
 
   useEffect(() => {
     if (!projectQuery.data || currentProject?.id === projectQuery.data.id) return
     selectProject({
       id: projectQuery.data.id,
-      organization_id: projectQuery.data.organization_id,
+      workspace_id: projectQuery.data.workspace_id,
       name: projectQuery.data.name,
       slug: projectQuery.data.slug,
     })
   }, [currentProject, projectQuery.data, selectProject])
 
-  if (!organizationId) return <ErrorState message="Organization not found" />
-  if (organizationQuery.isLoading) return <LoadingState message="Opening first-run setup" />
-  if (organizationQuery.isError) return <ErrorState error={organizationQuery.error} onRetry={organizationQuery.refetch} />
-  if (!organization) return <ErrorState message="Organization not found" />
+  if (!workspaceId) return <ErrorState message="Workspace not found" />
+  if (workspaceQuery.isLoading) return <LoadingState message="Opening first-run setup" />
+  if (workspaceQuery.isError) return <ErrorState error={workspaceQuery.error} onRetry={workspaceQuery.refetch} />
+  if (!workspace) return <ErrorState message="Workspace not found" />
   if (projectId && projectQuery.isLoading && !project) return <LoadingState message="Opening Project setup" />
   if (projectId && projectQuery.isError && !project) return <ErrorState error={projectQuery.error} onRetry={projectQuery.refetch} />
 
   const exitSetup = () => {
-    navigate(firstRunExitPath(organizationId, projectId), { replace: true })
+    navigate(firstRunExitPath(workspaceId, projectId), { replace: true })
   }
 
   const createProjectAndContinue = async (data: CreateProjectFormData) => {
@@ -86,20 +86,20 @@ export default function FirstRunSetupPage() {
 
     try {
       const created = await createProject.mutateAsync({
-        organization_id: organizationId,
+        workspace_id: workspaceId,
         name,
         slug: slugify(name, 'project'),
       })
 
       selectProject({
         id: created.id,
-        organization_id: created.organization_id,
+        workspace_id: created.workspace_id,
         name: created.name,
         slug: created.slug,
       })
       form.reset()
       toast.success('Project created')
-      navigate(firstRunProjectSetupPath(organizationId, created.id), { replace: true })
+      navigate(firstRunProjectSetupPath(workspaceId, created.id), { replace: true })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create Project')
     }
@@ -107,12 +107,12 @@ export default function FirstRunSetupPage() {
 
   const openPlayground = (agent: Agent) => {
     if (!projectId) return
-    navigate(firstRunPlaygroundPath(organizationId, projectId, agent.id), { replace: true })
+    navigate(firstRunPlaygroundPath(workspaceId, projectId, agent.id), { replace: true })
   }
 
   return (
     <FirstRunShell
-      organizationName={organization.name}
+      workspaceName={workspace.name}
       projectName={project?.name}
       activeStage={projectId ? 'agent' : 'project'}
       onExit={exitSetup}

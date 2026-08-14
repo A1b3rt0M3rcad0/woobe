@@ -79,11 +79,11 @@ class SecurityConcurrencyLeaseModel(Base):
 class ProjectModel(BaseModel):
     __tablename__ = "projects"
     __table_args__ = (
-        UniqueConstraint("organization_id", "slug"),
+        UniqueConstraint("workspace_id", "slug"),
         {"schema": "core"},
     )
 
-    organization_id: Mapped[UUID]
+    workspace_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -109,6 +109,43 @@ class ProjectMemberModel(BaseModel):
     # User identity is intentionally not a cross-module FK.
     user_id: Mapped[UUID]
     status: Mapped[str] = mapped_column(String(32), default="active")
+    granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+
+
+class ProjectInviteAccessModel(BaseModel):
+    __tablename__ = "project_invite_access"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "workspace_invite_id",
+            name="uq_core_project_invite_access_project_invite",
+        ),
+        Index(
+            "ix_core_project_invite_access_invite_status",
+            "workspace_invite_id",
+            "status",
+        ),
+        Index(
+            "ix_core_project_invite_access_project_status",
+            "project_id",
+            "status",
+        ),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "core.projects.id",
+            name="fk_core_project_invite_access_project_id",
+            ondelete="CASCADE",
+        )
+    )
+    workspace_invite_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="pending",
+        server_default=text("'pending'"),
+    )
     granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 

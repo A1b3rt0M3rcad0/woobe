@@ -13,7 +13,7 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Button } from '@/components/ui/Button'
-import { useOrganization } from '@/features/organizations/hooks'
+import { useWorkspaceDetail } from '@/features/workspaces/hooks'
 import { useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import type { Project } from '@/features/projects/types'
@@ -34,45 +34,45 @@ function formatDate(value?: string | null) {
 }
 
 function accessLabel(project: Project) {
-  return project.access_source === 'organization_owner'
-    ? 'Organization Owner · implicit access'
-    : `${project.organization_role ?? 'Member'} · granted Project access`
+  return project.access_source === 'workspace_owner'
+    ? 'Workspace Owner · implicit access'
+    : `${project.workspace_role ?? 'Member'} · granted Project access`
 }
 
-export default function OrgProjectsPage() {
-  const { organizationId } = useParams<{ organizationId: string }>()
+export default function WorkspaceProjectsPage() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
-  const { currentOrganization, selectOrganization, selectProject } = useWorkspace()
-  const { data: org, isLoading: orgLoading } = useOrganization(organizationId)
-  const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(organizationId)
+  const { currentWorkspace, selectWorkspace, selectProject } = useWorkspace()
+  const { data: workspace, isLoading: workspaceLoading } = useWorkspaceDetail(workspaceId)
+  const { data: projects, isLoading: projectsLoading, isError, error, refetch } = useProjects(workspaceId)
   const [query, setQuery] = useState('')
 
   const items = projects ?? []
-  const currentRole = currentOrganization?.membership_role
+  const currentRole = currentWorkspace?.membership_role
   const canManageProjects = currentRole === 'owner' || currentRole === 'admin'
 
   useEffect(() => {
-    if (!org || currentOrganization?.id === org.id) return
-    selectOrganization({ id: org.id, name: org.name, slug: org.slug })
-  }, [currentOrganization, org, selectOrganization])
+    if (!workspace || currentWorkspace?.id === workspace.id) return
+    selectWorkspace({ id: workspace.id, name: workspace.name, slug: workspace.slug })
+  }, [currentWorkspace, workspace, selectWorkspace])
 
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return items
-    return items.filter((project) => `${project.name} ${project.slug} ${project.organization_role ?? ''}`.toLowerCase().includes(normalizedQuery))
+    return items.filter((project) => `${project.name} ${project.slug} ${project.workspace_role ?? ''}`.toLowerCase().includes(normalizedQuery))
   }, [items, query])
 
   const startProjectSetup = () => {
-    if (organizationId && canManageProjects) navigate(`/organizations/${organizationId}/setup`)
+    if (workspaceId && canManageProjects) navigate(`/workspaces/${workspaceId}/setup`)
   }
 
   const handleSelect = (project: Project) => {
     selectProject(project)
-    navigate(`/organizations/${organizationId}/projects/${project.id}`)
+    navigate(`/workspaces/${workspaceId}/projects/${project.id}`)
   }
 
-  if (!organizationId) return <ErrorState message="Organization not found" />
-  if (!org && !orgLoading) return <ErrorState message="Organization not found" />
+  if (!workspaceId) return <ErrorState message="Workspace not found" />
+  if (!workspace && !workspaceLoading) return <ErrorState message="Workspace not found" />
 
   const showSearch = items.length >= SEARCH_THRESHOLD
   const hasSearchMiss = Boolean(query.trim()) && visibleProjects.length === 0
@@ -81,11 +81,11 @@ export default function OrgProjectsPage() {
   return (
     <ResourcePage
       title="Projects"
-      description={org ? `Projects in ${org.name}.` : 'Select and operate a Project.'}
+      description={workspace ? `Projects in ${workspace.name}.` : 'Select and operate a Project.'}
       action={(
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate('/organizations')}><ArrowLeft className="mr-2 h-4 w-4" />Change Organization</Button>
-          <Button type="button" variant="outline" onClick={() => navigate(`/organizations/${organizationId}/settings`)}><Building2 className="mr-2 h-4 w-4" />Organization</Button>
+          <Button type="button" variant="outline" onClick={() => navigate('/workspaces')}><ArrowLeft className="mr-2 h-4 w-4" />Change Workspace</Button>
+          <Button type="button" variant="outline" onClick={() => navigate(`/workspaces/${workspaceId}/settings`)}><Building2 className="mr-2 h-4 w-4" />Workspace</Button>
           {canManageProjects && <Button type="button" onClick={startProjectSetup}><Plus className="mr-2 h-4 w-4" />Create Project</Button>}
         </div>
       )}
@@ -93,7 +93,7 @@ export default function OrgProjectsPage() {
       {showSearch && <ResourceToolbar><ResourceSearch value={query} onChange={setQuery} placeholder="Search Projects..." label="Search Projects" /></ResourceToolbar>}
       <section>
         <ResourceSectionHeader title="Projects" description="Projects isolate Agents, Knowledge, Tools, credentials, runtime and observability." count={resultCount} />
-        {orgLoading || projectsLoading ? (
+        {workspaceLoading || projectsLoading ? (
           <LoadingState message="Loading Projects" variant="panel" layout="compact-cards" />
         ) : isError ? (
           <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
@@ -101,7 +101,7 @@ export default function OrgProjectsPage() {
           <ResourceEmptyState
             icon={<FolderKanban className="h-4 w-4" />}
             title={canManageProjects ? 'Create the first Project' : 'No Project access yet'}
-            description={canManageProjects ? 'Create the Project boundary, configure its first Agent and continue directly to the Playground.' : 'You belong to this Organization, but no Project has been shared with you yet.'}
+            description={canManageProjects ? 'Create the Project boundary, configure its first Agent and continue directly to the Playground.' : 'You belong to this Workspace, but no Project has been shared with you yet.'}
             action={canManageProjects ? <Button type="button" size="sm" onClick={startProjectSetup}>Start setup</Button> : undefined}
           />
         ) : hasSearchMiss ? (
@@ -116,7 +116,7 @@ export default function OrgProjectsPage() {
                 icon={<span className="text-xs font-semibold">{getProjectInitial(project.name)}</span>}
                 title={project.name}
                 subtitle={`/${project.slug}`}
-                status={<ResourcePill tone={project.access_source === 'organization_owner' ? 'primary' : 'default'}>{project.access_source === 'organization_owner' ? 'IMPLICIT' : 'ASSIGNED'}</ResourcePill>}
+                status={<ResourcePill tone={project.access_source === 'workspace_owner' ? 'primary' : 'default'}>{project.access_source === 'workspace_owner' ? 'IMPLICIT' : 'ASSIGNED'}</ResourcePill>}
                 metadata={<ResourcePill>{accessLabel(project)}</ResourcePill>}
                 footer={`Updated · ${formatDate(project.updated_at || project.created_at)}`}
               />

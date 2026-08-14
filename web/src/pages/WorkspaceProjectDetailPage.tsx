@@ -23,8 +23,8 @@ const quickLinks = [
   { label: 'Traces', icon: Activity, color: 'text-cyan-400', segment: 'traces' },
 ]
 
-export default function OrgProjectDetailPage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+export default function WorkspaceProjectDetailPage() {
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
   const { selectProject } = useWorkspace()
 
@@ -45,7 +45,7 @@ export default function OrgProjectDetailPage() {
       })
       selectProject({
         id: updated.id,
-        organization_id: updated.organization_id,
+        workspace_id: updated.workspace_id,
         name: updated.name,
         slug: updated.slug,
       })
@@ -66,11 +66,11 @@ export default function OrgProjectDetailPage() {
         description={`/${project.slug} · ${project.status || 'active'}`}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(`/organizations/${organizationId}/projects`)}>
+            <Button variant="outline" onClick={() => navigate(`/workspaces/${workspaceId}/projects`)}>
               <X className="mr-2 h-4 w-4" />
               Back to projects
             </Button>
-            <Button onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}`)}>
+            <Button onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}`)}>
               Open overview
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
@@ -90,7 +90,7 @@ export default function OrgProjectDetailPage() {
                 <Input {...form.register('slug')} error={form.formState.errors.slug?.message} placeholder="slug" />
                 <div className="space-y-2 text-sm text-muted">
                   <div><span className="font-medium text-white">ID:</span> {project.id}</div>
-                  <div><span className="font-medium text-white">Organization:</span> {project.organization_id}</div>
+                  <div><span className="font-medium text-white">Workspace:</span> {project.workspace_id}</div>
                   <div><span className="font-medium text-white">Status:</span> {project.status || 'active'}</div>
                   {project.created_at && <div><span className="font-medium text-white">Created:</span> {new Date(project.created_at).toLocaleDateString()}</div>}
                   {project.updated_at && <div><span className="font-medium text-white">Updated:</span> {new Date(project.updated_at).toLocaleDateString()}</div>}
@@ -117,7 +117,7 @@ export default function OrgProjectDetailPage() {
                   key={link.label}
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}/${link.segment}`)}
+                  onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}/${link.segment}`)}
                 >
                   <link.icon className={`mr-2 h-4 w-4 ${link.color}`} />
                   {link.label}
@@ -133,7 +133,7 @@ export default function OrgProjectDetailPage() {
             <CardContent>
               <Button
                 className="w-full"
-                onClick={() => navigate(`/organizations/${organizationId}/projects/${projectId}/agents`)}
+                onClick={() => navigate(`/workspaces/${workspaceId}/projects/${projectId}/agents`)}
               >
                 <Play className="mr-2 h-4 w-4" />
                 Open Agents

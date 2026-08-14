@@ -23,20 +23,20 @@ class TestIdentityUnitOfWork:
         assert "def users" in content
         assert "SQLAlchemyUserRepository" in content
 
-    def test_uow_has_organizations_property(self):
+    def test_uow_has_workspaces_property(self):
         content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def organizations" in content
-        assert "SQLAlchemyOrganizationRepository" in content
+        assert "def workspaces" in content
+        assert "SQLAlchemyWorkspaceRepository" in content
 
     def test_uow_has_members_property(self):
         content = UOW_FILE.read_text(encoding="utf-8")
         assert "def members" in content
-        assert "SQLAlchemyOrganizationMemberRepository" in content
+        assert "SQLAlchemyWorkspaceMemberRepository" in content
 
     def test_uow_has_invites_property(self):
         content = UOW_FILE.read_text(encoding="utf-8")
         assert "def invites" in content
-        assert "SQLAlchemyOrganizationInviteRepository" in content
+        assert "SQLAlchemyWorkspaceInviteRepository" in content
 
     def test_uow_has_user_sessions_property(self):
         content = UOW_FILE.read_text(encoding="utf-8")
@@ -61,7 +61,7 @@ class TestIdentityUnitOfWork:
     def test_uow_reinitializes_none_on_exit(self):
         content = UOW_FILE.read_text(encoding="utf-8")
         assert "self._users = None" in content
-        assert "self._organizations = None" in content
+        assert "self._workspaces = None" in content
         assert "self._outbox = None" in content
 
     def test_no_composer_imports_postgres_unit_of_work(self):

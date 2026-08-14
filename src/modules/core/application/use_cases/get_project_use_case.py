@@ -14,7 +14,7 @@ class GetProjectByIdUseCase:
             raise ProjectNotFoundError(input_dto.project_id)
         return GetProjectOutput(
             id=project.id,
-            organization_id=project.organization_id,
+            workspace_id=project.workspace_id,
             name=project.name,
             slug=project.slug,
             status=project.status,

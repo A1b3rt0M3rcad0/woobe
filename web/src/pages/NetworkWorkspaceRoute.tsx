@@ -78,8 +78,8 @@ function NetworkHeaderRuntimeControls({
 }
 
 export default function NetworkWorkspaceRoute() {
-  const { organizationId, projectId, networkId } = useParams<{
-    organizationId: string
+  const { workspaceId, projectId, networkId } = useParams<{
+    workspaceId: string
     projectId: string
     networkId: string
   }>()
@@ -87,8 +87,8 @@ export default function NetworkWorkspaceRoute() {
   const workspace = useWorkspace()
   const networkQuery = useNetwork(projectId)
 
-  if (!organizationId || !projectId || !networkId) {
-    return <Navigate to="/organizations" replace />
+  if (!workspaceId || !projectId || !networkId) {
+    return <Navigate to="/workspaces" replace />
   }
 
   const networkName = networkQuery.data?.name.trim()
@@ -98,7 +98,7 @@ export default function NetworkWorkspaceRoute() {
         name: networkName.replace(/\s+Network$/i, ''),
       }
     : workspace.currentProject
-  const networksPath = `/organizations/${organizationId}/projects/${projectId}/networks`
+  const networksPath = `/workspaces/${workspaceId}/projects/${projectId}/networks`
   const shellStyle = {
     '--network-workspace-name': JSON.stringify(networkName || 'Network'),
   } as CSSProperties

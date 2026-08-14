@@ -1,6 +1,9 @@
 name: Acceptance
 
 on:
+  pull_request:
+    branches: [development]
+    types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -53,9 +56,19 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Install dependencies and PostgreSQL client
         run: |
+          set -euo pipefail
           uv sync --frozen --all-groups --extra test
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y ca-certificates curl
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          pg_dump --version | grep -Eq ' 17\.'
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail

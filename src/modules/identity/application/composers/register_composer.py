@@ -8,6 +8,6 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def register_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = IdentityUnitOfWork(session_factory)
-    use_case = RegisterUseCase(uow.users, uow.organizations, uow.members, uow.outbox)
+    use_case = RegisterUseCase(uow.users, uow.workspaces, uow.members, uow.outbox)
     controller = RegisterController(use_case)
     return TransactionalHandler(uow, controller.handle)

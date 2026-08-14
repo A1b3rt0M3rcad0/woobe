@@ -37,7 +37,7 @@ class TestMetadataScan:
 
     def test_core_no_cross_module_fk(self):
         from modules.core.infra.database.models import ProjectModel, ApiKeyModel
-        assert "ForeignKey" not in str(ProjectModel.__table__.columns["organization_id"].foreign_keys)
+        assert "ForeignKey" not in str(ProjectModel.__table__.columns["workspace_id"].foreign_keys)
         assert "ForeignKey" not in str(ApiKeyModel.__table__.columns["created_by_user_id"].foreign_keys)
 
     def test_metering_no_cross_module_fk(self):

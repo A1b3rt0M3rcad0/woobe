@@ -43,17 +43,17 @@ class TestIdentityDomainDependencies:
         assert entities_file.is_file(), "identity/domain/entities.py must exist"
         source = entities_file.read_text(encoding="utf-8")
         assert "class User" in source, "entities.py must define User"
-        assert "class Organization" in source, "entities.py must define Organization"
-        assert "class OrganizationMember" in source, "entities.py must define OrganizationMember"
-        assert "class OrganizationInvite" in source, "entities.py must define OrganizationInvite"
+        assert "class Workspace" in source, "entities.py must define Workspace"
+        assert "class WorkspaceMember" in source, "entities.py must define WorkspaceMember"
+        assert "class WorkspaceInvite" in source, "entities.py must define WorkspaceInvite"
         assert "class UserSession" in source, "entities.py must define UserSession"
 
     def test_domain_repositories_are_abstract(self):
         repos_file = IDENTITY_DOMAIN_DIR / "repositories.py"
         assert repos_file.is_file(), "identity/domain/repositories.py must exist"
         source = repos_file.read_text(encoding="utf-8")
-        for repo_name in ("UserRepository", "OrganizationRepository", "OrganizationMemberRepository",
-                          "OrganizationInviteRepository", "UserSessionRepository"):
+        for repo_name in ("UserRepository", "WorkspaceRepository", "WorkspaceMemberRepository",
+                          "WorkspaceInviteRepository", "UserSessionRepository"):
             assert f"class {repo_name}" in source, f"repositories.py must define {repo_name}"
 
         assert "ABC" in source, "repositories must use ABC"

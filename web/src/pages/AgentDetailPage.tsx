@@ -11,15 +11,15 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { Play, Key, ExternalLink, Pencil } from 'lucide-react'
 
 export default function AgentDetailPage() {
-  const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading, isError, error, refetch } = useAgent(agentId)
 
-  const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
+  const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
 
   const tabs = [
     {

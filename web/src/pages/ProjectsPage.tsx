@@ -8,16 +8,16 @@ import { Button } from '@/components/ui/Button'
 import { FolderKanban, ArrowRight, Building2 } from 'lucide-react'
 
 export default function ProjectsPage() {
-  const { currentOrganization } = useWorkspace()
+  const { currentWorkspace } = useWorkspace()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (currentOrganization) {
-      navigate(`/organizations/${currentOrganization.id}/projects`, { replace: true })
+    if (currentWorkspace) {
+      navigate(`/workspaces/${currentWorkspace.id}/projects`, { replace: true })
     } else {
-      navigate('/organizations', { replace: true })
+      navigate('/workspaces', { replace: true })
     }
-  }, [currentOrganization, navigate])
+  }, [currentWorkspace, navigate])
 
   return <LoadingState message="Redirecting..." />
 }

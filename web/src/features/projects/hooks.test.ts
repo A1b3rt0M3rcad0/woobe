@@ -5,7 +5,7 @@ import type { Project } from './types'
 
 const createdProject: Project = {
   id: 'project-1',
-  organization_id: 'org-1',
+  workspace_id: 'workspace-1',
   name: 'First Project',
   slug: 'first-project',
 }
@@ -21,10 +21,10 @@ describe('upsertProject', () => {
     expect(upsertProject([createdProject], updatedProject)).toEqual([updatedProject])
   })
 
-  it('preserves the other Projects in the Organization', () => {
+  it('preserves the other Projects in the Workspace', () => {
     const existingProject: Project = {
       id: 'project-2',
-      organization_id: 'org-1',
+      workspace_id: 'workspace-1',
       name: 'Existing Project',
       slug: 'existing-project',
     }

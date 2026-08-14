@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -47,6 +48,39 @@ class NetworkModel(BaseModel):
     draft_revision: Mapped[int] = mapped_column(Integer, default=0)
     staging_version_id: Mapped[UUID | None]
     production_version_id: Mapped[UUID | None]
+
+
+class NetworkRuntimeEnvironmentStateModel(BaseModel):
+    __tablename__ = "network_runtime_environment_states"
+    __table_args__ = (
+        CheckConstraint(
+            "environment IN ('draft', 'staging', 'production')",
+            name="ck_network_runtime_environment_states_environment",
+        ),
+        UniqueConstraint(
+            "network_id",
+            "environment",
+            name="uq_network_runtime_environment_states_target_environment",
+        ),
+        Index(
+            "ix_network_runtime_environment_states_project_environment",
+            "project_id",
+            "environment",
+        ),
+        {"schema": "network"},
+    )
+
+    project_id: Mapped[UUID]
+    network_id: Mapped[UUID] = mapped_column(
+        ForeignKey("network.networks.id", ondelete="CASCADE")
+    )
+    environment: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+    )
+    updated_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class NetworkVersionModel(BaseModel):
@@ -334,3 +368,5 @@ class NetworkInboxEventModel(BaseInboxEventModel):
         ),
         {"schema": "network"},
     )
+
+    aggregate_id: Mapped[UUID]

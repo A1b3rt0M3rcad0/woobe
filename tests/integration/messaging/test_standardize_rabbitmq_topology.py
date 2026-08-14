@@ -71,7 +71,7 @@ def test_routing_key_pattern():
 def test_binding_pattern():
     """Binding pattern must match routing key with 4+ segments ending in .vN."""
     assert BINDING_PATTERN.match("agent.execution.requested.v1")
-    assert BINDING_PATTERN.match("identity.organization.member_added.v1")
+    assert BINDING_PATTERN.match("identity.workspace.member_added.v1")
 
 
 def test_compute_queue_name():

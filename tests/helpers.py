@@ -21,16 +21,16 @@ def make_user(email="user@test.com", password=b"$2b$12$hash"):
     )
 
 
-def make_organization(name="TestOrg", slug="test-org"):
-    from modules.identity.domain.entities import Organization
-    return Organization(name=name, slug=slug, created_at=_now, updated_at=_now)
+def make_workspace(name="TestWorkspace", slug="test-workspace"):
+    from modules.identity.domain.entities import Workspace
+    return Workspace(name=name, slug=slug, created_at=_now, updated_at=_now)
 
 
-def make_organization_member(user_id=None, organization_id=None, role="member"):
-    from modules.identity.domain.entities import OrganizationMember
-    return OrganizationMember(
+def make_workspace_member(user_id=None, workspace_id=None, role="member"):
+    from modules.identity.domain.entities import WorkspaceMember
+    return WorkspaceMember(
         user_id=user_id or uuid6.uuid7(),
-        organization_id=organization_id or uuid6.uuid7(),
+        workspace_id=workspace_id or uuid6.uuid7(),
         role=role,
         joined_at=datetime.now(UTC),
         created_at=_now,
@@ -39,10 +39,10 @@ def make_organization_member(user_id=None, organization_id=None, role="member"):
 
 
 # ── Core factories ────────────────────────────────────────────────
-def make_project(organization_id=None, name="TestProject", slug="test-project"):
+def make_project(workspace_id=None, name="TestProject", slug="test-project"):
     from modules.core.domain.entities import Project
     return Project(
-        organization_id=organization_id or uuid6.uuid7(),
+        workspace_id=workspace_id or uuid6.uuid7(),
         name=name,
         slug=slug,
         created_at=_now,

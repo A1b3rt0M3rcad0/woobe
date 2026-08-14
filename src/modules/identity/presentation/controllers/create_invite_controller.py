@@ -18,7 +18,7 @@ class CreateInviteController(Controller):
         if not isinstance(request.principal, AuthenticatedPrincipal):
             raise AuthenticationError("Authentication required")
         body = dict(request.body)
-        body["organization_id"] = UUID(str(request.path_params.get("org_id")))
+        body["workspace_id"] = UUID(str(request.path_params.get("workspace_id")))
         body["invited_by_user_id"] = request.principal.user_id
         input_dto = InviteUserInput(**body)
         result = await self._use_case.execute(input_dto)
@@ -29,7 +29,7 @@ class CreateInviteController(Controller):
                 "message": "created",
                 "data": InviteResponse(
                     id=result.id,
-                    organization_id=result.organization_id,
+                    workspace_id=result.workspace_id,
                     email=result.email,
                     role=result.role.value if hasattr(result.role, "value") else result.role,
                     status=result.status.value if hasattr(result.status, "value") else result.status,

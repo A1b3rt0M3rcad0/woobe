@@ -1,7 +1,7 @@
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
-    OrganizationNotFoundError,
+    WorkspaceNotFoundError,
     UserNotFoundError,
 )
 
@@ -15,13 +15,13 @@ class TestEmailAlreadyExistsError:
         assert str(err) == "Email already taken"
 
 
-class TestOrganizationNotFoundError:
+class TestWorkspaceNotFoundError:
     def test_is_exception(self):
-        assert issubclass(OrganizationNotFoundError, Exception)
+        assert issubclass(WorkspaceNotFoundError, Exception)
 
     def test_default_message(self):
-        err = OrganizationNotFoundError("Organization not found")
-        assert str(err) == "Organization not found"
+        err = WorkspaceNotFoundError("Workspace not found")
+        assert str(err) == "Workspace not found"
 
 
 class TestUserNotFoundError:

@@ -7,13 +7,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.identity.application.auth_types import (
-    AuthenticatedOrganization,
+    AuthenticatedWorkspace,
     AuthenticatedUser,
     IssuedAuthentication,
 )
-from modules.identity.application.authentication_service import DEFAULT_ORGANIZATION_NAME
+from modules.identity.application.authentication_service import DEFAULT_WORKSPACE_NAME
 from modules.identity.application.session_lifecycle import SessionLifecycle
-from modules.identity.domain.entities import Organization, OrganizationMember, User
+from modules.identity.domain.entities import Workspace, WorkspaceMember, User
 from modules.identity.domain.enums import MemberRole
 from modules.identity.domain.errors import EmailAlreadyExistsError
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
@@ -115,7 +115,7 @@ class InstanceService:
                     text(
                         """
                         SELECT 1
-                        FROM identity.organization_invites
+                        FROM identity.workspace_invites
                         WHERE lower(email) = :email
                           AND status = 'pending'
                           AND expires_at > now()
@@ -127,7 +127,7 @@ class InstanceService:
             ).scalar_one_or_none()
             if pending_invite is None:
                 raise AuthorizationError(
-                    "Public registration is disabled. An active Organization invite is required."
+                    "Public registration is disabled. An active Workspace invite is required."
                 )
 
     async def bootstrap(
@@ -186,40 +186,40 @@ class InstanceService:
                 idempotency_key=f"identity:user.created.v1:{user.id}",
             )
 
-            organization = await uow.organizations.save(
-                Organization(
-                    name=DEFAULT_ORGANIZATION_NAME,
-                    slug=f"org-{str(user.id)[:8]}",
+            workspace = await uow.workspaces.save(
+                Workspace(
+                    name=DEFAULT_WORKSPACE_NAME,
+                    slug=f"workspace-{str(user.id)[:8]}",
                 )
             )
             await uow.outbox.write(
-                aggregate_type="organization",
-                aggregate_id=organization.id,
-                event_type="organization.created.v1",
-                payload={"name": organization.name, "slug": organization.slug},
-                routing_key="organization.created.v1",
-                idempotency_key=f"identity:organization.created.v1:{organization.id}",
+                aggregate_type="workspace",
+                aggregate_id=workspace.id,
+                event_type="workspace.created.v1",
+                payload={"name": workspace.name, "slug": workspace.slug},
+                routing_key="workspace.created.v1",
+                idempotency_key=f"identity:workspace.created.v1:{workspace.id}",
             )
 
             member = await uow.members.save(
-                OrganizationMember(
+                WorkspaceMember(
                     user_id=user.id,
-                    organization_id=organization.id,
+                    workspace_id=workspace.id,
                     role=MemberRole.owner,
                     joined_at=now,
                 )
             )
             await uow.outbox.write(
-                aggregate_type="organization_member",
+                aggregate_type="workspace_member",
                 aggregate_id=member.id,
-                event_type="organization.member_added.v1",
+                event_type="workspace.member_added.v1",
                 payload={
                     "user_id": str(user.id),
-                    "organization_id": str(organization.id),
+                    "workspace_id": str(workspace.id),
                     "role": member.role.value,
                 },
-                routing_key="organization.member_added.v1",
-                idempotency_key=f"identity:organization.member_added.v1:{member.id}",
+                routing_key="workspace.member_added.v1",
+                idempotency_key=f"identity:workspace.member_added.v1:{member.id}",
             )
 
             session = await self._sessions.issue(
@@ -255,11 +255,11 @@ class InstanceService:
                     email=user.email,
                     status=user.status.value,
                 ),
-                organization=AuthenticatedOrganization(
-                    id=organization.id,
-                    name=organization.name,
-                    slug=organization.slug,
-                    status=organization.status.value,
+                workspace=AuthenticatedWorkspace(
+                    id=workspace.id,
+                    name=workspace.name,
+                    slug=workspace.slug,
+                    status=workspace.status.value,
                 ),
             )
 
@@ -276,7 +276,7 @@ class InstanceService:
                         """
                         SELECT u.id
                         FROM identity.users AS u
-                        JOIN identity.organization_members AS member
+                        JOIN identity.workspace_members AS member
                           ON member.user_id = u.id
                         WHERE lower(u.email) = :email
                           AND u.status = 'active'
@@ -290,7 +290,7 @@ class InstanceService:
             ).scalar_one_or_none()
             if owner is None:
                 raise NotFoundError(
-                    "No active Organization owner exists with the supplied email"
+                    "No active Workspace owner exists with the supplied email"
                 )
 
             inserted = await uow.session.execute(

@@ -66,7 +66,7 @@ class TestAlembicMigrationsRejectsForbidden:
             content = version.read_text(encoding="utf-8")
             forbidden_fk_patterns = {
                 "core.projects",
-                "identity.organizations",
+                "identity.workspaces",
                 "identity.users",
                 "billing.plans",
                 "billing.subscriptions",
