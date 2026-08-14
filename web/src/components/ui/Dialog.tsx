@@ -34,15 +34,7 @@ interface DialogProps {
   scrollMode?: DialogScrollMode
 }
 
-const INTERNAL_SCROLLBAR = [
-  '[scrollbar-width:thin]',
-  '[scrollbar-color:var(--border)_transparent]',
-  '[&::-webkit-scrollbar]:w-2',
-  '[&::-webkit-scrollbar-track]:bg-transparent',
-  '[&::-webkit-scrollbar-thumb]:rounded-full',
-  '[&::-webkit-scrollbar-thumb]:bg-border',
-  '[&::-webkit-scrollbar-thumb:hover]:bg-muted',
-].join(' ')
+const INTERNAL_SCROLLBAR = 'scrollbar-thin'
 
 export function Dialog({
   open,
@@ -79,7 +71,7 @@ export function Dialog({
   const dialogContent = (
     <div
       className={cn(
-        'relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
+        'dialog-scrollbars relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
         contentScroll && 'flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden',
         className,
       )}
