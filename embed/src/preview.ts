@@ -1,9 +1,14 @@
 import {
+  normalizeAppearance,
+  resolveWelcomeMessage,
+  type SurfaceAppearance,
+} from "./appearance";
+import {
   createChatUi,
   DEFAULT_APPEARANCE,
-  type SurfaceAppearance,
 } from "./chat-ui";
 import "./styles.css";
+import "./preview-scrollbars.css";
 
 interface PreviewUpdateMessage {
   type: "woobe.preview.update";
@@ -13,34 +18,32 @@ interface PreviewUpdateMessage {
 function isPreviewUpdateMessage(value: unknown): value is PreviewUpdateMessage {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const message = value as Record<string, unknown>;
-  if (message.type !== "woobe.preview.update") return false;
-  const appearance = message.appearance;
-  if (!appearance || typeof appearance !== "object" || Array.isArray(appearance)) {
-    return false;
-  }
-  const candidate = appearance as Record<string, unknown>;
-  return (
-    ["light", "dark", "system"].includes(String(candidate.theme)) &&
-    typeof candidate.primary_color === "string" &&
-    typeof candidate.title === "string" &&
-    typeof candidate.placeholder === "string" &&
-    (typeof candidate.welcome_message === "string" || candidate.welcome_message === null)
-  );
+  return message.type === "woobe.preview.update"
+    && Boolean(message.appearance)
+    && typeof message.appearance === "object"
+    && !Array.isArray(message.appearance);
 }
 
 const rootElement = document.querySelector<HTMLElement>("#woobe-chat");
 if (!rootElement) throw new Error("Woobe Chat preview root was not found");
 const root: HTMLElement = rootElement;
 
+const PREVIEW_USER_MESSAGE = "Can you help me get started?";
+
 let parentOrigin: string | null = null;
 let ui = createChatUi(root, DEFAULT_APPEARANCE);
 
-function render(appearance: SurfaceAppearance) {
+function render(value: SurfaceAppearance) {
+  const appearance = normalizeAppearance(value);
   ui = createChatUi(root, appearance);
-  if (appearance.welcome_message) {
-    ui.appendMessage("assistant", appearance.welcome_message, true);
-  }
+  ui.appendMessage("assistant", resolveWelcomeMessage(appearance.welcome_message));
+  ui.appendMessage("user", PREVIEW_USER_MESSAGE);
+  const pending = ui.appendPendingAssistant();
+  ui.updateAssistantActivity(pending, { status: "generating_answer" });
+  ui.scrollToLatest(true);
 }
+
+render(DEFAULT_APPEARANCE);
 
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent || !isPreviewUpdateMessage(event.data)) return;
