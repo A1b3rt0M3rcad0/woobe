@@ -1,4 +1,8 @@
-import { normalizeAppearance, type SurfaceAppearance } from "./appearance";
+import {
+  normalizeAppearance,
+  resolveWelcomeMessage,
+  type SurfaceAppearance,
+} from "./appearance";
 import {
   createChatUi,
   DEFAULT_APPEARANCE,
@@ -24,18 +28,16 @@ const rootElement = document.querySelector<HTMLElement>("#woobe-chat");
 if (!rootElement) throw new Error("Woobe Chat preview root was not found");
 const root: HTMLElement = rootElement;
 
+const PREVIEW_USER_MESSAGE = "Can you help me get started?";
+
 let parentOrigin: string | null = null;
 let ui = createChatUi(root, DEFAULT_APPEARANCE);
 
 function render(value: SurfaceAppearance) {
   const appearance = normalizeAppearance(value);
   ui = createChatUi(root, appearance);
-  ui.appendMessage(
-    "assistant",
-    appearance.welcome_message
-      || "I can help with **structured answers**, lists, links, tables and code when Rich response rendering is enabled.",
-  );
-  ui.appendMessage("user", "What can you help me with?");
+  ui.appendMessage("assistant", resolveWelcomeMessage(appearance.welcome_message));
+  ui.appendMessage("user", PREVIEW_USER_MESSAGE);
   const pending = ui.appendPendingAssistant();
   ui.updateAssistantActivity(pending, { status: "generating_answer" });
   ui.scrollToLatest(true);
