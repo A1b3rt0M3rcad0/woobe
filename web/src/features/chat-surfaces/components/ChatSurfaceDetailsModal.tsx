@@ -1,14 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  Activity,
   Archive,
   Copy,
+  Gauge,
+  Globe,
+  Info,
   KeyRound,
   MessageSquare,
+  Palette,
+  PanelTop,
   Plus,
   Power,
   RefreshCw,
   RotateCw,
+  Send,
   ShieldCheck,
+  SlidersHorizontal,
+  Square,
+  TextCursorInput,
+  type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,9 +29,11 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
-import { ChatSurfaceAppearanceEditor } from '@/features/chat-surfaces/components/ChatSurfaceAppearanceEditor'
+import {
+  ChatSurfaceAppearanceEditor,
+  type ChatSurfaceAppearanceSection,
+} from '@/features/chat-surfaces/components/ChatSurfaceAppearanceEditor'
 import { ChatSurfaceAppearancePreview } from '@/features/chat-surfaces/components/ChatSurfaceAppearancePreview'
 import { ChatSurfaceLiveTestDialog } from '@/features/chat-surfaces/components/ChatSurfaceLiveTestDialog'
 import {
@@ -38,6 +51,7 @@ import type {
   ChatSurfaceAccessKey,
   ChatSurfaceAppearance,
 } from '@/features/chat-surfaces/types'
+import { cn } from '@/lib/utils'
 
 interface ChatSurfaceDetailsModalProps {
   open: boolean
@@ -56,6 +70,48 @@ interface SurfaceFormState {
   maxConcurrentRuns: string
   sessionTokenTtlSeconds: string
 }
+
+type DetailsSection =
+  | 'overview'
+  | 'origins'
+  | 'appearance-general'
+  | 'appearance-header'
+  | 'appearance-surface'
+  | 'appearance-messages'
+  | 'appearance-composer'
+  | 'appearance-send-button'
+  | 'appearance-activity'
+  | 'runtime'
+  | 'release'
+  | 'keys'
+
+interface SidebarItem {
+  id: DetailsSection
+  label: string
+  icon: LucideIcon
+  indent?: boolean
+}
+
+const configurationItems: SidebarItem[] = [
+  { id: 'overview', label: 'Overview', icon: Info },
+  { id: 'origins', label: 'Origins', icon: Globe },
+]
+
+const appearanceItems: SidebarItem[] = [
+  { id: 'appearance-general', label: 'General', icon: Palette, indent: true },
+  { id: 'appearance-header', label: 'Header', icon: PanelTop, indent: true },
+  { id: 'appearance-surface', label: 'Surface', icon: Square, indent: true },
+  { id: 'appearance-messages', label: 'Messages', icon: MessageSquare, indent: true },
+  { id: 'appearance-composer', label: 'Composer', icon: TextCursorInput, indent: true },
+  { id: 'appearance-send-button', label: 'Send button', icon: Send, indent: true },
+  { id: 'appearance-activity', label: 'Activity', icon: Activity, indent: true },
+]
+
+const operationItems: SidebarItem[] = [
+  { id: 'runtime', label: 'Runtime', icon: Gauge },
+  { id: 'release', label: 'Release', icon: RefreshCw },
+  { id: 'keys', label: 'Access Keys', icon: KeyRound },
+]
 
 function surfaceForm(surface: ChatSurface): SurfaceFormState {
   return {
@@ -123,10 +179,47 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border/80 bg-background/55 p-4">
+    <div className="min-w-0 rounded-xl border border-border/80 bg-background/55 p-4">
       <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 break-all text-sm font-medium text-white">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-white">{value}</p>
     </div>
+  )
+}
+
+function SidebarSectionTitle({ children }: { children: string }) {
+  return (
+    <p className="hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80 md:block">
+      {children}
+    </p>
+  )
+}
+
+function SidebarNavButton({
+  item,
+  active,
+  onClick,
+}: {
+  item: SidebarItem
+  active: boolean
+  onClick: () => void
+}) {
+  const Icon = item.icon
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-[border-color,background-color,color] md:w-full md:text-sm',
+        item.indent && 'md:pl-5',
+        active
+          ? 'border-primary/35 bg-primary/10 text-primary-light'
+          : 'border-transparent text-muted hover:border-primary/20 hover:bg-background/70 hover:text-white',
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="whitespace-nowrap md:truncate">{item.label}</span>
+    </button>
   )
 }
 
@@ -198,6 +291,7 @@ export function ChatSurfaceDetailsModal({
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [revokeCandidate, setRevokeCandidate] = useState<ChatSurfaceAccessKey | null>(null)
   const [liveTestOpen, setLiveTestOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState<DetailsSection>('overview')
   const initializedSurfaceRef = useRef<string | null>(null)
 
   const surface = surfaceQuery.data
@@ -238,6 +332,7 @@ export function ChatSurfaceDetailsModal({
     setArchiveOpen(false)
     setRevokeCandidate(null)
     setLiveTestOpen(false)
+    setActiveSection('overview')
     initializedSurfaceRef.current = surface.id
   }, [open, surface])
 
@@ -251,6 +346,7 @@ export function ChatSurfaceDetailsModal({
     setRevokeCandidate(null)
     setRevealedKey(null)
     setLiveTestOpen(false)
+    setActiveSection('overview')
     onClose()
   }
 
@@ -428,7 +524,7 @@ export function ChatSurfaceDetailsModal({
     }
   }
 
-  const overviewTab = surface && form ? (
+  const overviewContent = surface && form ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <h3 className="text-sm font-semibold text-white">General</h3>
@@ -459,17 +555,58 @@ export function ChatSurfaceDetailsModal({
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <h3 className="text-sm font-semibold text-white">Immutable binding</h3>
         <p className="mt-1 text-xs text-muted">These fields define the published boundary and are not editable after creation.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2">
           <ReadOnlyField label="Target" value={`${surface.target_type === 'agent' ? 'Agent' : 'Network'} · ${targetName}`} />
           <ReadOnlyField label="Environment" value="Production" />
           <ReadOnlyField label="Public ID" value={surface.public_id} />
           <ReadOnlyField label="Access mode" value="Backend managed" />
         </div>
       </section>
+
+      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
+            <p className="mt-1 max-w-xl text-xs leading-5 text-muted">
+              Activate or disable the public ChatSurface without changing its immutable target binding.
+            </p>
+          </div>
+          <StatusBadge status={surface.status} size="compact" />
+        </div>
+        {surface.status === 'archived' ? (
+          <p className="mt-4 text-sm leading-6 text-muted">Archived Surfaces are read-only and cannot be reactivated.</p>
+        ) : (
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              loading={lifecycleMutation.isPending}
+              onClick={() => void runLifecycle(surface.status === 'active' ? 'disable' : 'activate')}
+            >
+              <Power className="mr-2 h-3.5 w-3.5" />
+              {surface.status === 'active' ? 'Disable ChatSurface' : 'Activate ChatSurface'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-red-300 hover:text-red-200"
+              onClick={() => {
+                if (!requireCleanForm()) return
+                setArchiveOpen(true)
+              }}
+            >
+              <Archive className="mr-2 h-3.5 w-3.5" />
+              Archive
+            </Button>
+          </div>
+        )}
+      </section>
     </div>
   ) : null
 
-  const originsTab = surface && form ? (
+  const originsContent = surface && form ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <h3 className="text-sm font-semibold text-white">Allowed origins</h3>
@@ -483,12 +620,13 @@ export function ChatSurfaceDetailsModal({
               No origin configured.
             </div>
           ) : form.allowedOrigins.map((origin) => (
-            <div key={origin} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/55 px-3 py-2.5">
+            <div key={origin} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/70 bg-background/55 px-3 py-2.5">
               <code className="min-w-0 truncate text-xs text-slate-200">{origin}</code>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
+                className="shrink-0"
                 disabled={archived}
                 onClick={() => setForm({
                   ...form,
@@ -501,7 +639,7 @@ export function ChatSurfaceDetailsModal({
           ))}
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row">
           <Input
             value={originInput}
             disabled={archived}
@@ -514,7 +652,7 @@ export function ChatSurfaceDetailsModal({
               }
             }}
           />
-          <Button type="button" variant="outline" disabled={archived} onClick={addOrigin}>
+          <Button type="button" variant="outline" className="shrink-0" disabled={archived} onClick={addOrigin}>
             <Plus className="mr-2 h-4 w-4" />
             Add origin
           </Button>
@@ -526,34 +664,43 @@ export function ChatSurfaceDetailsModal({
     </div>
   ) : null
 
-  const appearanceTab = surface && form ? (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <ChatSurfaceAppearanceEditor
-        appearance={form.appearance}
-        disabled={archived}
-        onChange={(appearance) => setForm({ ...form, appearance })}
-      />
+  const appearanceSection = activeSection.startsWith('appearance-')
+    ? activeSection.replace('appearance-', '') as ChatSurfaceAppearanceSection
+    : null
 
-      <ChatSurfaceAppearancePreview
-        appearance={form.appearance}
-        testDisabledReason={liveTestDisabledReason}
-        onTest={() => {
-          if (liveTestDisabledReason) {
-            toast.error(liveTestDisabledReason)
-            return
-          }
-          setLiveTestOpen(true)
-        }}
-      />
+  const appearanceContent = surface && form && appearanceSection ? (
+    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0">
+        <ChatSurfaceAppearanceEditor
+          appearance={form.appearance}
+          section={appearanceSection}
+          disabled={archived}
+          onChange={(appearance) => setForm({ ...form, appearance })}
+        />
+      </div>
+
+      <div className="min-w-0 self-start xl:sticky xl:top-0">
+        <ChatSurfaceAppearancePreview
+          appearance={form.appearance}
+          testDisabledReason={liveTestDisabledReason}
+          onTest={() => {
+            if (liveTestDisabledReason) {
+              toast.error(liveTestDisabledReason)
+              return
+            }
+            setLiveTestOpen(true)
+          }}
+        />
+      </div>
     </div>
   ) : null
 
-  const runtimeTab = form ? (
+  const runtimeContent = form ? (
     <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
       <h3 className="text-sm font-semibold text-white">Runtime limits</h3>
       <p className="mt-1 text-xs text-muted">Operational limits enforced for this ChatSurface.</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
-        <label className="block">
+        <label className="block min-w-0">
           <FieldLabel>Requests / minute</FieldLabel>
           <Input
             type="number"
@@ -565,7 +712,7 @@ export function ChatSurfaceDetailsModal({
           />
           <span className="mt-1 block text-[11px] text-muted">1–10000</span>
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <FieldLabel>Concurrent Runs</FieldLabel>
           <Input
             type="number"
@@ -577,7 +724,7 @@ export function ChatSurfaceDetailsModal({
           />
           <span className="mt-1 block text-[11px] text-muted">1–100</span>
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <FieldLabel>Session token TTL</FieldLabel>
           <Input
             type="number"
@@ -593,7 +740,7 @@ export function ChatSurfaceDetailsModal({
     </section>
   ) : null
 
-  const releaseTab = surface ? (
+  const releaseContent = surface ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -606,6 +753,7 @@ export function ChatSurfaceDetailsModal({
           <Button
             type="button"
             size="sm"
+            className="shrink-0"
             disabled={archived || releaseMutation.isPending}
             loading={releaseMutation.isPending}
             onClick={() => void refreshRelease()}
@@ -614,7 +762,7 @@ export function ChatSurfaceDetailsModal({
             Use current Production Release
           </Button>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2">
           <ReadOnlyField label="Target" value={`${surface.target_type === 'agent' ? 'Agent' : 'Network'} · ${targetName}`} />
           <ReadOnlyField label="Pinned Release" value={surface.target_release_id} />
         </div>
@@ -622,7 +770,7 @@ export function ChatSurfaceDetailsModal({
     </div>
   ) : null
 
-  const accessKeysTab = surface ? (
+  const accessKeysContent = surface ? (
     <div className="space-y-5">
       <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -632,17 +780,18 @@ export function ChatSurfaceDetailsModal({
               Backend-only credentials used by the integrator to create Sessions and issue browser Session tokens.
             </p>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+          <div className="flex min-w-0 w-full gap-2 sm:w-auto">
             <Input
               value={keyName}
               disabled={archived}
               maxLength={255}
               placeholder="Key name"
-              className="sm:w-64"
+              className="min-w-0 sm:w-64"
               onChange={(event) => setKeyName(event.target.value)}
             />
             <Button
               type="button"
+              className="shrink-0"
               disabled={archived}
               loading={createKeyMutation.isPending}
               onClick={() => void createKey()}
@@ -669,7 +818,7 @@ export function ChatSurfaceDetailsModal({
               {accessKeys.map((accessKey) => {
                 const active = accessKey.status === 'active'
                 return (
-                  <div key={accessKey.id} className="grid gap-3 rounded-xl border border-border/70 bg-background/55 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div key={accessKey.id} className="grid min-w-0 gap-3 rounded-xl border border-border/70 bg-background/55 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-medium text-white">{accessKey.name}</p>
@@ -682,7 +831,7 @@ export function ChatSurfaceDetailsModal({
                         {accessKey.expires_at && <span>Expires · {formatDate(accessKey.expires_at)}</span>}
                       </div>
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button
                         type="button"
                         size="sm"
@@ -717,14 +866,17 @@ export function ChatSurfaceDetailsModal({
     </div>
   ) : null
 
-  const tabs = useMemo(() => [
-    { id: 'overview', label: 'Overview', content: overviewTab },
-    { id: 'origins', label: 'Origins', content: originsTab },
-    { id: 'appearance', label: 'Appearance', content: appearanceTab },
-    { id: 'runtime', label: 'Runtime', content: runtimeTab },
-    { id: 'release', label: 'Release', content: releaseTab },
-    { id: 'keys', label: 'Access Keys', content: accessKeysTab },
-  ], [overviewTab, originsTab, appearanceTab, runtimeTab, releaseTab, accessKeysTab])
+  const currentContent = activeSection === 'overview'
+    ? overviewContent
+    : activeSection === 'origins'
+      ? originsContent
+      : appearanceSection
+        ? appearanceContent
+        : activeSection === 'runtime'
+          ? runtimeContent
+          : activeSection === 'release'
+            ? releaseContent
+            : accessKeysContent
 
   return (
     <>
@@ -732,8 +884,8 @@ export function ChatSurfaceDetailsModal({
         open={open}
         onClose={requestClose}
         title="ChatSurface details"
-        className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden"
-        contentClassName="p-0"
+        className="flex h-[min(900px,calc(100svh-2rem))] max-w-7xl flex-col overflow-hidden"
+        contentClassName="min-h-0 flex-1 p-0"
       >
         {surfaceQuery.isLoading && !surface ? (
           <div className="p-10">
@@ -744,89 +896,94 @@ export function ChatSurfaceDetailsModal({
             <ErrorState error={surfaceQuery.error} onRetry={surfaceQuery.refetch} />
           </div>
         ) : surface && form ? (
-          <div className="grid min-h-[620px] max-h-[calc(100svh-8rem)] lg:grid-cols-[260px_minmax(0,1fr)]">
-            <aside className="overflow-y-auto border-b border-border bg-background/35 p-5 lg:border-b-0 lg:border-r">
-              <div className="rounded-xl border border-border/90 bg-surface/65 p-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
-                  <MessageSquare className="h-5 w-5" />
-                </div>
-                <div className="mt-4 flex items-start justify-between gap-3">
-                  <h3 className="min-w-0 truncate text-base font-semibold text-white">{surface.name}</h3>
-                  <StatusBadge status={surface.status} size="compact" />
-                </div>
-                <p className="mt-2 text-sm leading-6 text-muted">{surface.description || 'No description provided'}</p>
-                <div className="mt-4 space-y-2 text-xs text-muted">
-                  <p>Production · {surface.target_type === 'agent' ? 'Agent' : 'Network'}</p>
-                  <p className="truncate text-white/80" title={targetName}>{targetName}</p>
-                  <button
-                    type="button"
-                    className="flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-white"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(surface.public_id)
-                      toast.success('Public ID copied')
-                    }}
-                  >
-                    <span className="truncate">{surface.public_id}</span>
-                    <Copy className="h-3 w-3 shrink-0" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-border/80 bg-surface/50 p-4">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Lifecycle</p>
-                {surface.status === 'archived' ? (
-                  <p className="mt-3 text-xs leading-5 text-muted">Archived Surfaces are read-only and cannot be reactivated.</p>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    <Button
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[230px_minmax(0,1fr)] md:grid-rows-1">
+            <aside className="flex min-h-0 min-w-0 flex-col border-b border-border bg-background/35 md:border-b-0 md:border-r">
+              <div className="hidden border-b border-border p-4 md:block">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
+                    <MessageSquare className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{surface.name}</h3>
+                      <StatusBadge status={surface.status} size="compact" />
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted" title={targetName}>
+                      Production · {surface.target_type === 'agent' ? 'Agent' : 'Network'} · {targetName}
+                    </p>
+                    <button
                       type="button"
-                      size="sm"
-                      variant="outline"
-                      className="w-full justify-center"
-                      loading={lifecycleMutation.isPending}
-                      onClick={() => void runLifecycle(surface.status === 'active' ? 'disable' : 'activate')}
-                    >
-                      <Power className="mr-2 h-3.5 w-3.5" />
-                      {surface.status === 'active' ? 'Disable ChatSurface' : 'Activate ChatSurface'}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="w-full justify-center text-red-300 hover:text-red-200"
+                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-white"
                       onClick={() => {
-                        if (!requireCleanForm()) return
-                        setArchiveOpen(true)
+                        void navigator.clipboard.writeText(surface.public_id)
+                        toast.success('Public ID copied')
                       }}
                     >
-                      <Archive className="mr-2 h-3.5 w-3.5" />
-                      Archive
-                    </Button>
+                      <span className="truncate">{surface.public_id}</span>
+                      <Copy className="h-3 w-3 shrink-0" />
+                    </button>
                   </div>
-                )}
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3 text-[11px] text-muted">
+                  <span>{form.allowedOrigins.length} origins</span>
+                  <span className="font-mono" title={surface.target_release_id}>{shortId(surface.target_release_id)}</span>
+                </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 text-center text-[11px] text-muted lg:grid-cols-1 lg:text-left">
-                <div className="rounded-lg border border-border/70 bg-background/45 p-3">
-                  <span className="block uppercase tracking-wider">Origins</span>
-                  <span className="mt-1 block text-sm font-medium text-white">{form.allowedOrigins.length}</span>
+              <nav className="flex min-w-0 gap-1 overflow-x-auto p-2 md:block md:flex-1 md:space-y-5 md:overflow-y-auto md:p-3">
+                <div className="contents md:block md:space-y-2">
+                  <SidebarSectionTitle>Configuration</SidebarSectionTitle>
+                  <div className="contents md:block md:space-y-1">
+                    {configurationItems.map((item) => (
+                      <SidebarNavButton
+                        key={item.id}
+                        item={item}
+                        active={activeSection === item.id}
+                        onClick={() => setActiveSection(item.id)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="rounded-lg border border-border/70 bg-background/45 p-3">
-                  <span className="block uppercase tracking-wider">Pinned Release</span>
-                  <span className="mt-1 block font-mono text-xs text-white" title={surface.target_release_id}>{shortId(surface.target_release_id)}</span>
+
+                <div className="contents md:block md:space-y-2">
+                  <SidebarSectionTitle>Appearance</SidebarSectionTitle>
+                  <div className="contents md:block md:space-y-1">
+                    {appearanceItems.map((item) => (
+                      <SidebarNavButton
+                        key={item.id}
+                        item={item}
+                        active={activeSection === item.id}
+                        onClick={() => setActiveSection(item.id)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+
+                <div className="contents md:block md:space-y-2">
+                  <SidebarSectionTitle>Operate</SidebarSectionTitle>
+                  <div className="contents md:block md:space-y-1">
+                    {operationItems.map((item) => (
+                      <SidebarNavButton
+                        key={item.id}
+                        item={item}
+                        active={activeSection === item.id}
+                        onClick={() => setActiveSection(item.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </nav>
             </aside>
 
             <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-              <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">
-                <Tabs tabs={tabs} defaultTab="overview" />
+              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6">
+                {currentContent}
               </div>
-              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-6">
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-6">
                 <p className="text-[11px] text-muted">
                   {archived ? 'Archived · configuration is read-only' : hasChanges ? 'Unsaved configuration changes' : `Updated · ${formatDate(surface.updated_at)}`}
                 </p>
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Close</Button>
                   <Button
                     type="button"
