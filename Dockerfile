@@ -20,7 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
     "boto3>=1.35.0" \
-    "pypdf>=6.0.0"
+    "pypdf>=6.0.0" \
+    && uv pip check --python /opt/venv/bin/python
 RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
@@ -30,7 +31,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN groupadd --system --gid 10001 woobe \
+RUN python -m pip uninstall --yes pip \
+    && groupadd --system --gid 10001 woobe \
     && useradd --system --uid 10001 --gid woobe --home-dir /app --shell /usr/sbin/nologin woobe
 
 WORKDIR /app

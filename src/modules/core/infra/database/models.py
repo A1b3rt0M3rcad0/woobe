@@ -112,6 +112,43 @@ class ProjectMemberModel(BaseModel):
     granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
+class ProjectInviteAccessModel(BaseModel):
+    __tablename__ = "project_invite_access"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "workspace_invite_id",
+            name="uq_core_project_invite_access_project_invite",
+        ),
+        Index(
+            "ix_core_project_invite_access_invite_status",
+            "workspace_invite_id",
+            "status",
+        ),
+        Index(
+            "ix_core_project_invite_access_project_status",
+            "project_id",
+            "status",
+        ),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "core.projects.id",
+            name="fk_core_project_invite_access_project_id",
+            ondelete="CASCADE",
+        )
+    )
+    workspace_invite_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="pending",
+        server_default=text("'pending'"),
+    )
+    granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+
+
 class ApiKeyModel(BaseModel):
     __tablename__ = "api_keys"
     __table_args__ = (
