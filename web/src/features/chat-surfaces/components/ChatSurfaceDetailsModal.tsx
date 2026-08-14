@@ -20,6 +20,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
+import { ChatSurfaceAppearanceEditor } from '@/features/chat-surfaces/components/ChatSurfaceAppearanceEditor'
 import { ChatSurfaceAppearancePreview } from '@/features/chat-surfaces/components/ChatSurfaceAppearancePreview'
 import { ChatSurfaceLiveTestDialog } from '@/features/chat-surfaces/components/ChatSurfaceLiveTestDialog'
 import {
@@ -36,7 +37,6 @@ import type {
   ChatSurface,
   ChatSurfaceAccessKey,
   ChatSurfaceAppearance,
-  ChatSurfaceTheme,
 } from '@/features/chat-surfaces/types'
 
 interface ChatSurfaceDetailsModalProps {
@@ -528,87 +528,11 @@ export function ChatSurfaceDetailsModal({
 
   const appearanceTab = surface && form ? (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Embed appearance</h3>
-        <p className="mt-1 text-xs text-muted">Presentation applied to the embedded ChatSurface.</p>
-        <div className="mt-5 space-y-4">
-          <label className="block">
-            <FieldLabel>Display title</FieldLabel>
-            <Input
-              value={form.appearance.title}
-              disabled={archived}
-              maxLength={80}
-              onChange={(event) => setForm({
-                ...form,
-                appearance: { ...form.appearance, title: event.target.value },
-              })}
-            />
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <FieldLabel>Theme</FieldLabel>
-              <select
-                value={form.appearance.theme}
-                disabled={archived}
-                onChange={(event) => setForm({
-                  ...form,
-                  appearance: {
-                    ...form.appearance,
-                    theme: event.target.value as ChatSurfaceTheme,
-                  },
-                })}
-                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </label>
-            <label className="block">
-              <FieldLabel>Primary color</FieldLabel>
-              <input
-                type="color"
-                value={form.appearance.primary_color}
-                disabled={archived}
-                onChange={(event) => setForm({
-                  ...form,
-                  appearance: {
-                    ...form.appearance,
-                    primary_color: event.target.value.toUpperCase(),
-                  },
-                })}
-                className="h-10 w-full rounded-lg border border-border bg-background p-1 disabled:opacity-60"
-              />
-            </label>
-          </div>
-          <label className="block">
-            <FieldLabel>Placeholder</FieldLabel>
-            <Input
-              value={form.appearance.placeholder}
-              disabled={archived}
-              maxLength={120}
-              onChange={(event) => setForm({
-                ...form,
-                appearance: { ...form.appearance, placeholder: event.target.value },
-              })}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Welcome message</FieldLabel>
-            <Textarea
-              value={form.appearance.welcome_message ?? ''}
-              disabled={archived}
-              rows={4}
-              maxLength={500}
-              placeholder="How can I help?"
-              onChange={(event) => setForm({
-                ...form,
-                appearance: { ...form.appearance, welcome_message: event.target.value },
-              })}
-            />
-          </label>
-        </div>
-      </section>
+      <ChatSurfaceAppearanceEditor
+        appearance={form.appearance}
+        disabled={archived}
+        onChange={(appearance) => setForm({ ...form, appearance })}
+      />
 
       <ChatSurfaceAppearancePreview
         appearance={form.appearance}
