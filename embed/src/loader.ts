@@ -5,6 +5,7 @@ type FrameEventType =
   | "history.loaded"
   | "message.sent"
   | "run.started"
+  | "run.activity"
   | "run.completed"
   | "session.expired"
   | "error"
