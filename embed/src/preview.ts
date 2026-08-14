@@ -4,6 +4,7 @@ import {
   DEFAULT_APPEARANCE,
 } from "./chat-ui";
 import "./styles.css";
+import "./preview-scrollbars.css";
 
 interface PreviewUpdateMessage {
   type: "woobe.preview.update";
