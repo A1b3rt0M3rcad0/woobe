@@ -1,6 +1,9 @@
 name: Backend test suite
 
 on:
+  pull_request:
+    branches: [development]
+    types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
 permissions:
