@@ -110,6 +110,13 @@ export interface SurfaceAppearance {
   };
 }
 
+export const DEFAULT_WELCOME_MESSAGE = "Hi! How can I help you today?";
+
+export function resolveWelcomeMessage(value: string | null | undefined): string {
+  const message = value?.trim();
+  return message || DEFAULT_WELCOME_MESSAGE;
+}
+
 export const DEFAULT_APPEARANCE: SurfaceAppearance = {
   schema_version: 2,
   theme: "system",
@@ -281,7 +288,7 @@ export function normalizeAppearance(value: unknown): SurfaceAppearance {
     primary_color: stringValue(raw.primary_color, DEFAULT_APPEARANCE.primary_color),
     title: stringValue(raw.title, DEFAULT_APPEARANCE.title),
     placeholder: stringValue(raw.placeholder, DEFAULT_APPEARANCE.placeholder),
-    welcome_message: nullableString(raw.welcome_message, DEFAULT_APPEARANCE.welcome_message),
+    welcome_message: resolveWelcomeMessage(nullableString(raw.welcome_message, DEFAULT_APPEARANCE.welcome_message)),
     surface: {
       background_color: nullableString(surface.background_color, DEFAULT_APPEARANCE.surface.background_color),
       border_color: nullableString(surface.border_color, DEFAULT_APPEARANCE.surface.border_color),
