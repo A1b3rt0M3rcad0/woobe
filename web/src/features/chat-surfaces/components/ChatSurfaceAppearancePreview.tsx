@@ -44,14 +44,15 @@ export function ChatSurfaceAppearancePreview({
   }, [appearance, embedOrigin])
 
   return (
-    <section className="self-start rounded-xl border border-border/80 bg-surface/65 p-5">
-      <div className="flex items-center justify-between gap-3">
+    <section className="min-w-0 self-start overflow-hidden rounded-xl border border-border/80 bg-surface/65 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Preview</p>
         {onTest ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="shrink-0"
             disabled={Boolean(testDisabledReason)}
             title={testDisabledReason ?? 'Open a live test using the pinned Production Release'}
             onClick={onTest}
@@ -61,21 +62,21 @@ export function ChatSurfaceAppearancePreview({
           </Button>
         ) : null}
       </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-border/80 bg-background">
+      <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-background">
         <iframe
           ref={frameRef}
           src={previewUrl}
           title="ChatSurface appearance preview"
           sandbox="allow-scripts allow-same-origin"
-          className="block h-[320px] w-full border-0"
+          className="block h-[280px] w-full min-w-0 border-0 sm:h-[320px]"
           onLoad={syncAppearance}
         />
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-muted">
+      <p className="mt-3 break-words text-[11px] leading-5 text-muted">
         Rendered by the same ChatSurface UI package used by the production embed. It does not create a Session or execute the target.
       </p>
       {testDisabledReason ? (
-        <p className="mt-2 text-[11px] leading-5 text-amber-200/80">{testDisabledReason}</p>
+        <p className="mt-2 break-words text-[11px] leading-5 text-amber-200/80">{testDisabledReason}</p>
       ) : null}
     </section>
   )
