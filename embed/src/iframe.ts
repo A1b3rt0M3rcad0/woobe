@@ -1,7 +1,9 @@
+import { normalizeAppearance } from "./appearance";
 import {
   createChatUi,
   DEFAULT_APPEARANCE,
   type ChatUi,
+  type PublicAgentActivity,
   type SurfaceAppearance,
 } from "./chat-ui";
 import {
@@ -72,15 +74,15 @@ function decodeSessionId(token: string): string {
 }
 
 function ensureUi(nextAppearance = appearance): ChatUi {
-  appearance = nextAppearance;
+  appearance = normalizeAppearance(nextAppearance);
   if (!ui) {
-    ui = createChatUi(root, nextAppearance, {
+    ui = createChatUi(root, appearance, {
       onSubmit(message) {
         void sendMessage(message);
       },
     });
   } else {
-    ui.setAppearance(nextAppearance);
+    ui.setAppearance(appearance);
   }
   return ui;
 }
@@ -151,8 +153,8 @@ async function bootstrap() {
   bootstrapping = true;
   try {
     const configuration = await loadConfiguration();
-    appearance = configuration.appearance;
-    ensureUi(configuration.appearance).clearSessionExpired();
+    appearance = normalizeAppearance(configuration.appearance);
+    ensureUi(appearance).clearSessionExpired();
     await loadHistory();
     initialized = true;
   } catch (error) {
@@ -161,6 +163,18 @@ async function bootstrap() {
   } finally {
     bootstrapping = false;
   }
+}
+
+function publicActivity(data: unknown): PublicAgentActivity | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const value = data as Record<string, unknown>;
+  const nested = value.data && typeof value.data === "object" && !Array.isArray(value.data)
+    ? (value.data as Record<string, unknown>)
+    : value;
+  const status = typeof nested.status === "string" ? nested.status : undefined;
+  const toolName = typeof nested.tool_name === "string" ? nested.tool_name : undefined;
+  if (!status) return null;
+  return { status, tool_name: toolName };
 }
 
 async function sendMessage(message: string) {
@@ -205,6 +219,19 @@ async function sendMessage(message: string) {
       if (!dataLine) return;
       const eventType = eventLine?.slice(6).trim();
       const data = JSON.parse(dataLine.slice(5).trim());
+
+      if (eventType === "agent_activity" || data.type === "agent_activity") {
+        const activity = publicActivity(data);
+        if (activity) {
+          const label = chatUi.updateAssistantActivity(assistant, activity);
+          emit("run.activity", {
+            status: activity.status,
+            message: label || undefined,
+          });
+        }
+        return;
+      }
+
       const token =
         typeof data.token === "string"
           ? data.token
