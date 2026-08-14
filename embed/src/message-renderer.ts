@@ -3,8 +3,8 @@ import type { ResponseRenderMode } from "./appearance";
 function appendTextWithBreaks(parent: Node, value: string) {
   const parts = value.split("\n");
   parts.forEach((part, index) => {
-    if (part) parent.append(document.createTextNode(part));
-    if (index < parts.length - 1) parent.append(document.createElement("br"));
+    if (part) parent.appendChild(document.createTextNode(part));
+    if (index < parts.length - 1) parent.appendChild(document.createElement("br"));
   });
 }
 
