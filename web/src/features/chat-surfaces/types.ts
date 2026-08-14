@@ -1,13 +1,115 @@
 export type ChatSurfaceTargetType = 'agent' | 'network'
 export type ChatSurfaceStatus = 'draft' | 'active' | 'disabled' | 'archived'
 export type ChatSurfaceTheme = 'light' | 'dark' | 'system'
+export type ChatSurfaceResponseRenderMode = 'plain' | 'rich'
+export type ChatSurfaceActivityMode = 'dots' | 'status'
+export type ChatSurfaceActivityDetailLevel = 'generic' | 'named'
+
+export interface ChatSurfaceSurfaceStyle {
+  background_color: string | null
+  border_color: string | null
+  border_width: number
+  border_radius: number
+  shadow: 'none' | 'sm' | 'md' | 'lg'
+}
+
+export interface ChatSurfaceHeaderStyle {
+  visible: boolean
+  background_color: string | null
+  text_color: string | null
+  border_color: string | null
+  border_width: number
+  height: number
+  padding: number
+  alignment: 'left' | 'center' | 'right'
+}
+
+export interface ChatSurfaceConversationStyle {
+  background_color: string | null
+  padding: number
+  message_gap: number
+  max_content_width: number
+}
+
+export interface ChatSurfaceMessageStyle {
+  background_color: string | null
+  text_color: string | null
+  border_color: string | null
+  border_width: number
+  border_radius: number
+  padding_y: number
+  padding_x: number
+  max_width: number
+  show_avatar: boolean
+}
+
+export interface ChatSurfaceComposerStyle {
+  background_color: string | null
+  border_color: string | null
+  padding: number
+}
+
+export interface ChatSurfaceInputStyle {
+  background_color: string | null
+  text_color: string | null
+  placeholder_color: string | null
+  border_color: string | null
+  focus_border_color: string | null
+  border_radius: number
+  font_size: number
+  padding_y: number
+  padding_x: number
+}
+
+export interface ChatSurfaceSendButtonStyle {
+  variant: 'text' | 'icon' | 'icon_text'
+  background_color: string | null
+  text_color: string | null
+  border_color: string | null
+  border_width: number
+  border_radius: number
+  label: string
+  icon: 'arrow_up' | 'arrow_right' | 'none'
+}
+
+export interface ChatSurfaceActivityLabels {
+  preparing: string
+  planning_tools: string
+  calling_tool: string
+  processing_tool_result: string
+  generating_answer: string
+  formatting_response: string
+}
+
+export interface ChatSurfaceActivityStyle {
+  mode: ChatSurfaceActivityMode
+  detail_level: ChatSurfaceActivityDetailLevel
+  show_icon: boolean
+  labels: ChatSurfaceActivityLabels
+}
 
 export interface ChatSurfaceAppearance {
+  schema_version: 2
   theme: ChatSurfaceTheme
   primary_color: string
   title: string
   placeholder: string
   welcome_message?: string | null
+  surface: ChatSurfaceSurfaceStyle
+  header: ChatSurfaceHeaderStyle
+  conversation: ChatSurfaceConversationStyle
+  messages: {
+    user: ChatSurfaceMessageStyle
+    assistant: ChatSurfaceMessageStyle
+    system: ChatSurfaceMessageStyle
+  }
+  composer: ChatSurfaceComposerStyle
+  input: ChatSurfaceInputStyle
+  send_button: ChatSurfaceSendButtonStyle
+  activity: ChatSurfaceActivityStyle
+  response: {
+    render_mode: ChatSurfaceResponseRenderMode
+  }
 }
 
 export interface ChatSurface {
