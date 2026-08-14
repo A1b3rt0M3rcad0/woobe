@@ -1,94 +1,161 @@
+import { type ReactNode, useState } from 'react'
+
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
+import { DEFAULT_CHAT_SURFACE_APPEARANCE } from '@/features/chat-surfaces/appearance'
 import type {
   ChatSurfaceAppearance,
   ChatSurfaceMessageStyle,
 } from '@/features/chat-surfaces/types'
+import { cn } from '@/lib/utils'
+
+export type ChatSurfaceAppearanceSection =
+  | 'general'
+  | 'header'
+  | 'surface'
+  | 'messages'
+  | 'composer'
+  | 'send-button'
+  | 'activity'
 
 interface ChatSurfaceAppearanceEditorProps {
   appearance: ChatSurfaceAppearance
+  section: ChatSurfaceAppearanceSection
   disabled?: boolean
   onChange: (appearance: ChatSurfaceAppearance) => void
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">
-      {children}
-    </span>
-  )
-}
+const selectClassName = 'h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60'
 
-function Section({
+type MessageRole = keyof ChatSurfaceAppearance['messages']
+
+function SettingPanel({
   title,
   description,
+  action,
   children,
-  open = false,
 }: {
   title: string
   description: string
-  children: React.ReactNode
-  open?: boolean
+  action?: ReactNode
+  children: ReactNode
 }) {
   return (
-    <details open={open} className="group rounded-xl border border-border/80 bg-surface/65">
-      <summary className="cursor-pointer list-none px-5 py-4 marker:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-          </div>
-          <span className="text-xs text-muted transition-transform group-open:rotate-180">⌄</span>
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-surface/65">
+      <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">{description}</p>
         </div>
-      </summary>
-      <div className="border-t border-border/70 px-5 py-5">{children}</div>
-    </details>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <div className="min-w-0 px-5">{children}</div>
+    </section>
   )
 }
 
-function OptionalColorField({
+function SubsectionTitle({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="border-b border-border/60 pb-3 pt-5 first:pt-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/80">{title}</p>
+      {description ? <p className="mt-1 text-xs leading-5 text-muted">{description}</p> : null}
+    </div>
+  )
+}
+
+function SettingRow({
   label,
+  description,
+  children,
+  align = 'center',
+}: {
+  label: string
+  description?: string
+  children: ReactNode
+  align?: 'center' | 'start'
+}) {
+  return (
+    <div
+      className={cn(
+        'grid min-w-0 gap-3 border-b border-border/60 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]',
+        align === 'center' ? 'md:items-center' : 'md:items-start',
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-white">{label}</p>
+        {description ? <p className="mt-1 text-xs leading-5 text-muted">{description}</p> : null}
+      </div>
+      <div className="min-w-0 md:w-full md:justify-self-end">{children}</div>
+    </div>
+  )
+}
+
+function OptionalColorControl({
   value,
   fallback,
   disabled,
   onChange,
 }: {
-  label: string
   value: string | null
   fallback: string
   disabled?: boolean
   onChange: (value: string | null) => void
 }) {
-  const enabled = value !== null
+  const customized = value !== null
+
   return (
-    <div>
-      <FieldLabel>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value ?? fallback}
-          disabled={disabled || !enabled}
-          onChange={(event) => onChange(event.target.value.toUpperCase())}
-          className="h-10 w-14 rounded-lg border border-border bg-background p-1 disabled:opacity-45"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => onChange(enabled ? null : fallback.toUpperCase())}
-        >
-          {enabled ? 'Use theme' : 'Customize'}
-        </Button>
-        <code className="text-[11px] text-muted">{value ?? 'Theme default'}</code>
-      </div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
+      <input
+        type="color"
+        value={value ?? fallback}
+        disabled={disabled || !customized}
+        onChange={(event) => onChange(event.target.value.toUpperCase())}
+        className="h-9 w-10 shrink-0 rounded-lg border border-border bg-background p-1 disabled:opacity-45"
+        aria-label="Select color"
+      />
+      <code className="min-w-[76px] truncate text-xs text-muted">
+        {value ?? 'Theme'}
+      </code>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="shrink-0"
+        disabled={disabled}
+        onClick={() => onChange(customized ? null : fallback.toUpperCase())}
+      >
+        {customized ? 'Reset' : 'Customize'}
+      </Button>
     </div>
   )
 }
 
-function NumberField({
-  label,
+function PrimaryColorControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 md:justify-end">
+      <input
+        type="color"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value.toUpperCase())}
+        className="h-9 w-10 shrink-0 rounded-lg border border-border bg-background p-1 disabled:opacity-60"
+        aria-label="Select primary color"
+      />
+      <code className="min-w-0 truncate text-xs text-muted">{value}</code>
+    </div>
+  )
+}
+
+function NumberControl({
   value,
   min,
   max,
@@ -96,7 +163,6 @@ function NumberField({
   disabled,
   onChange,
 }: {
-  label: string
   value: number
   min: number
   max: number
@@ -105,66 +171,115 @@ function NumberField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="block">
-      <FieldLabel>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          min={min}
-          max={max}
-          value={value}
-          disabled={disabled}
-          onChange={(event) => {
-            const next = Number(event.target.value)
-            if (Number.isFinite(next)) onChange(next)
-          }}
-        />
-        {suffix ? <span className="shrink-0 text-xs text-muted">{suffix}</span> : null}
-      </div>
+    <div className="flex min-w-0 items-center gap-2 md:justify-end">
+      <Input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        disabled={disabled}
+        className="w-28 shrink-0"
+        onChange={(event) => {
+          const next = Number(event.target.value)
+          if (Number.isFinite(next)) onChange(next)
+        }}
+      />
+      {suffix ? <span className="w-8 shrink-0 text-xs text-muted">{suffix}</span> : null}
+    </div>
+  )
+}
+
+function ToggleControl({
+  checked,
+  label,
+  disabled,
+  onChange,
+}: {
+  checked: boolean
+  label: string
+  disabled?: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex min-w-0 items-center gap-2 text-sm text-white md:justify-end">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="truncate">{label}</span>
     </label>
   )
 }
 
-function MessageStyleEditor({
-  title,
+function MessageRoleSelector({ value, onChange }: { value: MessageRole; onChange: (value: MessageRole) => void }) {
+  const roles: Array<{ id: MessageRole; label: string }> = [
+    { id: 'user', label: 'User' },
+    { id: 'assistant', label: 'Assistant' },
+    { id: 'system', label: 'System' },
+  ]
+
+  return (
+    <div className="inline-flex max-w-full rounded-lg border border-border bg-background/70 p-1">
+      {roles.map((role) => (
+        <button
+          key={role.id}
+          type="button"
+          onClick={() => onChange(role.id)}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+            value === role.id
+              ? 'bg-primary/15 text-primary-light'
+              : 'text-muted hover:bg-surface hover:text-white',
+          )}
+        >
+          {role.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MessageRows({
   value,
   primaryColor,
   disabled,
   onChange,
 }: {
-  title: string
   value: ChatSurfaceMessageStyle
   primaryColor: string
   disabled?: boolean
   onChange: (value: ChatSurfaceMessageStyle) => void
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-background/45 p-4">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-white/80">{title}</h4>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <OptionalColorField
-          label="Background"
+    <>
+      <SettingRow label="Background" description="Bubble background color.">
+        <OptionalColorControl
           value={value.background_color}
           fallback={primaryColor}
           disabled={disabled}
           onChange={(background_color) => onChange({ ...value, background_color })}
         />
-        <OptionalColorField
-          label="Text"
+      </SettingRow>
+      <SettingRow label="Text color" description="Foreground color used by message content.">
+        <OptionalColorControl
           value={value.text_color}
           fallback="#FFFFFF"
           disabled={disabled}
           onChange={(text_color) => onChange({ ...value, text_color })}
         />
-        <OptionalColorField
-          label="Border"
+      </SettingRow>
+      <SettingRow label="Border color" description="Optional outline color for the message bubble.">
+        <OptionalColorControl
           value={value.border_color}
           fallback="#CBD1DC"
           disabled={disabled}
           onChange={(border_color) => onChange({ ...value, border_color })}
         />
-        <NumberField
-          label="Border width"
+      </SettingRow>
+      <SettingRow label="Border width">
+        <NumberControl
           value={value.border_width}
           min={0}
           max={4}
@@ -172,8 +287,9 @@ function MessageStyleEditor({
           disabled={disabled}
           onChange={(border_width) => onChange({ ...value, border_width })}
         />
-        <NumberField
-          label="Radius"
+      </SettingRow>
+      <SettingRow label="Radius">
+        <NumberControl
           value={value.border_radius}
           min={0}
           max={32}
@@ -181,8 +297,9 @@ function MessageStyleEditor({
           disabled={disabled}
           onChange={(border_radius) => onChange({ ...value, border_radius })}
         />
-        <NumberField
-          label="Maximum width"
+      </SettingRow>
+      <SettingRow label="Maximum width" description="Maximum bubble width relative to the conversation area.">
+        <NumberControl
           value={value.max_width}
           min={40}
           max={100}
@@ -190,8 +307,9 @@ function MessageStyleEditor({
           disabled={disabled}
           onChange={(max_width) => onChange({ ...value, max_width })}
         />
-        <NumberField
-          label="Vertical padding"
+      </SettingRow>
+      <SettingRow label="Vertical padding">
+        <NumberControl
           value={value.padding_y}
           min={4}
           max={24}
@@ -199,8 +317,9 @@ function MessageStyleEditor({
           disabled={disabled}
           onChange={(padding_y) => onChange({ ...value, padding_y })}
         />
-        <NumberField
-          label="Horizontal padding"
+      </SettingRow>
+      <SettingRow label="Horizontal padding">
+        <NumberControl
           value={value.padding_x}
           min={6}
           max={32}
@@ -208,131 +327,190 @@ function MessageStyleEditor({
           disabled={disabled}
           onChange={(padding_x) => onChange({ ...value, padding_x })}
         />
-      </div>
-      <label className="mt-4 flex items-center gap-2 text-xs text-muted">
-        <input
-          type="checkbox"
+      </SettingRow>
+      <SettingRow label="Avatar" description="Show a role marker alongside this message type.">
+        <ToggleControl
           checked={value.show_avatar}
+          label="Show role avatar"
           disabled={disabled}
-          onChange={(event) => onChange({ ...value, show_avatar: event.target.checked })}
+          onChange={(show_avatar) => onChange({ ...value, show_avatar })}
         />
-        Show role avatar
-      </label>
-    </div>
+      </SettingRow>
+    </>
   )
 }
 
 export function ChatSurfaceAppearanceEditor({
   appearance,
+  section,
   disabled,
   onChange,
 }: ChatSurfaceAppearanceEditorProps) {
+  const [messageRole, setMessageRole] = useState<MessageRole>('user')
+
   const update = <K extends keyof ChatSurfaceAppearance>(
     key: K,
     value: ChatSurfaceAppearance[K],
   ) => onChange({ ...appearance, [key]: value })
 
-  return (
-    <div className="space-y-4">
-      <Section
-        title="General"
-        description="Identity, base theme and the initial conversation copy."
-        open
-      >
-        <div className="space-y-4">
-          <label className="block">
-            <FieldLabel>Display title</FieldLabel>
-            <Input
-              value={appearance.title}
-              disabled={disabled}
-              maxLength={80}
-              onChange={(event) => update('title', event.target.value)}
-            />
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <FieldLabel>Theme</FieldLabel>
-              <select
-                value={appearance.theme}
-                disabled={disabled}
-                onChange={(event) => update('theme', event.target.value as ChatSurfaceAppearance['theme'])}
-                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </label>
-            <div>
-              <FieldLabel>Primary color</FieldLabel>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={appearance.primary_color}
-                  disabled={disabled}
-                  onChange={(event) => update('primary_color', event.target.value.toUpperCase())}
-                  className="h-10 w-14 rounded-lg border border-border bg-background p-1 disabled:opacity-60"
-                />
-                <code className="text-xs text-muted">{appearance.primary_color}</code>
-              </div>
-            </div>
-          </div>
-          <label className="block">
-            <FieldLabel>Placeholder</FieldLabel>
-            <Input
-              value={appearance.placeholder}
-              disabled={disabled}
-              maxLength={120}
-              onChange={(event) => update('placeholder', event.target.value)}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Welcome message</FieldLabel>
-            <Textarea
-              value={appearance.welcome_message ?? ''}
-              disabled={disabled}
-              rows={3}
-              maxLength={500}
-              onChange={(event) => update('welcome_message', event.target.value)}
-            />
-          </label>
-        </div>
-      </Section>
+  const resetSection = () => {
+    if (disabled) return
 
-      <Section title="Header" description="Control the top bar independently from the rest of the chat.">
-        <label className="mb-4 flex items-center gap-2 text-sm text-white">
-          <input
-            type="checkbox"
-            checked={appearance.header.visible}
+    if (section === 'general') {
+      onChange({
+        ...appearance,
+        theme: DEFAULT_CHAT_SURFACE_APPEARANCE.theme,
+        primary_color: DEFAULT_CHAT_SURFACE_APPEARANCE.primary_color,
+        title: DEFAULT_CHAT_SURFACE_APPEARANCE.title,
+        placeholder: DEFAULT_CHAT_SURFACE_APPEARANCE.placeholder,
+        welcome_message: DEFAULT_CHAT_SURFACE_APPEARANCE.welcome_message,
+      })
+      return
+    }
+    if (section === 'header') {
+      update('header', { ...DEFAULT_CHAT_SURFACE_APPEARANCE.header })
+      return
+    }
+    if (section === 'surface') {
+      onChange({
+        ...appearance,
+        surface: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.surface },
+        conversation: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.conversation },
+      })
+      return
+    }
+    if (section === 'messages') {
+      update('messages', {
+        ...appearance.messages,
+        [messageRole]: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.messages[messageRole] },
+      })
+      return
+    }
+    if (section === 'composer') {
+      onChange({
+        ...appearance,
+        composer: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.composer },
+        input: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.input },
+      })
+      return
+    }
+    if (section === 'send-button') {
+      update('send_button', { ...DEFAULT_CHAT_SURFACE_APPEARANCE.send_button })
+      return
+    }
+    onChange({
+      ...appearance,
+      activity: {
+        ...DEFAULT_CHAT_SURFACE_APPEARANCE.activity,
+        labels: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.activity.labels },
+      },
+      response: { ...DEFAULT_CHAT_SURFACE_APPEARANCE.response },
+    })
+  }
+
+  const resetLabel = section === 'messages' ? `Reset ${messageRole}` : 'Reset section'
+  const resetAction = (
+    <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={resetSection}>
+      {resetLabel}
+    </Button>
+  )
+
+  if (section === 'general') {
+    return (
+      <SettingPanel
+        title="General appearance"
+        description="Identity, base theme and the initial conversation copy."
+        action={resetAction}
+      >
+        <SettingRow label="Display title" description="Title rendered in the ChatSurface header when the header is enabled.">
+          <Input
+            value={appearance.title}
             disabled={disabled}
-            onChange={(event) => update('header', { ...appearance.header, visible: event.target.checked })}
+            maxLength={80}
+            onChange={(event) => update('title', event.target.value)}
           />
-          Show header
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <OptionalColorField
-            label="Background"
+        </SettingRow>
+        <SettingRow label="Theme" description="Base color system used when a component does not override a color.">
+          <select
+            value={appearance.theme}
+            disabled={disabled}
+            onChange={(event) => update('theme', event.target.value as ChatSurfaceAppearance['theme'])}
+            className={selectClassName}
+          >
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Primary color" description="Primary accent used by default across the embedded chat.">
+          <PrimaryColorControl
+            value={appearance.primary_color}
+            disabled={disabled}
+            onChange={(primary_color) => update('primary_color', primary_color)}
+          />
+        </SettingRow>
+        <SettingRow label="Placeholder" description="Text shown in the composer before the user types a message.">
+          <Input
+            value={appearance.placeholder}
+            disabled={disabled}
+            maxLength={120}
+            onChange={(event) => update('placeholder', event.target.value)}
+          />
+        </SettingRow>
+        <SettingRow label="Welcome message" description="Optional initial message shown before the first user message." align="start">
+          <Textarea
+            value={appearance.welcome_message ?? ''}
+            disabled={disabled}
+            rows={3}
+            maxLength={500}
+            onChange={(event) => update('welcome_message', event.target.value)}
+          />
+        </SettingRow>
+      </SettingPanel>
+    )
+  }
+
+  if (section === 'header') {
+    return (
+      <SettingPanel
+        title="Header"
+        description="Control the top bar independently from the rest of the conversation."
+        action={resetAction}
+      >
+        <SettingRow label="Visibility" description="Hide the complete top bar when the integrator provides its own surrounding UI.">
+          <ToggleControl
+            checked={appearance.header.visible}
+            label="Show header"
+            disabled={disabled}
+            onChange={(visible) => update('header', { ...appearance.header, visible })}
+          />
+        </SettingRow>
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.header.background_color}
             fallback={appearance.primary_color}
             disabled={disabled}
             onChange={(background_color) => update('header', { ...appearance.header, background_color })}
           />
-          <OptionalColorField
-            label="Text"
+        </SettingRow>
+        <SettingRow label="Text color">
+          <OptionalColorControl
             value={appearance.header.text_color}
             fallback="#FFFFFF"
             disabled={disabled}
             onChange={(text_color) => update('header', { ...appearance.header, text_color })}
           />
-          <OptionalColorField
-            label="Border"
+        </SettingRow>
+        <SettingRow label="Border color">
+          <OptionalColorControl
             value={appearance.header.border_color}
             fallback="#CBD1DC"
             disabled={disabled}
             onChange={(border_color) => update('header', { ...appearance.header, border_color })}
           />
-          <NumberField
-            label="Border width"
+        </SettingRow>
+        <SettingRow label="Border width">
+          <NumberControl
             value={appearance.header.border_width}
             min={0}
             max={4}
@@ -340,8 +518,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_width) => update('header', { ...appearance.header, border_width })}
           />
-          <NumberField
-            label="Height"
+        </SettingRow>
+        <SettingRow label="Height">
+          <NumberControl
             value={appearance.header.height}
             min={40}
             max={96}
@@ -349,8 +528,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(height) => update('header', { ...appearance.header, height })}
           />
-          <NumberField
-            label="Horizontal padding"
+        </SettingRow>
+        <SettingRow label="Horizontal padding">
+          <NumberControl
             value={appearance.header.padding}
             min={0}
             max={40}
@@ -358,43 +538,52 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(padding) => update('header', { ...appearance.header, padding })}
           />
-          <label className="block">
-            <FieldLabel>Alignment</FieldLabel>
-            <select
-              value={appearance.header.alignment}
-              disabled={disabled}
-              onChange={(event) => update('header', {
-                ...appearance.header,
-                alignment: event.target.value as ChatSurfaceAppearance['header']['alignment'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </label>
-        </div>
-      </Section>
+        </SettingRow>
+        <SettingRow label="Alignment" description="Horizontal placement of the header title.">
+          <select
+            value={appearance.header.alignment}
+            disabled={disabled}
+            onChange={(event) => update('header', {
+              ...appearance.header,
+              alignment: event.target.value as ChatSurfaceAppearance['header']['alignment'],
+            })}
+            className={selectClassName}
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </SettingRow>
+      </SettingPanel>
+    )
+  }
 
-      <Section title="Chat surface" description="Outer surface and the scrolling conversation area.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <OptionalColorField
-            label="Surface background"
+  if (section === 'surface') {
+    return (
+      <SettingPanel
+        title="Surface and conversation"
+        description="Configure the outer ChatSurface shell and the scrolling message area without mixing them with message bubble styles."
+        action={resetAction}
+      >
+        <SubsectionTitle title="Surface" description="Outer boundary of the embedded ChatSurface." />
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.surface.background_color}
             fallback="#F7F8FB"
             disabled={disabled}
             onChange={(background_color) => update('surface', { ...appearance.surface, background_color })}
           />
-          <OptionalColorField
-            label="Surface border"
+        </SettingRow>
+        <SettingRow label="Border color">
+          <OptionalColorControl
             value={appearance.surface.border_color}
             fallback="#E2E5EC"
             disabled={disabled}
             onChange={(border_color) => update('surface', { ...appearance.surface, border_color })}
           />
-          <NumberField
-            label="Surface border width"
+        </SettingRow>
+        <SettingRow label="Border width">
+          <NumberControl
             value={appearance.surface.border_width}
             min={0}
             max={4}
@@ -402,8 +591,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_width) => update('surface', { ...appearance.surface, border_width })}
           />
-          <NumberField
-            label="Surface radius"
+        </SettingRow>
+        <SettingRow label="Radius">
+          <NumberControl
             value={appearance.surface.border_radius}
             min={0}
             max={32}
@@ -411,32 +601,35 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_radius) => update('surface', { ...appearance.surface, border_radius })}
           />
-          <label className="block">
-            <FieldLabel>Shadow</FieldLabel>
-            <select
-              value={appearance.surface.shadow}
-              disabled={disabled}
-              onChange={(event) => update('surface', {
-                ...appearance.surface,
-                shadow: event.target.value as ChatSurfaceAppearance['surface']['shadow'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="none">None</option>
-              <option value="sm">Small</option>
-              <option value="md">Medium</option>
-              <option value="lg">Large</option>
-            </select>
-          </label>
-          <OptionalColorField
-            label="Conversation background"
+        </SettingRow>
+        <SettingRow label="Shadow">
+          <select
+            value={appearance.surface.shadow}
+            disabled={disabled}
+            onChange={(event) => update('surface', {
+              ...appearance.surface,
+              shadow: event.target.value as ChatSurfaceAppearance['surface']['shadow'],
+            })}
+            className={selectClassName}
+          >
+            <option value="none">None</option>
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
+          </select>
+        </SettingRow>
+
+        <SubsectionTitle title="Conversation" description="Scrollable area containing messages and execution feedback." />
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.conversation.background_color}
             fallback="#F7F8FB"
             disabled={disabled}
             onChange={(background_color) => update('conversation', { ...appearance.conversation, background_color })}
           />
-          <NumberField
-            label="Conversation padding"
+        </SettingRow>
+        <SettingRow label="Padding">
+          <NumberControl
             value={appearance.conversation.padding}
             min={0}
             max={48}
@@ -444,8 +637,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(padding) => update('conversation', { ...appearance.conversation, padding })}
           />
-          <NumberField
-            label="Message gap"
+        </SettingRow>
+        <SettingRow label="Message gap">
+          <NumberControl
             value={appearance.conversation.message_gap}
             min={0}
             max={32}
@@ -453,8 +647,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(message_gap) => update('conversation', { ...appearance.conversation, message_gap })}
           />
-          <NumberField
-            label="Content width"
+        </SettingRow>
+        <SettingRow label="Content width" description="Maximum width used by the conversation content inside the surface.">
+          <NumberControl
             value={appearance.conversation.max_content_width}
             min={40}
             max={100}
@@ -462,53 +657,60 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(max_content_width) => update('conversation', { ...appearance.conversation, max_content_width })}
           />
-        </div>
-      </Section>
+        </SettingRow>
+      </SettingPanel>
+    )
+  }
 
-      <Section title="Messages" description="Style user, assistant and system messages separately.">
-        <div className="space-y-4">
-          <MessageStyleEditor
-            title="User"
-            value={appearance.messages.user}
-            primaryColor={appearance.primary_color}
-            disabled={disabled}
-            onChange={(user) => update('messages', { ...appearance.messages, user })}
-          />
-          <MessageStyleEditor
-            title="Assistant"
-            value={appearance.messages.assistant}
-            primaryColor="#FFFFFF"
-            disabled={disabled}
-            onChange={(assistant) => update('messages', { ...appearance.messages, assistant })}
-          />
-          <MessageStyleEditor
-            title="System"
-            value={appearance.messages.system}
-            primaryColor="#FFFFFF"
-            disabled={disabled}
-            onChange={(system) => update('messages', { ...appearance.messages, system })}
-          />
-        </div>
-      </Section>
+  if (section === 'messages') {
+    const messageValue = appearance.messages[messageRole]
+    const roleFallback = messageRole === 'user' ? appearance.primary_color : '#FFFFFF'
 
-      <Section title="Composer and input" description="Customize the bottom composer and text input independently.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <OptionalColorField
-            label="Composer background"
+    return (
+      <SettingPanel
+        title="Messages"
+        description="Edit one message role at a time so User, Assistant and System styling do not expand into three large forms."
+        action={resetAction}
+      >
+        <div className="border-b border-border/60 py-4">
+          <MessageRoleSelector value={messageRole} onChange={setMessageRole} />
+        </div>
+        <MessageRows
+          value={messageValue}
+          primaryColor={roleFallback}
+          disabled={disabled}
+          onChange={(next) => update('messages', { ...appearance.messages, [messageRole]: next })}
+        />
+      </SettingPanel>
+    )
+  }
+
+  if (section === 'composer') {
+    return (
+      <SettingPanel
+        title="Composer and input"
+        description="Configure the bottom composer shell separately from the text input itself."
+        action={resetAction}
+      >
+        <SubsectionTitle title="Composer" description="Container that holds the input and send action." />
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.composer.background_color}
             fallback="#FFFFFF"
             disabled={disabled}
             onChange={(background_color) => update('composer', { ...appearance.composer, background_color })}
           />
-          <OptionalColorField
-            label="Composer border"
+        </SettingRow>
+        <SettingRow label="Border color">
+          <OptionalColorControl
             value={appearance.composer.border_color}
             fallback="#E2E5EC"
             disabled={disabled}
             onChange={(border_color) => update('composer', { ...appearance.composer, border_color })}
           />
-          <NumberField
-            label="Composer padding"
+        </SettingRow>
+        <SettingRow label="Padding">
+          <NumberControl
             value={appearance.composer.padding}
             min={0}
             max={32}
@@ -516,43 +718,51 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(padding) => update('composer', { ...appearance.composer, padding })}
           />
-          <OptionalColorField
-            label="Input background"
+        </SettingRow>
+
+        <SubsectionTitle title="Input" description="Text entry control inside the composer." />
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.input.background_color}
             fallback="#FFFFFF"
             disabled={disabled}
             onChange={(background_color) => update('input', { ...appearance.input, background_color })}
           />
-          <OptionalColorField
-            label="Input text"
+        </SettingRow>
+        <SettingRow label="Text color">
+          <OptionalColorControl
             value={appearance.input.text_color}
             fallback="#172033"
             disabled={disabled}
             onChange={(text_color) => update('input', { ...appearance.input, text_color })}
           />
-          <OptionalColorField
-            label="Placeholder"
+        </SettingRow>
+        <SettingRow label="Placeholder color">
+          <OptionalColorControl
             value={appearance.input.placeholder_color}
             fallback="#667085"
             disabled={disabled}
             onChange={(placeholder_color) => update('input', { ...appearance.input, placeholder_color })}
           />
-          <OptionalColorField
-            label="Input border"
+        </SettingRow>
+        <SettingRow label="Border color">
+          <OptionalColorControl
             value={appearance.input.border_color}
             fallback="#CBD1DC"
             disabled={disabled}
             onChange={(border_color) => update('input', { ...appearance.input, border_color })}
           />
-          <OptionalColorField
-            label="Focus border"
+        </SettingRow>
+        <SettingRow label="Focus border">
+          <OptionalColorControl
             value={appearance.input.focus_border_color}
             fallback={appearance.primary_color}
             disabled={disabled}
             onChange={(focus_border_color) => update('input', { ...appearance.input, focus_border_color })}
           />
-          <NumberField
-            label="Input radius"
+        </SettingRow>
+        <SettingRow label="Radius">
+          <NumberControl
             value={appearance.input.border_radius}
             min={0}
             max={32}
@@ -560,8 +770,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_radius) => update('input', { ...appearance.input, border_radius })}
           />
-          <NumberField
-            label="Font size"
+        </SettingRow>
+        <SettingRow label="Font size">
+          <NumberControl
             value={appearance.input.font_size}
             min={12}
             max={20}
@@ -569,8 +780,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(font_size) => update('input', { ...appearance.input, font_size })}
           />
-          <NumberField
-            label="Vertical padding"
+        </SettingRow>
+        <SettingRow label="Vertical padding">
+          <NumberControl
             value={appearance.input.padding_y}
             min={6}
             max={20}
@@ -578,8 +790,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(padding_y) => update('input', { ...appearance.input, padding_y })}
           />
-          <NumberField
-            label="Horizontal padding"
+        </SettingRow>
+        <SettingRow label="Horizontal padding">
+          <NumberControl
             value={appearance.input.padding_x}
             min={8}
             max={28}
@@ -587,75 +800,82 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(padding_x) => update('input', { ...appearance.input, padding_x })}
           />
-        </div>
-      </Section>
+        </SettingRow>
+      </SettingPanel>
+    )
+  }
 
-      <Section title="Send button" description="Choose label/icon presentation and style the send action separately.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel>Variant</FieldLabel>
-            <select
-              value={appearance.send_button.variant}
-              disabled={disabled}
-              onChange={(event) => update('send_button', {
-                ...appearance.send_button,
-                variant: event.target.value as ChatSurfaceAppearance['send_button']['variant'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="text">Text</option>
-              <option value="icon">Icon</option>
-              <option value="icon_text">Icon + text</option>
-            </select>
-          </label>
-          <label className="block">
-            <FieldLabel>Label</FieldLabel>
-            <Input
-              value={appearance.send_button.label}
-              disabled={disabled}
-              maxLength={32}
-              onChange={(event) => update('send_button', { ...appearance.send_button, label: event.target.value })}
-            />
-          </label>
-          <label className="block">
-            <FieldLabel>Icon</FieldLabel>
-            <select
-              value={appearance.send_button.icon}
-              disabled={disabled}
-              onChange={(event) => update('send_button', {
-                ...appearance.send_button,
-                icon: event.target.value as ChatSurfaceAppearance['send_button']['icon'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="arrow_up">Arrow up</option>
-              <option value="arrow_right">Arrow right</option>
-              <option value="none">No icon</option>
-            </select>
-          </label>
-          <OptionalColorField
-            label="Background"
+  if (section === 'send-button') {
+    return (
+      <SettingPanel
+        title="Send button"
+        description="Choose presentation and style for the message submission action."
+        action={resetAction}
+      >
+        <SettingRow label="Variant" description="Display text, an icon, or both.">
+          <select
+            value={appearance.send_button.variant}
+            disabled={disabled}
+            onChange={(event) => update('send_button', {
+              ...appearance.send_button,
+              variant: event.target.value as ChatSurfaceAppearance['send_button']['variant'],
+            })}
+            className={selectClassName}
+          >
+            <option value="text">Text</option>
+            <option value="icon">Icon</option>
+            <option value="icon_text">Icon + text</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Label">
+          <Input
+            value={appearance.send_button.label}
+            disabled={disabled}
+            maxLength={32}
+            onChange={(event) => update('send_button', { ...appearance.send_button, label: event.target.value })}
+          />
+        </SettingRow>
+        <SettingRow label="Icon">
+          <select
+            value={appearance.send_button.icon}
+            disabled={disabled}
+            onChange={(event) => update('send_button', {
+              ...appearance.send_button,
+              icon: event.target.value as ChatSurfaceAppearance['send_button']['icon'],
+            })}
+            className={selectClassName}
+          >
+            <option value="arrow_up">Arrow up</option>
+            <option value="arrow_right">Arrow right</option>
+            <option value="none">No icon</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Background">
+          <OptionalColorControl
             value={appearance.send_button.background_color}
             fallback={appearance.primary_color}
             disabled={disabled}
             onChange={(background_color) => update('send_button', { ...appearance.send_button, background_color })}
           />
-          <OptionalColorField
-            label="Text"
+        </SettingRow>
+        <SettingRow label="Text color">
+          <OptionalColorControl
             value={appearance.send_button.text_color}
             fallback="#FFFFFF"
             disabled={disabled}
             onChange={(text_color) => update('send_button', { ...appearance.send_button, text_color })}
           />
-          <OptionalColorField
-            label="Border"
+        </SettingRow>
+        <SettingRow label="Border color">
+          <OptionalColorControl
             value={appearance.send_button.border_color}
             fallback={appearance.primary_color}
             disabled={disabled}
             onChange={(border_color) => update('send_button', { ...appearance.send_button, border_color })}
           />
-          <NumberField
-            label="Border width"
+        </SettingRow>
+        <SettingRow label="Border width">
+          <NumberControl
             value={appearance.send_button.border_width}
             min={0}
             max={4}
@@ -663,8 +883,9 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_width) => update('send_button', { ...appearance.send_button, border_width })}
           />
-          <NumberField
-            label="Radius"
+        </SettingRow>
+        <SettingRow label="Radius">
+          <NumberControl
             value={appearance.send_button.border_radius}
             min={0}
             max={32}
@@ -672,87 +893,85 @@ export function ChatSurfaceAppearanceEditor({
             disabled={disabled}
             onChange={(border_radius) => update('send_button', { ...appearance.send_button, border_radius })}
           />
-        </div>
-      </Section>
+        </SettingRow>
+      </SettingPanel>
+    )
+  }
 
-      <Section title="Activity and response" description="Control waiting feedback and how assistant responses are rendered.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <FieldLabel>Waiting state</FieldLabel>
-            <select
-              value={appearance.activity.mode}
-              disabled={disabled}
-              onChange={(event) => update('activity', {
-                ...appearance.activity,
-                mode: event.target.value as ChatSurfaceAppearance['activity']['mode'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="dots">Typing dots</option>
-              <option value="status">Execution status</option>
-            </select>
-          </label>
-          <label className="block">
-            <FieldLabel>Activity detail</FieldLabel>
-            <select
-              value={appearance.activity.detail_level}
-              disabled={disabled || appearance.activity.mode !== 'status'}
-              onChange={(event) => update('activity', {
-                ...appearance.activity,
-                detail_level: event.target.value as ChatSurfaceAppearance['activity']['detail_level'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="generic">Generic</option>
-              <option value="named">Named when explicitly configured</option>
-            </select>
-          </label>
-          <label className="block">
-            <FieldLabel>Response rendering</FieldLabel>
-            <select
-              value={appearance.response.render_mode}
-              disabled={disabled}
-              onChange={(event) => update('response', {
-                render_mode: event.target.value as ChatSurfaceAppearance['response']['render_mode'],
-              })}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-60"
-            >
-              <option value="rich">Rich</option>
-              <option value="plain">Plain text</option>
-            </select>
-          </label>
-          <label className="flex items-end gap-2 pb-2 text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={appearance.activity.show_icon}
-              disabled={disabled || appearance.activity.mode !== 'status'}
-              onChange={(event) => update('activity', { ...appearance.activity, show_icon: event.target.checked })}
-            />
-            Show activity spinner
-          </label>
-        </div>
-        {appearance.activity.mode === 'status' ? (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {(Object.keys(appearance.activity.labels) as Array<keyof typeof appearance.activity.labels>).map((key) => (
-              <label key={key} className="block">
-                <FieldLabel>{key.replaceAll('_', ' ')}</FieldLabel>
-                <Input
-                  value={appearance.activity.labels[key]}
-                  disabled={disabled}
-                  maxLength={80}
-                  onChange={(event) => update('activity', {
-                    ...appearance.activity,
-                    labels: { ...appearance.activity.labels, [key]: event.target.value },
-                  })}
-                />
-              </label>
-            ))}
-          </div>
-        ) : null}
-        <p className="mt-4 text-[11px] leading-5 text-muted">
-          Activity displays normalized execution states only. Reasoning, prompts, tool payloads and trace internals are never rendered in ChatSurface.
-        </p>
-      </Section>
-    </div>
+  return (
+    <SettingPanel
+      title="Activity and response"
+      description="Control public waiting feedback and how assistant responses are rendered. Runtime reasoning and trace internals remain private."
+      action={resetAction}
+    >
+      <SettingRow label="Response rendering" description="Rich mode renders the supported safe formatting subset; plain mode renders literal text.">
+        <select
+          value={appearance.response.render_mode}
+          disabled={disabled}
+          onChange={(event) => update('response', {
+            render_mode: event.target.value as ChatSurfaceAppearance['response']['render_mode'],
+          })}
+          className={selectClassName}
+        >
+          <option value="rich">Rich</option>
+          <option value="plain">Plain text</option>
+        </select>
+      </SettingRow>
+      <SettingRow label="Waiting state" description="Use simple typing dots or normalized execution status labels.">
+        <select
+          value={appearance.activity.mode}
+          disabled={disabled}
+          onChange={(event) => update('activity', {
+            ...appearance.activity,
+            mode: event.target.value as ChatSurfaceAppearance['activity']['mode'],
+          })}
+          className={selectClassName}
+        >
+          <option value="dots">Typing dots</option>
+          <option value="status">Execution status</option>
+        </select>
+      </SettingRow>
+      <SettingRow label="Activity detail" description="Named detail remains opt-in and only uses explicitly public labels.">
+        <select
+          value={appearance.activity.detail_level}
+          disabled={disabled || appearance.activity.mode !== 'status'}
+          onChange={(event) => update('activity', {
+            ...appearance.activity,
+            detail_level: event.target.value as ChatSurfaceAppearance['activity']['detail_level'],
+          })}
+          className={selectClassName}
+        >
+          <option value="generic">Generic</option>
+          <option value="named">Named when explicitly configured</option>
+        </select>
+      </SettingRow>
+      <SettingRow label="Activity indicator">
+        <ToggleControl
+          checked={appearance.activity.show_icon}
+          label="Show activity spinner"
+          disabled={disabled || appearance.activity.mode !== 'status'}
+          onChange={(show_icon) => update('activity', { ...appearance.activity, show_icon })}
+        />
+      </SettingRow>
+
+      {appearance.activity.mode === 'status' ? (
+        <>
+          <SubsectionTitle title="Public status labels" description="Only normalized public execution states are exposed to the ChatSurface." />
+          {(Object.keys(appearance.activity.labels) as Array<keyof typeof appearance.activity.labels>).map((key) => (
+            <SettingRow key={key} label={key.replaceAll('_', ' ')}>
+              <Input
+                value={appearance.activity.labels[key]}
+                disabled={disabled}
+                maxLength={80}
+                onChange={(event) => update('activity', {
+                  ...appearance.activity,
+                  labels: { ...appearance.activity.labels, [key]: event.target.value },
+                })}
+              />
+            </SettingRow>
+          ))}
+        </>
+      ) : null}
+    </SettingPanel>
   )
 }
