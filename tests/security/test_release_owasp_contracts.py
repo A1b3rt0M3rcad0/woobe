@@ -21,7 +21,11 @@ def manifest_keys(environment: str) -> set[str]:
 
 def settings_environment_keys() -> set[str]:
     tree = ast.parse(read("src/shared/infra/config/config.py"))
-    settings_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Settings")
+    settings_class = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "Settings"
+    )
     fields = {
         node.target.id
         for node in settings_class.body
@@ -49,7 +53,7 @@ def test_production_frontend_has_required_browser_security_headers() -> None:
 
 
 def test_default_community_compose_has_explicit_product_boundary() -> None:
-    compose = read("compose.yml")
+    compose = read("compose.yaml")
 
     for service in ("db", "rabbitmq", "migrate", "api", "workers", "web", "chat-embed"):
         assert f"\n  {service}:\n" in compose
@@ -98,7 +102,7 @@ def test_environment_manifest_covers_settings_and_uses_woobe_namespace() -> None
 
 
 def test_default_compose_uses_the_environment_manifest_explicitly() -> None:
-    compose = read("compose.yml")
+    compose = read("compose.yaml")
     assert "env_file:" in compose
     assert "- .env" in compose
     for key in (

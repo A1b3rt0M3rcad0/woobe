@@ -49,3 +49,4 @@ jobs:
           name: woobe-backend-test-evidence
           path: .test-artifacts
           if-no-files-found: warn
+          include-hidden-files: true
