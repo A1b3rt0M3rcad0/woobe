@@ -41,8 +41,12 @@ def build_internal_runtime_body(
     payload: PublicRunRequest,
     principal: ProjectApiPrincipal,
 ) -> dict:
+    body = payload.model_dump()
+    metadata = dict(payload.metadata or {})
+    metadata.setdefault("source", "public_runtime")
     return {
-        **payload.model_dump(),
+        **body,
+        "metadata": metadata,
         "project_id": principal.project_id,
         "agent_id": principal.agent_id,
         "execution_context": principal.environment,
