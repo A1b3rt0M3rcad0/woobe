@@ -94,6 +94,7 @@ jobs:
         run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
       - name: Upload backend evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: acceptance-backend-evidence
@@ -174,6 +175,7 @@ jobs:
         run: docker compose down -v --remove-orphans
       - name: Upload smoke evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: acceptance-community-smoke-evidence
