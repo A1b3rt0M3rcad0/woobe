@@ -161,11 +161,6 @@ function normalizeOriginInput(value: string): { value?: string; error?: string }
     return { error: 'Wildcards are not allowed' }
   }
 
-  const localHost = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)
-  if (parsed.protocol === 'http:' && !localHost) {
-    return { error: 'Use HTTPS outside local development' }
-  }
-
   return { value: parsed.origin }
 }
 
@@ -658,7 +653,7 @@ export function ChatSurfaceDetailsModal({
           </Button>
         </div>
         <p className="mt-2 text-[11px] leading-5 text-muted">
-          HTTPS is required outside local development. The backend remains authoritative for origin validation.
+          HTTP origins require insecure origins to be enabled on the Woobe instance. HTTPS is recommended for production.
         </p>
       </section>
     </div>
