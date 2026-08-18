@@ -31,7 +31,10 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN python -m pip uninstall --yes pip \
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall --yes pip \
     && groupadd --system --gid 10001 woobe \
     && useradd --system --uid 10001 --gid woobe --home-dir /app --shell /usr/sbin/nologin woobe
 
