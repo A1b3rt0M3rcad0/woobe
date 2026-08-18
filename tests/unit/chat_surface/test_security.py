@@ -27,17 +27,26 @@ def test_origin_normalization_requires_exact_https_origin() -> None:
         normalize_origin("http://app.example.com")
 
 
-def test_local_http_origin_is_only_allowed_explicitly() -> None:
+def test_http_origins_are_only_allowed_explicitly() -> None:
+    insecure_origins = (
+        "http://localhost:5173",
+        "http://[::1]:5173",
+        "http://192.168.1.12:3000",
+        "http://10.0.0.15:5173",
+        "http://internal-service:3000",
+    )
+
+    for origin in insecure_origins:
+        with pytest.raises(ValidationError):
+            normalize_origin(origin)
+        assert normalize_origin(origin, allow_insecure=True) == origin
+
     with pytest.raises(ValidationError):
-        normalize_origin("http://localhost:5173")
-    assert (
-        normalize_origin("http://localhost:5173", allow_insecure=True)
-        == "http://localhost:5173"
-    )
-    assert (
-        normalize_origin("http://[::1]:5173", allow_insecure=True)
-        == "http://[::1]:5173"
-    )
+        normalize_origin("http://192.168.1.12:3000/path", allow_insecure=True)
+    with pytest.raises(ValidationError):
+        normalize_origin("http://*.internal:3000", allow_insecure=True)
+    with pytest.raises(ValidationError):
+        normalize_origin("http://user:secret@192.168.1.12:3000", allow_insecure=True)
 
 
 def test_session_token_round_trip_preserves_all_bindings() -> None:
