@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
     chat_surface_enabled: bool = True
+    chat_surface_allow_insecure_origins: bool = False
     chat_token_signing_key: str = ""
     chat_token_issuer: str = "woobe-chat"
     chat_token_audience: str = "woobe-chat-embed"
@@ -111,6 +112,7 @@ class Settings(BaseSettings):
     network_worker_slots: int = Field(default=4, ge=1, le=100)
     http_tool_timeout_max_ms: int = Field(default=30000, gt=0, le=120000)
     http_tool_response_max_bytes: int = Field(default=1048576, gt=0, le=16777216)
+    http_tool_allow_local_networks: bool = False
     db_pool_size: int = Field(default=20, gt=0, le=200)
     db_max_overflow: int = Field(default=10, ge=0, le=200)
     cors_origins: str = (

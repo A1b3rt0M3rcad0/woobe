@@ -60,7 +60,9 @@ class AskJobWorker:
         llm_factory = LangchainLLMFactory()
         settings = Settings()
         cipher = SecretCipherAdapter(settings.encryption_key)
-        http_exec = HttpToolExecutor()
+        http_exec = HttpToolExecutor(
+            allow_local_networks=settings.http_tool_allow_local_networks
+        )
         job_session_id = (job.params or {}).get("session_id")
 
         async def read_runtime_tools(tool_ids: list[UUID]):

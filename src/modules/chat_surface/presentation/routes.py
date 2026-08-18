@@ -49,11 +49,18 @@ def _service(request: Request) -> ControlPlaneChatSurfaceService:
     settings = request.app.state.settings
     if not settings.chat_surface_enabled:
         raise NotFoundError("ChatSurface is not enabled")
+    local_environment = settings.environment.strip().lower() in {
+        "development",
+        "dev",
+        "test",
+        "local",
+    }
     return ControlPlaneChatSurfaceService(
         request.app.state.session_factory,
         request.app.state.chat_session_token_codec,
-        allow_insecure_origins=settings.environment.strip().lower()
-        in {"development", "dev", "test", "local"},
+        allow_insecure_origins=(
+            settings.chat_surface_allow_insecure_origins or local_environment
+        ),
         max_metadata_bytes=settings.runtime_max_metadata_bytes,
     )
 

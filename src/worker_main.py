@@ -29,6 +29,7 @@ def _configure_http_tool_runtime(settings: Settings) -> HttpToolExecutor:
         default_timeout_ms=settings.http_tool_timeout_max_ms,
         max_timeout_ms=settings.http_tool_timeout_max_ms,
         max_response_bytes=settings.http_tool_response_max_bytes,
+        allow_local_networks=settings.http_tool_allow_local_networks,
     )
     configure_http_tool_executor(executor)
     return executor
