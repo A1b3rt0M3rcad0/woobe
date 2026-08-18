@@ -44,8 +44,7 @@ def normalize_origin(value: str, *, allow_insecure: bool = False) -> str:
         raise ValidationError("ChatSurface origins cannot contain wildcards")
     if scheme not in {"http", "https"}:
         raise ValidationError("ChatSurface origins must use HTTP(S)")
-    local = hostname in {"localhost", "127.0.0.1", "::1"}
-    if scheme != "https" and not (allow_insecure and local):
+    if scheme != "https" and not allow_insecure:
         raise ValidationError("ChatSurface origins must use HTTPS")
     default_port = 443 if scheme == "https" else 80
     try:
