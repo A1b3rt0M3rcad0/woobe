@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"})
 ALLOWED_SCHEMES = frozenset({"http", "https"})
-SAFE_RESPONSE_HEADERS = frozenset({"content-type", "mcp-session-id", "x-mcp-session-id", "www-authenticate"})
+SAFE_RESPONSE_HEADERS = frozenset(
+    {"content-type", "mcp-session-id", "x-mcp-session-id", "www-authenticate"}
+)
 
 
 def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
@@ -35,16 +37,28 @@ def _safe_response_headers(headers: httpx.Headers) -> dict[str, str]:
     }
 
 
-def _blocked_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return (
-        not address.is_global
-        or address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
-    )
+def _blocked_address(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+    *,
+    allow_local_networks: bool = False,
+) -> bool:
+    if address.is_global:
+        return False
+
+    if allow_local_networks and address.is_loopback:
+        return False
+
+    if (
+        allow_local_networks
+        and address.is_private
+        and not address.is_link_local
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
+    ):
+        return False
+
+    return True
 
 
 def _resolved_addresses(hostname: str) -> frozenset[str]:
@@ -55,7 +69,11 @@ def _resolved_addresses(hostname: str) -> frozenset[str]:
     return frozenset(str(sockaddr[0]) for *_prefix, sockaddr in addrinfo)
 
 
-def _validated_public_addresses(url: str) -> frozenset[str] | None:
+def _validated_addresses(
+    url: str,
+    *,
+    allow_local_networks: bool,
+) -> frozenset[str] | None:
     try:
         parsed = urlparse(url)
     except ValueError:
@@ -75,9 +93,17 @@ def _validated_public_addresses(url: str) -> frozenset[str] | None:
             address = ipaddress.ip_address(raw_address)
         except ValueError:
             return None
-        if _blocked_address(address):
+        if _blocked_address(address, allow_local_networks=allow_local_networks):
             return None
     return addresses
+
+
+def _validated_public_addresses(url: str) -> frozenset[str] | None:
+    return _validated_addresses(url, allow_local_networks=False)
+
+
+def _validated_local_addresses(url: str) -> frozenset[str] | None:
+    return _validated_addresses(url, allow_local_networks=True)
 
 
 def _connected_peer_address(response: httpx.Response) -> str | None:
@@ -120,7 +146,7 @@ def _sanitize_error(error: str) -> str:
 
 
 class HttpToolExecutor(ToolExecutionPort):
-    """HTTP tool executor with bounded I/O and SSRF controls."""
+    """HTTP tool executor with bounded I/O and configurable SSRF controls."""
 
     def __init__(
         self,
@@ -129,10 +155,12 @@ class HttpToolExecutor(ToolExecutionPort):
         *,
         max_timeout_ms: int = 30000,
         max_response_bytes: int = 1048576,
+        allow_local_networks: bool = False,
     ) -> None:
         self._default_timeout_ms = min(default_timeout_ms, max_timeout_ms)
         self._max_timeout_ms = max_timeout_ms
         self._max_response_bytes = max_response_bytes
+        self._allow_local_networks = allow_local_networks
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             limits=httpx.Limits(
@@ -159,13 +187,22 @@ class HttpToolExecutor(ToolExecutionPort):
         if normalized_method not in ALLOWED_HTTP_METHODS:
             return ExecutionResult(success=False, error="HTTP method is not allowed")
 
-        first_resolution = _validated_public_addresses(url)
+        validator = (
+            _validated_local_addresses
+            if self._allow_local_networks
+            else _validated_public_addresses
+        )
+        first_resolution = validator(url)
         if first_resolution is None:
+            allowed_scope = "public or local" if self._allow_local_networks else "public"
             return ExecutionResult(
                 success=False,
-                error=f"SSRF blocked: target URL is not public: {redact_url(url)}",
+                error=(
+                    f"SSRF blocked: target URL is not {allowed_scope}: "
+                    f"{redact_url(url)}"
+                ),
             )
-        second_resolution = _validated_public_addresses(url)
+        second_resolution = validator(url)
         if second_resolution != first_resolution:
             return ExecutionResult(
                 success=False,

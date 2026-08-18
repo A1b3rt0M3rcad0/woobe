@@ -111,6 +111,7 @@ class Settings(BaseSettings):
     network_worker_slots: int = Field(default=4, ge=1, le=100)
     http_tool_timeout_max_ms: int = Field(default=30000, gt=0, le=120000)
     http_tool_response_max_bytes: int = Field(default=1048576, gt=0, le=16777216)
+    http_tool_allow_local_networks: bool = False
     db_pool_size: int = Field(default=20, gt=0, le=200)
     db_max_overflow: int = Field(default=10, ge=0, le=200)
     cors_origins: str = (
