@@ -27,18 +27,21 @@ def test_community_distribution_accepts_community_edition() -> None:
     assert settings.managed_billing_enabled is False
 
 
-def test_chat_surface_insecure_origins_are_opt_in() -> None:
+def test_chat_surface_insecure_origins_are_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     default_settings = Settings(
         edition="community",
         secret_key="s" * 32,
         encryption_key="e" * 16,
     )
+    assert default_settings.chat_surface_allow_insecure_origins is False
+
+    monkeypatch.setenv("WOOBE_CHAT_SURFACE_ALLOW_INSECURE_ORIGINS", "true")
     enabled_settings = Settings(
         edition="community",
         secret_key="s" * 32,
         encryption_key="e" * 16,
-        chat_surface_allow_insecure_origins=True,
     )
 
-    assert default_settings.chat_surface_allow_insecure_origins is False
     assert enabled_settings.chat_surface_allow_insecure_origins is True
