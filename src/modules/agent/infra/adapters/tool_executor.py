@@ -42,20 +42,19 @@ def _blocked_address(
     *,
     allow_local_networks: bool = False,
 ) -> bool:
-    if address.is_global:
-        return False
+    if address.is_link_local or address.is_multicast or address.is_unspecified:
+        return True
 
     if allow_local_networks and address.is_loopback:
         return False
 
-    if (
-        allow_local_networks
-        and address.is_private
-        and not address.is_link_local
-        and not address.is_multicast
-        and not address.is_reserved
-        and not address.is_unspecified
-    ):
+    if address.is_reserved:
+        return True
+
+    if address.is_global:
+        return False
+
+    if allow_local_networks and address.is_private:
         return False
 
     return True
