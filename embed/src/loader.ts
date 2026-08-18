@@ -1,3 +1,5 @@
+import { randomUuid } from "./random-uuid";
+
 const PROTOCOL_VERSION = 1 as const;
 
 type FrameEventType =
@@ -62,7 +64,7 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
   const frameUrl = resolveFrameUrl(options.iframeBaseUrl);
   const frameOrigin = frameUrl.origin;
   const hostOrigin = window.location.origin;
-  const instanceId = crypto.randomUUID();
+  const instanceId = randomUuid();
   const iframe = document.createElement("iframe");
   frameUrl.searchParams.set("surface", options.surfaceId);
   frameUrl.searchParams.set("instance", instanceId);

@@ -11,6 +11,7 @@ import {
   isHostMessage,
   type FrameEventType,
 } from "./protocol";
+import { randomUuid } from "./random-uuid";
 import "./styles.css";
 
 interface SurfaceConfiguration {
@@ -196,7 +197,7 @@ async function sendMessage(message: string) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": crypto.randomUUID(),
+        "Idempotency-Key": randomUuid(),
       },
       body: JSON.stringify({ message }),
     });
