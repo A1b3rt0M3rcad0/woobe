@@ -52,6 +52,8 @@ jobs:
           artifact-name: woobe-api-sbom.spdx.json
           output-file: .test-artifacts/woobe-api-sbom.spdx.json
           format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
       - name: Generate Web SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
@@ -59,6 +61,8 @@ jobs:
           artifact-name: woobe-web-sbom.spdx.json
           output-file: .test-artifacts/woobe-web-sbom.spdx.json
           format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
       - name: Generate ChatSurface SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
@@ -66,6 +70,8 @@ jobs:
           artifact-name: woobe-chat-embed-sbom.spdx.json
           output-file: .test-artifacts/woobe-chat-embed-sbom.spdx.json
           format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
       - name: Render third-party dependency inventory
         run: |
           python - <<'PY'
@@ -104,6 +110,7 @@ jobs:
           output.write_text('\n'.join(lines), encoding='utf-8')
           PY
       - name: Upload third-party dependency inventory
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: woobe-third-party-inventory
