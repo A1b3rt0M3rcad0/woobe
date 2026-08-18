@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Separator } from '@/components/ui/Separator'
-import { Clock, MessageSquare, Circle, Plus, Loader2, Activity } from 'lucide-react'
+import { Activity, AlertTriangle, Circle, Clock, Loader2, MessageSquare, Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SessionListItem } from '@/features/playground/types'
 
@@ -17,6 +17,9 @@ interface SessionsPanelProps {
   isInitialLoading?: boolean
   isLoadingMore?: boolean
   isCreatingSession?: boolean
+  isError?: boolean
+  errorMessage?: string
+  onRetry?: () => void
 }
 
 function formatDate(dateStr: string | null): string {
@@ -28,6 +31,15 @@ function formatDate(dateStr: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatSource(session: SessionListItem): string | null {
+  const source = session.data?.source
+  if (typeof source !== 'string' || !source.trim()) return null
+  if (source === 'playground') return 'Playground'
+  if (source === 'public_runtime') return 'API'
+  if (source === 'chat_surface') return 'ChatSurface'
+  return source
 }
 
 function SessionSkeleton() {
@@ -54,11 +66,15 @@ export function SessionsPanel({
   isInitialLoading = false,
   isLoadingMore = false,
   isCreatingSession = false,
+  isError = false,
+  errorMessage,
+  onRetry,
 }: SessionsPanelProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const newSessionsDisabled = sessionMode === 'stateless' || Boolean(creationDisabledReason)
   const disabledReason = creationDisabledReason
     ?? (sessionMode === 'stateless' ? 'This Agent runtime is stateless and cannot create persistent Sessions' : undefined)
+  const selectedSessionMissing = Boolean(currentSessionId) && !sessions.some((session) => session.id === currentSessionId)
 
   useEffect(() => {
     const node = sentinelRef.current
@@ -119,11 +135,47 @@ export function SessionsPanel({
         </div>
       )}
 
-      {!isInitialLoading && sessions.length === 0 && (
+      {!isInitialLoading && isError && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-red-500/20 bg-red-500/[0.04] px-4 py-8 text-center">
+          <AlertTriangle className="mb-2 h-8 w-8 text-red-300" />
+          <p className="text-sm font-medium text-white">Couldn&apos;t load Sessions</p>
+          <p className="mt-1 max-w-xs text-xs leading-5 text-muted">{errorMessage || 'The Sessions list could not be loaded from the runtime.'}</p>
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-background/55 px-3 text-xs font-medium text-white transition-colors hover:bg-background/80"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {!isInitialLoading && !isError && selectedSessionMissing && sessions.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-4 py-8 text-center">
+          <AlertTriangle className="mb-2 h-8 w-8 text-amber-300" />
+          <p className="text-sm font-medium text-white">Session list is out of sync</p>
+          <p className="mt-1 max-w-xs text-xs leading-5 text-muted">The runtime returned a selected Session, but it is not present in the current environment list.</p>
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/80 bg-background/55 px-3 text-xs font-medium text-white transition-colors hover:bg-background/80"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh Sessions
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {!isInitialLoading && !isError && !currentSessionId && sessions.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/45 px-4 py-8 text-center">
           <MessageSquare className="mb-2 h-8 w-8 text-muted" />
           <p className="text-sm text-muted">No sessions yet</p>
-          <p className="mt-1 text-xs text-muted">{newSessionsDisabled ? 'Persistent Sessions cannot be created in the current runtime state.' : 'Create a Session to test this Agent.'}</p>
+          <p className="mt-1 text-xs text-muted">{newSessionsDisabled ? 'Persistent Sessions cannot be created in the current runtime state.' : 'Create a Session or execute this stateful Agent.'}</p>
           {!newSessionsDisabled ? (
             <button
               type="button"
@@ -140,9 +192,16 @@ export function SessionsPanel({
 
       {sessions.length > 0 && (
         <div className="space-y-1.5">
+          {selectedSessionMissing && !isError ? (
+            <div className="mb-2 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3 text-xs leading-5 text-muted">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+              <p>The selected Session is not present in the loaded Sessions page. Refresh the list before continuing it.</p>
+            </div>
+          ) : null}
           {sessions.map((session) => {
             const isCurrent = session.id === currentSessionId
             const openedVersion = session.opened_release_version
+            const source = formatSource(session)
             return (
               <button
                 type="button"
@@ -176,6 +235,7 @@ export function SessionsPanel({
                     {formatDate(session.last_message_at || session.created_at)}
                   </span>
                   <span>{session.message_count ?? 0} msgs</span>
+                  {source ? <span>{source}</span> : null}
                 </div>
               </button>
             )

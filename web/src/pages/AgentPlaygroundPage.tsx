@@ -146,7 +146,10 @@ function PlaygroundContent() {
     fetchNextPage: fetchNextSessionsPage,
     hasNextPage: hasMoreSessions,
     isLoading: sessionsLoading,
+    isFetching: sessionsFetching,
     isFetchingNextPage: sessionsLoadingMore,
+    isError: sessionsError,
+    error: sessionsQueryError,
   } = useAgentSessions(agentId, projectId, environment)
 
   const releaseVersionById = useMemo(
@@ -523,7 +526,35 @@ function PlaygroundContent() {
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
-          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={selectedSessionId} sessionMode={agentSessionMode} sessionCreationDisabledReason={sessionCreationDisabledReason} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
+          {showLeftPanel && (
+            <OperationsPanel
+              activeTab={leftPanelTab}
+              lastResponse={lastResponse}
+              lastRequestPayload={lastRequestPayload}
+              rawEvents={rawEvents}
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              sessions={sessions}
+              sessionId={selectedSessionId}
+              sessionMode={agentSessionMode}
+              sessionCreationDisabledReason={sessionCreationDisabledReason}
+              onSelectTrace={setSelectedTraceId}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSessionSelect}
+              onLoadMoreSessions={handleLoadMoreSessions}
+              hasMoreSessions={Boolean(hasMoreSessions)}
+              sessionsLoading={sessionsLoading || sessionsFetching}
+              sessionsLoadingMore={sessionsLoadingMore}
+              creatingSession={creatingSession}
+              sessionsError={sessionsError}
+              sessionsErrorMessage={sessionsQueryError instanceof Error ? sessionsQueryError.message : undefined}
+              onSessionsRetry={() => { void refetchSessions() }}
+              tracesLoading={tracesLoading}
+              tracesError={tracesError}
+              tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
+              onTracesRetry={refetchTraces}
+            />
+          )}
           <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>

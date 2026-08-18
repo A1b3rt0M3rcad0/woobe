@@ -28,6 +28,9 @@ interface OperationsPanelProps {
   sessionsLoading?: boolean
   sessionsLoadingMore?: boolean
   creatingSession?: boolean
+  sessionsError?: boolean
+  sessionsErrorMessage?: string
+  onSessionsRetry?: () => void
   tracesLoading?: boolean
   tracesError?: boolean
   tracesErrorMessage?: string
@@ -54,6 +57,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
     sessionsLoading,
     sessionsLoadingMore,
     creatingSession,
+    sessionsError,
+    sessionsErrorMessage,
+    onSessionsRetry,
     tracesLoading,
     tracesError,
     tracesErrorMessage,
@@ -117,6 +123,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
         isInitialLoading={sessionsLoading}
         isLoadingMore={sessionsLoadingMore}
         isCreatingSession={creatingSession}
+        isError={sessionsError}
+        errorMessage={sessionsErrorMessage}
+        onRetry={onSessionsRetry}
       />
     )
 
