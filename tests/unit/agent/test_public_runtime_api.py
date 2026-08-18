@@ -76,7 +76,7 @@ async def test_public_run_maps_runtime_key_binding_to_internal_request() -> None
         "session_id": None,
         "tenant_id": None,
         "user_id": None,
-        "metadata": None,
+        "metadata": {"source": "public_runtime"},
         "project_id": principal.project_id,
         "agent_id": principal.agent_id,
         "execution_context": "staging",
@@ -90,7 +90,8 @@ async def test_request_preparer_rejects_missing_production_release() -> None:
         list_by_status=AsyncMock(),
     )
     session_repo = SimpleNamespace(get_by_id=AsyncMock())
-    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo)
+    agent_repo = SimpleNamespace(get_by_id=AsyncMock())
+    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo, agent_repo)
     agent_id = uuid4()
 
     with pytest.raises(RuntimeEnvironmentNotReadyError, match="No production release"):
@@ -104,6 +105,7 @@ async def test_request_preparer_rejects_missing_production_release() -> None:
 
 @pytest.mark.asyncio
 async def test_request_preparer_ignores_session_for_stateless_release() -> None:
+    project_id = uuid4()
     release = AgentRelease(
         agent_id=uuid4(),
         status=ReleaseStatus.staging,
@@ -114,11 +116,19 @@ async def test_request_preparer_ignores_session_for_stateless_release() -> None:
         list_by_status=AsyncMock(return_value=[release]),
     )
     session_repo = SimpleNamespace(get_by_id=AsyncMock())
-    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo)
+    agent_repo = SimpleNamespace(
+        get_by_id=AsyncMock(
+            return_value=SimpleNamespace(
+                project_id=project_id,
+                session_mode="stateless",
+            )
+        )
+    )
+    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo, agent_repo)
 
     prepared = await preparer.prepare(
         PublicRunRequest(message="Hello", session_id=uuid4()),
-        project_id=uuid4(),
+        project_id=project_id,
         agent_id=release.agent_id,
         environment="staging",
     )
@@ -151,7 +161,15 @@ async def test_request_preparer_rejects_session_from_another_agent() -> None:
             )
         )
     )
-    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo)
+    agent_repo = SimpleNamespace(
+        get_by_id=AsyncMock(
+            return_value=SimpleNamespace(
+                project_id=project_id,
+                session_mode="stateful",
+            )
+        )
+    )
+    preparer = PublicRuntimeRequestPreparer(release_repo, session_repo, agent_repo)
 
     with pytest.raises(SessionNotFoundError):
         await preparer.prepare(
